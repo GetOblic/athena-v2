@@ -1,36 +1,228 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Athena
 
-## Getting Started
+> Institutional Intelligence Operating System
 
-First, run the development server:
+Athena transforms real-world market conversations into structured executive intelligence.
+
+Rather than acting as a generic AI chatbot, Athena continuously analyzes discussions, identifies opportunities, synthesizes community intelligence, recommends production assets, and assists executives with evidence-based decision making.
+
+---
+
+# Current Status
+
+**Version:** 1.0 RC1
+
+Current capabilities include:
+
+- Discussion Intelligence
+- Community Intelligence
+- Production Intelligence
+- Executive Briefings
+- Human Approval Workflow
+- OpenRouter LLM integration
+- Supabase persistence
+- Executive Dashboard
+
+---
+
+# Vision
+
+Athena is designed as an Institutional Intelligence Operating System.
+
+Its objective is to transform fragmented online conversations into actionable business intelligence.
+
+The long-term intelligence pipeline is:
+
+```
+Discussion
+        ↓
+Discussion Analysis
+        ↓
+Community Intelligence
+        ↓
+Production Intelligence
+        ↓
+Executive Briefings
+        ↓
+Human Approval
+        ↓
+Execution
+        ↓
+Business Results
+        ↓
+Institutional Learning
+```
+
+Athena does not replace executive judgment.
+
+Athena augments executive decision-making.
+
+---
+
+# Technology Stack
+
+Frontend
+
+- Next.js 16
+- React
+- TypeScript
+- Tailwind CSS
+
+Backend
+
+- Supabase
+- PostgreSQL
+
+AI
+
+- OpenRouter
+- Structured JSON prompting
+- Strategy Packs
+
+Architecture
+
+- Service Layer
+- API Routes
+- Institutional Intelligence Framework
+- Executive-first UI
+
+---
+
+# Repository Structure
+
+```
+app/
+    Dashboard
+    Communities
+    Discussions
+    Opportunities
+    Executive Briefings
+    API Routes
+
+components/
+    Dashboard
+    Discussions
+    Communities
+    Opportunities
+
+services/
+    AI Services
+    Prompt Library
+    Business Logic
+
+architecture/
+    Institutional Intelligence documentation
+
+lib/
+    OpenRouter
+    Supabase
+```
+
+---
+
+# Intelligence Pipeline
+
+Current intelligence flow:
+
+```
+Discussion
+        ↓
+Discussion Analysis
+        ↓
+Community Intelligence
+        ↓
+Production Intelligence
+        ↓
+Executive Briefing
+```
+
+Every recommendation produced by Athena must be grounded in:
+
+- Real market conversations
+- Strategy Packs
+- Institutional Memory
+- Structured reasoning
+- Human approval
+
+---
+
+# Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run locally:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Production build:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Production server:
 
-## Learn More
+```bash
+npm run start
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Project Principles
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Athena follows several core principles:
 
-## Deploy on Vercel
+- Evidence before assumptions
+- Structured intelligence over generic AI
+- Human supervision
+- Executive-first user experience
+- Modular architecture
+- Production-ready engineering
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Documentation
+
+Project architecture is documented under:
+
+```
+architecture/
+```
+
+Current documents include:
+
+- Knowledge & Intelligence Framework
+- Cognitive Architecture
+- Intelligence Profiles
+- Market Intelligence
+- Production Planning
+
+---
+
+# Roadmap
+
+Near-term priorities:
+
+- Executive Dashboard refinement
+- Discussion Intelligence improvements
+- Community Intelligence evolution
+- Production Planning workflow
+- Executive Briefings UX
+- Deployment & monitoring
+- Continuous institutional learning
+
+---
+
+# License
+
+Private repository.
+
+Copyright © Oblic Studio.
+
+All rights reserved.
