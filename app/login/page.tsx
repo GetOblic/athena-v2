@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -17,10 +18,10 @@ export default function LoginPage({
 
     const supabase = await createSupabaseServerClient();
 
-    const origin =
-      process.env.OPENROUTER_SITE_URL ||
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      "http://localhost:3000";
+    const headerStore = await headers();
+    const host = headerStore.get("host");
+    const protocol = host?.includes("localhost") ? "http" : "https";
+    const origin = `${protocol}://${host}`;
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
