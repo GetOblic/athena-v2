@@ -1,0 +1,27 @@
+import { getCommunityCount } from "@/services/communityService";
+
+export async function StatsCards() {
+    const communityCount = await getCommunityCount();
+
+    const metrics = [
+        ["Communities", String(communityCount), "Active monitored groups"],
+        ["Discussions", "0", "Discussions awaiting analysis"],
+        ["Opportunities", "0", "High-value conversations"],
+        ["Executive Briefings", "0", "Pending Executive Briefings"],
+    ];
+
+    return (
+        <div className="grid gap-6 md:grid-cols-4">
+            {metrics.map(([title, value, subtitle]) => (
+                <div
+                    key={title}
+                    className="rounded-[22px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-7"
+                >
+                    <div className="text-sm text-white/40">{title}</div>
+                    <div className="mt-6 text-5xl font-semibold">{value}</div>
+                    <div className="mt-3 text-xs text-white/30">{subtitle}</div>
+                </div>
+            ))}
+        </div>
+    );
+}
