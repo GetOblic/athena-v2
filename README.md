@@ -35,22 +35,24 @@ The long-term intelligence pipeline is:
 
 ```
 Discussion
-        ↓
+        │
+        ▼
 Discussion Analysis
-        ↓
+        │
+        ▼
 Community Intelligence
-        ↓
+        │
+        ▼
 Production Intelligence
-        ↓
+        │
+        ▼
 Executive Briefings
-        ↓
+        │
+        ▼
 Human Approval
-        ↓
+        │
+        ▼
 Execution
-        ↓
-Business Results
-        ↓
-Institutional Learning
 ```
 
 Athena does not replace executive judgment.
