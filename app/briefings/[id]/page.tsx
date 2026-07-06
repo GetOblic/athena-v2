@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { ReviewStatusActions } from "@/components/opportunities/ReviewStatusActions";
+import { buildBriefingDeploymentAssets } from "@/lib/deploymentAssets";
 import { getReviewById } from "@/services/reviewService";
 
 type Props = {
@@ -17,6 +19,8 @@ export default async function BriefingPage({ params }: Props) {
   if (!review) {
     notFound();
   }
+
+  const deploymentAssets = buildBriefingDeploymentAssets(review);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">
@@ -75,27 +79,22 @@ export default async function BriefingPage({ params }: Props) {
         </div>
       </div>
 
+      {deploymentAssets.length > 0 && (
+        <div className="mt-8">
+          <DeploymentAssets assets={deploymentAssets} />
+        </div>
+      )}
+
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <h2 className="mb-8 text-3xl font-semibold">Athena Intelligence</h2>
+        <h2 className="mb-2 text-3xl font-semibold">Executive Briefing</h2>
+        <p className="mb-8 text-sm text-white/45">
+          Decision support — strategic context for operator review.
+        </p>
 
         <div className="space-y-8">
           <Field label="Executive Summary" value={review.summary} />
-
           <Field label="Pain Points" value={review.pain_points} />
-
-          <Field
-            label="Copy-Paste Output"
-            sublabel="Recommended Response"
-            helper="Ready to copy into external communications."
-            value={review.recommended_response}
-          />
-
-          <Field
-            label="Copy-Paste Output"
-            sublabel="CTA"
-            helper="Ready to copy into external communications."
-            value={review.cta}
-          />
+          <Field label="Buyer Stage" value={review.buyer_stage} />
         </div>
       </div>
 

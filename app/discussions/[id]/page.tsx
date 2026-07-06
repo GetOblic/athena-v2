@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
+import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
 import { getCommunityById } from "@/services/communityService";
 import { getDiscussionById } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
@@ -29,6 +31,7 @@ export default async function DiscussionDetailsPage({
     : null;
 
   const latestAnalysis = await getLatestDiscussionAnalysis(id);
+  const deploymentAssets = buildDiscussionDeploymentAssets(latestAnalysis);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
@@ -36,7 +39,7 @@ export default async function DiscussionDetailsPage({
         ← Back to Discussions
       </Link>
 
-      <div className="mt-10 flex flex-colap-6 lg:flex-row lg:items-end lg:justify-between">
+      <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
             Discussion Intelligence
@@ -62,6 +65,12 @@ export default async function DiscussionDetailsPage({
           highlight="orange"
         />
       </div>
+
+      {deploymentAssets.length > 0 && (
+        <div className="mt-8">
+          <DeploymentAssets assets={deploymentAssets} />
+        </div>
+      )}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-3">
         <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:col-span-2">
@@ -121,12 +130,6 @@ export default async function DiscussionDetailsPage({
                   sublabel="Recommended Action"
                   value={latestAnalysis.recommended_action}
                   helper="Guidance for internal decision-making."
-                />
-                <Field
-                  label="Copy-Paste Output"
-                  sublabel="Suggested CTA"
-                  value={latestAnalysis.suggested_cta}
-                  helper="Ready to copy into external communications."
                 />
                 <Field label="Risk Level" value={latestAnalysis.risk_level} />
                 <Field label="Confidence" value={`${latestAnalysis.confidence}%`} />

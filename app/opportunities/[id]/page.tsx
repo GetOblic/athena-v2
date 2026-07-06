@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { GenerateReviewButton } from "@/components/opportunities/GenerateReviewButton";
+import { ReviewStatusActions } from "@/components/opportunities/ReviewStatusActions";
+import { buildOpportunityDeploymentAssets } from "@/lib/deploymentAssets";
 import { getOpportunityById } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
-import { ReviewStatusActions } from "@/components/opportunities/ReviewStatusActions";
 
 type Props = {
   params: Promise<{
@@ -21,6 +23,10 @@ export default async function OpportunityPage({ params }: Props) {
   }
 
   const latestReview = await getLatestReviewByOpportunityId(id);
+  const deploymentAssets = buildOpportunityDeploymentAssets(
+    opportunity,
+    latestReview,
+  );
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">
@@ -63,12 +69,6 @@ export default async function OpportunityPage({ params }: Props) {
             value={opportunity.recommended_action}
             helper="Guidance for internal decision-making."
           />
-          <Field
-            label="Copy-Paste Output"
-            sublabel="Suggested CTA"
-            value={opportunity.suggested_cta}
-            helper="Ready to copy into external communications."
-          />
           <Field label="AI Summary" value={opportunity.ai_summary} />
           <Field
             label="Strategic Recommendation"
@@ -78,6 +78,12 @@ export default async function OpportunityPage({ params }: Props) {
           />
         </div>
       </div>
+
+      {deploymentAssets.length > 0 && (
+        <div className="mt-8">
+          <DeploymentAssets assets={deploymentAssets} />
+        </div>
+      )}
 
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
         <div className="mb-6 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -105,18 +111,6 @@ export default async function OpportunityPage({ params }: Props) {
             <Field label="Summary" value={latestReview.summary} />
             <Field label="Pain Points" value={latestReview.pain_points} />
             <Field label="Buyer Stage" value={latestReview.buyer_stage} />
-            <Field
-              label="Copy-Paste Output"
-              value={latestReview.recommended_response}
-              helper="Ready to copy into external communications."
-              sublabel="Recommended Response"
-            />
-            <Field
-              label="Copy-Paste Output"
-              value={latestReview.cta}
-              helper="Ready to copy into external communications."
-              sublabel="CTA"
-            />
             <Field label="Confidence" value={`${latestReview.confidence}%`} />
           </div>
         ) : (
