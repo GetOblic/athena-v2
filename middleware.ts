@@ -1,12 +1,18 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-export async function middleware(request: NextRequest) {
-  const host = request.nextUrl.hostname;
+const CLOUDWAYS_HOST = "phpstack-1560927-6533124.cloudwaysapps.com";
+const CANONICAL_HOST = "athena.getoblic.com";
 
-  if (host === "phpstack-1560927-6533124.cloudwaysapps.com") {
-    const redirectUrl = new URL(request.nextUrl.pathname + request.nextUrl.search, "https://athena.getoblic.com");
-    return Response.redirect(redirectUrl, 301);
+export async function middleware(request: NextRequest) {
+  const host =
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    request.nextUrl.hostname;
+
+  if (host.includes(CLOUDWAYS_HOST)) {
+    const redirectUrl = new URL(request.nextUrl.pathname + request.nextUrl.search, `https://${CANONICAL_HOST}`);
+    return NextResponse.redirect(redirectUrl, 301);
   }
 
   return updateSession(request);
