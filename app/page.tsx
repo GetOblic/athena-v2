@@ -10,7 +10,6 @@ const navItems = [
   { label: "Discussions", href: "/discussions" },
   { label: "Opportunities", href: "/opportunities" },
   { label: "Briefings", href: "/briefings" },
-  { label: "System", href: "/system" },
 ];
 
 export default function Home() {

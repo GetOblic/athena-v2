@@ -6,7 +6,11 @@ export default async function OpportunitiesPage() {
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <div className="mb-10">
+      <Link href="/" className="text-sm text-[var(--athena-orange)]">
+        ← Dashboard
+      </Link>
+
+      <div className="mb-10 mt-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
           Opportunity Engine
         </div>

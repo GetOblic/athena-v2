@@ -33,12 +33,17 @@ export function AnalyzeDiscussionButton({ discussionId }: { discussionId: string
 
   return (
     <div>
+      <p className="mb-4 text-sm leading-6 text-white/40">
+        Regenerates the current AI analysis from the source discussion. Existing
+        fields will be replaced with a fresh pass.
+      </p>
+
       <button
         onClick={handleAnalyze}
         disabled={isAnalyzing}
         className="w-full rounded-full bg-[var(--athena-orange)] px-6 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isAnalyzing ? "Analyzing Discussion..." : "Analyze Discussion"}
+        {isAnalyzing ? "Refreshing AI Analysis..." : "Refresh AI Analysis"}
       </button>
 
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}

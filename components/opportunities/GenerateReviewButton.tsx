@@ -33,12 +33,17 @@ export function GenerateReviewButton({ opportunityId }: { opportunityId: string 
 
   return (
     <div>
+      <p className="mb-4 max-w-md text-sm leading-6 text-white/40">
+        Regenerates the current executive briefing from this opportunity. The
+        latest briefing fields will be replaced with a fresh pass.
+      </p>
+
       <button
         onClick={handleGenerate}
         disabled={isGenerating}
         className="rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isGenerating ? "Generating Executive Briefing..." : "Generate Executive Briefing"}
+        {isGenerating ? "Refreshing Executive Briefing..." : "Refresh Executive Briefing"}
       </button>
 
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}

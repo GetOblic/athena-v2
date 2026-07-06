@@ -49,7 +49,7 @@ export function ReviewStatusActions({
           disabled={isUpdating || currentStatus === "approved"}
           className="rounded-2xl bg-emerald-500 px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {currentStatus === "approved" ? "Approved" : "Approve"}
+          {currentStatus === "approved" ? "Briefing Approved" : "Approve Briefing"}
         </button>
 
         <button
@@ -57,8 +57,13 @@ export function ReviewStatusActions({
           disabled={isUpdating || currentStatus === "rejected"}
           className="rounded-2xl bg-red-500 px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {currentStatus === "rejected" ? "Rejected" : "Reject"}
+          {currentStatus === "rejected" ? "Marked for Revision" : "Needs Revision"}
         </button>
+      </div>
+
+      <div className="max-w-md space-y-1 text-xs leading-5 text-white/40">
+        <p>Approve marks this briefing as ready for use.</p>
+        <p>Needs Revision marks it for another pass.</p>
       </div>
 
       {error && <div className="text-sm text-red-400">{error}</div>}

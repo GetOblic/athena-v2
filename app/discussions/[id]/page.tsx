@@ -117,10 +117,17 @@ export default async function DiscussionDetailsPage({
                   value={latestAnalysis.opportunity_reason}
                 />
                 <Field
-                  label="Recommended Action"
+                  label="Strategic Recommendation"
+                  sublabel="Recommended Action"
                   value={latestAnalysis.recommended_action}
+                  helper="Guidance for internal decision-making."
                 />
-                <Field label="Suggested CTA" value={latestAnalysis.suggested_cta} />
+                <Field
+                  label="Copy-Paste Output"
+                  sublabel="Suggested CTA"
+                  value={latestAnalysis.suggested_cta}
+                  helper="Ready to copy into external communications."
+                />
                 <Field label="Risk Level" value={latestAnalysis.risk_level} />
                 <Field label="Confidence" value={`${latestAnalysis.confidence}%`} />
               </>
@@ -164,10 +171,28 @@ function Metric({
   );
 }
 
-function Field({ label, value }: { label: string; value?: string | null }) {
+function Field({
+  label,
+  value,
+  helper,
+  sublabel,
+}: {
+  label: string;
+  value?: string | null;
+  helper?: string;
+  sublabel?: string;
+}) {
   return (
     <div>
-      <div className="text-sm text-white/40">{label}</div>
+      <div className="text-sm text-white/40">
+        {label}
+        {sublabel && (
+          <span className="ml-2 text-xs text-white/30">({sublabel})</span>
+        )}
+      </div>
+      {helper && (
+        <div className="mt-1 text-xs leading-5 text-white/30">{helper}</div>
+      )}
       <div className="mt-2 text-base leading-7 text-white/80">{value || "—"}</div>
     </div>
   );

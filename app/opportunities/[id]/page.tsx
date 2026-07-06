@@ -57,10 +57,25 @@ export default async function OpportunityPage({ params }: Props) {
 
         <div className="space-y-6">
           <Field label="Reason" value={opportunity.reason} />
-          <Field label="Recommended Action" value={opportunity.recommended_action} />
-          <Field label="Suggested CTA" value={opportunity.suggested_cta} />
+          <Field
+            label="Strategic Recommendation"
+            sublabel="Recommended Action"
+            value={opportunity.recommended_action}
+            helper="Guidance for internal decision-making."
+          />
+          <Field
+            label="Copy-Paste Output"
+            sublabel="Suggested CTA"
+            value={opportunity.suggested_cta}
+            helper="Ready to copy into external communications."
+          />
           <Field label="AI Summary" value={opportunity.ai_summary} />
-          <Field label="AI Recommendation" value={opportunity.ai_recommendation} />
+          <Field
+            label="Strategic Recommendation"
+            sublabel="AI Recommendation"
+            value={opportunity.ai_recommendation}
+            helper="Guidance for internal decision-making."
+          />
         </div>
       </div>
 
@@ -91,10 +106,17 @@ export default async function OpportunityPage({ params }: Props) {
             <Field label="Pain Points" value={latestReview.pain_points} />
             <Field label="Buyer Stage" value={latestReview.buyer_stage} />
             <Field
-              label="Recommended Response"
+              label="Copy-Paste Output"
               value={latestReview.recommended_response}
+              helper="Ready to copy into external communications."
+              sublabel="Recommended Response"
             />
-            <Field label="CTA" value={latestReview.cta} />
+            <Field
+              label="Copy-Paste Output"
+              value={latestReview.cta}
+              helper="Ready to copy into external communications."
+              sublabel="CTA"
+            />
             <Field label="Confidence" value={`${latestReview.confidence}%`} />
           </div>
         ) : (
@@ -131,10 +153,28 @@ function Metric({
   );
 }
 
-function Field({ label, value }: { label: string; value?: string | null }) {
+function Field({
+  label,
+  value,
+  helper,
+  sublabel,
+}: {
+  label: string;
+  value?: string | null;
+  helper?: string;
+  sublabel?: string;
+}) {
   return (
     <div>
-      <div className="mb-2 text-white/40">{label}</div>
+      <div className="mb-2 text-white/40">
+        {label}
+        {sublabel && (
+          <span className="ml-2 text-xs text-white/30">({sublabel})</span>
+        )}
+      </div>
+      {helper && (
+        <div className="mb-2 text-xs leading-5 text-white/30">{helper}</div>
+      )}
       <div className="leading-7 text-white/80">{value || "—"}</div>
     </div>
   );
