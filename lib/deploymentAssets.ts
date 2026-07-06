@@ -26,6 +26,63 @@ function dedupeAssets(assets: DeploymentAsset[]): DeploymentAsset[] {
   });
 }
 
+const LABELS: Record<string, { title: string; objective: string }> = {
+  COMMUNITY_REPLY: {
+    title: "Community Reply",
+    objective: "Public reply ready to post directly in the discussion.",
+  },
+  PRIVATE_MESSAGE: {
+    title: "Private Message",
+    objective: "Direct message version for moving the conversation privately.",
+  },
+  SOCIAL_POST: {
+    title: "Social Media Post",
+    objective: "Standalone post inspired by this opportunity.",
+  },
+  FOLLOW_UP: {
+    title: "Follow-up Reply",
+    objective: "Short reply to use if the prospect responds positively.",
+  },
+  CALL_TO_ACTION: {
+    title: "Call to Action",
+    objective: "Exact CTA sentence ready to paste.",
+  },
+};
+
+function parseLabeledAssets(value?: string | null): DeploymentAsset[] {
+  if (!isNonEmpty(value)) {
+    return [];
+  }
+
+  const matches = [...value.matchAll(/(?:^|\n)(COMMUNITY_REPLY|PRIVATE_MESSAGE|SOCIAL_POST|FOLLOW_UP|CALL_TO_ACTION):\s*/g)];
+
+  if (matches.length === 0) {
+    return [];
+  }
+
+  return matches
+    .map((match, index) => {
+      const label = match[1];
+      const start = (match.index ?? 0) + match[0].length;
+      const next = matches[index + 1];
+      const end = next?.index ?? value.length;
+      const content = value.slice(start, end).trim();
+
+      if (!content) {
+        return null;
+      }
+
+      const meta = LABELS[label];
+
+      return {
+        title: meta.title,
+        objective: meta.objective,
+        content,
+      };
+    })
+    .filter((asset): asset is DeploymentAsset => Boolean(asset));
+}
+
 export function buildDiscussionDeploymentAssets(
   analysis: DiscussionAnalysis | null,
 ): DeploymentAsset[] {
@@ -33,12 +90,17 @@ export function buildDiscussionDeploymentAssets(
     return [];
   }
 
+  const structuredAssets = parseLabeledAssets(analysis.suggested_cta);
+  if (structuredAssets.length > 0) {
+    return dedupeAssets(structuredAssets);
+  }
+
   const assets: DeploymentAsset[] = [];
 
   if (isNonEmpty(analysis.suggested_cta)) {
     assets.push({
-      title: "Call to Action",
-      objective: "Soft CTA ready to paste into community engagement.",
+      title: "Primary Reply",
+      objective: "Copy-ready response generated from Athena's analysis.",
       content: analysis.suggested_cta,
     });
   }
@@ -53,27 +115,39 @@ export function buildOpportunityDeploymentAssets(
   const assets: DeploymentAsset[] = [];
 
   if (latestReview && isNonEmpty(latestReview.recommended_response)) {
-    assets.push({
-      title: "Community Reply",
-      objective: "Public community response ready to post.",
-      content: latestReview.recommended_response,
-    });
+    const structuredAssets = parseLabeledAssets(latestReview.recommended_response);
+
+    if (structuredAssets.length > 0) {
+      assets.push(...structuredAssets);
+    } else {
+      assets.push({
+        title: "Community Reply",
+        objective: "Public community response ready to post.",
+        content: latestReview.recommended_response,
+      });
+    }
   }
 
   if (latestReview && isNonEmpty(latestReview.cta)) {
     assets.push({
-      title: "CTA",
-      objective: "Call to action from the executive briefing.",
+      title: "Call to Action",
+      objective: "Exact CTA from the executive briefing.",
       content: latestReview.cta,
     });
   }
 
   if (isNonEmpty(opportunity.suggested_cta)) {
-    assets.push({
-      title: "CTA",
-      objective: "Suggested call to action from opportunity analysis.",
-      content: opportunity.suggested_cta,
-    });
+    const structuredAssets = parseLabeledAssets(opportunity.suggested_cta);
+
+    if (structuredAssets.length > 0) {
+      assets.push(...structuredAssets);
+    } else {
+      assets.push({
+        title: "Call to Action",
+        objective: "Suggested call to action from opportunity analysis.",
+        content: opportunity.suggested_cta,
+      });
+    }
   }
 
   return normalizeSingleAsset(dedupeAssets(assets));
@@ -84,7 +158,10 @@ export function buildBriefingDeploymentAssets(
 ): DeploymentAsset[] {
   const assets: DeploymentAsset[] = [];
 
-  if (isNonEmpty(review.recommended_response)) {
+  const structuredAssets = parseLabeledAssets(review.recommended_response);
+  if (structuredAssets.length > 0) {
+    assets.push(...structuredAssets);
+  } else if (isNonEmpty(review.recommended_response)) {
     assets.push({
       title: "Community Reply",
       objective: "Public community response ready to post.",
@@ -94,11 +171,11 @@ export function buildBriefingDeploymentAssets(
 
   if (isNonEmpty(review.cta)) {
     assets.push({
-      title: "CTA",
-      objective: "Call to action for the next engagement step.",
+      title: "Call to Action",
+      objective: "Exact CTA for the next engagement step.",
       content: review.cta,
     });
   }
 
-  return normalizeSingleAsset(assets);
+  return normalizeSingleAsset(dedupeAssets(assets));
 }
