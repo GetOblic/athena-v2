@@ -42,7 +42,7 @@ export function GenerateCommunityIntelligenceButton({
         disabled={isGenerating}
         className="rounded-full bg-[var(--athena-orange)] px-6 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isGenerating ? "Generating Intelligence..." : "Generate Community Intelligence"}
+        {isGenerating ? "Refreshing Intelligence..." : "Refresh Intelligence"}
       </button>
 
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}

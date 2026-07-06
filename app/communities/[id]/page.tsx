@@ -2,6 +2,7 @@ import Link from "next/link";
 import { GenerateCommunityIntelligenceButton } from "@/components/communities/GenerateCommunityIntelligenceButton";
 import { getCommunityById } from "@/services/communityService";
 import { getLatestCommunityIntelligenceByCommunityId } from "@/services/communityIntelligenceService";
+import { getDiscussionsByCommunityId } from "@/services/discussionService";
 
 export default async function CommunityDetailsPage({
   params,
@@ -23,11 +24,13 @@ export default async function CommunityDetailsPage({
     );
   }
 
-  const latestIntelligence =
-    await getLatestCommunityIntelligenceByCommunityId(id);
+  const [latestIntelligence, discussions] = await Promise.all([
+    getLatestCommunityIntelligenceByCommunityId(id),
+    getDiscussionsByCommunityId(id),
+  ]);
 
   return (
-    <main className="mih-screen bg-[var(--athena-bg)] p-10 text-white">
+    <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
       <Link href="/communities" className="text-sm text-[var(--athena-orange)]">
         ← Back to Communities
       </Link>
@@ -57,26 +60,8 @@ export default async function CommunityDetailsPage({
       </div>
 
       <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <h2 className="text-xl font-semibold">Community Profile</h2>
-
-        <div className="mt-8 grid gap-6 md:grid-cols-2">
-          <Field label="Niche" value={community.niche} />
-          <Field label="Member Count" value={community.member_count?.toString()} />
-          <Field label="Owner" value={community.owner} />
-          <Field label="URL" value={community.group_url} />
-        </div>
-
-        <div className="mt-8">
-          <div className="text-sm text-white/40">Notes</div>
-          <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/60">
-            {community.notes || "No notes yet."}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-xl font-semibold">Latest Community Intelligence</h2>
+          <h2 className="text-xl font-semibold">Community Intelligence</h2>
 
           {latestIntelligence && (
             <div className="text-sm text-white/40">
@@ -108,6 +93,69 @@ export default async function CommunityDetailsPage({
             No Community Intelligence has been generated yet.
           </div>
         )}
+      </div>
+
+      <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+        <h2 className="text-xl font-semibold">Captured Discussions</h2>
+
+        {discussions.length === 0 ? (
+          <div className="mt-8 text-white/50">
+            No discussions captured for this community yet.
+          </div>
+        ) : (
+          <div className="mt-8 space-y-4">
+            {discussions.map((discussion) => (
+              <div
+                key={discussion.id}
+                className="rounded-[18px] border border-white/10 bg-black/20 p-5"
+              >
+                <div className="flex items-start justify-between gap-6">
+                  <div className="min-w-0">
+                    <div className="text-lg font-semibold">{discussion.title}</div>
+
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/40">
+                      <span>
+                        Opportunity Score{" "}
+                        <span className="font-semibold text-[var(--athena-orange)]">
+                          {discussion.opportunity_score}
+                        </span>
+                      </span>
+                      <span className="text-[var(--athena-warning)]">
+                        {discussion.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Link
+                    href={`/discussions/${discussion.id}`}
+                    className="shrink-0 rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
+                  >
+                    Analyze
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+        <h2 className="text-xl font-semibold">Community Profile</h2>
+
+        <div className="mt-8 grid gap-6 md:grid-cols-2">
+          <Field label="Niche" value={community.niche} />
+          <Field label="Member Count" value={community.member_count?.toString()} />
+          <Field label="Owner" value={community.owner} />
+          <Field label="URL" value={community.group_url} />
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+        <h2 className="text-xl font-semibold">Notes</h2>
+
+        <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/60">
+          {community.notes || "No notes yet."}
+        </div>
       </div>
     </main>
   );

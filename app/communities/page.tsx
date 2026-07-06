@@ -16,8 +16,8 @@ export default async function CommunitiesPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Monitored groups, communities, forums and discussion spaces used by
-          Athena for acquisition intelligence.
+          Communities continuously monitored by Athena for market intelligence,
+          opportunity detection and executive briefing generation.
         </p>
       </div>
 
