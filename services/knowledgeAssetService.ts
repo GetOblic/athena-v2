@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { supabase } from "@/lib/supabase";
 
 export type KnowledgeAssetInput = {
   title: string;
@@ -15,8 +15,6 @@ export type KnowledgeAssetInput = {
 };
 
 export async function createKnowledgeAsset(input: KnowledgeAssetInput) {
-  const supabase = await createClient();
-
   const { data, error } = await supabase
     .from("knowledge_assets")
     .insert({
@@ -44,8 +42,6 @@ export async function createKnowledgeAsset(input: KnowledgeAssetInput) {
 }
 
 export async function getKnowledgeAssets() {
-  const supabase = await createClient();
-
   const { data, error } = await supabase
     .from("knowledge_assets")
     .select("*")
@@ -60,8 +56,6 @@ export async function getKnowledgeAssets() {
 }
 
 export async function getKnowledgeAssetsByCommunity(communityId: string) {
-  const supabase = await createClient();
-
   const { data, error } = await supabase
     .from("knowledge_assets")
     .select("*")
