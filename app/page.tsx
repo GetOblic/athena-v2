@@ -1,16 +1,16 @@
+import Link from "next/link";
 import { Header } from "@/components/dashboard/Header";
 import { OperatingQueue } from "@/components/dashboard/OperatingQueue";
 import { StatsCards } from "@/components/dashboard/StatsCards";
 import { SystemStatus } from "@/components/dashboard/SystemStatus";
 
 const navItems = [
-  "Dashboard",
-  "Communities",
-  "Discussions",
-  "Knowledge",
-  "Resources",
-  "Reports",
-  "Settings",
+  { label: "Dashboard", href: "/" },
+  { label: "Communities", href: "/communities" },
+  { label: "Discussions", href: "/discussions" },
+  { label: "Opportunities", href: "/opportunities" },
+  { label: "Briefings", href: "/briefings" },
+  { label: "System", href: "/system" },
 ];
 
 export default function Home() {
@@ -27,16 +27,17 @@ export default function Home() {
 
           <nav className="space-y-2 text-sm">
             {navItems.map((item, index) => (
-              <div
-                key={item}
-                className={`rounded-2xl px-5 py-4 transition ${
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`block rounded-2xl px-5 py-4 transition ${
                   index === 0
                     ? "bg-[var(--athena-orange)] text-white shadow-lg shadow-orange-500/20"
                     : "text-white/55 hover:bg-white/5 hover:text-white"
                 }`}
               >
-                {item}
-              </div>
+                {item.label}
+              </Link>
             ))}
           </nav>
 
@@ -51,10 +52,10 @@ export default function Home() {
           <div className="p-10">
             <div className="mb-8">
               <div className="text-sm text-white/40">
-                Good afternoon, Laurent.
+                Welcome back, Laurent.
               </div>
               <div className="mt-1 text-xl font-medium">
-                Athena is ready for today&apos;s operating cycle.
+                Monitor communities, analyze discussions and generate executive briefings.
               </div>
             </div>
 
