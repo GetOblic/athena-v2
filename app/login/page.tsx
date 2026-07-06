@@ -1,13 +1,12 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default function LoginPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ message?: string; redirectedFrom?: string }>;
+  searchParams?: Promise<{ message?: string; email?: string; step?: string }>;
 }) {
-  async function signIn(formData: FormData) {
+  async function sendCode(formData: FormData) {
     "use server";
 
     const email = String(formData.get("email") || "").trim().toLowerCase();
@@ -18,23 +17,51 @@ export default function LoginPage({
 
     const supabase = await createSupabaseServerClient();
 
-    const headerStore = await headers();
-    const host = headerStore.get("host");
-    const protocol = host?.includes("localhost") ? "http" : "https";
-    const origin = `${protocol}://${host}`;
-
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${origin}/auth/callback`,
+        shouldCreateUser: false,
       },
     });
 
     if (error) {
-      redirect(`/login?message=${encodeURIComponent(error.message)}`);
+      redirect(
+        `/login?message=${encodeURIComponent(
+          "Access has not yet been granted for this email.",
+        )}`,
+      );
     }
 
-    redirect("/login?message=Check your email for the login link.");
+    redirect(`/login?step=code&email=${encodeURIComponent(email)}&message=Check your inbox for your Athena access code.`);
+  }
+
+  async function verifyCode(formData: FormData) {
+    "use server";
+
+    const email = String(formData.get("email") || "").trim().toLowerCase();
+    const token = String(formData.get("token") || "").trim();
+
+    if (!email || !token) {
+      redirect("/login?message=Email and code are required");
+    }
+
+    const supabase = await createSupabaseServerClient();
+
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "email",
+    });
+
+    if (error) {
+      redirect(
+        `/login?step=code&email=${encodeURIComponent(email)}&message=${encodeURIComponent(
+          "Invalid or expired code. Please request a new one.",
+        )}`,
+      );
+    }
+
+    redirect("/");
   }
 
   return (
@@ -49,10 +76,33 @@ export default function LoginPage({
         </h1>
 
         <p className="mt-4 text-sm leading-7 text-white/50">
-          Enter your authorized email address. Athena will send you a secure login link.
+          Enter your authorized email address. Athena will send you a secure one-time access code.
         </p>
 
-        <form action={signIn} className="mt-8 space-y-5">
+        <LoginForm searchParams={searchParams} sendCode={sendCode} verifyCode={verifyCode} />
+      </div>
+    </main>
+  );
+}
+
+async function LoginForm({
+  searchParams,
+  sendCode,
+  verifyCode,
+}: {
+  searchParams?: Promise<{ message?: string; email?: string; step?: string }>;
+  sendCode: (formData: FormData) => Promise<void>;
+  verifyCode: (formData: FormData) => Promise<void>;
+}) {
+  const params = searchParams ? await searchParams : {};
+  const isCodeStep = params?.step === "code";
+  const email = params?.email || "";
+  const message = params?.message;
+
+  return (
+    <>
+      {!isCodeStep ? (
+        <form action={sendCode} className="mt-8 space-y-5">
           <input
             name="email"
             type="email"
@@ -65,29 +115,40 @@ export default function LoginPage({
             type="submit"
             className="w-full rounded-full bg-[var(--athena-orange)] px-6 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
           >
-            Send secure login link
+            Email my access code
           </button>
         </form>
+      ) : (
+        <form action={verifyCode} className="mt-8 space-y-5">
+          <input type="hidden" name="email" value={email} />
 
-        <LoginMessage searchParams={searchParams} />
-      </div>
-    </main>
-  );
-}
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
+            Code sent to <span className="text-white">{email}</span>
+          </div>
 
-async function LoginMessage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ message?: string }>;
-}) {
-  const params = searchParams ? await searchParams : {};
-  const message = params?.message;
+          <input
+            name="token"
+            type="text"
+            required
+            inputMode="numeric"
+            placeholder="Enter access code"
+            className="w-full rounded-2xl border border-white/10 bg-black/30 px-5 py-4 text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
+          />
 
-  if (!message) return null;
+          <button
+            type="submit"
+            className="w-full rounded-full bg-[var(--athena-orange)] px-6 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
+          >
+            Verify code and enter Athena
+          </button>
+        </form>
+      )}
 
-  return (
-    <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white/70">
-      {message}
-    </div>
+      {message ? (
+        <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white/70">
+          {message}
+        </div>
+      ) : null}
+    </>
   );
 }
