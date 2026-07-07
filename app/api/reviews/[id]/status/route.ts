@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { approveReview, rejectReview } from "@/services/reviewService";
+import { emitBrainEvent } from "@/services/brain/eventBus";
+import { registerBrainProcessors } from "@/services/brain/brainProcessor";
 
 type RouteContext = {
   params: Promise<{
     id: string;
   }>;
 };
+
+registerBrainProcessors();
 
 export async function POST(request: Request, context: RouteContext) {
   try {
@@ -23,6 +27,10 @@ export async function POST(request: Request, context: RouteContext) {
 
     const review =
       action === "approve" ? await approveReview(id) : await rejectReview(id);
+
+    if (action === "approve" && review?.id) {
+      await emitBrainEvent("briefing.approved", { reviewId: review.id });
+    }
 
     if (!review) {
       return NextResponse.json(
