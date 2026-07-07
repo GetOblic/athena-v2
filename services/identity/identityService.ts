@@ -8,6 +8,7 @@ import {
 export type AthenaIdentity = {
   id: string;
   user_id: string;
+  greeting_name: string | null;
   about_you: string | null;
   expertise: string | null;
   website: string | null;
@@ -22,6 +23,7 @@ export type AthenaIdentity = {
 
 export type UpsertAthenaIdentityInput = {
   userId: string;
+  greetingName?: string | null;
   aboutYou?: string | null;
   expertise?: string | null;
   website?: string | null;
@@ -39,13 +41,8 @@ function parseJsonResponse(rawText: string): Record<string, unknown> {
 
 function normalizeUrl(value: string | null | undefined): string | null {
   const raw = (value ?? "").trim();
-
   if (!raw) return null;
-
-  if (raw.startsWith("http://") || raw.startsWith("https://")) {
-    return raw;
-  }
-
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
   return `https://${raw}`;
 }
 
@@ -69,14 +66,11 @@ async function fetchWebsiteHomepageText(
   website: string | null,
 ): Promise<string | null> {
   const url = normalizeUrl(website);
-
   if (!url) return null;
 
   try {
     const response = await fetch(url, {
-      headers: {
-        "User-Agent": "AthenaIdentityBot/1.0",
-      },
+      headers: { "User-Agent": "AthenaIdentityBot/1.0" },
       signal: AbortSignal.timeout(10000),
     });
 
@@ -159,6 +153,7 @@ export async function upsertAthenaIdentity(
     .upsert(
       {
         user_id: input.userId,
+        greeting_name: input.greetingName ?? null,
         about_you: input.aboutYou ?? null,
         expertise: input.expertise ?? null,
         website: input.website ?? null,

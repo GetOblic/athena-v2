@@ -1,18 +1,41 @@
 import Link from "next/link";
-import { Header } from "@/components/dashboard/Header";
-import { OperatingQueue } from "@/components/dashboard/OperatingQueue";
-import { StatsCards } from "@/components/dashboard/StatsCards";
-import { SystemStatus } from "@/components/dashboard/SystemStatus";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getDashboardStats } from "@/services/dashboardService";
+import { getAthenaIdentityByUserId } from "@/services/identity/identityService";
 
 const navItems = [
   { label: "Dashboard", href: "/" },
-  { label: "Communities", href: "/communities" },
+  { label: "Athena Brain", href: "/identity" },
+  { label: "Inbox", href: "/inbox" },
   { label: "Discussions", href: "/discussions" },
   { label: "Opportunities", href: "/opportunities" },
   { label: "Briefings", href: "/briefings" },
 ];
 
-export default function Home() {
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+export default async function Home() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const [identity, stats] = await Promise.all([
+    getAthenaIdentityByUserId(user.id),
+    getDashboardStats(user.id),
+  ]);
+
+  const name = identity?.greeting_name?.trim() || "there";
+  const brainReady = identity?.brain_status === "ready";
+
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] text-white">
       <div className="flex min-h-screen">
@@ -20,7 +43,7 @@ export default function Home() {
           <div className="mb-12">
             <div className="text-3xl font-bold tracking-tight">ATHENA</div>
             <div className="mt-2 text-sm text-white/45">
-              Institutional Intelligence OS
+              Intelligence OS
             </div>
           </div>
 
@@ -45,28 +68,106 @@ export default function Home() {
           </div>
         </aside>
 
-        <section className="flex-1">
-          <Header />
-
-          <div className="p-10">
-            <div className="mb-8">
-              <div className="text-sm text-white/40">
-                Welcome back, Laurent.
-              </div>
-              <div className="mt-1 text-xl font-medium">
-                Monitor communities, analyze discussions and generate executive briefings.
-              </div>
+        <section className="flex-1 p-10">
+          <div className="mb-12">
+            <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
+              Athena Dashboard
             </div>
 
-            <StatsCards />
+            <h1 className="mt-4 text-5xl font-semibold tracking-tight">
+              {greeting()}, {name}.
+            </h1>
 
-            <div className="mt-10 grid gap-7 lg:grid-cols-3">
-              <OperatingQueue />
-              <SystemStatus />
+            <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
+              Athena is monitoring your market, analyzing discussions,
+              identifying opportunities and preparing reusable strategic assets.
+            </p>
+          </div>
+
+          <div className="mb-10 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-sm uppercase tracking-[0.25em] text-white/35">
+                  Athena Brain
+                </div>
+                <h2 className="mt-3 text-3xl font-semibold">
+                  {brainReady
+                    ? "Your Athena Brain is trained."
+                    : "Your Athena Brain needs training."}
+                </h2>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-white/50">
+                  {brainReady
+                    ? "Athena has learned your voice, expertise, website and professional rules."
+                    : "Train Athena once so every reply, briefing and asset blueprint reflects your voice and expertise."}
+                </p>
+              </div>
+
+              <Link
+                href="/identity"
+                className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
+              >
+                {brainReady ? "Open Brain" : "Train Athena"}
+              </Link>
             </div>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            <Metric label="Discussions analyzed" value={stats.discussions} />
+            <Metric label="Opportunities detected" value={stats.opportunities} />
+            <Metric label="Executive briefings" value={stats.briefings} />
+            <Metric label="Asset blueprints" value={stats.assetBlueprints} />
+          </div>
+
+          <div className="mt-10 grid gap-7 lg:grid-cols-3">
+            <ActionCard
+              title="Review Opportunities"
+              description="See where Athena detected market intent and recommended action."
+              href="/opportunities"
+            />
+            <ActionCard
+              title="Continue Discussions"
+              description="Open captured community conversations and review Athena’s recommended replies."
+              href="/discussions"
+            />
+            <ActionCd
+              title="Open Briefings"
+              description="Review executive briefings, CTAs and strategic recommendations."
+              href="/briefings"
+            />
           </div>
         </section>
       </div>
     </main>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-7">
+      <div className="text-sm text-white/40">{label}</div>
+      <div className="mt-4 text-4xl font-semibold text-[var(--athena-orange)]">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function ActionCard({
+  title,
+  description,
+  href,
+}: {
+  title: string;
+  description: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-7 transition hover:border-[var(--athena-orange)]"
+    >
+      <div className="text-xl font-semibold">{title}</div>
+      <p className="mt-3 text-sm leading-6 text-white/45">{description}</p>
+    </Link>
   );
 }
