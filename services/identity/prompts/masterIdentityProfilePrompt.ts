@@ -5,11 +5,12 @@ export function buildMasterIdentityProfilePrompt(input: {
   aboutYou: string | null;
   expertise: string | null;
   website: string | null;
+  websiteHomepageText?: string | null;
 }) {
   return `
 You are Athena's identity compiler.
 
-Your task is to transform the user's free-form profile into a structured Master Identity Profile.
+Transform the user's free-form profile, expertise, website URL, and website homepage content into a structured Master Identity Profile.
 
 This profile will be used by specialist AI agents to generate community replies, private messages, follow-ups, social posts, CTAs, briefings, and strategic recommendations in the user's voice and expertise.
 
@@ -72,5 +73,8 @@ ${input.expertise || ""}
 
 WEBSITE:
 ${input.website || ""}
+
+WEBSITE HOMEPAGE CONTENT:
+${input.websiteHomepageText || ""}
 `.trim();
 }

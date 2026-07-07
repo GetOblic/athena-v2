@@ -57,7 +57,7 @@ export default async function IdentityPage({
         </div>
 
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          Teach Athena Who Y Are
+          Teach Athena Who You Are
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">

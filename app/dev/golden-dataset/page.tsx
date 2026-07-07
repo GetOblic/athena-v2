@@ -39,7 +39,7 @@ export default function GoldenDatasetPage() {
         </div>
 
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          Goen Dataset
+          Golden Dataset
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">

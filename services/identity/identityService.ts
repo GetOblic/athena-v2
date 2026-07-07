@@ -27,6 +27,78 @@ export type UpsertAthenaIdentityInput = {
   website?: string | null;
 };
 
+function parseJsonResponse(rawText: string): Record<string, unknown> {
+  const cleaned = rawText
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "")
+    .trim();
+
+  return JSON.parse(cleaned);
+}
+
+function normalizeUrl(value: string | null | undefined): string | null {
+  const raw = (value ?? "").trim();
+
+  if (!raw) return null;
+
+  if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    return raw;
+  }
+
+  return `https://${raw}`;
+}
+
+function extractReadableTextFromHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
+    .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 12000);
+}
+
+async function fetchWebsiteHomepageText(
+  website: string | null,
+): Promise<string | null> {
+  const url = normalizeUrl(website);
+
+  if (!url) return null;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "AthenaIdentityBot/1.0",
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      return `Athena could not read the homepage. HTTP status: ${response.status}`;
+    }
+
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (!contentType.includes("text/html")) {
+      return `Athena could not read the homepage because it is not HTML. Content-Type: ${contentType}`;
+    }
+
+    const html = await response.text();
+    return extractReadableTextFromHtml(html);
+  } catch (error) {
+    return `Athena could not read the homepage. ${
+      error instanceof Error ? error.message : "Unknown error"
+    }`;
+  }
+}
+
 export async function getAthenaIdentityByUserId(
   userId: string,
 ): Promise<AthenaIdentity | null> {
@@ -44,50 +116,14 @@ export async function getAthenaIdentityByUserId(
   return data;
 }
 
-export async function upsertAthenaIdentity(
-  input: UpsertAthenaIdentityInput,
-): Promise<AthenaIdentity | null> {
-  const { data, error } = await supabaseAdmin
-    .from("athena_identity")
-    .upsert(
-      {
-        user_id: input.userId,
-        about_you: input.aboutYou ?? null,
-        expertise: input.expertise ?? null,
-        website: input.website ?? null,
-        brain_status: "ready",
-        brain_last_updated: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" },
-    )
-    .select("*")
-    .single();
-
-  if (error) {
-    console.error("Error saving Athena identity:", error);
-    return null;
-  }
-
-  return compileMasterIdentityProfile(data);
-}
-
-
-function parseJsonResponse(rawText: string): Record<string, unknown> {
-  const cleaned = rawText
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```$/i, "")
-    .trim();
-
-  return JSON.parse(cleaned);
-}
-
 export async function compileMasterIdentityProfile(identity: AthenaIdentity) {
+  const websiteHomepageText = await fetchWebsiteHomepageText(identity.website);
+
   const prompt = buildMasterIdentityProfilePrompt({
     aboutYou: identity.about_you,
     expertise: identity.expertise,
     website: identity.website,
+    websiteHomepageText,
   });
 
   const rawProfile = await generateReview(prompt);
@@ -113,4 +149,31 @@ export async function compileMasterIdentityProfile(identity: AthenaIdentity) {
   }
 
   return data;
+}
+
+export async function upsertAthenaIdentity(
+  input: UpsertAthenaIdentityInput,
+): Promise<AthenaIdentity | null> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_identity")
+    .upsert(
+      {
+        user_id: input.userId,
+        about_you: input.aboutYou ?? null,
+        expertise: input.expertise ?? null,
+        website: input.website ?? null,
+        brain_status: "processing",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    )
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Error saving Athena identity:", error);
+    return null;
+  }
+
+  return compileMasterIdentityProfile(data);
 }
