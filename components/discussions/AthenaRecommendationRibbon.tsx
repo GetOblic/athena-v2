@@ -1,0 +1,61 @@
+import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
+import {
+  getAthenaVerdict,
+  getResponseTiming,
+  type AthenaVerdict,
+} from "@/lib/discussionExecutiveIntel";
+
+type AthenaRecommendationRibbonProps = {
+  analysis: DiscussionAnalysis;
+};
+
+const verdictStyles: Record<
+  AthenaVerdict,
+  { border: string; bg: string; text: string }
+> = {
+  "Worth pursuing": {
+    border: "border-[var(--athena-success)]/30",
+    bg: "bg-[var(--athena-success)]/10",
+    text: "text-[var(--athena-success)]",
+  },
+  Monitor: {
+    border: "border-[var(--athena-warning)]/30",
+    bg: "bg-[var(--athena-warning)]/10",
+    text: "text-[var(--athena-warning)]",
+  },
+  "Low priority": {
+    border: "border-white/15",
+    bg: "bg-white/[0.03]",
+    text: "text-white/55",
+  },
+};
+
+export function AthenaRecommendationRibbon({
+  analysis,
+}: AthenaRecommendationRibbonProps) {
+  const verdict = getAthenaVerdict(analysis);
+  const timing = getResponseTiming(analysis);
+  const styles = verdictStyles[verdict];
+
+  return (
+    <div
+      className={`flex flex-col gap-4 rounded-2xl border px-6 py-5 sm:flex-row sm:items-center sm:justify-between ${styles.border} ${styles.bg}`}
+    >
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-[0.25em] text-white/40">
+          Athena Recommendation
+        </div>
+        <div className={`mt-2 text-xl font-semibold ${styles.text}`}>
+          {verdict}
+        </div>
+      </div>
+
+      <div className="sm:text-right">
+        <div className="text-xs uppercase tracking-[0.2em] text-white/35">
+          Recommended response timing
+        </div>
+        <div className="mt-1 text-sm font-medium text-white/75">{timing}</div>
+      </div>
+    </div>
+  );
+}

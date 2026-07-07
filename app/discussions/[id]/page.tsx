@@ -3,6 +3,8 @@ import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicA
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 import { AppendDiscussionUpdateForm } from "@/components/discussions/AppendDiscussionUpdateForm";
+import { AthenaRecommendationRibbon } from "@/components/discussions/AthenaRecommendationRibbon";
+import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveIntelligenceCard";
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
 import { getLatestAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
 import { getCommunityById } from "@/services/communityService";
@@ -54,7 +56,7 @@ export default async function DiscussionDetailsPage({
           </h1>
 
           <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-            Operational analysis for this captured community discussion.
+            Executive-grade intelligence for this captured community discussion.
           </p>
         </div>
       </div>
@@ -69,6 +71,28 @@ export default async function DiscussionDetailsPage({
           highlight="orange"
         />
       </div>
+
+      {latestAnalysis ? (
+        <>
+          <div className="mt-8">
+            <AthenaRecommendationRibbon analysis={latestAnalysis} />
+          </div>
+
+          <div className="mt-6">
+            <ExecutiveIntelligenceCard analysis={latestAnalysis} />
+          </div>
+        </>
+      ) : (
+        <div className="mt-8 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
+            Executive Intelligence
+          </div>
+          <p className="mt-4 text-white/50">
+            Run Athena analysis to unlock executive intelligence for this
+            discussion.
+          </p>
+        </div>
+      )}
 
       {deploymentAssets.length > 0 && (
         <div className="mt-8">
@@ -88,7 +112,7 @@ export default async function DiscussionDetailsPage({
 
       <div className="mt-8 grid gap-8 lg:grid-cols-3">
         <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:col-span-2">
-          <h2 className="text-xl font-semibold">Discussion Content</h2>
+          <h2 className="text-xl font-semibold">Original Discussion Content</h2>
 
           <div className="mt-8 grid gap-6 md:grid-cols-2">
             <Field label="Author" value={discussion.author} />
@@ -107,7 +131,7 @@ export default async function DiscussionDetailsPage({
 
         <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
           <div className="flex items-start justify-between gap-4">
-            <h2 className="text-xl font-semibold">Latest Athena Analysis</h2>
+            <h2 className="text-xl font-semibold">Detailed Athena Reasoning</h2>
 
             {latestAnalysis && (
               <div className="text-sm text-white/40">
@@ -128,7 +152,7 @@ export default async function DiscussionDetailsPage({
                 <Field label="Buyer Stage" value={latestAnalysis.buyer_stage} />
                 <Field label="Pain Points" value={latestAnalysis.pain_points} />
                 <Field
-                  label="Opportunity Detected"
+                  label="Opportunity"
                   value={latestAnalysis.opportunity_detected ? "Yes" : "No"}
                 />
                 <Field
