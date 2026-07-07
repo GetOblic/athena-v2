@@ -1,5 +1,9 @@
 import { generateReview } from "@/services/aiService";
 import {
+  formatBrainContextForPrompt,
+  getAthenaBrainContextForCurrentUser,
+} from "@/services/brain/brainContextService";
+import {
   buildDiscussionAnalysisPrompt,
   DISCUSSION_ANALYSIS_PROMPT_VERSION,
 } from "@/services/ai/prompts/discussionAnalysisPrompt";
@@ -96,7 +100,13 @@ export async function processDiscussionEndToEnd(discussionId: string) {
     throw new Error(`Discussion not found: ${discussionId}`);
   }
 
-  const analysisPrompt = buildDiscussionAnalysisPrompt(discussion);
+  const brainContext = await getAthenaBrainContextForCurrentUser();
+  const brainContextPrompt = formatBrainContextForPrompt(brainContext);
+
+  const analysisPrompt = buildDiscussionAnalysisPrompt(
+    discussion,
+    brainContextPrompt,
+  );
   const rawAnalysis = await generateReview(analysisPrompt);
   const parsedAnalysis = parseAnalysis(rawAnalysis);
 

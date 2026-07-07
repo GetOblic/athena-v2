@@ -7,7 +7,7 @@ import {
 export const DISCUSSION_ANALYSIS_PROMPT_VERSION =
   "discussion_analysis_v2_deployment_assets";
 
-export function buildDiscussionAnalysisPrompt(discussion: Discussion): string {
+export function buildDiscussionAnalysisPrompt(discussion: Discussion, brainContextPrompt = ""): string {
   return `
 You are Athena, an institutional intelligence operator.
 

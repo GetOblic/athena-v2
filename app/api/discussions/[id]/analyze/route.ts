@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { generateReview } from "@/services/aiService";
+import {
+  formatBrainContextForPrompt,
+  getAthenaBrainContextForCurrentUser,
+} from "@/services/brain/brainContextService";
 import { getDiscussionById } from "@/services/discussionService";
 import { createDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import {
@@ -68,7 +72,13 @@ export async function POST(_request: Request, context: RouteContext) {
       );
     }
 
-    const prompt = buildDiscussionAnalysisPrompt(discussion);
+    const brainContext = await getAthenaBrainContextForCurrentUser();
+    const brainContextPrompt = formatBrainContextForPrompt(brainContext);
+
+    const prompt = buildDiscussionAnalysisPrompt(
+      discussion,
+      brainContextPrompt,
+    );
     const rawAnalysis = await generateReview(prompt);
     const parsedAnalysis = parseAnalysis(rawAnalysis);
     const generationTimeMs = Date.now() - startedAt;
