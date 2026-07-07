@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
 import { getBriefingListSummary } from "@/lib/briefingDisplay";
-import { formatBriefingStatus } from "@/lib/briefingStatus";
 import { getReviews } from "@/services/reviewService";
 
 const listGridClass =
@@ -70,8 +70,8 @@ export default async function BriefingsPage() {
                 {getBriefingListSummary(briefing)}
               </div>
 
-              <div className="text-[var(--athena-warning)]">
-                {formatBriefingStatus(briefing.status)}
+              <div>
+                <BriefingStatusBadge status={briefing.status} />
               </div>
 
               <div className="font-semibold text-[var(--athena-orange)]">

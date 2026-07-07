@@ -1,9 +1,11 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { GenerateReviewButton } from "@/components/opportunities/GenerateReviewButton";
 import { buildOpportunityDeploymentAssets } from "@/lib/deploymentAssets";
-import { formatBriefingStatus } from "@/lib/briefingStatus";
 import { getOpportunityById } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 
@@ -22,10 +24,10 @@ export default async function OpportunityPage({ params }: Props) {
     notFound();
   }
 
-  const latestReview = await getLatestReviewByOpportunityId(id);
+  const briefing = await getLatestReviewByOpportunityId(id);
   const deploymentAssets = buildOpportunityDeploymentAssets(
     opportunity,
-    latestReview,
+    briefing,
   );
 
   return (
@@ -63,9 +65,9 @@ export default async function OpportunityPage({ params }: Props) {
             <div className="text-sm text-white/45">No source discussion linked.</div>
           )}
 
-          {latestReview ? (
+          {briefing ? (
             <Link
-              href={`/briefings/${latestReview.id}`}
+              href={`/briefings/${briefing.id}`}
               className="rounded-full border border-white/15 px-7 py-4 text-sm font-semibold text-white/75 transition hover:border-[var(--athena-orange)]/40 hover:text-white"
             >
               Open Executive Briefing
@@ -106,25 +108,25 @@ export default async function OpportunityPage({ params }: Props) {
 
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
         <div className="mb-6">
-          <h2 className="text-2xl font-semibold">Latest Executive Briefing</h2>
+          <h2 className="text-2xl font-semibold">Executive Briefing</h2>
           <p className="mt-2 text-sm text-white/45">
             Supporting strategic intelligence for this opportunity. Approval and
             full memo live on the briefing page.
           </p>
         </div>
 
-        {latestReview ? (
+        {briefing ? (
           <div className="space-y-6">
-            <Field label="Summary" value={latestReview.summary} />
-            <Field label="Pain Points" value={latestReview.pain_points} />
-            <Field label="Buyer Stage" value={latestReview.buyer_stage} />
-            <Field label="Confidence" value={`${latestReview.confidence}%`} />
-            <Field
-              label="Status"
-              value={formatBriefingStatus(latestReview.status)}
-            />
+            <Field label="Summary" value={briefing.summary} />
+            <Field label="Pain Points" value={briefing.pain_points} />
+            <Field label="Buyer Stage" value={briefing.buyer_stage} />
+            <Field label="Confidence" value={`${briefing.confidence}%`} />
+            <div>
+              <div className="mb-2 text-white/40">Status</div>
+              <BriefingStatusBadge status={briefing.status} />
+            </div>
             <Link
-              href={`/briefings/${latestReview.id}`}
+              href={`/briefings/${briefing.id}`}
               className="inline-block text-sm text-[var(--athena-orange)]"
             >
               Open full executive briefing →

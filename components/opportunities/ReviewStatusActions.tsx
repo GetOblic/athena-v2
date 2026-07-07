@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
 import {
-  formatBriefingStatus,
   isApprovedStatus,
   isNeedsRevisionStatus,
 } from "@/lib/briefingStatus";
@@ -23,7 +23,21 @@ export function ReviewStatusActions({
 
   useEffect(() => {
     setStatus(currentStatus);
+    setSuccess(null);
+    setError(null);
   }, [currentStatus]);
+
+  useEffect(() => {
+    if (!success) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setSuccess(null);
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [success]);
 
   const isApproved = isApprovedStatus(status);
   const needsRevision = isNeedsRevisionStatus(status);
@@ -69,10 +83,7 @@ export function ReviewStatusActions({
   return (
     <div className="flex flex-col items-start gap-3">
       <div className="text-sm text-white/40">
-        Status:{" "}
-        <span className="text-[var(--athena-orange)]">
-          {formatBriefingStatus(status)}
-        </span>
+        Status: <BriefingStatusBadge status={status} />
       </div>
 
       <div className="flex flex-wrap gap-3">

@@ -1,18 +1,65 @@
-export const BRIEFING_STATUS_LABELS: Record<string, string> = {
-  draft: "Draft",
-  approved: "Approved",
-  needs_revision: "Needs Revision",
-  rejected: "Rejected",
+export type BriefingStatusKey =
+  | "draft"
+  | "approved"
+  | "needs_revision"
+  | "rejected";
+
+export type BriefingStatusPresentation = {
+  key: BriefingStatusKey;
+  label: string;
+  colorClass: string;
 };
 
-export function formatBriefingStatus(status: string): string {
-  return BRIEFING_STATUS_LABELS[status] ?? status.replace(/_/g, " ");
+const STATUS_PRESENTATIONS: Record<
+  BriefingStatusKey,
+  Omit<BriefingStatusPresentation, "key">
+> = {
+  draft: {
+    label: "Draft",
+    colorClass: "text-[var(--athena-warning)]",
+  },
+  approved: {
+    label: "Approved",
+    colorClass: "text-[var(--athena-success)]",
+  },
+  needs_revision: {
+    label: "Needs Revision",
+    colorClass: "text-red-400",
+  },
+  rejected: {
+    label: "Rejected",
+    colorClass: "text-white/45",
+  },
+};
+
+export function normalizeBriefingStatus(
+  status?: string | null,
+): BriefingStatusKey {
+  if (status === "approved") return "approved";
+  if (status === "needs_revision") return "needs_revision";
+  if (status === "rejected") return "rejected";
+  return "draft";
 }
 
-export function isApprovedStatus(status: string): boolean {
-  return status === "approved";
+export function getBriefingStatusPresentation(
+  status?: string | null,
+): BriefingStatusPresentation {
+  const key = normalizeBriefingStatus(status);
+  return {
+    key,
+    ...STATUS_PRESENTATIONS[key],
+  };
 }
 
-export function isNeedsRevisionStatus(status: string): boolean {
-  return status === "needs_revision" || status === "rejected";
+export function formatBriefingStatus(status?: string | null): string {
+  return getBriefingStatusPresentation(status).label;
+}
+
+export function isApprovedStatus(status?: string | null): boolean {
+  return normalizeBriefingStatus(status) === "approved";
+}
+
+export function isNeedsRevisionStatus(status?: string | null): boolean {
+  const key = normalizeBriefingStatus(status);
+  return key === "needs_revision" || key === "rejected";
 }

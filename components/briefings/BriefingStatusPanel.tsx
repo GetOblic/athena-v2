@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
 import {
-  formatBriefingStatus,
   isApprovedStatus,
   isNeedsRevisionStatus,
 } from "@/lib/briefingStatus";
@@ -12,18 +12,6 @@ type BriefingStatusPanelProps = {
   reviewId: string;
   initialStatus: string;
 };
-
-function statusColor(status: string) {
-  if (isApprovedStatus(status)) {
-    return "text-[var(--athena-success)]";
-  }
-
-  if (isNeedsRevisionStatus(status)) {
-    return "text-red-400";
-  }
-
-  return "text-[var(--athena-warning)]";
-}
 
 export function BriefingStatusPanel({
   reviewId,
@@ -37,7 +25,21 @@ export function BriefingStatusPanel({
 
   useEffect(() => {
     setStatus(initialStatus);
+    setSuccess(null);
+    setError(null);
   }, [initialStatus]);
+
+  useEffect(() => {
+    if (!success) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setSuccess(null);
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [success]);
 
   async function updateStatus(action: "approve" | "request_revision") {
     setIsUpdating(true);
@@ -83,8 +85,8 @@ export function BriefingStatusPanel({
   return (
     <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <div className="text-white/40">Status</div>
-      <div className={`mt-4 text-4xl font-semibold ${statusColor(status)}`}>
-        {formatBriefingStatus(status)}
+      <div className="mt-4">
+        <BriefingStatusBadge status={status} size="lg" />
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
