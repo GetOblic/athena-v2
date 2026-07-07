@@ -49,7 +49,7 @@ export function FacebookInboxForm({ communities }: FacebookInboxFormProps) {
 
       setResult({
         ok: true,
-        message: "Discussion imported successfully.",
+        message: "Discussion imported and processed. Briefing is ready if Athena detected an opportunity.",
         discussionId: payload.discussion?.id,
       });
 

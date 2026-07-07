@@ -73,3 +73,58 @@ export async function getOpportunityById(
 
     return data;
 }
+
+export type CreateOpportunityInput = {
+    discussion_id?: string | null;
+    community_id?: string | null;
+    type?: string;
+    status?: string;
+    score?: number;
+    urgency?: string | null;
+    intent?: string | null;
+    risk_level?: string | null;
+    title: string;
+    reason?: string | null;
+    recommended_action?: string | null;
+    suggested_cta?: string | null;
+    assigned_to?: string | null;
+    due_at?: string | null;
+    ai_summary?: string | null;
+    ai_recommendation?: string | null;
+    raw_json?: Record<string, unknown> | null;
+};
+
+export async function createOpportunity(
+    input: CreateOpportunityInput,
+): Promise<Opportunity | null> {
+    const { data, error } = await supabaseAdmin
+        .from("opportunities")
+        .insert({
+            discussion_id: input.discussion_id ?? null,
+            community_id: input.community_id ?? null,
+            type: input.type ?? "community_discussion",
+            status: input.status ?? "draft",
+            score: input.score ?? 0,
+            urgency: input.urgency ?? null,
+            intent: input.intent ?? null,
+            risk_level: input.risk_level ?? null,
+            title: input.title,
+            reason: input.reason ?? null,
+            recommended_action: input.recommended_action ?? null,
+            suggested_cta: input.suggested_cta ?? null,
+            assigned_to: input.assigned_to ?? null,
+            due_at: input.due_at ?? null,
+            ai_summary: input.ai_summary ?? null,
+            ai_recommendation: input.ai_recommendation ?? null,
+            raw_json: input.raw_json ?? null,
+        })
+        .select("*")
+        .single();
+
+    if (error) {
+        console.error("Error creating opportunity:", error);
+        return null;
+    }
+
+    return data;
+}

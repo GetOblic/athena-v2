@@ -1,5 +1,6 @@
 import { emitBrainEvent } from "@/services/brain/eventBus";
 import { createDiscussion } from "@/services/discussionService";
+import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
 import {
   normalizeFacebookDiscussion,
   type FacebookDiscussionInput,
@@ -20,5 +21,10 @@ export async function importFacebookDiscussion(input: FacebookDiscussionInput) {
     platform: discussion.platform,
   });
 
-  return discussion;
+  const workflow = await processDiscussionEndToEnd(discussion.id);
+
+  return {
+    discussion,
+    workflow,
+  };
 }

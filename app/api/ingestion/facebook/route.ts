@@ -5,7 +5,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const discussion = await importFacebookDiscussion({
+    const result = await importFacebookDiscussion({
       communityId: body.communityId ?? body.community_id ?? null,
       title: body.title ?? null,
       author: body.author ?? null,
@@ -16,7 +16,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      discussion,
+      discussion: result.discussion,
+      workflow: result.workflow,
     });
   } catch (error) {
     console.error("Facebook ingestion failed:", error);
