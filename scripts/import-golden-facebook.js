@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+require("dotenv").config({ path: ".env.local" });
 
 async function main() {
   const filePath = process.argv[2];
@@ -28,6 +29,7 @@ async function main() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-athena-ingestion-key": process.env.ATHENA_INGESTION_KEY,
     },
     body: JSON.stringify({
       communityId,

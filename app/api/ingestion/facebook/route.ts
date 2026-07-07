@@ -1,8 +1,24 @@
 import { NextResponse } from "next/server";
 import { importFacebookDiscussion } from "@/services/ingestion/facebook/facebookImporter";
 
+function verifyIngestionKey(request: Request) {
+  const expectedKey = process.env.ATHENA_INGESTION_KEY;
+
+  if (!expectedKey) {
+    throw new Error("Missing ATHENA_INGESTION_KEY environment variable.");
+  }
+
+  const receivedKey = request.headers.get("x-athena-ingestion-key");
+
+  if (receivedKey !== expectedKey) {
+    throw new Error("Invalid Athena ingestion key.");
+  }
+}
+
 export async function POST(request: Request) {
   try {
+    verifyIngestionKey(request);
+
     const body = await request.json();
 
     const result = await importFacebookDiscussion({
