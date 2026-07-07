@@ -76,30 +76,37 @@ export async function learnFromApprovedBriefing(reviewId: string) {
     notes: "Automatically captured by Athena Brain after briefing approval.",
   });
 
-  const links = [
-    review.discussion_id
-      ? {
-          knowledge_asset_id: knowledgeAsset.id,
-          linked_type: "discussions",
-          linked_id: review.discussion_id,
-          relationship: "learned_from_discussion",
-        }
-      : null,
-    review.opportunity_id
-      ? {
-          knowledge_asset_id: knowledgeAsset.id,
-          linked_type: "opportunities",
-          linked_id: review.opportunity_id,
-          relationship: "learned_from_opportunity",
-        }
-      : null,
-    {
+  const links: {
+    knowledge_asset_id: string;
+    linked_type: string;
+    linked_id: string;
+    relationship: string;
+  }[] = [];
+
+  if (review.discussion_id) {
+    links.push({
       knowledge_asset_id: knowledgeAsset.id,
-      linked_type: "athena_reviews",
-      linked_id: review.id,
-      relationship: "learned_from_approved_briefing",
-    },
-  ].filter(Boolean);
+      linked_type: "discussions",
+      linked_id: review.discussion_id,
+      relationship: "learned_from_discussion",
+    });
+  }
+
+  if (review.opportunity_id) {
+    links.push({
+      knowledge_asset_id: knowledgeAsset.id,
+      linked_type: "opportunities",
+      linked_id: review.opportunity_id,
+      relationship: "learned_from_opportunity",
+    });
+  }
+
+  links.push({
+    knowledge_asset_id: knowledgeAsset.id,
+    linked_type: "athena_reviews",
+    linked_id: review.id,
+    relationship: "learned_from_approved_briefing",
+  });
 
   if (links.length > 0) {
     const { error } = await supabaseAdmin
