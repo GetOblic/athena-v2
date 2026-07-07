@@ -57,7 +57,7 @@ export default async function IdentityPage({
         </div>
 
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          Teach Athena Who You Are
+          Teach Athena Who Y Are
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
@@ -75,7 +75,7 @@ export default async function IdentityPage({
       <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
         <form
           action={saveIdentity}
-          className="round-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8"
+          className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8"
         >
           <div className="grid gap-8">
             <label className="grid gap-3">
@@ -92,11 +92,11 @@ export default async function IdentityPage({
                 defaultValue={identity?.about_you ?? ""}
                 className="resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25"
                 placeholder="Tell Athena who you are..."
-         >
+              />
             </label>
 
             <label className="grid gap-3">
-              <span className="text-xl font-semibold">
+        <span className="text-xl font-semibold">
                 Teach Athena Your Expertise
               </span>
               <span className="max-w-3xl text-sm leading-6 text-white/45">
@@ -110,12 +110,12 @@ export default async function IdentityPage({
                 rows={10}
                 defaultValue={identity?.expertise ?? ""}
                 className="resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25"
-                placeholder="Teach Athena your methodology, frameworks, FAQs, terminology anofessional rules..."
+                placeholder="Teach Athena your methodology, frameworks, FAQs, terminology and professional rules..."
               />
             </label>
 
             <label className="grid gap-3">
-              <span className="text-xl font-semibold">Website optional</span>
+              <span cName="text-xl font-semibold">Website optional</span>
               <span className="max-w-3xl text-sm leading-6 text-white/45">
                 Add your website if Athena should learn from it later. Example:
                 https://yourcompany.com
@@ -152,11 +152,12 @@ export default async function IdentityPage({
               Status
             </div>
             <div className="mt-3 text-lg font-semibold text-[var(--athena-orange)]">
-              {identity?.brain_status ?? "pen           </div>
+              {identity?.brain_status ?? "pending"}
+            </div>
             <div className="mt-2 text-sm text-white/40">
               Last updated:{" "}
               {identity?.brain_last_updated
-                ? new Date(identity.brain_last_updated).toLocaleString()
+                ? new Date(identity.brain_last_upoLocaleString()
                 : "Not yet trained"}
             </div>
           </div>
