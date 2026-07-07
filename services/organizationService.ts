@@ -26,6 +26,13 @@ export class OrganizationAccessError extends Error {
   }
 }
 
+export class OrganizationContextMissingError extends Error {
+  constructor(message = "Missing organization context") {
+    super(message);
+    this.name = "OrganizationContextMissingError";
+  }
+}
+
 function slugifyOrganizationName(value: string): string {
   const slug = value
     .trim()
@@ -137,14 +144,57 @@ export async function requireCurrentOrganizationContext(): Promise<OrganizationC
   };
 }
 
-export async function resolveOrganizationIdForIngestion(
-  userId: string | null,
-): Promise<string> {
-  if (userId) {
-    return resolveOrganizationIdForUser(userId);
+export type IngestionOrganizationInput = {
+  userId?: string | null;
+  organizationId?: string | null;
+  ingestionKey?: string | null;
+};
+
+function isValidOrganizationBoundIngestionKey(
+  organizationId: string,
+  ingestionKey: string,
+): boolean {
+  const expectedKey = process.env.ATHENA_INGESTION_KEY?.trim();
+  const expectedOrgId = process.env.ATHENA_INGESTION_ORGANIZATION_ID?.trim();
+
+  if (!expectedKey || !expectedOrgId) {
+    return false;
   }
 
-  return LIANA_DEMO_ORGANIZATION_ID;
+  return (
+    ingestionKey === expectedKey && organizationId === expectedOrgId
+  );
+}
+
+export async function resolveOrganizationIdForIngestion(
+  input: IngestionOrganizationInput,
+): Promise<string> {
+  if (input.userId) {
+    return resolveOrganizationIdForUser(input.userId);
+  }
+
+  const organizationId = input.organizationId?.trim();
+  const ingestionKey = input.ingestionKey?.trim();
+
+  if (
+    organizationId &&
+    ingestionKey &&
+    isValidOrganizationBoundIngestionKey(organizationId, ingestionKey)
+  ) {
+    const { data, error } = await supabaseAdmin
+      .from("organizations")
+      .select("id")
+      .eq("id", organizationId)
+      .maybeSingle();
+
+    if (error || !data) {
+      throw new OrganizationContextMissingError();
+    }
+
+    return organizationId;
+  }
+
+  throw new OrganizationContextMissingError();
 }
 
 export function belongsToOrganization<T extends { organization_id?: string | null }>(
