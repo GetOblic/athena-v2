@@ -14,7 +14,9 @@ async function saveIdentity(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  if (!user) {
+    redirect("/login");
+  }
 
   await upsertAthenaIdentity({
     userId: user.id,
@@ -37,7 +39,9 @@ export default async function IdentityPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  if (!user) {
+    redirect("/login");
+  }
 
   const params = await searchParams;
   const identity = await getAthenaIdentityByUserId(user.id);
@@ -53,11 +57,11 @@ export default async function IdentityPage({
           Athena Brain
         </div>
 
-        <h1 className="mt-4 text-5xl font-semibold tracking-tht">
+        <h1 className="mt-4 text-5xl font-semibold tracking-tight">
           Train Your Athena Brain
         </h1>
 
-        <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
+        <p className="mt-4 max-3xl text-base leading-7 text-white/50">
           Teach Athena your voice, expertise, business knowledge and professional
           rules. Athena will use this when generating replies, CTAs, briefings
           and strategic asset blueprints.
@@ -111,8 +115,9 @@ export default async function IdentityPage({
 
             <label className="grid gap-3">
               <span className="text-xl font-semibold">
-                Your Business Knowled           </span>
-              <span className="max-w-3xl text-sm leading-6 text-white/45">
+                Your Business Knowledge
+              </span>
+        <span className="max-w-3xl text-sm leading-6 text-white/45">
                 Teach Athena your expertise, methodology, terminology and
                 professional rules. Example: “My training follows a five-step
                 methodology: consultation, theory, hands-on practice,
@@ -128,8 +133,8 @@ export default async function IdentityPage({
             </label>
 
             <label className="grid gap-3">
-              <span className="text-xl font-semibold">Business Website</span>
-              <span className="max-w-3xl text-sm lea-6 text-white/45">
+              <span className="text-xl font-semibold">Business Webs/span>
+              <span className="max-w-3xl text-sm leading-6 text-white/45">
                 Athena will study your homepage and use it to understand your
                 business. V2 will support sitemap crawling and selected pages.
               </span>
@@ -173,9 +178,10 @@ export default async function IdentityPage({
               {identity?.brain_last_updated
                 ? new Date(identity.brain_last_updated).toLocaleString()
                 : "Not yet trained"}
-            </div>
+     iv>
           </div>
         </aside>
       </div>
-    );
+    </main>
+  );
 }
