@@ -2,9 +2,12 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { GenerateReviewButton } from "@/components/opportunities/GenerateReviewButton";
+import { DeploymentReadinessBadge } from "@/components/queues/DeploymentReadinessBadge";
+import { OpportunityStatusBadge } from "@/components/queues/OpportunityStatusBadge";
 import { buildOpportunityDeploymentAssets } from "@/lib/deploymentAssets";
 import { getOpportunityById } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
@@ -78,11 +81,19 @@ export default async function OpportunityPage({ params }: Props) {
         </div>
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-4">
+      <div className="mt-10 grid gap-6 lg:grid-cols-5">
         <Metric label="Type" value={opportunity.type} />
-        <Metric label="Status" value={opportunity.status} tone="warning" />
+        <Metric label="Sales Status">
+          <OpportunityStatusBadge status={opportunity.status} size="lg" />
+        </Metric>
         <Metric label="Score" value={String(opportunity.score)} tone="orange" />
         <Metric label="Urgency" value={opportunity.urgency || "—"} />
+        <Metric label="Deployment Readiness">
+          <DeploymentReadinessBadge
+            briefingStatus={briefing?.status ?? null}
+            size="lg"
+          />
+        </Metric>
       </div>
 
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
@@ -147,10 +158,12 @@ function Metric({
   label,
   value,
   tone,
+  children,
 }: {
   label: string;
-  value: string;
+  value?: string;
   tone?: "warning" | "orange";
+  children?: ReactNode;
 }) {
   const color =
     tone === "warning"
@@ -162,8 +175,8 @@ function Metric({
   return (
     <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <div className="text-white/40">{label}</div>
-      <div className={`mt-4 text-2xl font-semibold capitalize ${color}`}>
-        {value}
+      <div className={`mt-4 ${children ? "" : `text-2xl font-semibold capitalize ${color}`}`}>
+        {children ?? value}
       </div>
     </div>
   );

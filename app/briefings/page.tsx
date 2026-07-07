@@ -2,14 +2,19 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
+import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
 import { getBriefingListSummary } from "@/lib/briefingDisplay";
-import { getReviews } from "@/services/reviewService";
+import { getBriefingQueues } from "@/services/queueService";
 
 const listGridClass =
-  "grid grid-cols-[minmax(0,1fr)_140px_140px_160px]";
+  "grid grid-cols-[minmax(0,1fr)_160px_120px_160px] items-center gap-4";
 
 export default async function BriefingsPage() {
-  const briefings = await getReviews();
+  const queues = await getBriefingQueues();
+  const totalCount = queues.reduce(
+    (count, section) => count + section.items.length,
+    0,
+  );
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
@@ -19,7 +24,7 @@ export default async function BriefingsPage() {
 
       <div className="mb-10 mt-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Executive Intelligence
+          Editorial Review
         </div>
 
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
@@ -27,12 +32,12 @@ export default async function BriefingsPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Executive summaries and strategic decision reports generated from
-          analyzed opportunities.
+          Executive review queue grouped by editorial status — sorted by
+          confidence and recency.
         </p>
       </div>
 
-      {briefings.length === 0 ? (
+      {totalCount === 0 ? (
         <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-14 text-center">
           <h2 className="text-2xl font-semibold">
             No briefings generated yet.
@@ -61,33 +66,48 @@ export default async function BriefingsPage() {
             <div>Action</div>
           </div>
 
-          {briefings.map((briefing) => (
-            <div
-              key={briefing.id}
-              className={`${listGridClass} items-center border-b border-white/5 px-6 py-5 text-sm last:border-b-0`}
-            >
-              <div className="line-clamp-2 pr-4 font-medium leading-6 text-white">
-                {getBriefingListSummary(briefing)}
-              </div>
+          {queues.map((section) => {
+            if (section.items.length === 0) {
+              return null;
+            }
 
-              <div>
-                <BriefingStatusBadge status={briefing.status} />
-              </div>
+            return (
+              <div key={section.key}>
+                <QueueSectionHeader
+                  title={section.title}
+                  count={section.items.length}
+                />
 
-              <div className="font-semibold text-[var(--athena-orange)]">
-                {briefing.confidence}%
-              </div>
+                {section.items.map((briefing) => (
+                  <div
+                    key={briefing.id}
+                    className={`${listGridClass} border-b border-white/5 px-6 py-5 text-sm last:border-b-0`}
+                  >
+                    <div className="line-clamp-2 pr-4 font-medium leading-6 text-white">
+                      {getBriefingListSummary(briefing)}
+                    </div>
 
-              <div>
-                <Link
-                  href={`/briefings/${briefing.id}`}
-                  className="inline-flex rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
-                >
-                  Open Briefing
-                </Link>
+                    <div>
+                      <BriefingStatusBadge status={briefing.status} />
+                    </div>
+
+                    <div className="font-semibold text-[var(--athena-orange)]">
+                      {briefing.confidence}%
+                    </div>
+
+                    <div>
+                      <Link
+                        href={`/briefings/${briefing.id}`}
+                        className="inline-flex rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
+                      >
+                        Open Briefing
+                      </Link>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </main>

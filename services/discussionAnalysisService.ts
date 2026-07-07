@@ -93,3 +93,16 @@ export async function getRecentDiscussionAnalysesByCommunityId(
 
   return data ?? [];
 }
+
+export async function getAnalyzedDiscussionIds(): Promise<Set<string>> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_discussion_analysis")
+    .select("discussion_id");
+
+  if (error) {
+    console.error("Error fetching analyzed discussion ids:", error);
+    return new Set();
+  }
+
+  return new Set((data ?? []).map((row) => row.discussion_id));
+}
