@@ -99,3 +99,52 @@ export async function getDiscussionsByCommunityId(
 
     return data ?? [];
 }
+
+export type CreateDiscussionInput = {
+    community_id?: string | null;
+    platform: string;
+    title: string;
+    author?: string | null;
+    url?: string | null;
+    body?: string | null;
+    status?: string;
+    priority?: number;
+    opportunity_score?: number;
+    sentiment?: string | null;
+    summary?: string | null;
+    ai_notes?: string | null;
+    last_activity?: string | null;
+    raw_json?: Record<string, unknown> | null;
+};
+
+export async function createDiscussion(
+    input: CreateDiscussionInput,
+): Promise<Discussion | null> {
+    const { data, error } = await supabaseAdmin
+        .from("discussions")
+        .insert({
+            community_id: input.community_id ?? null,
+            platform: input.platform,
+            title: input.title,
+            author: input.author ?? null,
+            url: input.url ?? null,
+            body: input.body ?? null,
+            status: input.status ?? "New",
+            priority: input.priority ?? 1,
+            opportunity_score: input.opportunity_score ?? 0,
+            sentiment: input.sentiment ?? null,
+            summary: input.summary ?? null,
+            ai_notes: input.ai_notes ?? null,
+            last_activity: input.last_activity ?? new Date().toISOString(),
+            raw_json: input.raw_json ?? null,
+        })
+        .select("*")
+        .single();
+
+    if (error) {
+        console.error("Error creating discussion:", error);
+        return null;
+    }
+
+    return data;
+}
