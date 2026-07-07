@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import {
   approveReview,
   requestBriefingRevision,
+  ReviewNotFoundError,
+  ReviewUpdateError,
+  toBriefingStatusUpdate,
 } from "@/services/reviewService";
 import { emitBrainEvent } from "@/services/brain/eventBus";
 import { registerBrainProcessors } from "@/services/brain/brainProcessor";
@@ -36,22 +39,33 @@ export async function POST(request: Request, context: RouteContext) {
       ? await approveReview(id)
       : await requestBriefingRevision(id);
 
-    if (isApprove && review?.id) {
-      await emitBrainEvent("briefing.approved", { reviewId: review.id });
-    }
-
-    if (!review) {
-      return NextResponse.json(
-        { success: false, error: "Executive Briefing not found or update failed" },
-        { status: 404 },
-      );
+    if (isApprove) {
+      try {
+        await emitBrainEvent("briefing.approved", { reviewId: review.id });
+      } catch (brainError) {
+        console.error("Brain learning after approval failed:", brainError);
+      }
     }
 
     return NextResponse.json({
       success: true,
-      review,
+      review: toBriefingStatusUpdate(review),
     });
   } catch (error) {
+    if (error instanceof ReviewNotFoundError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 404 },
+      );
+    }
+
+    if (error instanceof ReviewUpdateError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 500 },
+      );
+    }
+
     console.error("Athena review status update failed:", error);
 
     return NextResponse.json(

@@ -30,6 +30,25 @@ export type AthenaReview = {
   notes: string | null;
 };
 
+export type BriefingStatusUpdate = {
+  id: string;
+  status: string;
+};
+
+export class ReviewNotFoundError extends Error {
+  constructor(reviewId: string) {
+    super(`Review not found: ${reviewId}`);
+    this.name = "ReviewNotFoundError";
+  }
+}
+
+export class ReviewUpdateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ReviewUpdateError";
+  }
+}
+
 export type CreateAthenaReviewInput = {
   discussion_id?: string | null;
   user_id?: string | null;
@@ -52,6 +71,17 @@ export type CreateAthenaReviewInput = {
   version?: number | null;
   notes?: string | null;
 };
+
+function assertUpdatedReview(
+  data: AthenaReview | null,
+  reviewId: string,
+): AthenaReview {
+  if (!data) {
+    throw new ReviewNotFoundError(reviewId);
+  }
+
+  return data;
+}
 
 export async function getReviewCount(): Promise<number> {
   const { count, error } = await supabaseAdmin
@@ -171,49 +201,54 @@ export async function createReview(
   return data;
 }
 
-export async function approveReview(id: string): Promise<AthenaReview | null> {
+export async function approveReview(reviewId: string): Promise<AthenaReview> {
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
     .update({
       status: "approved",
       approved_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     })
-    .eq("id", id)
+    .eq("id", reviewId)
     .select("*")
-    .single();
+    .maybeSingle();
 
   if (error) {
-    console.error(error);
-    return null;
+    throw new ReviewUpdateError(error.message);
   }
 
-  return data;
+  return assertUpdatedReview(data, reviewId);
 }
 
 export async function requestBriefingRevision(
-  id: string,
-): Promise<AthenaReview | null> {
+  reviewId: string,
+): Promise<AthenaReview> {
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
     .update({
       status: "needs_revision",
       approved_at: null,
-      updated_at: new Date().toISOString(),
     })
-    .eq("id", id)
+    .eq("id", reviewId)
     .select("*")
-    .single();
+    .maybeSingle();
 
   if (error) {
-    console.error(error);
-    return null;
+    throw new ReviewUpdateError(error.message);
   }
 
-  return data;
+  return assertUpdatedReview(data, reviewId);
 }
 
 /** @deprecated Use requestBriefingRevision */
-export async function rejectReview(id: string): Promise<AthenaReview | null> {
-  return requestBriefingRevision(id);
+export async function rejectReview(reviewId: string): Promise<AthenaReview> {
+  return requestBriefingRevision(reviewId);
+}
+
+export function toBriefingStatusUpdate(
+  review: AthenaReview,
+): BriefingStatusUpdate {
+  return {
+    id: review.id,
+    status: review.status,
+  };
 }

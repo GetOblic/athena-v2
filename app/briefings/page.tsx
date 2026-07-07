@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { getBriefingListSummary } from "@/lib/briefingDisplay";
 import { formatBriefingStatus } from "@/lib/briefingStatus";

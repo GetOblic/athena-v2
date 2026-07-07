@@ -13,6 +13,18 @@ type BriefingStatusPanelProps = {
   initialStatus: string;
 };
 
+function statusColor(status: string) {
+  if (isApprovedStatus(status)) {
+    return "text-[var(--athena-success)]";
+  }
+
+  if (isNeedsRevisionStatus(status)) {
+    return "text-red-400";
+  }
+
+  return "text-[var(--athena-warning)]";
+}
+
 export function BriefingStatusPanel({
   reviewId,
   initialStatus,
@@ -41,7 +53,11 @@ export function BriefingStatusPanel({
         body: JSON.stringify({ action }),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        review?: { id?: string; status?: string };
+      };
 
       if (!response.ok || !data.success || !data.review?.status) {
         throw new Error(data.error || "Failed to update briefing status");
@@ -67,7 +83,7 @@ export function BriefingStatusPanel({
   return (
     <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <div className="text-white/40">Status</div>
-      <div className="mt-4 text-4xl font-semibold text-[var(--athena-warning)]">
+      <div className={`mt-4 text-4xl font-semibold ${statusColor(status)}`}>
         {formatBriefingStatus(status)}
       </div>
 

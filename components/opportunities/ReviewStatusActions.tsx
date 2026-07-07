@@ -42,7 +42,11 @@ export function ReviewStatusActions({
         body: JSON.stringify({ action }),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        review?: { id?: string; status?: string };
+      };
 
       if (!response.ok || !data.success || !data.review?.status) {
         throw new Error(data.error || "Failed to update briefing status");
