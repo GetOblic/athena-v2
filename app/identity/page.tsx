@@ -115,7 +115,7 @@ export default async function IdentityPage({
             </label>
 
             <label className="grid gap-3">
-              <span cName="text-xl font-semibold">Website optional</span>
+              <span className="text-xl font-semibold">Website optional</span>
               <span className="max-w-3xl text-sm leading-6 text-white/45">
                 Add your website if Athena should learn from it later. Example:
                 https://yourcompany.com
