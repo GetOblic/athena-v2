@@ -13,7 +13,7 @@ const navItems = [
   { label: "Briefings", href: "/briefings" },
 ];
 
-function greeting() {
+function timeGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
@@ -26,7 +26,9 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  if (!user) {
+    redirect("/login");
+  }
 
   const [identity, stats] = await Promise.all([
     getAthenaIdentityByUserId(user.id),
@@ -39,12 +41,10 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] text-white">
       <div className="flex min-h-screen">
-        <aside className="hidden w-[300px] border-r border-[var(--athena-border)] bg-[var(--athena-panel)] p-7 md:block">
+        <aside className="relative hidden w-[300px] border-r border-[var(--athena-border)] bg-[var(--athena-panel)] p-7 md:block">
           <div className="mb-12">
             <div className="text-3xl font-bold tracking-tight">ATHENA</div>
-            <div className="mt-2 text-sm text-white/45">
-              Intelligence OS
-            </div>
+            <div className="mt-2 text-sm text-white/45">Intelligence OS</div>
           </div>
 
           <nav className="space-y-2 text-sm">
@@ -75,7 +75,7 @@ export default async function Home() {
             </div>
 
             <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-              {greeting()}, {name}.
+              {timeGreeting()}, {name}.
             </h1>
 
             <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
@@ -126,10 +126,10 @@ export default async function Home() {
             />
             <ActionCard
               title="Continue Discussions"
-              description="Open captured community conversations and review Athena’s recommended replies."
+              description="Open captured community conversations and review Athena's recommended replies."
               href="/discussions"
             />
-            <ActionCd
+            <ActionCard
               title="Open Briefings"
               description="Review executive briefings, CTAs and strategic recommendations."
               href="/briefings"

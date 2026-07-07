@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   getAthenaIdentityByUserId,
@@ -46,6 +46,11 @@ export default async function IdentityPage({
   const params = await searchParams;
   const identity = await getAthenaIdentityByUserId(user.id);
 
+  const hasVoice = Boolean(identity?.about_you?.trim());
+  const hasExpertise = Boolean(identity?.expertise?.trim());
+  const hasWebsite = Boolean(identity?.website?.trim());
+  const hasMasterProfile = Boolean(identity?.master_profile);
+
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
       <Link href="/" className="text-sm text-[var(--athena-orange)]">
@@ -61,7 +66,7 @@ export default async function IdentityPage({
           Train Your Athena Brain
         </h1>
 
-        <p className="mt-4 max-3xl text-base leading-7 text-white/50">
+        <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
           Teach Athena your voice, expertise, business knowledge and professional
           rules. Athena will use this when generating replies, CTAs, briefings
           and strategic asset blueprints.
@@ -100,9 +105,9 @@ export default async function IdentityPage({
               <span className="text-xl font-semibold">Your Voice</span>
               <span className="max-w-3xl text-sm leading-6 text-white/45">
                 Help Athena understand how you naturally communicate. Example:
-                “I’m a PMU educator with 12 years of experience. I believe
+                &ldquo;I&apos;m a PMU educator with 12 years of experience. I believe
                 education should come before selling. My communication style is
-                warm, reassuring and professional.”
+                warm, reassuring and professional.&rdquo;
               </span>
               <textarea
                 name="about_you"
@@ -117,11 +122,11 @@ export default async function IdentityPage({
               <span className="text-xl font-semibold">
                 Your Business Knowledge
               </span>
-        <span className="max-w-3xl text-sm leading-6 text-white/45">
+              <span className="max-w-3xl text-sm leading-6 text-white/45">
                 Teach Athena your expertise, methodology, terminology and
-                professional rules. Example: “My training follows a five-step
+                professional rules. Example: &ldquo;My training follows a five-step
                 methodology: consultation, theory, hands-on practice,
-                supervised work and business launch.”
+                supervised work and business launch.&rdquo;
               </span>
               <textarea
                 name="expertise"
@@ -133,7 +138,7 @@ export default async function IdentityPage({
             </label>
 
             <label className="grid gap-3">
-              <span className="text-xl font-semibold">Business Webs/span>
+              <span className="text-xl font-semibold">Business Website</span>
               <span className="max-w-3xl text-sm leading-6 text-white/45">
                 Athena will study your homepage and use it to understand your
                 business. V2 will support sitemap crawling and selected pages.
@@ -159,10 +164,10 @@ export default async function IdentityPage({
           <h2 className="text-xl font-semibold">Brain Status</h2>
 
           <div className="mt-6 space-y-5 text-sm leading-6 text-white/55">
-            <div>✓ Voice learned</div>
-            <div>✓ Expertise learned</div>
-            <div>✓ Homepage learned</div>
-            <div>✓ Professional terminology learned</div>
+            <div>{hasVoice ? "✓" : "○"} Voice learned</div>
+            <div>{hasExpertise ? "✓" : "○"} Expertise learned</div>
+            <div>{hasWebsite ? "✓" : "○"} Homepage learned</div>
+            <div>{hasMasterProfile ? "✓" : "○"} Professional terminology learned</div>
             <div>✓ Continuous learning enabled</div>
           </div>
 
@@ -178,7 +183,7 @@ export default async function IdentityPage({
               {identity?.brain_last_updated
                 ? new Date(identity.brain_last_updated).toLocaleString()
                 : "Not yet trained"}
-     iv>
+            </div>
           </div>
         </aside>
       </div>
