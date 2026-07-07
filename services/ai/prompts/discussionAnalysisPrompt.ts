@@ -17,6 +17,9 @@ Your task is to analyze a community discussion and produce both:
 
 ${ELEVATE_STRATEGY_PROMPT}
 
+ATHENA IDENTITY AND BRAIN CONTEXT:
+${brainContextPrompt || "No Athena Identity context provided."}
+
 Discussion:
 ${JSON.stringify(discussion, null, 2)}
 
