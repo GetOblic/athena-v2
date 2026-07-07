@@ -11,24 +11,24 @@ export type AthenaBrainContext = {
   } | null;
 };
 
-export async function getAthenaBrainContextForCurrentUser(): Promise<AthenaBrainContext> {
-  const supabase = await createSupabaseServerClient();
+export function getEmptyAthenaBrainContext(): AthenaBrainContext {
+  return {
+    userId: null,
+    identity: null,
+  };
+}
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return {
-      userId: null,
-      identity: null,
-    };
+export async function getAthenaBrainContextForUserId(
+  userId: string | null | undefined,
+): Promise<AthenaBrainContext> {
+  if (!userId) {
+    return getEmptyAthenaBrainContext();
   }
 
-  const identity = await getAthenaIdentityByUserId(user.id);
+  const identity = await getAthenaIdentityByUserId(userId);
 
   return {
-    userId: user.id,
+    userId,
     identity: identity
       ? {
           about_you: identity.about_you,
@@ -40,18 +40,35 @@ export async function getAthenaBrainContextForCurrentUser(): Promise<AthenaBrain
   };
 }
 
+export async function getAthenaBrainContextForCurrentUser(): Promise<AthenaBrainContext> {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.id) {
+    return getEmptyAthenaBrainContext();
+  }
+
+  return getAthenaBrainContextForUserId(user.id);
+}
+
 export function formatBrainContextForPrompt(context: AthenaBrainContext): string {
   if (!context.identity) {
     return `
 ATHENA BRAIN CONTEXT:
 No Athena Identity profile has been configured yet.
 
-Use the discussion context only. Do not invent a user persona, brand voice, methodology, offers, or expertise.
+Use the discussion context only. Do not invent a user persona, brand voice, methodology, offers, resources, lead magnets, or expertise.
 `.trim();
   }
 
   return `
 ATHENA BRAIN CONTEXT:
+
+USER ID:
+${context.userId || "Not available."}
 
 ABOUT THE USER:
 ${context.identity.about_you || "Not provided."}
@@ -69,7 +86,8 @@ INSTRUCTIONS:
 Use this identity context as the user's voice, expertise, methodology, terminology, rules, positioning, and CTA style.
 
 Do not contradict it.
-Do not invent offers, guarantees, credentials, or resources that are not present.
+Do not invent credentials, guarantees, income promises, or unsupported claims.
+Strategic asset recommendations are allowed, but phrase them as recommended/suggested assets unless the asset is explicitly present in the user's identity, website, documents, or existing resources.
 If the identity says to educate before selling, follow that principle.
 If the identity contains professional terminology or methodology, use it naturally.
 `.trim();
