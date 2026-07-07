@@ -1,17 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDashboardStats } from "@/services/dashboardService";
 import { getAthenaIdentityByUserId } from "@/services/identity/identityService";
-
-const navItems = [
-  { label: "Dashboard", href: "/" },
-  { label: "Athena Brain", href: "/identity" },
-  { label: "Inbox", href: "/inbox" },
-  { label: "Discussions", href: "/discussions" },
-  { label: "Opportunities", href: "/opportunities" },
-  { label: "Briefings", href: "/briefings" },
-];
 
 function timeGreeting() {
   const hour = new Date().getHours();
@@ -41,32 +33,7 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] text-white">
       <div className="flex min-h-screen">
-        <aside className="relative hidden w-[300px] border-r border-[var(--athena-border)] bg-[var(--athena-panel)] p-7 md:block">
-          <div className="mb-12">
-            <div className="text-3xl font-bold tracking-tight">ATHENA</div>
-            <div className="mt-2 text-sm text-white/45">Intelligence OS</div>
-          </div>
-
-          <nav className="space-y-2 text-sm">
-            {navItems.map((item, index) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`block rounded-2xl px-5 py-4 transition ${
-                  index === 0
-                    ? "bg-[var(--athena-orange)] text-white shadow-lg shadow-orange-500/20"
-                    : "text-white/55 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="absolute bottom-7 text-xs text-white/30">
-            Powered by GetOblic
-          </div>
-        </aside>
+        <DashboardSidebar activeHref="/" />
 
         <section className="flex-1 p-10">
           <div className="mb-12">
