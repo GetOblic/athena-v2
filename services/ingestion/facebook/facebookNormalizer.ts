@@ -1,5 +1,6 @@
 export type FacebookDiscussionInput = {
   communityId?: string | null;
+  userId?: string | null;
   title?: string | null;
   author?: string | null;
   url?: string | null;
@@ -9,6 +10,7 @@ export type FacebookDiscussionInput = {
 
 export type NormalizedFacebookDiscussion = {
   community_id: string | null;
+  user_id: string | null;
   platform: "Facebook Group";
   title: string;
   author: string | null;
@@ -89,6 +91,7 @@ export function normalizeFacebookDiscussion(
 
   return {
     community_id: input.communityId ?? null,
+    user_id: input.userId ?? null,
     platform: "Facebook Group",
     title: inferTitle(body, input.title),
     author: cleanText(input.author) || null,

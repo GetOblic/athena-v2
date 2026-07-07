@@ -6,6 +6,7 @@ export type AthenaReview = {
   updated_at: string;
 
   discussion_id: string | null;
+  user_id?: string | null;
   opportunity_id: string | null;
 
   status: string;
@@ -31,6 +32,7 @@ export type AthenaReview = {
 
 export type CreateAthenaReviewInput = {
   discussion_id?: string | null;
+  user_id?: string | null;
   opportunity_id?: string | null;
   status?: string;
 
@@ -138,6 +140,7 @@ export async function createReview(
     .from("athena_reviews")
     .insert({
       discussion_id: input.discussion_id ?? null,
+      user_id: input.user_id ?? null,
       opportunity_id: input.opportunity_id ?? null,
       status: input.status ?? "draft",
 

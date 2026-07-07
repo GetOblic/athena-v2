@@ -7,6 +7,7 @@ export type Opportunity = {
 
     discussion_id: string | null;
     community_id: string | null;
+    user_id?: string | null;
 
     type: string;
     status: string;
@@ -77,6 +78,7 @@ export async function getOpportunityById(
 export type CreateOpportunityInput = {
     discussion_id?: string | null;
     community_id?: string | null;
+    user_id?: string | null;
     type?: string;
     status?: string;
     score?: number;
@@ -102,6 +104,7 @@ export async function createOpportunity(
         .insert({
             discussion_id: input.discussion_id ?? null,
             community_id: input.community_id ?? null,
+            user_id: input.user_id ?? null,
             type: input.type ?? "community_discussion",
             status: input.status ?? "draft",
             score: input.score ?? 0,

@@ -112,6 +112,7 @@ export async function processDiscussionEndToEnd(discussionId: string) {
 
   const analysis = await createDiscussionAnalysis({
     discussion_id: discussion.id,
+    user_id: discussion.user_id ?? null,
     community_id: discussion.community_id,
     status: "draft",
     summary: parsedAnalysis.summary,
@@ -151,6 +152,7 @@ export async function processDiscussionEndToEnd(discussionId: string) {
 
   const opportunity = await createOpportunity({
     discussion_id: discussion.id,
+    user_id: discussion.user_id ?? null,
     community_id: discussion.community_id,
     status: "draft",
     score: parsedAnalysis.confidence || discussion.opportunity_score || 0,
@@ -182,6 +184,7 @@ export async function processDiscussionEndToEnd(discussionId: string) {
   const review = await createReview({
     opportunity_id: opportunity.id,
     discussion_id: discussion.id,
+    user_id: discussion.user_id ?? null,
     status: "draft",
     summary: parsedReview.summary,
     pain_points: parsedReview.pain_points,

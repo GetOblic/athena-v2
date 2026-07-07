@@ -7,6 +7,7 @@ export type KnowledgeAssetInput = {
   summary?: string | null;
   content: string;
   community_id?: string | null;
+  user_id?: string | null;
   source_type?: string | null;
   source_id?: string | null;
   rating?: number | null;
@@ -24,6 +25,7 @@ export async function createKnowledgeAsset(input: KnowledgeAssetInput) {
       summary: input.summary ?? null,
       content: input.content,
       community_id: input.community_id ?? null,
+      user_id: input.user_id ?? null,
       source_type: input.source_type ?? null,
       source_id: input.source_id ?? null,
       rating: input.rating ?? null,

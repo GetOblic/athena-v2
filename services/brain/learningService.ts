@@ -69,6 +69,7 @@ export async function learnFromApprovedBriefing(reviewId: string) {
     summary: review.summary ?? null,
     content,
     community_id: discussion?.community_id ?? null,
+    user_id: discussion?.user_id ?? null,
     source_type: "athena_reviews",
     source_id: review.id,
     rating: review.confidence ? Math.max(1, Math.min(5, Math.round(review.confidence / 20))) : null,

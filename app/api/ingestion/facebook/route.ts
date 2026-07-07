@@ -1,28 +1,36 @@
 import { NextResponse } from "next/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { importFacebookDiscussion } from "@/services/ingestion/facebook/facebookImporter";
 
-function verifyIngestionKey(request: Request) {
-  const expectedKey = process.env.ATHENA_INGESTION_KEY;
+async function getAuthorizedUserId(request: Request) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!expectedKey) {
-    throw new Error("Missing ATHENA_INGESTION_KEY environment variable.");
+  if (user?.id) {
+    return user.id;
   }
 
+  const expectedKey = process.env.ATHENA_INGESTION_KEY;
   const receivedKey = request.headers.get("x-athena-ingestion-key");
 
-  if (receivedKey !== expectedKey) {
-    throw new Error("Invalid Athena ingestion key.");
+  if (expectedKey && receivedKey === expectedKey) {
+    return null;
   }
+
+  throw new Error("Unauthorized Athena ingestion request.");
 }
 
 export async function POST(request: Request) {
   try {
-    verifyIngestionKey(request);
+    const userId = await getAuthorizedUserId(request);
 
     const body = await request.json();
 
     const result = await importFacebookDiscussion({
       communityId: body.communityId ?? body.community_id ?? null,
+      userId,
       title: body.title ?? null,
       author: body.author ?? null,
       url: body.url ?? null,

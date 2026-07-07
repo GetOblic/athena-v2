@@ -5,6 +5,7 @@ export type Discussion = {
     created_at: string;
     updated_at: string;
     community_id: string | null;
+    user_id?: string | null;
     platform: string;
     title: string;
     author: string | null;
@@ -102,6 +103,7 @@ export async function getDiscussionsByCommunityId(
 
 export type CreateDiscussionInput = {
     community_id?: string | null;
+    user_id?: string | null;
     platform: string;
     title: string;
     author?: string | null;
@@ -124,6 +126,7 @@ export async function createDiscussion(
         .from("discussions")
         .insert({
             community_id: input.community_id ?? null,
+            user_id: input.user_id ?? null,
             platform: input.platform,
             title: input.title,
             author: input.author ?? null,
