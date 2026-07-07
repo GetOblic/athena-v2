@@ -2,8 +2,10 @@ import { generateReview } from "@/services/aiService";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   ASSET_BLUEPRINT_PROMPT_VERSION,
+  buildAssetBlueprintFromAnalysisPrompt,
   buildAssetBlueprintPrompt,
 } from "@/services/assetBlueprints/prompts/assetBlueprintPrompt";
+import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import type { Discussion } from "@/services/discussionService";
 import type { Opportunity } from "@/services/opportunityService";
 import type { AthenaReview } from "@/services/reviewService";
@@ -66,6 +68,82 @@ function parseJsonResponse(rawText: string): ParsedAssetBlueprint {
   };
 }
 
+export function blueprintHasPrompts(
+  blueprint: Pick<
+    AthenaAssetBlueprint,
+    "image_prompt" | "pdf_prompt" | "social_prompt" | "notes"
+  >,
+): boolean {
+  return Boolean(
+    blueprint.image_prompt?.trim() ||
+      blueprint.pdf_prompt?.trim() ||
+      blueprint.social_prompt?.trim() ||
+      blueprint.notes?.trim(),
+  );
+}
+
+function pickBestBlueprint(
+  blueprints: AthenaAssetBlueprint[],
+): AthenaAssetBlueprint | null {
+  if (blueprints.length === 0) {
+    return null;
+  }
+
+  return blueprints.find(blueprintHasPrompts) ?? blueprints[0];
+}
+
+async function insertAssetBlueprint(input: {
+  userId: string | null;
+  discussionId: string;
+  opportunityId?: string | null;
+  briefingId?: string | null;
+  parsed: ParsedAssetBlueprint;
+  rawBlueprint: string;
+  source: string;
+}): Promise<AthenaAssetBlueprint | null> {
+  if (!blueprintHasPrompts(input.parsed)) {
+    console.warn(
+      `Skipping asset blueprint insert for discussion ${input.discussionId}: no prompts generated`,
+    );
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("athena_asset_blueprints")
+    .insert({
+      user_id: input.userId,
+      discussion_id: input.discussionId,
+      opportunity_id: input.opportunityId ?? null,
+      briefing_id: input.briefingId ?? null,
+      asset_title: input.parsed.asset_title,
+      asset_type: input.parsed.asset_type,
+      business_goal: input.parsed.business_goal,
+      target_audience: input.parsed.target_audience,
+      priority: input.parsed.priority,
+      estimated_reuse: input.parsed.estimated_reuse,
+      image_prompt: input.parsed.image_prompt,
+      pdf_prompt: input.parsed.pdf_prompt,
+      social_prompt: input.parsed.social_prompt,
+      notes: input.parsed.notes,
+      status: "ready",
+      raw_json: {
+        prompt_version: ASSET_BLUEPRINT_PROMPT_VERSION,
+        source: input.source,
+        parsed: input.parsed,
+        raw_ai_response: input.rawBlueprint,
+      },
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Error creating asset blueprint:", error);
+    return null;
+  }
+
+  return data;
+}
+
 export async function createAssetBlueprintForBriefing(input: {
   discussion: Discussion;
   opportunity: Opportunity;
@@ -82,42 +160,38 @@ export async function createAssetBlueprintForBriefing(input: {
   const rawBlueprint = await generateReview(prompt);
   const parsed = parseJsonResponse(rawBlueprint);
 
-  const { data, error } = await supabaseAdmin
-    .from("athena_asset_blueprints")
-    .insert({
-      user_id: input.discussion.user_id ?? null,
-      discussion_id: input.discussion.id,
-      opportunity_id: input.opportunity.id,
-      briefing_id: input.briefing.id,
+  return insertAssetBlueprint({
+    userId: input.discussion.user_id ?? null,
+    discussionId: input.discussion.id,
+    opportunityId: input.opportunity.id,
+    briefingId: input.briefing.id,
+    parsed,
+    rawBlueprint,
+    source: "briefing",
+  });
+}
 
-      asset_title: parsed.asset_title,
-      asset_type: parsed.asset_type,
-      business_goal: parsed.business_goal,
-      target_audience: parsed.target_audience,
-      priority: parsed.priority,
-      estimated_reuse: parsed.estimated_reuse,
-      image_prompt: parsed.image_prompt,
-      pdf_prompt: parsed.pdf_prompt,
-      social_prompt: parsed.social_prompt,
-      notes: parsed.notes,
+export async function createAssetBlueprintForDiscussionAnalysis(input: {
+  discussion: Discussion;
+  analysis: DiscussionAnalysis;
+  brainContextPrompt: string;
+}): Promise<AthenaAssetBlueprint | null> {
+  const prompt = buildAssetBlueprintFromAnalysisPrompt({
+    brainContextPrompt: input.brainContextPrompt,
+    discussion: input.discussion as unknown as Record<string, unknown>,
+    analysis: input.analysis as unknown as Record<string, unknown>,
+  });
 
-      status: "ready",
+  const rawBlueprint = await generateReview(prompt);
+  const parsed = parseJsonResponse(rawBlueprint);
 
-      raw_json: {
-        prompt_version: ASSET_BLUEPRINT_PROMPT_VERSION,
-        parsed,
-        raw_ai_response: rawBlueprint,
-      },
-    })
-    .select("*")
-    .single();
-
-  if (error) {
-    console.error("Error creating asset blueprint:", error);
-    return null;
-  }
-
-  return data;
+  return insertAssetBlueprint({
+    userId: input.discussion.user_id ?? null,
+    discussionId: input.discussion.id,
+    parsed,
+    rawBlueprint,
+    source: "discussion_analysis",
+  });
 }
 
 export async function getAssetBlueprintsByBriefingId(
@@ -137,6 +211,23 @@ export async function getAssetBlueprintsByBriefingId(
   return data ?? [];
 }
 
+export async function getAssetBlueprintsByDiscussionId(
+  discussionId: string,
+): Promise<AthenaAssetBlueprint[]> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_asset_blueprints")
+    .select("*")
+    .eq("discussion_id", discussionId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching asset blueprints by discussion:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
 export async function getLatestAssetBlueprintByBriefingId(
   briefingId: string,
 ): Promise<AthenaAssetBlueprint | null> {
@@ -144,21 +235,23 @@ export async function getLatestAssetBlueprintByBriefingId(
   return blueprints[0] ?? null;
 }
 
+export async function getDisplayAssetBlueprintByBriefingId(
+  briefingId: string,
+): Promise<AthenaAssetBlueprint | null> {
+  const blueprints = await getAssetBlueprintsByBriefingId(briefingId);
+  return pickBestBlueprint(blueprints);
+}
+
 export async function getLatestAssetBlueprintByDiscussionId(
   discussionId: string,
 ): Promise<AthenaAssetBlueprint | null> {
-  const { data, error } = await supabaseAdmin
-    .from("athena_asset_blueprints")
-    .select("*")
-    .eq("discussion_id", discussionId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const blueprints = await getAssetBlueprintsByDiscussionId(discussionId);
+  return blueprints[0] ?? null;
+}
 
-  if (error) {
-    console.error("Error fetching asset blueprint by discussion:", error);
-    return null;
-  }
-
-  return data;
+export async function getDisplayAssetBlueprintByDiscussionId(
+  discussionId: string,
+): Promise<AthenaAssetBlueprint | null> {
+  const blueprints = await getAssetBlueprintsByDiscussionId(discussionId);
+  return pickBestBlueprint(blueprints);
 }

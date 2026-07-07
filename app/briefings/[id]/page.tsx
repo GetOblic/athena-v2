@@ -4,7 +4,7 @@ import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicA
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { ReviewStatusActions } from "@/components/opportunities/ReviewStatusActions";
 import { buildBriefingDeploymentAssets } from "@/lib/deploymentAssets";
-import { getLatestAssetBlueprintByBriefingId } from "@/services/assetBlueprints/assetBlueprintService";
+import { getDisplayAssetBlueprintByBriefingId } from "@/services/assetBlueprints/assetBlueprintService";
 import { getReviewById } from "@/services/reviewService";
 
 type Props = {
@@ -23,7 +23,7 @@ export default async function BriefingPage({ params }: Props) {
   }
 
   const deploymentAssets = buildBriefingDeploymentAssets(review);
-  const assetBlueprint = await getLatestAssetBlueprintByBriefingId(id);
+  const assetBlueprint = await getDisplayAssetBlueprintByBriefingId(id);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">

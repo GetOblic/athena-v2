@@ -1,5 +1,8 @@
 import { generateReview } from "@/services/aiService";
-import { createAssetBlueprintForBriefing } from "@/services/assetBlueprints/assetBlueprintService";
+import {
+  createAssetBlueprintForBriefing,
+  createAssetBlueprintForDiscussionAnalysis,
+} from "@/services/assetBlueprints/assetBlueprintService";
 import {
   formatBrainContextForPrompt,
   getAthenaBrainContextForCurrentUser,
@@ -94,6 +97,34 @@ function parseGeneratedReview(rawText: string): GeneratedReview {
   }
 }
 
+async function generateAssetBlueprint(input: {
+  discussion: NonNullable<Awaited<ReturnType<typeof getDiscussionById>>>;
+  analysis: Awaited<ReturnType<typeof createDiscussionAnalysis>>;
+  opportunity?: Awaited<ReturnType<typeof createOpportunity>> | null;
+  review?: Awaited<ReturnType<typeof createReview>> | null;
+  brainContextPrompt: string;
+}) {
+  try {
+    if (input.opportunity && input.review) {
+      return await createAssetBlueprintForBriefing({
+        discussion: input.discussion,
+        opportunity: input.opportunity,
+        briefing: input.review,
+        brainContextPrompt: input.brainContextPrompt,
+      });
+    }
+
+    return await createAssetBlueprintForDiscussionAnalysis({
+      discussion: input.discussion,
+      analysis: input.analysis,
+      brainContextPrompt: input.brainContextPrompt,
+    });
+  } catch (error) {
+    console.error("Asset blueprint generation failed:", error);
+    return null;
+  }
+}
+
 export async function processDiscussionEndToEnd(discussionId: string) {
   const startedAt = Date.now();
   const discussion = await getDiscussionById(discussionId);
@@ -147,12 +178,18 @@ export async function processDiscussionEndToEnd(discussionId: string) {
   });
 
   if (!parsedAnalysis.opportunity_detected) {
+    const assetBlueprint = await generateAssetBlueprint({
+      discussion,
+      analysis,
+      brainContextPrompt,
+    });
+
     return {
       discussion,
       analysis,
       opportunity: null,
       review: null,
-      assetBlueprint: null,
+      assetBlueprint,
       status: "analysis_completed_no_opportunity",
     };
   }
@@ -214,10 +251,11 @@ export async function processDiscussionEndToEnd(discussionId: string) {
     throw new Error("Opportunity created but briefing/review was not saved.");
   }
 
-  const assetBlueprint = await createAssetBlueprintForBriefing({
+  const assetBlueprint = await generateAssetBlueprint({
     discussion,
+    analysis,
     opportunity,
-    briefing: review,
+    review,
     brainContextPrompt,
   });
 

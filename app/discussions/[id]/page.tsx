@@ -6,7 +6,7 @@ import { AppendDiscussionUpdateForm } from "@/components/discussions/AppendDiscu
 import { AthenaRecommendationRibbon } from "@/components/discussions/AthenaRecommendationRibbon";
 import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveIntelligenceCard";
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
-import { getLatestAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
+import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
 import { getCommunityById } from "@/services/communityService";
 import { getDiscussionById } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
@@ -37,7 +37,7 @@ export default async function DiscussionDetailsPage({
 
   const latestAnalysis = await getLatestDiscussionAnalysis(id);
   const deploymentAssets = buildDiscussionDeploymentAssets(latestAnalysis);
-  const assetBlueprint = await getLatestAssetBlueprintByDiscussionId(id);
+  const assetBlueprint = await getDisplayAssetBlueprintByDiscussionId(id);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">

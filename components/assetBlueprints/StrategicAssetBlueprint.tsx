@@ -113,7 +113,7 @@ function PromptBlock({
             hasContent ? "text-white/85" : "text-white/30"
           }`}
         >
-          {hasContent ? content : "No prompt generated."}
+          {hasContent ? content : "No prompt generated yet."}
         </p>
       </div>
     </article>
