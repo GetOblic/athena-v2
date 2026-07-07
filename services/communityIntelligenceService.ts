@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export type CommunityIntelligence = {
   id: string;
+  organization_id: string | null;
   community_id: string | null;
 
   created_at: string;
@@ -34,11 +35,13 @@ export type CommunityIntelligence = {
 
 export async function getLatestCommunityIntelligenceByCommunityId(
   communityId: string,
+  organizationId: string,
 ): Promise<CommunityIntelligence | null> {
   const { data, error } = await supabaseAdmin
     .from("athena_community_intelligence")
     .select("*")
     .eq("community_id", communityId)
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -53,12 +56,14 @@ export async function getLatestCommunityIntelligenceByCommunityId(
 
 export async function getCommunityIntelligenceHistory(
   communityId: string,
+  organizationId: string,
   limit = 8,
 ): Promise<CommunityIntelligence[]> {
   const { data, error } = await supabaseAdmin
     .from("athena_community_intelligence")
     .select("*")
     .eq("community_id", communityId)
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -71,7 +76,7 @@ export async function getCommunityIntelligenceHistory(
 }
 
 export async function createCommunityIntelligence(
-  input: Partial<CommunityIntelligence>,
+  input: Partial<CommunityIntelligence> & { organization_id: string },
 ): Promise<CommunityIntelligence | null> {
   const { data, error } = await supabaseAdmin
     .from("athena_community_intelligence")

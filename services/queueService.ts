@@ -98,10 +98,12 @@ function groupByKey<T, K extends string>(
   return grouped;
 }
 
-export async function getDiscussionQueues(): Promise<DiscussionQueueSection[]> {
+export async function getDiscussionQueues(
+  organizationId: string,
+): Promise<DiscussionQueueSection[]> {
   const [discussions, analyzedDiscussionIds] = await Promise.all([
-    getDiscussions(),
-    getAnalyzedDiscussionIds(),
+    getDiscussions(organizationId),
+    getAnalyzedDiscussionIds(organizationId),
   ]);
 
   const grouped: Record<DiscussionQueueKey, Discussion[]> = {
@@ -123,8 +125,10 @@ export async function getDiscussionQueues(): Promise<DiscussionQueueSection[]> {
   }));
 }
 
-export async function getOpportunityWorkQueues(): Promise<OpportunityWorkQueueSection[]> {
-  const opportunities = await getOpportunities();
+export async function getOpportunityWorkQueues(
+  organizationId: string,
+): Promise<OpportunityWorkQueueSection[]> {
+  const opportunities = await getOpportunities(organizationId);
   const grouped = groupByKey(opportunities, classifyOpportunityPriority);
 
   return OPPORTUNITY_PRIORITY_ORDER.map((key) => {
@@ -139,12 +143,16 @@ export async function getOpportunityWorkQueues(): Promise<OpportunityWorkQueueSe
 }
 
 /** @deprecated Use getOpportunityWorkQueues for operator-facing queues */
-export async function getOpportunityQueues(): Promise<OpportunityWorkQueueSection[]> {
-  return getOpportunityWorkQueues();
+export async function getOpportunityQueues(
+  organizationId: string,
+): Promise<OpportunityWorkQueueSection[]> {
+  return getOpportunityWorkQueues(organizationId);
 }
 
-export async function getBriefingQueues(): Promise<BriefingQueueSection[]> {
-  const briefings = await getReviews();
+export async function getBriefingQueues(
+  organizationId: string,
+): Promise<BriefingQueueSection[]> {
+  const briefings = await getReviews(organizationId);
   const grouped = groupByKey(briefings, (briefing) =>
     normalizeBriefingStatus(briefing.status),
   );

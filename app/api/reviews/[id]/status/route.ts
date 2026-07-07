@@ -8,6 +8,10 @@ import {
 } from "@/services/reviewService";
 import { emitBrainEvent } from "@/services/brain/eventBus";
 import { registerBrainProcessors } from "@/services/brain/brainProcessor";
+import {
+  OrganizationAccessError,
+  requireCurrentOrganizationContext,
+} from "@/services/organizationService";
 
 type RouteContext = {
   params: Promise<{
@@ -20,6 +24,7 @@ registerBrainProcessors();
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
+    const { organizationId } = await requireCurrentOrganizationContext();
     const body = await request.json();
 
     const action = body?.action;
@@ -36,12 +41,15 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const review = isApprove
-      ? await approveReview(id)
-      : await requestBriefingRevision(id);
+      ? await approveReview(id, organizationId)
+      : await requestBriefingRevision(id, organizationId);
 
     if (isApprove) {
       try {
-        await emitBrainEvent("briefing.approved", { reviewId: review.id });
+        await emitBrainEvent("briefing.approved", {
+          reviewId: review.id,
+          organizationId,
+        });
       } catch (brainError) {
         console.error("Brain learning after approval failed:", brainError);
       }
@@ -52,6 +60,13 @@ export async function POST(request: Request, context: RouteContext) {
       review: toBriefingStatusUpdate(review),
     });
   } catch (error) {
+    if (error instanceof OrganizationAccessError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 401 },
+      );
+    }
+
     if (error instanceof ReviewNotFoundError) {
       return NextResponse.json(
         { success: false, error: error.message },

@@ -1,8 +1,10 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveOrganizationIdForUser } from "@/services/organizationService";
 import { getAthenaIdentityByUserId } from "@/services/identity/identityService";
 
 export type AthenaBrainContext = {
   userId: string | null;
+  organizationId: string | null;
   identity: {
     about_you: string | null;
     expertise: string | null;
@@ -14,21 +16,24 @@ export type AthenaBrainContext = {
 export function getEmptyAthenaBrainContext(): AthenaBrainContext {
   return {
     userId: null,
+    organizationId: null,
     identity: null,
   };
 }
 
 export async function getAthenaBrainContextForUserId(
   userId: string | null | undefined,
+  organizationId: string,
 ): Promise<AthenaBrainContext> {
   if (!userId) {
     return getEmptyAthenaBrainContext();
   }
 
-  const identity = await getAthenaIdentityByUserId(userId);
+  const identity = await getAthenaIdentityByUserId(userId, organizationId);
 
   return {
     userId,
+    organizationId,
     identity: identity
       ? {
           about_you: identity.about_you,
@@ -51,7 +56,12 @@ export async function getAthenaBrainContextForCurrentUser(): Promise<AthenaBrain
     return getEmptyAthenaBrainContext();
   }
 
-  return getAthenaBrainContextForUserId(user.id);
+  const organizationId = await resolveOrganizationIdForUser(
+    user.id,
+    user.email,
+  );
+
+  return getAthenaBrainContextForUserId(user.id, organizationId);
 }
 
 export function formatBrainContextForPrompt(context: AthenaBrainContext): string {

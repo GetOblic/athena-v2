@@ -6,6 +6,7 @@ import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLif
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
 import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
 import { getIntelligenceDomains } from "@/services/intelligenceDomainService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getDiscussionQueues } from "@/services/queueService";
 
 const listGridClass =
@@ -21,10 +22,12 @@ function formatLastActivity(value: string | null) {
 }
 
 export default async function DiscussionsPage() {
+  const { organizationId } = await requireCurrentOrganizationContext();
+
   const [queues, domains, analyzedDiscussionIds] = await Promise.all([
-    getDiscussionQueues(),
-    getIntelligenceDomains(),
-    getAnalyzedDiscussionIds(),
+    getDiscussionQueues(organizationId),
+    getIntelligenceDomains(organizationId),
+    getAnalyzedDiscussionIds(organizationId),
   ]);
 
   const domainById = new Map(domains.map((d) => [d.id, d]));

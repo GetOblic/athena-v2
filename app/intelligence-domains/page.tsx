@@ -10,6 +10,7 @@ import {
   createIntelligenceDomain,
   getIntelligenceDomains,
 } from "@/services/intelligenceDomainService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 async function createDomain(formData: FormData) {
   "use server";
@@ -23,7 +24,10 @@ async function createDomain(formData: FormData) {
     redirect("/login");
   }
 
+  const { organizationId } = await requireCurrentOrganizationContext();
+
   const domain = await createIntelligenceDomain({
+    organization_id: organizationId,
     name: String(formData.get("name") ?? ""),
     description: String(formData.get("description") ?? "") || null,
     market: String(formData.get("market") ?? "") || null,
@@ -52,7 +56,8 @@ export default async function IntelligenceDomainsPage({
   }
 
   const params = await searchParams;
-  const domains = await getIntelligenceDomains();
+  const { organizationId } = await requireCurrentOrganizationContext();
+  const domains = await getIntelligenceDomains(organizationId);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] text-white">

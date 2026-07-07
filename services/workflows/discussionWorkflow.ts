@@ -127,21 +127,30 @@ async function generateAssetBlueprint(input: {
   }
 }
 
-export async function processDiscussionEndToEnd(discussionId: string) {
+export async function processDiscussionEndToEnd(
+  discussionId: string,
+  organizationId: string,
+) {
   const startedAt = Date.now();
-  const discussion = await getDiscussionById(discussionId);
+  const discussion = await getDiscussionById(discussionId, organizationId);
 
   if (!discussion) {
     throw new Error(`Discussion not found: ${discussionId}`);
   }
 
   const brainContext = discussion.user_id
-    ? await getAthenaBrainContextForUserId(discussion.user_id)
+    ? await getAthenaBrainContextForUserId(
+        discussion.user_id,
+        organizationId,
+      )
     : await getAthenaBrainContextForCurrentUser();
 
   const brainContextPrompt = formatBrainContextForPrompt(brainContext);
 
-  const threadUpdates = await getDiscussionUpdatesByDiscussionId(discussionId);
+  const threadUpdates = await getDiscussionUpdatesByDiscussionId(
+    discussionId,
+    organizationId,
+  );
   const analysisDiscussion = {
     ...discussion,
     body: buildAnalysisThreadBody(discussion, threadUpdates),
@@ -156,6 +165,7 @@ export async function processDiscussionEndToEnd(discussionId: string) {
   const parsedAnalysis = parseAnalysis(rawAnalysis);
 
   const analysis = await createDiscussionAnalysis({
+    organization_id: organizationId,
     discussion_id: discussion.id,
     user_id: discussion.user_id ?? null,
     community_id: discussion.community_id,
@@ -203,6 +213,7 @@ export async function processDiscussionEndToEnd(discussionId: string) {
   }
 
   const opportunity = await createOpportunity({
+    organization_id: organizationId,
     discussion_id: discussion.id,
     user_id: discussion.user_id ?? null,
     community_id: discussion.community_id,
@@ -234,6 +245,7 @@ export async function processDiscussionEndToEnd(discussionId: string) {
   const parsedReview = parseGeneratedReview(rawReview);
 
   const review = await createReview({
+    organization_id: organizationId,
     opportunity_id: opportunity.id,
     discussion_id: discussion.id,
     user_id: discussion.user_id ?? null,

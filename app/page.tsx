@@ -5,6 +5,7 @@ import { TodaysIntelligence } from "@/components/dashboard/TodaysIntelligence";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDashboardStats } from "@/services/dashboardService";
 import { getAthenaIdentityByUserId } from "@/services/identity/identityService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getTodaysIntelligence } from "@/services/todaysIntelligenceService";
 
 function timeGreeting() {
@@ -24,10 +25,12 @@ export default async function Home() {
     redirect("/login");
   }
 
+  const { organizationId, userId } = await requireCurrentOrganizationContext();
+
   const [identity, stats, todaysIntelligence] = await Promise.all([
-    getAthenaIdentityByUserId(user.id),
-    getDashboardStats(user.id),
-    getTodaysIntelligence(user.id),
+    getAthenaIdentityByUserId(userId, organizationId),
+    getDashboardStats(organizationId),
+    getTodaysIntelligence(organizationId),
   ]);
 
   const name = identity?.greeting_name?.trim() || "there";

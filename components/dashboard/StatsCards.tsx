@@ -1,7 +1,9 @@
 import { getCommunityCount } from "@/services/communityService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 export async function StatsCards() {
-  const communityCount = await getCommunityCount();
+  const { organizationId } = await requireCurrentOrganizationContext();
+  const communityCount = await getCommunityCount(organizationId);
 
   const metrics = [
     ["Intelligence Domains", String(communityCount), "Markets Athena understands"],

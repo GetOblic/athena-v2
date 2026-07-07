@@ -6,6 +6,7 @@ export type Discussion = {
     id: string;
     created_at: string;
     updated_at: string;
+    organization_id?: string | null;
     community_id: string | null;
     user_id?: string | null;
     platform: string;
@@ -23,10 +24,13 @@ export type Discussion = {
     raw_json: Record<string, unknown> | null;
 };
 
-export async function getDiscussionCount(): Promise<number> {
+export async function getDiscussionCount(
+    organizationId: string,
+): Promise<number> {
     const { count, error } = await supabaseAdmin
         .from("discussions")
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", organizationId);
 
     if (error) {
         console.error("Error fetching discussion count:", error);
@@ -37,11 +41,13 @@ export async function getDiscussionCount(): Promise<number> {
 }
 
 export async function getHighPriorityDiscussions(
+    organizationId: string,
     limit = 5,
 ): Promise<Discussion[]> {
     const { data, error } = await supabaseAdmin
         .from("discussions")
         .select("*")
+        .eq("organization_id", organizationId)
         .in("status", ["New", "Needs Review", "Reviewing"])
         .order("opportunity_score", { ascending: false })
         .order("priority", { ascending: false })
@@ -55,10 +61,13 @@ export async function getHighPriorityDiscussions(
     return data ?? [];
 }
 
-export async function getDiscussions(): Promise<Discussion[]> {
+export async function getDiscussions(
+    organizationId: string,
+): Promise<Discussion[]> {
     const { data, error } = await supabaseAdmin
         .from("discussions")
         .select("*")
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -71,12 +80,14 @@ export async function getDiscussions(): Promise<Discussion[]> {
 
 export async function getDiscussionById(
     id: string,
+    organizationId: string,
 ): Promise<Discussion | null> {
     const { data, error } = await supabaseAdmin
         .from("discussions")
         .select("*")
         .eq("id", id)
-        .single();
+        .eq("organization_id", organizationId)
+        .maybeSingle();
 
     if (error) {
         console.error("Error fetching discussion:", error);
@@ -88,11 +99,13 @@ export async function getDiscussionById(
 
 export async function getDiscussionsByCommunityId(
     communityId: string,
+    organizationId: string,
 ): Promise<Discussion[]> {
     const { data, error } = await supabaseAdmin
         .from("discussions")
         .select("*")
         .eq("community_id", communityId)
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -104,6 +117,7 @@ export async function getDiscussionsByCommunityId(
 }
 
 export type CreateDiscussionInput = {
+    organization_id: string;
     community_id?: string | null;
     user_id?: string | null;
     platform: string;
@@ -127,6 +141,7 @@ export async function createDiscussion(
     const { data, error } = await supabaseAdmin
         .from("discussions")
         .insert({
+            organization_id: input.organization_id,
             community_id: input.community_id ?? null,
             user_id: input.user_id ?? null,
             platform: input.platform,
@@ -154,9 +169,9 @@ export async function createDiscussion(
     return data;
 }
 
-
 export type AppendDiscussionUpdateInput = {
     discussionId: string;
+    organizationId: string;
     updateBody: string;
     updateAuthor?: string | null;
     updateUrl?: string | null;
@@ -166,7 +181,10 @@ export type AppendDiscussionUpdateInput = {
 export async function appendDiscussionUpdate(
     input: AppendDiscussionUpdateInput,
 ): Promise<Discussion | null> {
-    const existing = await getDiscussionById(input.discussionId);
+    const existing = await getDiscussionById(
+        input.discussionId,
+        input.organizationId,
+    );
 
     if (!existing) {
         return null;
@@ -188,6 +206,7 @@ export async function appendDiscussionUpdate(
 
     const savedUpdate = await createDiscussionUpdate({
         discussionId: input.discussionId,
+        organizationId: input.organizationId,
         author,
         url: input.updateUrl ?? null,
         body: updateBody,
@@ -222,6 +241,7 @@ export async function appendDiscussionUpdate(
             },
         })
         .eq("id", input.discussionId)
+        .eq("organization_id", input.organizationId)
         .select("*")
         .single();
 

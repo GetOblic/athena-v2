@@ -4,6 +4,10 @@ import { getCommunityById } from "@/services/communityService";
 import { createCommunityIntelligence } from "@/services/communityIntelligenceService";
 import { getRecentDiscussionAnalysesByCommunityId } from "@/services/discussionAnalysisService";
 import {
+  OrganizationAccessError,
+  requireCurrentOrganizationContext,
+} from "@/services/organizationService";
+import {
   buildCommunityIntelligencePrompt,
   COMMUNITY_INTELLIGENCE_PROMPT_VERSION,
 } from "@/services/ai/prompts/communityIntelligencePrompt";
@@ -61,8 +65,9 @@ export async function POST(_request: Request, context: RouteContext) {
   try {
     const startedAt = Date.now();
     const { id } = await context.params;
+    const { organizationId } = await requireCurrentOrganizationContext();
 
-    const community = await getCommunityById(id);
+    const community = await getCommunityById(id, organizationId);
 
     if (!community) {
       return NextResponse.json(
@@ -71,7 +76,11 @@ export async function POST(_request: Request, context: RouteContext) {
       );
     }
 
-    const analyses = await getRecentDiscussionAnalysesByCommunityId(id, 100);
+    const analyses = await getRecentDiscussionAnalysesByCommunityId(
+      id,
+      organizationId,
+      100,
+    );
 
     if (analyses.length === 0) {
       return NextResponse.json(
@@ -93,6 +102,7 @@ export async function POST(_request: Request, context: RouteContext) {
     const generationTimeMs = Date.now() - startedAt;
 
     const savedIntelligence = await createCommunityIntelligence({
+      organization_id: organizationId,
       community_id: id,
       status: "draft",
 
@@ -136,6 +146,13 @@ export async function POST(_request: Request, context: RouteContext) {
       intelligence: savedIntelligence,
     });
   } catch (error) {
+    if (error instanceof OrganizationAccessError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 401 },
+      );
+    }
+
     console.error("Athena community intelligence failed:", error);
 
     return NextResponse.json(

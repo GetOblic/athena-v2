@@ -21,13 +21,16 @@ export type TodaysIntelligence = {
   knowledgeConfidenceDelta: number | null;
 };
 
-async function getKnowledgeConfidenceSnapshot(): Promise<{
+async function getKnowledgeConfidenceSnapshot(
+  organizationId: string,
+): Promise<{
   current: number | null;
   delta: number | null;
 }> {
   const { data, error } = await supabaseAdmin
     .from("athena_community_intelligence")
     .select("confidence, created_at")
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(2);
 
@@ -53,7 +56,7 @@ async function getKnowledgeConfidenceSnapshot(): Promise<{
 }
 
 export async function getTodaysIntelligence(
-  userId?: string,
+  organizationId: string,
 ): Promise<TodaysIntelligence> {
   const [
     discussions,
@@ -63,44 +66,35 @@ export async function getTodaysIntelligence(
     assetsResult,
     confidenceSnapshot,
   ] = await Promise.all([
-    getDiscussions(),
-    getAnalyzedDiscussionIds(),
-    getOpportunities(),
-    getReviews(),
+    getDiscussions(organizationId),
+    getAnalyzedDiscussionIds(organizationId),
+    getOpportunities(organizationId),
+    getReviews(organizationId),
     supabaseAdmin
       .from("athena_asset_blueprints")
-      .select("id", { count: "exact", head: true }),
-    getKnowledgeConfidenceSnapshot(),
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId),
+    getKnowledgeConfidenceSnapshot(organizationId),
   ]);
 
   const assetsCount = assetsResult.count ?? 0;
 
-  const scopedDiscussions = userId
-    ? discussions.filter((discussion) => discussion.user_id === userId)
-    : discussions;
-  const scopedOpportunities = userId
-    ? opportunities.filter((opportunity) => opportunity.user_id === userId)
-    : opportunities;
-  const scopedReviews = userId
-    ? reviews.filter((review) => review.user_id === userId)
-    : reviews;
-
-  const newDiscussions = scopedDiscussions.filter((discussion) => {
+  const newDiscussions = discussions.filter((discussion) => {
     const hasAnalysis = analyzedDiscussionIds.has(discussion.id);
     return classifyDiscussionQueue(hasAnalysis, discussion.status) === "new";
   }).length;
 
-  const immediateActionOpportunities = scopedOpportunities.filter(
+  const immediateActionOpportunities = opportunities.filter(
     (opportunity) =>
       classifyOpportunityPriority(opportunity) === "immediate_action",
   ).length;
 
-  const briefingsAwaitingApproval = scopedReviews.filter((review) => {
+  const briefingsAwaitingApproval = reviews.filter((review) => {
     const status = normalizeBriefingStatus(review.status);
     return status === "draft" || status === "needs_revision";
   }).length;
 
-  const highestOpportunity = [...scopedOpportunities].sort(
+  const highestOpportunity = [...opportunities].sort(
     (a, b) => b.score - a.score,
   )[0];
 

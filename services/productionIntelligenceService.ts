@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export type ProductionIntelligence = {
   id: string;
+  organization_id: string | null;
   community_id: string | null;
   source_intelligence_id: string | null;
 
@@ -31,11 +32,13 @@ export type ProductionIntelligence = {
 
 export async function getLatestProductionIntelligenceByCommunityId(
   communityId: string,
+  organizationId: string,
 ): Promise<ProductionIntelligence | null> {
   const { data, error } = await supabaseAdmin
     .from("athena_production_intelligence")
     .select("*")
     .eq("community_id", communityId)
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -49,7 +52,7 @@ export async function getLatestProductionIntelligenceByCommunityId(
 }
 
 export async function createProductionIntelligence(
-  input: Partial<ProductionIntelligence>,
+  input: Partial<ProductionIntelligence> & { organization_id: string },
 ): Promise<ProductionIntelligence | null> {
   const { data, error } = await supabaseAdmin
     .from("athena_production_intelligence")

@@ -1,4 +1,5 @@
 export type FacebookDiscussionInput = {
+  organizationId: string;
   communityId?: string | null;
   userId?: string | null;
   title?: string | null;
@@ -9,6 +10,7 @@ export type FacebookDiscussionInput = {
 };
 
 export type NormalizedFacebookDiscussion = {
+  organization_id: string;
   community_id: string | null;
   user_id: string | null;
   platform: "Facebook Group";
@@ -90,6 +92,7 @@ export function normalizeFacebookDiscussion(
   const capturedAt = input.capturedAt || new Date().toISOString();
 
   return {
+    organization_id: input.organizationId,
     community_id: input.communityId ?? null,
     user_id: input.userId ?? null,
     platform: "Facebook Group",

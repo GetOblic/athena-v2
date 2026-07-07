@@ -8,6 +8,7 @@ import {
 export type AthenaIdentity = {
   id: string;
   user_id: string;
+  organization_id: string | null;
   greeting_name: string | null;
   about_you: string | null;
   expertise: string | null;
@@ -23,6 +24,7 @@ export type AthenaIdentity = {
 
 export type UpsertAthenaIdentityInput = {
   userId: string;
+  organizationId: string;
   greetingName?: string | null;
   aboutYou?: string | null;
   expertise?: string | null;
@@ -95,11 +97,13 @@ async function fetchWebsiteHomepageText(
 
 export async function getAthenaIdentityByUserId(
   userId: string,
+  organizationId: string,
 ): Promise<AthenaIdentity | null> {
   const { data, error } = await supabaseAdmin
     .from("athena_identity")
     .select("*")
     .eq("user_id", userId)
+    .eq("organization_id", organizationId)
     .maybeSingle();
 
   if (error) {
@@ -153,6 +157,7 @@ export async function upsertAthenaIdentity(
     .upsert(
       {
         user_id: input.userId,
+        organization_id: input.organizationId,
         greeting_name: input.greetingName ?? null,
         about_you: input.aboutYou ?? null,
         expertise: input.expertise ?? null,

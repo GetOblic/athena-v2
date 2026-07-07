@@ -38,8 +38,11 @@ function inferTags(review: AthenaReview): string[] {
   return Array.from(tagSet);
 }
 
-export async function learnFromApprovedBriefing(reviewId: string) {
-  const review = await getReviewById(reviewId);
+export async function learnFromApprovedBriefing(
+  reviewId: string,
+  organizationId: string,
+) {
+  const review = await getReviewById(reviewId, organizationId);
 
   if (!review) {
     throw new Error(`Cannot learn from missing briefing/review: ${reviewId}`);
@@ -55,14 +58,14 @@ export async function learnFromApprovedBriefing(reviewId: string) {
   }
 
   const title =
-    review.summary?.slice(0, 90) ||
-    `Approved Briefing ${review.id}`;
+    review.summary?.slice(0, 90) || `Approved Briefing ${review.id}`;
 
   const discussion = review.discussion_id
-    ? await getDiscussionById(review.discussion_id)
+    ? await getDiscussionById(review.discussion_id, organizationId)
     : null;
 
   const knowledgeAsset = await createKnowledgeAsset({
+    organization_id: organizationId,
     title,
     category: "Institutional Knowledge",
     asset_type: "approved_briefing",
@@ -72,7 +75,9 @@ export async function learnFromApprovedBriefing(reviewId: string) {
     user_id: discussion?.user_id ?? null,
     source_type: "athena_reviews",
     source_id: review.id,
-    rating: review.confidence ? Math.max(1, Math.min(5, Math.round(review.confidence / 20))) : null,
+    rating: review.confidence
+      ? Math.max(1, Math.min(5, Math.round(review.confidence / 20)))
+      : null,
     tags: inferTags(review),
     notes: "Automatically captured by Athena Brain after briefing approval.",
   });

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getDiscussionById } from "@/services/discussionService";
+import {
+  OrganizationAccessError,
+  requireCurrentOrganizationContext,
+} from "@/services/organizationService";
 import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
 
 type RouteContext = {
@@ -11,8 +15,9 @@ type RouteContext = {
 export async function POST(_request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
+    const { organizationId } = await requireCurrentOrganizationContext();
 
-    const discussion = await getDiscussionById(id);
+    const discussion = await getDiscussionById(id, organizationId);
 
     if (!discussion) {
       return NextResponse.json(
@@ -21,7 +26,7 @@ export async function POST(_request: Request, context: RouteContext) {
       );
     }
 
-    const result = await processDiscussionEndToEnd(id);
+    const result = await processDiscussionEndToEnd(id, organizationId);
 
     return NextResponse.json({
       success: true,
@@ -33,6 +38,13 @@ export async function POST(_request: Request, context: RouteContext) {
       status: result.status,
     });
   } catch (error) {
+    if (error instanceof OrganizationAccessError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 401 },
+      );
+    }
+
     console.error("Athena discussion analysis failed:", error);
 
     return NextResponse.json(

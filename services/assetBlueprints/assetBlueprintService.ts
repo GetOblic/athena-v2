@@ -93,6 +93,7 @@ function pickBestBlueprint(
 }
 
 async function insertAssetBlueprint(input: {
+  organizationId: string;
   userId: string | null;
   discussionId: string;
   opportunityId?: string | null;
@@ -111,6 +112,7 @@ async function insertAssetBlueprint(input: {
   const { data, error } = await supabaseAdmin
     .from("athena_asset_blueprints")
     .insert({
+      organization_id: input.organizationId,
       user_id: input.userId,
       discussion_id: input.discussionId,
       opportunity_id: input.opportunityId ?? null,
@@ -161,6 +163,7 @@ export async function createAssetBlueprintForBriefing(input: {
   const parsed = parseJsonResponse(rawBlueprint);
 
   return insertAssetBlueprint({
+    organizationId: input.discussion.organization_id ?? "",
     userId: input.discussion.user_id ?? null,
     discussionId: input.discussion.id,
     opportunityId: input.opportunity.id,
@@ -186,6 +189,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   const parsed = parseJsonResponse(rawBlueprint);
 
   return insertAssetBlueprint({
+    organizationId: input.discussion.organization_id ?? "",
     userId: input.discussion.user_id ?? null,
     discussionId: input.discussion.id,
     parsed,
@@ -196,11 +200,13 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
 
 export async function getAssetBlueprintsByBriefingId(
   briefingId: string,
+  organizationId: string,
 ): Promise<AthenaAssetBlueprint[]> {
   const { data, error } = await supabaseAdmin
     .from("athena_asset_blueprints")
     .select("*")
     .eq("briefing_id", briefingId)
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -213,11 +219,13 @@ export async function getAssetBlueprintsByBriefingId(
 
 export async function getAssetBlueprintsByDiscussionId(
   discussionId: string,
+  organizationId: string,
 ): Promise<AthenaAssetBlueprint[]> {
   const { data, error } = await supabaseAdmin
     .from("athena_asset_blueprints")
     .select("*")
     .eq("discussion_id", discussionId)
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -230,44 +238,67 @@ export async function getAssetBlueprintsByDiscussionId(
 
 export async function getLatestAssetBlueprintByBriefingId(
   briefingId: string,
+  organizationId: string,
 ): Promise<AthenaAssetBlueprint | null> {
-  const blueprints = await getAssetBlueprintsByBriefingId(briefingId);
+  const blueprints = await getAssetBlueprintsByBriefingId(
+    briefingId,
+    organizationId,
+  );
   return blueprints[0] ?? null;
 }
 
 export async function getDisplayAssetBlueprintByBriefingId(
   briefingId: string,
+  organizationId: string,
 ): Promise<AthenaAssetBlueprint | null> {
-  const blueprints = await getAssetBlueprintsByBriefingId(briefingId);
+  const blueprints = await getAssetBlueprintsByBriefingId(
+    briefingId,
+    organizationId,
+  );
   return pickBestBlueprint(blueprints);
 }
 
 export async function getLatestAssetBlueprintByDiscussionId(
   discussionId: string,
+  organizationId: string,
 ): Promise<AthenaAssetBlueprint | null> {
-  const blueprints = await getAssetBlueprintsByDiscussionId(discussionId);
+  const blueprints = await getAssetBlueprintsByDiscussionId(
+    discussionId,
+    organizationId,
+  );
   return blueprints[0] ?? null;
 }
 
 export async function getDisplayAssetBlueprintByDiscussionId(
   discussionId: string,
+  organizationId: string,
 ): Promise<AthenaAssetBlueprint | null> {
-  const blueprints = await getAssetBlueprintsByDiscussionId(discussionId);
+  const blueprints = await getAssetBlueprintsByDiscussionId(
+    discussionId,
+    organizationId,
+  );
   return pickBestBlueprint(blueprints);
 }
 
 export async function getDisplayAssetBlueprintForBriefing(input: {
   briefingId: string;
+  organizationId: string;
   discussionId?: string | null;
 }): Promise<AthenaAssetBlueprint | null> {
-  const byBriefing = await getDisplayAssetBlueprintByBriefingId(input.briefingId);
+  const byBriefing = await getDisplayAssetBlueprintByBriefingId(
+    input.briefingId,
+    input.organizationId,
+  );
 
   if (byBriefing) {
     return byBriefing;
   }
 
   if (input.discussionId) {
-    return getDisplayAssetBlueprintByDiscussionId(input.discussionId);
+    return getDisplayAssetBlueprintByDiscussionId(
+      input.discussionId,
+      input.organizationId,
+    );
   }
 
   return null;

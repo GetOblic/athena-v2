@@ -5,12 +5,14 @@ import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge"
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
 import { getBriefingListSummary } from "@/lib/briefingDisplay";
 import { getBriefingQueues } from "@/services/queueService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 const listGridClass =
   "grid grid-cols-[minmax(0,1fr)_160px_120px_160px] items-center gap-4";
 
 export default async function BriefingsPage() {
-  const queues = await getBriefingQueues();
+  const { organizationId } = await requireCurrentOrganizationContext();
+  const queues = await getBriefingQueues(organizationId);
   const totalCount = queues.reduce(
     (count, section) => count + section.items.length,
     0,

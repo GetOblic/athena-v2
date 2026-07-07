@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { getHighPriorityDiscussions } from "@/services/discussionService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 export async function OperatingQueue() {
-    const discussions = await getHighPriorityDiscussions(5);
+    const { organizationId } = await requireCurrentOrganizationContext();
+    const discussions = await getHighPriorityDiscussions(organizationId, 5);
 
     return (
         <div className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:col-span-2">

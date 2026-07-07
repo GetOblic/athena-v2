@@ -4,6 +4,7 @@ export type AthenaReview = {
   id: string;
   created_at: string;
   updated_at: string;
+  organization_id?: string | null;
 
   discussion_id: string | null;
   user_id?: string | null;
@@ -50,6 +51,7 @@ export class ReviewUpdateError extends Error {
 }
 
 export type CreateAthenaReviewInput = {
+  organization_id: string;
   discussion_id?: string | null;
   user_id?: string | null;
   opportunity_id?: string | null;
@@ -83,10 +85,13 @@ function assertUpdatedReview(
   return data;
 }
 
-export async function getReviewCount(): Promise<number> {
+export async function getReviewCount(
+  organizationId: string,
+): Promise<number> {
   const { count, error } = await supabaseAdmin
     .from("athena_reviews")
-    .select("*", { count: "exact", head: true });
+    .select("*", { count: "exact", head: true })
+    .eq("organization_id", organizationId);
 
   if (error) {
     console.error(error);
@@ -96,10 +101,13 @@ export async function getReviewCount(): Promise<number> {
   return count ?? 0;
 }
 
-export async function getReviews(): Promise<AthenaReview[]> {
+export async function getReviews(
+  organizationId: string,
+): Promise<AthenaReview[]> {
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
     .select("*")
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -112,12 +120,14 @@ export async function getReviews(): Promise<AthenaReview[]> {
 
 export async function getReviewById(
   id: string,
+  organizationId: string,
 ): Promise<AthenaReview | null> {
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
     .select("*")
     .eq("id", id)
-    .single();
+    .eq("organization_id", organizationId)
+    .maybeSingle();
 
   if (error) {
     console.error(error);
@@ -129,11 +139,13 @@ export async function getReviewById(
 
 export async function getReviewsByOpportunityId(
   opportunityId: string,
+  organizationId: string,
 ): Promise<AthenaReview[]> {
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
     .select("*")
     .eq("opportunity_id", opportunityId)
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -146,11 +158,13 @@ export async function getReviewsByOpportunityId(
 
 export async function getLatestReviewByOpportunityId(
   opportunityId: string,
+  organizationId: string,
 ): Promise<AthenaReview | null> {
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
     .select("*")
     .eq("opportunity_id", opportunityId)
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -169,6 +183,7 @@ export async function createReview(
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
     .insert({
+      organization_id: input.organization_id,
       discussion_id: input.discussion_id ?? null,
       user_id: input.user_id ?? null,
       opportunity_id: input.opportunity_id ?? null,
@@ -201,7 +216,10 @@ export async function createReview(
   return data;
 }
 
-export async function approveReview(reviewId: string): Promise<AthenaReview> {
+export async function approveReview(
+  reviewId: string,
+  organizationId: string,
+): Promise<AthenaReview> {
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
     .update({
@@ -209,6 +227,7 @@ export async function approveReview(reviewId: string): Promise<AthenaReview> {
       approved_at: new Date().toISOString(),
     })
     .eq("id", reviewId)
+    .eq("organization_id", organizationId)
     .select("*")
     .maybeSingle();
 
@@ -221,6 +240,7 @@ export async function approveReview(reviewId: string): Promise<AthenaReview> {
 
 export async function requestBriefingRevision(
   reviewId: string,
+  organizationId: string,
 ): Promise<AthenaReview> {
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
@@ -229,6 +249,7 @@ export async function requestBriefingRevision(
       approved_at: null,
     })
     .eq("id", reviewId)
+    .eq("organization_id", organizationId)
     .select("*")
     .maybeSingle();
 
@@ -240,8 +261,11 @@ export async function requestBriefingRevision(
 }
 
 /** @deprecated Use requestBriefingRevision */
-export async function rejectReview(reviewId: string): Promise<AthenaReview> {
-  return requestBriefingRevision(reviewId);
+export async function rejectReview(
+  reviewId: string,
+  organizationId: string,
+): Promise<AthenaReview> {
+  return requestBriefingRevision(reviewId, organizationId);
 }
 
 export function toBriefingStatusUpdate(

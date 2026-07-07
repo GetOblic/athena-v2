@@ -6,7 +6,9 @@ import {
   type FacebookDiscussionInput,
 } from "@/services/ingestion/facebook/facebookNormalizer";
 
-export async function importFacebookDiscussion(input: FacebookDiscussionInput) {
+export async function importFacebookDiscussion(
+  input: FacebookDiscussionInput,
+) {
   const normalized = normalizeFacebookDiscussion(input);
 
   const discussion = await createDiscussion(normalized);
@@ -21,7 +23,11 @@ export async function importFacebookDiscussion(input: FacebookDiscussionInput) {
     platform: discussion.platform,
   });
 
-  const workflow = await processDiscussionEndToEnd(discussion.id);
+  const organizationId = discussion.organization_id ?? input.organizationId;
+  const workflow = await processDiscussionEndToEnd(
+    discussion.id,
+    organizationId,
+  );
 
   return {
     discussion,

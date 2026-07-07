@@ -16,6 +16,7 @@ import {
   getDomainLearningTimeline,
   getIntelligenceDomainStats,
 } from "@/services/intelligenceDomainService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 export default async function CommunityDetailsPage({
   params,
@@ -23,7 +24,8 @@ export default async function CommunityDetailsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const community = await getCommunityById(id);
+  const { organizationId } = await requireCurrentOrganizationContext();
+  const community = await getCommunityById(id, organizationId);
 
   if (!community) {
     return (
@@ -39,14 +41,15 @@ export default async function CommunityDetailsPage({
 
   const [latestIntelligence, discussions, intelligenceHistory, learningTimeline] =
     await Promise.all([
-      getLatestCommunityIntelligenceByCommunityId(id),
-      getDiscussionsByCommunityId(id),
-      getCommunityIntelligenceHistory(id),
-      getDomainLearningTimeline(id),
+      getLatestCommunityIntelligenceByCommunityId(id, organizationId),
+      getDiscussionsByCommunityId(id, organizationId),
+      getCommunityIntelligenceHistory(id, organizationId),
+      getDomainLearningTimeline(id, organizationId),
     ]);
 
   const stats = await getIntelligenceDomainStats(
     id,
+    organizationId,
     latestIntelligence?.confidence ?? null,
   );
 

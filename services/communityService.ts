@@ -4,6 +4,7 @@ export type Community = {
     id: string;
     created_at: string;
     updated_at: string;
+    organization_id?: string | null;
     platform: string;
     group_name: string;
     group_url: string | null;
@@ -15,10 +16,13 @@ export type Community = {
     notes: string | null;
 };
 
-export async function getCommunityCount(): Promise<number> {
+export async function getCommunityCount(
+    organizationId: string,
+): Promise<number> {
     const { count, error } = await supabaseAdmin
         .from("communities")
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", organizationId);
 
     if (error) {
         console.error("Error fetching community count:", error);
@@ -28,10 +32,13 @@ export async function getCommunityCount(): Promise<number> {
     return count ?? 0;
 }
 
-export async function getCommunities(): Promise<Community[]> {
+export async function getCommunities(
+    organizationId: string,
+): Promise<Community[]> {
     const { data, error } = await supabaseAdmin
         .from("communities")
         .select("*")
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -44,12 +51,14 @@ export async function getCommunities(): Promise<Community[]> {
 
 export async function getCommunityById(
     id: string,
+    organizationId: string,
 ): Promise<Community | null> {
     const { data, error } = await supabaseAdmin
         .from("communities")
         .select("*")
         .eq("id", id)
-        .single();
+        .eq("organization_id", organizationId)
+        .maybeSingle();
 
     if (error) {
         console.error("Error fetching community:", error);
@@ -60,6 +69,7 @@ export async function getCommunityById(
 }
 
 export type CreateCommunityInput = {
+    organization_id: string;
     group_name: string;
     notes?: string | null;
     niche?: string | null;
@@ -74,6 +84,7 @@ export async function createCommunity(
     const { data, error } = await supabaseAdmin
         .from("communities")
         .insert({
+            organization_id: input.organization_id,
             platform: input.platform ?? "intelligence_domain",
             group_name: input.group_name.trim(),
             notes: input.notes?.trim() || null,

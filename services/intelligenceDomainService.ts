@@ -2,9 +2,9 @@ import { isIntelligenceDomainActive } from "@/lib/intelligenceDomainStatus";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { Community } from "@/services/communityService";
 import {
-    createCommunity,
-    getCommunities,
-    getCommunityById,
+  createCommunity,
+  getCommunities,
+  getCommunityById,
 } from "@/services/communityService";
 import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
 import {
@@ -40,67 +40,74 @@ export type DomainLearningEvent = {
 };
 
 export type CreateIntelligenceDomainInput = {
-    name: string;
-    description?: string | null;
-    market?: string | null;
-    status?: string;
+  organization_id: string;
+  name: string;
+  description?: string | null;
+  market?: string | null;
+  status?: string;
 };
 
-export async function getIntelligenceDomains(): Promise<IntelligenceDomain[]> {
-    return getCommunities();
+export async function getIntelligenceDomains(
+  organizationId: string,
+): Promise<IntelligenceDomain[]> {
+  return getCommunities(organizationId);
 }
 
-export async function getActiveIntelligenceDomains(): Promise<IntelligenceDomain[]> {
-    const domains = await getIntelligenceDomains();
-    return domains.filter((domain) => isIntelligenceDomainActive(domain.status));
+export async function getActiveIntelligenceDomains(
+  organizationId: string,
+): Promise<IntelligenceDomain[]> {
+  const domains = await getIntelligenceDomains(organizationId);
+  return domains.filter((domain) => isIntelligenceDomainActive(domain.status));
 }
 
 export async function getIntelligenceDomainById(
-    id: string,
+  id: string,
+  organizationId: string,
 ): Promise<IntelligenceDomain | null> {
-    return getCommunityById(id);
+  return getCommunityById(id, organizationId);
 }
 
 export async function createIntelligenceDomain(
-    input: CreateIntelligenceDomainInput,
+  input: CreateIntelligenceDomainInput,
 ): Promise<IntelligenceDomain | null> {
-    const name = input.name.trim();
+  const name = input.name.trim();
 
-    if (!name) {
-        return null;
-    }
+  if (!name) {
+    return null;
+  }
 
-    return createCommunity({
-        group_name: name,
-        notes: input.description ?? null,
-        niche: input.market ?? null,
-        status: input.status ?? "active",
-    });
+  return createCommunity({
+    organization_id: input.organization_id,
+    group_name: name,
+    notes: input.description ?? null,
+    niche: input.market ?? null,
+    status: input.status ?? "active",
+  });
 }
 
 export function getIntelligenceDomainName(domain: IntelligenceDomain): string {
-    return domain.group_name;
+  return domain.group_name;
 }
 
 export async function getIntelligenceDomainStats(
   communityId: string,
+  organizationId: string,
   knowledgeConfidence?: number | null,
 ): Promise<IntelligenceDomainStats> {
-  const [
-    discussionsResult,
-    opportunitiesResult,
-    analyzedDiscussionIds,
-  ] = await Promise.all([
-    supabaseAdmin
-      .from("discussions")
-      .select("id, opportunity_score")
-      .eq("community_id", communityId),
-    supabaseAdmin
-      .from("opportunities")
-      .select("id")
-      .eq("community_id", communityId),
-    getAnalyzedDiscussionIds(),
-  ]);
+  const [discussionsResult, opportunitiesResult, analyzedDiscussionIds] =
+    await Promise.all([
+      supabaseAdmin
+        .from("discussions")
+        .select("id, opportunity_score")
+        .eq("community_id", communityId)
+        .eq("organization_id", organizationId),
+      supabaseAdmin
+        .from("opportunities")
+        .select("id")
+        .eq("community_id", communityId)
+        .eq("organization_id", organizationId),
+      getAnalyzedDiscussionIds(organizationId),
+    ]);
 
   const discussions = discussionsResult.data ?? [];
   const discussionIds = discussions.map((discussion) => discussion.id);
@@ -120,7 +127,8 @@ export async function getIntelligenceDomainStats(
     const { count } = await supabaseAdmin
       .from("athena_reviews")
       .select("id", { count: "exact", head: true })
-      .in("opportunity_id", opportunityIds);
+      .in("opportunity_id", opportunityIds)
+      .eq("organization_id", organizationId);
     briefingsGenerated = count ?? 0;
   }
 
@@ -129,7 +137,8 @@ export async function getIntelligenceDomainStats(
     const { count } = await supabaseAdmin
       .from("athena_asset_blueprints")
       .select("id", { count: "exact", head: true })
-      .in("discussion_id", discussionIds);
+      .in("discussion_id", discussionIds)
+      .eq("organization_id", organizationId);
     assetBlueprintsGenerated = count ?? 0;
   }
 
@@ -151,7 +160,8 @@ export function getDomainHealth(input: {
   const isActive = isIntelligenceDomainActive(input.domain.status);
   const latest = input.intelligenceHistory[0] ?? null;
   const previous = input.intelligenceHistory[1] ?? null;
-  const knowledgeConfidence = latest?.confidence ?? input.stats.knowledgeConfidence;
+  const knowledgeConfidence =
+    latest?.confidence ?? input.stats.knowledgeConfidence;
   const confidenceDelta =
     latest?.confidence != null && previous?.confidence != null
       ? latest.confidence - previous.confidence
@@ -163,7 +173,10 @@ export function getDomainHealth(input: {
   if ((knowledgeConfidence ?? 0) >= 70 && input.stats.discussionsAnalyzed >= 3) {
     healthLabel = "Strong";
     healthTone = "strong";
-  } else if (input.stats.discussionsAnalyzed > 0 || (knowledgeConfidence ?? 0) > 0) {
+  } else if (
+    input.stats.discussionsAnalyzed > 0 ||
+    (knowledgeConfidence ?? 0) > 0
+  ) {
     healthLabel = "Building";
     healthTone = "building";
   }
@@ -180,20 +193,23 @@ export function getDomainHealth(input: {
 
 export async function getDomainLearningTimeline(
   communityId: string,
+  organizationId: string,
 ): Promise<DomainLearningEvent[]> {
   const [intelligenceHistory, analysesResult, opportunitiesResult] =
     await Promise.all([
-      getCommunityIntelligenceHistory(communityId, 5),
+      getCommunityIntelligenceHistory(communityId, organizationId, 5),
       supabaseAdmin
         .from("athena_discussion_analysis")
         .select("id, created_at, summary, confidence, opportunity_detected")
         .eq("community_id", communityId)
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
         .limit(5),
       supabaseAdmin
         .from("opportunities")
         .select("id, created_at, title, score")
         .eq("community_id", communityId)
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
         .limit(5),
     ]);

@@ -12,6 +12,7 @@ import { buildOpportunityDeploymentAssets } from "@/lib/deploymentAssets";
 import { buildWhyNowSummary } from "@/lib/opportunityPriority";
 import { getOpportunityById } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 type Props = {
   params: Promise<{
@@ -21,14 +22,15 @@ type Props = {
 
 export default async function OpportunityPage({ params }: Props) {
   const { id } = await params;
+  const { organizationId } = await requireCurrentOrganizationContext();
 
-  const opportunity = await getOpportunityById(id);
+  const opportunity = await getOpportunityById(id, organizationId);
 
   if (!opportunity) {
     notFound();
   }
 
-  const briefing = await getLatestReviewByOpportunityId(id);
+  const briefing = await getLatestReviewByOpportunityId(id, organizationId);
   const deploymentAssets = buildOpportunityDeploymentAssets(
     opportunity,
     briefing,

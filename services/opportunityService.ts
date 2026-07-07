@@ -4,6 +4,7 @@ export type Opportunity = {
     id: string;
     created_at: string;
     updated_at: string;
+    organization_id?: string | null;
 
     discussion_id: string | null;
     community_id: string | null;
@@ -31,10 +32,13 @@ export type Opportunity = {
     raw_json: Record<string, unknown> | null;
 };
 
-export async function getOpportunityCount(): Promise<number> {
+export async function getOpportunityCount(
+    organizationId: string,
+): Promise<number> {
     const { count, error } = await supabaseAdmin
         .from("opportunities")
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", organizationId);
 
     if (error) {
         console.error(error);
@@ -44,10 +48,13 @@ export async function getOpportunityCount(): Promise<number> {
     return count ?? 0;
 }
 
-export async function getOpportunities(): Promise<Opportunity[]> {
+export async function getOpportunities(
+    organizationId: string,
+): Promise<Opportunity[]> {
     const { data, error } = await supabaseAdmin
         .from("opportunities")
         .select("*")
+        .eq("organization_id", organizationId)
         .order("score", { ascending: false });
 
     if (error) {
@@ -60,12 +67,14 @@ export async function getOpportunities(): Promise<Opportunity[]> {
 
 export async function getOpportunityById(
     id: string,
+    organizationId: string,
 ): Promise<Opportunity | null> {
     const { data, error } = await supabaseAdmin
         .from("opportunities")
         .select("*")
         .eq("id", id)
-        .single();
+        .eq("organization_id", organizationId)
+        .maybeSingle();
 
     if (error) {
         console.error(error);
@@ -77,11 +86,13 @@ export async function getOpportunityById(
 
 export async function getOpportunityByDiscussionId(
     discussionId: string,
+    organizationId: string,
 ): Promise<Opportunity | null> {
     const { data, error } = await supabaseAdmin
         .from("opportunities")
         .select("*")
         .eq("discussion_id", discussionId)
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -95,6 +106,7 @@ export async function getOpportunityByDiscussionId(
 }
 
 export type CreateOpportunityInput = {
+    organization_id: string;
     discussion_id?: string | null;
     community_id?: string | null;
     user_id?: string | null;
@@ -121,6 +133,7 @@ export async function createOpportunity(
     const { data, error } = await supabaseAdmin
         .from("opportunities")
         .insert({
+            organization_id: input.organization_id,
             discussion_id: input.discussion_id ?? null,
             community_id: input.community_id ?? null,
             user_id: input.user_id ?? null,

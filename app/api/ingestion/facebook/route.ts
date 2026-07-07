@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { importFacebookDiscussion } from "@/services/ingestion/facebook/facebookImporter";
+import { resolveOrganizationIdForIngestion } from "@/services/organizationService";
 
 async function getAuthorizedUserId(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -25,10 +26,12 @@ async function getAuthorizedUserId(request: Request) {
 export async function POST(request: Request) {
   try {
     const userId = await getAuthorizedUserId(request);
+    const organizationId = await resolveOrganizationIdForIngestion(userId);
 
     const body = await request.json();
 
     const result = await importFacebookDiscussion({
+      organizationId,
       communityId: body.communityId ?? body.community_id ?? null,
       userId,
       title: body.title ?? null,

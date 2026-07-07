@@ -1,6 +1,7 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export type KnowledgeAssetInput = {
+  organization_id: string;
   title: string;
   category: string;
   asset_type: string;
@@ -16,9 +17,10 @@ export type KnowledgeAssetInput = {
 };
 
 export async function createKnowledgeAsset(input: KnowledgeAssetInput) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("knowledge_assets")
     .insert({
+      organization_id: input.organization_id,
       title: input.title,
       category: input.category,
       asset_type: input.asset_type,
@@ -43,10 +45,11 @@ export async function createKnowledgeAsset(input: KnowledgeAssetInput) {
   return data;
 }
 
-export async function getKnowledgeAssets() {
-  const { data, error } = await supabase
+export async function getKnowledgeAssets(organizationId: string) {
+  const { data, error } = await supabaseAdmin
     .from("knowledge_assets")
     .select("*")
+    .eq("organization_id", organizationId)
     .eq("status", "active")
     .order("created_at", { ascending: false });
 
@@ -57,17 +60,23 @@ export async function getKnowledgeAssets() {
   return data ?? [];
 }
 
-export async function getKnowledgeAssetsByCommunity(communityId: string) {
-  const { data, error } = await supabase
+export async function getKnowledgeAssetsByCommunity(
+  communityId: string,
+  organizationId: string,
+) {
+  const { data, error } = await supabaseAdmin
     .from("knowledge_assets")
     .select("*")
     .eq("community_id", communityId)
+    .eq("organization_id", organizationId)
     .eq("status", "active")
     .order("rating", { ascending: false, nullsFirst: false })
     .order("times_used", { ascending: false });
 
   if (error) {
-    throw new Error(`Failed to fetch community knowledge assets: ${error.message}`);
+    throw new Error(
+      `Failed to fetch community knowledge assets: ${error.message}`,
+    );
   }
 
   return data ?? [];

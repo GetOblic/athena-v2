@@ -4,9 +4,11 @@ import {
   getIntelligenceDomainName,
   getActiveIntelligenceDomains,
 } from "@/services/intelligenceDomainService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 export default async function InboxPage() {
-  const domains = await getActiveIntelligenceDomains();
+  const { organizationId } = await requireCurrentOrganizationContext();
+  const domains = await getActiveIntelligenceDomains(organizationId);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">

@@ -6,6 +6,7 @@ import {
   getAthenaIdentityByUserId,
   upsertAthenaIdentity,
 } from "@/services/identity/identityService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 const fieldClassName =
   "rounded-2xl border border-white/15 bg-white/[0.04] px-5 py-4 text-sm text-white/90 shadow-inner shadow-black/20 outline-none placeholder:text-white/30 focus:border-[var(--athena-orange)] focus:ring-1 focus:ring-[var(--athena-orange)]";
@@ -22,8 +23,11 @@ async function saveIdentity(formData: FormData) {
     redirect("/login");
   }
 
+  const { organizationId } = await requireCurrentOrganizationContext();
+
   await upsertAthenaIdentity({
     userId: user.id,
+    organizationId,
     greetingName: String(formData.get("greeting_name") ?? ""),
     aboutYou: String(formData.get("about_you") ?? ""),
     expertise: String(formData.get("expertise") ?? ""),
@@ -48,7 +52,8 @@ export default async function IdentityPage({
   }
 
   const params = await searchParams;
-  const identity = await getAthenaIdentityByUserId(user.id);
+  const { organizationId, userId } = await requireCurrentOrganizationContext();
+  const identity = await getAthenaIdentityByUserId(userId, organizationId);
 
   const hasVoice = Boolean(identity?.about_you?.trim());
   const hasExpertise = Boolean(identity?.expertise?.trim());

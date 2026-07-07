@@ -4,12 +4,14 @@ import Link from "next/link";
 import { OpportunityStatusBadge } from "@/components/queues/OpportunityStatusBadge";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
 import { getOpportunityWorkQueues } from "@/services/queueService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 const listGridClass =
   "grid grid-cols-[120px_minmax(0,1fr)_160px_100px_120px_120px] items-center gap-4";
 
 export default async function OpportunitiesPage() {
-  const queues = await getOpportunityWorkQueues();
+  const { organizationId } = await requireCurrentOrganizationContext();
+  const queues = await getOpportunityWorkQueues(organizationId);
   const totalCount = queues.reduce(
     (count, section) => count + section.items.length,
     0,

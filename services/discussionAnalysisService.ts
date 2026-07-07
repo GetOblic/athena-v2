@@ -7,6 +7,7 @@ export type DiscussionAnalysis = {
   updated_at: string;
 
   discussion_id: string;
+  organization_id?: string | null;
   user_id: string | null;
   community_id: string | null;
 
@@ -42,11 +43,13 @@ export type DiscussionAnalysis = {
 
 export async function getLatestDiscussionAnalysis(
   discussionId: string,
+  organizationId: string,
 ): Promise<DiscussionAnalysis | null> {
   const { data, error } = await supabaseAdmin
     .from("athena_discussion_analysis")
     .select("*")
     .eq("discussion_id", discussionId)
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -77,12 +80,14 @@ export async function createDiscussionAnalysis(
 
 export async function getRecentDiscussionAnalysesByCommunityId(
   communityId: string,
+  organizationId: string,
   limit = 100,
 ): Promise<DiscussionAnalysis[]> {
   const { data, error } = await supabaseAdmin
     .from("athena_discussion_analysis")
     .select("*")
     .eq("community_id", communityId)
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -94,10 +99,13 @@ export async function getRecentDiscussionAnalysesByCommunityId(
   return data ?? [];
 }
 
-export async function getAnalyzedDiscussionIds(): Promise<Set<string>> {
+export async function getAnalyzedDiscussionIds(
+  organizationId: string,
+): Promise<Set<string>> {
   const { data, error } = await supabaseAdmin
     .from("athena_discussion_analysis")
-    .select("discussion_id");
+    .select("discussion_id")
+    .eq("organization_id", organizationId);
 
   if (error) {
     console.error("Error fetching analyzed discussion ids:", error);

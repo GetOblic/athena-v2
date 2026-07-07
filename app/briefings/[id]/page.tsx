@@ -8,6 +8,7 @@ import { BriefingStatusPanel } from "@/components/briefings/BriefingStatusPanel"
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { buildBriefingDeploymentAssets } from "@/lib/deploymentAssets";
 import { getDisplayAssetBlueprintForBriefing } from "@/services/assetBlueprints/assetBlueprintService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getReviewById } from "@/services/reviewService";
 
 type Props = {
@@ -18,8 +19,9 @@ type Props = {
 
 export default async function BriefingPage({ params }: Props) {
   const { id } = await params;
+  const { organizationId } = await requireCurrentOrganizationContext();
 
-  const review = await getReviewById(id);
+  const review = await getReviewById(id, organizationId);
 
   if (!review) {
     notFound();
@@ -28,6 +30,7 @@ export default async function BriefingPage({ params }: Props) {
   const deploymentAssets = buildBriefingDeploymentAssets(review);
   const assetBlueprint = await getDisplayAssetBlueprintForBriefing({
     briefingId: id,
+    organizationId,
     discussionId: review.discussion_id,
   });
 

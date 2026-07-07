@@ -1,10 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-async function countTable(table: string, userId: string) {
+async function countTable(table: string, organizationId: string) {
   const { count, error } = await supabaseAdmin
     .from(table)
     .select("*", { count: "exact", head: true })
-    .eq("user_id", userId);
+    .eq("organization_id", organizationId);
 
   if (error) {
     console.error(`Error counting ${table}:`, error);
@@ -14,13 +14,13 @@ async function countTable(table: string, userId: string) {
   return count ?? 0;
 }
 
-export async function getDashboardStats(userId: string) {
+export async function getDashboardStats(organizationId: string) {
   const [discussions, opportunities, briefings, assetBlueprints] =
     await Promise.all([
-      countTable("discussions", userId),
-      countTable("opportunities", userId),
-      countTable("athena_reviews", userId),
-      countTable("athena_asset_blueprints", userId),
+      countTable("discussions", organizationId),
+      countTable("opportunities", organizationId),
+      countTable("athena_reviews", organizationId),
+      countTable("athena_asset_blueprints", organizationId),
     ]);
 
   return {

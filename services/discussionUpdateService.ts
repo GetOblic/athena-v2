@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export type DiscussionUpdate = {
   id: string;
   discussion_id: string;
+  organization_id?: string | null;
   author: string | null;
   url: string | null;
   body: string;
@@ -11,6 +12,7 @@ export type DiscussionUpdate = {
 
 export type CreateDiscussionUpdateInput = {
   discussionId: string;
+  organizationId: string;
   author?: string | null;
   url?: string | null;
   body: string;
@@ -19,11 +21,13 @@ export type CreateDiscussionUpdateInput = {
 
 export async function getDiscussionUpdatesByDiscussionId(
   discussionId: string,
+  organizationId: string,
 ): Promise<DiscussionUpdate[]> {
   const { data, error } = await supabaseAdmin
     .from("athena_discussion_updates")
     .select("*")
     .eq("discussion_id", discussionId)
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -41,6 +45,7 @@ export async function createDiscussionUpdate(
     .from("athena_discussion_updates")
     .insert({
       discussion_id: input.discussionId,
+      organization_id: input.organizationId,
       author: input.author?.trim() || null,
       url: input.url?.trim() || null,
       body: input.body.trim(),

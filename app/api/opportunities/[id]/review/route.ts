@@ -3,6 +3,10 @@ import { generateReview } from "@/services/aiService";
 import { getOpportunityById } from "@/services/opportunityService";
 import { createReview } from "@/services/reviewService";
 import {
+  OrganizationAccessError,
+  requireCurrentOrganizationContext,
+} from "@/services/organizationService";
+import {
   buildOpportunityReviewPrompt,
   OPPORTUNITY_REVIEW_PROMPT_VERSION,
 } from "@/services/ai/prompts/opportunityReviewPrompt";
@@ -56,8 +60,9 @@ export async function POST(_request: Request, context: RouteContext) {
   try {
     const startedAt = Date.now();
     const { id } = await context.params;
+    const { organizationId } = await requireCurrentOrganizationContext();
 
-    const opportunity = await getOpportunityById(id);
+    const opportunity = await getOpportunityById(id, organizationId);
 
     if (!opportunity) {
       return NextResponse.json(
@@ -73,6 +78,7 @@ export async function POST(_request: Request, context: RouteContext) {
     const generationTimeMs = Date.now() - startedAt;
 
     const savedReview = await createReview({
+      organization_id: organizationId,
       opportunity_id: id,
       discussion_id: opportunity.discussion_id,
       status: "draft",
@@ -108,6 +114,13 @@ export async function POST(_request: Request, context: RouteContext) {
       review: savedReview,
     });
   } catch (error) {
+    if (error instanceof OrganizationAccessError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 401 },
+      );
+    }
+
     console.error("Athena opportunity review generation failed:", error);
 
     return NextResponse.json(

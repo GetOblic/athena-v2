@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { appendDiscussionUpdate } from "@/services/discussionService";
+import {
+  OrganizationAccessError,
+  requireCurrentOrganizationContext,
+} from "@/services/organizationService";
 import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
 
 type RouteContext = {
@@ -11,10 +15,12 @@ type RouteContext = {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
+    const { organizationId } = await requireCurrentOrganizationContext();
     const body = await request.json();
 
     const discussion = await appendDiscussionUpdate({
       discussionId: id,
+      organizationId,
       updateBody: body.body,
       updateAuthor: body.author ?? null,
       updateUrl: body.url ?? null,
@@ -28,7 +34,10 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    const workflow = await processDiscussionEndToEnd(discussion.id);
+    const workflow = await processDiscussionEndToEnd(
+      discussion.id,
+      organizationId,
+    );
 
     return NextResponse.json({
       success: true,
@@ -36,6 +45,13 @@ export async function POST(request: Request, context: RouteContext) {
       workflow,
     });
   } catch (error) {
+    if (error instanceof OrganizationAccessError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 401 },
+      );
+    }
+
     console.error("Discussion thread update failed:", error);
 
     return NextResponse.json(

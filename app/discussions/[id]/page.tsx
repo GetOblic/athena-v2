@@ -21,6 +21,7 @@ import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisServic
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
 import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getDiscussionUpdatesByDiscussionId } from "@/services/discussionUpdateService";
 
 export default async function DiscussionDetailsPage({
@@ -29,7 +30,8 @@ export default async function DiscussionDetailsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const discussion = await getDiscussionById(id);
+  const { organizationId } = await requireCurrentOrganizationContext();
+  const discussion = await getDiscussionById(id, organizationId);
 
   if (!discussion) {
     return (
@@ -46,16 +48,16 @@ export default async function DiscussionDetailsPage({
   const [community, latestAnalysis, assetBlueprint, threadUpdates, opportunity] =
     await Promise.all([
       discussion.community_id
-        ? getCommunityById(discussion.community_id)
+        ? getCommunityById(discussion.community_id, organizationId)
         : Promise.resolve(null),
-      getLatestDiscussionAnalysis(id),
-      getDisplayAssetBlueprintByDiscussionId(id),
-      getDiscussionUpdatesByDiscussionId(id),
-      getOpportunityByDiscussionId(id),
+      getLatestDiscussionAnalysis(id, organizationId),
+      getDisplayAssetBlueprintByDiscussionId(id, organizationId),
+      getDiscussionUpdatesByDiscussionId(id, organizationId),
+      getOpportunityByDiscussionId(id, organizationId),
     ]);
 
   const briefing = opportunity
-    ? await getLatestReviewByOpportunityId(opportunity.id)
+    ? await getLatestReviewByOpportunityId(opportunity.id, organizationId)
     : null;
 
   const deploymentAssets = buildDiscussionDeploymentAssets(latestAnalysis);
