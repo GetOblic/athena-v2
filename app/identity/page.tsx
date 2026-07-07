@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { TrainAthenaSubmitButton } from "@/components/identity/TrainAthenaSubmitButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   getAthenaIdentityByUserId,
@@ -85,6 +86,7 @@ export default async function IdentityPage({
       <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
         <form
           action={saveIdentity}
+          method="post"
           className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8"
         >
           <div className="grid gap-8">
@@ -154,12 +156,7 @@ export default async function IdentityPage({
               />
             </label>
 
-            <button
-              type="submit"
-              className="w-fit rounded-full bg-[var(--athena-orange)] px-8 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
-            >
-              Train Athena
-            </button>
+            <TrainAthenaSubmitButton />
           </div>
         </form>
 
