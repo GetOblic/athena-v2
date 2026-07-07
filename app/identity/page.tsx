@@ -157,7 +157,7 @@ export default async function IdentityPage({
             <div className="mt-2 text-sm text-white/40">
               Last updated:{" "}
               {identity?.brain_last_updated
-                ? new Date(identity.brain_last_upoLocaleString()
+                ? new Date(identity.brain_last_updated).toLocaleString()
                 : "Not yet trained"}
             </div>
           </div>
