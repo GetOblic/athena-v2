@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
+import { AppendDiscussionUpdateForm } from "@/components/discussions/AppendDiscussionUpdateForm";
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
 import { getCommunityById } from "@/services/communityService";
 import { getDiscussionById } from "@/services/discussionService";
@@ -71,6 +72,10 @@ export default async function DiscussionDetailsPage({
           <DeploymentAssets assets={deploymentAssets} />
         </div>
       )}
+
+      <div className="mt-8">
+        <AppendDiscussionUpdateForm discussionId={discussion.id} />
+      </div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-3">
         <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:col-span-2">

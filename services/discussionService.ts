@@ -148,3 +148,78 @@ export async function createDiscussion(
 
     return data;
 }
+
+
+export type AppendDiscussionUpdateInput = {
+    discussionId: string;
+    updateBody: string;
+    updateAuthor?: string | null;
+    updateUrl?: string | null;
+    capturedAt?: string | null;
+};
+
+export async function appendDiscussionUpdate(
+    input: AppendDiscussionUpdateInput,
+): Promise<Discussion | null> {
+    const existing = await getDiscussionById(input.discussionId);
+
+    if (!existing) {
+        return null;
+    }
+
+    const capturedAt = input.capturedAt ?? new Date().toISOString();
+    const author = input.updateAuthor?.trim() || "Unknown";
+    const updateBody = input.updateBody.trim();
+
+    if (!updateBody) {
+        throw new Error("Discussion update body is required.");
+    }
+
+    const updateBlock = [
+        "",
+        "",
+        "---",
+        `THREAD UPDATE — ${capturedAt}`,
+        `Author: ${author}`,
+        input.updateUrl ? `URL: ${input.updateUrl}` : null,
+        "",
+        updateBody,
+    ]
+        .filter((line) => line !== null)
+        .join("\n");
+
+    const rawJson = existing.raw_json ?? {};
+    const existingUpdates = Array.isArray(rawJson.thread_updates)
+        ? rawJson.thread_updates
+        : [];
+
+    const { data, error } = await supabaseAdmin
+        .from("discussions")
+        .update({
+            body: `${existing.body ?? ""}${updateBlock}`,
+            status: "Needseview",
+            last_activity: capturedAt,
+            raw_json: {
+                ...rawJson,
+                thread_updates: [
+                    ...existingUpdates,
+                    {
+                        author,
+                        url: input.updateUrl ?? null,
+                        body: updateBody,
+                        captured_at: capturedAt,
+                    },
+                ],
+            },
+        })
+        .eq("id", input.discussionId)
+        .select("*")
+        .single();
+
+    if (error) {
+        console.error("Error appending discussion update:", error);
+        return null;
+    }
+
+    return data;
+}
