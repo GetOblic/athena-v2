@@ -14,7 +14,7 @@ export function Header() {
           </h1>
 
           <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-            Monitor communities. Analyze discussions. Generate executive briefings.
+            Monitor intelligence domains. Analyze discussions. Generate executive briefings.
           </p>
         </div>
 

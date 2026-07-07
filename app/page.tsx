@@ -93,7 +93,7 @@ export default async function Home() {
             />
             <ActionCard
               title="Continue Discussions"
-              description="Open captured community conversations and review Athena's recommended replies."
+              description="Open captured market conversations and review Athena's recommended replies."
               href="/discussions"
             />
             <ActionCard

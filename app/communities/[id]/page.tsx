@@ -15,11 +15,11 @@ export default async function CommunityDetailsPage({
   if (!community) {
     return (
       <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-        <Link href="/communities" className="text-sm text-[var(--athena-orange)]">
-          ← Back to Communities
+        <Link href="/intelligence-domains" className="text-sm text-[var(--athena-orange)]">
+          ← Back to Intelligence Domains
         </Link>
 
-        <h1 className="mt-8 text-4xl font-semibold">Community not found</h1>
+        <h1 className="mt-8 text-4xl font-semibold">Intelligence Domain not found</h1>
       </main>
     );
   }
@@ -31,14 +31,14 @@ export default async function CommunityDetailsPage({
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <Link href="/communities" className="text-sm text-[var(--athena-orange)]">
-        ← Back to Communities
+      <Link href="/intelligence-domains" className="text-sm text-[var(--athena-orange)]">
+        ← Back to Intelligence Domains
       </Link>
 
       <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Community Intelligence
+            Intelligence Domain
           </div>
 
           <h1 className="mt-4 text-5xl font-semibold tracking-tight">
@@ -46,7 +46,7 @@ export default async function CommunityDetailsPage({
           </h1>
 
           <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-            Executive intelligence for this monitored community.
+            Executive intelligence for this monitored market domain.
           </p>
         </div>
 
@@ -61,7 +61,7 @@ export default async function CommunityDetailsPage({
 
       <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-xl font-semibold">Community Intelligence</h2>
+          <h2 className="text-xl font-semibold">Domain Intelligence</h2>
 
           {latestIntelligence && (
             <div className="text-sm text-white/40">
@@ -90,7 +90,7 @@ export default async function CommunityDetailsPage({
           </div>
         ) : (
           <div className="mt-8 text-white/50">
-            No Community Intelligence has been generated yet.
+            No domain intelligence has been generated yet.
           </div>
         )}
       </div>
@@ -100,7 +100,7 @@ export default async function CommunityDetailsPage({
 
         {discussions.length === 0 ? (
           <div className="mt-8 text-white/50">
-            No discussions captured for this community yet.
+            No discussions captured for this domain yet.
           </div>
         ) : (
           <div className="mt-8 space-y-4">
@@ -140,7 +140,7 @@ export default async function CommunityDetailsPage({
       </div>
 
       <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <h2 className="text-xl font-semibold">Community Profile</h2>
+        <h2 className="text-xl font-semibold">Domain Profile</h2>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
           <Field label="Niche" value={community.niche} />

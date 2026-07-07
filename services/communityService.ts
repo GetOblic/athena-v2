@@ -58,3 +58,39 @@ export async function getCommunityById(
 
     return data;
 }
+
+export type CreateCommunityInput = {
+    group_name: string;
+    notes?: string | null;
+    niche?: string | null;
+    status?: string;
+    platform?: string;
+    priority?: number;
+};
+
+export async function createCommunity(
+    input: CreateCommunityInput,
+): Promise<Community | null> {
+    const { data, error } = await supabaseAdmin
+        .from("communities")
+        .insert({
+            platform: input.platform ?? "intelligence_domain",
+            group_name: input.group_name.trim(),
+            notes: input.notes?.trim() || null,
+            niche: input.niche?.trim() || null,
+            status: input.status ?? "active",
+            priority: input.priority ?? 1,
+            group_url: null,
+            member_count: null,
+            owner: null,
+        })
+        .select("*")
+        .single();
+
+    if (error) {
+        console.error("Error creating community:", error);
+        return null;
+    }
+
+    return data;
+}

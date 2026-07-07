@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { FacebookInboxForm } from "@/components/inbox/FacebookInboxForm";
-import { getCommunities } from "@/services/communityService";
+import {
+  getIntelligenceDomainName,
+  getIntelligenceDomains,
+} from "@/services/intelligenceDomainService";
 
 export default async function InboxPage() {
-  const communities = await getCommunities();
+  const domains = await getIntelligenceDomains();
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
@@ -16,21 +19,21 @@ export default async function InboxPage() {
           Athena Inbox
         </div>
 
-        <h1 className="mt-4 text-5xl font-semibold trackg-tight">
+        <h1 className="mt-4 text-5xl font-semibold tracking-tight">
           Capture Facebook Discussions
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Paste a Facebook group discussion once. Athena normalizes it into the
-          discussion pipeline so analysis, opportunities, briefings and learning
-          can happen downstream.
+          Paste a Facebook group discussion once. An Intelligence Domain tells
+          Athena which market, expertise, terminology and business context to use
+          when analyzing a discussion.
         </p>
       </div>
 
       <FacebookInboxForm
-        communities={communities.map((community) => ({
-          id: community.id,
-          group_name: community.group_name,
+        intelligenceDomains={domains.map((domain) => ({
+          id: domain.id,
+          name: getIntelligenceDomainName(domain),
         }))}
       />
     </main>

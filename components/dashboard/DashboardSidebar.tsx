@@ -4,6 +4,7 @@ export const dashboardNavItems = [
   { label: "Dashboard", href: "/" },
   { label: "Getting Started", href: "/getting-started" },
   { label: "Athena Brain", href: "/identity" },
+  { label: "Intelligence Domains", href: "/intelligence-domains" },
   { label: "Inbox", href: "/inbox" },
   { label: "Discussions", href: "/discussions" },
   { label: "Opportunities", href: "/opportunities" },

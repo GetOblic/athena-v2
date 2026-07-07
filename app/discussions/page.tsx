@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
-import { getCommunities } from "@/services/communityService";
+import { getIntelligenceDomains } from "@/services/intelligenceDomainService";
 import { getDiscussionQueues } from "@/services/queueService";
 
 const listGridClass =
@@ -18,12 +18,12 @@ function formatLastActivity(value: string | null) {
 }
 
 export default async function DiscussionsPage() {
-  const [queues, communities] = await Promise.all([
+  const [queues, domains] = await Promise.all([
     getDiscussionQueues(),
-    getCommunities(),
+    getIntelligenceDomains(),
   ]);
 
-  const communityById = new Map(communities.map((c) => [c.id, c]));
+  const domainById = new Map(domains.map((d) => [d.id, d]));
   const totalCount = queues.reduce(
     (count, section) => count + section.items.length,
     0,
@@ -46,7 +46,8 @@ export default async function DiscussionsPage() {
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
           Prioritized discussion queues — new threads, refreshed analyses, and
-          archived intelligence sorted by opportunity score.
+          processed intelligence sorted by opportunity score. Processed means
+          Athena has already generated intelligence from that discussion.
         </p>
       </div>
 
@@ -69,7 +70,7 @@ export default async function DiscussionsPage() {
           <div
             className={`${listGridClass} border-b border-[var(--athena-border)] px-6 py-4 text-xs uppercase tracking-[0.25em] text-white/35`}
           >
-            <div>Community</div>
+            <div>Intelligence Domain</div>
             <div>Title</div>
             <div>Score</div>
             <div>Status</div>
@@ -90,8 +91,8 @@ export default async function DiscussionsPage() {
                 />
 
                 {section.items.map((discussion) => {
-                  const community = discussion.community_id
-                    ? communityById.get(discussion.community_id)
+                  const domain = discussion.community_id
+                    ? domainById.get(discussion.community_id)
                     : undefined;
 
                   return (
@@ -100,7 +101,7 @@ export default async function DiscussionsPage() {
                       className={`${listGridClass} border-b border-white/5 px-6 py-5 text-sm last:border-b-0`}
                     >
                       <div className="text-white/50">
-                        {community?.group_name ?? "—"}
+                        {domain?.group_name ?? "—"}
                       </div>
 
                       <div className="font-medium text-white">

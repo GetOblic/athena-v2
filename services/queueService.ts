@@ -46,7 +46,7 @@ const BRIEFING_QUEUE_ORDER: BriefingStatusKey[] = [
 const DISCUSSION_QUEUE_TITLES: Record<DiscussionQueueKey, string> = {
   new: "New Discussions",
   updated: "Updated Analyses",
-  archived: "Archived",
+  archived: "Processed",
 };
 
 const BRIEFING_QUEUE_TITLES: Record<BriefingStatusKey, string> = {

@@ -2,17 +2,19 @@
 
 import { useState } from "react";
 
-type CommunityOption = {
+type IntelligenceDomainOption = {
   id: string;
-  group_name: string;
+  name: string;
 };
 
 type FacebookInboxFormProps = {
-  communities: CommunityOption[];
+  intelligenceDomains: IntelligenceDomainOption[];
 };
 
-export function FacebookInboxForm({ communities }: FacebookInboxFormProps) {
-  const [communityId, setCommunityId] = useState("");
+export function FacebookInboxForm({
+  intelligenceDomains,
+}: FacebookInboxFormProps) {
+  const [domainId, setDomainId] = useState("");
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [url, setUrl] = useState("");
@@ -33,7 +35,7 @@ export function FacebookInboxForm({ communities }: FacebookInboxFormProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          communityId: communityId || null,
+          communityId: domainId || null,
           title: title || null,
           author: author || null,
           url: url || null,
@@ -75,20 +77,24 @@ export function FacebookInboxForm({ communities }: FacebookInboxFormProps) {
       <div className="grid gap-5">
         <label className="grid gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Community
+            Intelligence Domain
           </span>
           <select
-            value={communityId}
-            onChange={(event) => setCommunityId(event.target.value)}
+            value={domainId}
+            onChange={(event) => setDomainId(event.target.value)}
             className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
           >
-            <option value="">No community selected</option>
-            {communities.map((community) => (
-              <option key={community.id} value={community.id}>
-                {community.group_name}
+            <option value="">No Intelligence Domain selected</option>
+            {intelligenceDomains.map((domain) => (
+              <option key={domain.id} value={domain.id}>
+                {domain.name}
               </option>
             ))}
           </select>
+          <span className="text-xs leading-5 text-white/40">
+            Choose the market this discussion belongs to. Athena will use that
+            domain&apos;s knowledge when analyzing it.
+          </span>
         </label>
 
         <div className="grid gap-5 md:grid-cols-3">

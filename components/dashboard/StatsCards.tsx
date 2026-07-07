@@ -4,7 +4,7 @@ export async function StatsCards() {
   const communityCount = await getCommunityCount();
 
   const metrics = [
-    ["Communities", String(communityCount), "Communities being monitored"],
+    ["Intelligence Domains", String(communityCount), "Markets Athena understands"],
     ["Discussions", "0", "Captured discussions"],
     ["Opportunities", "0", "High-value opportunities"],
     ["Briefings", "0", "Generated executive briefings"],

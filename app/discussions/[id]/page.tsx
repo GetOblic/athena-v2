@@ -56,7 +56,7 @@ export default async function DiscussionDetailsPage({
           </h1>
 
           <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-            Executive-grade intelligence for this captured community discussion.
+            Executive-grade intelligence for this captured market discussion.
           </p>
         </div>
       </div>
@@ -116,7 +116,7 @@ export default async function DiscussionDetailsPage({
 
           <div className="mt-8 grid gap-6 md:grid-cols-2">
             <Field label="Author" value={discussion.author} />
-            <Field label="Community" value={community?.group_name} />
+            <Field label="Intelligence Domain" value={community?.group_name} />
             <Field label="Original Sentiment" value={discussion.sentiment} />
             <Field label="URL" value={discussion.url} />
           </div>
