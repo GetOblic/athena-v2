@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { GenerateReviewButton } from "@/components/opportunities/GenerateReviewButton";
 import { buildOpportunityDeploymentAssets } from "@/lib/deploymentAssets";
+import { formatBriefingStatus } from "@/lib/briefingStatus";
 import { getOpportunityById } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 
@@ -50,7 +51,29 @@ export default async function OpportunityPage({ params }: Props) {
           </p>
         </div>
 
-        <GenerateReviewButton opportunityId={opportunity.id} />
+        <div className="flex flex-col items-start gap-3 lg:items-end">
+          {opportunity.discussion_id ? (
+            <Link
+              href={`/discussions/${opportunity.discussion_id}`}
+              className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
+            >
+              View Source Discussion
+            </Link>
+          ) : (
+            <div className="text-sm text-white/45">No source discussion linked.</div>
+          )}
+
+          {latestReview ? (
+            <Link
+              href={`/briefings/${latestReview.id}`}
+              className="rounded-full border border-white/15 px-7 py-4 text-sm font-semibold text-white/75 transition hover:border-[var(--athena-orange)]/40 hover:text-white"
+            >
+              Open Executive Briefing
+            </Link>
+          ) : (
+            <div className="text-sm text-white/45">No executive briefing yet.</div>
+          )}
+        </div>
       </div>
 
       <div className="mt-10 grid gap-6 lg:grid-cols-4">
@@ -59,25 +82,6 @@ export default async function OpportunityPage({ params }: Props) {
         <Metric label="Score" value={String(opportunity.score)} tone="orange" />
         <Metric label="Urgency" value={opportunity.urgency || "—"} />
       </div>
-
-      <nav className="mt-8 flex flex-wrap gap-4 text-sm">
-        {opportunity.discussion_id && (
-          <Link
-            href={`/discussions/${opportunity.discussion_id}`}
-            className="text-[var(--athena-orange)]"
-          >
-            View Source Discussion
-          </Link>
-        )}
-        {latestReview && (
-          <Link
-            href={`/briefings/${latestReview.id}`}
-            className="text-[var(--athena-orange)]"
-          >
-            Open Executive Briefing
-          </Link>
-        )}
-      </nav>
 
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
         <h2 className="text-2xl font-semibold">Why This Is an Opportunity</h2>
@@ -101,23 +105,12 @@ export default async function OpportunityPage({ params }: Props) {
       )}
 
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold">Latest Executive Briefing</h2>
-            <p className="mt-2 text-sm text-white/45">
-              Strategic summary for this opportunity. Open the full briefing for
-              complete context and status controls.
-            </p>
-          </div>
-
-          {latestReview && (
-            <Link
-              href={`/briefings/${latestReview.id}`}
-              className="rounded-full border border-[var(--athena-orange)]/40 bg-[var(--athena-orange)]/10 px-6 py-3 text-sm font-semibold text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/20"
-            >
-              Open Full Briefing
-            </Link>
-          )}
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold">Latest Executive Briefing</h2>
+          <p className="mt-2 text-sm text-white/45">
+            Supporting strategic intelligence for this opportunity. Approval and
+            full memo live on the briefing page.
+          </p>
         </div>
 
         {latestReview ? (
@@ -128,12 +121,19 @@ export default async function OpportunityPage({ params }: Props) {
             <Field label="Confidence" value={`${latestReview.confidence}%`} />
             <Field
               label="Status"
-              value={latestReview.status.replace(/_/g, " ")}
+              value={formatBriefingStatus(latestReview.status)}
             />
+            <Link
+              href={`/briefings/${latestReview.id}`}
+              className="inline-block text-sm text-[var(--athena-orange)]"
+            >
+              Open full executive briefing →
+            </Link>
           </div>
         ) : (
-          <div className="text-white/50">
-            No Executive Briefing has been generated for this opportunity yet.
+          <div className="space-y-4">
+            <div className="text-white/50">No executive briefing yet.</div>
+            <GenerateReviewButton opportunityId={opportunity.id} />
           </div>
         )}
       </div>

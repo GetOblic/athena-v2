@@ -1,32 +1,31 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   formatBriefingStatus,
   isApprovedStatus,
   isNeedsRevisionStatus,
 } from "@/lib/briefingStatus";
 
-export function ReviewStatusActions({
-  reviewId,
-  currentStatus,
-}: {
+type BriefingStatusPanelProps = {
   reviewId: string;
-  currentStatus: string;
-}) {
+  initialStatus: string;
+};
+
+export function BriefingStatusPanel({
+  reviewId,
+  initialStatus,
+}: BriefingStatusPanelProps) {
   const router = useRouter();
-  const [status, setStatus] = useState(currentStatus);
+  const [status, setStatus] = useState(initialStatus);
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
-    setStatus(currentStatus);
-  }, [currentStatus]);
-
-  const isApproved = isApprovedStatus(status);
-  const needsRevision = isNeedsRevisionStatus(status);
+    setStatus(initialStatus);
+  }, [initialStatus]);
 
   async function updateStatus(action: "approve" | "request_revision") {
     setIsUpdating(true);
@@ -62,23 +61,24 @@ export function ReviewStatusActions({
     }
   }
 
+  const approved = isApprovedStatus(status);
+  const needsRevision = isNeedsRevisionStatus(status);
+
   return (
-    <div className="flex flex-col items-start gap-3">
-      <div className="text-sm text-white/40">
-        Status:{" "}
-        <span className="text-[var(--athena-orange)]">
-          {formatBriefingStatus(status)}
-        </span>
+    <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+      <div className="text-white/40">Status</div>
+      <div className="mt-4 text-4xl font-semibold text-[var(--athena-warning)]">
+        {formatBriefingStatus(status)}
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="mt-6 flex flex-wrap gap-3">
         <button
           type="button"
           onClick={() => updateStatus("approve")}
-          disabled={isUpdating || isApproved}
+          disabled={isUpdating || approved}
           className="rounded-2xl bg-emerald-500 px-5 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {isApproved ? "Briefing Approved" : "Approve Briefing"}
+          {approved ? "Briefing Approved" : "Approve Briefing"}
         </button>
 
         <button
@@ -91,8 +91,8 @@ export function ReviewStatusActions({
         </button>
       </div>
 
-      {success && <div className="text-sm text-emerald-300">{success}</div>}
-      {error && <div className="text-sm text-red-400">{error}</div>}
+      {success && <div className="mt-4 text-sm text-emerald-300">{success}</div>}
+      {error && <div className="mt-4 text-sm text-red-400">{error}</div>}
     </div>
   );
 }

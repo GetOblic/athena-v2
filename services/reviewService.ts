@@ -177,6 +177,7 @@ export async function approveReview(id: string): Promise<AthenaReview | null> {
     .update({
       status: "approved",
       approved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
     .eq("id", id)
     .select("*")
@@ -190,12 +191,15 @@ export async function approveReview(id: string): Promise<AthenaReview | null> {
   return data;
 }
 
-export async function rejectReview(id: string): Promise<AthenaReview | null> {
+export async function requestBriefingRevision(
+  id: string,
+): Promise<AthenaReview | null> {
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
     .update({
       status: "needs_revision",
       approved_at: null,
+      updated_at: new Date().toISOString(),
     })
     .eq("id", id)
     .select("*")
@@ -207,4 +211,9 @@ export async function rejectReview(id: string): Promise<AthenaReview | null> {
   }
 
   return data;
+}
+
+/** @deprecated Use requestBriefingRevision */
+export async function rejectReview(id: string): Promise<AthenaReview | null> {
+  return requestBriefingRevision(id);
 }

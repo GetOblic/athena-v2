@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { getBriefingListSummary } from "@/lib/briefingDisplay";
+import { formatBriefingStatus } from "@/lib/briefingStatus";
 import { getReviews } from "@/services/reviewService";
 
-function formatStatus(status: string) {
-  return status.replace(/_/g, " ");
-}
+const listGridClass =
+  "grid grid-cols-[minmax(0,1fr)_140px_140px_160px]";
 
 export default async function BriefingsPage() {
   const briefings = await getReviews();
@@ -49,8 +50,10 @@ export default async function BriefingsPage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)]">
-          <div className="grid min-w-[760px] grid-cols-[minmax(0,1fr)_140px_120px_140px] border-b border-[var(--athena-border)] px-6 py-4 text-xs uppercase tracking-[0.25em] text-white/35">
-            <div>Summary</div>
+          <div
+            className={`${listGridClass} border-b border-[var(--athena-border)] px-6 py-4 text-xs uppercase tracking-[0.25em] text-white/35`}
+          >
+            <div className="pr-4">Summary</div>
             <div>Status</div>
             <div>Confidence</div>
             <div>Action</div>
@@ -59,26 +62,28 @@ export default async function BriefingsPage() {
           {briefings.map((briefing) => (
             <div
               key={briefing.id}
-              className="grid min-w-[760px] grid-cols-[minmax(0,1fr)_140px_120px_140px] items-center gap-4 border-b border-white/5 px-6 py-5 text-sm last:border-b-0"
+              className={`${listGridClass} items-center border-b border-white/5 px-6 py-5 text-sm last:border-b-0`}
             >
-              <div className="font-medium text-white">
-                {briefing.summary || "Untitled briefing"}
+              <div className="line-clamp-2 pr-4 font-medium leading-6 text-white">
+                {getBriefingListSummary(briefing)}
               </div>
 
-              <div className="capitalize text-[var(--athena-warning)]">
-                {formatStatus(briefing.status)}
+              <div className="text-[var(--athena-warning)]">
+                {formatBriefingStatus(briefing.status)}
               </div>
 
               <div className="font-semibold text-[var(--athena-orange)]">
                 {briefing.confidence}%
               </div>
 
-              <Link
-                href={`/briefings/${briefing.id}`}
-                className="inline-flex w-fit rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
-              >
-                Open Briefing
-              </Link>
+              <div>
+                <Link
+                  href={`/briefings/${briefing.id}`}
+                  className="inline-flex rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
+                >
+                  Open Briefing
+                </Link>
+              </div>
             </div>
           ))}
         </div>

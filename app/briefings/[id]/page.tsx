@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
 import { StrategicAssetBlueprintEmpty } from "@/components/assetBlueprints/StrategicAssetBlueprintEmpty";
+import { BriefingStatusPanel } from "@/components/briefings/BriefingStatusPanel";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
-import { ReviewStatusActions } from "@/components/opportunities/ReviewStatusActions";
 import { buildBriefingDeploymentAssets } from "@/lib/deploymentAssets";
 import { getDisplayAssetBlueprintForBriefing } from "@/services/assetBlueprints/assetBlueprintService";
 import { getReviewById } from "@/services/reviewService";
@@ -13,10 +13,6 @@ type Props = {
     id: string;
   }>;
 };
-
-function formatStatus(status: string) {
-  return status.replace(/_/g, " ");
-}
 
 export default async function BriefingPage({ params }: Props) {
   const { id } = await params;
@@ -39,28 +35,21 @@ export default async function BriefingPage({ params }: Props) {
         ← Back to Briefings
       </Link>
 
-      <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="text-xs uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Executive Briefing
-          </div>
-
-          <h1 className="mt-4 text-5xl font-semibold">Executive Briefing</h1>
-
-          <p className="mt-4 max-w-3xl text-white/50">
-            Strategic decision report — understand the opportunity and recommended
-            direction without operational controls.
-          </p>
+      <div className="mt-10">
+        <div className="text-xs uppercase tracking-[0.35em] text-[var(--athena-orange)]">
+          Executive Briefing
         </div>
 
-        <ReviewStatusActions
-          reviewId={review.id}
-          currentStatus={review.status}
-        />
+        <h1 className="mt-4 text-5xl font-semibold">Executive Briefing</h1>
+
+        <p className="mt-4 max-w-3xl text-white/50">
+          Executive decision memo supporting the linked opportunity — strategic
+          understanding and approval controls live here.
+        </p>
       </div>
 
       <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Status" value={formatStatus(review.status)} highlight="warning" />
+        <BriefingStatusPanel reviewId={review.id} initialStatus={review.status} />
         <MetricCard label="Buyer Stage" value={review.buyer_stage || "—"} />
         <MetricCard
           label="Confidence"
@@ -140,22 +129,16 @@ function MetricCard({
 }: {
   label: string;
   value: string;
-  highlight?: "warning" | "orange";
+  highlight?: "orange";
   href?: string;
 }) {
   const color =
-    highlight === "warning"
-      ? "text-[var(--athena-warning)]"
-      : highlight === "orange"
-        ? "text-[var(--athena-orange)]"
-        : "text-white";
+    highlight === "orange" ? "text-[var(--athena-orange)]" : "text-white";
 
   const content = (
     <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <div className="text-white/40">{label}</div>
-      <div className={`mt-4 text-2xl font-semibold capitalize ${color}`}>
-        {value}
-      </div>
+      <div className={`mt-4 text-2xl font-semibold ${color}`}>{value}</div>
     </div>
   );
 

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { approveReview, rejectReview } from "@/services/reviewService";
+import {
+  approveReview,
+  requestBriefingRevision,
+} from "@/services/reviewService";
 import { emitBrainEvent } from "@/services/brain/eventBus";
 import { registerBrainProcessors } from "@/services/brain/brainProcessor";
 
@@ -18,17 +21,22 @@ export async function POST(request: Request, context: RouteContext) {
 
     const action = body?.action;
 
-    if (action !== "approve" && action !== "reject") {
+    const isApprove = action === "approve";
+    const isRequestRevision =
+      action === "request_revision" || action === "reject";
+
+    if (!isApprove && !isRequestRevision) {
       return NextResponse.json(
         { success: false, error: "Invalid action" },
         { status: 400 },
       );
     }
 
-    const review =
-      action === "approve" ? await approveReview(id) : await rejectReview(id);
+    const review = isApprove
+      ? await approveReview(id)
+      : await requestBriefingRevision(id);
 
-    if (action === "approve" && review?.id) {
+    if (isApprove && review?.id) {
       await emitBrainEvent("briefing.approved", { reviewId: review.id });
     }
 
