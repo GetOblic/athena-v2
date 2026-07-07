@@ -1,7 +1,9 @@
 import { generateReview } from "@/services/aiService";
+import { createAssetBlueprintForBriefing } from "@/services/assetBlueprints/assetBlueprintService";
 import {
   formatBrainContextForPrompt,
   getAthenaBrainContextForCurrentUser,
+  getAthenaBrainContextForUserId,
 } from "@/services/brain/brainContextService";
 import {
   buildDiscussionAnalysisPrompt,
@@ -100,13 +102,17 @@ export async function processDiscussionEndToEnd(discussionId: string) {
     throw new Error(`Discussion not found: ${discussionId}`);
   }
 
-  const brainContext = await getAthenaBrainContextForCurrentUser();
+  const brainContext = discussion.user_id
+    ? await getAthenaBrainContextForUserId(discussion.user_id)
+    : await getAthenaBrainContextForCurrentUser();
+
   const brainContextPrompt = formatBrainContextForPrompt(brainContext);
 
   const analysisPrompt = buildDiscussionAnalysisPrompt(
     discussion,
     brainContextPrompt,
   );
+
   const rawAnalysis = await generateReview(analysisPrompt);
   const parsedAnalysis = parseAnalysis(rawAnalysis);
 
@@ -146,6 +152,7 @@ export async function processDiscussionEndToEnd(discussionId: string) {
       analysis,
       opportunity: null,
       review: null,
+      assetBlueprint: null,
       status: "analysis_completed_no_opportunity",
     };
   }
@@ -207,11 +214,19 @@ export async function processDiscussionEndToEnd(discussionId: string) {
     throw new Error("Opportunity created but briefing/review was not saved.");
   }
 
+  const assetBlueprint = await createAssetBlueprintForBriefing({
+    discussion,
+    opportunity,
+    briefing: review,
+    brainContextPrompt,
+  });
+
   return {
     discussion,
     analysis,
     opportunity,
     review,
+    assetBlueprint,
     status: "review_ready",
   };
 }
