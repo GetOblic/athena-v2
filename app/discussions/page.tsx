@@ -1,7 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
+import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
 import { getIntelligenceDomains } from "@/services/intelligenceDomainService";
 import { getDiscussionQueues } from "@/services/queueService";
 
@@ -18,9 +20,10 @@ function formatLastActivity(value: string | null) {
 }
 
 export default async function DiscussionsPage() {
-  const [queues, domains] = await Promise.all([
+  const [queues, domains, analyzedDiscussionIds] = await Promise.all([
     getDiscussionQueues(),
     getIntelligenceDomains(),
+    getAnalyzedDiscussionIds(),
   ]);
 
   const domainById = new Map(domains.map((d) => [d.id, d]));
@@ -45,9 +48,9 @@ export default async function DiscussionsPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Prioritized discussion queues — new threads, refreshed analyses, and
-          processed intelligence sorted by opportunity score. Processed means
-          Athena has already generated intelligence from that discussion.
+          Prioritized discussion queues sorted by urgency and opportunity score.
+          New threads need first analysis, In Review threads have fresh updates,
+          and Processed means Athena has already generated intelligence.
         </p>
       </div>
 
@@ -94,6 +97,7 @@ export default async function DiscussionsPage() {
                   const domain = discussion.community_id
                     ? domainById.get(discussion.community_id)
                     : undefined;
+                  const hasAnalysis = analyzedDiscussionIds.has(discussion.id);
 
                   return (
                     <div
@@ -112,8 +116,11 @@ export default async function DiscussionsPage() {
                         {discussion.opportunity_score}
                       </div>
 
-                      <div className="font-semibold text-[var(--athena-warning)]">
-                        {discussion.status}
+                      <div>
+                        <DiscussionLifecycleBadge
+                          discussion={discussion}
+                          hasAnalysis={hasAnalysis}
+                        />
                       </div>
 
                       <div className="text-white/50">

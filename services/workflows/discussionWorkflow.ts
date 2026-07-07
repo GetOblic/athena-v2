@@ -17,7 +17,9 @@ import {
   OPPORTUNITY_REVIEW_PROMPT_VERSION,
 } from "@/services/ai/prompts/opportunityReviewPrompt";
 import { ELEVATE_STRATEGY_PROMPT_VERSION } from "@/services/ai/prompts/elevateStrategyPrompt";
+import { buildAnalysisThreadBody } from "@/lib/discussionContent";
 import { createDiscussionAnalysis } from "@/services/discussionAnalysisService";
+import { getDiscussionUpdatesByDiscussionId } from "@/services/discussionUpdateService";
 import { getDiscussionById } from "@/services/discussionService";
 import { createOpportunity } from "@/services/opportunityService";
 import { createReview } from "@/services/reviewService";
@@ -139,8 +141,14 @@ export async function processDiscussionEndToEnd(discussionId: string) {
 
   const brainContextPrompt = formatBrainContextForPrompt(brainContext);
 
+  const threadUpdates = await getDiscussionUpdatesByDiscussionId(discussionId);
+  const analysisDiscussion = {
+    ...discussion,
+    body: buildAnalysisThreadBody(discussion, threadUpdates),
+  };
+
   const analysisPrompt = buildDiscussionAnalysisPrompt(
-    discussion,
+    analysisDiscussion,
     brainContextPrompt,
   );
 

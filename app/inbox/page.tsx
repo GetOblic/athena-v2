@@ -2,11 +2,11 @@ import Link from "next/link";
 import { FacebookInboxForm } from "@/components/inbox/FacebookInboxForm";
 import {
   getIntelligenceDomainName,
-  getIntelligenceDomains,
+  getActiveIntelligenceDomains,
 } from "@/services/intelligenceDomainService";
 
 export default async function InboxPage() {
-  const domains = await getIntelligenceDomains();
+  const domains = await getActiveIntelligenceDomains();
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">

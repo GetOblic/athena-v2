@@ -1,4 +1,10 @@
 import {
+  classifyDiscussionQueue,
+  getDiscussionQueueOrder,
+  getDiscussionQueueTitle,
+  type DiscussionQueueKey,
+} from "@/lib/discussionStatus";
+import {
   normalizeBriefingStatus,
   type BriefingStatusKey,
 } from "@/lib/briefingStatus";
@@ -15,8 +21,6 @@ import type { Opportunity } from "@/services/opportunityService";
 import { getOpportunities } from "@/services/opportunityService";
 import type { AthenaReview } from "@/services/reviewService";
 import { getReviews } from "@/services/reviewService";
-
-export type DiscussionQueueKey = "new" | "updated" | "archived";
 
 export type DiscussionQueueSection = {
   key: DiscussionQueueKey;
@@ -43,12 +47,6 @@ const BRIEFING_QUEUE_ORDER: BriefingStatusKey[] = [
   "rejected",
 ];
 
-const DISCUSSION_QUEUE_TITLES: Record<DiscussionQueueKey, string> = {
-  new: "New Discussions",
-  updated: "Updated Analyses",
-  archived: "Processed",
-};
-
 const BRIEFING_QUEUE_TITLES: Record<BriefingStatusKey, string> = {
   needs_revision: "Needs Revision",
   draft: "Draft",
@@ -65,19 +63,15 @@ const URGENCY_RANK: Record<string, number> = {
   low: 1,
 };
 
-function isDiscussionAwaitingReview(status: string): boolean {
-  const token = status.trim().toLowerCase().replace(/[\s_-]+/g, "");
-  return token === "needsreview" || token === "needseview";
-}
-
 function sortDiscussions(a: Discussion, b: Discussion): number {
   if (b.opportunity_score !== a.opportunity_score) {
     return b.opportunity_score - a.opportunity_score;
   }
 
-  return (
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
+  const aActivity = a.last_activity ?? a.created_at;
+  const bActivity = b.last_activity ?? b.created_at;
+
+  return new Date(bActivity).getTime() - new Date(aActivity).getTime();
 }
 
 function getUrgencyRank(value?: string | null): number {
@@ -140,9 +134,10 @@ function sortBriefings(a: AthenaReview, b: AthenaReview): number {
     return b.confidence - a.confidence;
   }
 
-  return (
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
+  const aTimestamp = a.updated_at ?? a.created_at;
+  const bTimestamp = b.updated_at ?? b.created_at;
+
+  return new Date(bTimestamp).getTime() - new Date(aTimestamp).getTime();
 }
 
 function groupByKey<T, K extends string>(
@@ -173,33 +168,21 @@ export async function getDiscussionQueues(): Promise<DiscussionQueueSection[]> {
 
   const grouped: Record<DiscussionQueueKey, Discussion[]> = {
     new: [],
-    updated: [],
-    archived: [],
+    in_review: [],
+    processed: [],
   };
 
   for (const discussion of discussions) {
     const hasAnalysis = analyzedDiscussionIds.has(discussion.id);
-
-    if (!hasAnalysis) {
-      grouped.new.push(discussion);
-      continue;
-    }
-
-    if (isDiscussionAwaitingReview(discussion.status)) {
-      grouped.updated.push(discussion);
-      continue;
-    }
-
-    grouped.archived.push(discussion);
+    const queueKey = classifyDiscussionQueue(hasAnalysis, discussion.status);
+    grouped[queueKey].push(discussion);
   }
 
-  return (["new", "updated", "archived"] as DiscussionQueueKey[]).map(
-    (key) => ({
-      key,
-      title: DISCUSSION_QUEUE_TITLES[key],
-      items: grouped[key].sort(sortDiscussions),
-    }),
-  );
+  return getDiscussionQueueOrder().map((key) => ({
+    key,
+    title: getDiscussionQueueTitle(key),
+    items: grouped[key].sort(sortDiscussions),
+  }));
 }
 
 export async function getOpportunityQueues(): Promise<OpportunityQueueSection[]> {

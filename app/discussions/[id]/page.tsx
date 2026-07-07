@@ -1,15 +1,22 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 import { AppendDiscussionUpdateForm } from "@/components/discussions/AppendDiscussionUpdateForm";
 import { AthenaRecommendationRibbon } from "@/components/discussions/AthenaRecommendationRibbon";
+import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
 import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveIntelligenceCard";
+import {
+  getOriginalDiscussionBody,
+  getThreadUpdatesForDisplay,
+} from "@/lib/discussionContent";
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
 import { getCommunityById } from "@/services/communityService";
 import { getDiscussionById } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
+import { getDiscussionUpdatesByDiscussionId } from "@/services/discussionUpdateService";
 
 export default async function DiscussionDetailsPage({
   params,
@@ -31,13 +38,23 @@ export default async function DiscussionDetailsPage({
     );
   }
 
-  const community = discussion.community_id
-    ? await getCommunityById(discussion.community_id)
-    : null;
+  const [community, latestAnalysis, assetBlueprint, threadUpdates] =
+    await Promise.all([
+      discussion.community_id
+        ? getCommunityById(discussion.community_id)
+        : Promise.resolve(null),
+      getLatestDiscussionAnalysis(id),
+      getDisplayAssetBlueprintByDiscussionId(id),
+      getDiscussionUpdatesByDiscussionId(id),
+    ]);
 
-  const latestAnalysis = await getLatestDiscussionAnalysis(id);
   const deploymentAssets = buildDiscussionDeploymentAssets(latestAnalysis);
-  const assetBlueprint = await getDisplayAssetBlueprintByDiscussionId(id);
+  const originalBody = getOriginalDiscussionBody(discussion);
+  const displayedUpdates = getThreadUpdatesForDisplay(
+    discussion,
+    threadUpdates,
+  );
+  const hasAnalysis = Boolean(latestAnalysis);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
@@ -63,7 +80,12 @@ export default async function DiscussionDetailsPage({
 
       <div className="mt-10 grid gap-6 lg:grid-cols-4">
         <Metric label="Platform" value={discussion.platform} />
-        <Metric label="Status" value={discussion.status} highlight="warning" />
+        <Metric label="Discussion Status">
+          <DiscussionLifecycleBadge
+            discussion={discussion}
+            hasAnalysis={hasAnalysis}
+          />
+        </Metric>
         <Metric label="Priority" value={String(discussion.priority)} />
         <Metric
           label="Opportunity Score"
@@ -112,7 +134,7 @@ export default async function DiscussionDetailsPage({
 
       <div className="mt-8 grid gap-8 lg:grid-cols-3">
         <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:col-span-2">
-          <h2 className="text-xl font-semibold">Original Discussion Content</h2>
+          <h2 className="text-xl font-semibold">Original Discussion</h2>
 
           <div className="mt-8 grid gap-6 md:grid-cols-2">
             <Field label="Author" value={discussion.author} />
@@ -124,8 +146,53 @@ export default async function DiscussionDetailsPage({
           <div className="mt-8">
             <div className="text-sm text-white/40">Body</div>
             <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70">
-              {discussion.body || "No body captured."}
+              {originalBody || "No body captured."}
             </div>
+          </div>
+
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold">Thread Updates / Follow-ups</h3>
+
+            {displayedUpdates.length === 0 ? (
+              <div className="mt-4 text-sm text-white/45">
+                No follow-up updates captured yet.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4">
+                {displayedUpdates.map((update) => (
+                  <div
+                    key={update.id}
+                    className="rounded-2xl border border-white/10 bg-black/20 p-5"
+                  >
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/40">
+                      <span>
+                        {new Date(update.capturedAt).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      {update.author ? <span>{update.author}</span> : null}
+                      {update.url ? (
+                        <a
+                          href={update.url}
+                          className="text-[var(--athena-orange)] underline"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Source
+                        </a>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 text-sm leading-7 text-white/70">
+                      {update.body}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
@@ -135,7 +202,7 @@ export default async function DiscussionDetailsPage({
 
             {latestAnalysis && (
               <div className="text-sm text-white/40">
-                Status:{" "}
+                Analysis Status:{" "}
                 <span className="text-[var(--athena-orange)]">
                   {latestAnalysis.status}
                 </span>
@@ -190,10 +257,12 @@ function Metric({
   label,
   value,
   highlight,
+  children,
 }: {
   label: string;
-  value: string;
+  value?: string;
   highlight?: "success" | "warning" | "orange";
+  children?: ReactNode;
 }) {
   const color =
     highlight === "success"
@@ -207,7 +276,9 @@ function Metric({
   return (
     <div className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <div className="text-sm text-white/40">{label}</div>
-      <div className={`mt-3 text-2xl font-semibold ${color}`}>{value}</div>
+      <div className={`mt-3 text-2xl font-semibold ${children ? "" : color}`}>
+        {children ?? value}
+      </div>
     </div>
   );
 }

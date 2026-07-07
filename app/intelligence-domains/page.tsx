@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { CreateIntelligenceDomainForm } from "@/components/intelligenceDomains/CreateIntelligenceDomainForm";
+import { IntelligenceDomainStatusBadge } from "@/components/intelligenceDomains/IntelligenceDomainStatusBadge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   createIntelligenceDomain,
@@ -124,14 +125,8 @@ export default async function IntelligenceDomainsPage({
 
                     <div className="text-white/60">{domain.niche || "—"}</div>
 
-                    <div
-                      className={
-                        domain.status === "active"
-                          ? "font-semibold text-[var(--athena-success)]"
-                          : "font-semibold text-white/45"
-                      }
-                    >
-                      {domain.status === "active" ? "Active" : "Inactive"}
+                    <div>
+                      <IntelligenceDomainStatusBadge status={domain.status} />
                     </div>
 
                     <div className="text-white/50">{domain.priority}</div>

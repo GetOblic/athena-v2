@@ -45,7 +45,7 @@ export function AppendDiscussionUpdateForm({
       setResult({
         ok: true,
         message:
-          "Thread update appended and reprocessed. Refresh to view the latest analysis.",
+          "Thread updated successfully. Athena is regenerating the discussion analysis, opportunities, executive briefing and strategic assets. Refresh in a few seconds to view the latest intelligence.",
       });
 
       setAuthor("");

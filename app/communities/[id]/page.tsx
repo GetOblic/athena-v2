@@ -1,8 +1,12 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { GenerateCommunityIntelligenceButton } from "@/components/communities/GenerateCommunityIntelligenceButton";
+import { DomainIntelligenceSections } from "@/components/intelligenceDomains/DomainIntelligenceSections";
+import { IntelligenceDomainStatusBadge } from "@/components/intelligenceDomains/IntelligenceDomainStatusBadge";
 import { getCommunityById } from "@/services/communityService";
 import { getLatestCommunityIntelligenceByCommunityId } from "@/services/communityIntelligenceService";
 import { getDiscussionsByCommunityId } from "@/services/discussionService";
+import { getIntelligenceDomainStats } from "@/services/intelligenceDomainService";
 
 export default async function CommunityDetailsPage({
   params,
@@ -29,6 +33,11 @@ export default async function CommunityDetailsPage({
     getDiscussionsByCommunityId(id),
   ]);
 
+  const stats = await getIntelligenceDomainStats(
+    id,
+    latestIntelligence?.confidence ?? null,
+  );
+
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
       <Link href="/intelligence-domains" className="text-sm text-[var(--athena-orange)]">
@@ -53,15 +62,33 @@ export default async function CommunityDetailsPage({
         <GenerateCommunityIntelligenceButton communityId={community.id} />
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-3">
+      <div className="mt-10 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+        <StatCard label="Discussions analyzed" value={stats.discussionsAnalyzed} />
+        <StatCard label="High-intent discussions" value={stats.highIntentDiscussions} />
+        <StatCard label="Opportunities detected" value={stats.opportunitiesDetected} />
+        <StatCard label="Briefings generated" value={stats.briefingsGenerated} />
+        <StatCard label="Asset blueprints" value={stats.assetBlueprintsGenerated} />
+        <StatCard
+          label="Knowledge confidence"
+          value={
+            stats.knowledgeConfidence != null
+              ? `${stats.knowledgeConfidence}%`
+              : "Learning"
+          }
+        />
+      </div>
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-3">
         <Metric label="Platform" value={community.platform} />
-        <Metric label="Status" value={community.status} highlight="success" />
+        <Metric label="Status">
+          <IntelligenceDomainStatusBadge status={community.status} size="lg" />
+        </Metric>
         <Metric label="Priority" value={String(community.priority)} />
       </div>
 
       <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-xl font-semibold">Domain Intelligence</h2>
+          <h2 className="text-xl font-semibold">Athena&apos;s Understanding</h2>
 
           {latestIntelligence && (
             <div className="text-sm text-white/40">
@@ -73,26 +100,18 @@ export default async function CommunityDetailsPage({
           )}
         </div>
 
-        {latestIntelligence ? (
-          <div className="mt-8 grid gap-8 lg:grid-cols-2">
-            <Field label="Executive Summary" value={latestIntelligence.executive_summary} />
-            <Field label="Market Trends" value={latestIntelligence.market_trends} />
-            <Field label="Recurring Pain Points" value={latestIntelligence.recurring_pain_points} />
-            <Field label="Recurring Objections" value={latestIntelligence.recurring_objections} />
-            <Field label="Recurring Questions" value={latestIntelligence.recurring_questions} />
-            <Field label="Buyer Stage Distribution" value={latestIntelligence.buyer_stage_distribution} />
-            <Field label="High-Value Opportunities" value={latestIntelligence.high_value_opportunities} />
-            <Field label="Recommended Campaigns" value={latestIntelligence.recommended_campaigns} />
-            <Field label="Recommended Content" value={latestIntelligence.recommended_content} />
-            <Field label="Recommended Lead Magnets" value={latestIntelligence.recommended_lead_magnets} />
-            <Field label="Recommended Webinars" value={latestIntelligence.recommended_webinars} />
-            <Field label="Strategic Recommendations" value={latestIntelligence.strategic_recommendations} />
+        {latestIntelligence?.executive_summary ? (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/75">
+            {latestIntelligence.executive_summary}
           </div>
         ) : (
-          <div className="mt-8 text-white/50">
-            No domain intelligence has been generated yet.
+          <div className="mt-6 text-white/50">
+            No executive summary yet. Generate domain intelligence to help Athena
+            understand this market.
           </div>
         )}
+
+        <DomainIntelligenceSections intelligence={latestIntelligence} />
       </div>
 
       <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
@@ -130,7 +149,7 @@ export default async function CommunityDetailsPage({
                     href={`/discussions/${discussion.id}`}
                     className="shrink-0 rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
                   >
-                    Analyze
+                    Open
                   </Link>
                 </div>
               </div>
@@ -143,7 +162,7 @@ export default async function CommunityDetailsPage({
         <h2 className="text-xl font-semibold">Domain Profile</h2>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
-          <Field label="Niche" value={community.niche} />
+          <Field label="Market / Niche" value={community.niche} />
           <Field label="Member Count" value={community.member_count?.toString()} />
           <Field label="Owner" value={community.owner} />
           <Field label="URL" value={community.group_url} />
@@ -161,26 +180,32 @@ export default async function CommunityDetailsPage({
   );
 }
 
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-[20px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-5">
+      <div className="text-xs uppercase tracking-[0.2em] text-white/35">{label}</div>
+      <div className="mt-3 text-3xl font-semibold text-[var(--athena-orange)]">
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function Metric({
   label,
   value,
-  highlight,
+  children,
 }: {
   label: string;
-  value: string;
-  highlight?: "success" | "orange";
+  value?: string;
+  children?: ReactNode;
 }) {
-  const color =
-    highlight === "success"
-      ? "text-[var(--athena-success)]"
-      : highlight === "orange"
-        ? "text-[var(--athena-orange)]"
-        : "text-white";
-
   return (
     <div className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <div className="text-sm text-white/40">{label}</div>
-      <div className={`mt-3 text-2xl font-semibold ${color}`}>{value}</div>
+      <div className="mt-3 text-2xl font-semibold text-white">
+        {children ?? value}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,6 @@
+import { getOriginalDiscussionBody } from "@/lib/discussionContent";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { createDiscussionUpdate } from "@/services/discussionUpdateService";
 
 export type Discussion = {
     id: string;
@@ -40,7 +42,7 @@ export async function getHighPriorityDiscussions(
     const { data, error } = await supabaseAdmin
         .from("discussions")
         .select("*")
-        .in("status", ["New", "Needs Review"])
+        .in("status", ["New", "Needs Review", "Reviewing"])
         .order("opportunity_score", { ascending: false })
         .order("priority", { ascending: false })
         .limit(limit);
@@ -178,20 +180,24 @@ export async function appendDiscussionUpdate(
         throw new Error("Discussion update body is required.");
     }
 
-    const updateBlock = [
-        "",
-        "",
-        "---",
-        `THREAD UPDATE — ${capturedAt}`,
-        `Author: ${author}`,
-        input.updateUrl ? `URL: ${input.updateUrl}` : null,
-        "",
-        updateBody,
-    ]
-        .filter((line) => line !== null)
-        .join("\n");
-
     const rawJson = existing.raw_json ?? {};
+    const originalBody =
+        typeof rawJson.original_body === "string"
+            ? rawJson.original_body
+            : getOriginalDiscussionBody(existing);
+
+    const savedUpdate = await createDiscussionUpdate({
+        discussionId: input.discussionId,
+        author,
+        url: input.updateUrl ?? null,
+        body: updateBody,
+        capturedAt,
+    });
+
+    if (!savedUpdate) {
+        return null;
+    }
+
     const existingUpdates = Array.isArray(rawJson.thread_updates)
         ? rawJson.thread_updates
         : [];
@@ -199,11 +205,11 @@ export async function appendDiscussionUpdate(
     const { data, error } = await supabaseAdmin
         .from("discussions")
         .update({
-            body: `${existing.body ?? ""}${updateBlock}`,
-            status: "Needseview",
+            status: "Reviewing",
             last_activity: capturedAt,
             raw_json: {
                 ...rawJson,
+                original_body: originalBody,
                 thread_updates: [
                     ...existingUpdates,
                     {
