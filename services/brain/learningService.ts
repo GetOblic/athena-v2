@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createKnowledgeAsset } from "@/services/knowledgeAssetService";
+import { getDiscussionById } from "@/services/discussionService";
 import { getReviewById, type AthenaReview } from "@/services/reviewService";
 
 function compactText(value: unknown): string {
@@ -57,13 +58,17 @@ export async function learnFromApprovedBriefing(reviewId: string) {
     review.summary?.slice(0, 90) ||
     `Approved Briefing ${review.id}`;
 
+  const discussion = review.discussion_id
+    ? await getDiscussionById(review.discussion_id)
+    : null;
+
   const knowledgeAsset = await createKnowledgeAsset({
     title,
     category: "Institutional Knowledge",
     asset_type: "approved_briefing",
     summary: review.summary ?? null,
     content,
-    community_id: review.community_id ?? null,
+    community_id: discussion?.community_id ?? null,
     source_type: "athena_reviews",
     source_id: review.id,
     rating: review.confidence ? Math.max(1, Math.min(5, Math.round(review.confidence / 20))) : null,
