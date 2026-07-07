@@ -143,9 +143,11 @@ export default async function Home() {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-7">
-      <div className="text-sm text-white/40">{label}</div>
-      <div className="mt-4 text-4xl font-semibold text-[var(--athena-orange)]">
+    <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-7 shadow-sm shadow-black/20">
+      <div className="text-xs font-medium uppercase tracking-[0.15em] text-white/50">
+        {label}
+      </div>
+      <div className="mt-5 text-5xl font-semibold tabular-nums tracking-tight text-[var(--athena-orange)]">
         {value}
       </div>
     </div>
@@ -164,10 +166,19 @@ function ActionCard({
   return (
     <Link
       href={href}
-      className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-7 transition hover:border-[var(--athena-orange)]"
+      className="group rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-7 transition duration-200 hover:-translate-y-0.5 hover:border-[var(--athena-orange)]/60 hover:bg-white/[0.03] hover:shadow-lg hover:shadow-black/30"
     >
-      <div className="text-xl font-semibold">{title}</div>
-      <p className="mt-3 text-sm leading-6 text-white/45">{description}</p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="text-xl font-semibold text-white group-hover:text-[var(--athena-orange)]">
+          {title}
+        </div>
+        <span className="text-lg text-white/20 transition group-hover:text-[var(--athena-orange)]">
+          →
+        </span>
+      </div>
+      <p className="mt-3 text-sm leading-6 text-white/50 group-hover:text-white/60">
+        {description}
+      </p>
     </Link>
   );
 }

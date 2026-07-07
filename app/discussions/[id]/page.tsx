@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 import { AppendDiscussionUpdateForm } from "@/components/discussions/AppendDiscussionUpdateForm";
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
+import { getLatestAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
 import { getCommunityById } from "@/services/communityService";
 import { getDiscussionById } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
@@ -33,6 +35,7 @@ export default async function DiscussionDetailsPage({
 
   const latestAnalysis = await getLatestDiscussionAnalysis(id);
   const deploymentAssets = buildDiscussionDeploymentAssets(latestAnalysis);
+  const assetBlueprint = await getLatestAssetBlueprintByDiscussionId(id);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
@@ -70,6 +73,12 @@ export default async function DiscussionDetailsPage({
       {deploymentAssets.length > 0 && (
         <div className="mt-8">
           <DeploymentAssets assets={deploymentAssets} />
+        </div>
+      )}
+
+      {assetBlueprint && (
+        <div className="mt-8">
+          <StrategicAssetBlueprint blueprint={assetBlueprint} />
         </div>
       )}
 

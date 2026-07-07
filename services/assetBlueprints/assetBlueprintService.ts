@@ -136,3 +136,29 @@ export async function getAssetBlueprintsByBriefingId(
 
   return data ?? [];
 }
+
+export async function getLatestAssetBlueprintByBriefingId(
+  briefingId: string,
+): Promise<AthenaAssetBlueprint | null> {
+  const blueprints = await getAssetBlueprintsByBriefingId(briefingId);
+  return blueprints[0] ?? null;
+}
+
+export async function getLatestAssetBlueprintByDiscussionId(
+  discussionId: string,
+): Promise<AthenaAssetBlueprint | null> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_asset_blueprints")
+    .select("*")
+    .eq("discussion_id", discussionId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching asset blueprint by discussion:", error);
+    return null;
+  }
+
+  return data;
+}

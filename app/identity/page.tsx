@@ -6,6 +6,9 @@ import {
   upsertAthenaIdentity,
 } from "@/services/identity/identityService";
 
+const fieldClassName =
+  "rounded-2xl border border-white/15 bg-white/[0.04] px-5 py-4 text-sm text-white/90 shadow-inner shadow-black/20 outline-none placeholder:text-white/30 focus:border-[var(--athena-orange)] focus:ring-1 focus:ring-[var(--athena-orange)]";
+
 async function saveIdentity(formData: FormData) {
   "use server";
 
@@ -96,7 +99,7 @@ export default async function IdentityPage({
               <input
                 name="greeting_name"
                 defaultValue={identity?.greeting_name ?? ""}
-                className="rounded-2xl border border-white/10 bg-black/30 px-4 py-4 text-sm text-white outline-none placeholder:text-white/25"
+                className={fieldClassName}
                 placeholder="Liana"
               />
             </label>
@@ -113,7 +116,7 @@ export default async function IdentityPage({
                 name="about_you"
                 rows={8}
                 defaultValue={identity?.about_you ?? ""}
-                className="resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25"
+                className={`resize-y leading-6 ${fieldClassName}`}
                 placeholder="Tell Athena how you think, speak, teach and guide people..."
               />
             </label>
@@ -132,7 +135,7 @@ export default async function IdentityPage({
                 name="expertise"
                 rows={10}
                 defaultValue={identity?.expertise ?? ""}
-                className="resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25"
+                className={`resize-y leading-6 ${fieldClassName}`}
                 placeholder="Teach Athena your methodology, frameworks, FAQs, terminology, offers and rules..."
               />
             </label>
@@ -146,7 +149,7 @@ export default async function IdentityPage({
               <input
                 name="website"
                 defaultValue={identity?.website ?? ""}
-                className="rounded-2xl border border-white/10 bg-black/30 px-4 py-4 text-sm text-white outline-none placeholder:text-white/25"
+                className={fieldClassName}
                 placeholder="https://yourcompany.com"
               />
             </label>
