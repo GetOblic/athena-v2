@@ -1,4 +1,11 @@
 import {
+  classifyOpportunityPriority,
+  getOpportunityPriorityPresentation,
+  OPPORTUNITY_PRIORITY_ORDER,
+  sortOpportunitiesByPriority,
+  type OpportunityPriorityKey,
+} from "@/lib/opportunityPriority";
+import {
   classifyDiscussionQueue,
   getDiscussionQueueOrder,
   getDiscussionQueueTitle,
@@ -8,12 +15,6 @@ import {
   normalizeBriefingStatus,
   type BriefingStatusKey,
 } from "@/lib/briefingStatus";
-import {
-  getOpportunityStatusSectionTitle,
-  normalizeOpportunityStatus,
-  OPPORTUNITY_STATUS_ORDER,
-  type OpportunityStatusKey,
-} from "@/lib/opportunityStatus";
 import type { Discussion } from "@/services/discussionService";
 import { getDiscussions } from "@/services/discussionService";
 import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
@@ -28,9 +29,10 @@ export type DiscussionQueueSection = {
   items: Discussion[];
 };
 
-export type OpportunityQueueSection = {
-  key: OpportunityStatusKey;
+export type OpportunityWorkQueueSection = {
+  key: OpportunityPriorityKey;
   title: string;
+  description: string;
   items: Opportunity[];
 };
 
@@ -54,15 +56,6 @@ const BRIEFING_QUEUE_TITLES: Record<BriefingStatusKey, string> = {
   rejected: "Rejected",
 };
 
-const URGENCY_RANK: Record<string, number> = {
-  critical: 5,
-  urgent: 4,
-  high: 3,
-  medium: 2,
-  moderate: 2,
-  low: 1,
-};
-
 function sortDiscussions(a: Discussion, b: Discussion): number {
   if (b.opportunity_score !== a.opportunity_score) {
     return b.opportunity_score - a.opportunity_score;
@@ -72,61 +65,6 @@ function sortDiscussions(a: Discussion, b: Discussion): number {
   const bActivity = b.last_activity ?? b.created_at;
 
   return new Date(bActivity).getTime() - new Date(aActivity).getTime();
-}
-
-function getUrgencyRank(value?: string | null): number {
-  if (!value) {
-    return 0;
-  }
-
-  return URGENCY_RANK[value.trim().toLowerCase()] ?? 0;
-}
-
-function buildLatestConfidenceByOpportunityId(
-  reviews: AthenaReview[],
-): Map<string, number> {
-  const confidenceByOpportunity = new Map<string, number>();
-
-  for (const review of reviews) {
-    if (!review.opportunity_id) {
-      continue;
-    }
-
-    if (confidenceByOpportunity.has(review.opportunity_id)) {
-      continue;
-    }
-
-    confidenceByOpportunity.set(review.opportunity_id, review.confidence ?? 0);
-  }
-
-  return confidenceByOpportunity;
-}
-
-function sortOpportunities(
-  a: Opportunity,
-  b: Opportunity,
-  confidenceByOpportunity: Map<string, number>,
-): number {
-  if (b.score !== a.score) {
-    return b.score - a.score;
-  }
-
-  const urgencyDiff =
-    getUrgencyRank(b.urgency) - getUrgencyRank(a.urgency);
-  if (urgencyDiff !== 0) {
-    return urgencyDiff;
-  }
-
-  const confidenceDiff =
-    (confidenceByOpportunity.get(b.id) ?? 0) -
-    (confidenceByOpportunity.get(a.id) ?? 0);
-  if (confidenceDiff !== 0) {
-    return confidenceDiff;
-  }
-
-  return (
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
 }
 
 function sortBriefings(a: AthenaReview, b: AthenaReview): number {
@@ -185,25 +123,24 @@ export async function getDiscussionQueues(): Promise<DiscussionQueueSection[]> {
   }));
 }
 
-export async function getOpportunityQueues(): Promise<OpportunityQueueSection[]> {
-  const [opportunities, reviews] = await Promise.all([
-    getOpportunities(),
-    getReviews(),
-  ]);
+export async function getOpportunityWorkQueues(): Promise<OpportunityWorkQueueSection[]> {
+  const opportunities = await getOpportunities();
+  const grouped = groupByKey(opportunities, classifyOpportunityPriority);
 
-  const confidenceByOpportunity =
-    buildLatestConfidenceByOpportunityId(reviews);
-  const grouped = groupByKey(opportunities, (opportunity) =>
-    normalizeOpportunityStatus(opportunity.status),
-  );
+  return OPPORTUNITY_PRIORITY_ORDER.map((key) => {
+    const presentation = getOpportunityPriorityPresentation(key);
+    return {
+      key,
+      title: presentation.title,
+      description: presentation.description,
+      items: (grouped.get(key) ?? []).sort(sortOpportunitiesByPriority),
+    };
+  });
+}
 
-  return OPPORTUNITY_STATUS_ORDER.map((key) => ({
-    key,
-    title: getOpportunityStatusSectionTitle(key),
-    items: (grouped.get(key) ?? []).sort((a, b) =>
-      sortOpportunities(a, b, confidenceByOpportunity),
-    ),
-  }));
+/** @deprecated Use getOpportunityWorkQueues for operator-facing queues */
+export async function getOpportunityQueues(): Promise<OpportunityWorkQueueSection[]> {
+  return getOpportunityWorkQueues();
 }
 
 export async function getBriefingQueues(): Promise<BriefingQueueSection[]> {

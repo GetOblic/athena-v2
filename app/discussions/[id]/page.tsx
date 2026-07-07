@@ -5,17 +5,22 @@ import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 import { AppendDiscussionUpdateForm } from "@/components/discussions/AppendDiscussionUpdateForm";
 import { AthenaRecommendationRibbon } from "@/components/discussions/AthenaRecommendationRibbon";
+import { DiscussionAgeBadge } from "@/components/discussions/DiscussionAgeBadge";
 import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
+import { DiscussionWorkflowStrip } from "@/components/discussions/DiscussionWorkflowStrip";
 import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveIntelligenceCard";
 import {
   getOriginalDiscussionBody,
   getThreadUpdatesForDisplay,
 } from "@/lib/discussionContent";
-import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
+import { buildDiscussionWorkflowSteps } from "@/lib/discussionWorkflow";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
 import { getCommunityById } from "@/services/communityService";
 import { getDiscussionById } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
+import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
+import { getOpportunityByDiscussionId } from "@/services/opportunityService";
+import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 import { getDiscussionUpdatesByDiscussionId } from "@/services/discussionUpdateService";
 
 export default async function DiscussionDetailsPage({
@@ -38,7 +43,7 @@ export default async function DiscussionDetailsPage({
     );
   }
 
-  const [community, latestAnalysis, assetBlueprint, threadUpdates] =
+  const [community, latestAnalysis, assetBlueprint, threadUpdates, opportunity] =
     await Promise.all([
       discussion.community_id
         ? getCommunityById(discussion.community_id)
@@ -46,7 +51,12 @@ export default async function DiscussionDetailsPage({
       getLatestDiscussionAnalysis(id),
       getDisplayAssetBlueprintByDiscussionId(id),
       getDiscussionUpdatesByDiscussionId(id),
+      getOpportunityByDiscussionId(id),
     ]);
+
+  const briefing = opportunity
+    ? await getLatestReviewByOpportunityId(opportunity.id)
+    : null;
 
   const deploymentAssets = buildDiscussionDeploymentAssets(latestAnalysis);
   const originalBody = getOriginalDiscussionBody(discussion);
@@ -55,6 +65,12 @@ export default async function DiscussionDetailsPage({
     threadUpdates,
   );
   const hasAnalysis = Boolean(latestAnalysis);
+  const workflowSteps = buildDiscussionWorkflowSteps({
+    analysis: latestAnalysis,
+    opportunity,
+    briefing,
+    assetBlueprint,
+  });
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
@@ -78,13 +94,16 @@ export default async function DiscussionDetailsPage({
         </div>
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-4">
+      <div className="mt-10 grid gap-6 lg:grid-cols-5">
         <Metric label="Platform" value={discussion.platform} />
-        <Metric label="Discussion Status">
+        <Metric label="Workflow Status">
           <DiscussionLifecycleBadge
             discussion={discussion}
             hasAnalysis={hasAnalysis}
           />
+        </Metric>
+        <Metric label="Thread Age">
+          <DiscussionAgeBadge discussion={discussion} />
         </Metric>
         <Metric label="Priority" value={String(discussion.priority)} />
         <Metric
@@ -93,6 +112,8 @@ export default async function DiscussionDetailsPage({
           highlight="orange"
         />
       </div>
+
+      <DiscussionWorkflowStrip steps={workflowSteps} />
 
       {latestAnalysis ? (
         <>

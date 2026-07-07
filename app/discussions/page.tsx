@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { DiscussionAgeBadge } from "@/components/discussions/DiscussionAgeBadge";
 import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
 import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
@@ -8,7 +9,7 @@ import { getIntelligenceDomains } from "@/services/intelligenceDomainService";
 import { getDiscussionQueues } from "@/services/queueService";
 
 const listGridClass =
-  "grid grid-cols-[1.2fr_2fr_100px_140px_140px_140px] items-center gap-4";
+  "grid grid-cols-[1.1fr_1.8fr_90px_120px_100px_120px_120px] items-center gap-4";
 
 function formatLastActivity(value: string | null) {
   if (!value) return "—";
@@ -48,9 +49,9 @@ export default async function DiscussionsPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Prioritized discussion queues sorted by urgency and opportunity score.
-          New threads need first analysis, In Review threads have fresh updates,
-          and Processed means Athena has already generated intelligence.
+          Prioritized discussion queues with clear workflow state. New threads
+          need analysis, In Review threads have fresh updates, and Processed
+          means Athena has generated intelligence you can act on.
         </p>
       </div>
 
@@ -76,7 +77,8 @@ export default async function DiscussionsPage() {
             <div>Intelligence Domain</div>
             <div>Title</div>
             <div>Score</div>
-            <div>Status</div>
+            <div>Workflow</div>
+            <div>Age</div>
             <div>Last Activity</div>
             <div></div>
           </div>
@@ -121,6 +123,10 @@ export default async function DiscussionsPage() {
                           discussion={discussion}
                           hasAnalysis={hasAnalysis}
                         />
+                      </div>
+
+                      <div>
+                        <DiscussionAgeBadge discussion={discussion} />
                       </div>
 
                       <div className="text-white/50">

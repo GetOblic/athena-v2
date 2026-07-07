@@ -1,12 +1,21 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { GenerateCommunityIntelligenceButton } from "@/components/communities/GenerateCommunityIntelligenceButton";
+import { DomainHealthCard } from "@/components/intelligenceDomains/DomainHealthCard";
 import { DomainIntelligenceSections } from "@/components/intelligenceDomains/DomainIntelligenceSections";
 import { IntelligenceDomainStatusBadge } from "@/components/intelligenceDomains/IntelligenceDomainStatusBadge";
+import { LearningTimeline } from "@/components/intelligenceDomains/LearningTimeline";
 import { getCommunityById } from "@/services/communityService";
-import { getLatestCommunityIntelligenceByCommunityId } from "@/services/communityIntelligenceService";
+import {
+  getCommunityIntelligenceHistory,
+  getLatestCommunityIntelligenceByCommunityId,
+} from "@/services/communityIntelligenceService";
 import { getDiscussionsByCommunityId } from "@/services/discussionService";
-import { getIntelligenceDomainStats } from "@/services/intelligenceDomainService";
+import {
+  getDomainHealth,
+  getDomainLearningTimeline,
+  getIntelligenceDomainStats,
+} from "@/services/intelligenceDomainService";
 
 export default async function CommunityDetailsPage({
   params,
@@ -28,15 +37,24 @@ export default async function CommunityDetailsPage({
     );
   }
 
-  const [latestIntelligence, discussions] = await Promise.all([
-    getLatestCommunityIntelligenceByCommunityId(id),
-    getDiscussionsByCommunityId(id),
-  ]);
+  const [latestIntelligence, discussions, intelligenceHistory, learningTimeline] =
+    await Promise.all([
+      getLatestCommunityIntelligenceByCommunityId(id),
+      getDiscussionsByCommunityId(id),
+      getCommunityIntelligenceHistory(id),
+      getDomainLearningTimeline(id),
+    ]);
 
   const stats = await getIntelligenceDomainStats(
     id,
     latestIntelligence?.confidence ?? null,
   );
+
+  const domainHealth = getDomainHealth({
+    domain: community,
+    stats,
+    intelligenceHistory,
+  });
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
@@ -78,6 +96,10 @@ export default async function CommunityDetailsPage({
         />
       </div>
 
+      <div className="mt-8">
+        <DomainHealthCard health={domainHealth} />
+      </div>
+
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         <Metric label="Platform" value={community.platform} />
         <Metric label="Status">
@@ -113,6 +135,8 @@ export default async function CommunityDetailsPage({
 
         <DomainIntelligenceSections intelligence={latestIntelligence} />
       </div>
+
+      <LearningTimeline events={learningTimeline} />
 
       <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
         <h2 className="text-xl font-semibold">Captured Discussions</h2>

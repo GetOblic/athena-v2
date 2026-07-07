@@ -75,6 +75,25 @@ export async function getOpportunityById(
     return data;
 }
 
+export async function getOpportunityByDiscussionId(
+    discussionId: string,
+): Promise<Opportunity | null> {
+    const { data, error } = await supabaseAdmin
+        .from("opportunities")
+        .select("*")
+        .eq("discussion_id", discussionId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        console.error(error);
+        return null;
+    }
+
+    return data;
+}
+
 export type CreateOpportunityInput = {
     discussion_id?: string | null;
     community_id?: string | null;

@@ -9,6 +9,7 @@ import { GenerateReviewButton } from "@/components/opportunities/GenerateReviewB
 import { DeploymentReadinessBadge } from "@/components/queues/DeploymentReadinessBadge";
 import { OpportunityStatusBadge } from "@/components/queues/OpportunityStatusBadge";
 import { buildOpportunityDeploymentAssets } from "@/lib/deploymentAssets";
+import { buildWhyNowSummary } from "@/lib/opportunityPriority";
 import { getOpportunityById } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 
@@ -32,6 +33,7 @@ export default async function OpportunityPage({ params }: Props) {
     opportunity,
     briefing,
   );
+  const whyNow = buildWhyNowSummary(opportunity, briefing?.summary);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">
@@ -81,20 +83,44 @@ export default async function OpportunityPage({ params }: Props) {
         </div>
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-5">
+      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+          <div className="text-white/40">Sales Status</div>
+          <p className="mt-2 text-sm text-white/45">
+            Where this pursuit sits in your sales pipeline.
+          </p>
+          <div className="mt-4">
+            <OpportunityStatusBadge status={opportunity.status} size="lg" />
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+          <div className="text-white/40">Deployment Readiness</div>
+          <p className="mt-2 text-sm text-white/45">
+            Whether the executive briefing is ready to deploy — independent of
+            sales stage.
+          </p>
+          <div className="mt-4">
+            <DeploymentReadinessBadge
+              briefingStatus={briefing?.status ?? null}
+              size="lg"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-3">
         <Metric label="Type" value={opportunity.type} />
-        <Metric label="Sales Status">
-          <OpportunityStatusBadge status={opportunity.status} size="lg" />
-        </Metric>
         <Metric label="Score" value={String(opportunity.score)} tone="orange" />
         <Metric label="Urgency" value={opportunity.urgency || "—"} />
-        <Metric label="Deployment Readiness">
-          <DeploymentReadinessBadge
-            briefingStatus={briefing?.status ?? null}
-            size="lg"
-          />
-        </Metric>
       </div>
+
+      {whyNow ? (
+        <div className="mt-8 rounded-3xl border border-[var(--athena-orange)]/20 bg-[var(--athena-orange)]/5 p-8">
+          <h2 className="text-2xl font-semibold">Why Now</h2>
+          <p className="mt-4 leading-7 text-white/75">{whyNow}</p>
+        </div>
+      ) : null}
 
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
         <h2 className="text-2xl font-semibold">Why This Is an Opportunity</h2>

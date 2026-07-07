@@ -7,6 +7,10 @@ import {
     getCommunityById,
 } from "@/services/communityService";
 import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
+import {
+  getCommunityIntelligenceHistory,
+  type CommunityIntelligence,
+} from "@/services/communityIntelligenceService";
 
 export type IntelligenceDomain = Community;
 
@@ -17,6 +21,22 @@ export type IntelligenceDomainStats = {
   briefingsGenerated: number;
   assetBlueprintsGenerated: number;
   knowledgeConfidence: number | null;
+};
+
+export type DomainHealth = {
+  statusLabel: string;
+  isActive: boolean;
+  knowledgeConfidence: number | null;
+  confidenceDelta: number | null;
+  healthLabel: string;
+  healthTone: "strong" | "building" | "learning";
+};
+
+export type DomainLearningEvent = {
+  id: string;
+  title: string;
+  detail: string;
+  timestamp: string;
 };
 
 export type CreateIntelligenceDomainInput = {
@@ -121,4 +141,102 @@ export async function getIntelligenceDomainStats(
     assetBlueprintsGenerated,
     knowledgeConfidence: knowledgeConfidence ?? null,
   };
+}
+
+export function getDomainHealth(input: {
+  domain: IntelligenceDomain;
+  stats: IntelligenceDomainStats;
+  intelligenceHistory: CommunityIntelligence[];
+}): DomainHealth {
+  const isActive = isIntelligenceDomainActive(input.domain.status);
+  const latest = input.intelligenceHistory[0] ?? null;
+  const previous = input.intelligenceHistory[1] ?? null;
+  const knowledgeConfidence = latest?.confidence ?? input.stats.knowledgeConfidence;
+  const confidenceDelta =
+    latest?.confidence != null && previous?.confidence != null
+      ? latest.confidence - previous.confidence
+      : null;
+
+  let healthLabel = "Learning";
+  let healthTone: DomainHealth["healthTone"] = "learning";
+
+  if ((knowledgeConfidence ?? 0) >= 70 && input.stats.discussionsAnalyzed >= 3) {
+    healthLabel = "Strong";
+    healthTone = "strong";
+  } else if (input.stats.discussionsAnalyzed > 0 || (knowledgeConfidence ?? 0) > 0) {
+    healthLabel = "Building";
+    healthTone = "building";
+  }
+
+  return {
+    statusLabel: isActive ? "Active" : "Inactive",
+    isActive,
+    knowledgeConfidence,
+    confidenceDelta,
+    healthLabel,
+    healthTone,
+  };
+}
+
+export async function getDomainLearningTimeline(
+  communityId: string,
+): Promise<DomainLearningEvent[]> {
+  const [intelligenceHistory, analysesResult, opportunitiesResult] =
+    await Promise.all([
+      getCommunityIntelligenceHistory(communityId, 5),
+      supabaseAdmin
+        .from("athena_discussion_analysis")
+        .select("id, created_at, summary, confidence, opportunity_detected")
+        .eq("community_id", communityId)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabaseAdmin
+        .from("opportunities")
+        .select("id, created_at, title, score")
+        .eq("community_id", communityId)
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
+
+  const events: DomainLearningEvent[] = [];
+
+  for (const record of intelligenceHistory) {
+    events.push({
+      id: `intel-${record.id}`,
+      title: "Domain intelligence refreshed",
+      detail:
+        record.executive_summary?.slice(0, 140) ||
+        "Athena updated its understanding of this market.",
+      timestamp: record.created_at,
+    });
+  }
+
+  for (const analysis of analysesResult.data ?? []) {
+    events.push({
+      id: `analysis-${analysis.id}`,
+      title: analysis.opportunity_detected
+        ? "Opportunity signal detected"
+        : "Discussion analyzed",
+      detail:
+        analysis.summary?.slice(0, 140) ||
+        `Confidence ${analysis.confidence ?? 0}%`,
+      timestamp: analysis.created_at,
+    });
+  }
+
+  for (const opportunity of opportunitiesResult.data ?? []) {
+    events.push({
+      id: `opp-${opportunity.id}`,
+      title: "Opportunity captured",
+      detail: `${opportunity.title} · score ${opportunity.score}`,
+      timestamp: opportunity.created_at,
+    });
+  }
+
+  return events
+    .sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    )
+    .slice(0, 8);
 }

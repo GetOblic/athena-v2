@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { TodaysIntelligence } from "@/components/dashboard/TodaysIntelligence";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDashboardStats } from "@/services/dashboardService";
 import { getAthenaIdentityByUserId } from "@/services/identity/identityService";
+import { getTodaysIntelligence } from "@/services/todaysIntelligenceService";
 
 function timeGreeting() {
   const hour = new Date().getHours();
@@ -22,9 +24,10 @@ export default async function Home() {
     redirect("/login");
   }
 
-  const [identity, stats] = await Promise.all([
+  const [identity, stats, todaysIntelligence] = await Promise.all([
     getAthenaIdentityByUserId(user.id),
     getDashboardStats(user.id),
+    getTodaysIntelligence(user.id),
   ]);
 
   const name = identity?.greeting_name?.trim() || "there";
@@ -50,6 +53,8 @@ export default async function Home() {
               identifying opportunities and preparing reusable strategic assets.
             </p>
           </div>
+
+          <TodaysIntelligence summary={todaysIntelligence} />
 
           <div className="mb-10 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">

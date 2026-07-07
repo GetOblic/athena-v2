@@ -51,6 +51,25 @@ export async function getLatestCommunityIntelligenceByCommunityId(
   return data;
 }
 
+export async function getCommunityIntelligenceHistory(
+  communityId: string,
+  limit = 8,
+): Promise<CommunityIntelligence[]> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_community_intelligence")
+    .select("*")
+    .eq("community_id", communityId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error(error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
 export async function createCommunityIntelligence(
   input: Partial<CommunityIntelligence>,
 ): Promise<CommunityIntelligence | null> {

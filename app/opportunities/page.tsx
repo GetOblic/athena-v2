@@ -3,13 +3,13 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { OpportunityStatusBadge } from "@/components/queues/OpportunityStatusBadge";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
-import { getOpportunityQueues } from "@/services/queueService";
+import { getOpportunityWorkQueues } from "@/services/queueService";
 
 const listGridClass =
   "grid grid-cols-[120px_minmax(0,1fr)_160px_100px_120px_120px] items-center gap-4";
 
 export default async function OpportunitiesPage() {
-  const queues = await getOpportunityQueues();
+  const queues = await getOpportunityWorkQueues();
   const totalCount = queues.reduce(
     (count, section) => count + section.items.length,
     0,
@@ -31,8 +31,8 @@ export default async function OpportunitiesPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Sales pipeline grouped by pursuit stage — sorted by score, urgency,
-          and briefing confidence.
+          Action-oriented work queues — pursue immediate opportunities first,
+          then high intent, monitor, and low priority threads.
         </p>
       </div>
 
@@ -57,7 +57,7 @@ export default async function OpportunitiesPage() {
           >
             <div>Type</div>
             <div>Opportunity</div>
-            <div>Status</div>
+            <div>Sales Status</div>
             <div>Score</div>
             <div>Urgency</div>
             <div>Assigned</div>
@@ -70,10 +70,15 @@ export default async function OpportunitiesPage() {
 
             return (
               <div key={section.key}>
-                <QueueSectionHeader
-                  title={section.title}
-                  count={section.items.length}
-                />
+                <div className="px-6 pt-8 first:pt-4">
+                  <QueueSectionHeader
+                    title={section.title}
+                    count={section.items.length}
+                  />
+                  <p className="mt-1 pb-3 text-sm text-white/40">
+                    {section.description}
+                  </p>
+                </div>
 
                 {section.items.map((opportunity) => (
                   <div
