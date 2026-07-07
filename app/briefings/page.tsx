@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { getReviews } from "@/services/reviewService";
 
+function formatStatus(status: string) {
+  return status.replace(/_/g, " ");
+}
+
 export default async function BriefingsPage() {
   const briefings = await getReviews();
 
@@ -20,8 +24,8 @@ export default async function BriefingsPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Human-supervised executive briefings generated from analyzed
-          opportunities.
+          Executive summaries and strategic decision reports generated from
+          analyzed opportunities.
         </p>
       </div>
 
@@ -44,25 +48,25 @@ export default async function BriefingsPage() {
           </Link>
         </div>
       ) : (
-        <div className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)]">
-          <div className="grid grid-cols-[2fr_auto_auto_auto] border-b border-[var(--athena-border)] px-6 py-4 text-xs uppercase tracking-[0.25em] text-white/35">
+        <div className="overflow-x-auto rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)]">
+          <div className="grid min-w-[760px] grid-cols-[minmax(0,1fr)_140px_120px_140px] border-b border-[var(--athena-border)] px-6 py-4 text-xs uppercase tracking-[0.25em] text-white/35">
             <div>Summary</div>
             <div>Status</div>
             <div>Confidence</div>
-            <div></div>
+            <div>Action</div>
           </div>
 
           {briefings.map((briefing) => (
             <div
               key={briefing.id}
-              className="grid grid-cols-[2fr_auto_auto_auto] items-center gap-4 border-b border-white/5 px-6 py-5 text-sm last:border-b-0"
+              className="grid min-w-[760px] grid-cols-[minmax(0,1fr)_140px_120px_140px] items-center gap-4 border-b border-white/5 px-6 py-5 text-sm last:border-b-0"
             >
               <div className="font-medium text-white">
                 {briefing.summary || "Untitled briefing"}
               </div>
 
-              <div className="text-[var(--athena-warning)]">
-                {briefing.status}
+              <div className="capitalize text-[var(--athena-warning)]">
+                {formatStatus(briefing.status)}
               </div>
 
               <div className="font-semibold text-[var(--athena-orange)]">
@@ -71,7 +75,7 @@ export default async function BriefingsPage() {
 
               <Link
                 href={`/briefings/${briefing.id}`}
-                className="shrink-0 rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
+                className="inline-flex w-fit rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
               >
                 Open Briefing
               </Link>

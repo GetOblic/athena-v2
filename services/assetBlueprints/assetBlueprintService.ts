@@ -255,3 +255,20 @@ export async function getDisplayAssetBlueprintByDiscussionId(
   const blueprints = await getAssetBlueprintsByDiscussionId(discussionId);
   return pickBestBlueprint(blueprints);
 }
+
+export async function getDisplayAssetBlueprintForBriefing(input: {
+  briefingId: string;
+  discussionId?: string | null;
+}): Promise<AthenaAssetBlueprint | null> {
+  const byBriefing = await getDisplayAssetBlueprintByBriefingId(input.briefingId);
+
+  if (byBriefing) {
+    return byBriefing;
+  }
+
+  if (input.discussionId) {
+    return getDisplayAssetBlueprintByDiscussionId(input.discussionId);
+  }
+
+  return null;
+}

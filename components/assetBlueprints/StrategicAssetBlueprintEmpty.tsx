@@ -1,0 +1,21 @@
+type StrategicAssetBlueprintEmptyProps = {
+  message?: string;
+};
+
+export function StrategicAssetBlueprintEmpty({
+  message = "No Strategic Asset Blueprint has been generated for this briefing yet.",
+}: StrategicAssetBlueprintEmptyProps) {
+  return (
+    <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:p-10">
+      <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
+        Strategic Output
+      </div>
+
+      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+        Strategic Asset Blueprint
+      </h2>
+
+      <p className="mt-4 text-sm leading-7 text-white/45">{message}</p>
+    </section>
+  );
+}

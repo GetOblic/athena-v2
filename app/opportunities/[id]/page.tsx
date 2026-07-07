@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { GenerateReviewButton } from "@/components/opportunities/GenerateReviewButton";
-import { ReviewStatusActions } from "@/components/opportunities/ReviewStatusActions";
 import { buildOpportunityDeploymentAssets } from "@/lib/deploymentAssets";
 import { getOpportunityById } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
@@ -40,12 +39,15 @@ export default async function OpportunityPage({ params }: Props) {
       <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Opportunity Engine
+            Opportunity
           </div>
 
           <h1 className="mt-4 text-5xl font-semibold">{opportunity.title}</h1>
 
-          <p className="mt-4 text-white/50">AI-generated business opportunity.</p>
+          <p className="mt-4 max-w-3xl text-white/50">
+            A business lead extracted from market conversation — decide whether
+            to pursue and what action to take next.
+          </p>
         </div>
 
         <GenerateReviewButton opportunityId={opportunity.id} />
@@ -58,23 +60,36 @@ export default async function OpportunityPage({ params }: Props) {
         <Metric label="Urgency" value={opportunity.urgency || "—"} />
       </div>
 
-      <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <h2 className="mb-6 text-2xl font-semibold">Athena Recommendation</h2>
+      <nav className="mt-8 flex flex-wrap gap-4 text-sm">
+        {opportunity.discussion_id && (
+          <Link
+            href={`/discussions/${opportunity.discussion_id}`}
+            className="text-[var(--athena-orange)]"
+          >
+            View Source Discussion
+          </Link>
+        )}
+        {latestReview && (
+          <Link
+            href={`/briefings/${latestReview.id}`}
+            className="text-[var(--athena-orange)]"
+          >
+            Open Executive Briefing
+          </Link>
+        )}
+      </nav>
 
-        <div className="space-y-6">
-          <Field label="Reason" value={opportunity.reason} />
+      <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+        <h2 className="text-2xl font-semibold">Why This Is an Opportunity</h2>
+        <p className="mt-4 leading-7 text-white/75">
+          {opportunity.reason || "No opportunity reason captured yet."}
+        </p>
+
+        <div className="mt-8">
           <Field
-            label="Strategic Recommendation"
-            sublabel="Recommended Action"
+            label="Recommended Action"
             value={opportunity.recommended_action}
-            helper="Guidance for internal decision-making."
-          />
-          <Field label="AI Summary" value={opportunity.ai_summary} />
-          <Field
-            label="Strategic Recommendation"
-            sublabel="AI Recommendation"
-            value={opportunity.ai_recommendation}
-            helper="Guidance for internal decision-making."
+            helper="What Athena recommends you do next."
           />
         </div>
       </div>
@@ -86,23 +101,22 @@ export default async function OpportunityPage({ params }: Props) {
       )}
 
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <div className="mb-6 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-2xl font-semibold">Latest Executive Briefing</h2>
+        <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold">Latest Executive Briefing</h2>
+            <p className="mt-2 text-sm text-white/45">
+              Strategic summary for this opportunity. Open the full briefing for
+              complete context and status controls.
+            </p>
+          </div>
 
           {latestReview && (
-            <div className="flex flex-col items-start gap-3 lg:items-end">
-              <div className="text-sm text-white/40">
-                Status:{" "}
-                <span className="text-[var(--athena-orange)]">
-                  {latestReview.status}
-                </span>
-              </div>
-
-              <ReviewStatusActions
-                reviewId={latestReview.id}
-                currentStatus={latestReview.status}
-              />
-            </div>
+            <Link
+              href={`/briefings/${latestReview.id}`}
+              className="rounded-full border border-[var(--athena-orange)]/40 bg-[var(--athena-orange)]/10 px-6 py-3 text-sm font-semibold text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/20"
+            >
+              Open Full Briefing
+            </Link>
           )}
         </div>
 
@@ -112,6 +126,10 @@ export default async function OpportunityPage({ params }: Props) {
             <Field label="Pain Points" value={latestReview.pain_points} />
             <Field label="Buyer Stage" value={latestReview.buyer_stage} />
             <Field label="Confidence" value={`${latestReview.confidence}%`} />
+            <Field
+              label="Status"
+              value={latestReview.status.replace(/_/g, " ")}
+            />
           </div>
         ) : (
           <div className="text-white/50">
@@ -142,7 +160,9 @@ function Metric({
   return (
     <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <div className="text-white/40">{label}</div>
-      <div className={`mt-4 text-2xl font-semibold ${color}`}>{value}</div>
+      <div className={`mt-4 text-2xl font-semibold capitalize ${color}`}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -151,21 +171,14 @@ function Field({
   label,
   value,
   helper,
-  sublabel,
 }: {
   label: string;
   value?: string | null;
   helper?: string;
-  sublabel?: string;
 }) {
   return (
     <div>
-      <div className="mb-2 text-white/40">
-        {label}
-        {sublabel && (
-          <span className="ml-2 text-xs text-white/30">({sublabel})</span>
-        )}
-      </div>
+      <div className="mb-2 text-white/40">{label}</div>
       {helper && (
         <div className="mb-2 text-xs leading-5 text-white/30">{helper}</div>
       )}

@@ -194,7 +194,7 @@ export async function rejectReview(id: string): Promise<AthenaReview | null> {
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
     .update({
-      status: "rejected",
+      status: "needs_revision",
       approved_at: null,
     })
     .eq("id", id)

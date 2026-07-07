@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
+import { StrategicAssetBlueprintEmpty } from "@/components/assetBlueprints/StrategicAssetBlueprintEmpty";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { ReviewStatusActions } from "@/components/opportunities/ReviewStatusActions";
 import { buildBriefingDeploymentAssets } from "@/lib/deploymentAssets";
-import { getDisplayAssetBlueprintByBriefingId } from "@/services/assetBlueprints/assetBlueprintService";
+import { getDisplayAssetBlueprintForBriefing } from "@/services/assetBlueprints/assetBlueprintService";
 import { getReviewById } from "@/services/reviewService";
 
 type Props = {
@@ -12,6 +13,10 @@ type Props = {
     id: string;
   }>;
 };
+
+function formatStatus(status: string) {
+  return status.replace(/_/g, " ");
+}
 
 export default async function BriefingPage({ params }: Props) {
   const { id } = await params;
@@ -23,7 +28,10 @@ export default async function BriefingPage({ params }: Props) {
   }
 
   const deploymentAssets = buildBriefingDeploymentAssets(review);
-  const assetBlueprint = await getDisplayAssetBlueprintByBriefingId(id);
+  const assetBlueprint = await getDisplayAssetBlueprintForBriefing({
+    briefingId: id,
+    discussionId: review.discussion_id,
+  });
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">
@@ -39,8 +47,9 @@ export default async function BriefingPage({ params }: Props) {
 
           <h1 className="mt-4 text-5xl font-semibold">Executive Briefing</h1>
 
-          <p className="mt-4 text-white/50">
-            Human supervised intelligence report.
+          <p className="mt-4 max-w-3xl text-white/50">
+            Strategic decision report — understand the opportunity and recommended
+            direction without operational controls.
           </p>
         </div>
 
@@ -50,37 +59,48 @@ export default async function BriefingPage({ params }: Props) {
         />
       </div>
 
-      <div className="mt-10 grid grid-cols-4 gap-6">
-        <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-          <div className="text-white/40">Status</div>
-
-          <div className="mt-4 text-4xl font-semibold text-[var(--athena-warning)]">
-            {review.status}
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-          <div className="text-white/40">Buyer Stage</div>
-
-          <div className="mt-4 text-2xl">{review.buyer_stage || "—"}</div>
-        </div>
-
-        <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-          <div className="text-white/40">Confidence</div>
-
-          <div className="mt-4 text-4xl font-semibold text-[var(--athena-orange)]">
-            {review.confidence}%
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-          <div className="text-white/40">Discussion</div>
-
-          <div className="mt-4 break-all text-sm">
-            {review.discussion_id || "—"}
-          </div>
-        </div>
+      <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Status" value={formatStatus(review.status)} highlight="warning" />
+        <MetricCard label="Buyer Stage" value={review.buyer_stage || "—"} />
+        <MetricCard
+          label="Confidence"
+          value={`${review.confidence}%`}
+          highlight="orange"
+        />
+        <MetricCard
+          label="Linked Discussion"
+          value={
+            review.discussion_id ? "Discussion linked" : "No discussion linked"
+          }
+          href={
+            review.discussion_id
+              ? `/discussions/${review.discussion_id}`
+              : undefined
+          }
+        />
       </div>
+
+      <nav className="mt-8 flex flex-wrap gap-4 text-sm">
+        <Link href="/briefings" className="text-[var(--athena-orange)]">
+          Back to Briefings
+        </Link>
+        {review.discussion_id && (
+          <Link
+            href={`/discussions/${review.discussion_id}`}
+            className="text-[var(--athena-orange)]"
+          >
+            View Linked Discussion
+          </Link>
+        )}
+        {review.opportunity_id && (
+          <Link
+            href={`/opportunities/${review.opportunity_id}`}
+            className="text-[var(--athena-orange)]"
+          >
+            View Linked Opportunity
+          </Link>
+        )}
+      </nav>
 
       {deploymentAssets.length > 0 && (
         <div className="mt-8">
@@ -88,11 +108,13 @@ export default async function BriefingPage({ params }: Props) {
         </div>
       )}
 
-      {assetBlueprint && (
-        <div className="mt-8">
+      <div className="mt-8">
+        {assetBlueprint ? (
           <StrategicAssetBlueprint blueprint={assetBlueprint} />
-        </div>
-      )}
+        ) : (
+          <StrategicAssetBlueprintEmpty />
+        )}
+      </div>
 
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
         <h2 className="mb-2 text-3xl font-semibold">Executive Briefing</h2>
@@ -106,43 +128,58 @@ export default async function BriefingPage({ params }: Props) {
           <Field label="Buyer Stage" value={review.buyer_stage} />
         </div>
       </div>
-
-      {review.opportunity_id && (
-        <div className="mt-8">
-          <Link
-            href={`/opportunities/${review.opportunity_id}`}
-            className="text-sm text-[var(--athena-orange)]"
-          >
-            ← Back to Opportunity
-          </Link>
-        </div>
-      )}
     </main>
   );
+}
+
+function MetricCard({
+  label,
+  value,
+  highlight,
+  href,
+}: {
+  label: string;
+  value: string;
+  highlight?: "warning" | "orange";
+  href?: string;
+}) {
+  const color =
+    highlight === "warning"
+      ? "text-[var(--athena-warning)]"
+      : highlight === "orange"
+        ? "text-[var(--athena-orange)]"
+        : "text-white";
+
+  const content = (
+    <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+      <div className="text-white/40">{label}</div>
+      <div className={`mt-4 text-2xl font-semibold capitalize ${color}`}>
+        {value}
+      </div>
+    </div>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className="transition hover:opacity-90">
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
 }
 
 function Field({
   label,
   value,
-  helper,
-  sublabel,
 }: {
   label: string;
   value?: string | null;
-  helper?: string;
-  sublabel?: string;
 }) {
   return (
     <div>
-      <div className="mb-2 text-white/40">
-        {label}
-        {sublabel && (
-          <span className="ml-2 text-xs text-white/30">({sublabel})</span>
-        )}
-      </div>
-      {helper && (
-        <div className="mb-2 text-xs leading-5 text-white/30">{helper}</div>
-      )}
+      <div className="mb-2 text-white/40">{label}</div>
       <p className="leading-7 text-white/80">{value || "—"}</p>
     </div>
   );
