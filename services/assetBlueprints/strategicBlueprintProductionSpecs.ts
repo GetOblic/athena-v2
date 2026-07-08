@@ -414,6 +414,7 @@ export function formatStrategicBlueprintProductionSpecsForPrompt(
     `- Strategic angle: ${context.strategicAngle.replace(/_/g, " ")}`,
     `- Sophistication level: ${context.sophisticationLevel}`,
     `- Preferred asset type: ${context.preferredAssetType}`,
+    `- Applied asset standard: ${context.preferredAssetType.replace(/_/g, " ")} (auto-selected)`,
     `- Variation seed: ${context.variationSeed}`,
     "",
     "SUPPORTING EVIDENCE:",

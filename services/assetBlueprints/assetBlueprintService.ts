@@ -407,6 +407,8 @@ export async function getCanonicalBlueprintCount(
 
 const LEGACY_PRODUCTION_SPECS_PROMPT =
   "Legacy fallback mode: produce production-ready asset specifications using available business context only.";
+const LEGACY_ASSET_STANDARD_PROMPT =
+  "Legacy fallback mode: apply professional structure, visual hierarchy, and executive polish.";
 
 export async function createAssetBlueprintForBriefing(input: {
   discussion: Discussion;
@@ -425,6 +427,7 @@ export async function createAssetBlueprintForBriefing(input: {
     : buildAssetBlueprintPrompt({
         executiveContextPrompt: input.brainContextPrompt ?? "",
         productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
+        assetStandardPrompt: LEGACY_ASSET_STANDARD_PROMPT,
         discussion: input.discussion as unknown as Record<string, unknown>,
         opportunity: input.opportunity as unknown as Record<string, unknown>,
         briefing: input.briefing as unknown as Record<string, unknown>,
@@ -460,6 +463,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
     : buildAssetBlueprintFromAnalysisPrompt({
         executiveContextPrompt: input.brainContextPrompt ?? "",
         productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
+        assetStandardPrompt: LEGACY_ASSET_STANDARD_PROMPT,
         discussion: input.discussion as unknown as Record<string, unknown>,
         analysis: input.analysis as unknown as Record<string, unknown>,
       });

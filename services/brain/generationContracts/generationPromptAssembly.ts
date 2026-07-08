@@ -12,6 +12,10 @@ import {
   buildStrategicBlueprintProductionContext,
   formatStrategicBlueprintProductionSpecsForPrompt,
 } from "@/services/assetBlueprints/strategicBlueprintProductionSpecs";
+import {
+  formatExecutiveAssetStandardForPrompt,
+  resolveAssetStandard,
+} from "@/services/brain/assetStandards/assetStandardRegistry";
 import { assembleExecutiveGenerationContextBlock } from "@/services/brain/generationContracts/contractPromptFormatting";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 
@@ -64,11 +68,14 @@ export function assembleStrategicBlueprintPrompt(input: {
   );
   const productionSpecsPrompt =
     formatStrategicBlueprintProductionSpecsForPrompt(productionContext);
+  const assetStandard = resolveAssetStandard(productionContext.preferredAssetType);
+  const assetStandardPrompt = formatExecutiveAssetStandardForPrompt(assetStandard);
 
   if (input.analysis) {
     return buildAssetBlueprintFromAnalysisPrompt({
       executiveContextPrompt: executiveContextBlock,
       productionSpecsPrompt,
+      assetStandardPrompt,
       discussion: input.discussion,
       analysis: input.analysis,
     });
@@ -83,6 +90,7 @@ export function assembleStrategicBlueprintPrompt(input: {
   return buildAssetBlueprintPrompt({
     executiveContextPrompt: executiveContextBlock,
     productionSpecsPrompt,
+    assetStandardPrompt,
     discussion: input.discussion,
     opportunity: input.opportunity,
     briefing: input.briefing,

@@ -1,4 +1,4 @@
-export const ASSET_BLUEPRINT_PROMPT_VERSION = "asset_blueprint_v2_production_specs";
+export const ASSET_BLUEPRINT_PROMPT_VERSION = "asset_blueprint_v3_asset_standards";
 
 const BLUEPRINT_JSON_SCHEMA = `
 {
@@ -42,7 +42,7 @@ CRITICAL RULES:
 - Do not use generic phrases like "comprehensive guide" without specific structure.
 - Do not duplicate the same wording across image_prompt, pdf_prompt, and social_prompt.
 - Each prompt must be independently paste-ready for downstream AI tools (ChatGPT, Claude, Gemini, Canva AI, Gamma, HeyGen, Midjourney, etc.).
-- Follow the Production Specifications and strategic angle exactly.
+- Follow the Production Specifications, Executive Asset Standards, and strategic angle exactly.
 - Align with Executive Understanding — no strategic contradictions.
 - Match sophistication level to buyer stage and terminology depth.
 - Use business identity voice, expertise, and constraints.
@@ -59,6 +59,7 @@ CRITICAL RULES:
 export function buildAssetBlueprintPrompt(input: {
   executiveContextPrompt: string;
   productionSpecsPrompt: string;
+  assetStandardPrompt: string;
   discussion: Record<string, unknown>;
   opportunity: Record<string, unknown>;
   briefing: Record<string, unknown>;
@@ -70,11 +71,14 @@ Your job is to produce a production-ready Strategic Asset Blueprint — not a co
 
 Another operator will paste your prompts directly into AI tools to generate the actual asset.
 
-=== EXECUTIVE UNDERSTANDING AND GENERATION CONTRACT ===
+=== EXECUTIVE STRATEGY AND GENERATION CONTRACT ===
 ${input.executiveContextPrompt}
 
 === ASSET PRODUCTION SPECIFICATIONS ===
 ${input.productionSpecsPrompt}
+
+=== EXECUTIVE ASSET STANDARDS ===
+${input.assetStandardPrompt}
 
 === SOURCE: DISCUSSION ===
 ${JSON.stringify(input.discussion, null, 2)}
@@ -96,6 +100,7 @@ ${BLUEPRINT_GENERATION_RULES}
 export function buildAssetBlueprintFromAnalysisPrompt(input: {
   executiveContextPrompt: string;
   productionSpecsPrompt: string;
+  assetStandardPrompt: string;
   discussion: Record<string, unknown>;
   analysis: Record<string, unknown>;
 }) {
@@ -106,11 +111,14 @@ Your job is to produce a production-ready Strategic Asset Blueprint — not a co
 
 Another operator will paste your prompts directly into AI tools to generate the actual asset.
 
-=== EXECUTIVE UNDERSTANDING AND GENERATION CONTRACT ===
+=== EXECUTIVE STRATEGY AND GENERATION CONTRACT ===
 ${input.executiveContextPrompt}
 
 === ASSET PRODUCTION SPECIFICATIONS ===
 ${input.productionSpecsPrompt}
+
+=== EXECUTIVE ASSET STANDARDS ===
+${input.assetStandardPrompt}
 
 === SOURCE: DISCUSSION ===
 ${JSON.stringify(input.discussion, null, 2)}
