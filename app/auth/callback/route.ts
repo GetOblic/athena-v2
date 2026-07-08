@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { provisionTenantForAuthenticatedUser } from "@/services/organizationService";
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -24,6 +25,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user?.id) {
+      await provisionTenantForAuthenticatedUser(user.id, user.email);
+    }
+
     return NextResponse.redirect(new URL("/", siteUrl));
   }
 
@@ -37,6 +46,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(
         new URL(`/login?message=${encodeURIComponent(error.message)}`, siteUrl),
       );
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user?.id) {
+      await provisionTenantForAuthenticatedUser(user.id, user.email);
     }
 
     return NextResponse.redirect(new URL("/", siteUrl));

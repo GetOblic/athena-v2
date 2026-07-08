@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { GenerateCommunityIntelligenceButton } from "@/components/communities/GenerateCommunityIntelligenceButton";
 import { DomainHealthCard } from "@/components/intelligenceDomains/DomainHealthCard";
 import { DomainIntelligenceSections } from "@/components/intelligenceDomains/DomainIntelligenceSections";
+import { DomainLearningEmptyState } from "@/components/intelligenceDomains/DomainLearningEmptyState";
 import { IntelligenceDomainStatusBadge } from "@/components/intelligenceDomains/IntelligenceDomainStatusBadge";
 import { LearningTimeline } from "@/components/intelligenceDomains/LearningTimeline";
 import { getCommunityById } from "@/services/communityService";
@@ -58,6 +59,9 @@ export default async function CommunityDetailsPage({
     stats,
     intelligenceHistory,
   });
+
+  const hasDiscussionIntelligence =
+    discussions.length > 0 && stats.discussionsAnalyzed > 0;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
@@ -125,15 +129,19 @@ export default async function CommunityDetailsPage({
           )}
         </div>
 
-        {latestIntelligence?.executive_summary ? (
-          <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/75">
-            {latestIntelligence.executive_summary}
-          </div>
+        {hasDiscussionIntelligence ? (
+          latestIntelligence?.executive_summary ? (
+            <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/75">
+              {latestIntelligence.executive_summary}
+            </div>
+          ) : (
+            <div className="mt-6 text-white/50">
+              No executive summary yet. Generate domain intelligence to help Athena
+              understand this market.
+            </div>
+          )
         ) : (
-          <div className="mt-6 text-white/50">
-            No executive summary yet. Generate domain intelligence to help Athena
-            understand this market.
-          </div>
+          <DomainLearningEmptyState />
         )}
 
         <DomainIntelligenceSections intelligence={latestIntelligence} />

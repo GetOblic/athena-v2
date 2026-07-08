@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { generateReview } from "@/services/aiService";
+import {
+  OrganizationAccessError,
+  requireCurrentOrganizationContext,
+} from "@/services/organizationService";
 
 export async function POST(request: Request) {
   try {
+    await requireCurrentOrganizationContext();
+
     const body = await request.json();
 
     const prompt = body?.prompt;
@@ -13,7 +19,7 @@ export async function POST(request: Request) {
           success: false,
           error: "Missing or invalid prompt",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -24,6 +30,13 @@ export async function POST(request: Request) {
       review,
     });
   } catch (error) {
+    if (error instanceof OrganizationAccessError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 401 },
+      );
+    }
+
     console.error("Athena review generation failed:", error);
 
     return NextResponse.json(
@@ -31,7 +44,7 @@ export async function POST(request: Request) {
         success: false,
         error: "Failed to generate Athena review",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,5 +1,6 @@
 import { generateReview } from "@/services/aiService";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { assertTenantRecord, createTenantScope } from "@/lib/tenantDatabase";
 import {
   buildMasterIdentityProfilePrompt,
   MASTER_IDENTITY_PROFILE_PROMPT_VERSION,
@@ -99,11 +100,11 @@ export async function getAthenaIdentityByUserId(
   userId: string,
   organizationId: string,
 ): Promise<AthenaIdentity | null> {
-  const { data, error } = await supabaseAdmin
+  const tenant = createTenantScope(organizationId);
+  const { data, error } = await tenant
     .from("athena_identity")
     .select("*")
     .eq("user_id", userId)
-    .eq("organization_id", organizationId)
     .maybeSingle();
 
   if (error) {
@@ -114,7 +115,14 @@ export async function getAthenaIdentityByUserId(
   return data;
 }
 
-export async function compileMasterIdentityProfile(identity: AthenaIdentity) {
+export async function compileMasterIdentityProfile(
+  identity: AthenaIdentity,
+  organizationId: string,
+) {
+  if (!assertTenantRecord(identity, organizationId)) {
+    return identity;
+  }
+
   const websiteHomepageText = await fetchWebsiteHomepageText(identity.website);
 
   const prompt = buildMasterIdentityProfilePrompt({
@@ -127,7 +135,8 @@ export async function compileMasterIdentityProfile(identity: AthenaIdentity) {
   const rawProfile = await generateReview(prompt);
   const masterProfile = parseJsonResponse(rawProfile);
 
-  const { data, error } = await supabaseAdmin
+  const tenant = createTenantScope(organizationId);
+  const { data, error } = await tenant
     .from("athena_identity")
     .update({
       master_profile: masterProfile,
@@ -165,7 +174,7 @@ export async function upsertAthenaIdentity(
         brain_status: "processing",
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id" },
+      { onConflict: "user_id,organization_id" },
     )
     .select("*")
     .single();
@@ -175,5 +184,5 @@ export async function upsertAthenaIdentity(
     return null;
   }
 
-  return compileMasterIdentityProfile(data);
+  return compileMasterIdentityProfile(data, input.organizationId);
 }

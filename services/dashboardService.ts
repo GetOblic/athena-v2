@@ -1,10 +1,10 @@
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { createTenantScope, type TenantTable } from "@/lib/tenantDatabase";
 
-async function countTable(table: string, organizationId: string) {
-  const { count, error } = await supabaseAdmin
+async function countTable(table: TenantTable, organizationId: string) {
+  const tenant = createTenantScope(organizationId);
+  const { count, error } = await tenant
     .from(table)
-    .select("*", { count: "exact", head: true })
-    .eq("organization_id", organizationId);
+    .select("*", { count: "exact", head: true });
 
   if (error) {
     console.error(`Error counting ${table}:`, error);

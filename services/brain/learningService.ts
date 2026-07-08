@@ -115,9 +115,12 @@ export async function learnFromApprovedBriefing(
   });
 
   if (links.length > 0) {
-    const { error } = await supabaseAdmin
-      .from("knowledge_asset_links")
-      .insert(links);
+    const { error } = await supabaseAdmin.from("knowledge_asset_links").insert(
+      links.map((link) => ({
+        ...link,
+        organization_id: organizationId,
+      })),
+    );
 
     if (error) {
       throw new Error(`Failed to create knowledge asset links: ${error.message}`);
