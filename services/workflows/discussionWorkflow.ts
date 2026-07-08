@@ -260,6 +260,20 @@ export async function processDiscussionEndToEnd(
   discussionId: string,
   organizationId: string,
 ) {
+  try {
+    return await processDiscussionEndToEndInternal(discussionId, organizationId);
+  } catch (error) {
+    console.error("processDiscussionEndToEnd failed:", error);
+    throw error instanceof Error
+      ? error
+      : new Error("Discussion regeneration workflow failed");
+  }
+}
+
+async function processDiscussionEndToEndInternal(
+  discussionId: string,
+  organizationId: string,
+) {
   const startedAt = Date.now();
   const discussion = await getDiscussionById(discussionId, organizationId);
 
@@ -507,29 +521,33 @@ export async function processDiscussionEndToEnd(
   });
 
   if (analysisBundle && briefingBundle) {
-    const coherence = validateExecutiveOutputCoherence({
-      strategies: [analysisBundle.executiveStrategy, briefingBundle.executiveStrategy],
-      outputs: [
-        {
-          type: "discussion_analysis",
-          text: extractAdvisoryFields(parsedAnalysis as unknown as Record<string, unknown>),
-        },
-        {
-          type: "executive_briefing",
-          text: extractAdvisoryFields(parsedReview as unknown as Record<string, unknown>),
-        },
-        {
-          type: "deployment_asset",
-          text: extractDeploymentFields(parsedReview.recommended_response),
-        },
-      ],
-    });
-
-    if (coherence.warnings.length > 0 || coherence.errors.length > 0) {
-      console.warn("Executive output coherence check:", {
-        errors: coherence.errors,
-        warnings: coherence.warnings,
+    try {
+      const coherence = validateExecutiveOutputCoherence({
+        strategies: [analysisBundle.executiveStrategy, briefingBundle.executiveStrategy],
+        outputs: [
+          {
+            type: "discussion_analysis",
+            text: extractAdvisoryFields(parsedAnalysis as unknown as Record<string, unknown>),
+          },
+          {
+            type: "executive_briefing",
+            text: extractAdvisoryFields(parsedReview as unknown as Record<string, unknown>),
+          },
+          {
+            type: "deployment_asset",
+            text: extractDeploymentFields(parsedReview.recommended_response),
+          },
+        ],
       });
+
+      if (coherence.warnings.length > 0 || coherence.errors.length > 0) {
+        console.warn("Executive output coherence check:", {
+          errors: coherence.errors,
+          warnings: coherence.warnings,
+        });
+      }
+    } catch (error) {
+      console.error("Executive output coherence check failed:", error);
     }
   }
 

@@ -27,7 +27,20 @@ export function AnalyzeDiscussionButton({
         method: "POST",
       });
 
-      const data = await response.json();
+      const text = await response.text();
+      let data: { success?: boolean; error?: string };
+
+      try {
+        data = JSON.parse(text) as { success?: boolean; error?: string };
+      } catch {
+        console.error(
+          "Regenerate intelligence non-JSON response:",
+          text.slice(0, 300),
+        );
+        throw new Error(
+          "Server returned a non-JSON error. Check production logs.",
+        );
+      }
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || "Failed to regenerate intelligence");
