@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 
 type AppendDiscussionUpdateFormProps = {
   discussionId: string;
@@ -43,7 +44,7 @@ export function AppendDiscussionUpdateForm({
       setResult({
         ok: true,
         message:
-          "Thread updated successfully.\n\nAthena is regenerating:\n• Discussion Analysis\n• Opportunities\n• Executive Briefing\n• Strategic Assets\n\nWhen processing is complete, click the \"Refresh AI Analysis\" button below to load the latest intelligence.",
+          "Thread updated successfully. Athena is regenerating the discussion analysis, opportunities, executive briefing and strategic assets. Refresh in a few seconds to view the latest intelligence.",
       });
 
       setUrl("");
@@ -101,7 +102,7 @@ export function AppendDiscussionUpdateForm({
           />
         </label>
 
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-start gap-4">
           <button
             type="submit"
             disabled={isSubmitting || !body.trim()}
@@ -111,14 +112,24 @@ export function AppendDiscussionUpdateForm({
           </button>
 
           {result && (
-            <div
-              className={
-                result.ok
-                  ? "max-w-2xl whitespace-pre-line text-sm leading-6 text-emerald-300"
-                  : "text-sm text-red-300"
-              }
-            >
-              {result.message}
+            <div className="max-w-2xl space-y-4">
+              <div
+                className={
+                  result.ok
+                    ? "text-sm leading-6 text-emerald-300"
+                    : "text-sm text-red-300"
+                }
+              >
+                {result.message}
+              </div>
+
+              {result.ok && (
+                <AnalyzeDiscussionButton
+                  discussionId={discussionId}
+                  label="Refresh Intelligence"
+                  compact
+                />
+              )}
             </div>
           )}
         </div>

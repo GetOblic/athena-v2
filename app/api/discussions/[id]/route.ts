@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import {
   deleteDiscussion,
+  getDiscussionById,
   updateDiscussion,
 } from "@/services/discussionService";
 import {
@@ -59,6 +61,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    revalidatePath("/discussions");
+    revalidatePath(`/discussions/${id}`);
+
+    if (discussion.community_id) {
+      revalidatePath(`/communities/${discussion.community_id}`);
+    }
+
     return NextResponse.json({ success: true, discussion });
   } catch (error) {
     if (error instanceof OrganizationAccessError) {
@@ -82,6 +91,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const { id } = await context.params;
     const { organizationId } = await requireCurrentOrganizationContext();
 
+    const existing = await getDiscussionById(id, organizationId);
     const deleted = await deleteDiscussion(id, organizationId);
 
     if (!deleted) {
@@ -89,6 +99,16 @@ export async function DELETE(_request: Request, context: RouteContext) {
         { success: false, error: "Discussion not found" },
         { status: 404 },
       );
+    }
+
+    revalidatePath("/");
+    revalidatePath("/discussions");
+    revalidatePath("/opportunities");
+    revalidatePath("/briefings");
+    revalidatePath("/intelligence-domains");
+
+    if (existing?.community_id) {
+      revalidatePath(`/communities/${existing.community_id}`);
     }
 
     return NextResponse.json({ success: true });

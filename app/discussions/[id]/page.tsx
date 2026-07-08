@@ -9,6 +9,7 @@ import { AthenaRecommendationRibbon } from "@/components/discussions/AthenaRecom
 import { DiscussionAgeBadge } from "@/components/discussions/DiscussionAgeBadge";
 import { DiscussionHeaderActions } from "@/components/discussions/DiscussionHeaderActions";
 import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
+import { DiscussionStatusControl } from "@/components/discussions/DiscussionStatusControl";
 import { DiscussionWorkflowStrip } from "@/components/discussions/DiscussionWorkflowStrip";
 import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveIntelligenceCard";
 import {
@@ -121,8 +122,7 @@ export default async function DiscussionDetailsPage({
         <HeaderMetric label="Platform" value={discussion.platform} />
         <HeaderMetric label="Author" value={discussion.author || "—"} />
         <HeaderMetric label="Intelligence Domain" value={community?.group_name || "—"} />
-        <HeaderMetric label="Status" value={discussion.status} />
-        <HeaderMetric label="Workflow">
+        <HeaderMetric label="Lifecycle">
           <DiscussionLifecycleBadge
             discussion={discussion}
             hasAnalysis={hasAnalysis}
@@ -150,6 +150,10 @@ export default async function DiscussionDetailsPage({
             "—"
           )}
         </HeaderMetric>
+      </div>
+
+      <div className="mt-4 max-w-md">
+        <DiscussionStatusControl discussion={discussion} hasAnalysis={hasAnalysis} />
       </div>
 
       <DiscussionWorkflowStrip steps={workflowSteps} />

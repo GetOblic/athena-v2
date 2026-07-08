@@ -5,10 +5,12 @@ import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { CreateIntelligenceDomainForm } from "@/components/intelligenceDomains/CreateIntelligenceDomainForm";
+import { IntelligenceDomainRowActions } from "@/components/intelligenceDomains/IntelligenceDomainRowActions";
 import { IntelligenceDomainStatusBadge } from "@/components/intelligenceDomains/IntelligenceDomainStatusBadge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   createIntelligenceDomain,
+  getIntelligenceDomainDiscussionCounts,
   getIntelligenceDomains,
 } from "@/services/intelligenceDomainService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -58,7 +60,10 @@ export default async function IntelligenceDomainsPage({
 
   const params = await searchParams;
   const { organizationId } = await requireCurrentOrganizationContext();
-  const domains = await getIntelligenceDomains(organizationId);
+  const [domains, discussionCounts] = await Promise.all([
+    getIntelligenceDomains(organizationId),
+    getIntelligenceDomainDiscussionCounts(organizationId),
+  ]);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] text-white">
@@ -99,11 +104,12 @@ export default async function IntelligenceDomainsPage({
 
           <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
             <div className="overflow-x-auto rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)]">
-              <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_120px_120px] border-b border-[var(--athena-border)] px-6 py-4 text-xs uppercase tracking-[0.25em] text-white/35">
+              <div className="grid min-w-[920px] grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_100px_80px_minmax(220px,1fr)] border-b border-[var(--athena-border)] px-6 py-4 text-xs uppercase tracking-[0.25em] text-white/35">
                 <div>Name</div>
                 <div>Market</div>
                 <div>Status</div>
                 <div>Priority</div>
+                <div>Actions</div>
               </div>
 
               {domains.length === 0 ? (
@@ -115,7 +121,7 @@ export default async function IntelligenceDomainsPage({
                 domains.map((domain) => (
                   <div
                     key={domain.id}
-                    className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_120px_120px] items-center border-b border-white/5 px-6 py-5 text-sm last:border-b-0"
+                    className="grid min-w-[920px] grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_100px_80px_minmax(220px,1fr)] items-start border-b border-white/5 px-6 py-5 text-sm last:border-b-0"
                   >
                     <div>
                       <Link
@@ -138,6 +144,11 @@ export default async function IntelligenceDomainsPage({
                     </div>
 
                     <div className="text-white/50">{domain.priority}</div>
+
+                    <IntelligenceDomainRowActions
+                      domain={domain}
+                      discussionCount={discussionCounts.get(domain.id) ?? 0}
+                    />
                   </div>
                 ))
               )}

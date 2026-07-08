@@ -1,4 +1,5 @@
 import { CopyButton } from "@/components/deployment/CopyButton";
+import { formatBlueprintReadiness } from "@/lib/blueprintReadiness";
 import type { AthenaAssetBlueprint } from "@/services/assetBlueprints/assetBlueprintService";
 
 type StrategicAssetBlueprintProps = {
@@ -8,6 +9,8 @@ type StrategicAssetBlueprintProps = {
 export function StrategicAssetBlueprint({
   blueprint,
 }: StrategicAssetBlueprintProps) {
+  const readinessBadges = formatBlueprintReadiness(blueprint);
+
   return (
     <section className="rounded-[28px] border border-[var(--athena-orange)]/25 bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 shadow-[0_0_40px_rgba(255,102,0,0.06)] lg:p-10">
       <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
@@ -22,6 +25,24 @@ export function StrategicAssetBlueprint({
         Reusable strategic asset specification — prompts ready for image, PDF,
         and social production.
       </p>
+
+      {readinessBadges.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+          <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
+            Ready to Produce
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {readinessBadges.map((badge) => (
+              <span
+                key={badge.key}
+                className="rounded-full border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--athena-orange)]"
+              >
+                {badge.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-8 rounded-2xl border border-white/10 bg-black/25 p-6">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--athena-orange)]">

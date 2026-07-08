@@ -43,8 +43,9 @@ export function DashboardSidebar({ activeHref }: DashboardSidebarProps) {
         })}
       </nav>
 
-      <div className="absolute bottom-7 text-xs text-white/30">
-        Powered by GetOblic
+      <div className="absolute bottom-7 left-7 right-7 space-y-3">
+        {/* Future workspace settings: Members, Billing, API Keys, Integrations */}
+        <div className="text-xs text-white/30">Powered by GetOblic</div>
       </div>
     </aside>
   );

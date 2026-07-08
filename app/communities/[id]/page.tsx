@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { GenerateCommunityIntelligenceButton } from "@/components/communities/GenerateCommunityIntelligenceButton";
+import { IntelligenceDomainHeaderActions } from "@/components/intelligenceDomains/IntelligenceDomainHeaderActions";
 import { DomainHealthCard } from "@/components/intelligenceDomains/DomainHealthCard";
 import { DomainIntelligenceSections } from "@/components/intelligenceDomains/DomainIntelligenceSections";
 import { DomainLearningEmptyState } from "@/components/intelligenceDomains/DomainLearningEmptyState";
@@ -16,9 +17,12 @@ import { getDiscussionsByCommunityId } from "@/services/discussionService";
 import {
   getDomainHealth,
   getDomainLearningTimeline,
+  getIntelligenceDomainDiscussionCount,
   getIntelligenceDomainStats,
 } from "@/services/intelligenceDomainService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+
+export const dynamic = "force-dynamic";
 
 export default async function CommunityDetailsPage({
   params,
@@ -43,12 +47,13 @@ export default async function CommunityDetailsPage({
     );
   }
 
-  const [latestIntelligence, discussions, intelligenceHistory, learningTimeline] =
+  const [latestIntelligence, discussions, intelligenceHistory, learningTimeline, discussionCount] =
     await Promise.all([
       getLatestCommunityIntelligenceByCommunityId(id, organizationId),
       getDiscussionsByCommunityId(id, organizationId),
       getCommunityIntelligenceHistory(id, organizationId),
       getDomainLearningTimeline(id, organizationId),
+      getIntelligenceDomainDiscussionCount(id, organizationId),
     ]);
 
   const stats = await getIntelligenceDomainStats(
@@ -63,8 +68,8 @@ export default async function CommunityDetailsPage({
     intelligenceHistory,
   });
 
-  const hasDiscussionIntelligence =
-    discussions.length > 0 && stats.discussionsAnalyzed > 0;
+  const hasDiscussions = discussions.length > 0;
+  const hasAnalyzedDiscussions = stats.discussionsAnalyzed > 0;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
@@ -74,7 +79,7 @@ export default async function CommunityDetailsPage({
         ← Back to Intelligence Domains
       </Link>
 
-      <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <div className="mt-10 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
             Intelligence Domain
@@ -89,10 +94,17 @@ export default async function CommunityDetailsPage({
           </p>
         </div>
 
-        <GenerateCommunityIntelligenceButton communityId={community.id} />
+        <div className="flex flex-col items-stretch gap-4 xl:items-end">
+          <IntelligenceDomainHeaderActions
+            domain={community}
+            discussionCount={discussionCount}
+          />
+          <GenerateCommunityIntelligenceButton communityId={community.id} />
+        </div>
       </div>
 
-      <div className="mt-10 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+      <div className="mt-10 grid gap-4 md:grid-cols-3 xl:grid-cols-7">
+        <StatCard label="Discussions captured" value={stats.discussionsCaptured} />
         <StatCard label="Discussions analyzed" value={stats.discussionsAnalyzed} />
         <StatCard label="High-intent discussions" value={stats.highIntentDiscussions} />
         <StatCard label="Opportunities detected" value={stats.opportunitiesDetected} />
@@ -134,7 +146,7 @@ export default async function CommunityDetailsPage({
           )}
         </div>
 
-        {hasDiscussionIntelligence ? (
+        {hasAnalyzedDiscussions ? (
           latestIntelligence?.executive_summary ? (
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/75">
               {latestIntelligence.executive_summary}
@@ -145,6 +157,13 @@ export default async function CommunityDetailsPage({
               understand this market.
             </div>
           )
+        ) : hasDiscussions ? (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/60">
+            {stats.discussionsCaptured} discussion
+            {stats.discussionsCaptured === 1 ? "" : "s"} captured for this domain.
+            Run Athena analysis on each thread, then refresh intelligence to build
+            executive understanding.
+          </div>
         ) : (
           <DomainLearningEmptyState />
         )}

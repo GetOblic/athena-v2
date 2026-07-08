@@ -6,9 +6,10 @@ import { DiscussionAgeBadge } from "@/components/discussions/DiscussionAgeBadge"
 import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
 import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
-import { getIntelligenceDomains } from "@/services/intelligenceDomainService";
+import { getCommunities } from "@/services/communityService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getDiscussionQueues } from "@/services/queueService";
+import { getDiscussionActionLabel } from "@/lib/discussionStatus";
 
 const listGridClass =
   "grid grid-cols-[1.1fr_1.8fr_90px_120px_100px_120px_120px] items-center gap-4";
@@ -25,13 +26,13 @@ function formatLastActivity(value: string | null) {
 export default async function DiscussionsPage() {
   const { organizationId } = await requireCurrentOrganizationContext();
 
-  const [queues, domains, analyzedDiscussionIds] = await Promise.all([
+  const [queues, communities, analyzedDiscussionIds] = await Promise.all([
     getDiscussionQueues(organizationId),
-    getIntelligenceDomains(organizationId),
+    getCommunities(organizationId),
     getAnalyzedDiscussionIds(organizationId),
   ]);
 
-  const domainById = new Map(domains.map((d) => [d.id, d]));
+  const domainById = new Map(communities.map((community) => [community.id, community]));
   const totalCount = queues.reduce(
     (count, section) => count + section.items.length,
     0,
@@ -83,10 +84,10 @@ export default async function DiscussionsPage() {
             <div>Intelligence Domain</div>
             <div>Title</div>
             <div>Score</div>
-            <div>Workflow</div>
+            <div>Status</div>
             <div>Age</div>
             <div>Last Activity</div>
-            <div></div>
+            <div>Action</div>
           </div>
 
           {queues.map((section) => {
@@ -143,7 +144,7 @@ export default async function DiscussionsPage() {
                         href={`/discussions/${discussion.id}`}
                         className="inline-flex shrink-0 rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
                       >
-                        {section.key === "new" ? "Analyze" : "Review"}
+                        {getDiscussionActionLabel(section.key)}
                       </Link>
                     </div>
                   );

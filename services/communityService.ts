@@ -105,3 +105,104 @@ export async function createCommunity(
 
     return data;
 }
+
+export type UpdateCommunityInput = {
+    group_name?: string;
+    notes?: string | null;
+    niche?: string | null;
+    status?: string;
+    priority?: number;
+};
+
+export async function updateCommunity(
+    id: string,
+    organizationId: string,
+    input: UpdateCommunityInput,
+): Promise<Community | null> {
+    const updatePayload: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+    };
+
+    if (input.group_name !== undefined) {
+        updatePayload.group_name = input.group_name.trim();
+    }
+    if (input.notes !== undefined) {
+        updatePayload.notes = input.notes?.trim() || null;
+    }
+    if (input.niche !== undefined) {
+        updatePayload.niche = input.niche?.trim() || null;
+    }
+    if (input.status !== undefined) {
+        updatePayload.status = input.status;
+    }
+    if (input.priority !== undefined) {
+        updatePayload.priority = input.priority;
+    }
+
+    const { data, error } = await supabaseAdmin
+        .from("communities")
+        .update(updatePayload)
+        .eq("id", id)
+        .eq("organization_id", organizationId)
+        .select("*")
+        .single();
+
+    if (error) {
+        console.error("Error updating community:", error);
+        return null;
+    }
+
+    return data;
+}
+
+export async function getCommunityDiscussionCount(
+    communityId: string,
+    organizationId: string,
+): Promise<number> {
+    const { count, error } = await supabaseAdmin
+        .from("discussions")
+        .select("*", { count: "exact", head: true })
+        .eq("community_id", communityId)
+        .eq("organization_id", organizationId);
+
+    if (error) {
+        console.error("Error counting community discussions:", error);
+        return 0;
+    }
+
+    return count ?? 0;
+}
+
+export async function deleteCommunity(
+    id: string,
+    organizationId: string,
+): Promise<{ success: boolean; softDeleted: boolean }> {
+    const discussionCount = await getCommunityDiscussionCount(
+        id,
+        organizationId,
+    );
+
+    if (discussionCount > 0) {
+        const updated = await updateCommunity(id, organizationId, {
+            status: "inactive",
+        });
+
+        return {
+            success: Boolean(updated),
+            softDeleted: true,
+        };
+    }
+
+    const { error } = await supabaseAdmin
+        .from("communities")
+        .delete()
+        .eq("id", id)
+        .eq("organization_id", organizationId);
+
+    if (error) {
+        console.error("Error deleting community:", error);
+        return { success: false, softDeleted: false };
+    }
+
+    return { success: true, softDeleted: false };
+}

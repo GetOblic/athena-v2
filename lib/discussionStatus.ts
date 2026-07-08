@@ -42,29 +42,67 @@ const QUEUE_TITLES: Record<DiscussionQueueKey, string> = {
   processed: "Processed",
 };
 
+export const DISCUSSION_STATUS_OPTIONS = [
+  "New",
+  "Reviewing",
+  "Monitoring",
+  "Completed",
+] as const;
+
+export type DiscussionStatusOption = (typeof DISCUSSION_STATUS_OPTIONS)[number];
+
 function normalizeToken(value: string): string {
   return value.trim().toLowerCase().replace(/[\s_-]+/g, "");
 }
 
-export function isDiscussionAwaitingReview(status?: string | null): boolean {
+export function normalizeDiscussionLifecycleKey(
+  status?: string | null,
+): DiscussionLifecycleKey | null {
   const token = normalizeToken(status ?? "");
-  return (
+
+  if (!token) {
+    return null;
+  }
+
+  if (token === "new") {
+    return "new";
+  }
+
+  if (
+    token === "reviewing" ||
     token === "needsreview" ||
     token === "needseview" ||
-    token === "reviewing" ||
     token === "inreview"
-  );
+  ) {
+    return "reviewing";
+  }
+
+  if (token === "monitoring") {
+    return "monitoring";
+  }
+
+  if (token === "completed" || token === "done") {
+    return "completed";
+  }
+
+  return null;
+}
+
+export function isDiscussionAwaitingReview(status?: string | null): boolean {
+  return normalizeDiscussionLifecycleKey(status) === "reviewing";
 }
 
 export function classifyDiscussionQueue(
   hasAnalysis: boolean,
   status?: string | null,
 ): DiscussionQueueKey {
-  if (!hasAnalysis) {
+  const lifecycle = normalizeDiscussionLifecycleKey(status);
+
+  if (!hasAnalysis || lifecycle === "new") {
     return "new";
   }
 
-  if (isDiscussionAwaitingReview(status)) {
+  if (lifecycle === "reviewing") {
     return "in_review";
   }
 
@@ -75,18 +113,18 @@ export function getDiscussionLifecycle(
   discussion: Discussion,
   hasAnalysis: boolean,
 ): DiscussionLifecyclePresentation {
+  const explicit = normalizeDiscussionLifecycleKey(discussion.status);
+
+  if (explicit) {
+    return { key: explicit, ...LIFECYCLE_PRESENTATIONS[explicit] };
+  }
+
   if (!hasAnalysis) {
     return { key: "new", ...LIFECYCLE_PRESENTATIONS.new };
   }
 
   if (isDiscussionAwaitingReview(discussion.status)) {
     return { key: "reviewing", ...LIFECYCLE_PRESENTATIONS.reviewing };
-  }
-
-  const token = normalizeToken(discussion.status);
-
-  if (token === "completed" || token === "done") {
-    return { key: "completed", ...LIFECYCLE_PRESENTATIONS.completed };
   }
 
   return { key: "monitoring", ...LIFECYCLE_PRESENTATIONS.monitoring };
@@ -99,10 +137,23 @@ export function formatDiscussionLifecycle(
   return getDiscussionLifecycle(discussion, hasAnalysis).label;
 }
 
+export function getDiscussionLifecycleColor(
+  discussion: Discussion,
+  hasAnalysis: boolean,
+): string {
+  return getDiscussionLifecycle(discussion, hasAnalysis).colorClass;
+}
+
 export function getDiscussionQueueTitle(key: DiscussionQueueKey): string {
   return QUEUE_TITLES[key];
 }
 
 export function getDiscussionQueueOrder(): DiscussionQueueKey[] {
   return ["new", "in_review", "processed"];
+}
+
+export function getDiscussionActionLabel(
+  queueKey: DiscussionQueueKey,
+): string {
+  return queueKey === "new" ? "Analyze" : "Open";
 }

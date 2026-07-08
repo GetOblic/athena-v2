@@ -97,6 +97,24 @@ export async function getDiscussionById(
     return data;
 }
 
+export async function getDiscussionIdsByCommunityId(
+    communityId: string,
+    organizationId: string,
+): Promise<string[]> {
+    const { data, error } = await supabaseAdmin
+        .from("discussions")
+        .select("id")
+        .eq("community_id", communityId)
+        .eq("organization_id", organizationId);
+
+    if (error) {
+        console.error("Error fetching community discussion ids:", error);
+        return [];
+    }
+
+    return (data ?? []).map((row) => row.id);
+}
+
 export async function getDiscussionsByCommunityId(
     communityId: string,
     organizationId: string,
@@ -176,6 +194,7 @@ export type UpdateDiscussionInput = {
     author?: string | null;
     url?: string | null;
     body?: string | null;
+    status?: string;
 };
 
 export async function updateDiscussion(
@@ -201,6 +220,7 @@ export async function updateDiscussion(
     if (input.title !== undefined) updatePayload.title = input.title;
     if (input.author !== undefined) updatePayload.author = input.author;
     if (input.url !== undefined) updatePayload.url = input.url;
+    if (input.status !== undefined) updatePayload.status = input.status;
     if (input.body !== undefined) {
         updatePayload.body = input.body;
         updatePayload.raw_json = {
@@ -222,13 +242,89 @@ export async function updateDiscussion(
         return null;
     }
 
+    if (
+        input.community_id !== undefined &&
+        input.community_id !== existing.community_id
+    ) {
+        await supabaseAdmin
+            .from("athena_discussion_analysis")
+            .update({ community_id: input.community_id })
+            .eq("discussion_id", id)
+            .eq("organization_id", organizationId);
+
+        await supabaseAdmin
+            .from("opportunities")
+            .update({ community_id: input.community_id })
+            .eq("discussion_id", id)
+            .eq("organization_id", organizationId);
+    }
+
     return data;
+}
+
+async function deleteRelatedDiscussionRecords(
+    discussionId: string,
+    organizationId: string,
+) {
+    const { data: opportunities } = await supabaseAdmin
+        .from("opportunities")
+        .select("id")
+        .eq("discussion_id", discussionId)
+        .eq("organization_id", organizationId);
+
+    const opportunityIds = (opportunities ?? []).map((row) => row.id);
+
+    if (opportunityIds.length > 0) {
+        await supabaseAdmin
+            .from("athena_reviews")
+            .delete()
+            .in("opportunity_id", opportunityIds)
+            .eq("organization_id", organizationId);
+    }
+
+    await supabaseAdmin
+        .from("athena_reviews")
+        .delete()
+        .eq("discussion_id", discussionId)
+        .eq("organization_id", organizationId);
+
+    await supabaseAdmin
+        .from("opportunities")
+        .delete()
+        .eq("discussion_id", discussionId)
+        .eq("organization_id", organizationId);
+
+    await supabaseAdmin
+        .from("athena_discussion_analysis")
+        .delete()
+        .eq("discussion_id", discussionId)
+        .eq("organization_id", organizationId);
+
+    await supabaseAdmin
+        .from("athena_discussion_updates")
+        .delete()
+        .eq("discussion_id", discussionId)
+        .eq("organization_id", organizationId);
+
+    await supabaseAdmin
+        .from("athena_asset_blueprints")
+        .delete()
+        .eq("discussion_id", discussionId)
+        .eq("organization_id", organizationId);
 }
 
 export async function deleteDiscussion(
     id: string,
     organizationId: string,
 ): Promise<boolean> {
+    const existing = await getDiscussionById(id, organizationId);
+
+    if (!existing) {
+        return false;
+    }
+
+    await deleteRelatedDiscussionRecords(id, organizationId);
+
     const { error } = await supabaseAdmin
         .from("discussions")
         .delete()

@@ -1,5 +1,9 @@
 import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { buildWhyAthenaBullets } from "@/lib/discussionExecutiveIntel";
+import {
+  formatConfidenceLabel,
+  formatConfidencePercent,
+} from "@/lib/confidenceDisplay";
 import { WhyAthenaMatters } from "@/components/discussions/WhyAthenaMatters";
 
 type ExecutiveIntelligenceCardProps = {
@@ -10,6 +14,7 @@ export function ExecutiveIntelligenceCard({
   analysis,
 }: ExecutiveIntelligenceCardProps) {
   const confidence = Math.max(0, Math.min(100, analysis.confidence ?? 0));
+  const confidenceLabel = formatConfidenceLabel(confidence);
   const whyBullets = buildWhyAthenaBullets(analysis);
 
   return (
@@ -46,7 +51,10 @@ export function ExecutiveIntelligenceCard({
             </div>
             <div className="mt-3 flex items-end justify-between gap-4">
               <span className="text-4xl font-semibold tabular-nums text-[var(--athena-orange)]">
-                {confidence}%
+                {formatConfidencePercent(confidence)}
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-white/70">
+                {confidenceLabel}
               </span>
             </div>
             <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">

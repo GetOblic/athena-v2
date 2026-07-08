@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getDiscussionIdsByCommunityId } from "@/services/discussionService";
 
 export type DiscussionAnalysis = {
   id: string;
@@ -83,10 +84,19 @@ export async function getRecentDiscussionAnalysesByCommunityId(
   organizationId: string,
   limit = 100,
 ): Promise<DiscussionAnalysis[]> {
+  const discussionIds = await getDiscussionIdsByCommunityId(
+    communityId,
+    organizationId,
+  );
+
+  if (discussionIds.length === 0) {
+    return [];
+  }
+
   const { data, error } = await supabaseAdmin
     .from("athena_discussion_analysis")
     .select("*")
-    .eq("community_id", communityId)
+    .in("discussion_id", discussionIds)
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(limit);

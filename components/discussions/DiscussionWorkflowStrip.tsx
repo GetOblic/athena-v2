@@ -25,6 +25,7 @@ export function DiscussionWorkflowStrip({
                     : "bg-white/5 text-white/40"
               }`}
             >
+              <span className="mr-2">{step.complete ? "✓" : "○"}</span>
               {step.label}
             </div>
             {index < steps.length - 1 ? (

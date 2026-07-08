@@ -41,7 +41,7 @@ export function TodaysIntelligence({ summary }: TodaysIntelligenceProps) {
         <SummaryTile
           label="Reusable assets created"
           value={summary.reusableAssetsCreated}
-          href="/discussions"
+          href="/briefings"
           hint="Strategic blueprints ready to deploy"
         />
         <HighestOpportunityTile opportunity={summary.highestOpportunity} />
@@ -68,7 +68,7 @@ function SummaryTile({
   return (
     <Link
       href={href}
-      className="rounded-[22px] border border-white/10 bg-black/20 p-5 transition hover:border-[var(--athena-orange)]/40"
+      className="group rounded-[22px] border border-white/10 bg-black/20 p-5 transition hover:-translate-y-0.5 hover:border-[var(--athena-orange)]/40 hover:bg-white/[0.03]"
     >
       <div className="text-xs uppercase tracking-[0.2em] text-white/40">
         {label}
@@ -76,7 +76,9 @@ function SummaryTile({
       <div className="mt-3 text-4xl font-semibold tabular-nums text-[var(--athena-orange)]">
         {value}
       </div>
-      <div className="mt-2 text-sm text-white/45">{hint}</div>
+      <div className="mt-2 text-sm text-white/45 group-hover:text-white/55">
+        {hint}
+      </div>
     </Link>
   );
 }
@@ -102,12 +104,12 @@ function HighestOpportunityTile({
   return (
     <Link
       href={`/opportunities/${opportunity.id}`}
-      className="rounded-[22px] border border-white/10 bg-black/20 p-5 transition hover:border-[var(--athena-orange)]/40"
+      className="group rounded-[22px] border border-white/10 bg-black/20 p-5 transition hover:-translate-y-0.5 hover:border-[var(--athena-orange)]/40 hover:bg-white/[0.03]"
     >
       <div className="text-xs uppercase tracking-[0.2em] text-white/40">
         Highest opportunity
       </div>
-      <div className="mt-3 line-clamp-2 text-lg font-semibold text-white">
+      <div className="mt-3 line-clamp-2 text-lg font-semibold text-white group-hover:text-[var(--athena-orange)]">
         {opportunity.title}
       </div>
       <div className="mt-2 text-sm text-[var(--athena-orange)]">
@@ -125,18 +127,21 @@ function ConfidenceTile({
   delta: number | null;
 }) {
   return (
-    <div className="rounded-[22px] border border-white/10 bg-black/20 p-5">
+    <Link
+      href="/intelligence-domains"
+      className="group rounded-[22px] border border-white/10 bg-black/20 p-5 transition hover:-translate-y-0.5 hover:border-[var(--athena-orange)]/40 hover:bg-white/[0.03]"
+    >
       <div className="text-xs uppercase tracking-[0.2em] text-white/40">
         Knowledge confidence
       </div>
-      <div className="mt-3 text-4xl font-semibold tabular-nums text-white">
+      <div className="mt-3 text-4xl font-semibold tabular-nums text-white group-hover:text-[var(--athena-orange)]">
         {confidence != null ? `${confidence}%` : "Learning"}
       </div>
-      <div className="mt-2 text-sm text-white/45">
+      <div className="mt-2 text-sm text-white/45 group-hover:text-white/55">
         {delta != null
           ? `${delta >= 0 ? "+" : ""}${delta}% since last intelligence refresh`
           : "Confidence movement will appear as Athena learns."}
       </div>
-    </div>
+    </Link>
   );
 }

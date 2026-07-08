@@ -35,13 +35,15 @@ export function DeploymentAssets({ assets }: DeploymentAssetsProps) {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--athena-orange)]">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--athena-orange)]">
                   Deployment Asset
                 </div>
-                <h3 className="mt-2 text-lg font-semibold text-white">
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">
                   {asset.title}
                 </h3>
-                <p className="mt-1 text-sm text-white/45">{asset.objective}</p>
+                <p className="mt-2 text-sm leading-6 text-white/45">
+                  {asset.objective}
+                </p>
               </div>
               <CopyButton text={asset.content} />
             </div>
