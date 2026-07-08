@@ -1,9 +1,11 @@
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 import type {
   BuildExecutiveStrategyParams,
+  ExecutiveMarketingStrategy,
   ExecutiveStrategy,
 } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import { EXECUTIVE_STRATEGY_VERSION } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
+import { buildExecutiveMarketingStrategy } from "@/services/brain/executiveCoherence/executiveMarketingStrategyBuilder";
 
 function deriveConfidence(understanding: ExecutiveUnderstanding): number {
   const completeness = understanding.businessUnderstanding.knowledgeCompleteness;
@@ -52,7 +54,9 @@ function deriveRelationshipStrategy(
 }
 
 export function buildExecutiveStrategy(
-  params: BuildExecutiveStrategyParams,
+  params: BuildExecutiveStrategyParams & {
+    previousMarketingStrategy?: ExecutiveMarketingStrategy | null;
+  },
 ): ExecutiveStrategy {
   const { executiveUnderstanding: understanding } = params;
   const direction = understanding.strategicUnderstanding.recommendedDirection;
@@ -73,7 +77,7 @@ export function buildExecutiveStrategy(
     understanding.opportunityUnderstanding.importance,
   ].join("|");
 
-  return {
+  const executiveStrategyBase = {
     metadata: {
       generatedAt: new Date().toISOString(),
       organizationId: params.organizationId,
@@ -96,16 +100,29 @@ export function buildExecutiveStrategy(
     ),
     reasoningSummary,
   };
+
+  const marketingStrategy = buildExecutiveMarketingStrategy({
+    executiveStrategyBase,
+    executiveUnderstanding: understanding,
+    previousMarketingStrategy: params.previousMarketingStrategy,
+  });
+
+  return {
+    ...executiveStrategyBase,
+    marketingStrategy,
+  };
 }
 
 export function buildExecutiveStrategyFromUnderstanding(input: {
   organizationId: string;
   discussionId?: string;
   executiveUnderstanding: ExecutiveUnderstanding;
+  previousMarketingStrategy?: ExecutiveMarketingStrategy | null;
 }): ExecutiveStrategy {
   return buildExecutiveStrategy({
     organizationId: input.organizationId,
     discussionId: input.discussionId,
     executiveUnderstanding: input.executiveUnderstanding,
+    previousMarketingStrategy: input.previousMarketingStrategy,
   });
 }

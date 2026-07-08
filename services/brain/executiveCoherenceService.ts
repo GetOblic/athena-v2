@@ -12,8 +12,23 @@ export {
 
 export {
   formatExecutiveStrategyForPrompt,
+  formatExecutiveMarketingStrategyForPrompt,
   validateSharedExecutiveStrategy,
 } from "@/services/brain/executiveCoherence/executiveCoherenceHelpers";
+
+export {
+  buildExecutiveMarketingStrategy,
+  applyMarketingStrategyRefresh,
+  buildExecutiveMarketingStrategyFromParams,
+  DELIVERABLE_IMPLEMENTATION,
+} from "@/services/brain/executiveCoherence/executiveMarketingStrategyBuilder";
+
+export {
+  MARKETING_RECOMMENDATION_CONTRACTS,
+  formatMarketingRecommendationForPrompt,
+  getMarketingRecommendationContract,
+  listMarketingRecommendationIntents,
+} from "@/services/brain/executiveCoherence/marketingRecommendationContracts";
 
 export {
   getOutputResponsibility,
@@ -32,6 +47,11 @@ export {
 
 export type {
   ExecutiveStrategy,
+  ExecutiveMarketingStrategy,
+  MarketingDeliverableRecommendation,
+  MarketingRecommendationIntent,
+  BuyerProgressionGoal,
+  MarketingStrategyRefreshGuidance,
   BuildExecutiveStrategyParams,
   OutputArtifactType,
   OutputResponsibility,

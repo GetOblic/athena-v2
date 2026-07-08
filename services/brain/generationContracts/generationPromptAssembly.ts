@@ -65,6 +65,7 @@ export function assembleStrategicBlueprintPrompt(input: {
 
   const productionContext = buildStrategicBlueprintProductionContext(
     input.bundle.executiveUnderstanding,
+    input.bundle.executiveStrategy,
   );
   const productionSpecsPrompt =
     formatStrategicBlueprintProductionSpecsForPrompt(productionContext);

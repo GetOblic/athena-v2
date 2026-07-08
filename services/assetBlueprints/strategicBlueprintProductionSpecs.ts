@@ -1,7 +1,9 @@
 import type { RecommendedDirectionKey } from "@/services/brain/executiveReasoningTypes";
+import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
+import type { MarketingDeliverableRecommendation } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
-export const STRATEGIC_BLUEPRINT_SPECS_VERSION = "strategic_blueprint_specs_v1";
+export const STRATEGIC_BLUEPRINT_SPECS_VERSION = "strategic_blueprint_specs_v2_marketing";
 
 export type AssetSophisticationLevel =
   | "beginner"
@@ -55,8 +57,34 @@ export type StrategicBlueprintProductionContext = {
   strategicAngle: string;
   variationSeed: string;
   preferredAssetType: string;
+  recommendedPrimaryDeliverable: MarketingDeliverableRecommendation;
+  recommendedSupportingDeliverable: MarketingDeliverableRecommendation | null;
+  marketingObjective: string;
+  refreshPreserveStrategy: boolean;
   production: BlueprintProductionSpecification;
   generationInstructions: BlueprintGenerationInstructions;
+};
+
+const DELIVERABLE_STRATEGIC_ANGLES: Record<
+  MarketingDeliverableRecommendation,
+  string
+> = {
+  "Educational Guide": "diagnostic_education_playbook",
+  "Decision Framework": "decision_framework_matrix",
+  "Comparison Resource": "comparison_and_selection_guide",
+  "Diagnostic Checklist": "signal_tracking_checklist",
+  "Authority Whitepaper": "roi_business_case_asset",
+  "Executive Webinar": "executive_intervention_brief",
+  "Educational Video": "early_stage_education_asset",
+  "Trust-Building Landing Page": "trust_building_nurture_sequence",
+  "Multi-step Email Journey": "trust_building_nurture_sequence",
+  "Lead Magnet": "community_value_resource",
+  "FAQ Resource": "myth_vs_reality_framework",
+  "Case Study Collection": "proof_led_conversion_guide",
+  "Community Campaign": "awareness_carousel_series",
+  "Interactive Assessment": "step_by_step_beginner_path",
+  "Downloadable Toolkit": "conversation_starter_toolkit",
+  "Educational Workshop": "implementation_roadmap",
 };
 
 const STRATEGIC_ANGLES: Record<RecommendedDirectionKey, string[]> = {
@@ -157,6 +185,24 @@ export function resolveSophisticationLevel(input: {
   }
 
   return "intermediate";
+}
+
+export function resolveStrategicAngleFromMarketing(
+  executiveStrategy: ExecutiveStrategy,
+): string {
+  const deliverable =
+    executiveStrategy.marketingStrategy.recommendedPrimaryDeliverable;
+  return (
+    DELIVERABLE_STRATEGIC_ANGLES[deliverable] ??
+    resolveStrategicAngleFromDirection(executiveStrategy.recommendedApproach)
+  );
+}
+
+function resolveStrategicAngleFromDirection(direction: string): string {
+  const angles =
+    STRATEGIC_ANGLES[direction as RecommendedDirectionKey] ??
+    STRATEGIC_ANGLES.consultative;
+  return angles[0] ?? "decision_framework_matrix";
 }
 
 export function resolveStrategicAngle(
@@ -280,25 +326,29 @@ function buildGenerationInstructions(input: {
 
 export function buildStrategicBlueprintProductionContext(
   understanding: ExecutiveUnderstanding,
+  executiveStrategy: ExecutiveStrategy,
 ): StrategicBlueprintProductionContext {
-  const strategicAngle = resolveStrategicAngle(understanding);
+  const marketing = executiveStrategy.marketingStrategy;
+  const strategicAngle = resolveStrategicAngleFromMarketing(executiveStrategy);
   const sophisticationLevel = resolveSophisticationLevel({
     buyerStage: understanding.marketUnderstanding.buyerStage,
     priorityLevel: understanding.priorityUnderstanding.level,
   });
-  const preferredAssetType =
-    ANGLE_PREFERRED_TYPES[strategicAngle] ?? "pdf_guide";
+  const preferredAssetType = marketing.preferredImplementationType;
   const primaryPainPoint =
     understanding.marketUnderstanding.painPoints[0] ?? null;
   const coreMessage =
     understanding.strategicUnderstanding.primaryExecutiveObjective;
   const desiredTransformation = [
-    `Move the audience from ${understanding.marketUnderstanding.buyerStage ?? "current stage"} toward a confident next step.`,
-    understanding.strategicUnderstanding.recommendedDeploymentDirection,
+    marketing.buyerProgressionGoal.transitionObjective,
+    `Move from ${marketing.buyerProgressionGoal.currentStage} to ${marketing.buyerProgressionGoal.desiredNextStage}.`,
   ].join(" ");
-  const executiveRationale =
-    understanding.strategicUnderstanding.rationale.join(" ") ||
-    understanding.strategicUnderstanding.recommendedExecutiveAction;
+  const executiveRationale = [
+    ...marketing.strategicRationale,
+    understanding.strategicUnderstanding.recommendedExecutiveAction,
+  ]
+    .filter(Boolean)
+    .join(" ");
   const supportingEvidence = understanding.supportingEvidence.entries.map(
     (entry) => `${entry.label}: ${entry.detail}`,
   );
@@ -306,6 +356,7 @@ export function buildStrategicBlueprintProductionContext(
   const variationSeed = [
     understanding.metadata.organizationId,
     understanding.metadata.discussionId ?? "",
+    marketing.marketingFingerprint,
     strategicAngle,
     sophisticationLevel,
     primaryPainPoint ?? "",
@@ -341,8 +392,7 @@ export function buildStrategicBlueprintProductionContext(
         : ""),
     contentDepth: SOPHISTICATION_DEPTH[sophisticationLevel],
     brandTone,
-    ctaObjective:
-      understanding.strategicUnderstanding.recommendedExecutiveAction,
+    ctaObjective: marketing.conversionObjective,
     distributionChannel: resolveDistributionChannel(understanding),
     reuseStrategy: `Repurpose across ${resolveDistributionChannel(understanding)} Estimated reuse: adapt core asset into social, email, and community formats.`,
   };
@@ -358,9 +408,7 @@ export function buildStrategicBlueprintProductionContext(
     version: STRATEGIC_BLUEPRINT_SPECS_VERSION,
     assetObjective: coreMessage,
     targetAudience: buildTargetAudienceLabel(understanding, sophisticationLevel),
-    businessObjective:
-      understanding.opportunityUnderstanding.businessOpportunity ??
-      understanding.executiveSummary.primaryObjective,
+    businessObjective: marketing.businessObjective,
     buyerStage: understanding.marketUnderstanding.buyerStage,
     primaryPainPoint,
     coreMessage,
@@ -371,6 +419,10 @@ export function buildStrategicBlueprintProductionContext(
     strategicAngle,
     variationSeed,
     preferredAssetType,
+    recommendedPrimaryDeliverable: marketing.recommendedPrimaryDeliverable,
+    recommendedSupportingDeliverable: marketing.recommendedSupportingDeliverable,
+    marketingObjective: marketing.marketingObjective,
+    refreshPreserveStrategy: marketing.refreshGuidance.preserveStrategy,
     production,
     generationInstructions,
   };
@@ -403,6 +455,11 @@ export function formatStrategicBlueprintProductionSpecsForPrompt(
     "Do not produce generic marketing advice. Produce executable asset specifications.",
     "",
     "ASSET STRATEGY:",
+    `- Marketing recommendation: ${context.recommendedPrimaryDeliverable}`,
+    context.recommendedSupportingDeliverable
+      ? `- Supporting recommendation: ${context.recommendedSupportingDeliverable}`
+      : "- Supporting recommendation: none",
+    `- Marketing objective: ${context.marketingObjective}`,
     `- Asset objective: ${context.assetObjective}`,
     `- Business objective: ${context.businessObjective}`,
     `- Target audience: ${context.targetAudience}`,
@@ -414,7 +471,10 @@ export function formatStrategicBlueprintProductionSpecsForPrompt(
     `- Strategic angle: ${context.strategicAngle.replace(/_/g, " ")}`,
     `- Sophistication level: ${context.sophisticationLevel}`,
     `- Preferred asset type: ${context.preferredAssetType}`,
-    `- Applied asset standard: ${context.preferredAssetType.replace(/_/g, " ")} (auto-selected)`,
+    `- Applied asset standard: ${context.preferredAssetType.replace(/_/g, " ")} (from Executive Marketing Strategy)`,
+    context.refreshPreserveStrategy
+      ? "- Refresh: improve execution quality; preserve marketing recommendation"
+      : "- Refresh: strategic direction updated per Executive Marketing Strategy",
     `- Variation seed: ${context.variationSeed}`,
     "",
     "SUPPORTING EVIDENCE:",
@@ -452,7 +512,8 @@ export function formatStrategicBlueprintProductionSpecsForPrompt(
     "",
     "INSTRUCTIONS:",
     "Generate production-ready prompts another AI can execute immediately.",
-    "Align fully with Executive Understanding above. Do not contradict strategic direction.",
+    "Align fully with Executive Understanding and Executive Marketing Strategy above.",
+    "Do not independently choose a different marketing deliverable.",
     "Materially differentiate this blueprint from generic templates using the strategic angle.",
   ];
 

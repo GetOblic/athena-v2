@@ -7,6 +7,8 @@ import {
 } from "@/services/assetBlueprints/prompts/assetBlueprintPrompt";
 import { assembleStrategicBlueprintPrompt } from "@/services/brain/generationContractService";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
+import type { ExecutiveMarketingStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
+import { applyMarketingStrategyRefresh } from "@/services/brain/executiveCoherence/executiveMarketingStrategyBuilder";
 import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import type { Discussion } from "@/services/discussionService";
 import type { Opportunity } from "@/services/opportunityService";
@@ -130,6 +132,68 @@ function normalizeParsedAssetBlueprint(
   };
 }
 
+function extractStoredMarketingStrategy(
+  rawJson: Record<string, unknown> | null,
+): ExecutiveMarketingStrategy | null {
+  const stored = rawJson?.executive_marketing_strategy;
+  if (!stored || typeof stored !== "object") {
+    return null;
+  }
+
+  return stored as ExecutiveMarketingStrategy;
+}
+
+function applyBlueprintRefreshToBundle(
+  bundle: GenerationBundle,
+  previousMarketingStrategy: ExecutiveMarketingStrategy,
+): GenerationBundle {
+  const refreshedMarketingStrategy = applyMarketingStrategyRefresh({
+    candidate: bundle.executiveStrategy.marketingStrategy,
+    previous: previousMarketingStrategy,
+    understanding: bundle.executiveUnderstanding,
+  });
+
+  return {
+    ...bundle,
+    executiveStrategy: {
+      ...bundle.executiveStrategy,
+      marketingStrategy: refreshedMarketingStrategy,
+    },
+  };
+}
+
+async function resolveBlueprintGenerationBundle(input: {
+  generationBundle?: GenerationBundle;
+  organizationId: string;
+  discussionId: string;
+  opportunityId?: string | null;
+  briefingId?: string | null;
+}): Promise<GenerationBundle | undefined> {
+  if (!input.generationBundle) {
+    return undefined;
+  }
+
+  const existingRows = await findExistingBlueprints({
+    organizationId: input.organizationId,
+    briefingId: input.briefingId,
+    opportunityId: input.opportunityId,
+    discussionId: input.discussionId,
+  });
+  const existing = selectCanonicalBlueprint(existingRows);
+  const previousMarketingStrategy = extractStoredMarketingStrategy(
+    existing?.raw_json ?? null,
+  );
+
+  if (!previousMarketingStrategy) {
+    return input.generationBundle;
+  }
+
+  return applyBlueprintRefreshToBundle(
+    input.generationBundle,
+    previousMarketingStrategy,
+  );
+}
+
 function parseJsonResponse(rawText: string): ParsedAssetBlueprint {
   const cleaned = rawText
     .replace(/^```json\s*/i, "")
@@ -199,6 +263,7 @@ async function updateAssetBlueprint(
     source: string;
     opportunityId?: string | null;
     briefingId?: string | null;
+    executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
   },
 ): Promise<AthenaAssetBlueprint | null> {
   const { data, error } = await supabaseAdmin
@@ -222,6 +287,7 @@ async function updateAssetBlueprint(
         source: input.source,
         parsed: input.parsed,
         raw_ai_response: input.rawBlueprint,
+        executive_marketing_strategy: input.executiveMarketingStrategy ?? null,
       },
       updated_at: new Date().toISOString(),
     })
@@ -247,6 +313,7 @@ async function insertAssetBlueprint(input: {
   parsed: ParsedAssetBlueprint;
   rawBlueprint: string;
   source: string;
+  executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
 }): Promise<AthenaAssetBlueprint | null> {
   if (!blueprintHasPrompts(input.parsed)) {
     console.warn(
@@ -279,6 +346,7 @@ async function insertAssetBlueprint(input: {
         source: input.source,
         parsed: input.parsed,
         raw_ai_response: input.rawBlueprint,
+        executive_marketing_strategy: input.executiveMarketingStrategy ?? null,
       },
     })
     .select("*")
@@ -347,6 +415,7 @@ async function upsertAssetBlueprint(input: {
   parsed: ParsedAssetBlueprint;
   rawBlueprint: string;
   source: string;
+  executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
 }): Promise<AthenaAssetBlueprint | null> {
   if (!blueprintHasPrompts(input.parsed)) {
     console.warn(
@@ -370,6 +439,7 @@ async function upsertAssetBlueprint(input: {
       source: input.source,
       opportunityId: input.opportunityId,
       briefingId: input.briefingId,
+      executiveMarketingStrategy: input.executiveMarketingStrategy,
     });
   }
 
@@ -417,9 +487,18 @@ export async function createAssetBlueprintForBriefing(input: {
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
 }): Promise<AthenaAssetBlueprint | null> {
-  const prompt = input.generationBundle
+  const organizationId = input.discussion.organization_id ?? "";
+  const effectiveBundle = await resolveBlueprintGenerationBundle({
+    generationBundle: input.generationBundle,
+    organizationId,
+    discussionId: input.discussion.id,
+    opportunityId: input.opportunity.id,
+    briefingId: input.briefing.id,
+  });
+
+  const prompt = effectiveBundle
     ? assembleStrategicBlueprintPrompt({
-        bundle: input.generationBundle,
+        bundle: effectiveBundle,
         discussion: input.discussion as unknown as Record<string, unknown>,
         opportunity: input.opportunity as unknown as Record<string, unknown>,
         briefing: input.briefing as unknown as Record<string, unknown>,
@@ -437,7 +516,7 @@ export async function createAssetBlueprintForBriefing(input: {
   const parsed = parseJsonResponse(rawBlueprint);
 
   return upsertAssetBlueprint({
-    organizationId: input.discussion.organization_id ?? "",
+    organizationId,
     userId: input.discussion.user_id ?? null,
     discussionId: input.discussion.id,
     opportunityId: input.opportunity.id,
@@ -445,6 +524,8 @@ export async function createAssetBlueprintForBriefing(input: {
     parsed,
     rawBlueprint,
     source: "briefing",
+    executiveMarketingStrategy:
+      effectiveBundle?.executiveStrategy.marketingStrategy ?? null,
   });
 }
 
@@ -454,9 +535,16 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
 }): Promise<AthenaAssetBlueprint | null> {
-  const prompt = input.generationBundle
+  const organizationId = input.discussion.organization_id ?? "";
+  const effectiveBundle = await resolveBlueprintGenerationBundle({
+    generationBundle: input.generationBundle,
+    organizationId,
+    discussionId: input.discussion.id,
+  });
+
+  const prompt = effectiveBundle
     ? assembleStrategicBlueprintPrompt({
-        bundle: input.generationBundle,
+        bundle: effectiveBundle,
         discussion: input.discussion as unknown as Record<string, unknown>,
         analysis: input.analysis as unknown as Record<string, unknown>,
       })
@@ -472,12 +560,14 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   const parsed = parseJsonResponse(rawBlueprint);
 
   return upsertAssetBlueprint({
-    organizationId: input.discussion.organization_id ?? "",
+    organizationId,
     userId: input.discussion.user_id ?? null,
     discussionId: input.discussion.id,
     parsed,
     rawBlueprint,
     source: "discussion_analysis",
+    executiveMarketingStrategy:
+      effectiveBundle?.executiveStrategy.marketingStrategy ?? null,
   });
 }
 

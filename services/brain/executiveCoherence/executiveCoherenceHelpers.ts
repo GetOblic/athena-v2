@@ -1,4 +1,45 @@
 import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
+import { formatMarketingRecommendationForPrompt } from "@/services/brain/executiveCoherence/marketingRecommendationContracts";
+
+export function formatExecutiveMarketingStrategyForPrompt(
+  strategy: ExecutiveStrategy,
+): string {
+  const marketing = strategy.marketingStrategy;
+  const recommendationBlock = formatMarketingRecommendationForPrompt({
+    primaryIntent: marketing.primaryIntent,
+    supportingIntent: marketing.supportingIntent,
+    primaryDeliverable: marketing.recommendedPrimaryDeliverable,
+    supportingDeliverable: marketing.recommendedSupportingDeliverable,
+  });
+
+  const sections = [
+    "EXECUTIVE MARKETING STRATEGY (SHARED — DO NOT REINTERPRET):",
+    "",
+    "This extends Executive Strategy with WHAT should happen next from a marketing perspective.",
+    "",
+    `- Business objective: ${marketing.businessObjective}`,
+    `- Marketing objective: ${marketing.marketingObjective}`,
+    `- Recommended primary deliverable: ${marketing.recommendedPrimaryDeliverable}`,
+    marketing.recommendedSupportingDeliverable
+      ? `- Recommended supporting deliverable: ${marketing.recommendedSupportingDeliverable}`
+      : "- Recommended supporting deliverable: none",
+    `- Buyer progression: ${marketing.buyerProgressionGoal.currentStage} → ${marketing.buyerProgressionGoal.desiredNextStage}`,
+    `- Transition objective: ${marketing.buyerProgressionGoal.transitionObjective}`,
+    `- Educational objective: ${marketing.educationalObjective}`,
+    `- Trust objective: ${marketing.trustObjective}`,
+    `- Conversion objective: ${marketing.conversionObjective}`,
+    `- Executive priority: ${marketing.executivePriority}`,
+    `- Recommendation confidence: ${marketing.recommendationConfidence}`,
+    `- Preferred implementation: ${marketing.preferredImplementationType}`,
+    marketing.refreshGuidance.preserveStrategy
+      ? "- Refresh mode: improve execution quality (preserve strategic direction)"
+      : `- Refresh mode: change direction — ${marketing.refreshGuidance.changeJustification ?? "materially stronger strategy identified"}`,
+    "",
+    recommendationBlock,
+  ];
+
+  return sections.join("\n").trim();
+}
 
 export function formatExecutiveStrategyForPrompt(
   strategy: ExecutiveStrategy,
@@ -24,6 +65,8 @@ export function formatExecutiveStrategyForPrompt(
     "",
     "REASONING SUMMARY:",
     strategy.reasoningSummary || "No additional reasoning summary.",
+    "",
+    formatExecutiveMarketingStrategyForPrompt(strategy),
     "",
     "INSTRUCTIONS:",
     "Align with this strategy. Do not regenerate or contradict it.",
@@ -52,6 +95,18 @@ export function validateSharedExecutiveStrategy(
     }
     if (first.recommendedApproach !== other.recommendedApproach) {
       errors.push("Recommended approach drift across workflows.");
+    }
+    if (
+      first.marketingStrategy.marketingFingerprint !==
+      other.marketingStrategy.marketingFingerprint
+    ) {
+      errors.push("Executive Marketing Strategy fingerprint mismatch across workflows.");
+    }
+    if (
+      first.marketingStrategy.recommendedPrimaryDeliverable !==
+      other.marketingStrategy.recommendedPrimaryDeliverable
+    ) {
+      errors.push("Marketing deliverable recommendation drift across workflows.");
     }
   }
 

@@ -11,6 +11,7 @@ import {
   resolveSophisticationLevel,
   resolveStrategicAngle,
 } from "@/services/assetBlueprints/strategicBlueprintProductionSpecs";
+import { buildExecutiveStrategyFromUnderstanding } from "@/services/brain/executiveCoherence/executiveStrategyBuilder";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
 const promptPath = join(
@@ -184,21 +185,35 @@ if (
   fail("Deterministic variation helpers missing");
 }
 
+function buildSampleStrategy(
+  understanding: ExecutiveUnderstanding,
+) {
+  return buildExecutiveStrategyFromUnderstanding({
+    organizationId: understanding.metadata.organizationId,
+    executiveUnderstanding: understanding,
+  });
+}
+
+const educationalUnderstanding = buildSampleUnderstanding({
+  direction: "educational",
+  buyerStage: "aware",
+  priority: "monitor",
+  fingerprint: "sample-educational",
+});
+const executiveUnderstanding = buildSampleUnderstanding({
+  direction: "sales_first",
+  buyerStage: "decision",
+  priority: "immediate_action",
+  fingerprint: "sample-executive",
+});
+
 const educational = buildStrategicBlueprintProductionContext(
-  buildSampleUnderstanding({
-    direction: "educational",
-    buyerStage: "aware",
-    priority: "monitor",
-    fingerprint: "sample-educational",
-  }),
+  educationalUnderstanding,
+  buildSampleStrategy(educationalUnderstanding),
 );
 const executive = buildStrategicBlueprintProductionContext(
-  buildSampleUnderstanding({
-    direction: "sales_first",
-    buyerStage: "decision",
-    priority: "immediate_action",
-    fingerprint: "sample-executive",
-  }),
+  executiveUnderstanding,
+  buildSampleStrategy(executiveUnderstanding),
 );
 
 if (educational.strategicAngle !== executive.strategicAngle) {
@@ -221,6 +236,12 @@ const assetTypes = new Set([
       direction: "relationship_first",
       fingerprint: "sample-relationship",
     }),
+    buildSampleStrategy(
+      buildSampleUnderstanding({
+        direction: "relationship_first",
+        fingerprint: "sample-relationship",
+      }),
+    ),
   ).preferredAssetType,
 ]);
 

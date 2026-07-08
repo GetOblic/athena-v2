@@ -1,7 +1,69 @@
 import type { GenerationWorkflowType } from "@/services/brain/generationContracts/generationContractTypes";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
-export const EXECUTIVE_STRATEGY_VERSION = "executive_strategy_v1";
+export const EXECUTIVE_STRATEGY_VERSION = "executive_strategy_v2_marketing";
+
+export type MarketingDeliverableRecommendation =
+  | "Educational Guide"
+  | "Decision Framework"
+  | "Comparison Resource"
+  | "Diagnostic Checklist"
+  | "Authority Whitepaper"
+  | "Executive Webinar"
+  | "Educational Video"
+  | "Trust-Building Landing Page"
+  | "Multi-step Email Journey"
+  | "Lead Magnet"
+  | "FAQ Resource"
+  | "Case Study Collection"
+  | "Community Campaign"
+  | "Interactive Assessment"
+  | "Downloadable Toolkit"
+  | "Educational Workshop";
+
+export type MarketingRecommendationIntent =
+  | "Educate"
+  | "Build Trust"
+  | "Compare Options"
+  | "Reduce Risk"
+  | "Increase Authority"
+  | "Generate Leads"
+  | "Convert Prospects"
+  | "Retain Customers"
+  | "Strengthen Community"
+  | "Support Decision Making";
+
+export type BuyerProgressionGoal = {
+  currentStage: string;
+  desiredNextStage: string;
+  transitionObjective: string;
+};
+
+export type MarketingStrategyRefreshGuidance = {
+  preserveStrategy: boolean;
+  refreshMode: "improve_execution" | "change_direction";
+  changeJustification: string | null;
+};
+
+export type ExecutiveMarketingStrategy = {
+  businessObjective: string;
+  marketingObjective: string;
+  recommendedPrimaryDeliverable: MarketingDeliverableRecommendation;
+  recommendedSupportingDeliverable: MarketingDeliverableRecommendation | null;
+  buyerProgressionGoal: BuyerProgressionGoal;
+  educationalObjective: string;
+  trustObjective: string;
+  conversionObjective: string;
+  executivePriority: string;
+  recommendationConfidence: number;
+  strategicRationale: string[];
+  primaryIntent: MarketingRecommendationIntent;
+  supportingIntent: MarketingRecommendationIntent | null;
+  preferredImplementationType: string;
+  supportingImplementationType: string | null;
+  marketingFingerprint: string;
+  refreshGuidance: MarketingStrategyRefreshGuidance;
+};
 
 export type ExecutiveStrategy = {
   metadata: {
@@ -21,6 +83,7 @@ export type ExecutiveStrategy = {
   confidence: number;
   supportingEvidence: string[];
   reasoningSummary: string;
+  marketingStrategy: ExecutiveMarketingStrategy;
 };
 
 export type BuildExecutiveStrategyParams = {
