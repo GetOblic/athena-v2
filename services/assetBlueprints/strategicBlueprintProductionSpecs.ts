@@ -3,7 +3,7 @@ import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/exec
 import type { MarketingDeliverableRecommendation } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
-export const STRATEGIC_BLUEPRINT_SPECS_VERSION = "strategic_blueprint_specs_v4_initiative";
+export const STRATEGIC_BLUEPRINT_SPECS_VERSION = "strategic_blueprint_specs_v5_quality_gate";
 
 export type AssetSophisticationLevel =
   | "beginner"
@@ -59,6 +59,7 @@ export type ExecutiveBlueprintSpecification = {
 export type StrategyFirstBlueprintSpecification = {
   executiveInitiative: string;
   initiativeCategory: string;
+  highestProbabilityAction: string;
   businessObjective: string;
   marketProblem: string;
   strategicHypothesis: string;
@@ -184,6 +185,41 @@ const SOPHISTICATION_DEPTH: Record<AssetSophisticationLevel, string> = {
   executive:
     "Concise strategic framing, business impact focus, decision-ready summaries, minimal fluff, ROI-oriented.",
 };
+
+function inferHighestProbabilityAction(input: {
+  initiative: {
+    initiativeLabel: string;
+    initiativeCategory: string;
+    whyThisInitiative: string;
+  };
+  implementation: {
+    implementationDeliverable: string;
+    deploymentApproach: string;
+  };
+  marketing: { recommendedPrimaryDeliverable: string; marketingObjective: string };
+  hiddenProblem: string;
+}): string {
+  const deliverable = input.implementation.implementationDeliverable.toLowerCase();
+  const category = input.initiative.initiativeCategory;
+
+  if (deliverable.includes("assessment") || category === "diagnostic_assessment") {
+    return `Deploy ${input.initiative.initiativeLabel} as an interactive diagnostic — highest probability action to win this opportunity by converting uncertainty into qualified demand.`;
+  }
+  if (deliverable.includes("comparison") || category === "competitive_differentiation") {
+    return `Publish a competitive implementation comparison — buyers need proof, not another guide.`;
+  }
+  if (deliverable.includes("case study") || category === "trust_building") {
+    return `Lead with proof-led case analysis addressing: ${input.hiddenProblem.slice(0, 100)}`;
+  }
+  if (category === "process_improvement" || category === "ai_workflow") {
+    return `Execute business/process change first via ${input.initiative.initiativeLabel} — outperforms content-only approaches.`;
+  }
+  if (deliverable.includes("framework") || deliverable.includes("checklist")) {
+    return `Ship a decision-ready ${input.implementation.implementationDeliverable} tied to ${input.marketing.marketingObjective.toLowerCase()}.`;
+  }
+
+  return `${input.initiative.initiativeLabel}: ${input.initiative.whyThisInitiative.slice(0, 160)}`;
+}
 
 function hashString(value: string): number {
   let hash = 0;
@@ -447,9 +483,17 @@ export function buildStrategicBlueprintProductionContext(
   const selected = initiative.selectedInitiative;
   const marketingRecommendation = marketing.executiveRecommendation;
 
+  const highestProbabilityAction = inferHighestProbabilityAction({
+    initiative: selected,
+    implementation: initiative.implementationStrategy,
+    marketing,
+    hiddenProblem: decisionDocument.hiddenMarketProblem,
+  });
+
   const strategyFirst: StrategyFirstBlueprintSpecification = {
     executiveInitiative: selected.initiativeLabel,
     initiativeCategory: selected.initiativeCategory,
+    highestProbabilityAction,
     businessObjective: selected.expectedBusinessOutcome,
     marketProblem: decisionDocument.hiddenMarketProblem,
     strategicHypothesis: intelligence.contrarianThinking.strategicReframe,
@@ -565,6 +609,7 @@ export function formatStrategicBlueprintProductionSpecsForPrompt(
     "EXECUTIVE INITIATIVE (STRATEGY — MUST LEAD ALL OUTPUT):",
     `- Initiative: ${context.strategyFirst.executiveInitiative}`,
     `- Category: ${context.strategyFirst.initiativeCategory}`,
+    `- Highest-probability action to win: ${context.strategyFirst.highestProbabilityAction}`,
     `- Business objective: ${context.strategyFirst.businessObjective}`,
     `- Market problem: ${context.strategyFirst.marketProblem}`,
     `- Strategic hypothesis: ${context.strategyFirst.strategicHypothesis}`,

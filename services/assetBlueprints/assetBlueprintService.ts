@@ -9,6 +9,8 @@ import { assembleStrategicBlueprintPrompt } from "@/services/brain/generationCon
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 import type { ExecutiveMarketingStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import { applyMarketingStrategyRefresh } from "@/services/brain/executiveCoherence/executiveMarketingStrategyBuilder";
+import { runArtifactQualityGateLoop } from "@/services/brain/executiveOutputReviewHelpers";
+import type { ExecutiveUnderstandingBundle } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import type { Discussion } from "@/services/discussionService";
 import type { Opportunity } from "@/services/opportunityService";
@@ -480,6 +482,46 @@ const LEGACY_PRODUCTION_SPECS_PROMPT =
 const LEGACY_ASSET_STANDARD_PROMPT =
   "Legacy fallback mode: apply professional structure, visual hierarchy, and executive polish.";
 
+function toUnderstandingBundle(bundle: GenerationBundle): ExecutiveUnderstandingBundle {
+  return {
+    brainContext: bundle.brainContext,
+    executiveReasoning: bundle.executiveReasoning,
+    executiveUnderstanding: bundle.executiveUnderstanding,
+    executiveStrategy: bundle.executiveStrategy,
+  };
+}
+
+function blueprintReviewText(parsed: ParsedAssetBlueprint): string {
+  return [
+    parsed.asset_title,
+    parsed.asset_type,
+    parsed.business_goal,
+    parsed.executive_rationale,
+    parsed.notes,
+    parsed.pdf_prompt,
+    parsed.image_prompt,
+    parsed.social_prompt,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function generateBlueprintWithQualityGate(input: {
+  effectiveBundle: GenerationBundle;
+  buildPrompt: (refinementSuffix: string) => string;
+}): Promise<{ parsed: ParsedAssetBlueprint; rawBlueprint: string }> {
+  const gated = await runArtifactQualityGateLoop({
+    bundle: toUnderstandingBundle(input.effectiveBundle),
+    artifactType: "strategic_blueprint",
+    generate: async (refinementSuffix) =>
+      generateReview(input.buildPrompt(refinementSuffix)),
+    parse: parseJsonResponse,
+    toReviewText: blueprintReviewText,
+  });
+
+  return { parsed: gated.parsed, rawBlueprint: gated.raw };
+}
+
 export async function createAssetBlueprintForBriefing(input: {
   discussion: Discussion;
   opportunity: Opportunity;
@@ -496,24 +538,35 @@ export async function createAssetBlueprintForBriefing(input: {
     briefingId: input.briefing.id,
   });
 
-  const prompt = effectiveBundle
-    ? assembleStrategicBlueprintPrompt({
-        bundle: effectiveBundle,
-        discussion: input.discussion as unknown as Record<string, unknown>,
-        opportunity: input.opportunity as unknown as Record<string, unknown>,
-        briefing: input.briefing as unknown as Record<string, unknown>,
-      })
-    : buildAssetBlueprintPrompt({
-        executiveContextPrompt: input.brainContextPrompt ?? "",
-        productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-        assetStandardPrompt: LEGACY_ASSET_STANDARD_PROMPT,
-        discussion: input.discussion as unknown as Record<string, unknown>,
-        opportunity: input.opportunity as unknown as Record<string, unknown>,
-        briefing: input.briefing as unknown as Record<string, unknown>,
-      });
+  let parsed: ParsedAssetBlueprint;
+  let rawBlueprint: string;
 
-  const rawBlueprint = await generateReview(prompt);
-  const parsed = parseJsonResponse(rawBlueprint);
+  if (effectiveBundle) {
+    const gated = await generateBlueprintWithQualityGate({
+      effectiveBundle,
+      buildPrompt: (refinementSuffix) =>
+        assembleStrategicBlueprintPrompt({
+          bundle: effectiveBundle,
+          discussion: input.discussion as unknown as Record<string, unknown>,
+          opportunity: input.opportunity as unknown as Record<string, unknown>,
+          briefing: input.briefing as unknown as Record<string, unknown>,
+          qualityRefinementSuffix: refinementSuffix,
+        }),
+    });
+    parsed = gated.parsed;
+    rawBlueprint = gated.rawBlueprint;
+  } else {
+    const prompt = buildAssetBlueprintPrompt({
+      executiveContextPrompt: input.brainContextPrompt ?? "",
+      productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
+      assetStandardPrompt: LEGACY_ASSET_STANDARD_PROMPT,
+      discussion: input.discussion as unknown as Record<string, unknown>,
+      opportunity: input.opportunity as unknown as Record<string, unknown>,
+      briefing: input.briefing as unknown as Record<string, unknown>,
+    });
+    rawBlueprint = await generateReview(prompt);
+    parsed = parseJsonResponse(rawBlueprint);
+  }
 
   return upsertAssetBlueprint({
     organizationId,
@@ -542,22 +595,33 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
     discussionId: input.discussion.id,
   });
 
-  const prompt = effectiveBundle
-    ? assembleStrategicBlueprintPrompt({
-        bundle: effectiveBundle,
-        discussion: input.discussion as unknown as Record<string, unknown>,
-        analysis: input.analysis as unknown as Record<string, unknown>,
-      })
-    : buildAssetBlueprintFromAnalysisPrompt({
-        executiveContextPrompt: input.brainContextPrompt ?? "",
-        productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-        assetStandardPrompt: LEGACY_ASSET_STANDARD_PROMPT,
-        discussion: input.discussion as unknown as Record<string, unknown>,
-        analysis: input.analysis as unknown as Record<string, unknown>,
-      });
+  let parsed: ParsedAssetBlueprint;
+  let rawBlueprint: string;
 
-  const rawBlueprint = await generateReview(prompt);
-  const parsed = parseJsonResponse(rawBlueprint);
+  if (effectiveBundle) {
+    const gated = await generateBlueprintWithQualityGate({
+      effectiveBundle,
+      buildPrompt: (refinementSuffix) =>
+        assembleStrategicBlueprintPrompt({
+          bundle: effectiveBundle,
+          discussion: input.discussion as unknown as Record<string, unknown>,
+          analysis: input.analysis as unknown as Record<string, unknown>,
+          qualityRefinementSuffix: refinementSuffix,
+        }),
+    });
+    parsed = gated.parsed;
+    rawBlueprint = gated.rawBlueprint;
+  } else {
+    const prompt = buildAssetBlueprintFromAnalysisPrompt({
+      executiveContextPrompt: input.brainContextPrompt ?? "",
+      productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
+      assetStandardPrompt: LEGACY_ASSET_STANDARD_PROMPT,
+      discussion: input.discussion as unknown as Record<string, unknown>,
+      analysis: input.analysis as unknown as Record<string, unknown>,
+    });
+    rawBlueprint = await generateReview(prompt);
+    parsed = parseJsonResponse(rawBlueprint);
+  }
 
   return upsertAssetBlueprint({
     organizationId,

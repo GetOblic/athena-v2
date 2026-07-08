@@ -1,5 +1,9 @@
 import { formatExecutiveIntelligenceForPrompt } from "@/services/brain/executiveIntelligenceHelpers";
 import { formatExecutiveInitiativeSelectionForPrompt } from "@/services/brain/executiveInitiativeSelectionHelpers";
+import {
+  formatExecutiveCampaignNarrativeForPrompt,
+  formatExecutiveOutputReviewForPrompt,
+} from "@/services/brain/executiveOutputReviewHelpers";
 import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
 import type { ExecutiveReasoning } from "@/services/brain/executiveReasoningTypes";
 import type { ExecutiveIntelligencePipeline } from "@/services/brain/executiveReasoningTypes";
@@ -489,6 +493,16 @@ export function formatExecutiveUnderstandingForPrompt(
     formatExecutiveIntelligenceForPrompt(understanding.executiveIntelligence),
     "",
     formatExecutiveInitiativeSelectionForPrompt(understanding.executiveInitiativeSelection),
+    "",
+    understanding.executiveCampaignNarrative
+      ? formatExecutiveCampaignNarrativeForPrompt(understanding.executiveCampaignNarrative)
+      : "",
+    understanding.executiveOutputReview && understanding.executiveCampaignNarrative
+      ? formatExecutiveOutputReviewForPrompt(
+          understanding.executiveOutputReview,
+          understanding.executiveCampaignNarrative,
+        )
+      : "",
     "",
     "INSTRUCTIONS:",
     "Express this executive understanding in generated language.",

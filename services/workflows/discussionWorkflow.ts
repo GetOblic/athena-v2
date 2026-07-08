@@ -31,6 +31,33 @@ import { getDiscussionById } from "@/services/discussionService";
 import { upsertOpportunityFromAnalysis } from "@/services/opportunityService";
 import { upsertReviewFromGeneration } from "@/services/reviewService";
 import { computeCompositeOpportunityScoreFromAnalysis } from "@/services/brain/executiveIntelligenceHelpers";
+import { runArtifactQualityGateLoop } from "@/services/brain/executiveOutputReviewHelpers";
+import type { ExecutiveUnderstandingBundle } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
+
+function toUnderstandingBundle(bundle: GenerationBundle): ExecutiveUnderstandingBundle {
+  return {
+    brainContext: bundle.brainContext,
+    executiveReasoning: bundle.executiveReasoning,
+    executiveUnderstanding: bundle.executiveUnderstanding,
+    executiveStrategy: bundle.executiveStrategy,
+  };
+}
+
+function analysisReviewText(parsed: GeneratedDiscussionAnalysis): string {
+  return [
+    parsed.summary,
+    parsed.opportunity_reason,
+    parsed.recommended_action,
+    parsed.suggested_cta,
+    parsed.opportunity_title,
+  ].join("\n");
+}
+
+function briefingReviewText(parsed: GeneratedReview): string {
+  return [parsed.summary, parsed.recommended_response, parsed.cta, parsed.pain_points].join(
+    "\n",
+  );
+}
 
 type GeneratedDiscussionAnalysis = {
   summary: string;
@@ -238,18 +265,34 @@ export async function processDiscussionEndToEnd(
     body: buildAnalysisThreadBody(discussion, threadUpdates),
   };
 
-  const analysisPrompt = analysisBundle
-    ? assembleDiscussionAnalysisPrompt({
-        bundle: analysisBundle,
-        discussion: analysisDiscussion,
-      })
-    : buildDiscussionAnalysisPrompt(
-        analysisDiscussion,
-        legacyBrainPrompt ?? "",
-      );
+  let parsedAnalysis: GeneratedDiscussionAnalysis;
+  let rawAnalysis: string;
 
-  const rawAnalysis = await generateReview(analysisPrompt);
-  const parsedAnalysis = parseAnalysis(rawAnalysis);
+  if (analysisBundle) {
+    const gated = await runArtifactQualityGateLoop({
+      bundle: toUnderstandingBundle(analysisBundle),
+      artifactType: "discussion_analysis",
+      generate: async (refinementSuffix) => {
+        const prompt = assembleDiscussionAnalysisPrompt({
+          bundle: analysisBundle,
+          discussion: analysisDiscussion,
+          qualityRefinementSuffix: refinementSuffix,
+        });
+        return generateReview(prompt);
+      },
+      parse: parseAnalysis,
+      toReviewText: analysisReviewText,
+    });
+    parsedAnalysis = gated.parsed;
+    rawAnalysis = gated.raw;
+  } else {
+    const analysisPrompt = buildDiscussionAnalysisPrompt(
+      analysisDiscussion,
+      legacyBrainPrompt ?? "",
+    );
+    rawAnalysis = await generateReview(analysisPrompt);
+    parsedAnalysis = parseAnalysis(rawAnalysis);
+  }
 
   const analysis = await createDiscussionAnalysis({
     organization_id: organizationId,
@@ -351,11 +394,31 @@ export async function processDiscussionEndToEnd(
     discussion.id,
     opportunity.id,
   );
-  const reviewPrompt = briefingBundle
-    ? assembleExecutiveBriefingPrompt({ bundle: briefingBundle, opportunity })
-    : buildOpportunityReviewPrompt(opportunity);
-  const rawReview = await generateReview(reviewPrompt);
-  const parsedReview = parseGeneratedReview(rawReview);
+
+  let parsedReview: GeneratedReview;
+  let rawReview: string;
+
+  if (briefingBundle) {
+    const gated = await runArtifactQualityGateLoop({
+      bundle: toUnderstandingBundle(briefingBundle),
+      artifactType: "executive_briefing",
+      generate: async (refinementSuffix) => {
+        const prompt = assembleExecutiveBriefingPrompt({
+          bundle: briefingBundle,
+          opportunity,
+          qualityRefinementSuffix: refinementSuffix,
+        });
+        return generateReview(prompt);
+      },
+      parse: parseGeneratedReview,
+      toReviewText: briefingReviewText,
+    });
+    parsedReview = gated.parsed;
+    rawReview = gated.raw;
+  } else {
+    rawReview = await generateReview(buildOpportunityReviewPrompt(opportunity));
+    parsedReview = parseGeneratedReview(rawReview);
+  }
 
   const review = await upsertReviewFromGeneration({
     organization_id: organizationId,

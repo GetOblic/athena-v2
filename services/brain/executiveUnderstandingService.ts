@@ -1,6 +1,9 @@
 import { buildBrainContext } from "@/services/brain/executiveContextBuilder";
 import { buildExecutiveStrategyFromUnderstanding } from "@/services/brain/executiveCoherence/executiveStrategyBuilder";
 import { buildExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingBuilder";
+import {
+  runExecutiveOutputQualityGate,
+} from "@/services/brain/executiveOutputReviewHelpers";
 import type {
   ExecutiveUnderstanding,
   ExecutiveUnderstandingBundle,
@@ -125,15 +128,15 @@ export async function resolveExecutiveUnderstandingBundle(
     executiveUnderstanding,
   });
 
-  const bundle: ExecutiveUnderstandingBundle = {
+  const qualityGatedBundle = runExecutiveOutputQualityGate({
     brainContext,
     executiveReasoning,
     executiveUnderstanding,
     executiveStrategy,
-  };
+  });
 
-  writeCache(cacheKey, bundle);
-  return bundle;
+  writeCache(cacheKey, qualityGatedBundle);
+  return qualityGatedBundle;
 }
 
 export async function getExecutiveUnderstanding(

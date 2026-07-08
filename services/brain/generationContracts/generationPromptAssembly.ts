@@ -19,27 +19,37 @@ import {
 import { assembleExecutiveGenerationContextBlock } from "@/services/brain/generationContracts/contractPromptFormatting";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 
+type PromptAssemblyOptions = {
+  qualityRefinementSuffix?: string;
+};
+
+function buildExecutiveContext(
+  bundle: GenerationBundle,
+  options?: PromptAssemblyOptions,
+): string {
+  return assembleExecutiveGenerationContextBlock({
+    executiveStrategy: bundle.executiveStrategy,
+    generationContract: bundle.generationContract,
+    executiveUnderstanding: bundle.executiveUnderstanding,
+    qualityRefinementSuffix: options?.qualityRefinementSuffix,
+  });
+}
+
 export function assembleDiscussionAnalysisPrompt(input: {
   bundle: GenerationBundle;
   discussion: Discussion;
+  qualityRefinementSuffix?: string;
 }): string {
-  const executiveContextBlock = assembleExecutiveGenerationContextBlock({
-    executiveStrategy: input.bundle.executiveStrategy,
-    generationContract: input.bundle.generationContract,
-  });
-
+  const executiveContextBlock = buildExecutiveContext(input.bundle, input);
   return buildDiscussionAnalysisPrompt(input.discussion, executiveContextBlock);
 }
 
 export function assembleExecutiveBriefingPrompt(input: {
   bundle: GenerationBundle;
   opportunity: Opportunity;
+  qualityRefinementSuffix?: string;
 }): string {
-  const executiveContextBlock = assembleExecutiveGenerationContextBlock({
-    executiveStrategy: input.bundle.executiveStrategy,
-    generationContract: input.bundle.generationContract,
-  });
-
+  const executiveContextBlock = buildExecutiveContext(input.bundle, input);
   const basePrompt = buildOpportunityReviewPrompt(input.opportunity);
   return `${basePrompt.trim()}\n\n=== ATHENA EXECUTIVE GENERATION CONTEXT ===\n${executiveContextBlock}`;
 }
@@ -47,6 +57,7 @@ export function assembleExecutiveBriefingPrompt(input: {
 export function assembleOpportunityReviewPrompt(input: {
   bundle: GenerationBundle;
   opportunity: Opportunity;
+  qualityRefinementSuffix?: string;
 }): string {
   return assembleExecutiveBriefingPrompt(input);
 }
@@ -57,11 +68,9 @@ export function assembleStrategicBlueprintPrompt(input: {
   opportunity?: Record<string, unknown>;
   briefing?: Record<string, unknown>;
   analysis?: Record<string, unknown>;
+  qualityRefinementSuffix?: string;
 }): string {
-  const executiveContextBlock = assembleExecutiveGenerationContextBlock({
-    executiveStrategy: input.bundle.executiveStrategy,
-    generationContract: input.bundle.generationContract,
-  });
+  const executiveContextBlock = buildExecutiveContext(input.bundle, input);
 
   const productionContext = buildStrategicBlueprintProductionContext(
     input.bundle.executiveUnderstanding,
@@ -101,11 +110,13 @@ export function assembleStrategicBlueprintPrompt(input: {
 export type DiscussionAnalysisPromptInput = {
   bundle: GenerationBundle;
   discussion: Discussion;
+  qualityRefinementSuffix?: string;
 };
 
 export type ExecutiveBriefingPromptInput = {
   bundle: GenerationBundle;
   opportunity: Opportunity;
+  qualityRefinementSuffix?: string;
 };
 
 export type StrategicBlueprintPromptInput = {
@@ -114,4 +125,5 @@ export type StrategicBlueprintPromptInput = {
   opportunity?: Opportunity | Record<string, unknown>;
   briefing?: AthenaReview | Record<string, unknown>;
   analysis?: DiscussionAnalysis | Record<string, unknown>;
+  qualityRefinementSuffix?: string;
 };

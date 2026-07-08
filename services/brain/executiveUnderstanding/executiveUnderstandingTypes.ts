@@ -3,7 +3,62 @@ import type { ExecutiveReasoning, ExecutiveIntelligencePipeline, RecommendedDire
 
 import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 
-export const EXECUTIVE_UNDERSTANDING_VERSION = "executive_understanding_v5_initiative_selection";
+export const EXECUTIVE_UNDERSTANDING_VERSION = "executive_understanding_v6_output_quality_gate";
+
+export type ExecutiveQualityDimensionScores = {
+  strategicOriginality: number;
+  businessLeverage: number;
+  executiveValue: number;
+  competitiveDifferentiation: number;
+  actionability: number;
+  founderUsefulness: number;
+  campaignPotential: number;
+  authority: number;
+  executionReadiness: number;
+  narrativeStrength: number;
+};
+
+export type ExecutiveQualityCategoryScores = {
+  strategicBlueprint: number;
+  deploymentAssets: number;
+  executiveRecommendation: number;
+  campaignCoherence: number;
+};
+
+export type ExecutiveMandatoryReviewAnswers = {
+  blueprintPassesCeoTest: boolean;
+  chatGptCouldGenerateSimilar: boolean;
+  demonstratesExpertise: boolean;
+  createsCompetitiveAdvantage: boolean;
+  winsOpportunity: boolean;
+  independentlyReplicable: boolean;
+  consultingFirmWouldCharge: boolean;
+  rejectsInformationalOnly: boolean;
+};
+
+export type ExecutiveCampaignNarrative = {
+  coreInsight: string;
+  strategicPosition: string;
+  campaignTheme: string;
+  executiveMessage: string;
+  deploymentSequence: string[];
+  narrativeFingerprint: string;
+};
+
+export type ExecutiveOutputReviewResult = {
+  reviewVersion: string;
+  refinementPass: number;
+  accepted: boolean;
+  dimensions: ExecutiveQualityDimensionScores;
+  categories: ExecutiveQualityCategoryScores;
+  mandatory: ExecutiveMandatoryReviewAnswers;
+  rejections: string[];
+  minimumThreshold: number;
+  compositeScore: number;
+  reviewerSummary: string;
+  qualityRefinementInstructions: string | null;
+  reviewedAt: string;
+};
 
 export type ExecutiveInitiativeCategory =
   | "product_improvement"
@@ -266,6 +321,8 @@ export type ExecutiveUnderstanding = {
   supportingEvidence: SupportingEvidence;
   executiveIntelligence: ExecutiveIntelligencePipeline;
   executiveInitiativeSelection: ExecutiveInitiativeSelection;
+  executiveCampaignNarrative?: ExecutiveCampaignNarrative;
+  executiveOutputReview?: ExecutiveOutputReviewResult;
 };
 
 export type BuildExecutiveUnderstandingParams = {

@@ -170,7 +170,10 @@ if (
   fail("Decision synthesis not synced to initiative");
 }
 
-if (EXECUTIVE_UNDERSTANDING_VERSION.includes("initiative_selection")) {
+if (
+  EXECUTIVE_UNDERSTANDING_VERSION.includes("initiative_selection") ||
+  EXECUTIVE_UNDERSTANDING_VERSION.includes("output_quality_gate")
+) {
   pass("Understanding version reflects initiative selection");
 } else {
   fail("Understanding version mismatch");

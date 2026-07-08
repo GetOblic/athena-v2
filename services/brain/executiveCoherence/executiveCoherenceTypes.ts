@@ -2,7 +2,7 @@ import type { GenerationWorkflowType } from "@/services/brain/generationContract
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 import type { ExecutiveRecommendation } from "@/services/brain/executiveReasoningTypes";
 
-export const EXECUTIVE_STRATEGY_VERSION = "executive_strategy_v6_initiative_selection";
+export const EXECUTIVE_STRATEGY_VERSION = "executive_strategy_v7_output_quality_gate";
 
 export type MarketingDeliverableRecommendation =
   | "Educational Guide"

@@ -1,11 +1,18 @@
 import { formatExecutiveStrategyForPrompt } from "@/services/brain/executiveCoherence/executiveCoherenceHelpers";
 import { formatOutputResponsibilityForPrompt } from "@/services/brain/executiveCoherence/outputResponsibilityContracts";
 import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
+import {
+  formatExecutiveCampaignNarrativeForPrompt,
+  formatExecutiveOutputReviewForPrompt,
+} from "@/services/brain/executiveOutputReviewHelpers";
+import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 import type { GenerationContract } from "@/services/brain/generationContracts/generationContractTypes";
 
 export function assembleExecutiveGenerationContextBlock(input: {
   executiveStrategy: ExecutiveStrategy;
   generationContract: GenerationContract;
+  executiveUnderstanding?: ExecutiveUnderstanding;
+  qualityRefinementSuffix?: string;
 }): string {
   const strategyBlock = formatExecutiveStrategyForPrompt(input.executiveStrategy);
   const responsibilityBlock = formatOutputResponsibilityForPrompt(
@@ -15,7 +22,37 @@ export function assembleExecutiveGenerationContextBlock(input: {
     input.generationContract,
   );
 
-  return [strategyBlock, responsibilityBlock, contractBlock].join("\n\n").trim();
+  const campaignBlock =
+    input.executiveUnderstanding?.executiveCampaignNarrative
+      ? formatExecutiveCampaignNarrativeForPrompt(
+          input.executiveUnderstanding.executiveCampaignNarrative,
+        )
+      : "";
+
+  const reviewBlock =
+    input.executiveUnderstanding?.executiveOutputReview &&
+    input.executiveUnderstanding.executiveCampaignNarrative
+      ? formatExecutiveOutputReviewForPrompt(
+          input.executiveUnderstanding.executiveOutputReview,
+          input.executiveUnderstanding.executiveCampaignNarrative,
+        )
+      : "";
+
+  const refinementBlock = input.qualityRefinementSuffix?.trim()
+    ? input.qualityRefinementSuffix.trim()
+    : "";
+
+  return [
+    strategyBlock,
+    campaignBlock,
+    reviewBlock,
+    responsibilityBlock,
+    contractBlock,
+    refinementBlock,
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
 }
 
 export function formatGenerationContractForPrompt(
