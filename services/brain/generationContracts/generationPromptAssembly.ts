@@ -20,7 +20,7 @@ export function assembleDiscussionAnalysisPrompt(input: {
   discussion: Discussion;
 }): string {
   const executiveContextBlock = assembleExecutiveGenerationContextBlock({
-    executiveUnderstanding: input.bundle.executiveUnderstanding,
+    executiveStrategy: input.bundle.executiveStrategy,
     generationContract: input.bundle.generationContract,
   });
 
@@ -32,7 +32,7 @@ export function assembleExecutiveBriefingPrompt(input: {
   opportunity: Opportunity;
 }): string {
   const executiveContextBlock = assembleExecutiveGenerationContextBlock({
-    executiveUnderstanding: input.bundle.executiveUnderstanding,
+    executiveStrategy: input.bundle.executiveStrategy,
     generationContract: input.bundle.generationContract,
   });
 
@@ -55,7 +55,7 @@ export function assembleStrategicBlueprintPrompt(input: {
   analysis?: Record<string, unknown>;
 }): string {
   const executiveContextBlock = assembleExecutiveGenerationContextBlock({
-    executiveUnderstanding: input.bundle.executiveUnderstanding,
+    executiveStrategy: input.bundle.executiveStrategy,
     generationContract: input.bundle.generationContract,
   });
 

@@ -2,6 +2,8 @@ import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
 import type { ExecutiveReasoning } from "@/services/brain/executiveReasoningTypes";
 import type { RecommendedDirectionKey } from "@/services/brain/executiveReasoningTypes";
 
+import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
+
 export const EXECUTIVE_UNDERSTANDING_VERSION = "executive_understanding_v1";
 
 export type UnderstandingEvidenceSource =
@@ -125,6 +127,7 @@ export type ExecutiveUnderstandingBundle = {
   brainContext: AthenaBrainContext;
   executiveReasoning: ExecutiveReasoning;
   executiveUnderstanding: ExecutiveUnderstanding;
+  executiveStrategy: ExecutiveStrategy;
 };
 
 export type ResolveExecutiveUnderstandingParams = {

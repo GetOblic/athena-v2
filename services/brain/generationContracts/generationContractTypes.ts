@@ -1,6 +1,7 @@
 import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
 import type { ExecutiveReasoning } from "@/services/brain/executiveReasoningTypes";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
+import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 
 export const GENERATION_CONTRACT_VERSION = "generation_contract_v1";
 
@@ -95,6 +96,7 @@ export type GenerationBundle = {
   brainContext: AthenaBrainContext;
   executiveReasoning: ExecutiveReasoning;
   executiveUnderstanding: ExecutiveUnderstanding;
+  executiveStrategy: ExecutiveStrategy;
   generationContract: GenerationContract;
 };
 

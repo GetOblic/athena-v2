@@ -1,19 +1,21 @@
-import { formatExecutiveUnderstandingForPrompt } from "@/services/brain/executiveUnderstandingService";
-import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
+import { formatExecutiveStrategyForPrompt } from "@/services/brain/executiveCoherence/executiveCoherenceHelpers";
+import { formatOutputResponsibilityForPrompt } from "@/services/brain/executiveCoherence/outputResponsibilityContracts";
+import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import type { GenerationContract } from "@/services/brain/generationContracts/generationContractTypes";
 
 export function assembleExecutiveGenerationContextBlock(input: {
-  executiveUnderstanding: ExecutiveUnderstanding;
+  executiveStrategy: ExecutiveStrategy;
   generationContract: GenerationContract;
 }): string {
-  const understandingBlock = formatExecutiveUnderstandingForPrompt(
-    input.executiveUnderstanding,
+  const strategyBlock = formatExecutiveStrategyForPrompt(input.executiveStrategy);
+  const responsibilityBlock = formatOutputResponsibilityForPrompt(
+    input.generationContract.purpose.workflowType,
   );
   const contractBlock = formatGenerationContractForPrompt(
     input.generationContract,
   );
 
-  return [understandingBlock, contractBlock].join("\n\n").trim();
+  return [strategyBlock, responsibilityBlock, contractBlock].join("\n\n").trim();
 }
 
 export function formatGenerationContractForPrompt(
@@ -59,7 +61,8 @@ export function formatGenerationContractForPrompt(
     "",
     "INSTRUCTIONS:",
     "Follow this contract exactly. Do not invent structure outside required sections.",
-    "Express the Executive Understanding above; do not reinterpret strategy independently.",
+    "Express the shared Executive Strategy through this deliverable's unique responsibility.",
+    "Do not copy wording or structure from other deliverable types.",
   ];
 
   return sections.filter(Boolean).join("\n").trim();

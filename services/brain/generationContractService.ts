@@ -57,6 +57,19 @@ export {
   validateSharedExecutiveUnderstanding,
 } from "@/services/brain/executiveUnderstandingService";
 
+export {
+  buildExecutiveStrategy,
+  formatExecutiveStrategyForPrompt,
+  formatOutputResponsibilityForPrompt,
+  validateOutputDiversity,
+  validateStrategyAlignment,
+  validateExecutiveOutputCoherence,
+  validateSharedExecutiveStrategy,
+  getOutputResponsibilityForWorkflow,
+} from "@/services/brain/executiveCoherenceService";
+
+export type { ExecutiveStrategy } from "@/services/brain/executiveCoherenceService";
+
 type CacheEntry = {
   bundle: GenerationBundle;
   expiresAt: number;
@@ -133,7 +146,7 @@ export async function resolveGenerationBundle(
     return null;
   }
 
-  const { brainContext, executiveReasoning, executiveUnderstanding } =
+  const { brainContext, executiveReasoning, executiveUnderstanding, executiveStrategy } =
     understandingBundle;
 
   const generationContract = buildGenerationContract({
@@ -147,6 +160,7 @@ export async function resolveGenerationBundle(
     brainContext,
     executiveReasoning,
     executiveUnderstanding,
+    executiveStrategy,
     generationContract,
   };
 

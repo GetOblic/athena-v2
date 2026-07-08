@@ -52,6 +52,12 @@ export {
   assembleStrategicBlueprintPrompt,
   assembleExecutiveGenerationContextBlock,
   formatExecutiveUnderstandingForPrompt,
+  buildExecutiveStrategy,
+  formatExecutiveStrategyForPrompt,
+  formatOutputResponsibilityForPrompt,
+  validateOutputDiversity,
+  validateExecutiveOutputCoherence,
+  validateSharedExecutiveStrategy,
 } from "@/services/brain/generationContractService";
 
 export type {
@@ -64,6 +70,8 @@ export type {
   ExecutiveUnderstanding,
   ExecutiveUnderstandingBundle,
 } from "@/services/brain/executiveUnderstandingService";
+
+export type { ExecutiveStrategy } from "@/services/brain/executiveCoherenceService";
 
 export type {
   ExecutiveLearningSummary,

@@ -1,4 +1,5 @@
 import { buildBrainContext } from "@/services/brain/executiveContextBuilder";
+import { buildExecutiveStrategyFromUnderstanding } from "@/services/brain/executiveCoherence/executiveStrategyBuilder";
 import { buildExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingBuilder";
 import type {
   ExecutiveUnderstanding,
@@ -118,10 +119,17 @@ export async function resolveExecutiveUnderstandingBundle(
     executiveReasoning,
   });
 
+  const executiveStrategy = buildExecutiveStrategyFromUnderstanding({
+    organizationId: params.organizationId,
+    discussionId: params.discussionId,
+    executiveUnderstanding,
+  });
+
   const bundle: ExecutiveUnderstandingBundle = {
     brainContext,
     executiveReasoning,
     executiveUnderstanding,
+    executiveStrategy,
   };
 
   writeCache(cacheKey, bundle);

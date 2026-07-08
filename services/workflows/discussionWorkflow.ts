@@ -13,6 +13,11 @@ import {
   assembleExecutiveBriefingPrompt,
   resolveGenerationBundle,
 } from "@/services/brain/generationContractService";
+import {
+  validateExecutiveOutputCoherence,
+  extractAdvisoryFields,
+  extractDeploymentFields,
+} from "@/services/brain/executiveCoherenceService";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 import { buildDiscussionAnalysisPrompt } from "@/services/ai/prompts/discussionAnalysisPrompt";
 import { buildOpportunityReviewPrompt } from "@/services/ai/prompts/opportunityReviewPrompt";
@@ -378,6 +383,33 @@ export async function processDiscussionEndToEnd(
     generationBundle: blueprintBundle,
     brainContextPrompt: legacyBrainPrompt ?? undefined,
   });
+
+  if (analysisBundle && briefingBundle) {
+    const coherence = validateExecutiveOutputCoherence({
+      strategies: [analysisBundle.executiveStrategy, briefingBundle.executiveStrategy],
+      outputs: [
+        {
+          type: "discussion_analysis",
+          text: extractAdvisoryFields(parsedAnalysis as unknown as Record<string, unknown>),
+        },
+        {
+          type: "executive_briefing",
+          text: extractAdvisoryFields(parsedReview as unknown as Record<string, unknown>),
+        },
+        {
+          type: "deployment_asset",
+          text: extractDeploymentFields(parsedReview.recommended_response),
+        },
+      ],
+    });
+
+    if (coherence.warnings.length > 0 || coherence.errors.length > 0) {
+      console.warn("Executive output coherence check:", {
+        errors: coherence.errors,
+        warnings: coherence.warnings,
+      });
+    }
+  }
 
   return {
     discussion,
