@@ -1,4 +1,5 @@
 import type { MarketingDeliverableRecommendation } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
+import { ensureExecutiveRecommendation } from "@/services/brain/executiveCoherence/executiveRecommendationContracts";
 import type {
   AssetStrategyAssessment,
   BuyerPsychologyAssessment,
@@ -388,12 +389,12 @@ export function buildExecutiveDecisionDocument(input: {
     businessObjective: input.generationObjectives.businessObjective,
     recommendedAssetType: input.strategicCritic.finalAssetType,
     assetSelectionReason: input.strategicCritic.revisedRecommendation
-      ? `${input.executiveRecommendation.whyThisAsset} ${input.strategicCritic.revisedRecommendation}`
-      : input.executiveRecommendation.whyThisAsset,
+      ? `${ensureExecutiveRecommendation(input.executiveRecommendation).whyThisAsset} ${input.strategicCritic.revisedRecommendation}`
+      : ensureExecutiveRecommendation(input.executiveRecommendation).whyThisAsset,
     positioningStrategy: input.generationObjectives.positioningObjective,
     successMetric:
       input.buyerPsychology.primarySuccessMetric ??
-      input.executiveRecommendation.expectedBusinessOutcome,
+      ensureExecutiveRecommendation(input.executiveRecommendation).expectedBusinessOutcome,
     marketPattern: input.marketPattern.analystSummary,
     generationObjectives: input.generationObjectives,
     reusability: input.reusability,

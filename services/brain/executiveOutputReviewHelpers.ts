@@ -206,10 +206,6 @@ function scoreCategories(input: {
 }): ExecutiveQualityCategoryScores {
   const { understanding, strategy, campaign, dimensions, artifactText } = input;
   const passBoost = (input.refinementPass ?? 0) * 0.75;
-  const productionContext = buildStrategicBlueprintProductionContext(
-    understanding,
-    strategy,
-  );
 
   let strategicBlueprint =
     (dimensions.strategicOriginality +
@@ -217,15 +213,25 @@ function scoreCategories(input: {
       dimensions.executionReadiness) /
     3;
 
-  if (productionContext.strategyFirst.executiveInitiative) strategicBlueprint += 0.5;
-  if (
-    TEMPLATE_ASSET_TYPES.has(productionContext.preferredAssetType) &&
-    !understanding.executiveInitiativeSelection.implementationStrategy.contentRequired
-  ) {
-    strategicBlueprint -= 2;
-  }
-  if (HIGH_LEVERAGE_ASSET_TYPES.has(productionContext.preferredAssetType)) {
-    strategicBlueprint += 1;
+  try {
+    const productionContext = buildStrategicBlueprintProductionContext(
+      understanding,
+      strategy,
+    );
+
+    if (productionContext.strategyFirst.executiveInitiative) strategicBlueprint += 0.5;
+    if (
+      TEMPLATE_ASSET_TYPES.has(productionContext.preferredAssetType) &&
+      !understanding.executiveInitiativeSelection.implementationStrategy.contentRequired
+    ) {
+      strategicBlueprint -= 2;
+    }
+    if (HIGH_LEVERAGE_ASSET_TYPES.has(productionContext.preferredAssetType)) {
+      strategicBlueprint += 1;
+    }
+  } catch (error) {
+    console.error("Strategic blueprint production context validation failed:", error);
+    strategicBlueprint = 1;
   }
 
   let deploymentAssets =

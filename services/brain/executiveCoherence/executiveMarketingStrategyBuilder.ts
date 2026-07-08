@@ -7,7 +7,7 @@ import type {
   MarketingDeliverableRecommendation,
   MarketingRecommendationIntent,
 } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
-import type { ExecutiveRecommendation } from "@/services/brain/executiveReasoningTypes";
+import { ensureExecutiveRecommendation } from "@/services/brain/executiveCoherence/executiveRecommendationContracts";
 
 export const DELIVERABLE_IMPLEMENTATION: Record<
   MarketingDeliverableRecommendation,
@@ -369,7 +369,17 @@ export function buildExecutiveMarketingStrategy(input: {
     progressionObjective: progression.objective,
   });
 
-  const intelligenceRecommendation = intelligence.executiveRecommendation;
+  const intelligenceRecommendation = ensureExecutiveRecommendation(
+    intelligence.executiveRecommendation,
+    {
+      initiativeLabel: initiative.selectedInitiative.initiativeLabel,
+      rationale: initiative.selectedInitiative.whyThisInitiative,
+      businessOutcome: initiative.selectedInitiative.expectedBusinessOutcome,
+      targetAudience: base.primaryAudience,
+      assetType: selection.deliverable,
+      whyNow: initiative.selectedInitiative.whyNow,
+    },
+  );
 
   const candidate: ExecutiveMarketingStrategy = {
     businessObjective: initiative.selectedInitiative.expectedBusinessOutcome || base.primaryObjective,
@@ -443,6 +453,21 @@ export function applyMarketingStrategyRefresh(input: {
   ) {
     return {
       ...previous,
+      executiveRecommendation: ensureExecutiveRecommendation(
+        previous.executiveRecommendation,
+        {
+          initiativeLabel: understanding.executiveInitiativeSelection.selectedInitiative
+            .initiativeLabel,
+          rationale:
+            understanding.executiveInitiativeSelection.selectedInitiative
+              .whyThisInitiative,
+          businessOutcome:
+            understanding.executiveInitiativeSelection.selectedInitiative
+              .expectedBusinessOutcome,
+          targetAudience: understanding.marketUnderstanding.buyerStage ?? "Primary buyer audience",
+          assetType: previous.recommendedPrimaryDeliverable,
+        },
+      ),
       recommendationConfidence: Math.max(
         previous.recommendationConfidence,
         candidate.recommendationConfidence,
@@ -458,6 +483,21 @@ export function applyMarketingStrategyRefresh(input: {
   if (!materiallyStronger) {
     return {
       ...previous,
+      executiveRecommendation: ensureExecutiveRecommendation(
+        previous.executiveRecommendation,
+        {
+          initiativeLabel: understanding.executiveInitiativeSelection.selectedInitiative
+            .initiativeLabel,
+          rationale:
+            understanding.executiveInitiativeSelection.selectedInitiative
+              .whyThisInitiative,
+          businessOutcome:
+            understanding.executiveInitiativeSelection.selectedInitiative
+              .expectedBusinessOutcome,
+          targetAudience: understanding.marketUnderstanding.buyerStage ?? "Primary buyer audience",
+          assetType: previous.recommendedPrimaryDeliverable,
+        },
+      ),
       recommendationConfidence: Math.max(
         previous.recommendationConfidence,
         candidate.recommendationConfidence,
@@ -472,6 +512,15 @@ export function applyMarketingStrategyRefresh(input: {
 
   return {
     ...candidate,
+    executiveRecommendation: ensureExecutiveRecommendation(candidate.executiveRecommendation, {
+      initiativeLabel: understanding.executiveInitiativeSelection.selectedInitiative.initiativeLabel,
+      rationale:
+        understanding.executiveInitiativeSelection.selectedInitiative.whyThisInitiative,
+      businessOutcome:
+        understanding.executiveInitiativeSelection.selectedInitiative.expectedBusinessOutcome,
+      targetAudience: understanding.marketUnderstanding.buyerStage ?? "Primary buyer audience",
+      assetType: candidate.recommendedPrimaryDeliverable,
+    }),
     refreshGuidance: {
       preserveStrategy: false,
       refreshMode: "change_direction",

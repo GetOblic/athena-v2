@@ -1,5 +1,9 @@
 import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import { formatMarketingRecommendationForPrompt } from "@/services/brain/executiveCoherence/marketingRecommendationContracts";
+import {
+  ensureExecutiveRecommendation,
+  formatExecutiveRecommendationForPrompt,
+} from "@/services/brain/executiveCoherence/executiveRecommendationContracts";
 
 export function formatExecutiveMarketingStrategyForPrompt(
   strategy: ExecutiveStrategy,
@@ -32,16 +36,18 @@ export function formatExecutiveMarketingStrategyForPrompt(
     `- Recommendation confidence: ${marketing.recommendationConfidence}`,
     `- Preferred implementation: ${marketing.preferredImplementationType}`,
     "",
-    "EXECUTIVE RECOMMENDATION:",
-    `- Why this asset: ${marketing.executiveRecommendation.whyThisAsset}`,
-    `- Why now: ${marketing.executiveRecommendation.whyNow}`,
-    `- Expected business outcome: ${marketing.executiveRecommendation.expectedBusinessOutcome}`,
-    `- Target audience: ${marketing.executiveRecommendation.targetAudience}`,
-    `- Conversion mechanism: ${marketing.executiveRecommendation.conversionMechanism}`,
-    `- Estimated effort: ${marketing.executiveRecommendation.estimatedEffort}`,
-    `- Reuse potential: ${marketing.executiveRecommendation.estimatedReusePotential}`,
+    formatExecutiveRecommendationForPrompt(marketing.executiveRecommendation, {
+      initiativeLabel: strategy.primaryObjective,
+      businessOutcome: marketing.businessObjective,
+      targetAudience: strategy.primaryAudience,
+      assetType: marketing.recommendedPrimaryDeliverable,
+      rationale: marketing.assetSelectionRationale.join(" ") || undefined,
+    }),
     `- Platform influence: ${marketing.platformInfluence.join("; ") || "Multi-platform"}`,
-    `- Asset selection rationale: ${marketing.assetSelectionRationale.join(" ") || marketing.executiveRecommendation.strategicRationale}`,
+    `- Asset selection rationale: ${
+      marketing.assetSelectionRationale.join(" ") ||
+      ensureExecutiveRecommendation(marketing.executiveRecommendation).strategicRationale
+    }`,
     marketing.refreshGuidance.preserveStrategy
       ? "- Refresh mode: improve execution quality (preserve strategic direction)"
       : `- Refresh mode: change direction — ${marketing.refreshGuidance.changeJustification ?? "materially stronger strategy identified"}`,

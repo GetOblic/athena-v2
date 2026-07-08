@@ -56,16 +56,16 @@ if (reviewSource.includes("runExecutiveOutputQualityGate")) {
   fail("Quality gate missing");
 }
 
-if (understandingServiceSource.includes("runExecutiveOutputQualityGate")) {
-  pass("Understanding bundle runs quality gate before cache");
+if (!understandingServiceSource.includes("runExecutiveOutputQualityGate")) {
+  pass("Understanding bundle bypasses legacy executive output quality gate");
 } else {
-  fail("Understanding service missing quality gate");
+  fail("Understanding service still runs legacy executive output quality gate");
 }
 
-if (workflowSource.includes("runArtifactQualityGateLoop")) {
-  pass("Workflow applies artifact quality gate before persistence");
+if (workflowSource.includes("runSimplifiedQualityGateLoop")) {
+  pass("Workflow applies simplified quality gate before persistence");
 } else {
-  fail("Workflow missing artifact quality gate");
+  fail("Workflow missing simplified quality gate");
 }
 
 if (blueprintServiceSource.includes("generateBlueprintWithQualityGate")) {

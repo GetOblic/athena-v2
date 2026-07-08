@@ -2,6 +2,7 @@ import type { RecommendedDirectionKey } from "@/services/brain/executiveReasonin
 import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import type { MarketingDeliverableRecommendation } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
+import { ensureExecutiveRecommendation } from "@/services/brain/executiveCoherence/executiveRecommendationContracts";
 
 export const STRATEGIC_BLUEPRINT_SPECS_VERSION = "strategic_blueprint_specs_v5_quality_gate";
 
@@ -406,22 +407,29 @@ export function buildStrategicBlueprintProductionContext(
     buyerStage: understanding.marketUnderstanding.buyerStage,
     priorityLevel: understanding.priorityUnderstanding.level,
   });
-  const preferredAssetType = marketing.preferredImplementationType;
+  const preferredAssetType = marketing.preferredImplementationType || "pdf_guide";
   const primaryPainPoint =
     understanding.marketUnderstanding.painPoints[0] ?? null;
   const coreMessage =
-    understanding.strategicUnderstanding.primaryExecutiveObjective;
+    understanding.strategicUnderstanding.primaryExecutiveObjective ||
+    "Advance the executive initiative with measurable business impact.";
   const desiredTransformation = [
-    marketing.buyerProgressionGoal.transitionObjective,
-    `Move from ${marketing.buyerProgressionGoal.currentStage} to ${marketing.buyerProgressionGoal.desiredNextStage}.`,
-  ].join(" ");
+    marketing.buyerProgressionGoal?.transitionObjective ??
+      "Move the buyer to the next meaningful stage.",
+    marketing.buyerProgressionGoal?.currentStage &&
+    marketing.buyerProgressionGoal?.desiredNextStage
+      ? `Move from ${marketing.buyerProgressionGoal.currentStage} to ${marketing.buyerProgressionGoal.desiredNextStage}.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   const executiveRationale = [
-    ...marketing.strategicRationale,
+    ...(marketing.strategicRationale ?? []),
     understanding.strategicUnderstanding.recommendedExecutiveAction,
   ]
     .filter(Boolean)
     .join(" ");
-  const supportingEvidence = understanding.supportingEvidence.entries.map(
+  const supportingEvidence = (understanding.supportingEvidence?.entries ?? []).map(
     (entry) => `${entry.label}: ${entry.detail}`,
   );
 
@@ -464,7 +472,7 @@ export function buildStrategicBlueprintProductionContext(
         : ""),
     contentDepth: SOPHISTICATION_DEPTH[sophisticationLevel],
     brandTone,
-    ctaObjective: marketing.conversionObjective,
+    ctaObjective: marketing.conversionObjective || "Drive one clear next action.",
     distributionChannel: resolveDistributionChannel(understanding),
     reuseStrategy: `Repurpose across ${resolveDistributionChannel(understanding)} Estimated reuse: adapt core asset into social, email, and community formats.`,
   };
@@ -477,40 +485,88 @@ export function buildStrategicBlueprintProductionContext(
   });
 
   const intelligence = understanding.executiveIntelligence;
-  const decision = intelligence.executiveDecisionSynthesis.selectedDecision;
-  const decisionDocument = decision.decisionDocument;
+  const decision = intelligence?.executiveDecisionSynthesis?.selectedDecision;
+  const decisionDocument = decision?.decisionDocument;
   const initiative = understanding.executiveInitiativeSelection;
-  const selected = initiative.selectedInitiative;
-  const marketingRecommendation = marketing.executiveRecommendation;
+  const selected = initiative?.selectedInitiative;
+  const implementation = initiative?.implementationStrategy;
+  const marketingRecommendation = ensureExecutiveRecommendation(
+    marketing.executiveRecommendation,
+    {
+      initiativeLabel: selected?.initiativeLabel,
+      rationale: selected?.whyThisInitiative,
+      businessOutcome: selected?.expectedBusinessOutcome,
+      targetAudience: understanding.marketUnderstanding.buyerStage ?? undefined,
+      assetType: marketing.recommendedPrimaryDeliverable,
+      whyNow: selected?.whyNow,
+    },
+  );
+
+  const hiddenProblem =
+    decisionDocument?.hiddenMarketProblem ??
+    intelligence?.hiddenProblem?.hiddenMarketProblem ??
+    primaryPainPoint ??
+    "Unresolved market problem from current discussion intelligence.";
 
   const highestProbabilityAction = inferHighestProbabilityAction({
-    initiative: selected,
-    implementation: initiative.implementationStrategy,
-    marketing,
-    hiddenProblem: decisionDocument.hiddenMarketProblem,
+    initiative: {
+      initiativeLabel: selected?.initiativeLabel ?? "Executive initiative",
+      initiativeCategory: selected?.initiativeCategory ?? "market_education",
+      whyThisInitiative:
+        selected?.whyThisInitiative ?? marketingRecommendation.whyThisAsset,
+    },
+    implementation: {
+      implementationDeliverable:
+        implementation?.implementationDeliverable ?? preferredAssetType,
+      deploymentApproach:
+        implementation?.deploymentApproach ?? "Multi-channel executive deployment.",
+    },
+    marketing: {
+      recommendedPrimaryDeliverable: marketing.recommendedPrimaryDeliverable,
+      marketingObjective: marketing.marketingObjective,
+    },
+    hiddenProblem,
   });
 
   const strategyFirst: StrategyFirstBlueprintSpecification = {
-    executiveInitiative: selected.initiativeLabel,
-    initiativeCategory: selected.initiativeCategory,
+    executiveInitiative: selected?.initiativeLabel ?? "Executive initiative",
+    initiativeCategory: selected?.initiativeCategory ?? "market_education",
     highestProbabilityAction,
-    businessObjective: selected.expectedBusinessOutcome,
-    marketProblem: decisionDocument.hiddenMarketProblem,
-    strategicHypothesis: intelligence.contrarianThinking.strategicReframe,
-    competitiveAdvantage: decisionDocument.competitiveAdvantage,
-    customerTransformation: selected.expectedCustomerOutcome,
-    evidenceSupportingDecision: selected.evidenceFromDiscussion,
+    businessObjective:
+      selected?.expectedBusinessOutcome ??
+      marketing.businessObjective ??
+      coreMessage,
+    marketProblem: hiddenProblem,
+    strategicHypothesis:
+      intelligence?.contrarianThinking?.strategicReframe ??
+      "Strategic hypothesis derived from current executive intelligence.",
+    competitiveAdvantage:
+      decisionDocument?.competitiveAdvantage ??
+      intelligence?.strategicDifferentiation?.differentiationStatement ??
+      "Differentiated executive positioning.",
+    customerTransformation:
+      selected?.expectedCustomerOutcome ??
+      decision?.expectedCustomerOutcome ??
+      desiredTransformation,
+    evidenceSupportingDecision:
+      selected?.evidenceFromDiscussion?.length
+        ? selected.evidenceFromDiscussion
+        : supportingEvidence.length
+          ? supportingEvidence
+          : ["Current discussion and business identity"],
     successMetrics: {
-      primaryKpi: selected.primarySuccessMetric,
-      secondaryKpis: [selected.secondarySuccessMetric],
+      primaryKpi: selected?.primarySuccessMetric ?? "Qualified pipeline progression",
+      secondaryKpis: [selected?.secondarySuccessMetric ?? "Engagement quality"].filter(
+        Boolean,
+      ) as string[],
     },
     risks: [
-      selected.riskLevel === "high"
+      selected?.riskLevel === "high"
         ? "High execution risk — validate assumptions before full deployment."
-        : selected.riskLevel === "medium"
+        : selected?.riskLevel === "medium"
           ? "Moderate risk — monitor early signals before scaling."
           : "Low risk — standard deployment safeguards apply.",
-      initiative.businessBeforeContent.contentRequired
+      initiative?.businessBeforeContent?.contentRequired
         ? "Content dependency — ensure implementation asset matches initiative scope."
         : "Business-change initiative — content is secondary to process/positioning execution.",
     ],
@@ -521,25 +577,31 @@ export function buildStrategicBlueprintProductionContext(
           ? "Moderate ROI within current market cycle."
           : "Targeted ROI — near-term tactical impact.",
     implementationRoadmap: [
-      `1. Launch ${selected.initiativeLabel} as the executive north star.`,
-      `2. Deploy ${initiative.implementationStrategy.implementationDeliverable} as implementation vehicle.`,
-      `3. Measure ${selected.primarySuccessMetric}.`,
-      `4. Iterate based on ${selected.secondarySuccessMetric}.`,
+      `1. Launch ${selected?.initiativeLabel ?? "the executive initiative"} as the executive north star.`,
+      `2. Deploy ${implementation?.implementationDeliverable ?? preferredAssetType} as implementation vehicle.`,
+      `3. Measure ${selected?.primarySuccessMetric ?? "primary success metric"}.`,
+      `4. Iterate based on ${selected?.secondarySuccessMetric ?? "secondary success signals"}.`,
     ],
   };
 
   const executiveSpecification: ExecutiveBlueprintSpecification = {
     strategicObjective: strategyFirst.businessObjective,
     businessProblemSolved: strategyFirst.marketProblem,
-    assetSelectionReason: `Production implements initiative "${strategyFirst.executiveInitiative}" — ${initiative.implementationStrategy.rationale}`,
-    targetPsychologicalOutcome: decision.expectedCustomerOutcome,
-    primaryCta: decisionDocument.generationObjectives.callToActionObjective,
+    assetSelectionReason: `Production implements initiative "${strategyFirst.executiveInitiative}" — ${implementation?.rationale ?? marketingRecommendation.whyThisAsset}`,
+    targetPsychologicalOutcome:
+      decision?.expectedCustomerOutcome ??
+      selected?.expectedCustomerOutcome ??
+      "Increase buyer confidence and readiness to act.",
+    primaryCta:
+      decisionDocument?.generationObjectives?.callToActionObjective ??
+      marketing.conversionObjective ??
+      "Take the recommended next step.",
     contentArchitecture:
       generationInstructions.sectionHierarchy +
       " " +
       generationInstructions.layoutExpectations,
     repurposingOpportunities: production.reuseStrategy,
-    businessKpi: decisionDocument.successMetric,
+    businessKpi: decisionDocument?.successMetric ?? selected?.primarySuccessMetric ?? "Pipeline progression",
     estimatedProductionEffort: marketingRecommendation.estimatedEffort,
     expectedLifespan:
       marketingRecommendation.estimatedReusePotential === "high"

@@ -1,4 +1,11 @@
 import { generateReview } from "@/services/aiService";
+import {
+  normalizeStrategicBlueprintArtifact,
+  strategicBlueprintReviewText,
+  validateStrategicBlueprintArtifact,
+  type StrategicBlueprintArtifact,
+} from "@/services/assetBlueprints/strategicBlueprintArtifactContract";
+import { runSimplifiedQualityGateLoop, validateArtifactOutput } from "@/services/brain/reasoningPipeline/simplifiedQualityGate";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   ASSET_BLUEPRINT_PROMPT_VERSION,
@@ -9,12 +16,12 @@ import { assembleStrategicBlueprintPrompt } from "@/services/brain/generationCon
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 import type { ExecutiveMarketingStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import { applyMarketingStrategyRefresh } from "@/services/brain/executiveCoherence/executiveMarketingStrategyBuilder";
-import { runArtifactQualityGateLoop } from "@/services/brain/executiveOutputReviewHelpers";
-import type { ExecutiveUnderstandingBundle } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import type { Discussion } from "@/services/discussionService";
 import type { Opportunity } from "@/services/opportunityService";
 import type { AthenaReview } from "@/services/reviewService";
+
+export type { StrategicBlueprintArtifact } from "@/services/assetBlueprints/strategicBlueprintArtifactContract";
 
 export type AthenaAssetBlueprint = {
   id: string;
@@ -38,100 +45,12 @@ export type AthenaAssetBlueprint = {
   updated_at: string;
 };
 
-type ParsedAssetBlueprint = {
-  asset_title: string;
-  asset_type: string;
-  business_goal: string;
-  target_audience: string;
-  priority: string;
-  estimated_reuse: number;
-  image_prompt: string;
-  pdf_prompt: string;
-  social_prompt: string;
-  notes: string;
-  asset_objective?: string;
-  business_objective?: string;
-  buyer_stage?: string;
-  primary_pain_point?: string;
-  core_message?: string;
-  desired_transformation?: string;
-  executive_rationale?: string;
-  supporting_evidence?: string[];
-  sophistication_level?: string;
-  strategic_angle?: string;
-  production_specs?: Record<string, unknown>;
-};
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((entry) => String(entry ?? "").trim())
-    .filter(Boolean);
-}
+type ParsedAssetBlueprint = StrategicBlueprintArtifact;
 
 function normalizeParsedAssetBlueprint(
   parsed: Record<string, unknown>,
 ): ParsedAssetBlueprint {
-  const assetObjective = String(
-    parsed.asset_objective ?? parsed.core_message ?? "",
-  );
-  const businessObjective = String(
-    parsed.business_objective ?? parsed.business_goal ?? "",
-  );
-  const executiveRationale = String(parsed.executive_rationale ?? "");
-  const supportingEvidence = asStringArray(parsed.supporting_evidence);
-  const sophisticationLevel = String(parsed.sophistication_level ?? "");
-  const strategicAngle = String(parsed.strategic_angle ?? "");
-  const buyerStage = String(parsed.buyer_stage ?? "");
-  const primaryPainPoint = String(parsed.primary_pain_point ?? "");
-
-  const businessGoal =
-    String(parsed.business_goal ?? "").trim() ||
-    [assetObjective, businessObjective].filter(Boolean).join("\n\n");
-
-  const targetAudience =
-    String(parsed.target_audience ?? "").trim() ||
-    [buyerStage, sophisticationLevel].filter(Boolean).join(" — ");
-
-  const notesParts = [
-    executiveRationale ? `Executive rationale: ${executiveRationale}` : "",
-    strategicAngle ? `Strategic angle: ${strategicAngle}` : "",
-    primaryPainPoint ? `Primary pain point: ${primaryPainPoint}` : "",
-    supportingEvidence.length
-      ? `Supporting evidence: ${supportingEvidence.join("; ")}`
-      : "",
-    String(parsed.notes ?? ""),
-  ].filter(Boolean);
-
-  return {
-    asset_title: String(parsed.asset_title ?? "Strategic Asset"),
-    asset_type: String(parsed.asset_type ?? "pdf_guide"),
-    business_goal: businessGoal,
-    target_audience: targetAudience,
-    priority: String(parsed.priority ?? "medium"),
-    estimated_reuse: Math.max(1, Math.min(5, Number(parsed.estimated_reuse ?? 3))),
-    image_prompt: String(parsed.image_prompt ?? ""),
-    pdf_prompt: String(parsed.pdf_prompt ?? ""),
-    social_prompt: String(parsed.social_prompt ?? ""),
-    notes: notesParts.join("\n\n"),
-    asset_objective: assetObjective || undefined,
-    business_objective: businessObjective || undefined,
-    buyer_stage: buyerStage || undefined,
-    primary_pain_point: primaryPainPoint || undefined,
-    core_message: String(parsed.core_message ?? "") || undefined,
-    desired_transformation: String(parsed.desired_transformation ?? "") || undefined,
-    executive_rationale: executiveRationale || undefined,
-    supporting_evidence: supportingEvidence.length ? supportingEvidence : undefined,
-    sophistication_level: sophisticationLevel || undefined,
-    strategic_angle: strategicAngle || undefined,
-    production_specs:
-      parsed.production_specs && typeof parsed.production_specs === "object"
-        ? (parsed.production_specs as Record<string, unknown>)
-        : undefined,
-  };
+  return normalizeStrategicBlueprintArtifact(parsed);
 }
 
 function extractStoredMarketingStrategy(
@@ -504,28 +423,30 @@ const LEGACY_PRODUCTION_SPECS_PROMPT =
 const LEGACY_ASSET_STANDARD_PROMPT =
   "Legacy fallback mode: apply professional structure, visual hierarchy, and executive polish.";
 
-function toUnderstandingBundle(bundle: GenerationBundle): ExecutiveUnderstandingBundle {
-  return {
-    brainContext: bundle.brainContext,
-    executiveReasoning: bundle.executiveReasoning,
-    executiveUnderstanding: bundle.executiveUnderstanding,
-    executiveStrategy: bundle.executiveStrategy,
-  };
-}
 
 function blueprintReviewText(parsed: ParsedAssetBlueprint): string {
-  return [
-    parsed.asset_title,
-    parsed.asset_type,
-    parsed.business_goal,
-    parsed.executive_rationale,
+  return strategicBlueprintReviewText(parsed);
+}
+
+function enrichBlueprintFromDecision(
+  parsed: ParsedAssetBlueprint,
+  bundle: GenerationBundle,
+): ParsedAssetBlueprint {
+  const decision = bundle.reasoningPipeline.decision;
+  const notesParts = [
     parsed.notes,
-    parsed.pdf_prompt,
-    parsed.image_prompt,
-    parsed.social_prompt,
-  ]
-    .filter(Boolean)
-    .join("\n");
+    decision.whyThisAsset ? `Why this asset: ${decision.whyThisAsset}` : "",
+    decision.rationale ? `Evidence basis: ${decision.rationale}` : "",
+  ].filter(Boolean);
+
+  return {
+    ...parsed,
+    asset_type: parsed.asset_type || decision.recommendedAssetType,
+    business_goal: parsed.business_goal || decision.intendedOutcome,
+    target_audience: parsed.target_audience || decision.targetAudience,
+    notes: notesParts.join("\n\n"),
+    executive_rationale: parsed.executive_rationale || decision.whyThisBeatsAlternatives,
+  };
 }
 
 async function generateBlueprintWithQualityGate(input: {
@@ -533,16 +454,29 @@ async function generateBlueprintWithQualityGate(input: {
   buildPrompt: (refinementSuffix: string) => string;
 }): Promise<{ parsed: ParsedAssetBlueprint; rawBlueprint: string }> {
   try {
-    const gated = await runArtifactQualityGateLoop({
-      bundle: toUnderstandingBundle(input.effectiveBundle),
-      artifactType: "strategic_blueprint",
+    const gated = await runSimplifiedQualityGateLoop({
       generate: async (refinementSuffix) =>
         generateReview(input.buildPrompt(refinementSuffix)),
       parse: parseJsonResponse,
+      validate: (parsed, text) => {
+        const validation = validateStrategicBlueprintArtifact(
+          parsed as unknown as Record<string, unknown>,
+        );
+        if (!validation.valid) {
+          return validation;
+        }
+        return validateArtifactOutput({
+          text,
+          businessDecision: input.effectiveBundle.reasoningPipeline.decision,
+        });
+      },
       toReviewText: blueprintReviewText,
     });
 
-    return { parsed: gated.parsed, rawBlueprint: gated.raw };
+    return {
+      parsed: enrichBlueprintFromDecision(gated.parsed, input.effectiveBundle),
+      rawBlueprint: gated.raw,
+    };
   } catch (error) {
     console.error("Strategic blueprint quality gate failed:", error);
     throw error;

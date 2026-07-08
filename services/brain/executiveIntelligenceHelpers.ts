@@ -1,5 +1,6 @@
 import type { OpportunityPriorityKey } from "@/lib/opportunityPriority";
 import type { MarketingDeliverableRecommendation } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
+import { ensureExecutiveRecommendation } from "@/services/brain/executiveCoherence/executiveRecommendationContracts";
 import {
   extractAudienceSignalsFromMasterProfile,
   extractTerminologyFromMasterProfile,
@@ -1250,13 +1251,13 @@ export function formatExecutiveIntelligenceForPrompt(
       : "",
     "",
     "7. EXECUTIVE RECOMMENDATION:",
-    `- Why this asset: ${pipeline.executiveRecommendation.whyThisAsset}`,
-    `- Why now: ${pipeline.executiveRecommendation.whyNow}`,
-    `- Expected outcome: ${pipeline.executiveRecommendation.expectedBusinessOutcome}`,
-    `- Target audience: ${pipeline.executiveRecommendation.targetAudience}`,
-    `- Conversion mechanism: ${pipeline.executiveRecommendation.conversionMechanism}`,
-    `- Estimated effort: ${pipeline.executiveRecommendation.estimatedEffort}`,
-    `- Reuse potential: ${pipeline.executiveRecommendation.estimatedReusePotential}`,
+    `- Why this asset: ${ensureExecutiveRecommendation(pipeline.executiveRecommendation).whyThisAsset}`,
+    `- Why now: ${ensureExecutiveRecommendation(pipeline.executiveRecommendation).whyNow}`,
+    `- Expected outcome: ${ensureExecutiveRecommendation(pipeline.executiveRecommendation).expectedBusinessOutcome}`,
+    `- Target audience: ${ensureExecutiveRecommendation(pipeline.executiveRecommendation).targetAudience}`,
+    `- Conversion mechanism: ${ensureExecutiveRecommendation(pipeline.executiveRecommendation).conversionMechanism}`,
+    `- Estimated effort: ${ensureExecutiveRecommendation(pipeline.executiveRecommendation).estimatedEffort}`,
+    `- Reuse potential: ${ensureExecutiveRecommendation(pipeline.executiveRecommendation).estimatedReusePotential}`,
     "",
     "8. OPPORTUNITY QUALITY (multi-dimensional):",
     `- Composite score: ${pipeline.opportunityQuality.compositeScore}`,

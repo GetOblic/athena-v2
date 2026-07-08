@@ -17,6 +17,7 @@ import {
   resolveAssetStandard,
 } from "@/services/brain/assetStandards/assetStandardRegistry";
 import { assembleExecutiveGenerationContextBlock } from "@/services/brain/generationContracts/contractPromptFormatting";
+import { formatReasoningPipelineForPrompt } from "@/services/brain/reasoningPipeline/reasoningPipelinePromptFormatting";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 
 type PromptAssemblyOptions = {
@@ -27,12 +28,15 @@ function buildExecutiveContext(
   bundle: GenerationBundle,
   options?: PromptAssemblyOptions,
 ): string {
-  return assembleExecutiveGenerationContextBlock({
+  const pipelineBlock = formatReasoningPipelineForPrompt(bundle.reasoningPipeline);
+  const strategyBlock = assembleExecutiveGenerationContextBlock({
     executiveStrategy: bundle.executiveStrategy,
     generationContract: bundle.generationContract,
     executiveUnderstanding: bundle.executiveUnderstanding,
     qualityRefinementSuffix: options?.qualityRefinementSuffix,
   });
+
+  return [pipelineBlock, strategyBlock].filter(Boolean).join("\n\n").trim();
 }
 
 export function assembleDiscussionAnalysisPrompt(input: {

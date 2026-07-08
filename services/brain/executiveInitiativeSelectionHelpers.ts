@@ -1,4 +1,5 @@
 import type { MarketingDeliverableRecommendation } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
+import { ensureExecutiveRecommendation } from "@/services/brain/executiveCoherence/executiveRecommendationContracts";
 import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
 import type {
   BusinessBeforeContentAssessment,
@@ -1078,13 +1079,16 @@ export function syncIntelligenceWithInitiativeSelection(input: {
         ? "Initiative diversity safeguard applied."
         : intelligence.assetStrategy.diversityAdjustment,
     },
-    executiveRecommendation: {
-      ...intelligence.executiveRecommendation,
-      whyThisAsset: `Implementation vehicle for ${selected.initiativeLabel}. ${implementation.rationale}`,
-      whyNow: selected.whyNow,
-      expectedBusinessOutcome: selected.expectedBusinessOutcome,
-      strategicRationale: selected.whyThisInitiative,
-    },
+    executiveRecommendation: ensureExecutiveRecommendation(
+      intelligence.executiveRecommendation,
+      {
+        initiativeLabel: selected.initiativeLabel,
+        rationale: implementation.rationale,
+        businessOutcome: selected.expectedBusinessOutcome,
+        assetType: deliverable,
+        whyNow: selected.whyNow,
+      },
+    ),
     executiveDecisionSynthesis: updatedSynthesis,
     executiveCognition: {
       ...intelligence.executiveCognition,

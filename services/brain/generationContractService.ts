@@ -3,6 +3,7 @@ import {
   clearExecutiveUnderstandingCache,
 } from "@/services/brain/executiveUnderstandingService";
 import { buildGenerationContract } from "@/services/brain/generationContracts/contractBuilder";
+import { buildReasoningPipeline } from "@/services/brain/reasoningPipeline/reasoningPipelineOrchestrator";
 import {
   assertGenerationContractOrganization,
   validateGenerationContract,
@@ -156,12 +157,19 @@ export async function resolveGenerationBundle(
     executiveReasoning,
   });
 
+  const reasoningPipeline = buildReasoningPipeline({
+    organizationId: params.organizationId,
+    discussionId: params.discussionId ?? null,
+    brainContext,
+  });
+
   const bundle: GenerationBundle = {
     brainContext,
     executiveReasoning,
     executiveUnderstanding,
     executiveStrategy,
     generationContract,
+    reasoningPipeline,
   };
 
   writeCache(cacheKey, bundle);

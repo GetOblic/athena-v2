@@ -31,17 +31,7 @@ import { getDiscussionById } from "@/services/discussionService";
 import { upsertOpportunityFromAnalysis } from "@/services/opportunityService";
 import { upsertReviewFromGeneration } from "@/services/reviewService";
 import { computeCompositeOpportunityScoreFromAnalysis } from "@/services/brain/executiveIntelligenceHelpers";
-import { runArtifactQualityGateLoop } from "@/services/brain/executiveOutputReviewHelpers";
-import type { ExecutiveUnderstandingBundle } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
-
-function toUnderstandingBundle(bundle: GenerationBundle): ExecutiveUnderstandingBundle {
-  return {
-    brainContext: bundle.brainContext,
-    executiveReasoning: bundle.executiveReasoning,
-    executiveUnderstanding: bundle.executiveUnderstanding,
-    executiveStrategy: bundle.executiveStrategy,
-  };
-}
+import { runSimplifiedQualityGateLoop } from "@/services/brain/reasoningPipeline/simplifiedQualityGate";
 
 function analysisReviewText(parsed: GeneratedDiscussionAnalysis): string {
   return [
@@ -302,9 +292,7 @@ async function processDiscussionEndToEndInternal(
 
   if (analysisBundle) {
     try {
-      const gated = await runArtifactQualityGateLoop({
-        bundle: toUnderstandingBundle(analysisBundle),
-        artifactType: "discussion_analysis",
+      const gated = await runSimplifiedQualityGateLoop({
         generate: async (refinementSuffix) => {
           const prompt = assembleDiscussionAnalysisPrompt({
             bundle: analysisBundle,
@@ -314,6 +302,10 @@ async function processDiscussionEndToEndInternal(
           return generateReview(prompt);
         },
         parse: parseAnalysis,
+        validate: (_parsed, text) => ({
+          valid: text.trim().length > 0,
+          errors: text.trim() ? [] : ["Analysis output is empty."],
+        }),
         toReviewText: analysisReviewText,
       });
       parsedAnalysis = gated.parsed;
@@ -445,9 +437,7 @@ async function processDiscussionEndToEndInternal(
 
   if (briefingBundle) {
     try {
-      const gated = await runArtifactQualityGateLoop({
-        bundle: toUnderstandingBundle(briefingBundle),
-        artifactType: "executive_briefing",
+      const gated = await runSimplifiedQualityGateLoop({
         generate: async (refinementSuffix) => {
           const prompt = assembleExecutiveBriefingPrompt({
             bundle: briefingBundle,
@@ -457,6 +447,10 @@ async function processDiscussionEndToEndInternal(
           return generateReview(prompt);
         },
         parse: parseGeneratedReview,
+        validate: (_parsed, text) => ({
+          valid: text.trim().length > 0,
+          errors: text.trim() ? [] : ["Briefing output is empty."],
+        }),
         toReviewText: briefingReviewText,
       });
       parsedReview = gated.parsed;
