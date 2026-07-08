@@ -1,11 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-export const LIANA_DEMO_ORGANIZATION_ID =
-  "a0000000-0000-4000-8000-000000000001";
-
-export const LIANA_DEMO_ORGANIZATION_SLUG = "liana";
-
 export type Organization = {
   id: string;
   name: string;
@@ -96,7 +91,7 @@ export async function getOrganizationMembership(userId: string) {
   return data;
 }
 
-export async function resolveOrganizationIdForUser(
+export async function provisionTenantForAuthenticatedUser(
   userId: string,
   email?: string | null,
 ): Promise<string> {
@@ -107,6 +102,13 @@ export async function resolveOrganizationIdForUser(
   }
 
   return createOrganizationForUser(userId, email);
+}
+
+export async function resolveOrganizationIdForUser(
+  userId: string,
+  email?: string | null,
+): Promise<string> {
+  return provisionTenantForAuthenticatedUser(userId, email);
 }
 
 export async function getCurrentUserId(): Promise<string | null> {
@@ -133,7 +135,7 @@ export async function requireCurrentOrganizationContext(): Promise<OrganizationC
     throw new OrganizationAccessError("Authentication required.");
   }
 
-  const organizationId = await resolveOrganizationIdForUser(
+  const organizationId = await provisionTenantForAuthenticatedUser(
     user.id,
     user.email,
   );
@@ -161,16 +163,14 @@ function isValidOrganizationBoundIngestionKey(
     return false;
   }
 
-  return (
-    ingestionKey === expectedKey && organizationId === expectedOrgId
-  );
+  return ingestionKey === expectedKey && organizationId === expectedOrgId;
 }
 
 export async function resolveOrganizationIdForIngestion(
   input: IngestionOrganizationInput,
 ): Promise<string> {
   if (input.userId) {
-    return resolveOrganizationIdForUser(input.userId);
+    return provisionTenantForAuthenticatedUser(input.userId);
   }
 
   const organizationId = input.organizationId?.trim();
