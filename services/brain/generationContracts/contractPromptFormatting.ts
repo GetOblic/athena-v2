@@ -1,23 +1,19 @@
-import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
-import {
-  formatExecutiveReasoningForPrompt,
-  formatIdentityFromBrainContext,
-} from "@/services/brain/executiveReasoningHelpers";
+import { formatExecutiveUnderstandingForPrompt } from "@/services/brain/executiveUnderstandingService";
+import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 import type { GenerationContract } from "@/services/brain/generationContracts/generationContractTypes";
 
 export function assembleExecutiveGenerationContextBlock(input: {
-  brainContext: AthenaBrainContext;
+  executiveUnderstanding: ExecutiveUnderstanding;
   generationContract: GenerationContract;
 }): string {
-  const identityBlock = formatIdentityFromBrainContext(input.brainContext);
-  const reasoningBlock = formatExecutiveReasoningForPrompt(
-    input.brainContext.executiveReasoning,
+  const understandingBlock = formatExecutiveUnderstandingForPrompt(
+    input.executiveUnderstanding,
   );
   const contractBlock = formatGenerationContractForPrompt(
     input.generationContract,
   );
 
-  return [identityBlock, reasoningBlock, contractBlock].join("\n\n").trim();
+  return [understandingBlock, contractBlock].join("\n\n").trim();
 }
 
 export function formatGenerationContractForPrompt(
@@ -63,7 +59,7 @@ export function formatGenerationContractForPrompt(
     "",
     "INSTRUCTIONS:",
     "Follow this contract exactly. Do not invent structure outside required sections.",
-    "Use Executive Reasoning for priorities; use Brain Context for evidence only.",
+    "Express the Executive Understanding above; do not reinterpret strategy independently.",
   ];
 
   return sections.filter(Boolean).join("\n").trim();

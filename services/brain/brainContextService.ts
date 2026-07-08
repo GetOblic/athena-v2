@@ -39,13 +39,19 @@ export {
   buildGenerationContract,
   resolveGenerationBundle,
   resolveValidatedGenerationBundle,
+  resolveExecutiveUnderstandingBundle,
+  getExecutiveUnderstanding,
   clearGenerationContractCache,
+  clearGenerationPipelineCache,
+  clearExecutiveUnderstandingCache,
   validateGenerationContract,
+  validateSharedExecutiveUnderstanding,
   assembleDiscussionAnalysisPrompt,
   assembleExecutiveBriefingPrompt,
   assembleOpportunityReviewPrompt,
   assembleStrategicBlueprintPrompt,
   assembleExecutiveGenerationContextBlock,
+  formatExecutiveUnderstandingForPrompt,
 } from "@/services/brain/generationContractService";
 
 export type {
@@ -53,6 +59,11 @@ export type {
   GenerationBundle,
   GenerationWorkflowType,
 } from "@/services/brain/generationContractService";
+
+export type {
+  ExecutiveUnderstanding,
+  ExecutiveUnderstandingBundle,
+} from "@/services/brain/executiveUnderstandingService";
 
 export type {
   ExecutiveLearningSummary,

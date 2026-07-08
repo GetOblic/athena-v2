@@ -36,6 +36,10 @@ const blueprintServicePath = join(
   process.cwd(),
   "services/assetBlueprints/assetBlueprintService.ts",
 );
+const generationTypesPath = join(
+  process.cwd(),
+  "services/brain/generationContracts/generationContractTypes.ts",
+);
 
 const typesSource = readFileSync(typesPath, "utf8");
 const builderSource = readFileSync(builderPath, "utf8");
@@ -46,6 +50,7 @@ const serviceSource = readFileSync(servicePath, "utf8");
 const workflowSource = readFileSync(workflowPath, "utf8");
 const reviewRouteSource = readFileSync(reviewRoutePath, "utf8");
 const blueprintServiceSource = readFileSync(blueprintServicePath, "utf8");
+const generationTypesSource = readFileSync(generationTypesPath, "utf8");
 
 const requiredTypes = [
   "GenerationContract",
@@ -211,15 +216,26 @@ if (
 
 if (
   promptAssemblySource.includes("assembleExecutiveGenerationContextBlock") &&
-  !promptAssemblySource.includes("buildExecutiveReasoning")
+  promptAssemblySource.includes("executiveUnderstanding")
 ) {
-  pass("Prompt assembly does not rebuild reasoning");
+  pass("Prompt assembly consumes Executive Understanding and contract");
 } else {
-  fail("Prompt assembly must not rebuild reasoning");
+  fail("Prompt assembly must consume Executive Understanding");
 }
 
-if (serviceSource.includes("buildBrainContext")) {
-  pass("Generation bundle reuses buildBrainContext");
+if (
+  generationTypesSource.includes("executiveUnderstanding: ExecutiveUnderstanding")
+) {
+  pass("Generation bundle includes Executive Understanding");
+} else {
+  fail("Generation bundle missing Executive Understanding");
+}
+
+if (
+  serviceSource.includes("resolveExecutiveUnderstandingBundle") ||
+  serviceSource.includes("buildBrainContext")
+) {
+  pass("Generation bundle reuses buildBrainContext via Executive Understanding");
 } else {
   fail("Generation bundle must reuse buildBrainContext");
 }

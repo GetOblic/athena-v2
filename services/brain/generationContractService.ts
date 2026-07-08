@@ -1,4 +1,7 @@
-import { buildBrainContext } from "@/services/brain/executiveContextBuilder";
+import {
+  resolveExecutiveUnderstandingBundle,
+  clearExecutiveUnderstandingCache,
+} from "@/services/brain/executiveUnderstandingService";
 import { buildGenerationContract } from "@/services/brain/generationContracts/contractBuilder";
 import {
   assertGenerationContractOrganization,
@@ -16,9 +19,6 @@ export {
 
 export {
   formatGenerationContractForPrompt,
-} from "@/services/brain/generationContracts/contractPromptFormatting";
-
-export {
   assembleExecutiveGenerationContextBlock,
 } from "@/services/brain/generationContracts/contractPromptFormatting";
 
@@ -48,6 +48,14 @@ export {
   GenerationContractOrganizationRequiredError,
   GenerationContractValidationError,
 } from "@/services/brain/generationContracts/generationContractTypes";
+
+export {
+  resolveExecutiveUnderstandingBundle,
+  getExecutiveUnderstanding,
+  clearExecutiveUnderstandingCache,
+  formatExecutiveUnderstandingForPrompt,
+  validateSharedExecutiveUnderstanding,
+} from "@/services/brain/executiveUnderstandingService";
 
 type CacheEntry = {
   bundle: GenerationBundle;
@@ -93,6 +101,11 @@ export function clearGenerationContractCache(): void {
   bundleCache.clear();
 }
 
+export function clearGenerationPipelineCache(): void {
+  bundleCache.clear();
+  clearExecutiveUnderstandingCache();
+}
+
 export async function resolveGenerationBundle(
   params: ResolveGenerationBundleParams & { bypassCache?: boolean },
 ): Promise<GenerationBundle | null> {
@@ -107,19 +120,22 @@ export async function resolveGenerationBundle(
     }
   }
 
-  const brainContext = await buildBrainContext({
+  const understandingBundle = await resolveExecutiveUnderstandingBundle({
     organizationId: params.organizationId,
     discussionId: params.discussionId,
     opportunityId: params.opportunityId,
     briefingId: params.briefingId,
     domainId: params.domainId,
+    bypassCache: params.bypassCache,
   });
 
-  if (!brainContext) {
+  if (!understandingBundle) {
     return null;
   }
 
-  const executiveReasoning = brainContext.executiveReasoning;
+  const { brainContext, executiveReasoning, executiveUnderstanding } =
+    understandingBundle;
+
   const generationContract = buildGenerationContract({
     workflowType: params.workflowType,
     organizationId: params.organizationId,
@@ -130,6 +146,7 @@ export async function resolveGenerationBundle(
   const bundle: GenerationBundle = {
     brainContext,
     executiveReasoning,
+    executiveUnderstanding,
     generationContract,
   };
 
