@@ -3,8 +3,10 @@ import type {
   BrainSnapshot,
 } from "@/services/brain/brainContextTypes";
 
+type BrainSnapshotInput = Omit<AthenaBrainContext, "executiveMemory">;
+
 function resolveBrainHealth(
-  context: AthenaBrainContext,
+  context: BrainSnapshotInput,
 ): BrainSnapshot["brainHealth"] {
   if (context.businessMemory.isBrainTrained) {
     return "ready";
@@ -17,9 +19,8 @@ function resolveBrainHealth(
   return "untrained";
 }
 
-export function buildBrainSnapshot(context: AthenaBrainContext): BrainSnapshot {
-  const { operationalMemory, domainMemory, opportunityMemory, briefingMemory } =
-    context;
+export function buildBrainSnapshot(context: BrainSnapshotInput): BrainSnapshot {
+  const { operationalMemory, domainMemory } = context;
 
   const priorityOpportunities =
     operationalMemory.queueCounts.immediateActionOpportunities +
@@ -27,7 +28,8 @@ export function buildBrainSnapshot(context: AthenaBrainContext): BrainSnapshot {
 
   const editorialQueue = operationalMemory.queueCounts.pendingEditorialTotal;
 
-  const deploymentQueue = context.feedbackMemory.deploymentReadinessDistribution.ready ?? 0;
+  const deploymentQueue =
+    context.feedbackMemory.deploymentReadinessDistribution.ready ?? 0;
 
   const activeDomains = domainMemory.activeDomainCount;
   const domainNames = domainMemory.domains

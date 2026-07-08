@@ -17,6 +17,12 @@ export { buildBrainContext } from "@/services/brain/executiveContextBuilder";
 export { buildBrainSnapshot } from "@/services/brain/brainSnapshot";
 
 export {
+  buildExecutiveMemory,
+  getExecutiveMemory,
+  clearExecutiveMemoryCache,
+} from "@/services/brain/executiveMemoryService";
+
+export {
   MAX_BLUEPRINTS_CONTEXT,
   MAX_BRIEFINGS_CONTEXT,
   MAX_DISCUSSIONS_CONTEXT,
@@ -50,6 +56,12 @@ export type {
   BuildBrainContextForOpportunityParams,
   BuildBrainContextForBriefingParams,
 } from "@/services/brain/brainContextTypes";
+
+export type {
+  ExecutiveMemory,
+  BuildExecutiveMemoryParams,
+  MemoryMetadata,
+} from "@/services/brain/executiveMemoryTypes";
 
 /** Legacy prompt-scoped identity context used by existing generation workflows. */
 export type PromptIdentityContext = {

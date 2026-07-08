@@ -17,6 +17,7 @@ import {
   toExecutiveContext,
 } from "@/services/brain/brainContextHelpers";
 import { buildBrainSnapshot } from "@/services/brain/brainSnapshot";
+import { getExecutiveMemory } from "@/services/brain/executiveMemoryService";
 import type {
   AthenaBrainContext,
   BrainContextScope,
@@ -55,6 +56,7 @@ async function enrichExecutiveContext(
   >,
   organizationId: string,
   focusDomainId: string | null,
+  focusDiscussionId: string | null,
 ): Promise<AthenaBrainContext> {
   const feedbackMemory = enrichFeedbackMemory(
     engine.feedbackSignals,
@@ -105,9 +107,24 @@ async function enrichExecutiveContext(
 
   const snapshot = buildBrainSnapshot(partial);
 
+  const executiveMemory = await getExecutiveMemory({
+    organizationId,
+    domainId: focusDomainId ?? undefined,
+    discussionId: focusDiscussionId ?? undefined,
+    sourceContext: {
+      ...partial,
+      snapshot,
+      contextSummary: {
+        ...partial.contextSummary,
+        warnings: contextWarnings.codes,
+      },
+    },
+  });
+
   return {
     ...partial,
     snapshot,
+    executiveMemory,
     contextSummary: {
       ...partial.contextSummary,
       warnings: contextWarnings.codes,
@@ -164,5 +181,10 @@ export async function buildBrainContext(
     engine = { ...engine, scope: "domain" };
   }
 
-  return enrichExecutiveContext(engine, organizationId, focusDomainId);
+  return enrichExecutiveContext(
+    engine,
+    organizationId,
+    focusDomainId,
+    params.discussionId?.trim() ?? null,
+  );
 }

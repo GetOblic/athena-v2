@@ -9,6 +9,7 @@ import type { ProductionIntelligence } from "@/services/productionIntelligenceSe
 import type { AthenaReview } from "@/services/reviewService";
 import type { DashboardStats } from "@/services/dashboardService";
 import type { TodaysIntelligence } from "@/services/todaysIntelligenceService";
+import type { ExecutiveMemory } from "@/services/brain/executiveMemoryTypes";
 
 export const MAX_DISCUSSIONS_CONTEXT = 10;
 export const MAX_BRIEFINGS_CONTEXT = 10;
@@ -375,6 +376,7 @@ export type AthenaBrainContext = {
   knowledgeMemory: KnowledgeMemory;
   feedbackMemory: FeedbackMemory;
   operationalMemory: OperationalMemory;
+  executiveMemory: ExecutiveMemory;
   contextWarnings: ContextWarnings;
   snapshot: BrainSnapshot;
   contextSummary: ContextSummary;
