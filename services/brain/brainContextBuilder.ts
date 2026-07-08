@@ -44,6 +44,12 @@ import {
   getReviewById,
   type AthenaReview,
 } from "@/services/reviewService";
+import { normalizeDiscussionLifecycleKey } from "@/lib/discussionStatus";
+import {
+  computeBrainCompletenessScore,
+  computeDiscussionAgeDays,
+  countStatusDistribution,
+} from "@/services/brain/brainContextHelpers";
 import {
   BRAIN_CONTEXT_LIMITS,
   type BrainContextScope,
@@ -80,7 +86,7 @@ export class BrainContextOrganizationRequiredError extends Error {
   }
 }
 
-function assertOrganizationId(organizationId: string): string {
+export function assertOrganizationId(organizationId: string): string {
   const trimmed = organizationId.trim();
   if (!trimmed) {
     throw new BrainContextOrganizationRequiredError();
@@ -199,6 +205,7 @@ function buildBusinessMemory(identity: AthenaIdentity | null): BusinessMemory {
         "brain_status",
       ],
       isBrainTrained: false,
+      completenessScore: 0,
     };
   }
 
@@ -207,6 +214,8 @@ function buildBusinessMemory(identity: AthenaIdentity | null): BusinessMemory {
   if (!identity.website?.trim()) missingFields.push("website");
   if (!identity.master_profile) missingFields.push("master_profile");
   if (identity.brain_status !== "ready") missingFields.push("brain_status");
+
+  const completenessScore = computeBrainCompletenessScore(missingFields);
 
   return {
     identity: {
@@ -222,6 +231,7 @@ function buildBusinessMemory(identity: AthenaIdentity | null): BusinessMemory {
     },
     missingFields,
     isBrainTrained: identity.brain_status === "ready" && Boolean(identity.master_profile),
+    completenessScore,
   };
 }
 
@@ -248,17 +258,22 @@ async function buildDomainMemory(organizationId: string): Promise<DomainMemory> 
         name: community.group_name,
         description: community.notes,
         market: community.niche,
+        niche: community.niche,
         status: community.status,
         priority: community.priority,
         platform: community.platform,
+        isActive: community.status?.toLowerCase() !== "inactive",
         terminology: [],
         competitors: [],
         recurringQuestions: latestIntelligence?.recurring_questions ?? null,
         recurringObjections: latestIntelligence?.recurring_objections ?? null,
         emergingTrends: latestIntelligence?.market_trends ?? null,
         recommendedContentAngles: latestIntelligence?.recommended_content ?? null,
+        athenaUnderstanding: latestIntelligence?.executive_summary ?? null,
         confidence: latestIntelligence?.confidence ?? null,
         healthLabel,
+        healthTone: null,
+        learningTimelineSummary: null,
         latestIntelligence,
       };
     }),
@@ -267,6 +282,8 @@ async function buildDomainMemory(organizationId: string): Promise<DomainMemory> 
   return {
     domains,
     totalDomains: communities.length,
+    activeDomainCount: domains.filter((domain) => domain.isActive).length,
+    focusDomainId: null,
   };
 }
 
@@ -283,21 +300,15 @@ function toDiscussionEntry(
     hasAnalysis: analyzedIds.has(discussion.id),
     summary: discussion.summary,
     lastActivity: discussion.last_activity ?? discussion.created_at,
+    ageDays: computeDiscussionAgeDays(discussion.created_at),
   };
 }
 
-function countStatusDistribution<T extends { status: string }>(
+function countStatusDistributionLocal<T extends { status: string }>(
   items: T[],
   normalize: (status: string) => string,
 ): Record<string, number> {
-  const distribution: Record<string, number> = {};
-
-  for (const item of items) {
-    const key = normalize(item.status);
-    distribution[key] = (distribution[key] ?? 0) + 1;
-  }
-
-  return distribution;
+  return countStatusDistribution(items, normalize);
 }
 
 function buildBriefingEntry(review: AthenaReview): BriefingMemoryEntry {
@@ -305,9 +316,11 @@ function buildBriefingEntry(review: AthenaReview): BriefingMemoryEntry {
     id: review.id,
     status: review.status,
     confidence: review.confidence,
+    buyerStage: review.buyer_stage,
     summary: review.summary,
     opportunityId: review.opportunity_id,
     discussionId: review.discussion_id,
+    updatedAt: review.updated_at,
   };
 }
 
@@ -318,7 +331,9 @@ function buildOpportunityEntry(opportunity: Opportunity): OpportunityMemoryEntry
     score: opportunity.score,
     status: opportunity.status,
     urgency: opportunity.urgency,
+    confidence: null,
     discussionId: opportunity.discussion_id,
+    latestActivity: opportunity.updated_at,
   };
 }
 
@@ -398,17 +413,20 @@ function computeFeedbackSignals(input: {
 
   return {
     briefingStatuses,
-    opportunitySalesStatuses: countStatusDistribution(
+    opportunitySalesStatuses: countStatusDistributionLocal(
       input.opportunities,
       (status) => normalizeOpportunityStatus(status),
     ),
-    discussionLifecycleStatuses: countStatusDistribution(
+    discussionLifecycleStatuses: countStatusDistributionLocal(
       input.discussions,
       (status) => status.trim().toLowerCase() || "unknown",
     ),
+    approvalCount: briefingStatuses.approved,
+    revisionRequestCount: briefingStatuses.needsRevision,
     hasGeneratedAssets,
     missingAssetPrompts,
     staleDiscussionCount,
+    deploymentReadinessDistribution: {},
     focusSignals: {
       briefingStatus: input.focus?.briefing?.status ?? null,
       opportunityStatus: input.focus?.opportunity?.status ?? null,
@@ -543,6 +561,23 @@ function buildOrgDiscussionMemory(
     .slice(0, BRAIN_CONTEXT_LIMITS.discussions)
     .map((discussion) => toDiscussionEntry(discussion, bundle.analyzedIds));
 
+  const monitoringDiscussions = bundle.discussions
+    .filter(
+      (discussion) =>
+        normalizeDiscussionLifecycleKey(discussion.status) === "monitoring",
+    )
+    .slice(0, BRAIN_CONTEXT_LIMITS.discussions)
+    .map((discussion) => toDiscussionEntry(discussion, bundle.analyzedIds));
+
+  const lifecycleDistribution: Record<string, number> = {};
+  for (const discussion of bundle.discussions.slice(
+    0,
+    BRAIN_CONTEXT_LIMITS.discussions,
+  )) {
+    const key = normalizeDiscussionLifecycleKey(discussion.status) ?? "unknown";
+    lifecycleDistribution[key] = (lifecycleDistribution[key] ?? 0) + 1;
+  }
+
   const recurringThemes = bundle.briefings
     .map((briefing) => briefing.pain_points?.trim())
     .filter((value): value is string => Boolean(value))
@@ -552,7 +587,9 @@ function buildOrgDiscussionMemory(
     recentDiscussions,
     recentAnalyzedDiscussions,
     highIntentDiscussions: highIntent,
+    monitoringDiscussions,
     recurringThemes,
+    lifecycleDistribution,
     focus,
   };
 }
@@ -580,11 +617,39 @@ function buildOrgOpportunityMemory(
     .slice(0, BRAIN_CONTEXT_LIMITS.opportunities)
     .map(buildOpportunityEntry);
 
+  const highIntent = bundle.opportunities
+    .filter(
+      (opportunity) =>
+        classifyOpportunityPriority(opportunity) === "high_intent",
+    )
+    .slice(0, BRAIN_CONTEXT_LIMITS.opportunities)
+    .map(buildOpportunityEntry);
+
+  const monitor = bundle.opportunities
+    .filter(
+      (opportunity) => classifyOpportunityPriority(opportunity) === "monitor",
+    )
+    .slice(0, BRAIN_CONTEXT_LIMITS.opportunities)
+    .map(buildOpportunityEntry);
+
+  const lowPriority = bundle.opportunities
+    .filter(
+      (opportunity) =>
+        classifyOpportunityPriority(opportunity) === "low_priority",
+    )
+    .slice(0, BRAIN_CONTEXT_LIMITS.opportunities)
+    .map(buildOpportunityEntry);
+
   return {
     recentOpportunities: recent,
     highestScoring,
-    immediateAction,
-    statusDistribution: countStatusDistribution(
+    queues: {
+      immediateAction,
+      highIntent,
+      monitor,
+      lowPriority,
+    },
+    statusDistribution: countStatusDistributionLocal(
       bundle.opportunities,
       (status) => normalizeOpportunityStatus(status),
     ),
@@ -608,19 +673,38 @@ function buildOrgBriefingMemory(
   const needsRevision = bundle.briefings
     .filter((briefing) => {
       const key = normalizeBriefingStatus(briefing.status);
-      return key === "needs_revision" || key === "rejected";
+      return key === "needs_revision";
     })
     .slice(0, BRAIN_CONTEXT_LIMITS.briefings)
     .map(buildBriefingEntry);
+
+  const rejected = bundle.briefings
+    .filter((briefing) => normalizeBriefingStatus(briefing.status) === "rejected")
+    .slice(0, BRAIN_CONTEXT_LIMITS.briefings)
+    .map(buildBriefingEntry);
+
+  const draft = bundle.briefings
+    .filter((briefing) => normalizeBriefingStatus(briefing.status) === "draft")
+    .slice(0, BRAIN_CONTEXT_LIMITS.briefings)
+    .map(buildBriefingEntry);
+
+  const buyerStageDistribution: Record<string, number> = {};
+  for (const briefing of bundle.briefings.slice(0, BRAIN_CONTEXT_LIMITS.briefings)) {
+    const stage = briefing.buyer_stage?.trim() || "unknown";
+    buyerStageDistribution[stage] = (buyerStageDistribution[stage] ?? 0) + 1;
+  }
 
   return {
     recentBriefings: recent,
     approvedBriefings: approved,
     needsRevisionBriefings: needsRevision,
-    statusDistribution: countStatusDistribution(
+    rejectedBriefings: rejected,
+    draftBriefings: draft,
+    statusDistribution: countStatusDistributionLocal(
       bundle.briefings,
       (status) => normalizeBriefingStatus(status),
     ),
+    buyerStageDistribution,
     focus,
   };
 }
@@ -647,6 +731,10 @@ function buildKnowledgeMemory(
       tags: asset.tags ?? [],
     })),
     approvedBriefingKnowledgeCount,
+    communityIntelligence: [],
+    productionIntelligence: [],
+    knowledgeConfidence: null,
+    knowledgeConfidenceDelta: null,
   };
 }
 
@@ -655,18 +743,38 @@ function buildAssetMemory(
   focusBlueprint: AthenaAssetBlueprint | null,
   deploymentFields: BrainEngineContext["assetMemory"]["deploymentAssetFields"],
 ): BrainEngineContext["assetMemory"] {
+  const recentBlueprints = blueprints.map((blueprint) => ({
+    id: blueprint.id,
+    assetTitle: blueprint.asset_title,
+    assetType: blueprint.asset_type,
+    businessGoal: blueprint.business_goal,
+    targetAudience: blueprint.target_audience,
+    estimatedReuse: blueprint.estimated_reuse,
+    discussionId: blueprint.discussion_id,
+    opportunityId: blueprint.opportunity_id,
+    briefingId: blueprint.briefing_id,
+    hasPrompts: blueprintHasPrompts(blueprint),
+    createdAt: blueprint.created_at,
+  }));
+
+  const reuseValues = recentBlueprints
+    .map((blueprint) => blueprint.estimatedReuse)
+    .filter((value): value is number => value != null);
+
   return {
-    recentBlueprints: blueprints.map((blueprint) => ({
-      id: blueprint.id,
-      assetTitle: blueprint.asset_title,
-      assetType: blueprint.asset_type,
-      discussionId: blueprint.discussion_id,
-      opportunityId: blueprint.opportunity_id,
-      briefingId: blueprint.briefing_id,
-      hasPrompts: blueprintHasPrompts(blueprint),
-      createdAt: blueprint.created_at,
-    })),
+    recentBlueprints,
     focusBlueprint,
+    assetTypes: [...new Set(recentBlueprints.map((blueprint) => blueprint.assetType))],
+    businessGoals: recentBlueprints
+      .map((blueprint) => blueprint.businessGoal)
+      .filter((value): value is string => Boolean(value?.trim())),
+    targetAudiences: recentBlueprints
+      .map((blueprint) => blueprint.targetAudience)
+      .filter((value): value is string => Boolean(value?.trim())),
+    averageEstimatedReuse:
+      reuseValues.length > 0
+        ? reuseValues.reduce((sum, value) => sum + value, 0) / reuseValues.length
+        : null,
     deploymentAssetFields: deploymentFields,
   };
 }
@@ -1101,8 +1209,3 @@ export async function buildBrainContextForBriefing(
     },
   });
 }
-
-export {
-  assertOrganizationId,
-  BRAIN_CONTEXT_LIMITS,
-};

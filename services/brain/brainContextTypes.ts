@@ -5,46 +5,87 @@ import type { Discussion } from "@/services/discussionService";
 import type { DiscussionUpdate } from "@/services/discussionUpdateService";
 import type { AthenaIdentity } from "@/services/identity/identityService";
 import type { Opportunity } from "@/services/opportunityService";
+import type { ProductionIntelligence } from "@/services/productionIntelligenceService";
 import type { AthenaReview } from "@/services/reviewService";
+import type { DashboardStats } from "@/services/dashboardService";
+import type { TodaysIntelligence } from "@/services/todaysIntelligenceService";
 
+export const MAX_DISCUSSIONS_CONTEXT = 10;
+export const MAX_BRIEFINGS_CONTEXT = 10;
+export const MAX_OPPORTUNITIES_CONTEXT = 10;
+export const MAX_BLUEPRINTS_CONTEXT = 10;
+export const MAX_KNOWLEDGE_CONTEXT = 20;
+export const MAX_DOMAINS_CONTEXT = 20;
+export const MAX_COMMUNITY_INTELLIGENCE_CONTEXT = 5;
+export const MAX_PRODUCTION_INTELLIGENCE_CONTEXT = 5;
+export const MAX_PRIOR_ANALYSES_CONTEXT = 5;
+export const MAX_DISCUSSION_UPDATES_CONTEXT = 50;
+
+/** @deprecated Use MAX_* constants — retained for Sprint 2 compatibility */
 export const BRAIN_CONTEXT_LIMITS = {
-  domains: 20,
-  discussions: 10,
-  analysesPerDiscussion: 5,
-  opportunities: 10,
-  briefings: 10,
-  assetBlueprints: 10,
-  knowledgeAssets: 20,
-  discussionUpdates: 50,
-  priorAnalyses: 5,
+  domains: MAX_DOMAINS_CONTEXT,
+  discussions: MAX_DISCUSSIONS_CONTEXT,
+  analysesPerDiscussion: MAX_PRIOR_ANALYSES_CONTEXT,
+  opportunities: MAX_OPPORTUNITIES_CONTEXT,
+  briefings: MAX_BRIEFINGS_CONTEXT,
+  assetBlueprints: MAX_BLUEPRINTS_CONTEXT,
+  knowledgeAssets: MAX_KNOWLEDGE_CONTEXT,
+  discussionUpdates: MAX_DISCUSSION_UPDATES_CONTEXT,
+  priorAnalyses: MAX_PRIOR_ANALYSES_CONTEXT,
 } as const;
 
 export type BrainContextScope =
   | "organization"
   | "discussion"
   | "opportunity"
-  | "briefing";
+  | "briefing"
+  | "domain";
 
-export type OrganizationContextSlice = {
+export type BuildBrainContextParams = {
+  organizationId: string;
+  discussionId?: string;
+  opportunityId?: string;
+  briefingId?: string;
+  domainId?: string;
+};
+
+export type OrganizationMemory = {
   id: string;
   name: string;
   slug: string;
 };
 
-export type BusinessMemory = {
-  identity: {
-    userId: string | null;
-    greetingName: string | null;
-    aboutYou: string | null;
-    expertise: string | null;
-    website: string | null;
-    brainStatus: string | null;
-    masterProfile: Record<string, unknown> | null;
-    masterProfileVersion: string | null;
-    homepageLearning: string | null;
-  } | null;
+export type OrganizationContextSlice = OrganizationMemory;
+
+export type IdentityProfileSlice = {
+  userId: string | null;
+  greetingName: string | null;
+  aboutYou: string | null;
+  expertise: string | null;
+  website: string | null;
+  brainStatus: string | null;
+  masterProfile: Record<string, unknown> | null;
+  masterProfileVersion: string | null;
+  homepageLearning: string | null;
+};
+
+export type IdentityMemory = IdentityProfileSlice & {
   missingFields: string[];
   isBrainTrained: boolean;
+  completenessScore: number;
+};
+
+export type BusinessMemory = {
+  identity: IdentityProfileSlice | null;
+  missingFields: string[];
+  isBrainTrained: boolean;
+  completenessScore: number;
+};
+
+export type DomainLearningTimelineSummary = {
+  eventCount: number;
+  latestEventTitle: string | null;
+  latestEventTimestamp: string | null;
 };
 
 export type DomainMemoryEntry = {
@@ -52,23 +93,30 @@ export type DomainMemoryEntry = {
   name: string;
   description: string | null;
   market: string | null;
+  niche: string | null;
   status: string;
   priority: number | null;
   platform: string;
+  isActive: boolean;
   terminology: string[];
   competitors: string[];
   recurringQuestions: string | null;
   recurringObjections: string | null;
   emergingTrends: string | null;
   recommendedContentAngles: string | null;
+  athenaUnderstanding: string | null;
   confidence: number | null;
   healthLabel: string | null;
+  healthTone: string | null;
+  learningTimelineSummary: DomainLearningTimelineSummary | null;
   latestIntelligence: CommunityIntelligence | null;
 };
 
 export type DomainMemory = {
   domains: DomainMemoryEntry[];
   totalDomains: number;
+  activeDomainCount: number;
+  focusDomainId: string | null;
 };
 
 export type DiscussionMemoryEntry = {
@@ -80,13 +128,16 @@ export type DiscussionMemoryEntry = {
   hasAnalysis: boolean;
   summary: string | null;
   lastActivity: string | null;
+  ageDays: number | null;
 };
 
 export type DiscussionMemory = {
   recentDiscussions: DiscussionMemoryEntry[];
   recentAnalyzedDiscussions: DiscussionMemoryEntry[];
   highIntentDiscussions: DiscussionMemoryEntry[];
+  monitoringDiscussions: DiscussionMemoryEntry[];
   recurringThemes: string[];
+  lifecycleDistribution: Record<string, number>;
   focus: {
     discussion: Discussion | null;
     threadUpdates: DiscussionUpdate[];
@@ -104,13 +155,22 @@ export type OpportunityMemoryEntry = {
   score: number;
   status: string;
   urgency: string | null;
+  confidence: number | null;
   discussionId: string | null;
+  latestActivity: string | null;
+};
+
+export type OpportunityQueueMemory = {
+  immediateAction: OpportunityMemoryEntry[];
+  highIntent: OpportunityMemoryEntry[];
+  monitor: OpportunityMemoryEntry[];
+  lowPriority: OpportunityMemoryEntry[];
 };
 
 export type OpportunityMemory = {
   recentOpportunities: OpportunityMemoryEntry[];
   highestScoring: OpportunityMemoryEntry | null;
-  immediateAction: OpportunityMemoryEntry[];
+  queues: OpportunityQueueMemory;
   statusDistribution: Record<string, number>;
   focus: {
     opportunity: Opportunity | null;
@@ -126,16 +186,21 @@ export type BriefingMemoryEntry = {
   id: string;
   status: string;
   confidence: number;
+  buyerStage: string | null;
   summary: string | null;
   opportunityId: string | null;
   discussionId: string | null;
+  updatedAt: string | null;
 };
 
 export type BriefingMemory = {
   recentBriefings: BriefingMemoryEntry[];
   approvedBriefings: BriefingMemoryEntry[];
   needsRevisionBriefings: BriefingMemoryEntry[];
+  rejectedBriefings: BriefingMemoryEntry[];
+  draftBriefings: BriefingMemoryEntry[];
   statusDistribution: Record<string, number>;
+  buyerStageDistribution: Record<string, number>;
   focus: {
     briefing: AthenaReview | null;
     linkedOpportunity: Opportunity | null;
@@ -144,10 +209,13 @@ export type BriefingMemory = {
   } | null;
 };
 
-export type AssetMemoryEntry = {
+export type BlueprintMemoryEntry = {
   id: string;
   assetTitle: string;
   assetType: string;
+  businessGoal: string | null;
+  targetAudience: string | null;
+  estimatedReuse: number | null;
   discussionId: string | null;
   opportunityId: string | null;
   briefingId: string | null;
@@ -155,9 +223,13 @@ export type AssetMemoryEntry = {
   createdAt: string;
 };
 
-export type AssetMemory = {
-  recentBlueprints: AssetMemoryEntry[];
+export type BlueprintMemory = {
+  recentBlueprints: BlueprintMemoryEntry[];
   focusBlueprint: AthenaAssetBlueprint | null;
+  assetTypes: string[];
+  businessGoals: string[];
+  targetAudiences: string[];
+  averageEstimatedReuse: number | null;
   deploymentAssetFields: {
     source: "analysis" | "briefing" | "opportunity" | null;
     suggestedCta: string | null;
@@ -166,6 +238,11 @@ export type AssetMemory = {
     parsedAssetCount: number;
   };
 };
+
+/** @deprecated Use BlueprintMemory — Sprint 2 alias */
+export type AssetMemory = BlueprintMemory;
+
+export type AssetMemoryEntry = BlueprintMemoryEntry;
 
 export type KnowledgeAssetEntry = {
   id: string;
@@ -181,12 +258,32 @@ export type KnowledgeAssetEntry = {
   tags: string[];
 };
 
+export type CommunityIntelligenceEntry = {
+  id: string;
+  communityId: string | null;
+  executiveSummary: string | null;
+  confidence: number | null;
+  createdAt: string;
+};
+
+export type ProductionIntelligenceEntry = {
+  id: string;
+  communityId: string | null;
+  contentTheme: string | null;
+  confidence: number | null;
+  createdAt: string;
+};
+
 export type KnowledgeMemory = {
   assets: KnowledgeAssetEntry[];
   approvedBriefingKnowledgeCount: number;
+  communityIntelligence: CommunityIntelligenceEntry[];
+  productionIntelligence: ProductionIntelligenceEntry[];
+  knowledgeConfidence: number | null;
+  knowledgeConfidenceDelta: number | null;
 };
 
-export type FeedbackSignals = {
+export type FeedbackMemory = {
   briefingStatuses: {
     draft: number;
     approved: number;
@@ -195,9 +292,12 @@ export type FeedbackSignals = {
   };
   opportunitySalesStatuses: Record<string, number>;
   discussionLifecycleStatuses: Record<string, number>;
+  approvalCount: number;
+  revisionRequestCount: number;
   hasGeneratedAssets: boolean;
   missingAssetPrompts: number;
   staleDiscussionCount: number;
+  deploymentReadinessDistribution: Record<string, number>;
   focusSignals: {
     briefingStatus: string | null;
     opportunityStatus: string | null;
@@ -205,6 +305,46 @@ export type FeedbackSignals = {
     hasLinkedBlueprint: boolean;
     hasDeploymentAssets: boolean;
   };
+};
+
+/** @deprecated Use FeedbackMemory — Sprint 2 alias */
+export type FeedbackSignals = FeedbackMemory;
+
+export type OperationalMemory = {
+  dashboard: DashboardStats;
+  todaysIntelligence: TodaysIntelligence;
+  queueCounts: {
+    immediateActionOpportunities: number;
+    highIntentOpportunities: number;
+    monitorOpportunities: number;
+    lowPriorityOpportunities: number;
+    draftBriefings: number;
+    needsRevisionBriefings: number;
+    approvedBriefings: number;
+    rejectedBriefings: number;
+    pendingEditorialTotal: number;
+    newDiscussions: number;
+    strategicBlueprints: number;
+  };
+};
+
+export type ContextWarnings = {
+  codes: string[];
+  messages: string[];
+};
+
+export type BrainSnapshot = {
+  brainHealth: "ready" | "partial" | "untrained";
+  organizationSummary: string;
+  businessSummary: string;
+  marketSummary: string;
+  activeDomains: number;
+  priorityOpportunities: number;
+  editorialQueue: number;
+  deploymentQueue: number;
+  knowledgeSummary: string;
+  feedbackSummary: string;
+  warnings: string[];
 };
 
 export type ContextSummary = {
@@ -222,9 +362,28 @@ export type ContextSummary = {
   warnings: string[];
 };
 
-/** Structured Brain Engine context — distinct from legacy prompt identity context. */
+export type AthenaBrainContext = {
+  organization: OrganizationMemory;
+  scope: BrainContextScope;
+  businessMemory: BusinessMemory;
+  identityMemory: IdentityMemory;
+  domainMemory: DomainMemory;
+  discussionMemory: DiscussionMemory;
+  opportunityMemory: OpportunityMemory;
+  briefingMemory: BriefingMemory;
+  blueprintMemory: BlueprintMemory;
+  knowledgeMemory: KnowledgeMemory;
+  feedbackMemory: FeedbackMemory;
+  operationalMemory: OperationalMemory;
+  contextWarnings: ContextWarnings;
+  snapshot: BrainSnapshot;
+  contextSummary: ContextSummary;
+  builtAt: string;
+};
+
+/** Sprint 2 core context — use AthenaBrainContext for the executive layer */
 export type BrainEngineContext = {
-  organization: OrganizationContextSlice;
+  organization: OrganizationMemory;
   scope: BrainContextScope;
   identity: BusinessMemory;
   businessMemory: BusinessMemory;
@@ -232,9 +391,9 @@ export type BrainEngineContext = {
   discussionMemory: DiscussionMemory;
   opportunityMemory: OpportunityMemory;
   briefingMemory: BriefingMemory;
-  assetMemory: AssetMemory;
+  assetMemory: BlueprintMemory;
   knowledgeMemory: KnowledgeMemory;
-  feedbackSignals: FeedbackSignals;
+  feedbackSignals: FeedbackMemory;
   contextSummary: ContextSummary;
   builtAt: string;
 };
@@ -255,3 +414,5 @@ export type BuildBrainContextForBriefingParams = {
 };
 
 export type IdentityRecord = AthenaIdentity;
+
+export type { ProductionIntelligence };

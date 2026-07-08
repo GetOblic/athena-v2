@@ -10,19 +10,40 @@ export {
   buildBrainContextForDiscussion,
   buildBrainContextForOpportunity,
   buildBrainContextForOrganization,
-  BRAIN_CONTEXT_LIMITS,
 } from "@/services/brain/brainContextBuilder";
 
+export { buildBrainContext } from "@/services/brain/executiveContextBuilder";
+
+export { buildBrainSnapshot } from "@/services/brain/brainSnapshot";
+
+export {
+  MAX_BLUEPRINTS_CONTEXT,
+  MAX_BRIEFINGS_CONTEXT,
+  MAX_DISCUSSIONS_CONTEXT,
+  MAX_DOMAINS_CONTEXT,
+  MAX_KNOWLEDGE_CONTEXT,
+  MAX_OPPORTUNITIES_CONTEXT,
+  BRAIN_CONTEXT_LIMITS,
+} from "@/services/brain/brainContextTypes";
+
 export type {
+  AthenaBrainContext,
   BrainEngineContext,
   BrainContextScope,
+  BrainSnapshot,
+  BlueprintMemory,
+  BuildBrainContextParams,
   BusinessMemory,
+  ContextWarnings,
   DomainMemory,
   DiscussionMemory,
+  FeedbackMemory,
+  IdentityMemory,
+  KnowledgeMemory,
+  OperationalMemory,
   OpportunityMemory,
   BriefingMemory,
   AssetMemory,
-  KnowledgeMemory,
   FeedbackSignals,
   ContextSummary,
   BuildBrainContextForDiscussionParams,
@@ -41,9 +62,6 @@ export type PromptIdentityContext = {
     master_profile: Record<string, unknown> | null;
   } | null;
 };
-
-/** @deprecated Use PromptIdentityContext for legacy prompt formatting. */
-export type AthenaBrainContext = PromptIdentityContext;
 
 export function getEmptyAthenaBrainContext(): PromptIdentityContext {
   return {
