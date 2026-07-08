@@ -14,7 +14,7 @@ export const MAX_EXECUTIVE_MEMORY_COMPETITORS = 25;
 
 export type ExecutiveMemorySourceContext = Omit<
   AthenaBrainContext,
-  "executiveMemory" | "executiveLearning" | "marketEvidence" | "promotionCandidates"
+  "executiveMemory" | "executiveLearning" | "marketEvidence" | "promotionCandidates" | "executiveReasoning"
 >;
 
 export type BuildExecutiveMemoryParams = {

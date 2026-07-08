@@ -8,6 +8,8 @@ import {
   getAthenaBrainContextForCurrentUser,
   getAthenaBrainContextForUserId,
 } from "@/services/brain/brainContextService";
+import { buildBrainContext } from "@/services/brain/executiveContextBuilder";
+import { buildDiscussionAnalysisBrainPrompt } from "@/services/brain/executiveReasoningService";
 import {
   buildDiscussionAnalysisPrompt,
   DISCUSSION_ANALYSIS_PROMPT_VERSION,
@@ -127,6 +129,31 @@ async function generateAssetBlueprint(input: {
   }
 }
 
+async function resolveDiscussionAnalysisBrainPrompt(
+  discussionId: string,
+  organizationId: string,
+  userId: string | null | undefined,
+): Promise<string> {
+  try {
+    const brainContext = await buildBrainContext({
+      organizationId,
+      discussionId,
+    });
+
+    if (brainContext) {
+      return buildDiscussionAnalysisBrainPrompt(brainContext);
+    }
+  } catch (error) {
+    console.error("Executive reasoning context unavailable, using legacy brain context:", error);
+  }
+
+  const legacyContext = userId
+    ? await getAthenaBrainContextForUserId(userId, organizationId)
+    : await getAthenaBrainContextForCurrentUser();
+
+  return formatBrainContextForPrompt(legacyContext);
+}
+
 export async function processDiscussionEndToEnd(
   discussionId: string,
   organizationId: string,
@@ -138,14 +165,11 @@ export async function processDiscussionEndToEnd(
     throw new Error(`Discussion not found: ${discussionId}`);
   }
 
-  const brainContext = discussion.user_id
-    ? await getAthenaBrainContextForUserId(
-        discussion.user_id,
-        organizationId,
-      )
-    : await getAthenaBrainContextForCurrentUser();
-
-  const brainContextPrompt = formatBrainContextForPrompt(brainContext);
+  const brainContextPrompt = await resolveDiscussionAnalysisBrainPrompt(
+    discussionId,
+    organizationId,
+    discussion.user_id,
+  );
 
   const threadUpdates = await getDiscussionUpdatesByDiscussionId(
     discussionId,

@@ -28,12 +28,26 @@ export {
   clearExecutiveLearningCache,
 } from "@/services/brain/executiveLearningService";
 
+export {
+  buildExecutiveReasoning,
+  getExecutiveReasoning,
+  clearExecutiveReasoningCache,
+  buildDiscussionAnalysisBrainPrompt,
+} from "@/services/brain/executiveReasoningService";
+
 export type {
   ExecutiveLearningSummary,
   BuildExecutiveLearningParams,
   MarketEvidenceEntry,
   PromotionCandidate,
 } from "@/services/brain/executiveLearningTypes";
+
+export type {
+  ExecutiveReasoning,
+  BuildExecutiveReasoningParams,
+  PriorityAssessment,
+  RecommendedDirectionKey,
+} from "@/services/brain/executiveReasoningTypes";
 
 export {
   MAX_BLUEPRINTS_CONTEXT,

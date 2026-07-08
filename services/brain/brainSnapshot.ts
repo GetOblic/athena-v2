@@ -5,7 +5,11 @@ import type {
 
 type BrainSnapshotInput = Omit<
   AthenaBrainContext,
-  "executiveMemory" | "executiveLearning" | "marketEvidence" | "promotionCandidates"
+  | "executiveMemory"
+  | "executiveLearning"
+  | "marketEvidence"
+  | "promotionCandidates"
+  | "executiveReasoning"
 >;
 
 function resolveBrainHealth(

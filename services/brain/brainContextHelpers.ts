@@ -375,7 +375,11 @@ export function toExecutiveContext(
   },
 ): Omit<
   AthenaBrainContext,
-  "executiveMemory" | "executiveLearning" | "marketEvidence" | "promotionCandidates"
+  | "executiveMemory"
+  | "executiveLearning"
+  | "marketEvidence"
+  | "promotionCandidates"
+  | "executiveReasoning"
 > {
   return {
     organization: engine.organization,

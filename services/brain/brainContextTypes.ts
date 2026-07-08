@@ -15,6 +15,7 @@ import type {
   MarketEvidenceEntry,
   PromotionCandidate,
 } from "@/services/brain/executiveLearningTypes";
+import type { ExecutiveReasoning } from "@/services/brain/executiveReasoningTypes";
 
 export const MAX_DISCUSSIONS_CONTEXT = 10;
 export const MAX_BRIEFINGS_CONTEXT = 10;
@@ -385,6 +386,7 @@ export type AthenaBrainContext = {
   executiveLearning: ExecutiveLearningSummary;
   marketEvidence: MarketEvidenceEntry[];
   promotionCandidates: PromotionCandidate[];
+  executiveReasoning: ExecutiveReasoning;
   contextWarnings: ContextWarnings;
   snapshot: BrainSnapshot;
   contextSummary: ContextSummary;

@@ -19,11 +19,13 @@ import {
 import { buildBrainSnapshot } from "@/services/brain/brainSnapshot";
 import { getExecutiveMemory } from "@/services/brain/executiveMemoryService";
 import { getExecutiveLearning } from "@/services/brain/executiveLearningService";
+import { buildExecutiveReasoning } from "@/services/brain/executiveReasoningBuilder";
 import type {
   AthenaBrainContext,
   BrainContextScope,
   BuildBrainContextParams,
 } from "@/services/brain/brainContextTypes";
+import type { ExecutiveReasoningSourceContext } from "@/services/brain/executiveReasoningTypes";
 
 export { assertOrganizationId } from "@/services/brain/brainContextBuilder";
 export {
@@ -58,7 +60,7 @@ async function enrichExecutiveContext(
   organizationId: string,
   focusDomainId: string | null,
   focusDiscussionId: string | null,
-): Promise<AthenaBrainContext> {
+): Promise<ExecutiveReasoningSourceContext> {
   const feedbackMemory = enrichFeedbackMemory(
     engine.feedbackSignals,
     engine.briefingMemory.recentBriefings,
@@ -135,7 +137,7 @@ async function enrichExecutiveContext(
     promotionCandidates: executiveLearning.promotionCandidates,
   };
 
-  return {
+  const contextWithoutReasoning = {
     ...partial,
     snapshot,
     executiveMemory: enrichedExecutiveMemory,
@@ -147,15 +149,35 @@ async function enrichExecutiveContext(
       warnings: contextWarnings.codes,
     },
   };
+
+  return contextWithoutReasoning;
+}
+
+async function attachReasoningToContext(
+  context: ExecutiveReasoningSourceContext,
+  params: BuildBrainContextParams,
+): Promise<AthenaBrainContext> {
+  const executiveReasoning = await buildExecutiveReasoning({
+    organizationId: context.organization.id,
+    domainId: params.domainId,
+    discussionId: params.discussionId,
+    opportunityId: params.opportunityId,
+    briefingId: params.briefingId,
+    sourceContext: context,
+  });
+
+  return {
+    ...context,
+    executiveReasoning,
+  };
 }
 
 /**
- * Single intelligence entry point for Athena's Brain Engine.
- * All data remains strictly organization-scoped.
+ * Builds Brain Context through Memory and Learning, stopping before Reasoning.
  */
-export async function buildBrainContext(
+export async function buildExecutiveBrainContext(
   params: BuildBrainContextParams,
-): Promise<AthenaBrainContext | null> {
+): Promise<ExecutiveReasoningSourceContext | null> {
   const organizationId = assertOrganizationId(params.organizationId);
   const focusDomainId = await resolveFocusDomainId(
     organizationId,
@@ -204,4 +226,20 @@ export async function buildBrainContext(
     focusDomainId,
     params.discussionId?.trim() ?? null,
   );
+}
+
+/**
+ * Single intelligence entry point for Athena's Brain Engine.
+ * All data remains strictly organization-scoped.
+ */
+export async function buildBrainContext(
+  params: BuildBrainContextParams,
+): Promise<AthenaBrainContext | null> {
+  const contextWithoutReasoning = await buildExecutiveBrainContext(params);
+
+  if (!contextWithoutReasoning) {
+    return null;
+  }
+
+  return attachReasoningToContext(contextWithoutReasoning, params);
 }
