@@ -8,17 +8,17 @@ import {
   getAthenaBrainContextForCurrentUser,
   getAthenaBrainContextForUserId,
 } from "@/services/brain/brainContextService";
-import { buildBrainContext } from "@/services/brain/executiveContextBuilder";
-import { buildDiscussionAnalysisBrainPrompt } from "@/services/brain/executiveReasoningService";
 import {
-  buildDiscussionAnalysisPrompt,
-  DISCUSSION_ANALYSIS_PROMPT_VERSION,
-} from "@/services/ai/prompts/discussionAnalysisPrompt";
-import {
-  buildOpportunityReviewPrompt,
-  OPPORTUNITY_REVIEW_PROMPT_VERSION,
-} from "@/services/ai/prompts/opportunityReviewPrompt";
+  assembleDiscussionAnalysisPrompt,
+  assembleExecutiveBriefingPrompt,
+  resolveGenerationBundle,
+} from "@/services/brain/generationContractService";
+import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
+import { buildDiscussionAnalysisPrompt } from "@/services/ai/prompts/discussionAnalysisPrompt";
+import { buildOpportunityReviewPrompt } from "@/services/ai/prompts/opportunityReviewPrompt";
 import { ELEVATE_STRATEGY_PROMPT_VERSION } from "@/services/ai/prompts/elevateStrategyPrompt";
+import { DISCUSSION_ANALYSIS_PROMPT_VERSION } from "@/services/ai/prompts/discussionAnalysisPrompt";
+import { OPPORTUNITY_REVIEW_PROMPT_VERSION } from "@/services/ai/prompts/opportunityReviewPrompt";
 import { buildAnalysisThreadBody } from "@/lib/discussionContent";
 import { createDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDiscussionUpdatesByDiscussionId } from "@/services/discussionUpdateService";
@@ -106,7 +106,8 @@ async function generateAssetBlueprint(input: {
   analysis: Awaited<ReturnType<typeof createDiscussionAnalysis>>;
   opportunity?: Awaited<ReturnType<typeof upsertOpportunityFromAnalysis>> | null;
   review?: Awaited<ReturnType<typeof upsertReviewFromGeneration>> | null;
-  brainContextPrompt: string;
+  generationBundle?: GenerationBundle | null;
+  brainContextPrompt?: string;
 }) {
   try {
     if (input.opportunity && input.review) {
@@ -114,6 +115,7 @@ async function generateAssetBlueprint(input: {
         discussion: input.discussion,
         opportunity: input.opportunity,
         briefing: input.review,
+        generationBundle: input.generationBundle ?? undefined,
         brainContextPrompt: input.brainContextPrompt,
       });
     }
@@ -121,6 +123,7 @@ async function generateAssetBlueprint(input: {
     return await createAssetBlueprintForDiscussionAnalysis({
       discussion: input.discussion,
       analysis: input.analysis,
+      generationBundle: input.generationBundle ?? undefined,
       brainContextPrompt: input.brainContextPrompt,
     });
   } catch (error) {
@@ -129,29 +132,77 @@ async function generateAssetBlueprint(input: {
   }
 }
 
-async function resolveDiscussionAnalysisBrainPrompt(
+async function resolveDiscussionAnalysisGeneration(
   discussionId: string,
   organizationId: string,
   userId: string | null | undefined,
-): Promise<string> {
+): Promise<{
+  bundle: GenerationBundle | null;
+  legacyBrainPrompt: string | null;
+}> {
   try {
-    const brainContext = await buildBrainContext({
+    const bundle = await resolveGenerationBundle({
+      workflowType: "discussion_analysis",
       organizationId,
       discussionId,
     });
 
-    if (brainContext) {
-      return buildDiscussionAnalysisBrainPrompt(brainContext);
+    if (bundle) {
+      return { bundle, legacyBrainPrompt: null };
     }
   } catch (error) {
-    console.error("Executive reasoning context unavailable, using legacy brain context:", error);
+    console.error(
+      "Generation contract unavailable for discussion analysis, using legacy brain context:",
+      error,
+    );
   }
 
   const legacyContext = userId
     ? await getAthenaBrainContextForUserId(userId, organizationId)
     : await getAthenaBrainContextForCurrentUser();
 
-  return formatBrainContextForPrompt(legacyContext);
+  return {
+    bundle: null,
+    legacyBrainPrompt: formatBrainContextForPrompt(legacyContext),
+  };
+}
+
+async function resolveExecutiveBriefingGeneration(
+  organizationId: string,
+  discussionId: string,
+  opportunityId: string,
+): Promise<GenerationBundle | null> {
+  try {
+    return await resolveGenerationBundle({
+      workflowType: "executive_briefing",
+      organizationId,
+      discussionId,
+      opportunityId,
+    });
+  } catch (error) {
+    console.error("Executive briefing generation contract unavailable:", error);
+    return null;
+  }
+}
+
+async function resolveStrategicBlueprintGeneration(
+  organizationId: string,
+  discussionId: string,
+  opportunityId?: string,
+  briefingId?: string,
+): Promise<GenerationBundle | null> {
+  try {
+    return await resolveGenerationBundle({
+      workflowType: "strategic_blueprint",
+      organizationId,
+      discussionId,
+      opportunityId,
+      briefingId,
+    });
+  } catch (error) {
+    console.error("Strategic blueprint generation contract unavailable:", error);
+    return null;
+  }
 }
 
 export async function processDiscussionEndToEnd(
@@ -165,11 +216,12 @@ export async function processDiscussionEndToEnd(
     throw new Error(`Discussion not found: ${discussionId}`);
   }
 
-  const brainContextPrompt = await resolveDiscussionAnalysisBrainPrompt(
-    discussionId,
-    organizationId,
-    discussion.user_id,
-  );
+  const { bundle: analysisBundle, legacyBrainPrompt } =
+    await resolveDiscussionAnalysisGeneration(
+      discussionId,
+      organizationId,
+      discussion.user_id,
+    );
 
   const threadUpdates = await getDiscussionUpdatesByDiscussionId(
     discussionId,
@@ -180,10 +232,15 @@ export async function processDiscussionEndToEnd(
     body: buildAnalysisThreadBody(discussion, threadUpdates),
   };
 
-  const analysisPrompt = buildDiscussionAnalysisPrompt(
-    analysisDiscussion,
-    brainContextPrompt,
-  );
+  const analysisPrompt = analysisBundle
+    ? assembleDiscussionAnalysisPrompt({
+        bundle: analysisBundle,
+        discussion: analysisDiscussion,
+      })
+    : buildDiscussionAnalysisPrompt(
+        analysisDiscussion,
+        legacyBrainPrompt ?? "",
+      );
 
   const rawAnalysis = await generateReview(analysisPrompt);
   const parsedAnalysis = parseAnalysis(rawAnalysis);
@@ -220,10 +277,15 @@ export async function processDiscussionEndToEnd(
   });
 
   if (!parsedAnalysis.opportunity_detected) {
+    const blueprintBundle = await resolveStrategicBlueprintGeneration(
+      organizationId,
+      discussion.id,
+    );
     const assetBlueprint = await generateAssetBlueprint({
       discussion,
       analysis,
-      brainContextPrompt,
+      generationBundle: blueprintBundle,
+      brainContextPrompt: legacyBrainPrompt ?? undefined,
     });
 
     return {
@@ -264,7 +326,14 @@ export async function processDiscussionEndToEnd(
   }
 
   const reviewStartedAt = Date.now();
-  const reviewPrompt = buildOpportunityReviewPrompt(opportunity);
+  const briefingBundle = await resolveExecutiveBriefingGeneration(
+    organizationId,
+    discussion.id,
+    opportunity.id,
+  );
+  const reviewPrompt = briefingBundle
+    ? assembleExecutiveBriefingPrompt({ bundle: briefingBundle, opportunity })
+    : buildOpportunityReviewPrompt(opportunity);
   const rawReview = await generateReview(reviewPrompt);
   const parsedReview = parseGeneratedReview(rawReview);
 
@@ -295,12 +364,19 @@ export async function processDiscussionEndToEnd(
     throw new Error("Opportunity created but briefing/review was not saved.");
   }
 
+  const blueprintBundle = await resolveStrategicBlueprintGeneration(
+    organizationId,
+    discussion.id,
+    opportunity.id,
+    review.id,
+  );
   const assetBlueprint = await generateAssetBlueprint({
     discussion,
     analysis,
     opportunity,
     review,
-    brainContextPrompt,
+    generationBundle: blueprintBundle,
+    brainContextPrompt: legacyBrainPrompt ?? undefined,
   });
 
   return {

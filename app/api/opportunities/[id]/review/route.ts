@@ -7,6 +7,10 @@ import {
   requireCurrentOrganizationContext,
 } from "@/services/organizationService";
 import {
+  assembleExecutiveBriefingPrompt,
+  resolveGenerationBundle,
+} from "@/services/brain/generationContractService";
+import {
   buildOpportunityReviewPrompt,
   OPPORTUNITY_REVIEW_PROMPT_VERSION,
 } from "@/services/ai/prompts/opportunityReviewPrompt";
@@ -71,7 +75,16 @@ export async function POST(_request: Request, context: RouteContext) {
       );
     }
 
-    const prompt = buildOpportunityReviewPrompt(opportunity);
+    const briefingBundle = await resolveGenerationBundle({
+      workflowType: "executive_briefing",
+      organizationId,
+      discussionId: opportunity.discussion_id ?? undefined,
+      opportunityId: id,
+    });
+
+    const prompt = briefingBundle
+      ? assembleExecutiveBriefingPrompt({ bundle: briefingBundle, opportunity })
+      : buildOpportunityReviewPrompt(opportunity);
 
     const rawReview = await generateReview(prompt);
     const parsedReview = parseGeneratedReview(rawReview);

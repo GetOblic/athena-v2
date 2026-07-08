@@ -1,0 +1,162 @@
+import { buildBrainContext } from "@/services/brain/executiveContextBuilder";
+import { buildGenerationContract } from "@/services/brain/generationContracts/contractBuilder";
+import {
+  assertGenerationContractOrganization,
+  validateGenerationContract,
+} from "@/services/brain/generationContracts/contractValidation";
+import type {
+  GenerationBundle,
+  ResolveGenerationBundleParams,
+} from "@/services/brain/generationContracts/generationContractTypes";
+
+export {
+  buildGenerationContract,
+  resolveWorkflowContractBuilder,
+} from "@/services/brain/generationContracts/contractBuilder";
+
+export {
+  formatGenerationContractForPrompt,
+} from "@/services/brain/generationContracts/contractPromptFormatting";
+
+export {
+  assembleExecutiveGenerationContextBlock,
+} from "@/services/brain/generationContracts/contractPromptFormatting";
+
+export {
+  validateGenerationContract,
+  assertValidGenerationContract,
+  assertGenerationContractOrganization,
+} from "@/services/brain/generationContracts/contractValidation";
+
+export {
+  assembleDiscussionAnalysisPrompt,
+  assembleExecutiveBriefingPrompt,
+  assembleOpportunityReviewPrompt,
+  assembleStrategicBlueprintPrompt,
+} from "@/services/brain/generationContracts/generationPromptAssembly";
+
+export type {
+  GenerationContract,
+  GenerationBundle,
+  GenerationWorkflowType,
+  ResolveGenerationBundleParams,
+  BuildGenerationContractParams,
+} from "@/services/brain/generationContracts/generationContractTypes";
+
+export {
+  GENERATION_CONTRACT_VERSION,
+  GenerationContractOrganizationRequiredError,
+  GenerationContractValidationError,
+} from "@/services/brain/generationContracts/generationContractTypes";
+
+type CacheEntry = {
+  bundle: GenerationBundle;
+  expiresAt: number;
+};
+
+const REQUEST_CACHE_TTL_MS = 30_000;
+const bundleCache = new Map<string, CacheEntry>();
+
+function buildCacheKey(params: ResolveGenerationBundleParams): string {
+  return [
+    params.organizationId.trim(),
+    params.workflowType,
+    params.domainId?.trim() ?? "",
+    params.discussionId?.trim() ?? "",
+    params.opportunityId?.trim() ?? "",
+    params.briefingId?.trim() ?? "",
+  ].join(":");
+}
+
+function readCache(key: string): GenerationBundle | null {
+  const entry = bundleCache.get(key);
+  if (!entry) {
+    return null;
+  }
+
+  if (Date.now() > entry.expiresAt) {
+    bundleCache.delete(key);
+    return null;
+  }
+
+  return entry.bundle;
+}
+
+function writeCache(key: string, bundle: GenerationBundle) {
+  bundleCache.set(key, {
+    bundle,
+    expiresAt: Date.now() + REQUEST_CACHE_TTL_MS,
+  });
+}
+
+export function clearGenerationContractCache(): void {
+  bundleCache.clear();
+}
+
+export async function resolveGenerationBundle(
+  params: ResolveGenerationBundleParams & { bypassCache?: boolean },
+): Promise<GenerationBundle | null> {
+  assertGenerationContractOrganization(params.organizationId);
+
+  const cacheKey = buildCacheKey(params);
+
+  if (!params.bypassCache) {
+    const cached = readCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  const brainContext = await buildBrainContext({
+    organizationId: params.organizationId,
+    discussionId: params.discussionId,
+    opportunityId: params.opportunityId,
+    briefingId: params.briefingId,
+    domainId: params.domainId,
+  });
+
+  if (!brainContext) {
+    return null;
+  }
+
+  const executiveReasoning = brainContext.executiveReasoning;
+  const generationContract = buildGenerationContract({
+    workflowType: params.workflowType,
+    organizationId: params.organizationId,
+    brainContext,
+    executiveReasoning,
+  });
+
+  const bundle: GenerationBundle = {
+    brainContext,
+    executiveReasoning,
+    generationContract,
+  };
+
+  writeCache(cacheKey, bundle);
+  return bundle;
+}
+
+export async function resolveValidatedGenerationBundle(
+  params: ResolveGenerationBundleParams & { bypassCache?: boolean },
+): Promise<GenerationBundle | null> {
+  const bundle = await resolveGenerationBundle(params);
+  if (!bundle) {
+    return null;
+  }
+
+  const validation = validateGenerationContract({
+    contract: bundle.generationContract,
+    brainContext: bundle.brainContext,
+    executiveReasoning: bundle.executiveReasoning,
+  });
+
+  if (!validation.valid) {
+    console.warn(
+      "Generation contract validation warnings:",
+      validation.errors.join("; "),
+    );
+  }
+
+  return bundle;
+}

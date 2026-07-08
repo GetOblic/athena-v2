@@ -5,6 +5,8 @@ import {
   buildAssetBlueprintFromAnalysisPrompt,
   buildAssetBlueprintPrompt,
 } from "@/services/assetBlueprints/prompts/assetBlueprintPrompt";
+import { assembleStrategicBlueprintPrompt } from "@/services/brain/generationContractService";
+import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import type { Discussion } from "@/services/discussionService";
 import type { Opportunity } from "@/services/opportunityService";
@@ -336,14 +338,22 @@ export async function createAssetBlueprintForBriefing(input: {
   discussion: Discussion;
   opportunity: Opportunity;
   briefing: AthenaReview;
-  brainContextPrompt: string;
+  brainContextPrompt?: string;
+  generationBundle?: GenerationBundle;
 }): Promise<AthenaAssetBlueprint | null> {
-  const prompt = buildAssetBlueprintPrompt({
-    brainContextPrompt: input.brainContextPrompt,
-    discussion: input.discussion as unknown as Record<string, unknown>,
-    opportunity: input.opportunity as unknown as Record<string, unknown>,
-    briefing: input.briefing as unknown as Record<string, unknown>,
-  });
+  const prompt = input.generationBundle
+    ? assembleStrategicBlueprintPrompt({
+        bundle: input.generationBundle,
+        discussion: input.discussion as unknown as Record<string, unknown>,
+        opportunity: input.opportunity as unknown as Record<string, unknown>,
+        briefing: input.briefing as unknown as Record<string, unknown>,
+      })
+    : buildAssetBlueprintPrompt({
+        brainContextPrompt: input.brainContextPrompt ?? "",
+        discussion: input.discussion as unknown as Record<string, unknown>,
+        opportunity: input.opportunity as unknown as Record<string, unknown>,
+        briefing: input.briefing as unknown as Record<string, unknown>,
+      });
 
   const rawBlueprint = await generateReview(prompt);
   const parsed = parseJsonResponse(rawBlueprint);
@@ -363,13 +373,20 @@ export async function createAssetBlueprintForBriefing(input: {
 export async function createAssetBlueprintForDiscussionAnalysis(input: {
   discussion: Discussion;
   analysis: DiscussionAnalysis;
-  brainContextPrompt: string;
+  brainContextPrompt?: string;
+  generationBundle?: GenerationBundle;
 }): Promise<AthenaAssetBlueprint | null> {
-  const prompt = buildAssetBlueprintFromAnalysisPrompt({
-    brainContextPrompt: input.brainContextPrompt,
-    discussion: input.discussion as unknown as Record<string, unknown>,
-    analysis: input.analysis as unknown as Record<string, unknown>,
-  });
+  const prompt = input.generationBundle
+    ? assembleStrategicBlueprintPrompt({
+        bundle: input.generationBundle,
+        discussion: input.discussion as unknown as Record<string, unknown>,
+        analysis: input.analysis as unknown as Record<string, unknown>,
+      })
+    : buildAssetBlueprintFromAnalysisPrompt({
+        brainContextPrompt: input.brainContextPrompt ?? "",
+        discussion: input.discussion as unknown as Record<string, unknown>,
+        analysis: input.analysis as unknown as Record<string, unknown>,
+      });
 
   const rawBlueprint = await generateReview(prompt);
   const parsed = parseJsonResponse(rawBlueprint);

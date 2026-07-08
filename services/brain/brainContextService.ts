@@ -35,6 +35,25 @@ export {
   buildDiscussionAnalysisBrainPrompt,
 } from "@/services/brain/executiveReasoningService";
 
+export {
+  buildGenerationContract,
+  resolveGenerationBundle,
+  resolveValidatedGenerationBundle,
+  clearGenerationContractCache,
+  validateGenerationContract,
+  assembleDiscussionAnalysisPrompt,
+  assembleExecutiveBriefingPrompt,
+  assembleOpportunityReviewPrompt,
+  assembleStrategicBlueprintPrompt,
+  assembleExecutiveGenerationContextBlock,
+} from "@/services/brain/generationContractService";
+
+export type {
+  GenerationContract,
+  GenerationBundle,
+  GenerationWorkflowType,
+} from "@/services/brain/generationContractService";
+
 export type {
   ExecutiveLearningSummary,
   BuildExecutiveLearningParams,
