@@ -1,67 +1,61 @@
 /**
- * Brain coverage audit validation (Sprint 13).
+ * Brain coverage validation — MVP completion (Sprint 14).
  * Run: npx tsx scripts/validateBrainCoverage.ts
  */
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  assertNoBrainBypassInGenerationAssembly,
   BRAIN_COVERAGE_MATRIX,
+  BRAIN_COVERAGE_BEFORE_AUDIT_PERCENT,
   calculateBrainCoveragePercent,
   listGenerationCoverageWorkflows,
-  listUnusedStoredIntelligence,
+  listMvpDeferredFields,
 } from "@/services/brain/brainCoverageMatrix";
+import {
+  buildBrainCoverageFinalReport,
+  BRAIN_COVERAGE_AFTER_SPRINT_13_PERCENT,
+  formatBrainCoverageFinalReport,
+} from "@/services/brain/brainCoverageReport";
 import {
   extractBusinessConstraintsFromMasterProfile,
   extractHomepageLearningFromMasterProfile,
   extractTerminologyFromMasterProfile,
   extractVoiceFromMasterProfile,
+  resolveStoredHomepageLearning,
 } from "@/services/brain/masterProfileHelpers";
 import { buildExecutiveStrategyFromUnderstanding } from "@/services/brain/executiveCoherence/executiveStrategyBuilder";
-import { buildBusinessAssessment } from "@/services/brain/executiveReasoningHelpers";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
-const masterProfileHelpersPath = join(
-  process.cwd(),
-  "services/brain/masterProfileHelpers.ts",
-);
-const identityServicePath = join(
-  process.cwd(),
-  "services/identity/identityService.ts",
-);
-const brainContextBuilderPath = join(
-  process.cwd(),
-  "services/brain/brainContextBuilder.ts",
-);
-const reasoningHelpersPath = join(
-  process.cwd(),
-  "services/brain/executiveReasoningHelpers.ts",
-);
-const understandingHelpersPath = join(
-  process.cwd(),
-  "services/brain/executiveUnderstanding/executiveUnderstandingHelpers.ts",
-);
-const generationAssemblyPath = join(
-  process.cwd(),
-  "services/brain/generationContracts/generationPromptAssembly.ts",
-);
-const generationServicePath = join(
-  process.cwd(),
-  "services/brain/generationContractService.ts",
-);
-const coverageMatrixPath = join(
-  process.cwd(),
-  "services/brain/brainCoverageMatrix.ts",
-);
+const paths = {
+  masterProfileHelpers: join(process.cwd(), "services/brain/masterProfileHelpers.ts"),
+  identityService: join(process.cwd(), "services/identity/identityService.ts"),
+  brainContextBuilder: join(process.cwd(), "services/brain/brainContextBuilder.ts"),
+  reasoningHelpers: join(process.cwd(), "services/brain/executiveReasoningHelpers.ts"),
+  understandingHelpers: join(
+    process.cwd(),
+    "services/brain/executiveUnderstanding/executiveUnderstandingHelpers.ts",
+  ),
+  marketingBuilder: join(
+    process.cwd(),
+    "services/brain/executiveCoherence/executiveMarketingStrategyBuilder.ts",
+  ),
+  generationAssembly: join(
+    process.cwd(),
+    "services/brain/generationContracts/generationPromptAssembly.ts",
+  ),
+  generationService: join(process.cwd(), "services/brain/generationContractService.ts"),
+  assetBlueprintService: join(
+    process.cwd(),
+    "services/brain/../assetBlueprints/assetBlueprintService.ts",
+  ),
+  memoryBuilder: join(process.cwd(), "services/brain/executiveMemoryBuilder.ts"),
+};
 
-const masterProfileHelpersSource = readFileSync(masterProfileHelpersPath, "utf8");
-const identityServiceSource = readFileSync(identityServicePath, "utf8");
-const brainContextBuilderSource = readFileSync(brainContextBuilderPath, "utf8");
-const reasoningHelpersSource = readFileSync(reasoningHelpersPath, "utf8");
-const understandingHelpersSource = readFileSync(understandingHelpersPath, "utf8");
-const generationAssemblySource = readFileSync(generationAssemblyPath, "utf8");
-const generationServiceSource = readFileSync(generationServicePath, "utf8");
-const coverageMatrixSource = readFileSync(coverageMatrixPath, "utf8");
+const sources = Object.fromEntries(
+  Object.entries(paths).map(([key, path]) => [key, readFileSync(path, "utf8")]),
+) as Record<keyof typeof paths, string>;
 
 let failures = 0;
 
@@ -146,160 +140,186 @@ function sampleUnderstanding(): ExecutiveUnderstanding {
       rationale: ["Strong intent"],
     },
     supportingEvidence: {
-      entries: [
-        {
-          source: "business_identity",
-          label: "Business Identity",
-          detail: "Consultant positioning",
-          optional: false,
-        },
-      ],
-      totalCount: 1,
-      historicalCount: 1,
+      entries: [],
+      totalCount: 0,
+      historicalCount: 0,
     },
   };
 }
 
-console.log("Athena Executive Brain Coverage Audit\n");
+console.log("Athena Executive Brain — MVP Coverage Completion\n");
 
-if (coverageMatrixSource.includes("BRAIN_COVERAGE_MATRIX")) {
-  pass("Brain coverage matrix defined");
+const report = buildBrainCoverageFinalReport();
+console.log(formatBrainCoverageFinalReport(report));
+console.log("");
+
+if (report.coverageBeforePercent === BRAIN_COVERAGE_BEFORE_AUDIT_PERCENT) {
+  pass(`Baseline coverage documented: ${report.coverageBeforePercent}%`);
 } else {
-  fail("Brain coverage matrix missing");
+  fail("Baseline coverage mismatch");
 }
 
-if (BRAIN_COVERAGE_MATRIX.length >= 18) {
-  pass(`Coverage matrix inventories ${BRAIN_COVERAGE_MATRIX.length} client inputs`);
+if (report.coverageAfterSprint13Percent === BRAIN_COVERAGE_AFTER_SPRINT_13_PERCENT) {
+  pass(`Sprint 13 coverage documented: ${report.coverageAfterSprint13Percent}%`);
+} else {
+  fail("Sprint 13 coverage mismatch");
+}
+
+const afterCoverage = calculateBrainCoveragePercent();
+console.log(`Coverage after Sprint 14 completion: ${afterCoverage}%`);
+
+if (afterCoverage >= 99) {
+  pass("MVP Brain coverage effectively complete (>= 99%)");
+} else {
+  fail(`MVP coverage below target: ${afterCoverage}%`);
+}
+
+if (BRAIN_COVERAGE_MATRIX.length >= 24) {
+  pass(`Coverage matrix inventories ${BRAIN_COVERAGE_MATRIX.length} fields`);
 } else {
   fail("Coverage matrix incomplete");
 }
 
-const afterCoverage = calculateBrainCoveragePercent();
-console.log(`Coverage after audit: ${afterCoverage}%`);
-
-if (afterCoverage >= 80) {
-  pass("Post-audit Brain coverage meets MVP threshold (>= 80%)");
-} else {
-  fail(`Post-audit coverage below threshold: ${afterCoverage}%`);
+const mvpDeferred = listMvpDeferredFields();
+for (const entry of mvpDeferred) {
+  if (entry.notes?.includes("MVP Deferred")) {
+    pass(`MVP Deferred documented: ${entry.input}`);
+  } else {
+    fail(`MVP Deferred missing rationale: ${entry.input}`);
+  }
 }
 
-const unused = listUnusedStoredIntelligence();
-for (const entry of unused) {
-  pass(`Justified stored-only input documented: ${entry.input}`);
-}
-
-if (
-  masterProfileHelpersSource.includes("extractVoiceFromMasterProfile") &&
-  masterProfileHelpersSource.includes("generation_rules")
-) {
-  pass("Nested master profile fields extracted for Brain consumption");
+if (sources.masterProfileHelpers.includes("resolveStoredHomepageLearning")) {
+  pass("Canonical homepage intelligence resolver present");
 } else {
-  fail("Nested master profile extraction incomplete");
-}
-
-if (identityServiceSource.includes("homepage_learning")) {
-  pass("Homepage knowledge stored during identity compile");
-} else {
-  fail("Homepage knowledge not stored on identity compile");
+  fail("Missing resolveStoredHomepageLearning");
 }
 
 if (
-  brainContextBuilderSource.includes("extractHomepageLearningFromMasterProfile") &&
-  brainContextBuilderSource.includes("terminologyFromIntelligence")
+  sources.brainContextBuilder.includes("resolveStoredHomepageLearning") &&
+  sources.memoryBuilder.includes("resolveStoredHomepageLearning")
 ) {
-  pass("Brain context consumes homepage knowledge and domain intelligence terminology");
+  pass("Brain context and memory share homepage resolver (no duplicate fetch)");
 } else {
-  fail("Brain context homepage/domain consumption incomplete");
+  fail("Homepage resolver not shared across Brain layers");
+}
+
+if (sources.identityService.includes("homepage_learning")) {
+  pass("Homepage stored once at identity compile");
+} else {
+  fail("Homepage not stored at compile");
+}
+
+const homepageProfile = {
+  homepage_learning: "Stored homepage intelligence text.",
+  persona: { summary: "Should not override stored homepage" },
+};
+const resolved = resolveStoredHomepageLearning({ masterProfile: homepageProfile });
+if (resolved === "Stored homepage intelligence text.") {
+  pass("Homepage resolver prefers stored homepage_learning");
+} else {
+  fail("Homepage resolver priority incorrect");
 }
 
 if (
-  reasoningHelpersSource.includes("totalRefreshEvents") &&
-  reasoningHelpersSource.includes("homepageLearning")
+  sources.brainContextBuilder.includes("memberCount") &&
+  sources.reasoningHelpers.includes("memberCount")
 ) {
-  pass("Executive reasoning consumes refresh history and homepage knowledge");
+  pass("Domain member count influences executive reasoning");
 } else {
-  fail("Executive reasoning missing refresh/homepage consumption");
+  fail("Domain member count not consumed");
+}
+
+if (sources.brainContextBuilder.includes("sort((a, b) => (b.rating")) {
+  pass("Knowledge assets ordered by rating for Brain consumption");
+} else {
+  fail("Knowledge asset rating not prioritized");
 }
 
 if (
-  understandingHelpersSource.includes("Homepage Knowledge") &&
-  understandingHelpersSource.includes("asset.summary")
+  sources.understandingHelpers.includes("Discussion Notes") &&
+  sources.understandingHelpers.includes("Briefing Operator Notes")
 ) {
-  pass("Executive understanding includes homepage and knowledge asset detail");
+  pass("Discussion ai_notes and briefing notes in supporting evidence");
 } else {
-  fail("Executive understanding evidence gaps remain");
+  fail("Operator notes not wired to understanding");
+}
+
+if (sources.marketingBuilder.includes("homepageUnderstanding")) {
+  pass("Executive Marketing Strategy consumes homepage knowledge");
+} else {
+  fail("Marketing strategy missing homepage consumption");
+}
+
+if (
+  sources.reasoningHelpers.includes("totalRefreshEvents") &&
+  sources.assetBlueprintService.includes("applyMarketingStrategyRefresh")
+) {
+  pass("Learning refresh influences reasoning and marketing strategy");
+} else {
+  fail("Refresh learning paths incomplete");
+}
+
+if (assertNoBrainBypassInGenerationAssembly(sources.generationAssembly)) {
+  pass("Generation assembly routes through executive context block");
+} else {
+  fail("Potential Brain bypass in generation assembly");
 }
 
 for (const workflow of listGenerationCoverageWorkflows()) {
-  if (generationAssemblySource.includes("assembleExecutiveGenerationContextBlock")) {
-    pass(`Generation assembly uses executive context block (${workflow} path)`);
+  if (sources.generationService.includes("executiveStrategy")) {
+    pass(`Generation bundle includes Brain stack (${workflow})`);
   } else {
-    fail(`Generation assembly missing executive context for ${workflow}`);
+    fail(`Generation bundle missing Brain stack for ${workflow}`);
     break;
   }
 }
 
 if (
-  generationAssemblySource.includes("executiveStrategy") &&
-  generationAssemblySource.includes("buildStrategicBlueprintProductionContext")
+  sources.generationAssembly.includes("buildStrategicBlueprintProductionContext") &&
+  sources.generationAssembly.includes("resolveAssetStandard")
 ) {
-  pass("Strategic blueprint generation consumes full Brain stack");
+  pass("Strategic blueprint uses marketing strategy and asset standards");
 } else {
-  fail("Strategic blueprint generation bypasses Brain layers");
-}
-
-if (
-  generationServiceSource.includes("executiveStrategy") &&
-  generationServiceSource.includes("executiveUnderstanding")
-) {
-  pass("Generation bundle reuses Executive Understanding and Strategy");
-} else {
-  fail("Generation bundle missing Brain reuse");
+  fail("Strategic blueprint missing asset standards integration");
 }
 
 const nestedProfile = {
-  voice: { summary: "Direct expert voice", tone: ["credible", "helpful"] },
-  expertise: {
-    professional_terms: ["RevOps", "Pipeline hygiene"],
-    rules: ["Never guarantee income"],
-  },
-  generation_rules: {
-    never_do: ["Use hype language"],
-    always_do: ["Lead with value"],
-  },
-  audience: { common_objections: ["Too expensive"] },
-  persona: { summary: "Trusted operator advisor", positioning: ["RevOps expert"] },
-  business: { offers: ["Diagnostic workshop"] },
-  homepage_learning: "Homepage extracted copy about RevOps services.",
+  voice: { summary: "Direct expert voice", tone: ["credible"] },
+  expertise: { professional_terms: ["RevOps"], rules: ["Never guarantee income"] },
+  generation_rules: { never_do: ["Use hype language"] },
+  homepage_learning: "Homepage extracted copy.",
 };
 
-const voice = extractVoiceFromMasterProfile(nestedProfile, null);
-const constraints = extractBusinessConstraintsFromMasterProfile(nestedProfile);
-const terms = extractTerminologyFromMasterProfile(nestedProfile);
-const homepage = extractHomepageLearningFromMasterProfile(nestedProfile);
-
-if (voice?.includes("Direct expert voice")) {
-  pass("Nested voice.summary consumed");
+if (extractVoiceFromMasterProfile(nestedProfile, null)?.includes("Direct expert voice")) {
+  pass("Nested master profile voice consumed");
 } else {
-  fail("Nested voice.summary not consumed");
+  fail("Nested voice not consumed");
 }
 
-if (constraints.some((item) => item.includes("hype language"))) {
-  pass("generation_rules.never_do consumed as business constraints");
+if (
+  extractBusinessConstraintsFromMasterProfile(nestedProfile).some((item) =>
+    item.includes("hype"),
+  )
+) {
+  pass("Generation rules consumed as constraints");
 } else {
-  fail("generation_rules.never_do not consumed");
+  fail("Generation rules not consumed");
 }
 
-if (terms.includes("RevOps")) {
-  pass("expertise.professional_terms consumed as terminology");
+if (extractTerminologyFromMasterProfile(nestedProfile).includes("RevOps")) {
+  pass("Professional terms consumed");
 } else {
-  fail("expertise.professional_terms not consumed");
+  fail("Professional terms not consumed");
 }
 
-if (homepage?.includes("Homepage extracted copy")) {
-  pass("Homepage knowledge available from master profile");
+if (
+  extractHomepageLearningFromMasterProfile(nestedProfile) ===
+  resolveStoredHomepageLearning({ masterProfile: nestedProfile })
+) {
+  pass("Homepage extraction and resolver are aligned");
 } else {
-  fail("Homepage knowledge unavailable");
+  fail("Homepage extraction mismatch");
 }
 
 const strategy = buildExecutiveStrategyFromUnderstanding({
@@ -307,8 +327,8 @@ const strategy = buildExecutiveStrategyFromUnderstanding({
   executiveUnderstanding: sampleUnderstanding(),
 });
 
-if (strategy.marketingStrategy && strategy.primaryObjective) {
-  pass("Executive Strategy stack complete for generation workflows");
+if (strategy.marketingStrategy?.recommendedPrimaryDeliverable) {
+  pass("Full Executive Strategy + Marketing Strategy stack available");
 } else {
   fail("Executive Strategy stack incomplete");
 }
@@ -317,20 +337,14 @@ const orgA = buildExecutiveStrategyFromUnderstanding({
   organizationId: "org-a",
   executiveUnderstanding: {
     ...sampleUnderstanding(),
-    metadata: {
-      ...sampleUnderstanding().metadata,
-      organizationId: "org-a",
-    },
+    metadata: { ...sampleUnderstanding().metadata, organizationId: "org-a" },
   },
 });
 const orgB = buildExecutiveStrategyFromUnderstanding({
   organizationId: "org-b",
   executiveUnderstanding: {
     ...sampleUnderstanding(),
-    metadata: {
-      ...sampleUnderstanding().metadata,
-      organizationId: "org-b",
-    },
+    metadata: { ...sampleUnderstanding().metadata, organizationId: "org-b" },
   },
 });
 
@@ -338,17 +352,24 @@ if (
   orgA.metadata.organizationId !== orgB.metadata.organizationId &&
   orgA.metadata.strategyFingerprint.includes("org-a")
 ) {
-  pass("Organization isolation preserved in strategy fingerprints");
+  pass("Organization isolation preserved");
 } else {
-  fail("Organization isolation risk in strategy generation");
+  fail("Organization isolation failure");
 }
 
-console.log("\nCoverage Matrix Summary");
-console.log("-----------------------");
-for (const entry of BRAIN_COVERAGE_MATRIX) {
-  console.log(
-    `- ${entry.input}: ${entry.status} | reasoning=${entry.influencesReasoning} marketing=${entry.influencesMarketingStrategy} generation=${entry.influencesGeneration} learning=${entry.influencesFutureLearning}`,
-  );
+const deadFieldChecks = [
+  { name: "ai_notes", source: sources.understandingHelpers },
+  { name: "Briefing Operator Notes", source: sources.understandingHelpers },
+  { name: "rating", source: sources.brainContextBuilder },
+  { name: "memberCount", source: sources.brainContextBuilder },
+];
+
+for (const check of deadFieldChecks) {
+  if (check.source.includes(check.name)) {
+    pass(`No dead field: ${check.name} is referenced in Brain pipeline`);
+  } else {
+    fail(`Dead field suspected: ${check.name}`);
+  }
 }
 
 console.log(`\nValidation complete. Failures: ${failures}`);
@@ -357,4 +378,4 @@ if (failures > 0) {
   process.exit(1);
 }
 
-console.log("\nAll Brain coverage audit checks passed.");
+console.log("\nMVP Brain coverage completion validated.");

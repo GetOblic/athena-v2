@@ -220,6 +220,12 @@ function buildStrategicRationale(input: {
     rationale.push("Community engagement reinforces relationship-first strategy.");
   }
 
+  if (input.understanding.businessUnderstanding.homepageUnderstanding?.trim()) {
+    rationale.push(
+      "Homepage knowledge aligns the recommendation to published positioning.",
+    );
+  }
+
   if (input.understanding.metadata.memoryEnriched) {
     rationale.push("Historical executive memory supports this recommendation.");
   } else if (input.understanding.metadata.learningEnriched) {

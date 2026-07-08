@@ -224,7 +224,19 @@ export function buildMarketAssessment(
   return {
     currentMarketSignals,
     discussionRelevance: focusDiscussion?.summary ?? focusDiscussion?.title ?? null,
-    domainMaturity: focusDomain?.healthLabel ?? null,
+    domainMaturity: focusDomain
+      ? [
+          focusDomain.healthLabel,
+          focusDomain.memberCount != null
+            ? `${focusDomain.memberCount} community members`
+            : null,
+          focusDomain.priority != null && focusDomain.priority >= 3
+            ? "high-priority domain"
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" — ") || null
+      : null,
     evidenceStrength: resolveEvidenceStrength(context),
     recurringObjections,
     recurringTerminology,

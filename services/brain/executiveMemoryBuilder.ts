@@ -21,6 +21,7 @@ import {
   splitMemoryPhrases,
   topDistributionKeys,
 } from "@/services/brain/executiveMemoryHelpers";
+import { resolveStoredHomepageLearning } from "@/services/brain/masterProfileHelpers";
 import type {
   BuildExecutiveMemoryParams,
   ExecutiveMemory,
@@ -319,7 +320,11 @@ export async function buildExecutiveMemory(
       businessKnowledge: identity?.aboutYou ?? null,
       masterProfile: identity?.masterProfile ?? null,
       masterProfileVersion: identity?.masterProfileVersion ?? null,
-      homepageLearning: identity?.homepageLearning ?? null,
+      homepageLearning:
+        identity?.homepageLearning ??
+        resolveStoredHomepageLearning({
+          masterProfile: identity?.masterProfile ?? null,
+        }),
       businessConstraints: extractBusinessConstraints(
         identity?.masterProfile ?? null,
       ),

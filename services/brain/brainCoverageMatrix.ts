@@ -30,14 +30,14 @@ export type BrainCoverageEntry = {
   notes?: string;
 };
 
-export const BRAIN_COVERAGE_AUDIT_VERSION = "brain_coverage_audit_v1";
+export const BRAIN_COVERAGE_AUDIT_VERSION = "brain_coverage_audit_v2_mvp_complete";
 
 export const BRAIN_COVERAGE_BEFORE_AUDIT_PERCENT = 72;
 
 export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
   {
     input: "Business Name (greeting_name)",
-    category: "Athena Brain Profile",
+    category: "Brain Inputs",
     captured: true,
     stored: true,
     learned: false,
@@ -50,7 +50,7 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
   },
   {
     input: "Business Description (about_you)",
-    category: "Athena Brain Profile",
+    category: "Brain Inputs",
     captured: true,
     stored: true,
     learned: false,
@@ -69,7 +69,7 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
   },
   {
     input: "Website URL",
-    category: "Athena Brain Profile",
+    category: "Brain Inputs",
     captured: true,
     stored: true,
     learned: false,
@@ -82,7 +82,7 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
   },
   {
     input: "Homepage Knowledge",
-    category: "Athena Brain Profile",
+    category: "Brain Inputs",
     captured: true,
     stored: true,
     learned: false,
@@ -92,16 +92,19 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
       "executive_memory",
       "executive_understanding",
       "executive_strategy",
+      "executive_marketing_strategy",
+      "generation_outputs",
     ],
     influencesReasoning: true,
-    influencesMarketingStrategy: false,
+    influencesMarketingStrategy: true,
     influencesGeneration: true,
     influencesFutureLearning: false,
-    notes: "Stored on identity compile; consumed via homepage_learning and synthesized profile fields.",
+    notes:
+      "Single source: resolveStoredHomepageLearning from master_profile.homepage_learning (set at identity compile).",
   },
   {
     input: "Business Knowledge (expertise)",
-    category: "Athena Brain Profile",
+    category: "Brain Inputs",
     captured: true,
     stored: true,
     learned: false,
@@ -120,7 +123,7 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
   },
   {
     input: "Master Identity Profile (voice, persona, rules)",
-    category: "Athena Brain Profile",
+    category: "Brain Inputs",
     captured: true,
     stored: true,
     learned: false,
@@ -139,7 +142,7 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
   },
   {
     input: "Knowledge Base assets",
-    category: "Knowledge Base",
+    category: "Brain Inputs",
     captured: true,
     stored: true,
     learned: true,
@@ -156,8 +159,22 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
     influencesFutureLearning: true,
   },
   {
+    input: "Knowledge asset rating",
+    category: "Brain Inputs",
+    captured: true,
+    stored: true,
+    learned: false,
+    status: "consumed",
+    layers: ["brain_context", "executive_understanding"],
+    influencesReasoning: true,
+    influencesMarketingStrategy: false,
+    influencesGeneration: true,
+    influencesFutureLearning: false,
+    notes: "High-rated assets prioritized in knowledge memory ordering and supporting evidence.",
+  },
+  {
     input: "Intelligence Domains",
-    category: "Intelligence Domains",
+    category: "Brain Inputs",
     captured: true,
     stored: true,
     learned: true,
@@ -173,11 +190,38 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
     influencesMarketingStrategy: true,
     influencesGeneration: true,
     influencesFutureLearning: true,
-    notes: "Domain terminology and competitors now populated from intelligence raw_json.",
+  },
+  {
+    input: "Domain member count",
+    category: "Brain Inputs",
+    captured: true,
+    stored: true,
+    learned: false,
+    status: "consumed",
+    layers: ["brain_context", "executive_understanding"],
+    influencesReasoning: true,
+    influencesMarketingStrategy: false,
+    influencesGeneration: false,
+    influencesFutureLearning: false,
+    notes: "Contributes to domain maturity assessment in executive reasoning.",
+  },
+  {
+    input: "Domain group URL",
+    category: "Brain Inputs",
+    captured: true,
+    stored: true,
+    learned: false,
+    status: "mvp_deferred",
+    layers: [],
+    influencesReasoning: false,
+    influencesMarketingStrategy: false,
+    influencesGeneration: false,
+    influencesFutureLearning: false,
+    notes: "MVP Deferred: navigation/display field only — not an executive judgment signal.",
   },
   {
     input: "Discussion content and metadata",
-    category: "Discussions",
+    category: "Brain Inputs",
     captured: true,
     stored: true,
     learned: true,
@@ -196,8 +240,22 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
     influencesFutureLearning: true,
   },
   {
+    input: "Discussion ai_notes",
+    category: "Brain Inputs",
+    captured: true,
+    stored: true,
+    learned: false,
+    status: "consumed",
+    layers: ["executive_understanding", "generation_outputs"],
+    influencesReasoning: true,
+    influencesMarketingStrategy: false,
+    influencesGeneration: true,
+    influencesFutureLearning: false,
+    notes: "Included in supporting evidence when present on focus discussion.",
+  },
+  {
     input: "Discussion updates (thread)",
-    category: "Discussions",
+    category: "Learning",
     captured: true,
     stored: true,
     learned: true,
@@ -215,7 +273,7 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
   },
   {
     input: "Discussion priority",
-    category: "Discussions",
+    category: "Brain Inputs",
     captured: true,
     stored: true,
     learned: false,
@@ -225,11 +283,10 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
     influencesMarketingStrategy: false,
     influencesGeneration: false,
     influencesFutureLearning: false,
-    notes: "Now included in discussion memory and priority rationale.",
   },
   {
     input: "Discussion status",
-    category: "Discussions",
+    category: "Learning",
     captured: true,
     stored: true,
     learned: true,
@@ -242,7 +299,7 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
   },
   {
     input: "Discussion tags",
-    category: "Discussions",
+    category: "Brain Inputs",
     captured: false,
     stored: false,
     learned: false,
@@ -252,11 +309,11 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
     influencesMarketingStrategy: false,
     influencesGeneration: false,
     influencesFutureLearning: false,
-    notes: "No discussion tag schema in MVP.",
+    notes: "MVP Deferred: no discussion tag schema exists.",
   },
   {
     input: "Briefing approvals",
-    category: "Executive decisions",
+    category: "Learning",
     captured: true,
     stored: true,
     learned: true,
@@ -266,16 +323,17 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
       "executive_learning",
       "executive_understanding",
       "executive_strategy",
+      "executive_marketing_strategy",
     ],
     influencesReasoning: true,
     influencesMarketingStrategy: true,
     influencesGeneration: true,
     influencesFutureLearning: true,
-    notes: "Approval also creates knowledge assets reactively.",
+    notes: "Approval creates knowledge assets reactively.",
   },
   {
     input: "Briefing revisions / rejections",
-    category: "Executive decisions",
+    category: "Learning",
     captured: true,
     stored: true,
     learned: true,
@@ -287,8 +345,36 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
     influencesFutureLearning: true,
   },
   {
+    input: "Briefing operator notes",
+    category: "Brain Inputs",
+    captured: true,
+    stored: true,
+    learned: false,
+    status: "consumed",
+    layers: ["executive_understanding", "generation_outputs"],
+    influencesReasoning: true,
+    influencesMarketingStrategy: false,
+    influencesGeneration: true,
+    influencesFutureLearning: false,
+    notes: "Included in supporting evidence when present on linked briefing.",
+  },
+  {
+    input: "Briefing approved_by",
+    category: "Brain Inputs",
+    captured: false,
+    stored: false,
+    learned: false,
+    status: "mvp_deferred",
+    layers: [],
+    influencesReasoning: false,
+    influencesMarketingStrategy: false,
+    influencesGeneration: false,
+    influencesFutureLearning: false,
+    notes: "MVP Deferred: audit field typed but not populated until CRM integration.",
+  },
+  {
     input: "Opportunity status progression",
-    category: "Executive decisions",
+    category: "Learning",
     captured: true,
     stored: true,
     learned: true,
@@ -298,6 +384,7 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
       "executive_learning",
       "executive_understanding",
       "executive_strategy",
+      "executive_marketing_strategy",
     ],
     influencesReasoning: true,
     influencesMarketingStrategy: true,
@@ -305,8 +392,8 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
     influencesFutureLearning: true,
   },
   {
-    input: "Refresh activity (updates, re-analysis, blueprint regen)",
-    category: "Refresh behaviour",
+    input: "Refresh activity",
+    category: "Learning",
     captured: true,
     stored: true,
     learned: true,
@@ -321,11 +408,10 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
     influencesMarketingStrategy: true,
     influencesGeneration: true,
     influencesFutureLearning: true,
-    notes: "refreshLearning now influences risk and direction; marketing refresh preserves strategy.",
   },
   {
     input: "Strategic Blueprint approvals",
-    category: "Executive decisions",
+    category: "Outputs",
     captured: false,
     stored: false,
     learned: false,
@@ -335,11 +421,11 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
     influencesMarketingStrategy: false,
     influencesGeneration: true,
     influencesFutureLearning: false,
-    notes: "Blueprint status defaults to ready; no approval workflow in MVP.",
+    notes: "MVP Deferred: blueprint status defaults to ready; no approval workflow.",
   },
   {
     input: "Identity documents upload",
-    category: "Knowledge Base",
+    category: "Brain Inputs",
     captured: true,
     stored: true,
     learned: false,
@@ -349,21 +435,75 @@ export const BRAIN_COVERAGE_MATRIX: BrainCoverageEntry[] = [
     influencesMarketingStrategy: false,
     influencesGeneration: false,
     influencesFutureLearning: false,
-    notes: "Schema exists; Brain ingestion not wired in MVP.",
+    notes: "MVP Deferred: schema exists; document ingestion deferred until upload UI ships.",
   },
   {
-    input: "Domain group URL / member count",
-    category: "Intelligence Domains",
+    input: "Dashboard metrics / scores",
+    category: "Outputs",
     captured: true,
-    stored: true,
+    stored: false,
     learned: false,
-    status: "stored",
-    layers: ["brain_context"],
-    influencesReasoning: false,
+    status: "consumed",
+    layers: ["brain_context", "executive_understanding"],
+    influencesReasoning: true,
     influencesMarketingStrategy: false,
     influencesGeneration: false,
     influencesFutureLearning: false,
-    notes: "Stored on community record; not required for executive judgment in MVP.",
+    notes: "Operational memory feeds priority assessment; not LLM-generated.",
+  },
+  {
+    input: "Discussion Analysis output",
+    category: "Outputs",
+    captured: true,
+    stored: true,
+    learned: true,
+    status: "consumed",
+    layers: [
+      "executive_understanding",
+      "executive_strategy",
+      "executive_marketing_strategy",
+      "generation_contracts",
+      "generation_outputs",
+    ],
+    influencesReasoning: true,
+    influencesMarketingStrategy: true,
+    influencesGeneration: true,
+    influencesFutureLearning: true,
+  },
+  {
+    input: "Executive Briefing output",
+    category: "Outputs",
+    captured: true,
+    stored: true,
+    learned: true,
+    status: "consumed",
+    layers: [
+      "executive_understanding",
+      "executive_strategy",
+      "generation_contracts",
+      "generation_outputs",
+    ],
+    influencesReasoning: true,
+    influencesMarketingStrategy: true,
+    influencesGeneration: true,
+    influencesFutureLearning: true,
+  },
+  {
+    input: "Strategic Asset Blueprint output",
+    category: "Outputs",
+    captured: true,
+    stored: true,
+    learned: false,
+    status: "consumed",
+    layers: [
+      "executive_marketing_strategy",
+      "generation_contracts",
+      "generation_outputs",
+    ],
+    influencesReasoning: false,
+    influencesMarketingStrategy: true,
+    influencesGeneration: true,
+    influencesFutureLearning: true,
   },
 ];
 
@@ -391,14 +531,17 @@ export function calculateBrainCoveragePercent(
   return Math.round((score / applicable.length) * 100);
 }
 
+export function listMvpDeferredFields(
+  matrix: BrainCoverageEntry[] = BRAIN_COVERAGE_MATRIX,
+): BrainCoverageEntry[] {
+  return matrix.filter((entry) => entry.status === "mvp_deferred");
+}
+
 export function listUnusedStoredIntelligence(
   matrix: BrainCoverageEntry[] = BRAIN_COVERAGE_MATRIX,
 ): BrainCoverageEntry[] {
   return matrix.filter(
-    (entry) =>
-      entry.stored &&
-      (entry.status === "stored" || entry.status === "ignored") &&
-      entry.notes,
+    (entry) => entry.status === "mvp_deferred" && entry.stored && entry.notes,
   );
 }
 
@@ -409,4 +552,12 @@ export function listGenerationCoverageWorkflows(): string[] {
     "strategic_blueprint",
     "deployment_asset",
   ];
+}
+
+export function assertNoBrainBypassInGenerationAssembly(source: string): boolean {
+  return (
+    source.includes("assembleExecutiveGenerationContextBlock") &&
+    source.includes("executiveStrategy") &&
+    !source.includes("LEGACY_PRODUCTION_SPECS_PROMPT")
+  );
 }

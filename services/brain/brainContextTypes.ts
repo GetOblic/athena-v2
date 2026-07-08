@@ -104,6 +104,7 @@ export type DomainMemoryEntry = {
   status: string;
   priority: number | null;
   platform: string;
+  memberCount: number | null;
   isActive: boolean;
   terminology: string[];
   competitors: string[];

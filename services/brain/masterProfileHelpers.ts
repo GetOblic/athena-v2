@@ -195,3 +195,13 @@ export function extractHomepageLearningFromMasterProfile(
 
   return synthesized || null;
 }
+
+/**
+ * Canonical homepage intelligence source for all Brain layers.
+ * Read from stored master_profile only — never re-fetch the website here.
+ */
+export function resolveStoredHomepageLearning(input: {
+  masterProfile: Record<string, unknown> | null;
+}): string | null {
+  return extractHomepageLearningFromMasterProfile(input.masterProfile);
+}

@@ -275,6 +275,15 @@ export function buildSupportingEvidence(
       detail: focusDiscussion.title,
       optional: false,
     });
+
+    if (focusDiscussion.ai_notes?.trim()) {
+      entries.push({
+        source: "current_discussion",
+        label: "Discussion Notes",
+        detail: focusDiscussion.ai_notes.trim().slice(0, 280),
+        optional: true,
+      });
+    }
   }
 
   const threadCount = context.discussionMemory.focus?.threadUpdates.length ?? 0;
@@ -308,13 +317,25 @@ export function buildSupportingEvidence(
     });
   }
 
+  const linkedBriefing = context.discussionMemory.focus?.linkedBriefing;
+  if (linkedBriefing?.notes?.trim()) {
+    entries.push({
+      source: "executive_learning",
+      label: "Briefing Operator Notes",
+      detail: linkedBriefing.notes.trim().slice(0, 280),
+      optional: true,
+    });
+  }
+
   for (const asset of context.knowledgeMemory.assets.slice(0, 3)) {
+    const ratingSuffix =
+      asset.rating != null && asset.rating > 0 ? ` (confidence ${asset.rating})` : "";
     entries.push({
       source: "knowledge_assets",
       label: "Knowledge Asset",
       detail: asset.summary?.trim()
-        ? `${asset.title}: ${asset.summary.slice(0, 180)}`
-        : asset.title,
+        ? `${asset.title}${ratingSuffix}: ${asset.summary.slice(0, 180)}`
+        : `${asset.title}${ratingSuffix}`,
       optional: false,
     });
   }

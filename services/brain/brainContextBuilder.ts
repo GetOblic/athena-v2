@@ -54,7 +54,7 @@ import {
   splitMemoryPhrases,
   splitTerminology,
 } from "@/services/brain/executiveMemoryHelpers";
-import { extractHomepageLearningFromMasterProfile } from "@/services/brain/masterProfileHelpers";
+import { resolveStoredHomepageLearning } from "@/services/brain/masterProfileHelpers";
 import {
   BRAIN_CONTEXT_LIMITS,
   type BrainContextScope,
@@ -178,7 +178,7 @@ async function fetchRecentBlueprints(
 function extractHomepageLearning(
   masterProfile: Record<string, unknown> | null,
 ): string | null {
-  return extractHomepageLearningFromMasterProfile(masterProfile);
+  return resolveStoredHomepageLearning({ masterProfile });
 }
 
 function buildBusinessMemory(identity: AthenaIdentity | null): BusinessMemory {
@@ -262,6 +262,7 @@ async function buildDomainMemory(organizationId: string): Promise<DomainMemory> 
         status: community.status,
         priority: community.priority,
         platform: community.platform,
+        memberCount: community.member_count,
         isActive: community.status?.toLowerCase() !== "inactive",
         terminology: terminologyFromIntelligence,
         competitors: competitorsFromIntelligence,
@@ -718,7 +719,9 @@ function buildKnowledgeMemory(
   ).length;
 
   return {
-    assets: knowledgeAssets.map((asset) => ({
+    assets: [...knowledgeAssets]
+      .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+      .map((asset) => ({
       id: asset.id,
       title: asset.title,
       category: asset.category,
