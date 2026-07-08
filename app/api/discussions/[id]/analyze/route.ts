@@ -31,6 +31,7 @@ export async function POST(_request: Request, context: RouteContext) {
     return NextResponse.json({
       success: true,
       discussionId: id,
+      message: "Discussion intelligence regenerated successfully",
       analysis: result.analysis,
       opportunity: result.opportunity,
       review: result.review,
@@ -47,8 +48,11 @@ export async function POST(_request: Request, context: RouteContext) {
 
     console.error("Athena discussion analysis failed:", error);
 
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to analyze discussion";
+
     return NextResponse.json(
-      { success: false, error: "Failed to analyze discussion" },
+      { success: false, error: errorMessage },
       { status: 500 },
     );
   }

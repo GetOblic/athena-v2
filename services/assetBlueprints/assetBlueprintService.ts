@@ -203,8 +203,30 @@ function parseJsonResponse(rawText: string): ParsedAssetBlueprint {
     .replace(/```$/i, "")
     .trim();
 
-  const parsed = JSON.parse(cleaned) as Record<string, unknown>;
-  return normalizeParsedAssetBlueprint(parsed);
+  try {
+    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+    return normalizeParsedAssetBlueprint(parsed);
+  } catch (error) {
+    console.error("Blueprint JSON parse failed:", error);
+    return normalizeParsedAssetBlueprint({
+      asset_title: "Strategic Asset",
+      notes: cleaned.slice(0, 2000),
+    });
+  }
+}
+
+async function findPreservedBlueprint(input: {
+  organizationId: string;
+  briefingId?: string | null;
+  opportunityId?: string | null;
+  discussionId: string;
+}): Promise<AthenaAssetBlueprint | null> {
+  const existingRows = await findExistingBlueprints(input);
+  const existing = selectCanonicalBlueprint(existingRows);
+  if (existing && blueprintHasPrompts(existing)) {
+    return existing;
+  }
+  return null;
 }
 
 export function blueprintHasPrompts(
@@ -510,16 +532,21 @@ async function generateBlueprintWithQualityGate(input: {
   effectiveBundle: GenerationBundle;
   buildPrompt: (refinementSuffix: string) => string;
 }): Promise<{ parsed: ParsedAssetBlueprint; rawBlueprint: string }> {
-  const gated = await runArtifactQualityGateLoop({
-    bundle: toUnderstandingBundle(input.effectiveBundle),
-    artifactType: "strategic_blueprint",
-    generate: async (refinementSuffix) =>
-      generateReview(input.buildPrompt(refinementSuffix)),
-    parse: parseJsonResponse,
-    toReviewText: blueprintReviewText,
-  });
+  try {
+    const gated = await runArtifactQualityGateLoop({
+      bundle: toUnderstandingBundle(input.effectiveBundle),
+      artifactType: "strategic_blueprint",
+      generate: async (refinementSuffix) =>
+        generateReview(input.buildPrompt(refinementSuffix)),
+      parse: parseJsonResponse,
+      toReviewText: blueprintReviewText,
+    });
 
-  return { parsed: gated.parsed, rawBlueprint: gated.raw };
+    return { parsed: gated.parsed, rawBlueprint: gated.raw };
+  } catch (error) {
+    console.error("Strategic blueprint quality gate failed:", error);
+    throw error;
+  }
 }
 
 export async function createAssetBlueprintForBriefing(input: {
@@ -542,19 +569,46 @@ export async function createAssetBlueprintForBriefing(input: {
   let rawBlueprint: string;
 
   if (effectiveBundle) {
-    const gated = await generateBlueprintWithQualityGate({
-      effectiveBundle,
-      buildPrompt: (refinementSuffix) =>
-        assembleStrategicBlueprintPrompt({
+    try {
+      const gated = await generateBlueprintWithQualityGate({
+        effectiveBundle,
+        buildPrompt: (refinementSuffix) =>
+          assembleStrategicBlueprintPrompt({
+            bundle: effectiveBundle,
+            discussion: input.discussion as unknown as Record<string, unknown>,
+            opportunity: input.opportunity as unknown as Record<string, unknown>,
+            briefing: input.briefing as unknown as Record<string, unknown>,
+            qualityRefinementSuffix: refinementSuffix,
+          }),
+      });
+      parsed = gated.parsed;
+      rawBlueprint = gated.rawBlueprint;
+    } catch (error) {
+      console.error("Blueprint generation with quality gate failed:", error);
+      const preserved = await findPreservedBlueprint({
+        organizationId,
+        briefingId: input.briefing.id,
+        opportunityId: input.opportunity.id,
+        discussionId: input.discussion.id,
+      });
+      if (preserved) {
+        return preserved;
+      }
+
+      try {
+        const prompt = assembleStrategicBlueprintPrompt({
           bundle: effectiveBundle,
           discussion: input.discussion as unknown as Record<string, unknown>,
           opportunity: input.opportunity as unknown as Record<string, unknown>,
           briefing: input.briefing as unknown as Record<string, unknown>,
-          qualityRefinementSuffix: refinementSuffix,
-        }),
-    });
-    parsed = gated.parsed;
-    rawBlueprint = gated.rawBlueprint;
+        });
+        rawBlueprint = await generateReview(prompt);
+        parsed = parseJsonResponse(rawBlueprint);
+      } catch (fallbackError) {
+        console.error("Blueprint single-generation fallback failed:", fallbackError);
+        return preserved;
+      }
+    }
   } else {
     const prompt = buildAssetBlueprintPrompt({
       executiveContextPrompt: input.brainContextPrompt ?? "",
@@ -599,18 +653,42 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   let rawBlueprint: string;
 
   if (effectiveBundle) {
-    const gated = await generateBlueprintWithQualityGate({
-      effectiveBundle,
-      buildPrompt: (refinementSuffix) =>
-        assembleStrategicBlueprintPrompt({
+    try {
+      const gated = await generateBlueprintWithQualityGate({
+        effectiveBundle,
+        buildPrompt: (refinementSuffix) =>
+          assembleStrategicBlueprintPrompt({
+            bundle: effectiveBundle,
+            discussion: input.discussion as unknown as Record<string, unknown>,
+            analysis: input.analysis as unknown as Record<string, unknown>,
+            qualityRefinementSuffix: refinementSuffix,
+          }),
+      });
+      parsed = gated.parsed;
+      rawBlueprint = gated.rawBlueprint;
+    } catch (error) {
+      console.error("Blueprint generation with quality gate failed:", error);
+      const preserved = await findPreservedBlueprint({
+        organizationId,
+        discussionId: input.discussion.id,
+      });
+      if (preserved) {
+        return preserved;
+      }
+
+      try {
+        const prompt = assembleStrategicBlueprintPrompt({
           bundle: effectiveBundle,
           discussion: input.discussion as unknown as Record<string, unknown>,
           analysis: input.analysis as unknown as Record<string, unknown>,
-          qualityRefinementSuffix: refinementSuffix,
-        }),
-    });
-    parsed = gated.parsed;
-    rawBlueprint = gated.rawBlueprint;
+        });
+        rawBlueprint = await generateReview(prompt);
+        parsed = parseJsonResponse(rawBlueprint);
+      } catch (fallbackError) {
+        console.error("Blueprint single-generation fallback failed:", fallbackError);
+        return preserved;
+      }
+    }
   } else {
     const prompt = buildAssetBlueprintFromAnalysisPrompt({
       executiveContextPrompt: input.brainContextPrompt ?? "",

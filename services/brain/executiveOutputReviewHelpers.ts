@@ -16,6 +16,14 @@ export const EXECUTIVE_OUTPUT_REVIEW_VERSION = "executive_output_review_v1";
 export const EXECUTIVE_QUALITY_MINIMUM_THRESHOLD = 9;
 export const EXECUTIVE_QUALITY_MAX_REFINEMENT_PASSES = 3;
 
+export const JSON_PARSE_REFINEMENT_SUFFIX = [
+  "CRITICAL OUTPUT FORMAT:",
+  "Respond with valid JSON only.",
+  "Do not wrap the response in markdown fences.",
+  "Do not include prose before or after the JSON object.",
+  "The previous response was not valid JSON.",
+].join(" ");
+
 const GENERIC_REJECTION_PATTERNS = [
   /\bcreate a webinar\b/i,
   /\bhost a webinar\b/i,
@@ -526,6 +534,25 @@ export function reviewExecutiveBundle(input: {
 export function runExecutiveOutputQualityGate(
   bundle: ExecutiveUnderstandingBundle,
 ): ExecutiveUnderstandingBundle {
+  try {
+    return runExecutiveOutputQualityGateInternal(bundle);
+  } catch (error) {
+    console.error("Executive output quality gate failed, using base bundle:", error);
+    return {
+      ...bundle,
+      executiveUnderstanding: {
+        ...bundle.executiveUnderstanding,
+        executiveCampaignNarrative: buildExecutiveCampaignNarrative(
+          bundle.executiveUnderstanding,
+        ),
+      },
+    };
+  }
+}
+
+function runExecutiveOutputQualityGateInternal(
+  bundle: ExecutiveUnderstandingBundle,
+): ExecutiveUnderstandingBundle {
   const attempts: Array<{
     bundle: ExecutiveUnderstandingBundle;
     review: ExecutiveOutputReviewResult;
@@ -541,13 +568,24 @@ export function runExecutiveOutputQualityGate(
 
   for (let pass = 0; pass < EXECUTIVE_QUALITY_MAX_REFINEMENT_PASSES; pass += 1) {
     if (pass > 0) {
-      current = refineExecutiveBundleForQualityPass({ bundle: current, pass });
+      try {
+        current = refineExecutiveBundleForQualityPass({ bundle: current, pass });
+      } catch (error) {
+        console.error(`Executive bundle refinement failed (pass ${pass}):`, error);
+        break;
+      }
     }
 
-    const review = reviewExecutiveBundle({
-      bundle: current,
-      refinementPass: pass,
-    });
+    let review: ExecutiveOutputReviewResult;
+    try {
+      review = reviewExecutiveBundle({
+        bundle: current,
+        refinementPass: pass,
+      });
+    } catch (error) {
+      console.error(`Executive bundle review failed (pass ${pass}):`, error);
+      continue;
+    }
 
     attempts.push({ bundle: current, review });
 
@@ -560,6 +598,18 @@ export function runExecutiveOutputQualityGate(
         },
       };
     }
+  }
+
+  if (attempts.length === 0) {
+    return {
+      ...bundle,
+      executiveUnderstanding: {
+        ...bundle.executiveUnderstanding,
+        executiveCampaignNarrative: buildExecutiveCampaignNarrative(
+          bundle.executiveUnderstanding,
+        ),
+      },
+    };
   }
 
   const best = attempts.reduce((top, attempt) =>
@@ -681,17 +731,54 @@ export async function runArtifactQualityGateLoop<T>(input: {
   let refinementSuffix =
     input.bundle.executiveUnderstanding.executiveOutputReview?.qualityRefinementInstructions ??
     "";
+  let parseRefinementSuffix = "";
 
   for (let pass = 0; pass < EXECUTIVE_QUALITY_MAX_REFINEMENT_PASSES; pass += 1) {
-    const suffix = pass === 0 ? "" : refinementSuffix;
-    const raw = await input.generate(suffix);
-    const parsed = input.parse(raw);
-    const review = reviewGeneratedArtifact({
-      bundle: input.bundle,
-      text: input.toReviewText(parsed),
-      artifactType: input.artifactType,
-      refinementPass: pass,
-    });
+    const suffix = [pass === 0 ? "" : refinementSuffix, parseRefinementSuffix]
+      .filter(Boolean)
+      .join("\n\n");
+
+    let raw: string;
+    try {
+      raw = await input.generate(suffix);
+    } catch (error) {
+      console.error(
+        `Artifact quality gate generation failed (${input.artifactType}, pass ${pass}):`,
+        error,
+      );
+      parseRefinementSuffix = JSON_PARSE_REFINEMENT_SUFFIX;
+      continue;
+    }
+
+    let parsed: T;
+    try {
+      parsed = input.parse(raw);
+    } catch (error) {
+      console.error(
+        `Artifact quality gate JSON parse failed (${input.artifactType}, pass ${pass}):`,
+        error,
+      );
+      parseRefinementSuffix = JSON_PARSE_REFINEMENT_SUFFIX;
+      continue;
+    }
+
+    parseRefinementSuffix = "";
+
+    let review: ExecutiveOutputReviewResult;
+    try {
+      review = reviewGeneratedArtifact({
+        bundle: input.bundle,
+        text: input.toReviewText(parsed),
+        artifactType: input.artifactType,
+        refinementPass: pass,
+      });
+    } catch (error) {
+      console.error(
+        `Artifact quality gate review failed (${input.artifactType}, pass ${pass}):`,
+        error,
+      );
+      continue;
+    }
 
     attempts.push({ parsed, raw, review });
 
@@ -700,6 +787,12 @@ export async function runArtifactQualityGateLoop<T>(input: {
     }
 
     refinementSuffix = review.qualityRefinementInstructions ?? refinementSuffix;
+  }
+
+  if (attempts.length === 0) {
+    throw new Error(
+      `Artifact quality gate produced no valid ${input.artifactType} generations`,
+    );
   }
 
   const best = attempts.reduce((top, attempt) =>

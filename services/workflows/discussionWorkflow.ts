@@ -92,22 +92,40 @@ function stripJsonFence(rawText: string) {
 }
 
 function parseAnalysis(rawText: string): GeneratedDiscussionAnalysis {
-  const parsed = JSON.parse(stripJsonFence(rawText));
+  try {
+    const parsed = JSON.parse(stripJsonFence(rawText));
 
-  return {
-    summary: String(parsed.summary ?? ""),
-    sentiment: String(parsed.sentiment ?? "neutral"),
-    intent: String(parsed.intent ?? "none"),
-    buyer_stage: String(parsed.buyer_stage ?? "unaware"),
-    pain_points: String(parsed.pain_points ?? ""),
-    opportunity_detected: Boolean(parsed.opportunity_detected ?? false),
-    opportunity_title: String(parsed.opportunity_title ?? ""),
-    opportunity_reason: String(parsed.opportunity_reason ?? ""),
-    recommended_action: String(parsed.recommended_action ?? ""),
-    suggested_cta: String(parsed.suggested_cta ?? ""),
-    risk_level: String(parsed.risk_level ?? "low"),
-    confidence: Number(parsed.confidence ?? 0),
-  };
+    return {
+      summary: String(parsed.summary ?? ""),
+      sentiment: String(parsed.sentiment ?? "neutral"),
+      intent: String(parsed.intent ?? "none"),
+      buyer_stage: String(parsed.buyer_stage ?? "unaware"),
+      pain_points: String(parsed.pain_points ?? ""),
+      opportunity_detected: Boolean(parsed.opportunity_detected ?? false),
+      opportunity_title: String(parsed.opportunity_title ?? ""),
+      opportunity_reason: String(parsed.opportunity_reason ?? ""),
+      recommended_action: String(parsed.recommended_action ?? ""),
+      suggested_cta: String(parsed.suggested_cta ?? ""),
+      risk_level: String(parsed.risk_level ?? "low"),
+      confidence: Number(parsed.confidence ?? 0),
+    };
+  } catch (error) {
+    console.error("Discussion analysis JSON parse failed:", error);
+    return {
+      summary: rawText.slice(0, 2000),
+      sentiment: "neutral",
+      intent: "none",
+      buyer_stage: "unaware",
+      pain_points: "",
+      opportunity_detected: false,
+      opportunity_title: "",
+      opportunity_reason: "",
+      recommended_action: "",
+      suggested_cta: "",
+      risk_level: "low",
+      confidence: 0,
+    };
+  }
 }
 
 function parseGeneratedReview(rawText: string): GeneratedReview {
@@ -269,22 +287,35 @@ export async function processDiscussionEndToEnd(
   let rawAnalysis: string;
 
   if (analysisBundle) {
-    const gated = await runArtifactQualityGateLoop({
-      bundle: toUnderstandingBundle(analysisBundle),
-      artifactType: "discussion_analysis",
-      generate: async (refinementSuffix) => {
-        const prompt = assembleDiscussionAnalysisPrompt({
-          bundle: analysisBundle,
-          discussion: analysisDiscussion,
-          qualityRefinementSuffix: refinementSuffix,
-        });
-        return generateReview(prompt);
-      },
-      parse: parseAnalysis,
-      toReviewText: analysisReviewText,
-    });
-    parsedAnalysis = gated.parsed;
-    rawAnalysis = gated.raw;
+    try {
+      const gated = await runArtifactQualityGateLoop({
+        bundle: toUnderstandingBundle(analysisBundle),
+        artifactType: "discussion_analysis",
+        generate: async (refinementSuffix) => {
+          const prompt = assembleDiscussionAnalysisPrompt({
+            bundle: analysisBundle,
+            discussion: analysisDiscussion,
+            qualityRefinementSuffix: refinementSuffix,
+          });
+          return generateReview(prompt);
+        },
+        parse: parseAnalysis,
+        toReviewText: analysisReviewText,
+      });
+      parsedAnalysis = gated.parsed;
+      rawAnalysis = gated.raw;
+    } catch (error) {
+      console.error(
+        "Discussion analysis quality gate failed, using single generation:",
+        error,
+      );
+      const prompt = assembleDiscussionAnalysisPrompt({
+        bundle: analysisBundle,
+        discussion: analysisDiscussion,
+      });
+      rawAnalysis = await generateReview(prompt);
+      parsedAnalysis = parseAnalysis(rawAnalysis);
+    }
   } else {
     const analysisPrompt = buildDiscussionAnalysisPrompt(
       analysisDiscussion,
@@ -399,22 +430,35 @@ export async function processDiscussionEndToEnd(
   let rawReview: string;
 
   if (briefingBundle) {
-    const gated = await runArtifactQualityGateLoop({
-      bundle: toUnderstandingBundle(briefingBundle),
-      artifactType: "executive_briefing",
-      generate: async (refinementSuffix) => {
-        const prompt = assembleExecutiveBriefingPrompt({
-          bundle: briefingBundle,
-          opportunity,
-          qualityRefinementSuffix: refinementSuffix,
-        });
-        return generateReview(prompt);
-      },
-      parse: parseGeneratedReview,
-      toReviewText: briefingReviewText,
-    });
-    parsedReview = gated.parsed;
-    rawReview = gated.raw;
+    try {
+      const gated = await runArtifactQualityGateLoop({
+        bundle: toUnderstandingBundle(briefingBundle),
+        artifactType: "executive_briefing",
+        generate: async (refinementSuffix) => {
+          const prompt = assembleExecutiveBriefingPrompt({
+            bundle: briefingBundle,
+            opportunity,
+            qualityRefinementSuffix: refinementSuffix,
+          });
+          return generateReview(prompt);
+        },
+        parse: parseGeneratedReview,
+        toReviewText: briefingReviewText,
+      });
+      parsedReview = gated.parsed;
+      rawReview = gated.raw;
+    } catch (error) {
+      console.error(
+        "Executive briefing quality gate failed, using single generation:",
+        error,
+      );
+      const prompt = assembleExecutiveBriefingPrompt({
+        bundle: briefingBundle,
+        opportunity,
+      });
+      rawReview = await generateReview(prompt);
+      parsedReview = parseGeneratedReview(rawReview);
+    }
   } else {
     rawReview = await generateReview(buildOpportunityReviewPrompt(opportunity));
     parsedReview = parseGeneratedReview(rawReview);
