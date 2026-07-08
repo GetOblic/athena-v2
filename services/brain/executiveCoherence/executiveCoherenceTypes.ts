@@ -1,7 +1,8 @@
 import type { GenerationWorkflowType } from "@/services/brain/generationContracts/generationContractTypes";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
+import type { ExecutiveRecommendation } from "@/services/brain/executiveReasoningTypes";
 
-export const EXECUTIVE_STRATEGY_VERSION = "executive_strategy_v2_marketing";
+export const EXECUTIVE_STRATEGY_VERSION = "executive_strategy_v4_cognition";
 
 export type MarketingDeliverableRecommendation =
   | "Educational Guide"
@@ -63,6 +64,9 @@ export type ExecutiveMarketingStrategy = {
   supportingImplementationType: string | null;
   marketingFingerprint: string;
   refreshGuidance: MarketingStrategyRefreshGuidance;
+  executiveRecommendation: ExecutiveRecommendation;
+  assetSelectionRationale: string[];
+  platformInfluence: string[];
 };
 
 export type ExecutiveStrategy = {

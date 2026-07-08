@@ -1,6 +1,7 @@
-import { extractAudienceSignalsFromMasterProfile } from "@/services/brain/masterProfileHelpers";
+import { formatExecutiveIntelligenceForPrompt } from "@/services/brain/executiveIntelligenceHelpers";
 import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
 import type { ExecutiveReasoning } from "@/services/brain/executiveReasoningTypes";
+import type { ExecutiveIntelligencePipeline } from "@/services/brain/executiveReasoningTypes";
 import type {
   BusinessUnderstanding,
   ExecutiveSummary,
@@ -100,7 +101,10 @@ export function buildMarketUnderstanding(
 
   return {
     buyerStage: focusAnalysis?.buyer_stage ?? null,
-    painPoints,
+    painPoints: uniqueStrings([
+      ...painPoints,
+      reasoning.executiveIntelligence.hiddenProblem.hiddenMarketProblem,
+    ]),
     marketSignals: market.currentMarketSignals,
     recurringTerminology,
     competitors,
@@ -144,8 +148,15 @@ export function buildStrategicUnderstanding(
     secondaryDirection: direction.secondary,
     recommendedExecutiveAction,
     recommendedDeploymentDirection,
-    primaryExecutiveObjective: priority.rationale[0] ?? recommendedExecutiveAction,
-    rationale: direction.rationale,
+    primaryExecutiveObjective:
+      reasoning.executiveIntelligence.hiddenProblem.foundationalInsight ||
+      priority.rationale[0] ||
+      recommendedExecutiveAction,
+    rationale: uniqueStrings([
+      ...direction.rationale,
+      reasoning.executiveIntelligence.contrarianThinking.strategicReframe,
+      reasoning.executiveIntelligence.strategicDifferentiation.differentiationStatement,
+    ]),
   };
 }
 
@@ -161,6 +172,7 @@ export function buildOpportunityUnderstanding(
     context.discussionMemory.focus?.linkedOpportunity;
 
   const businessOpportunity = uniqueStrings([
+    reasoning.executiveIntelligence.suggestedOpportunityTitle,
     focusOpportunity?.title,
     focusAnalysis?.opportunity_title,
     focusDiscussion?.title,
@@ -213,20 +225,23 @@ export function buildExecutiveSummary(input: {
   context: AthenaBrainContext;
   strategic: StrategicUnderstanding;
   opportunity: OpportunityUnderstanding;
+  executiveIntelligence: ExecutiveIntelligencePipeline;
   discussionId?: string;
 }): ExecutiveSummary {
   const focusDiscussion = input.context.discussionMemory.focus?.discussion;
   const focusAnalysis = input.context.discussionMemory.focus?.latestAnalysis;
-  const headline =
-    input.opportunity.businessOpportunity ??
-    focusDiscussion?.title ??
-    `${input.context.organization.name} executive understanding`;
-
   const narrativeParts = uniqueStrings([
+    input.executiveIntelligence.hiddenProblem.hiddenMarketProblem,
     focusAnalysis?.summary,
     input.context.snapshot.businessSummary,
     input.strategic.recommendedExecutiveAction,
   ]);
+
+  const headline =
+    input.opportunity.businessOpportunity ??
+    input.executiveIntelligence.suggestedOpportunityTitle ??
+    focusDiscussion?.title ??
+    `${input.context.organization.name} executive understanding`;
 
   return {
     headline,
@@ -469,6 +484,8 @@ export function formatExecutiveUnderstandingForPrompt(
       (entry) =>
         `- [${entry.source}${entry.optional ? ", optional" : ", required"}] ${entry.label}: ${entry.detail}`,
     ),
+    "",
+    formatExecutiveIntelligenceForPrompt(understanding.executiveIntelligence),
     "",
     "INSTRUCTIONS:",
     "Express this executive understanding in generated language.",

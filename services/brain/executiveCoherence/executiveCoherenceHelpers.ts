@@ -31,6 +31,17 @@ export function formatExecutiveMarketingStrategyForPrompt(
     `- Executive priority: ${marketing.executivePriority}`,
     `- Recommendation confidence: ${marketing.recommendationConfidence}`,
     `- Preferred implementation: ${marketing.preferredImplementationType}`,
+    "",
+    "EXECUTIVE RECOMMENDATION:",
+    `- Why this asset: ${marketing.executiveRecommendation.whyThisAsset}`,
+    `- Why now: ${marketing.executiveRecommendation.whyNow}`,
+    `- Expected business outcome: ${marketing.executiveRecommendation.expectedBusinessOutcome}`,
+    `- Target audience: ${marketing.executiveRecommendation.targetAudience}`,
+    `- Conversion mechanism: ${marketing.executiveRecommendation.conversionMechanism}`,
+    `- Estimated effort: ${marketing.executiveRecommendation.estimatedEffort}`,
+    `- Reuse potential: ${marketing.executiveRecommendation.estimatedReusePotential}`,
+    `- Platform influence: ${marketing.platformInfluence.join("; ") || "Multi-platform"}`,
+    `- Asset selection rationale: ${marketing.assetSelectionRationale.join(" ") || marketing.executiveRecommendation.strategicRationale}`,
     marketing.refreshGuidance.preserveStrategy
       ? "- Refresh mode: improve execution quality (preserve strategic direction)"
       : `- Refresh mode: change direction — ${marketing.refreshGuidance.changeJustification ?? "materially stronger strategy identified"}`,

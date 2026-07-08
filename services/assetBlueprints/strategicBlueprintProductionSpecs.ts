@@ -3,7 +3,7 @@ import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/exec
 import type { MarketingDeliverableRecommendation } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
-export const STRATEGIC_BLUEPRINT_SPECS_VERSION = "strategic_blueprint_specs_v2_marketing";
+export const STRATEGIC_BLUEPRINT_SPECS_VERSION = "strategic_blueprint_specs_v3_executive";
 
 export type AssetSophisticationLevel =
   | "beginner"
@@ -42,6 +42,20 @@ export type BlueprintGenerationInstructions = {
   emailSequenceStructure: string;
 };
 
+export type ExecutiveBlueprintSpecification = {
+  strategicObjective: string;
+  businessProblemSolved: string;
+  assetSelectionReason: string;
+  targetPsychologicalOutcome: string;
+  primaryCta: string;
+  contentArchitecture: string;
+  repurposingOpportunities: string;
+  businessKpi: string;
+  estimatedProductionEffort: string;
+  expectedLifespan: string;
+  estimatedRoiCategory: "low" | "medium" | "high";
+};
+
 export type StrategicBlueprintProductionContext = {
   version: string;
   assetObjective: string;
@@ -63,6 +77,7 @@ export type StrategicBlueprintProductionContext = {
   refreshPreserveStrategy: boolean;
   production: BlueprintProductionSpecification;
   generationInstructions: BlueprintGenerationInstructions;
+  executiveSpecification: ExecutiveBlueprintSpecification;
 };
 
 const DELIVERABLE_STRATEGIC_ANGLES: Record<
@@ -209,7 +224,9 @@ export function resolveStrategicAngle(
   understanding: ExecutiveUnderstanding,
 ): string {
   const direction = understanding.strategicUnderstanding.recommendedDirection;
-  const angles = STRATEGIC_ANGLES[direction] ?? STRATEGIC_ANGLES.consultative;
+  const angles =
+    STRATEGIC_ANGLES[direction as RecommendedDirectionKey] ??
+    STRATEGIC_ANGLES.consultative;
   const seed =
     understanding.metadata.understandingFingerprint ||
     understanding.metadata.discussionId ||
@@ -404,6 +421,38 @@ export function buildStrategicBlueprintProductionContext(
     preferredAssetType,
   });
 
+  const intelligence = understanding.executiveIntelligence;
+  const decisionDocument = intelligence.executiveCognition.executiveDecisionDocument;
+  const marketingRecommendation = marketing.executiveRecommendation;
+
+  const executiveSpecification: ExecutiveBlueprintSpecification = {
+    strategicObjective: decisionDocument.businessObjective,
+    businessProblemSolved: decisionDocument.hiddenMarketProblem,
+    assetSelectionReason: decisionDocument.assetSelectionReason,
+    targetPsychologicalOutcome:
+      decisionDocument.generationObjectives.psychologicalObjective,
+    primaryCta: decisionDocument.generationObjectives.callToActionObjective,
+    contentArchitecture:
+      generationInstructions.sectionHierarchy +
+      " " +
+      generationInstructions.layoutExpectations,
+    repurposingOpportunities: production.reuseStrategy,
+    businessKpi: decisionDocument.successMetric,
+    estimatedProductionEffort: marketingRecommendation.estimatedEffort,
+    expectedLifespan:
+      marketingRecommendation.estimatedReusePotential === "high"
+        ? "6-12 months with quarterly refresh"
+        : marketingRecommendation.estimatedReusePotential === "medium"
+          ? "3-6 months with minor updates"
+          : "Single campaign cycle with limited reuse",
+    estimatedRoiCategory:
+      marketingRecommendation.estimatedReusePotential === "high"
+        ? "high"
+        : marketingRecommendation.estimatedReusePotential === "medium"
+          ? "medium"
+          : "low",
+  };
+
   return {
     version: STRATEGIC_BLUEPRINT_SPECS_VERSION,
     assetObjective: coreMessage,
@@ -425,6 +474,7 @@ export function buildStrategicBlueprintProductionContext(
     refreshPreserveStrategy: marketing.refreshGuidance.preserveStrategy,
     production,
     generationInstructions,
+    executiveSpecification,
   };
 }
 
@@ -492,6 +542,19 @@ export function formatStrategicBlueprintProductionSpecsForPrompt(
     `- CTA objective: ${context.production.ctaObjective}`,
     `- Distribution channel: ${context.production.distributionChannel}`,
     `- Reuse strategy: ${context.production.reuseStrategy}`,
+    "",
+    "EXECUTIVE SPECIFICATION (senior strategist instructions):",
+    `- Strategic objective: ${context.executiveSpecification.strategicObjective}`,
+    `- Business problem solved: ${context.executiveSpecification.businessProblemSolved}`,
+    `- Why this asset was selected: ${context.executiveSpecification.assetSelectionReason}`,
+    `- Target psychological outcome: ${context.executiveSpecification.targetPsychologicalOutcome}`,
+    `- Primary CTA: ${context.executiveSpecification.primaryCta}`,
+    `- Content architecture: ${context.executiveSpecification.contentArchitecture}`,
+    `- Repurposing opportunities: ${context.executiveSpecification.repurposingOpportunities}`,
+    `- Business KPI: ${context.executiveSpecification.businessKpi}`,
+    `- Estimated production effort: ${context.executiveSpecification.estimatedProductionEffort}`,
+    `- Expected lifespan: ${context.executiveSpecification.expectedLifespan}`,
+    `- Estimated ROI category: ${context.executiveSpecification.estimatedRoiCategory}`,
     "",
     "AI GENERATION INSTRUCTIONS:",
     `- Asset type guidance: ${context.generationInstructions.assetTypeGuidance}`,

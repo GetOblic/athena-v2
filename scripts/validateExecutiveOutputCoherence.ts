@@ -16,6 +16,7 @@ import {
   validateOutputDiversity,
   validateStrategyAlignment,
 } from "@/services/brain/executiveCoherenceService";
+import { buildSampleExecutiveIntelligencePipeline } from "@/services/brain/executiveIntelligenceHelpers";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
 const coherenceServicePath = join(
@@ -156,6 +157,7 @@ function sampleUnderstanding(
       totalCount: 1,
       historicalCount: 0,
     },
+    executiveIntelligence: buildSampleExecutiveIntelligencePipeline(),
   };
 }
 

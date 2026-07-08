@@ -49,6 +49,7 @@ export function buildExecutiveUnderstanding(
     context: brainContext,
     strategic: strategicUnderstanding,
     opportunity: opportunityUnderstanding,
+    executiveIntelligence: executiveReasoning.executiveIntelligence,
     discussionId,
   });
 
@@ -92,6 +93,7 @@ export function buildExecutiveUnderstanding(
     riskUnderstanding,
     priorityUnderstanding,
     supportingEvidence,
+    executiveIntelligence: executiveReasoning.executiveIntelligence,
   };
 
   return understanding;

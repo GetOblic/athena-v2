@@ -30,6 +30,7 @@ import { getDiscussionUpdatesByDiscussionId } from "@/services/discussionUpdateS
 import { getDiscussionById } from "@/services/discussionService";
 import { upsertOpportunityFromAnalysis } from "@/services/opportunityService";
 import { upsertReviewFromGeneration } from "@/services/reviewService";
+import { computeCompositeOpportunityScoreFromAnalysis } from "@/services/brain/executiveIntelligenceHelpers";
 
 type GeneratedDiscussionAnalysis = {
   summary: string;
@@ -303,17 +304,28 @@ export async function processDiscussionEndToEnd(
     };
   }
 
+  const opportunityScore = computeCompositeOpportunityScoreFromAnalysis({
+    reasoning: analysisBundle?.executiveReasoning?.executiveIntelligence,
+    aiConfidence: parsedAnalysis.confidence || discussion.opportunity_score || 0,
+  });
+
+  const opportunityTitle =
+    parsedAnalysis.opportunity_title ||
+    analysisBundle?.executiveReasoning?.executiveIntelligence
+      ?.suggestedOpportunityTitle ||
+    discussion.title;
+
   const opportunity = await upsertOpportunityFromAnalysis({
     organization_id: organizationId,
     discussion_id: discussion.id,
     user_id: discussion.user_id ?? null,
     community_id: discussion.community_id,
     status: "draft",
-    score: parsedAnalysis.confidence || discussion.opportunity_score || 0,
+    score: opportunityScore,
     urgency: parsedAnalysis.risk_level,
     intent: parsedAnalysis.intent,
     risk_level: parsedAnalysis.risk_level,
-    title: parsedAnalysis.opportunity_title || discussion.title,
+    title: opportunityTitle,
     reason: parsedAnalysis.opportunity_reason,
     recommended_action: parsedAnalysis.recommended_action,
     suggested_cta: parsedAnalysis.suggested_cta,

@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createKnowledgeAsset } from "@/services/knowledgeAssetService";
 import { getDiscussionById } from "@/services/discussionService";
 import { getReviewById, type AthenaReview } from "@/services/reviewService";
+import { getExecutiveReasoning } from "@/services/brain/executiveReasoningService";
 
 function compactText(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -26,7 +27,7 @@ function buildKnowledgeAssetContent(review: AthenaReview) {
     .join("\n\n");
 }
 
-function inferTags(review: AthenaReview): string[] {
+function inferTags(review: AthenaReview, executiveNotes?: string[]): string[] {
   const tagSet = new Set<string>();
 
   if (review.buyer_stage) tagSet.add(review.buyer_stage.toLowerCase());
@@ -34,8 +35,31 @@ function inferTags(review: AthenaReview): string[] {
   if (review.discussion_id) tagSet.add("discussion-linked");
   if (review.cta) tagSet.add("cta");
   if (review.recommended_response) tagSet.add("reply");
+  if (executiveNotes?.length) tagSet.add("executive-learning");
 
   return Array.from(tagSet);
+}
+
+function buildExecutiveLearningNotes(input: {
+  review: AthenaReview;
+  discussionPlatform?: string | null;
+  intelligence?: Awaited<ReturnType<typeof getExecutiveReasoning>>["executiveIntelligence"];
+}): string {
+  const intelligence = input.intelligence;
+  if (!intelligence) {
+    return "Executive learning captured without intelligence pipeline metadata.";
+  }
+
+  return [
+    "Executive Learning Metadata:",
+    `Platform: ${input.discussionPlatform ?? "unknown"}`,
+    `Hidden problem: ${intelligence.hiddenProblem.hiddenMarketProblem}`,
+    `Buyer psychology: ${intelligence.buyerPsychology.coreFear ?? "n/a"}`,
+    `Strategic asset: ${intelligence.assetStrategy.selectedAssetType}`,
+    `Business outcome: ${intelligence.executiveRecommendation.expectedBusinessOutcome}`,
+    `Reasoning path: market → hidden problem → psychology → differentiation → contrarian → asset strategy`,
+    `Contrarian insight: ${intelligence.contrarianThinking.assumptionChallenge}`,
+  ].join("\n");
 }
 
 export async function learnFromApprovedBriefing(
@@ -64,6 +88,27 @@ export async function learnFromApprovedBriefing(
     ? await getDiscussionById(review.discussion_id, organizationId)
     : null;
 
+  let executiveIntelligence:
+    | Awaited<ReturnType<typeof getExecutiveReasoning>>["executiveIntelligence"]
+    | undefined;
+  try {
+    const reasoning = await getExecutiveReasoning({
+      organizationId,
+      discussionId: review.discussion_id ?? undefined,
+      opportunityId: review.opportunity_id ?? undefined,
+      briefingId: review.id,
+    });
+    executiveIntelligence = reasoning.executiveIntelligence;
+  } catch {
+    executiveIntelligence = undefined;
+  }
+
+  const executiveLearningNotes = buildExecutiveLearningNotes({
+    review,
+    discussionPlatform: discussion?.platform ?? null,
+    intelligence: executiveIntelligence,
+  });
+
   const knowledgeAsset = await createKnowledgeAsset({
     organization_id: organizationId,
     title,
@@ -78,8 +123,11 @@ export async function learnFromApprovedBriefing(
     rating: review.confidence
       ? Math.max(1, Math.min(5, Math.round(review.confidence / 20)))
       : null,
-    tags: inferTags(review),
-    notes: "Automatically captured by Athena Brain after briefing approval.",
+    tags: inferTags(review, executiveIntelligence ? ["executive-learning"] : undefined),
+    notes: [
+      "Automatically captured by Athena Brain after briefing approval.",
+      executiveLearningNotes,
+    ].join("\n\n"),
   });
 
   const links: {

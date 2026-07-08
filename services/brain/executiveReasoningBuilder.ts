@@ -12,6 +12,7 @@ import {
   buildRiskAssessment,
   buildStrategicAssessment,
 } from "@/services/brain/executiveReasoningHelpers";
+import { buildExecutiveIntelligencePipeline } from "@/services/brain/executiveIntelligenceHelpers";
 import type {
   BuildExecutiveReasoningParams,
   ExecutiveReasoning,
@@ -108,6 +109,16 @@ export async function buildExecutiveReasoning(
 
   const priorityAssessment = buildPriorityAssessment(context);
   const riskAssessment = buildRiskAssessment(context);
+  const recommendedDirection = buildRecommendedDirection({
+    context,
+    priority: priorityAssessment,
+    risk: riskAssessment,
+  });
+  const executiveIntelligence = buildExecutiveIntelligencePipeline({
+    context,
+    direction: recommendedDirection,
+    priority: priorityAssessment,
+  });
 
   return {
     metadata: {
@@ -123,13 +134,10 @@ export async function buildExecutiveReasoning(
     strategicAssessment: buildStrategicAssessment(context),
     businessAssessment: buildBusinessAssessment(context),
     marketAssessment: buildMarketAssessment(context),
-    opportunityAssessment: buildOpportunityAssessment(context),
+    opportunityAssessment: buildOpportunityAssessment(context, executiveIntelligence),
     priorityAssessment,
     riskAssessment,
-    recommendedDirection: buildRecommendedDirection({
-      context,
-      priority: priorityAssessment,
-      risk: riskAssessment,
-    }),
+    recommendedDirection,
+    executiveIntelligence,
   };
 }

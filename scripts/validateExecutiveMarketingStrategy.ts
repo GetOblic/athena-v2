@@ -21,6 +21,7 @@ import {
   MARKETING_RECOMMENDATION_CONTRACTS,
 } from "@/services/brain/executiveCoherence/marketingRecommendationContracts";
 import { buildStrategicBlueprintProductionContext } from "@/services/assetBlueprints/strategicBlueprintProductionSpecs";
+import { buildSampleExecutiveIntelligencePipeline } from "@/services/brain/executiveIntelligenceHelpers";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
 const marketingBuilderPath = join(
@@ -77,8 +78,27 @@ function sampleUnderstanding(
     buyerStage: string | null;
     priority: string;
     organizationId: string;
+    assetType: ExecutiveUnderstanding["executiveIntelligence"]["assetStrategy"]["selectedAssetType"];
   }> = {},
 ): ExecutiveUnderstanding {
+  const executiveIntelligence = buildSampleExecutiveIntelligencePipeline();
+  const applyAssetType = (
+    assetType: ExecutiveUnderstanding["executiveIntelligence"]["assetStrategy"]["selectedAssetType"],
+  ) => {
+    executiveIntelligence.assetStrategy.selectedAssetType = assetType;
+    executiveIntelligence.executiveCognition.executiveDecisionDocument.recommendedAssetType =
+      assetType;
+    executiveIntelligence.executiveCognition.strategicCritic.finalAssetType = assetType;
+  };
+
+  if (overrides.assetType) {
+    applyAssetType(overrides.assetType);
+  } else if (overrides.direction === "sales_first") {
+    applyAssetType("Case Study Collection");
+  } else if (overrides.direction === "educational") {
+    applyAssetType("Educational Guide");
+  }
+
   return {
     metadata: {
       generatedAt: new Date().toISOString(),
@@ -161,6 +181,7 @@ function sampleUnderstanding(
       totalCount: 1,
       historicalCount: 0,
     },
+    executiveIntelligence,
   };
 }
 
@@ -235,6 +256,12 @@ const strategy = buildExecutiveStrategyFromUnderstanding({
   organizationId: "org-marketing-1",
   executiveUnderstanding: understanding,
 });
+
+if (strategy.marketingStrategy.executiveRecommendation?.whyThisAsset) {
+  pass("Marketing strategy includes executive recommendation layer");
+} else {
+  fail("Marketing strategy missing executive recommendation");
+}
 
 if (strategy.marketingStrategy.recommendedPrimaryDeliverable) {
   pass("Executive Strategy includes marketing recommendation");

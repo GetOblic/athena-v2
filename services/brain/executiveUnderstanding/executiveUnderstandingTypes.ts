@@ -1,10 +1,9 @@
 import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
-import type { ExecutiveReasoning } from "@/services/brain/executiveReasoningTypes";
-import type { RecommendedDirectionKey } from "@/services/brain/executiveReasoningTypes";
+import type { ExecutiveReasoning, ExecutiveIntelligencePipeline, RecommendedDirectionKey } from "@/services/brain/executiveReasoningTypes";
 
 import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 
-export const EXECUTIVE_UNDERSTANDING_VERSION = "executive_understanding_v1";
+export const EXECUTIVE_UNDERSTANDING_VERSION = "executive_understanding_v3_cognition";
 
 export type UnderstandingEvidenceSource =
   | "business_identity"
@@ -114,6 +113,7 @@ export type ExecutiveUnderstanding = {
   riskUnderstanding: RiskUnderstanding;
   priorityUnderstanding: PriorityUnderstanding;
   supportingEvidence: SupportingEvidence;
+  executiveIntelligence: ExecutiveIntelligencePipeline;
 };
 
 export type BuildExecutiveUnderstandingParams = {

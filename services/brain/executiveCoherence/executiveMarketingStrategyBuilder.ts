@@ -7,6 +7,7 @@ import type {
   MarketingDeliverableRecommendation,
   MarketingRecommendationIntent,
 } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
+import type { ExecutiveRecommendation } from "@/services/brain/executiveReasoningTypes";
 
 export const DELIVERABLE_IMPLEMENTATION: Record<
   MarketingDeliverableRecommendation,
@@ -100,10 +101,16 @@ function selectPrimaryDeliverable(input: {
   stageKey: string;
   priority: string;
   seed: string;
+  preferredDeliverable?: MarketingDeliverableRecommendation;
 }): {
   deliverable: MarketingDeliverableRecommendation;
   intent: MarketingRecommendationIntent;
 } {
+  if (input.preferredDeliverable) {
+    const intent = inferIntentForDeliverable(input.preferredDeliverable, input.direction);
+    return { deliverable: input.preferredDeliverable, intent };
+  }
+
   const progression = STAGE_PROGRESSION[input.stageKey] ?? STAGE_PROGRESSION.aware;
   const bucket = progression.bucket;
 
@@ -186,6 +193,40 @@ function selectPrimaryDeliverable(input: {
   }
 
   return { deliverable: "Lead Magnet", intent: "Generate Leads" };
+}
+
+function inferIntentForDeliverable(
+  deliverable: MarketingDeliverableRecommendation,
+  direction: RecommendedDirectionKey,
+): MarketingRecommendationIntent {
+  const intentMap: Partial<
+    Record<MarketingDeliverableRecommendation, MarketingRecommendationIntent>
+  > = {
+    "Educational Guide": "Educate",
+    "Decision Framework": "Support Decision Making",
+    "Comparison Resource": "Compare Options",
+    "Diagnostic Checklist": "Support Decision Making",
+    "Authority Whitepaper": "Increase Authority",
+    "Executive Webinar": "Increase Authority",
+    "Educational Video": "Educate",
+    "Trust-Building Landing Page": "Build Trust",
+    "Multi-step Email Journey": "Build Trust",
+    "Lead Magnet": "Generate Leads",
+    "FAQ Resource": "Educate",
+    "Case Study Collection": "Convert Prospects",
+    "Community Campaign": "Strengthen Community",
+    "Interactive Assessment": "Support Decision Making",
+    "Downloadable Toolkit": "Generate Leads",
+    "Educational Workshop": "Support Decision Making",
+  };
+
+  if (intentMap[deliverable]) {
+    return intentMap[deliverable]!;
+  }
+
+  if (direction === "sales_first") return "Convert Prospects";
+  if (direction === "relationship_first") return "Build Trust";
+  return "Educate";
 }
 
 function buildStrategicRationale(input: {
@@ -290,11 +331,17 @@ export function buildExecutiveMarketingStrategy(input: {
     base.communicationPriority,
   ].join("|");
 
+  const intelligence = understanding.executiveIntelligence;
+  const assetFromIntelligence =
+    intelligence.executiveCognition.executiveDecisionDocument.recommendedAssetType ??
+    intelligence.assetStrategy.selectedAssetType;
+
   const selection = selectPrimaryDeliverable({
     direction: base.recommendedApproach as RecommendedDirectionKey,
     stageKey,
     priority: base.communicationPriority,
     seed,
+    preferredDeliverable: assetFromIntelligence,
   });
 
   const supportingDeliverable =
@@ -317,6 +364,8 @@ export function buildExecutiveMarketingStrategy(input: {
     deliverable: selection.deliverable,
     progressionObjective: progression.objective,
   });
+
+  const intelligenceRecommendation = intelligence.executiveRecommendation;
 
   const candidate: ExecutiveMarketingStrategy = {
     businessObjective: base.primaryObjective,
@@ -352,6 +401,9 @@ export function buildExecutiveMarketingStrategy(input: {
       refreshMode: "improve_execution",
       changeJustification: null,
     },
+    executiveRecommendation: intelligenceRecommendation,
+    assetSelectionRationale: intelligence.assetStrategy.selectionRationale,
+    platformInfluence: intelligence.assetStrategy.platformInfluence,
   };
 
   if (!input.previousMarketingStrategy) {

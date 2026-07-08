@@ -14,6 +14,10 @@ const servicePath = join(
   process.cwd(),
   "services/brain/executiveReasoningService.ts",
 );
+const intelligencePath = join(
+  process.cwd(),
+  "services/brain/executiveIntelligenceHelpers.ts",
+);
 const helpersPath = join(
   process.cwd(),
   "services/brain/executiveReasoningHelpers.ts",
@@ -38,6 +42,7 @@ const workflowPath = join(
 const builderSource = readFileSync(builderPath, "utf8");
 const serviceSource = readFileSync(servicePath, "utf8");
 const helpersSource = readFileSync(helpersPath, "utf8");
+const intelligenceHelpersSource = readFileSync(intelligencePath, "utf8");
 const typesSource = readFileSync(typesPath, "utf8");
 const contextTypesSource = readFileSync(contextTypesPath, "utf8");
 const contextBuilderSource = readFileSync(contextBuilderPath, "utf8");
@@ -60,6 +65,9 @@ const requiredTypes = [
   "RiskAssessment",
   "RecommendedDirection",
   "ReasoningMetadata",
+  "ExecutiveIntelligencePipeline",
+  "HiddenProblemAssessment",
+  "BuyerPsychologyAssessment",
 ];
 
 const requiredSections = [
@@ -71,6 +79,17 @@ const requiredSections = [
   "priorityAssessment",
   "riskAssessment",
   "recommendedDirection",
+  "executiveIntelligence",
+  "executiveCognition",
+];
+
+const requiredIntelligenceStages = [
+  "hiddenProblem",
+  "buyerPsychology",
+  "contrarianThinking",
+  "assetStrategy",
+  "opportunityQuality",
+  "executiveCognition",
 ];
 
 function runStaticValidation() {
@@ -110,12 +129,20 @@ function runStaticValidation() {
     throw new Error("Brain context builder must attach executiveReasoning.");
   }
 
-  if (!workflowSource.includes("buildBrainContext")) {
-    throw new Error("Discussion workflow pilot must consume Brain Context.");
+  if (!intelligenceHelpersSource.includes("buildExecutiveIntelligencePipeline")) {
+    throw new Error("Executive intelligence helpers must define the reasoning pipeline.");
   }
 
-  if (!workflowSource.includes("buildDiscussionAnalysisBrainPrompt")) {
-    throw new Error("Discussion workflow pilot must consume Executive Reasoning.");
+  if (!builderSource.includes("buildExecutiveIntelligencePipeline")) {
+    throw new Error("Reasoning builder must run executive intelligence pipeline.");
+  }
+
+  if (!workflowSource.includes("resolveGenerationBundle")) {
+    throw new Error("Discussion workflow must consume generation bundle / Brain Context.");
+  }
+
+  if (!workflowSource.includes("computeCompositeOpportunityScoreFromAnalysis")) {
+    throw new Error("Discussion workflow must use executive intelligence opportunity scoring.");
   }
 
   if (!builderSource.includes("belongsToOrganization")) {
@@ -166,6 +193,12 @@ async function runLiveValidation(organizationId: string) {
     )
   ) {
     throw new Error("Priority assessment must use deterministic priority keys.");
+  }
+
+  for (const stage of requiredIntelligenceStages) {
+    if (!(stage in reasoning.executiveIntelligence)) {
+      throw new Error(`Executive intelligence stage missing at runtime: ${stage}`);
+    }
   }
 
   console.log(`Live structural check passed for organization ${organizationId}.`);

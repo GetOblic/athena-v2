@@ -7,6 +7,7 @@ import { normalizeOpportunityStatus } from "@/lib/opportunityStatus";
 import type {
   ExecutiveReasoning,
   ExecutiveReasoningSourceContext,
+  ExecutiveIntelligencePipeline,
   MarketAssessment,
   OpportunityAssessment,
   PriorityAssessment,
@@ -16,6 +17,7 @@ import type {
   StrategicAssessment,
 } from "@/services/brain/executiveReasoningTypes";
 import { REASONING_PRIORITY_THRESHOLDS } from "@/services/brain/executiveReasoningTypes";
+import { formatExecutiveIntelligenceForPrompt } from "@/services/brain/executiveIntelligenceHelpers";
 import { extractAudienceSignalsFromMasterProfile } from "@/services/brain/masterProfileHelpers";
 import type { Opportunity } from "@/services/opportunityService";
 
@@ -247,16 +249,21 @@ export function buildMarketAssessment(
 
 export function buildOpportunityAssessment(
   context: ExecutiveReasoningSourceContext,
+  executiveIntelligence?: ExecutiveIntelligencePipeline,
 ): OpportunityAssessment {
   const focusOpportunity =
     context.opportunityMemory.focus?.opportunity ??
     context.discussionMemory.focus?.linkedOpportunity;
   const focusDiscussion = context.discussionMemory.focus?.discussion;
-  const score =
+  const rawScore =
     focusOpportunity?.score ??
     focusDiscussion?.opportunity_score ??
     context.contextSummary.highestOpportunityScore ??
     0;
+
+  const compositeScore =
+    executiveIntelligence?.opportunityQuality.compositeScore ?? rawScore;
+  const score = Math.max(rawScore, compositeScore);
 
   const priority = classifyReasoningPriority({
     score,
@@ -500,6 +507,8 @@ export function formatExecutiveReasoningForPrompt(
       ? `- Secondary: ${reasoning.recommendedDirection.secondary}`
       : "",
     `- Rationale: ${reasoning.recommendedDirection.rationale.join(" ")}`,
+    "",
+    formatExecutiveIntelligenceForPrompt(reasoning.executiveIntelligence),
     "",
     "INSTRUCTIONS:",
     "Use this executive reasoning to decide what matters in the discussion.",

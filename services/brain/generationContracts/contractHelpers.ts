@@ -17,6 +17,9 @@ const SHARED_FORBIDDEN: ForbiddenBehaviors = {
     "Do not omit required output sections defined by this contract.",
     "Do not duplicate sections or confuse output types.",
     "Do not mention Athena unless the source context supports it.",
+    "Do not write CRM-style opportunity titles describing individual buyers.",
+    "Do not stop at surface discussion interpretation — apply hidden market problem reasoning.",
+    "Do not recommend webinar, PDF guide, or carousel by default without strategic justification.",
   ],
 };
 
@@ -72,6 +75,12 @@ export function buildDiscussionAnalysisContract(
       "recommended_action must remain strategic guidance",
       "suggested_cta must contain paste-ready deployment assets",
       "confidence must be integer 0-100",
+      "opportunity_title must describe a market pattern, not an individual buyer or CRM-style persona",
+      "opportunity_title must reflect the hidden market problem from executive cognition",
+      "opportunity_reason must reference buyer psychology and executive reflection, not surface summary only",
+      "deployment assets must optimize for business, psychological, positioning, conversation, and CTA objectives",
+      "do not generate copy before internal objectives are determined from the Executive Decision Document",
+      "do not default to generic webinar, PDF guide, or carousel recommendations unless strategic critic approved them",
     ],
   });
 }
