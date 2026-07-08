@@ -63,3 +63,8 @@ export function isNeedsRevisionStatus(status?: string | null): boolean {
   const key = normalizeBriefingStatus(status);
   return key === "needs_revision" || key === "rejected";
 }
+
+export function isProtectedBriefingStatus(status?: string | null): boolean {
+  const key = normalizeBriefingStatus(status);
+  return key === "approved" || key === "needs_revision" || key === "rejected";
+}

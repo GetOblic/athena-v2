@@ -8,7 +8,7 @@ import { getOpportunityWorkQueues } from "@/services/queueService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 const listGridClass =
-  "grid grid-cols-[120px_minmax(0,1fr)_160px_100px_120px_120px] items-center gap-4";
+  "grid grid-cols-[minmax(0,1fr)_160px_100px_120px_120px] items-center gap-4";
 
 export default async function OpportunitiesPage() {
   const { organizationId } = await requireCurrentOrganizationContext();
@@ -60,12 +60,11 @@ export default async function OpportunitiesPage() {
           <div
             className={`${listGridClass} border-b border-[var(--athena-border)] px-6 py-4 text-xs uppercase tracking-[0.25em] text-white/35`}
           >
-            <div>Type</div>
             <div>Opportunity</div>
             <div>Sales Status</div>
             <div>Score</div>
             <div>Urgency</div>
-            <div>Assigned</div>
+            <div>Action</div>
           </div>
 
           {queues.map((section) => {
@@ -90,8 +89,6 @@ export default async function OpportunitiesPage() {
                     key={opportunity.id}
                     className={`${listGridClass} border-b border-white/5 px-6 py-5 text-sm last:border-b-0`}
                   >
-                    <div className="text-white/70">{opportunity.type}</div>
-
                     <Link
                       href={`/opportunities/${opportunity.id}`}
                       className="font-medium text-white transition hover:text-[var(--athena-orange)]"
@@ -111,8 +108,13 @@ export default async function OpportunitiesPage() {
                       {opportunity.urgency || "—"}
                     </div>
 
-                    <div className="text-white/50">
-                      {opportunity.assigned_to || "—"}
+                    <div>
+                      <Link
+                        href={`/opportunities/${opportunity.id}`}
+                        className="inline-flex rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
+                      >
+                        Open
+                      </Link>
                     </div>
                   </div>
                 ))}

@@ -21,8 +21,8 @@ import { buildAnalysisThreadBody } from "@/lib/discussionContent";
 import { createDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDiscussionUpdatesByDiscussionId } from "@/services/discussionUpdateService";
 import { getDiscussionById } from "@/services/discussionService";
-import { createOpportunity } from "@/services/opportunityService";
-import { createReview } from "@/services/reviewService";
+import { upsertOpportunityFromAnalysis } from "@/services/opportunityService";
+import { upsertReviewFromGeneration } from "@/services/reviewService";
 
 type GeneratedDiscussionAnalysis = {
   summary: string;
@@ -102,8 +102,8 @@ function parseGeneratedReview(rawText: string): GeneratedReview {
 async function generateAssetBlueprint(input: {
   discussion: NonNullable<Awaited<ReturnType<typeof getDiscussionById>>>;
   analysis: Awaited<ReturnType<typeof createDiscussionAnalysis>>;
-  opportunity?: Awaited<ReturnType<typeof createOpportunity>> | null;
-  review?: Awaited<ReturnType<typeof createReview>> | null;
+  opportunity?: Awaited<ReturnType<typeof upsertOpportunityFromAnalysis>> | null;
+  review?: Awaited<ReturnType<typeof upsertReviewFromGeneration>> | null;
   brainContextPrompt: string;
 }) {
   try {
@@ -212,7 +212,7 @@ export async function processDiscussionEndToEnd(
     };
   }
 
-  const opportunity = await createOpportunity({
+  const opportunity = await upsertOpportunityFromAnalysis({
     organization_id: organizationId,
     discussion_id: discussion.id,
     user_id: discussion.user_id ?? null,
@@ -244,7 +244,7 @@ export async function processDiscussionEndToEnd(
   const rawReview = await generateReview(reviewPrompt);
   const parsedReview = parseGeneratedReview(rawReview);
 
-  const review = await createReview({
+  const review = await upsertReviewFromGeneration({
     organization_id: organizationId,
     opportunity_id: opportunity.id,
     discussion_id: discussion.id,

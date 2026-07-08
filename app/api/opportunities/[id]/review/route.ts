@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateReview } from "@/services/aiService";
 import { getOpportunityById } from "@/services/opportunityService";
-import { createReview } from "@/services/reviewService";
+import { upsertReviewFromGeneration } from "@/services/reviewService";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -77,7 +77,7 @@ export async function POST(_request: Request, context: RouteContext) {
     const parsedReview = parseGeneratedReview(rawReview);
     const generationTimeMs = Date.now() - startedAt;
 
-    const savedReview = await createReview({
+    const savedReview = await upsertReviewFromGeneration({
       organization_id: organizationId,
       opportunity_id: id,
       discussion_id: opportunity.discussion_id,

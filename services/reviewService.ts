@@ -1,3 +1,8 @@
+import {
+  dedupeBriefingsByOpportunity,
+  selectCanonicalBriefing,
+} from "@/lib/canonicalRecords";
+import { isProtectedBriefingStatus } from "@/lib/briefingStatus";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export type AthenaReview = {
@@ -88,17 +93,8 @@ function assertUpdatedReview(
 export async function getReviewCount(
   organizationId: string,
 ): Promise<number> {
-  const { count, error } = await supabaseAdmin
-    .from("athena_reviews")
-    .select("*", { count: "exact", head: true })
-    .eq("organization_id", organizationId);
-
-  if (error) {
-    console.error(error);
-    return 0;
-  }
-
-  return count ?? 0;
+  const reviews = await getCanonicalReviews(organizationId);
+  return reviews.length;
 }
 
 export async function getReviews(
@@ -116,6 +112,13 @@ export async function getReviews(
   }
 
   return data ?? [];
+}
+
+export async function getCanonicalReviews(
+  organizationId: string,
+): Promise<AthenaReview[]> {
+  const reviews = await getReviews(organizationId);
+  return dedupeBriefingsByOpportunity(reviews);
 }
 
 export async function getReviewById(
@@ -156,25 +159,31 @@ export async function getReviewsByOpportunityId(
   return data ?? [];
 }
 
+export async function getReviewsByDiscussionId(
+  discussionId: string,
+  organizationId: string,
+): Promise<AthenaReview[]> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_reviews")
+    .select("*")
+    .eq("discussion_id", discussionId)
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
 export async function getLatestReviewByOpportunityId(
   opportunityId: string,
   organizationId: string,
 ): Promise<AthenaReview | null> {
-  const { data, error } = await supabaseAdmin
-    .from("athena_reviews")
-    .select("*")
-    .eq("opportunity_id", opportunityId)
-    .eq("organization_id", organizationId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    console.error(error);
-    return null;
-  }
-
-  return data;
+  const reviews = await getReviewsByOpportunityId(opportunityId, organizationId);
+  return selectCanonicalBriefing(reviews);
 }
 
 export async function createReview(
@@ -214,6 +223,77 @@ export async function createReview(
   }
 
   return data;
+}
+
+export async function updateReviewFromGeneration(
+  id: string,
+  organizationId: string,
+  input: CreateAthenaReviewInput,
+  existingStatus: string,
+): Promise<AthenaReview | null> {
+  const updatePayload: Record<string, unknown> = {
+    summary: input.summary ?? null,
+    pain_points: input.pain_points ?? null,
+    buyer_stage: input.buyer_stage ?? null,
+    recommended_response: input.recommended_response ?? null,
+    cta: input.cta ?? null,
+    confidence: input.confidence ?? 0,
+    raw_json: input.raw_json ?? null,
+    model: input.model ?? null,
+    prompt_version: input.prompt_version ?? "opportunity_review_v1",
+    generation_time_ms: input.generation_time_ms ?? null,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (!isProtectedBriefingStatus(existingStatus)) {
+    updatePayload.status = input.status ?? "draft";
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("athena_reviews")
+    .update(updatePayload)
+    .eq("id", id)
+    .eq("organization_id", organizationId)
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Error updating review from generation:", error);
+    return null;
+  }
+
+  return data;
+}
+
+export async function upsertReviewFromGeneration(
+  input: CreateAthenaReviewInput,
+): Promise<AthenaReview | null> {
+  let existingRows: AthenaReview[] = [];
+
+  if (input.opportunity_id) {
+    existingRows = await getReviewsByOpportunityId(
+      input.opportunity_id,
+      input.organization_id,
+    );
+  } else if (input.discussion_id) {
+    existingRows = await getReviewsByDiscussionId(
+      input.discussion_id,
+      input.organization_id,
+    );
+  }
+
+  const existing = selectCanonicalBriefing(existingRows);
+
+  if (existing) {
+    return updateReviewFromGeneration(
+      existing.id,
+      input.organization_id,
+      input,
+      existing.status,
+    );
+  }
+
+  return createReview(input);
 }
 
 export async function approveReview(

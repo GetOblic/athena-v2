@@ -19,9 +19,9 @@ import type { Discussion } from "@/services/discussionService";
 import { getDiscussions } from "@/services/discussionService";
 import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
 import type { Opportunity } from "@/services/opportunityService";
-import { getOpportunities } from "@/services/opportunityService";
+import { getCanonicalOpportunities } from "@/services/opportunityService";
 import type { AthenaReview } from "@/services/reviewService";
-import { getReviews } from "@/services/reviewService";
+import { getCanonicalReviews } from "@/services/reviewService";
 
 export type DiscussionQueueSection = {
   key: DiscussionQueueKey;
@@ -128,7 +128,7 @@ export async function getDiscussionQueues(
 export async function getOpportunityWorkQueues(
   organizationId: string,
 ): Promise<OpportunityWorkQueueSection[]> {
-  const opportunities = await getOpportunities(organizationId);
+  const opportunities = await getCanonicalOpportunities(organizationId);
   const grouped = groupByKey(opportunities, classifyOpportunityPriority);
 
   return OPPORTUNITY_PRIORITY_ORDER.map((key) => {
@@ -152,7 +152,7 @@ export async function getOpportunityQueues(
 export async function getBriefingQueues(
   organizationId: string,
 ): Promise<BriefingQueueSection[]> {
-  const briefings = await getReviews(organizationId);
+  const briefings = await getCanonicalReviews(organizationId);
   const grouped = groupByKey(briefings, (briefing) =>
     normalizeBriefingStatus(briefing.status),
   );

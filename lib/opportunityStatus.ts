@@ -119,6 +119,34 @@ export function formatOpportunityStatus(status?: string | null): string {
   return getOpportunityStatusPresentation(status).label;
 }
 
+export function isProtectedOpportunityStatus(
+  status?: string | null,
+): boolean {
+  return normalizeOpportunityStatus(status) !== "pending";
+}
+
+export function isValidOpportunityStatusKey(
+  value: string,
+): value is OpportunityStatusKey {
+  return OPPORTUNITY_STATUS_ORDER.includes(value as OpportunityStatusKey);
+}
+
+export function toOpportunityStatusStorage(
+  key: OpportunityStatusKey,
+): string {
+  return key;
+}
+
+export function formatOpportunityType(type?: string | null): string {
+  const token = (type ?? "").trim().toLowerCase();
+
+  if (token === "community_discussion" || token === "") {
+    return "Market Discussion";
+  }
+
+  return type ?? "Market Discussion";
+}
+
 export function getOpportunityStatusSectionTitle(
   key: OpportunityStatusKey,
 ): string {

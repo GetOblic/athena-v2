@@ -4,8 +4,8 @@ import { normalizeBriefingStatus } from "@/lib/briefingStatus";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
 import { getDiscussions } from "@/services/discussionService";
-import { getOpportunities } from "@/services/opportunityService";
-import { getReviews } from "@/services/reviewService";
+import { getCanonicalOpportunities } from "@/services/opportunityService";
+import { getCanonicalReviews } from "@/services/reviewService";
 
 export type TodaysIntelligence = {
   newDiscussions: number;
@@ -68,8 +68,8 @@ export async function getTodaysIntelligence(
   ] = await Promise.all([
     getDiscussions(organizationId),
     getAnalyzedDiscussionIds(organizationId),
-    getOpportunities(organizationId),
-    getReviews(organizationId),
+    getCanonicalOpportunities(organizationId),
+    getCanonicalReviews(organizationId),
     supabaseAdmin
       .from("athena_asset_blueprints")
       .select("id", { count: "exact", head: true })

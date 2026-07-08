@@ -7,9 +7,10 @@ import type { ReactNode } from "react";
 import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { GenerateReviewButton } from "@/components/opportunities/GenerateReviewButton";
+import { OpportunityStatusControl } from "@/components/opportunities/OpportunityStatusControl";
 import { DeploymentReadinessBadge } from "@/components/queues/DeploymentReadinessBadge";
-import { OpportunityStatusBadge } from "@/components/queues/OpportunityStatusBadge";
 import { buildOpportunityDeploymentAssets } from "@/lib/deploymentAssets";
+import { formatOpportunityType } from "@/lib/opportunityStatus";
 import { buildWhyNowSummary } from "@/lib/opportunityPriority";
 import { getOpportunityById } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
@@ -95,7 +96,10 @@ export default async function OpportunityPage({ params }: Props) {
             Where this pursuit sits in your sales pipeline.
           </p>
           <div className="mt-4">
-            <OpportunityStatusBadge status={opportunity.status} size="lg" />
+            <OpportunityStatusControl
+              opportunityId={opportunity.id}
+              currentStatus={opportunity.status}
+            />
           </div>
         </div>
 
@@ -115,7 +119,7 @@ export default async function OpportunityPage({ params }: Props) {
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        <Metric label="Type" value={opportunity.type} />
+        <Metric label="Type" value={formatOpportunityType(opportunity.type)} />
         <Metric label="Score" value={String(opportunity.score)} tone="orange" />
         <Metric label="Urgency" value={opportunity.urgency || "—"} />
       </div>
