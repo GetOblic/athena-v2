@@ -61,10 +61,13 @@ export function buildExecutiveStrategy(
   const { executiveUnderstanding: understanding } = params;
   const direction = understanding.strategicUnderstanding.recommendedDirection;
 
+  const decision = understanding.executiveIntelligence.executiveDecisionSynthesis.selectedDecision;
+
   const reasoningSummary = [
     understanding.executiveSummary.narrative,
     understanding.strategicUnderstanding.recommendedExecutiveAction,
     understanding.priorityUnderstanding.rationale.join(" "),
+    decision.whyThisStrategy,
   ]
     .filter(Boolean)
     .join(" ");
@@ -75,6 +78,7 @@ export function buildExecutiveStrategy(
     direction,
     understanding.strategicUnderstanding.primaryExecutiveObjective,
     understanding.opportunityUnderstanding.importance,
+    decision.chosenStrategy,
   ].join("|");
 
   const executiveStrategyBase = {

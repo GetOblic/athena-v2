@@ -3,7 +3,7 @@ import type { ExecutiveReasoning, ExecutiveIntelligencePipeline, RecommendedDire
 
 import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 
-export const EXECUTIVE_UNDERSTANDING_VERSION = "executive_understanding_v3_cognition";
+export const EXECUTIVE_UNDERSTANDING_VERSION = "executive_understanding_v4_decision_synthesis";
 
 export type UnderstandingEvidenceSource =
   | "business_identity"

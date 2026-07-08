@@ -8,6 +8,11 @@ import {
   buildExecutiveCognitionLayers,
   formatExecutiveCognitionForPrompt,
 } from "@/services/brain/executiveCognitionHelpers";
+import {
+  buildExecutiveDecisionSynthesis,
+  buildSampleExecutiveDecisionSynthesis,
+  formatExecutiveDecisionSynthesisForPrompt,
+} from "@/services/brain/executiveDecisionSynthesisHelpers";
 import type {
   AssetStrategyAssessment,
   BuyerPsychologyAssessment,
@@ -24,7 +29,7 @@ import type {
 import type { ExecutiveReasoningSourceContext } from "@/services/brain/executiveReasoningTypes";
 import type { RecommendedDirectionKey } from "@/services/brain/executiveReasoningTypes";
 
-export const EXECUTIVE_INTELLIGENCE_VERSION = "executive_cognition_v1";
+export const EXECUTIVE_INTELLIGENCE_VERSION = "executive_decision_synthesis_v1";
 
 const OVERUSED_DELIVERABLES: MarketingDeliverableRecommendation[] = [
   "Executive Webinar",
@@ -940,6 +945,67 @@ export function buildExecutiveIntelligencePipeline(input: {
         })
       : executiveRecommendation;
 
+  const executiveDecisionSynthesis = buildExecutiveDecisionSynthesis({
+    context: input.context,
+    direction: input.direction,
+    priority: input.priority,
+    pipeline: {
+      pipelineVersion: EXECUTIVE_INTELLIGENCE_VERSION,
+      marketUnderstanding,
+      hiddenProblem,
+      buyerPsychology,
+      strategicDifferentiation,
+      contrarianThinking,
+      assetStrategy: finalAssetStrategy,
+      executiveRecommendation: finalRecommendation,
+      opportunityQuality,
+      suggestedOpportunityTitle,
+      executiveCognition,
+    },
+  });
+
+  const selectedDeliverable =
+    executiveDecisionSynthesis.selectedDecision.chosenStrategy;
+  const synthesisAssetStrategy: AssetStrategyAssessment = {
+    ...finalAssetStrategy,
+    selectedAssetType: selectedDeliverable,
+    selectionRationale: uniqueStrings([
+      ...finalAssetStrategy.selectionRationale,
+      executiveDecisionSynthesis.selectedDecision.whyThisStrategy,
+    ]),
+    alternativeAssetsConsidered: executiveDecisionSynthesis.ranked
+      .slice(1, 4)
+      .map((entry) => entry.candidate.deliverable),
+  };
+
+  const synthesisRecommendation = buildExecutiveRecommendation({
+    assetStrategy: synthesisAssetStrategy,
+    buyerPsychology,
+    hiddenProblem,
+    differentiation: strategicDifferentiation,
+    marketUnderstanding,
+    priority: input.priority,
+  });
+
+  const syncedCognition = {
+    ...executiveCognition,
+    executiveDecisionDocument:
+      executiveDecisionSynthesis.selectedDecision.decisionDocument,
+    generationObjectives:
+      executiveDecisionSynthesis.selectedDecision.generationObjectives,
+    strategicCritic: {
+      ...executiveCognition.strategicCritic,
+      finalAssetType: selectedDeliverable,
+      assetRevised:
+        selectedDeliverable !== executiveCognition.strategicCritic.finalAssetType,
+      strategistWouldApprove: true,
+      critiqueNotes: uniqueStrings([
+        ...executiveCognition.strategicCritic.critiqueNotes,
+        `Decision synthesis selected ${selectedDeliverable} from ${executiveDecisionSynthesis.candidatesGenerated} candidates.`,
+      ]),
+    },
+  };
+
   return {
     pipelineVersion: EXECUTIVE_INTELLIGENCE_VERSION,
     marketUnderstanding,
@@ -947,11 +1013,12 @@ export function buildExecutiveIntelligencePipeline(input: {
     buyerPsychology,
     strategicDifferentiation,
     contrarianThinking,
-    assetStrategy: finalAssetStrategy,
-    executiveRecommendation: finalRecommendation,
+    assetStrategy: synthesisAssetStrategy,
+    executiveRecommendation: synthesisRecommendation,
     opportunityQuality,
     suggestedOpportunityTitle,
-    executiveCognition,
+    executiveCognition: syncedCognition,
+    executiveDecisionSynthesis,
   };
 }
 
@@ -1131,6 +1198,7 @@ export function buildSampleExecutiveIntelligencePipeline(): ExecutiveIntelligenc
         },
       },
     },
+    executiveDecisionSynthesis: buildSampleExecutiveDecisionSynthesis(),
   };
 }
 
@@ -1201,8 +1269,11 @@ export function formatExecutiveIntelligenceForPrompt(
     "",
     formatExecutiveCognitionForPrompt(pipeline.executiveCognition),
     "",
+    formatExecutiveDecisionSynthesisForPrompt(pipeline.executiveDecisionSynthesis),
+    "",
     "INSTRUCTIONS:",
-    "Ground every output in the Executive Decision Document — not raw discussion text alone.",
+    "Ground every output in the Executive Decision Synthesis — not raw discussion text alone.",
+    "All workflows must express the SAME selected executive decision.",
     "Determine business, psychological, positioning, conversation, and CTA objectives BEFORE generating copy.",
     "Opportunity titles must describe market patterns, not individual buyers.",
     "Do not default to webinar, PDF guide, or carousel unless strategic critic approved them.",

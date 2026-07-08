@@ -116,13 +116,17 @@ function runStaticValidation() {
     throw new Error("Blueprint specs version must reflect executive upgrade.");
   }
 
-  if (!intelligenceSource.includes("executiveCognition")) {
-    throw new Error("Executive intelligence pipeline must include executiveCognition.");
+  if (!intelligenceSource.includes("buildExecutiveDecisionSynthesis")) {
+    throw new Error("Intelligence pipeline must integrate decision synthesis.");
+  }
+
+  if (!intelligenceSource.includes("executiveDecisionSynthesis")) {
+    throw new Error("Executive intelligence must include decision synthesis.");
   }
 
   const sample = buildSampleExecutiveIntelligencePipeline();
-  if (!sample.executiveCognition?.executiveDecisionDocument) {
-    throw new Error("Sample pipeline must include Executive Decision Document.");
+  if (!sample.executiveDecisionSynthesis?.selectedDecision) {
+    throw new Error("Sample pipeline must include Executive Decision Synthesis.");
   }
 
   for (const stage of requiredPipelineStages) {
@@ -132,8 +136,8 @@ function runStaticValidation() {
   }
 
   const prompt = formatExecutiveIntelligenceForPrompt(sample);
-  if (!prompt.includes("HIDDEN MARKET PROBLEM") || !prompt.includes("CONTRARIAN")) {
-    throw new Error("Executive intelligence prompt formatting incomplete.");
+  if (!prompt.includes("EXECUTIVE DECISION SYNTHESIS")) {
+    throw new Error("Executive intelligence prompt must include decision synthesis.");
   }
 
   if (normalizeDiscussionPlatform("Facebook Groups") !== "facebook") {

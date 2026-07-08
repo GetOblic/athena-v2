@@ -89,6 +89,11 @@ function sampleUnderstanding(
     executiveIntelligence.executiveCognition.executiveDecisionDocument.recommendedAssetType =
       assetType;
     executiveIntelligence.executiveCognition.strategicCritic.finalAssetType = assetType;
+    executiveIntelligence.executiveDecisionSynthesis.selectedDecision.chosenStrategy =
+      assetType;
+    executiveIntelligence.executiveDecisionSynthesis.selectedDecision.decisionDocument.recommendedAssetType =
+      assetType;
+    executiveIntelligence.executiveDecisionSynthesis.decisionTrace.chosenStrategy = assetType;
   };
 
   if (overrides.assetType) {

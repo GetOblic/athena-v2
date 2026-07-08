@@ -332,7 +332,9 @@ export function buildExecutiveMarketingStrategy(input: {
   ].join("|");
 
   const intelligence = understanding.executiveIntelligence;
+  const synthesis = intelligence.executiveDecisionSynthesis;
   const assetFromIntelligence =
+    synthesis.selectedDecision.chosenStrategy ??
     intelligence.executiveCognition.executiveDecisionDocument.recommendedAssetType ??
     intelligence.assetStrategy.selectedAssetType;
 

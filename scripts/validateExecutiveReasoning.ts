@@ -81,6 +81,7 @@ const requiredSections = [
   "recommendedDirection",
   "executiveIntelligence",
   "executiveCognition",
+  "executiveDecisionSynthesis",
 ];
 
 const requiredIntelligenceStages = [
@@ -90,6 +91,7 @@ const requiredIntelligenceStages = [
   "assetStrategy",
   "opportunityQuality",
   "executiveCognition",
+  "executiveDecisionSynthesis",
 ];
 
 function runStaticValidation() {

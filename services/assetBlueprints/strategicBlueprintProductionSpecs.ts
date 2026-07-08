@@ -422,15 +422,15 @@ export function buildStrategicBlueprintProductionContext(
   });
 
   const intelligence = understanding.executiveIntelligence;
-  const decisionDocument = intelligence.executiveCognition.executiveDecisionDocument;
+  const decision = intelligence.executiveDecisionSynthesis.selectedDecision;
+  const decisionDocument = decision.decisionDocument;
   const marketingRecommendation = marketing.executiveRecommendation;
 
   const executiveSpecification: ExecutiveBlueprintSpecification = {
     strategicObjective: decisionDocument.businessObjective,
     businessProblemSolved: decisionDocument.hiddenMarketProblem,
     assetSelectionReason: decisionDocument.assetSelectionReason,
-    targetPsychologicalOutcome:
-      decisionDocument.generationObjectives.psychologicalObjective,
+    targetPsychologicalOutcome: decision.expectedCustomerOutcome,
     primaryCta: decisionDocument.generationObjectives.callToActionObjective,
     contentArchitecture:
       generationInstructions.sectionHierarchy +

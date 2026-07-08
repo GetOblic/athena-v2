@@ -79,8 +79,9 @@ export function buildDiscussionAnalysisContract(
       "opportunity_title must reflect the hidden market problem from executive cognition",
       "opportunity_reason must reference buyer psychology and executive reflection, not surface summary only",
       "deployment assets must optimize for business, psychological, positioning, conversation, and CTA objectives",
-      "do not generate copy before internal objectives are determined from the Executive Decision Document",
-      "do not default to generic webinar, PDF guide, or carousel recommendations unless strategic critic approved them",
+      "do not generate copy before internal objectives are determined from the Executive Decision Synthesis",
+      "all downstream outputs must express the same executive decision — do not independently choose strategy",
+      "do not default to generic webinar, PDF guide, or carousel recommendations unless decision synthesis selected them",
     ],
   });
 }

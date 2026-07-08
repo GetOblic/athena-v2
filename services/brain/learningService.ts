@@ -46,20 +46,41 @@ function buildExecutiveLearningNotes(input: {
   intelligence?: Awaited<ReturnType<typeof getExecutiveReasoning>>["executiveIntelligence"];
 }): string {
   const intelligence = input.intelligence;
+  const synthesis = intelligence?.executiveDecisionSynthesis;
   if (!intelligence) {
     return "Executive learning captured without intelligence pipeline metadata.";
   }
+
+  const decision = synthesis?.selectedDecision;
 
   return [
     "Executive Learning Metadata:",
     `Platform: ${input.discussionPlatform ?? "unknown"}`,
     `Hidden problem: ${intelligence.hiddenProblem.hiddenMarketProblem}`,
     `Buyer psychology: ${intelligence.buyerPsychology.coreFear ?? "n/a"}`,
-    `Strategic asset: ${intelligence.assetStrategy.selectedAssetType}`,
-    `Business outcome: ${intelligence.executiveRecommendation.expectedBusinessOutcome}`,
-    `Reasoning path: market → hidden problem → psychology → differentiation → contrarian → asset strategy`,
+    decision
+      ? `Executive decision: ${decision.chosenStrategy} (confidence ${decision.strategicConfidence})`
+      : `Strategic asset: ${intelligence.assetStrategy.selectedAssetType}`,
+    decision
+      ? `Business objective: ${decision.expectedBusinessOutcome}`
+      : `Business outcome: ${intelligence.executiveRecommendation.expectedBusinessOutcome}`,
+    decision
+      ? `Deployment approach: ${decision.deploymentApproach}`
+      : "",
+    decision
+      ? `Why this strategy: ${decision.whyThisStrategy.slice(0, 240)}`
+      : "",
+    synthesis
+      ? `Rejected strategies: ${synthesis.eliminated
+          .slice(0, 3)
+          .map((entry) => entry.candidate.deliverable)
+          .join(", ") || "none"}`
+      : "",
+    `Reasoning path: reflection → possibilities → evaluation → elimination → executive decision → generation`,
     `Contrarian insight: ${intelligence.contrarianThinking.assumptionChallenge}`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export async function learnFromApprovedBriefing(

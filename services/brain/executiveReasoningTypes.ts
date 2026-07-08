@@ -2,7 +2,7 @@ import type { OpportunityPriorityKey } from "@/lib/opportunityPriority";
 import type { MarketingDeliverableRecommendation } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
 
-export const EXECUTIVE_REASONING_VERSION = "executive_reasoning_v3_cognition";
+export const EXECUTIVE_REASONING_VERSION = "executive_reasoning_v4_decision_synthesis";
 
 export const REASONING_PRIORITY_THRESHOLDS = {
   immediate: {
@@ -201,6 +201,100 @@ export type OpportunityQualityDimensions = {
   compositeScore: number;
 };
 
+export type ExecutiveCognitionLayers = {
+  cognitionVersion: string;
+  executiveReflection: ExecutiveReflection;
+  executiveMemoryComparison: ExecutiveMemoryComparison;
+  marketPatternClassification: MarketPatternClassification;
+  strategicCritic: StrategicCriticAssessment;
+  generationObjectives: ContentGenerationObjectives;
+  reusabilityAssessment: ReusabilityAssessment;
+  executiveDecisionDocument: ExecutiveDecisionDocument;
+};
+
+export type StrategicPossibilitySource =
+  | "discussion"
+  | "psychology"
+  | "market_pattern"
+  | "direction"
+  | "platform";
+
+export type StrategicPossibilityCandidate = {
+  id: string;
+  label: string;
+  deliverable: MarketingDeliverableRecommendation;
+  strategicDirection: string;
+  source: StrategicPossibilitySource;
+};
+
+export type StrategicEvaluationScores = {
+  businessImpact: number;
+  trustBuilding: number;
+  buyerReadiness: number;
+  educationalValue: number;
+  differentiation: number;
+  reusePotential: number;
+  authorityPotential: number;
+  contentLongevity: number;
+  deploymentEase: number;
+  conversionPotential: number;
+  brandAlignment: number;
+  executiveFit: number;
+  marketTiming: number;
+  compositeScore: number;
+};
+
+export type EvaluatedStrategicPossibility = {
+  candidate: StrategicPossibilityCandidate;
+  scores: StrategicEvaluationScores;
+  status: "ranked" | "eliminated";
+  eliminationReason: string | null;
+};
+
+export type ExecutiveDecision = {
+  chosenStrategy: MarketingDeliverableRecommendation;
+  chosenStrategyLabel: string;
+  whyThisStrategy: string;
+  whyNotAlternatives: string[];
+  whyNow: string;
+  expectedBusinessOutcome: string;
+  expectedCustomerOutcome: string;
+  expectedAuthorityOutcome: string;
+  expectedReuse: string;
+  primarySuccessMetric: string;
+  secondarySuccessMetric: string;
+  strategicConfidence: number;
+  deploymentApproach: string;
+  generationObjectives: ContentGenerationObjectives;
+  decisionDocument: ExecutiveDecisionDocument;
+};
+
+export type DecisionTrace = {
+  organizationId: string;
+  timestamp: string;
+  chosenStrategy: MarketingDeliverableRecommendation;
+  rejectedStrategies: Array<{
+    strategy: MarketingDeliverableRecommendation;
+    reason: string;
+  }>;
+  decisionConfidence: number;
+  businessObjective: string;
+  expectedOutcome: string;
+  diversityApplied: boolean;
+  candidateCount: number;
+  eliminatedCount: number;
+};
+
+export type ExecutiveDecisionSynthesis = {
+  synthesisVersion: string;
+  candidatesGenerated: number;
+  possibilities: EvaluatedStrategicPossibility[];
+  eliminated: EvaluatedStrategicPossibility[];
+  ranked: EvaluatedStrategicPossibility[];
+  selectedDecision: ExecutiveDecision;
+  decisionTrace: DecisionTrace;
+};
+
 export type ExecutiveIntelligencePipeline = {
   pipelineVersion: string;
   marketUnderstanding: MarketUnderstandingAssessment;
@@ -213,6 +307,7 @@ export type ExecutiveIntelligencePipeline = {
   opportunityQuality: OpportunityQualityDimensions;
   suggestedOpportunityTitle: string;
   executiveCognition: ExecutiveCognitionLayers;
+  executiveDecisionSynthesis: ExecutiveDecisionSynthesis;
 };
 
 export type ExecutiveReflection = {
@@ -299,17 +394,6 @@ export type ExecutiveDecisionDocument = {
   marketPattern: string;
   generationObjectives: ContentGenerationObjectives;
   reusability: ReusabilityAssessment;
-};
-
-export type ExecutiveCognitionLayers = {
-  cognitionVersion: string;
-  executiveReflection: ExecutiveReflection;
-  executiveMemoryComparison: ExecutiveMemoryComparison;
-  marketPatternClassification: MarketPatternClassification;
-  strategicCritic: StrategicCriticAssessment;
-  generationObjectives: ContentGenerationObjectives;
-  reusabilityAssessment: ReusabilityAssessment;
-  executiveDecisionDocument: ExecutiveDecisionDocument;
 };
 
 export type ExecutiveReasoning = {
