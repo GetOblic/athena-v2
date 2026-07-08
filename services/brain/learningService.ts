@@ -109,131 +109,146 @@ export async function learnFromApprovedBriefing(
   reviewId: string,
   organizationId: string,
 ) {
-  const review = await getReviewById(reviewId, organizationId);
+  try {
+    const review = await getReviewById(reviewId, organizationId);
 
-  if (!review) {
-    throw new Error(`Cannot learn from missing briefing/review: ${reviewId}`);
-  }
+    if (!review) {
+      console.error(`Cannot learn from missing briefing/review: ${reviewId}`);
+      return {
+        learned: false,
+        reason: "Approved briefing not found for learning.",
+      };
+    }
 
-  const content = buildKnowledgeAssetContent(review);
+    const content = buildKnowledgeAssetContent(review);
 
-  if (!content) {
+    if (!content) {
+      return {
+        learned: false,
+        reason: "Approved briefing has no reusable content.",
+      };
+    }
+
+    const title =
+      review.summary?.slice(0, 90) || `Approved Briefing ${review.id}`;
+
+    const discussion = review.discussion_id
+      ? await getDiscussionById(review.discussion_id, organizationId)
+      : null;
+
+    let executiveIntelligence:
+      | Awaited<ReturnType<typeof getExecutiveReasoning>>["executiveIntelligence"]
+      | undefined;
+    let initiativeSelection: ExecutiveInitiativeSelection | undefined;
+    try {
+      const reasoning = await getExecutiveReasoning({
+        organizationId,
+        discussionId: review.discussion_id ?? undefined,
+        opportunityId: review.opportunity_id ?? undefined,
+        briefingId: review.id,
+      });
+      executiveIntelligence = reasoning.executiveIntelligence;
+    } catch {
+      executiveIntelligence = undefined;
+    }
+
+    try {
+      const understanding = await getExecutiveUnderstanding({
+        organizationId,
+        discussionId: review.discussion_id ?? undefined,
+        opportunityId: review.opportunity_id ?? undefined,
+        briefingId: review.id,
+      });
+      initiativeSelection = understanding?.executiveInitiativeSelection;
+    } catch {
+      initiativeSelection = undefined;
+    }
+
+    const executiveLearningNotes = buildExecutiveLearningNotes({
+      review,
+      discussionPlatform: discussion?.platform ?? null,
+      intelligence: executiveIntelligence,
+      initiativeSelection,
+    });
+
+    const knowledgeAsset = await createKnowledgeAsset({
+      organization_id: organizationId,
+      title,
+      category: "Institutional Knowledge",
+      asset_type: "approved_briefing",
+      summary: review.summary ?? null,
+      content,
+      community_id: discussion?.community_id ?? null,
+      source_type: "athena_reviews",
+      source_id: review.id,
+      rating: review.confidence
+        ? Math.max(1, Math.min(5, Math.round(review.confidence / 20)))
+        : null,
+      tags: inferTags(
+        review,
+        executiveIntelligence || initiativeSelection ? ["executive-learning"] : undefined,
+      ),
+      notes: [
+        "Automatically captured by Athena Brain after briefing approval.",
+        executiveLearningNotes,
+      ].join("\n\n"),
+    });
+
+    const links: {
+      knowledge_asset_id: string;
+      linked_type: string;
+      linked_id: string;
+      relationship: string;
+    }[] = [];
+
+    if (review.discussion_id) {
+      links.push({
+        knowledge_asset_id: knowledgeAsset.id,
+        linked_type: "discussions",
+        linked_id: review.discussion_id,
+        relationship: "learned_from_discussion",
+      });
+    }
+
+    if (review.opportunity_id) {
+      links.push({
+        knowledge_asset_id: knowledgeAsset.id,
+        linked_type: "opportunities",
+        linked_id: review.opportunity_id,
+        relationship: "learned_from_opportunity",
+      });
+    }
+
+    links.push({
+      knowledge_asset_id: knowledgeAsset.id,
+      linked_type: "athena_reviews",
+      linked_id: review.id,
+      relationship: "learned_from_approved_briefing",
+    });
+
+    if (links.length > 0) {
+      const { error } = await supabaseAdmin.from("knowledge_asset_links").insert(
+        links.map((link) => ({
+          ...link,
+          organization_id: organizationId,
+        })),
+      );
+
+      if (error) {
+        throw new Error(`Failed to create knowledge asset links: ${error.message}`);
+      }
+    }
+
+    return {
+      learned: true,
+      knowledgeAssetId: knowledgeAsset.id,
+    };
+  } catch (error) {
+    console.error("Brain learning from approved briefing failed:", error);
     return {
       learned: false,
-      reason: "Approved briefing has no reusable content.",
+      reason:
+        error instanceof Error ? error.message : "Brain learning failed unexpectedly.",
     };
   }
-
-  const title =
-    review.summary?.slice(0, 90) || `Approved Briefing ${review.id}`;
-
-  const discussion = review.discussion_id
-    ? await getDiscussionById(review.discussion_id, organizationId)
-    : null;
-
-  let executiveIntelligence:
-    | Awaited<ReturnType<typeof getExecutiveReasoning>>["executiveIntelligence"]
-    | undefined;
-  let initiativeSelection: ExecutiveInitiativeSelection | undefined;
-  try {
-    const reasoning = await getExecutiveReasoning({
-      organizationId,
-      discussionId: review.discussion_id ?? undefined,
-      opportunityId: review.opportunity_id ?? undefined,
-      briefingId: review.id,
-    });
-    executiveIntelligence = reasoning.executiveIntelligence;
-  } catch {
-    executiveIntelligence = undefined;
-  }
-
-  try {
-    const understanding = await getExecutiveUnderstanding({
-      organizationId,
-      discussionId: review.discussion_id ?? undefined,
-      opportunityId: review.opportunity_id ?? undefined,
-      briefingId: review.id,
-    });
-    initiativeSelection = understanding?.executiveInitiativeSelection;
-  } catch {
-    initiativeSelection = undefined;
-  }
-
-  const executiveLearningNotes = buildExecutiveLearningNotes({
-    review,
-    discussionPlatform: discussion?.platform ?? null,
-    intelligence: executiveIntelligence,
-    initiativeSelection,
-  });
-
-  const knowledgeAsset = await createKnowledgeAsset({
-    organization_id: organizationId,
-    title,
-    category: "Institutional Knowledge",
-    asset_type: "approved_briefing",
-    summary: review.summary ?? null,
-    content,
-    community_id: discussion?.community_id ?? null,
-    user_id: discussion?.user_id ?? null,
-    source_type: "athena_reviews",
-    source_id: review.id,
-    rating: review.confidence
-      ? Math.max(1, Math.min(5, Math.round(review.confidence / 20)))
-      : null,
-    tags: inferTags(review, executiveIntelligence || initiativeSelection ? ["executive-learning"] : undefined),
-    notes: [
-      "Automatically captured by Athena Brain after briefing approval.",
-      executiveLearningNotes,
-    ].join("\n\n"),
-  });
-
-  const links: {
-    knowledge_asset_id: string;
-    linked_type: string;
-    linked_id: string;
-    relationship: string;
-  }[] = [];
-
-  if (review.discussion_id) {
-    links.push({
-      knowledge_asset_id: knowledgeAsset.id,
-      linked_type: "discussions",
-      linked_id: review.discussion_id,
-      relationship: "learned_from_discussion",
-    });
-  }
-
-  if (review.opportunity_id) {
-    links.push({
-      knowledge_asset_id: knowledgeAsset.id,
-      linked_type: "opportunities",
-      linked_id: review.opportunity_id,
-      relationship: "learned_from_opportunity",
-    });
-  }
-
-  links.push({
-    knowledge_asset_id: knowledgeAsset.id,
-    linked_type: "athena_reviews",
-    linked_id: review.id,
-    relationship: "learned_from_approved_briefing",
-  });
-
-  if (links.length > 0) {
-    const { error } = await supabaseAdmin.from("knowledge_asset_links").insert(
-      links.map((link) => ({
-        ...link,
-        organization_id: organizationId,
-      })),
-    );
-
-    if (error) {
-      throw new Error(`Failed to create knowledge asset links: ${error.message}`);
-    }
-  }
-
-  return {
-    learned: true,
-    knowledgeAssetId: knowledgeAsset.id,
-  };
 }

@@ -21,6 +21,9 @@ export function registerBrainProcessors() {
       );
     }
 
-    await learnFromApprovedBriefing(reviewId, organizationId);
+    const result = await learnFromApprovedBriefing(reviewId, organizationId);
+    if (!result.learned) {
+      console.error("Brain learning after approval skipped:", result.reason);
+    }
   });
 }
