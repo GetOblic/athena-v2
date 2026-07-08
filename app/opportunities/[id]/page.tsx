@@ -4,14 +4,16 @@ import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
+import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
+import { StrategicAssetBlueprintEmpty } from "@/components/assetBlueprints/StrategicAssetBlueprintEmpty";
 import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { GenerateReviewButton } from "@/components/opportunities/GenerateReviewButton";
 import { OpportunityStatusControl } from "@/components/opportunities/OpportunityStatusControl";
 import { DeploymentReadinessBadge } from "@/components/queues/DeploymentReadinessBadge";
 import { buildOpportunityDeploymentAssets } from "@/lib/deploymentAssets";
-import { formatOpportunityType } from "@/lib/opportunityStatus";
 import { buildWhyNowSummary } from "@/lib/opportunityPriority";
+import { getDisplayAssetBlueprintForBriefing } from "@/services/assetBlueprints/assetBlueprintService";
 import { getOpportunityById } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -38,6 +40,19 @@ export default async function OpportunityPage({ params }: Props) {
     briefing,
   );
   const whyNow = buildWhyNowSummary(opportunity, briefing?.summary);
+  const assetBlueprint = briefing
+    ? await getDisplayAssetBlueprintForBriefing({
+        briefingId: briefing.id,
+        organizationId,
+        discussionId: opportunity.discussion_id,
+      })
+    : null;
+
+  const executiveSummary =
+    briefing?.summary?.trim() ||
+    opportunity.ai_summary?.trim() ||
+    opportunity.reason?.trim() ||
+    null;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">
@@ -119,31 +134,31 @@ export default async function OpportunityPage({ params }: Props) {
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        <Metric label="Type" value={formatOpportunityType(opportunity.type)} />
         <Metric label="Score" value={String(opportunity.score)} tone="orange" />
         <Metric label="Urgency" value={opportunity.urgency || "—"} />
+        <Metric label="Intent" value={opportunity.intent || "—"} />
       </div>
 
-      {whyNow ? (
-        <div className="mt-8 rounded-3xl border border-[var(--athena-orange)]/20 bg-[var(--athena-orange)]/5 p-8">
-          <h2 className="text-2xl font-semibold">Why Now</h2>
-          <p className="mt-4 leading-7 text-white/75">{whyNow}</p>
-        </div>
-      ) : null}
-
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <h2 className="text-2xl font-semibold">Why This Is an Opportunity</h2>
+        <h2 className="text-2xl font-semibold">Executive Summary</h2>
         <p className="mt-4 leading-7 text-white/75">
-          {opportunity.reason || "No opportunity reason captured yet."}
+          {executiveSummary || "No executive summary captured yet."}
         </p>
+        {whyNow ? (
+          <div className="mt-8 border-t border-white/10 pt-8">
+            <h3 className="text-lg font-semibold text-white/90">Why Now</h3>
+            <p className="mt-3 leading-7 text-white/70">{whyNow}</p>
+          </div>
+        ) : null}
+      </div>
 
-        <div className="mt-8">
-          <Field
-            label="Recommended Action"
-            value={opportunity.recommended_action}
-            helper="What Athena recommends you do next."
-          />
-        </div>
+      <div className="mt-8 rounded-3xl border border-[var(--athena-orange)]/20 bg-[var(--athena-orange)]/5 p-8">
+        <h2 className="text-2xl font-semibold">Recommended Action</h2>
+        <p className="mt-4 leading-7 text-white/75">
+          {opportunity.recommended_action?.trim() ||
+            opportunity.ai_recommendation?.trim() ||
+            "No recommended action captured yet."}
+        </p>
       </div>
 
       {deploymentAssets.length > 0 && (
@@ -183,6 +198,14 @@ export default async function OpportunityPage({ params }: Props) {
             <div className="text-white/50">No executive briefing yet.</div>
             <GenerateReviewButton opportunityId={opportunity.id} />
           </div>
+        )}
+      </div>
+
+      <div className="mt-8">
+        {assetBlueprint ? (
+          <StrategicAssetBlueprint blueprint={assetBlueprint} />
+        ) : (
+          <StrategicAssetBlueprintEmpty />
         )}
       </div>
     </main>

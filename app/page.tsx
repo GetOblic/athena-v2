@@ -89,11 +89,15 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
             <Metric label="Discussions analyzed" value={stats.discussions} />
             <Metric label="Opportunities detected" value={stats.opportunities} />
-            <Metric label="Executive briefings" value={stats.briefings} />
-            <Metric label="Asset blueprints" value={stats.assetBlueprints} />
+            <Metric label="Draft briefings" value={stats.draftBriefings} />
+            <Metric label="Approved briefings" value={stats.approvedBriefings} />
+            <Metric
+              label="Strategic blueprints"
+              value={stats.strategicBlueprints}
+            />
           </div>
 
           <div className="mt-10 grid gap-7 lg:grid-cols-3">

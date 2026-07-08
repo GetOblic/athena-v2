@@ -109,7 +109,7 @@ export function OpportunityStatusControl({
           disabled={isSaving || status === normalizedStatus}
           className="rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {isSaving ? "Saving..." : "Save Status"}
+          {isSaving ? "Saving..." : "Save Changes"}
         </button>
       </div>
 

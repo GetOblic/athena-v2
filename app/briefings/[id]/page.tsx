@@ -7,6 +7,7 @@ import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicA
 import { StrategicAssetBlueprintEmpty } from "@/components/assetBlueprints/StrategicAssetBlueprintEmpty";
 import { BriefingStatusPanel } from "@/components/briefings/BriefingStatusPanel";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
+import { EntityNavigationCard } from "@/components/navigation/EntityNavigationCard";
 import { buildBriefingDeploymentAssets } from "@/lib/deploymentAssets";
 import { getDisplayAssetBlueprintForBriefing } from "@/services/assetBlueprints/assetBlueprintService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -56,7 +57,7 @@ export default async function BriefingPage({ params }: Props) {
         </p>
       </div>
 
-      <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         <BriefingStatusPanel reviewId={review.id} initialStatus={review.status} />
         <MetricCard label="Buyer Stage" value={review.buyer_stage || "—"} />
         <MetricCard
@@ -64,54 +65,32 @@ export default async function BriefingPage({ params }: Props) {
           value={`${review.confidence}%`}
           highlight="orange"
         />
-        <MetricCard
-          label="Linked Discussion"
-          value={
-            review.discussion_id ? "Discussion linked" : "No discussion linked"
-          }
-          href={
-            review.discussion_id
-              ? `/discussions/${review.discussion_id}`
-              : undefined
-          }
-        />
       </div>
 
-      <nav className="mt-8 flex flex-wrap gap-4 text-sm">
-        <Link href="/briefings" className="text-[var(--athena-orange)]">
-          Back to Briefings
-        </Link>
-        {review.discussion_id && (
-          <Link
-            href={`/discussions/${review.discussion_id}`}
-            className="text-[var(--athena-orange)]"
-          >
-            View Linked Discussion
-          </Link>
-        )}
-        {review.opportunity_id && (
-          <Link
-            href={`/opportunities/${review.opportunity_id}`}
-            className="text-[var(--athena-orange)]"
-          >
-            View Linked Opportunity
-          </Link>
-        )}
-      </nav>
+      {(review.discussion_id || review.opportunity_id) && (
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          {review.discussion_id && (
+            <EntityNavigationCard
+              title="Linked Discussion"
+              description="Open original discussion →"
+              href={`/discussions/${review.discussion_id}`}
+            />
+          )}
+          {review.opportunity_id && (
+            <EntityNavigationCard
+              title="Linked Opportunity"
+              description="Open opportunity →"
+              href={`/opportunities/${review.opportunity_id}`}
+            />
+          )}
+        </div>
+      )}
 
       {deploymentAssets.length > 0 && (
         <div className="mt-8">
           <DeploymentAssets assets={deploymentAssets} />
         </div>
       )}
-
-      <div className="mt-8">
-        {assetBlueprint ? (
-          <StrategicAssetBlueprint blueprint={assetBlueprint} />
-        ) : (
-          <StrategicAssetBlueprintEmpty />
-        )}
-      </div>
 
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
         <h2 className="mb-2 text-3xl font-semibold">Executive Briefing</h2>
@@ -125,6 +104,14 @@ export default async function BriefingPage({ params }: Props) {
           <Field label="Buyer Stage" value={review.buyer_stage} />
         </div>
       </div>
+
+      <div className="mt-8">
+        {assetBlueprint ? (
+          <StrategicAssetBlueprint blueprint={assetBlueprint} />
+        ) : (
+          <StrategicAssetBlueprintEmpty />
+        )}
+      </div>
     </main>
   );
 }
@@ -133,32 +120,20 @@ function MetricCard({
   label,
   value,
   highlight,
-  href,
 }: {
   label: string;
   value: string;
   highlight?: "orange";
-  href?: string;
 }) {
   const color =
     highlight === "orange" ? "text-[var(--athena-orange)]" : "text-white";
 
-  const content = (
+  return (
     <div className="rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <div className="text-white/40">{label}</div>
       <div className={`mt-4 text-2xl font-semibold ${color}`}>{value}</div>
     </div>
   );
-
-  if (href) {
-    return (
-      <Link href={href} className="transition hover:opacity-90">
-        {content}
-      </Link>
-    );
-  }
-
-  return content;
 }
 
 function Field({

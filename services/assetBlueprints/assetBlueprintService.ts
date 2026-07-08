@@ -92,6 +92,79 @@ function pickBestBlueprint(
   return blueprints.find(blueprintHasPrompts) ?? blueprints[0];
 }
 
+export function selectCanonicalBlueprint(
+  blueprints: AthenaAssetBlueprint[],
+): AthenaAssetBlueprint | null {
+  return pickBestBlueprint(blueprints);
+}
+
+export async function getAssetBlueprintsByOpportunityId(
+  opportunityId: string,
+  organizationId: string,
+): Promise<AthenaAssetBlueprint[]> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_asset_blueprints")
+    .select("*")
+    .eq("opportunity_id", opportunityId)
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching asset blueprints by opportunity:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+async function updateAssetBlueprint(
+  id: string,
+  organizationId: string,
+  input: {
+    parsed: ParsedAssetBlueprint;
+    rawBlueprint: string;
+    source: string;
+    opportunityId?: string | null;
+    briefingId?: string | null;
+  },
+): Promise<AthenaAssetBlueprint | null> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_asset_blueprints")
+    .update({
+      opportunity_id: input.opportunityId ?? null,
+      briefing_id: input.briefingId ?? null,
+      asset_title: input.parsed.asset_title,
+      asset_type: input.parsed.asset_type,
+      business_goal: input.parsed.business_goal,
+      target_audience: input.parsed.target_audience,
+      priority: input.parsed.priority,
+      estimated_reuse: input.parsed.estimated_reuse,
+      image_prompt: input.parsed.image_prompt,
+      pdf_prompt: input.parsed.pdf_prompt,
+      social_prompt: input.parsed.social_prompt,
+      notes: input.parsed.notes,
+      status: "ready",
+      raw_json: {
+        prompt_version: ASSET_BLUEPRINT_PROMPT_VERSION,
+        source: input.source,
+        parsed: input.parsed,
+        raw_ai_response: input.rawBlueprint,
+      },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("organization_id", organizationId)
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Error updating asset blueprint:", error);
+    return null;
+  }
+
+  return data;
+}
+
 async function insertAssetBlueprint(input: {
   organizationId: string;
   userId: string | null;
@@ -146,6 +219,119 @@ async function insertAssetBlueprint(input: {
   return data;
 }
 
+async function findExistingBlueprints(input: {
+  organizationId: string;
+  briefingId?: string | null;
+  opportunityId?: string | null;
+  discussionId: string;
+}): Promise<AthenaAssetBlueprint[]> {
+  const rows: AthenaAssetBlueprint[] = [];
+  const seen = new Set<string>();
+
+  const addRows = (nextRows: AthenaAssetBlueprint[]) => {
+    for (const row of nextRows) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        rows.push(row);
+      }
+    }
+  };
+
+  if (input.briefingId) {
+    addRows(
+      await getAssetBlueprintsByBriefingId(
+        input.briefingId,
+        input.organizationId,
+      ),
+    );
+  }
+
+  if (input.opportunityId) {
+    addRows(
+      await getAssetBlueprintsByOpportunityId(
+        input.opportunityId,
+        input.organizationId,
+      ),
+    );
+  }
+
+  addRows(
+    await getAssetBlueprintsByDiscussionId(
+      input.discussionId,
+      input.organizationId,
+    ),
+  );
+
+  return rows;
+}
+
+async function upsertAssetBlueprint(input: {
+  organizationId: string;
+  userId: string | null;
+  discussionId: string;
+  opportunityId?: string | null;
+  briefingId?: string | null;
+  parsed: ParsedAssetBlueprint;
+  rawBlueprint: string;
+  source: string;
+}): Promise<AthenaAssetBlueprint | null> {
+  if (!blueprintHasPrompts(input.parsed)) {
+    console.warn(
+      `Skipping asset blueprint save for discussion ${input.discussionId}: no prompts generated`,
+    );
+    return null;
+  }
+
+  const existingRows = await findExistingBlueprints({
+    organizationId: input.organizationId,
+    briefingId: input.briefingId,
+    opportunityId: input.opportunityId,
+    discussionId: input.discussionId,
+  });
+  const existing = selectCanonicalBlueprint(existingRows);
+
+  if (existing) {
+    return updateAssetBlueprint(existing.id, input.organizationId, {
+      parsed: input.parsed,
+      rawBlueprint: input.rawBlueprint,
+      source: input.source,
+      opportunityId: input.opportunityId,
+      briefingId: input.briefingId,
+    });
+  }
+
+  return insertAssetBlueprint(input);
+}
+
+export async function getCanonicalBlueprintCount(
+  organizationId: string,
+): Promise<number> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_asset_blueprints")
+    .select("id, briefing_id, opportunity_id, discussion_id, created_at")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error counting canonical blueprints:", error);
+    return 0;
+  }
+
+  const seen = new Set<string>();
+
+  for (const blueprint of data ?? []) {
+    const key =
+      blueprint.briefing_id ??
+      blueprint.opportunity_id ??
+      (blueprint.discussion_id
+        ? `discussion:${blueprint.discussion_id}`
+        : blueprint.id);
+    seen.add(key);
+  }
+
+  return seen.size;
+}
+
 export async function createAssetBlueprintForBriefing(input: {
   discussion: Discussion;
   opportunity: Opportunity;
@@ -162,7 +348,7 @@ export async function createAssetBlueprintForBriefing(input: {
   const rawBlueprint = await generateReview(prompt);
   const parsed = parseJsonResponse(rawBlueprint);
 
-  return insertAssetBlueprint({
+  return upsertAssetBlueprint({
     organizationId: input.discussion.organization_id ?? "",
     userId: input.discussion.user_id ?? null,
     discussionId: input.discussion.id,
@@ -188,7 +374,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   const rawBlueprint = await generateReview(prompt);
   const parsed = parseJsonResponse(rawBlueprint);
 
-  return insertAssetBlueprint({
+  return upsertAssetBlueprint({
     organizationId: input.discussion.organization_id ?? "",
     userId: input.discussion.user_id ?? null,
     discussionId: input.discussion.id,

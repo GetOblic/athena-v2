@@ -2,6 +2,7 @@ import { classifyDiscussionQueue } from "@/lib/discussionStatus";
 import { classifyOpportunityPriority } from "@/lib/opportunityPriority";
 import { normalizeBriefingStatus } from "@/lib/briefingStatus";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getCanonicalBlueprintCount } from "@/services/assetBlueprints/assetBlueprintService";
 import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
 import { getDiscussions } from "@/services/discussionService";
 import { getCanonicalOpportunities } from "@/services/opportunityService";
@@ -11,7 +12,7 @@ export type TodaysIntelligence = {
   newDiscussions: number;
   immediateActionOpportunities: number;
   briefingsAwaitingApproval: number;
-  reusableAssetsCreated: number;
+  strategicBlueprints: number;
   highestOpportunity: {
     id: string;
     title: string;
@@ -63,21 +64,16 @@ export async function getTodaysIntelligence(
     analyzedDiscussionIds,
     opportunities,
     reviews,
-    assetsResult,
+    strategicBlueprints,
     confidenceSnapshot,
   ] = await Promise.all([
     getDiscussions(organizationId),
     getAnalyzedDiscussionIds(organizationId),
     getCanonicalOpportunities(organizationId),
     getCanonicalReviews(organizationId),
-    supabaseAdmin
-      .from("athena_asset_blueprints")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", organizationId),
+    getCanonicalBlueprintCount(organizationId),
     getKnowledgeConfidenceSnapshot(organizationId),
   ]);
-
-  const assetsCount = assetsResult.count ?? 0;
 
   const newDiscussions = discussions.filter((discussion) => {
     const hasAnalysis = analyzedDiscussionIds.has(discussion.id);
@@ -102,7 +98,7 @@ export async function getTodaysIntelligence(
     newDiscussions,
     immediateActionOpportunities,
     briefingsAwaitingApproval,
-    reusableAssetsCreated: assetsCount,
+    strategicBlueprints,
     highestOpportunity: highestOpportunity
       ? {
           id: highestOpportunity.id,

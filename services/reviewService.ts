@@ -268,17 +268,33 @@ export async function updateReviewFromGeneration(
 export async function upsertReviewFromGeneration(
   input: CreateAthenaReviewInput,
 ): Promise<AthenaReview | null> {
-  let existingRows: AthenaReview[] = [];
+  const existingRows: AthenaReview[] = [];
+  const seen = new Set<string>();
+
+  const addRows = (rows: AthenaReview[]) => {
+    for (const row of rows) {
+      if (!seen.has(row.id)) {
+        seen.add(row.id);
+        existingRows.push(row);
+      }
+    }
+  };
 
   if (input.opportunity_id) {
-    existingRows = await getReviewsByOpportunityId(
-      input.opportunity_id,
-      input.organization_id,
+    addRows(
+      await getReviewsByOpportunityId(
+        input.opportunity_id,
+        input.organization_id,
+      ),
     );
-  } else if (input.discussion_id) {
-    existingRows = await getReviewsByDiscussionId(
-      input.discussion_id,
-      input.organization_id,
+  }
+
+  if (input.discussion_id) {
+    addRows(
+      await getReviewsByDiscussionId(
+        input.discussion_id,
+        input.organization_id,
+      ),
     );
   }
 

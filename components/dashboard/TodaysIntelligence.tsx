@@ -15,7 +15,7 @@ export function TodaysIntelligence({ summary }: TodaysIntelligenceProps) {
         <h2 className="mt-3 text-3xl font-semibold">Your executive snapshot</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-white/45">
           What needs attention right now across discussions, opportunities,
-          briefings, and reusable assets.
+          briefings, and strategic blueprints.
         </p>
       </div>
 
@@ -39,10 +39,10 @@ export function TodaysIntelligence({ summary }: TodaysIntelligenceProps) {
           hint="Executive memos needing review"
         />
         <SummaryTile
-          label="Reusable assets created"
-          value={summary.reusableAssetsCreated}
+          label="Strategic blueprints"
+          value={summary.strategicBlueprints}
           href="/briefings"
-          hint="Strategic blueprints ready to deploy"
+          hint="Canonical strategic asset specifications"
         />
         <HighestOpportunityTile opportunity={summary.highestOpportunity} />
         <ConfidenceTile

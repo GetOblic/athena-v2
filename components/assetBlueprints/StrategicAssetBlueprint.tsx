@@ -1,4 +1,4 @@
-import { CopyButton } from "@/components/deployment/CopyButton";
+import { CollapsiblePromptBlock } from "@/components/assetBlueprints/CollapsiblePromptBlock";
 import { formatBlueprintReadiness } from "@/lib/blueprintReadiness";
 import type { AthenaAssetBlueprint } from "@/services/assetBlueprints/assetBlueprintService";
 
@@ -71,10 +71,10 @@ export function StrategicAssetBlueprint({
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <PromptBlock label="Image prompt" text={blueprint.image_prompt} />
-        <PromptBlock label="PDF prompt" text={blueprint.pdf_prompt} />
-        <PromptBlock label="Social prompt" text={blueprint.social_prompt} />
-        <PromptBlock label="Notes" text={blueprint.notes} fullWidth />
+        <CollapsiblePromptBlock label="Image Prompt" text={blueprint.image_prompt} />
+        <CollapsiblePromptBlock label="PDF Prompt" text={blueprint.pdf_prompt} />
+        <CollapsiblePromptBlock label="Social Prompt" text={blueprint.social_prompt} />
+        <CollapsiblePromptBlock label="Notes" text={blueprint.notes} fullWidth />
       </div>
     </section>
   );
@@ -105,38 +105,3 @@ function MetaField({
   );
 }
 
-function PromptBlock({
-  label,
-  text,
-  fullWidth,
-}: {
-  label: string;
-  text?: string | null;
-  fullWidth?: boolean;
-}) {
-  const content = text?.trim();
-  const hasContent = Boolean(content);
-
-  return (
-    <article
-      className={`flex flex-col rounded-2xl border border-white/10 bg-black/25 p-5 ${
-        fullWidth ? "lg:col-span-2" : ""
-      }`}
-    >
-      <div className="flex items-center justify-between gap-4">
-        <div className="text-sm font-medium text-white/55">{label}</div>
-        {hasContent && content && <CopyButton text={content} />}
-      </div>
-
-      <div className="mt-4 flex-1 rounded-xl border border-white/10 bg-[var(--athena-bg)]/70 p-4 shadow-inner shadow-black/20">
-        <p
-          className={`whitespace-pre-wrap text-sm leading-7 ${
-            hasContent ? "text-white/85" : "text-white/30"
-          }`}
-        >
-          {hasContent ? content : "No prompt generated yet."}
-        </p>
-      </div>
-    </article>
-  );
-}
