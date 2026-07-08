@@ -23,6 +23,19 @@ export {
 } from "@/services/brain/executiveMemoryService";
 
 export {
+  buildExecutiveLearning,
+  getExecutiveLearning,
+  clearExecutiveLearningCache,
+} from "@/services/brain/executiveLearningService";
+
+export type {
+  ExecutiveLearningSummary,
+  BuildExecutiveLearningParams,
+  MarketEvidenceEntry,
+  PromotionCandidate,
+} from "@/services/brain/executiveLearningTypes";
+
+export {
   MAX_BLUEPRINTS_CONTEXT,
   MAX_BRIEFINGS_CONTEXT,
   MAX_DISCUSSIONS_CONTEXT,

@@ -1,4 +1,8 @@
 import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
+import type {
+  ExecutiveLearningSummary,
+  PromotionCandidate,
+} from "@/services/brain/executiveLearningTypes";
 
 export const EXECUTIVE_MEMORY_VERSION = "executive_memory_v1";
 
@@ -10,7 +14,7 @@ export const MAX_EXECUTIVE_MEMORY_COMPETITORS = 25;
 
 export type ExecutiveMemorySourceContext = Omit<
   AthenaBrainContext,
-  "executiveMemory"
+  "executiveMemory" | "executiveLearning" | "marketEvidence" | "promotionCandidates"
 >;
 
 export type BuildExecutiveMemoryParams = {
@@ -159,6 +163,8 @@ export type ExecutiveMemory = {
   contentKnowledge: ContentKnowledge;
   patternKnowledge: PatternKnowledge;
   performanceKnowledge: PerformanceKnowledge;
+  executiveLearning: ExecutiveLearningSummary | null;
+  promotionCandidates: PromotionCandidate[];
 };
 
 export type ExecutiveMemoryOrganizationRequiredError = Error & {

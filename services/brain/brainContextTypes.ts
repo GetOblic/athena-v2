@@ -10,6 +10,11 @@ import type { AthenaReview } from "@/services/reviewService";
 import type { DashboardStats } from "@/services/dashboardService";
 import type { TodaysIntelligence } from "@/services/todaysIntelligenceService";
 import type { ExecutiveMemory } from "@/services/brain/executiveMemoryTypes";
+import type {
+  ExecutiveLearningSummary,
+  MarketEvidenceEntry,
+  PromotionCandidate,
+} from "@/services/brain/executiveLearningTypes";
 
 export const MAX_DISCUSSIONS_CONTEXT = 10;
 export const MAX_BRIEFINGS_CONTEXT = 10;
@@ -377,6 +382,9 @@ export type AthenaBrainContext = {
   feedbackMemory: FeedbackMemory;
   operationalMemory: OperationalMemory;
   executiveMemory: ExecutiveMemory;
+  executiveLearning: ExecutiveLearningSummary;
+  marketEvidence: MarketEvidenceEntry[];
+  promotionCandidates: PromotionCandidate[];
   contextWarnings: ContextWarnings;
   snapshot: BrainSnapshot;
   contextSummary: ContextSummary;

@@ -3,7 +3,10 @@ import type {
   BrainSnapshot,
 } from "@/services/brain/brainContextTypes";
 
-type BrainSnapshotInput = Omit<AthenaBrainContext, "executiveMemory">;
+type BrainSnapshotInput = Omit<
+  AthenaBrainContext,
+  "executiveMemory" | "executiveLearning" | "marketEvidence" | "promotionCandidates"
+>;
 
 function resolveBrainHealth(
   context: BrainSnapshotInput,

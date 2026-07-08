@@ -418,5 +418,7 @@ export async function buildExecutiveMemory(
       knowledgeConfidence: knowledgeMemory?.knowledgeConfidence ?? null,
       knowledgeConfidenceDelta: knowledgeMemory?.knowledgeConfidenceDelta ?? null,
     },
+    executiveLearning: null,
+    promotionCandidates: [],
   };
 }

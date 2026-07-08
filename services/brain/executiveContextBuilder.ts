@@ -18,6 +18,7 @@ import {
 } from "@/services/brain/brainContextHelpers";
 import { buildBrainSnapshot } from "@/services/brain/brainSnapshot";
 import { getExecutiveMemory } from "@/services/brain/executiveMemoryService";
+import { getExecutiveLearning } from "@/services/brain/executiveLearningService";
 import type {
   AthenaBrainContext,
   BrainContextScope,
@@ -121,10 +122,26 @@ async function enrichExecutiveContext(
     },
   });
 
+  const executiveLearning = await getExecutiveLearning({
+    organizationId,
+    domainId: focusDomainId ?? undefined,
+    discussionId: focusDiscussionId ?? undefined,
+    sourceMemory: executiveMemory,
+  });
+
+  const enrichedExecutiveMemory = {
+    ...executiveMemory,
+    executiveLearning,
+    promotionCandidates: executiveLearning.promotionCandidates,
+  };
+
   return {
     ...partial,
     snapshot,
-    executiveMemory,
+    executiveMemory: enrichedExecutiveMemory,
+    executiveLearning,
+    marketEvidence: executiveLearning.marketLearning.evidence,
+    promotionCandidates: executiveLearning.promotionCandidates,
     contextSummary: {
       ...partial.contextSummary,
       warnings: contextWarnings.codes,
