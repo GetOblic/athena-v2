@@ -166,8 +166,19 @@ export function buildStrategicBlueprintContract(
     sections: [
       "asset_title",
       "asset_type",
-      "business_goal",
+      "asset_objective",
+      "business_objective",
       "target_audience",
+      "buyer_stage",
+      "primary_pain_point",
+      "core_message",
+      "desired_transformation",
+      "executive_rationale",
+      "supporting_evidence",
+      "sophistication_level",
+      "strategic_angle",
+      "production_specs",
+      "business_goal",
       "priority",
       "estimated_reuse",
       "image_prompt",
@@ -186,15 +197,32 @@ export function buildStrategicBlueprintContract(
 
   return buildBaseContract(input, {
     summary:
-      "Create a strategic asset blueprint with reusable generation prompts aligned to executive reasoning.",
-    audience: "Operator creating reusable strategic assets",
+      "Create a production-ready strategic asset blueprint with executable AI generation prompts aligned to Executive Understanding.",
+    audience: "Senior marketing operator producing reusable strategic assets",
     requiredSections,
     outputRequirements,
-    mandatorySections: requiredSections.sections,
+    mandatorySections: [
+      ...requiredSections.sections,
+      "production_specs with output format and distribution channel",
+      "paste-ready image_prompt, pdf_prompt, and social_prompt",
+    ],
     validationRules: [
       "estimated_reuse must be integer 1-5",
-      "prompts must be contextual and identity-aligned",
+      "prompts must be executable production specifications, not generic descriptions",
+      "asset must align with Executive Understanding strategic direction",
+      "sophistication_level must match buyer stage",
+      "supporting_evidence must not hallucinate unavailable proof",
+      "image_prompt, pdf_prompt, and social_prompt must not duplicate each other",
     ],
+    forbiddenBehaviors: {
+      behaviors: [
+        ...SHARED_FORBIDDEN.behaviors,
+        "Do not output generic recommendations like 'create a comprehensive guide' without structure.",
+        "Do not repeat identical wording across image_prompt, pdf_prompt, and social_prompt.",
+        "Do not ignore the provided strategic angle or sophistication level.",
+        "Do not describe content abstractly when production instructions are required.",
+      ],
+    },
   });
 }
 
@@ -207,6 +235,7 @@ function buildBaseContract(
     outputRequirements: OutputRequirements;
     mandatorySections: string[];
     validationRules: string[];
+    forbiddenBehaviors?: ForbiddenBehaviors;
   },
 ): GenerationContract {
   const { workflowType, organizationId, brainContext, executiveReasoning } =
@@ -254,7 +283,7 @@ function buildBaseContract(
       nonSalesy: true,
       noOverpromise: true,
     },
-    forbiddenBehaviors: SHARED_FORBIDDEN,
+    forbiddenBehaviors: config.forbiddenBehaviors ?? SHARED_FORBIDDEN,
     validationRules: {
       rules: config.validationRules,
       requiredChecks: [

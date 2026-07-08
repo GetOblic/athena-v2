@@ -45,7 +45,90 @@ type ParsedAssetBlueprint = {
   pdf_prompt: string;
   social_prompt: string;
   notes: string;
+  asset_objective?: string;
+  business_objective?: string;
+  buyer_stage?: string;
+  primary_pain_point?: string;
+  core_message?: string;
+  desired_transformation?: string;
+  executive_rationale?: string;
+  supporting_evidence?: string[];
+  sophistication_level?: string;
+  strategic_angle?: string;
+  production_specs?: Record<string, unknown>;
 };
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => String(entry ?? "").trim())
+    .filter(Boolean);
+}
+
+function normalizeParsedAssetBlueprint(
+  parsed: Record<string, unknown>,
+): ParsedAssetBlueprint {
+  const assetObjective = String(
+    parsed.asset_objective ?? parsed.core_message ?? "",
+  );
+  const businessObjective = String(
+    parsed.business_objective ?? parsed.business_goal ?? "",
+  );
+  const executiveRationale = String(parsed.executive_rationale ?? "");
+  const supportingEvidence = asStringArray(parsed.supporting_evidence);
+  const sophisticationLevel = String(parsed.sophistication_level ?? "");
+  const strategicAngle = String(parsed.strategic_angle ?? "");
+  const buyerStage = String(parsed.buyer_stage ?? "");
+  const primaryPainPoint = String(parsed.primary_pain_point ?? "");
+
+  const businessGoal =
+    String(parsed.business_goal ?? "").trim() ||
+    [assetObjective, businessObjective].filter(Boolean).join("\n\n");
+
+  const targetAudience =
+    String(parsed.target_audience ?? "").trim() ||
+    [buyerStage, sophisticationLevel].filter(Boolean).join(" — ");
+
+  const notesParts = [
+    executiveRationale ? `Executive rationale: ${executiveRationale}` : "",
+    strategicAngle ? `Strategic angle: ${strategicAngle}` : "",
+    primaryPainPoint ? `Primary pain point: ${primaryPainPoint}` : "",
+    supportingEvidence.length
+      ? `Supporting evidence: ${supportingEvidence.join("; ")}`
+      : "",
+    String(parsed.notes ?? ""),
+  ].filter(Boolean);
+
+  return {
+    asset_title: String(parsed.asset_title ?? "Strategic Asset"),
+    asset_type: String(parsed.asset_type ?? "pdf_guide"),
+    business_goal: businessGoal,
+    target_audience: targetAudience,
+    priority: String(parsed.priority ?? "medium"),
+    estimated_reuse: Math.max(1, Math.min(5, Number(parsed.estimated_reuse ?? 3))),
+    image_prompt: String(parsed.image_prompt ?? ""),
+    pdf_prompt: String(parsed.pdf_prompt ?? ""),
+    social_prompt: String(parsed.social_prompt ?? ""),
+    notes: notesParts.join("\n\n"),
+    asset_objective: assetObjective || undefined,
+    business_objective: businessObjective || undefined,
+    buyer_stage: buyerStage || undefined,
+    primary_pain_point: primaryPainPoint || undefined,
+    core_message: String(parsed.core_message ?? "") || undefined,
+    desired_transformation: String(parsed.desired_transformation ?? "") || undefined,
+    executive_rationale: executiveRationale || undefined,
+    supporting_evidence: supportingEvidence.length ? supportingEvidence : undefined,
+    sophistication_level: sophisticationLevel || undefined,
+    strategic_angle: strategicAngle || undefined,
+    production_specs:
+      parsed.production_specs && typeof parsed.production_specs === "object"
+        ? (parsed.production_specs as Record<string, unknown>)
+        : undefined,
+  };
+}
 
 function parseJsonResponse(rawText: string): ParsedAssetBlueprint {
   const cleaned = rawText
@@ -54,20 +137,8 @@ function parseJsonResponse(rawText: string): ParsedAssetBlueprint {
     .replace(/```$/i, "")
     .trim();
 
-  const parsed = JSON.parse(cleaned);
-
-  return {
-    asset_title: String(parsed.asset_title ?? "Strategic Asset"),
-    asset_type: String(parsed.asset_type ?? "pdf_guide"),
-    business_goal: String(parsed.business_goal ?? ""),
-    target_audience: String(parsed.target_audience ?? ""),
-    priority: String(parsed.priority ?? "medium"),
-    estimated_reuse: Math.max(1, Math.min(5, Number(parsed.estimated_reuse ?? 3))),
-    image_prompt: String(parsed.image_prompt ?? ""),
-    pdf_prompt: String(parsed.pdf_prompt ?? ""),
-    social_prompt: String(parsed.social_prompt ?? ""),
-    notes: String(parsed.notes ?? ""),
-  };
+  const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+  return normalizeParsedAssetBlueprint(parsed);
 }
 
 export function blueprintHasPrompts(
@@ -334,6 +405,9 @@ export async function getCanonicalBlueprintCount(
   return seen.size;
 }
 
+const LEGACY_PRODUCTION_SPECS_PROMPT =
+  "Legacy fallback mode: produce production-ready asset specifications using available business context only.";
+
 export async function createAssetBlueprintForBriefing(input: {
   discussion: Discussion;
   opportunity: Opportunity;
@@ -349,7 +423,8 @@ export async function createAssetBlueprintForBriefing(input: {
         briefing: input.briefing as unknown as Record<string, unknown>,
       })
     : buildAssetBlueprintPrompt({
-        brainContextPrompt: input.brainContextPrompt ?? "",
+        executiveContextPrompt: input.brainContextPrompt ?? "",
+        productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
         discussion: input.discussion as unknown as Record<string, unknown>,
         opportunity: input.opportunity as unknown as Record<string, unknown>,
         briefing: input.briefing as unknown as Record<string, unknown>,
@@ -383,7 +458,8 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
         analysis: input.analysis as unknown as Record<string, unknown>,
       })
     : buildAssetBlueprintFromAnalysisPrompt({
-        brainContextPrompt: input.brainContextPrompt ?? "",
+        executiveContextPrompt: input.brainContextPrompt ?? "",
+        productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
         discussion: input.discussion as unknown as Record<string, unknown>,
         analysis: input.analysis as unknown as Record<string, unknown>,
       });
