@@ -133,13 +133,13 @@ select athena_provision_missing_user_tenants();
 
 select athena_backfill_tenant_table_by_user_id('discussions');
 select athena_backfill_tenant_table_by_user_id('athena_discussion_analysis');
-select athena_backfill_tenant_table_by_user_id('athena_discussion_updates');
 select athena_backfill_tenant_table_by_user_id('opportunities');
 select athena_backfill_tenant_table_by_user_id('athena_reviews');
 select athena_backfill_tenant_table_by_user_id('knowledge_assets');
 select athena_backfill_tenant_table_by_user_id('athena_identity');
 
--- Propagate organization ownership through foreign-key relationships.
+-- Tables without user_id (athena_discussion_updates, communities, intelligence tables)
+-- receive organization_id via relationship propagation below.
 update communities c
 set organization_id = d.organization_id
 from (

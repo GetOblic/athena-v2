@@ -1,0 +1,96 @@
+{
+  "version": "migration_manifest_v1",
+  "description": "Deterministic Supabase migration manifest for Athena infrastructure reconciliation.",
+  "duplicateVersionIssue": {
+    "cause": "Four migrations shared the 20260707 date prefix. Supabase tracks migration version from the leading numeric token; identical prefixes collide in schema_migrations.",
+    "resolution": "Renamed to unique 14-digit timestamps (YYYYMMDDHHMMSS) preserving chronological order."
+  },
+  "migrations": [
+    {
+      "version": "20260705000001",
+      "file": "20260705000001_create_athena_core_tables.sql",
+      "purpose": "Baseline core intelligence tables (communities, discussions, analysis, opportunities, briefings, domain intelligence).",
+      "dependencies": [],
+      "idempotent": true,
+      "productionApplied": "reconciled",
+      "notes": "Previously existed only in production; required for fresh db push."
+    },
+    {
+      "version": "20260706000001",
+      "file": "20260706000001_create_knowledge_assets.sql",
+      "purpose": "Knowledge base assets and asset links.",
+      "dependencies": ["20260705000001"],
+      "idempotent": true,
+      "productionApplied": true,
+      "notes": "Renamed from 20260706_create_knowledge_assets.sql"
+    },
+    {
+      "version": "20260707000001",
+      "file": "20260707000001_create_athena_identity.sql",
+      "purpose": "Athena Brain identity profile and identity documents.",
+      "dependencies": ["auth.users"],
+      "idempotent": true,
+      "productionApplied": true,
+      "notes": "Renamed from 20260707_create_athena_identity.sql; includes greeting_name."
+    },
+    {
+      "version": "20260707000002",
+      "file": "20260707000002_add_master_identity_profile.sql",
+      "purpose": "Master identity profile JSON columns on athena_identity.",
+      "dependencies": ["20260707000001"],
+      "idempotent": true,
+      "productionApplied": true,
+      "notes": "Renamed from 20260707_add_master_identity_profile.sql"
+    },
+    {
+      "version": "20260707000003",
+      "file": "20260707000003_add_user_scope_to_athena_core.sql",
+      "purpose": "Add user_id to core tenant-owned tables.",
+      "dependencies": ["20260705000001", "20260706000001"],
+      "idempotent": true,
+      "productionApplied": true,
+      "notes": "Renamed from 20260707_add_user_scope_to_athena_core.sql"
+    },
+    {
+      "version": "20260707000004",
+      "file": "20260707000004_create_asset_blueprints.sql",
+      "purpose": "Strategic asset blueprint storage.",
+      "dependencies": ["20260705000001"],
+      "idempotent": true,
+      "productionApplied": true,
+      "notes": "Renamed from 20260707_create_asset_blueprints.sql"
+    },
+    {
+      "version": "20260708000001",
+      "file": "20260708000001_create_athena_discussion_updates.sql",
+      "purpose": "Discussion thread updates for refresh and analysis.",
+      "dependencies": ["20260705000001"],
+      "idempotent": true,
+      "productionApplied": true,
+      "notes": "Renamed from 20260708_create_athena_discussion_updates.sql; FK to discussions."
+    },
+    {
+      "version": "20260709000001",
+      "file": "20260709000001_create_organizations.sql",
+      "purpose": "Organizations, members, organization_id columns, demo org backfill.",
+      "dependencies": ["20260705000001", "20260707000001", "20260708000001"],
+      "idempotent": true,
+      "productionApplied": true,
+      "notes": "Renamed from 20260709_create_organizations.sql"
+    },
+    {
+      "version": "20260710000001",
+      "file": "20260710000001_saas_tenant_provisioning.sql",
+      "purpose": "SaaS tenant provisioning functions, relationship-based org backfill, identity uniqueness per org.",
+      "dependencies": ["20260709000001"],
+      "idempotent": true,
+      "productionApplied": "reconciled",
+      "notes": "Does not backfill tables without user_id; uses FK propagation. Renamed from 20260710_saas_tenant_provisioning.sql"
+    }
+  ],
+  "manualProductionSteps": [
+    "Existing production projects that already applied old 20260707_* versions must NOT re-run renamed migrations. Insert manifest rows manually or use supabase migration repair if versions were partially applied.",
+    "Fresh projects: run supabase db push with no manual SQL edits.",
+    "auth.users must exist (Supabase Auth enabled) before 20260707000001 and 20260710000001 provisioning functions run."
+  ]
+}

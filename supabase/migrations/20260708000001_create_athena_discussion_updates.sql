@@ -1,6 +1,6 @@
 create table if not exists athena_discussion_updates (
   id uuid primary key default gen_random_uuid(),
-  discussion_id uuid not null,
+  discussion_id uuid not null references discussions(id) on delete cascade,
   author text,
   url text,
   body text not null,
