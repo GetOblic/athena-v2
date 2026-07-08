@@ -311,6 +311,9 @@ export async function processDiscussionEndToEnd(
 
   const opportunityTitle =
     parsedAnalysis.opportunity_title ||
+    analysisBundle?.executiveUnderstanding?.executiveInitiativeSelection
+      ?.selectedInitiative?.initiativeLabel ||
+    analysisBundle?.executiveUnderstanding?.executiveSummary?.headline ||
     analysisBundle?.executiveReasoning?.executiveIntelligence
       ?.suggestedOpportunityTitle ||
     discussion.title;

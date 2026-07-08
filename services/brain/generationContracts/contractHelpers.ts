@@ -20,6 +20,8 @@ const SHARED_FORBIDDEN: ForbiddenBehaviors = {
     "Do not write CRM-style opportunity titles describing individual buyers.",
     "Do not stop at surface discussion interpretation — apply hidden market problem reasoning.",
     "Do not recommend webinar, PDF guide, or carousel by default without strategic justification.",
+    "Do not independently select executive initiatives — inherit Executive Initiative Selection.",
+    "Do not treat content format as strategy — initiative selection precedes asset implementation.",
   ],
 };
 
@@ -79,9 +81,10 @@ export function buildDiscussionAnalysisContract(
       "opportunity_title must reflect the hidden market problem from executive cognition",
       "opportunity_reason must reference buyer psychology and executive reflection, not surface summary only",
       "deployment assets must optimize for business, psychological, positioning, conversation, and CTA objectives",
-      "do not generate copy before internal objectives are determined from the Executive Decision Synthesis",
-      "all downstream outputs must express the same executive decision — do not independently choose strategy",
-      "do not default to generic webinar, PDF guide, or carousel recommendations unless decision synthesis selected them",
+      "do not generate copy before internal objectives are determined from the Executive Initiative Selection",
+      "all downstream outputs must express the same executive initiative — do not independently choose strategy",
+      "do not default to generic webinar, PDF guide, or carousel recommendations unless initiative implementation requires them",
+      "opportunity_title must reflect the selected executive initiative, not a content format",
     ],
   });
 }
@@ -219,7 +222,8 @@ export function buildStrategicBlueprintContract(
     validationRules: [
       "estimated_reuse must be integer 1-5",
       "prompts must be executable production specifications, not generic descriptions",
-      "asset must align with Executive Understanding strategic direction",
+      "asset must align with Executive Initiative Selection and strategic direction",
+      "blueprint must describe executive initiative and business strategy before production specifications",
       "sophistication_level must match buyer stage",
       "supporting_evidence must not hallucinate unavailable proof",
       "image_prompt, pdf_prompt, and social_prompt must not duplicate each other",

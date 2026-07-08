@@ -3,7 +3,7 @@ import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/exec
 import type { MarketingDeliverableRecommendation } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
-export const STRATEGIC_BLUEPRINT_SPECS_VERSION = "strategic_blueprint_specs_v3_executive";
+export const STRATEGIC_BLUEPRINT_SPECS_VERSION = "strategic_blueprint_specs_v4_initiative";
 
 export type AssetSophisticationLevel =
   | "beginner"
@@ -56,8 +56,27 @@ export type ExecutiveBlueprintSpecification = {
   estimatedRoiCategory: "low" | "medium" | "high";
 };
 
+export type StrategyFirstBlueprintSpecification = {
+  executiveInitiative: string;
+  initiativeCategory: string;
+  businessObjective: string;
+  marketProblem: string;
+  strategicHypothesis: string;
+  competitiveAdvantage: string;
+  customerTransformation: string;
+  evidenceSupportingDecision: string[];
+  successMetrics: {
+    primaryKpi: string;
+    secondaryKpis: string[];
+  };
+  risks: string[];
+  expectedRoi: string;
+  implementationRoadmap: string[];
+};
+
 export type StrategicBlueprintProductionContext = {
   version: string;
+  strategyFirst: StrategyFirstBlueprintSpecification;
   assetObjective: string;
   targetAudience: string;
   businessObjective: string;
@@ -424,12 +443,51 @@ export function buildStrategicBlueprintProductionContext(
   const intelligence = understanding.executiveIntelligence;
   const decision = intelligence.executiveDecisionSynthesis.selectedDecision;
   const decisionDocument = decision.decisionDocument;
+  const initiative = understanding.executiveInitiativeSelection;
+  const selected = initiative.selectedInitiative;
   const marketingRecommendation = marketing.executiveRecommendation;
 
+  const strategyFirst: StrategyFirstBlueprintSpecification = {
+    executiveInitiative: selected.initiativeLabel,
+    initiativeCategory: selected.initiativeCategory,
+    businessObjective: selected.expectedBusinessOutcome,
+    marketProblem: decisionDocument.hiddenMarketProblem,
+    strategicHypothesis: intelligence.contrarianThinking.strategicReframe,
+    competitiveAdvantage: decisionDocument.competitiveAdvantage,
+    customerTransformation: selected.expectedCustomerOutcome,
+    evidenceSupportingDecision: selected.evidenceFromDiscussion,
+    successMetrics: {
+      primaryKpi: selected.primarySuccessMetric,
+      secondaryKpis: [selected.secondarySuccessMetric],
+    },
+    risks: [
+      selected.riskLevel === "high"
+        ? "High execution risk — validate assumptions before full deployment."
+        : selected.riskLevel === "medium"
+          ? "Moderate risk — monitor early signals before scaling."
+          : "Low risk — standard deployment safeguards apply.",
+      initiative.businessBeforeContent.contentRequired
+        ? "Content dependency — ensure implementation asset matches initiative scope."
+        : "Business-change initiative — content is secondary to process/positioning execution.",
+    ],
+    expectedRoi:
+      marketingRecommendation.estimatedReusePotential === "high"
+        ? "High expected ROI — initiative compounds across sales, community, and retention."
+        : marketingRecommendation.estimatedReusePotential === "medium"
+          ? "Moderate ROI within current market cycle."
+          : "Targeted ROI — near-term tactical impact.",
+    implementationRoadmap: [
+      `1. Launch ${selected.initiativeLabel} as the executive north star.`,
+      `2. Deploy ${initiative.implementationStrategy.implementationDeliverable} as implementation vehicle.`,
+      `3. Measure ${selected.primarySuccessMetric}.`,
+      `4. Iterate based on ${selected.secondarySuccessMetric}.`,
+    ],
+  };
+
   const executiveSpecification: ExecutiveBlueprintSpecification = {
-    strategicObjective: decisionDocument.businessObjective,
-    businessProblemSolved: decisionDocument.hiddenMarketProblem,
-    assetSelectionReason: decisionDocument.assetSelectionReason,
+    strategicObjective: strategyFirst.businessObjective,
+    businessProblemSolved: strategyFirst.marketProblem,
+    assetSelectionReason: `Production implements initiative "${strategyFirst.executiveInitiative}" — ${initiative.implementationStrategy.rationale}`,
     targetPsychologicalOutcome: decision.expectedCustomerOutcome,
     primaryCta: decisionDocument.generationObjectives.callToActionObjective,
     contentArchitecture:
@@ -455,6 +513,7 @@ export function buildStrategicBlueprintProductionContext(
 
   return {
     version: STRATEGIC_BLUEPRINT_SPECS_VERSION,
+    strategyFirst,
     assetObjective: coreMessage,
     targetAudience: buildTargetAudienceLabel(understanding, sophisticationLevel),
     businessObjective: marketing.businessObjective,
@@ -501,10 +560,27 @@ export function formatStrategicBlueprintProductionSpecsForPrompt(
   const sections = [
     "ATHENA STRATEGIC ASSET PRODUCTION SPECIFICATIONS:",
     "",
+    "Strategy first. Production second. The blueprint describes a business initiative before asset specifications.",
+    "",
+    "EXECUTIVE INITIATIVE (STRATEGY — MUST LEAD ALL OUTPUT):",
+    `- Initiative: ${context.strategyFirst.executiveInitiative}`,
+    `- Category: ${context.strategyFirst.initiativeCategory}`,
+    `- Business objective: ${context.strategyFirst.businessObjective}`,
+    `- Market problem: ${context.strategyFirst.marketProblem}`,
+    `- Strategic hypothesis: ${context.strategyFirst.strategicHypothesis}`,
+    `- Competitive advantage: ${context.strategyFirst.competitiveAdvantage}`,
+    `- Customer transformation: ${context.strategyFirst.customerTransformation}`,
+    `- Evidence: ${context.strategyFirst.evidenceSupportingDecision.join("; ") || "From current discussion intelligence."}`,
+    `- Primary KPI: ${context.strategyFirst.successMetrics.primaryKpi}`,
+    `- Secondary KPIs: ${context.strategyFirst.successMetrics.secondaryKpis.join("; ")}`,
+    `- Risks: ${context.strategyFirst.risks.join("; ")}`,
+    `- Expected ROI: ${context.strategyFirst.expectedRoi}`,
+    `- Implementation roadmap: ${context.strategyFirst.implementationRoadmap.join(" → ")}`,
+    "",
     "These specifications are deterministic and must be followed exactly.",
     "Do not produce generic marketing advice. Produce executable asset specifications.",
     "",
-    "ASSET STRATEGY:",
+    "IMPLEMENTATION ASSET STRATEGY:",
     `- Marketing recommendation: ${context.recommendedPrimaryDeliverable}`,
     context.recommendedSupportingDeliverable
       ? `- Supporting recommendation: ${context.recommendedSupportingDeliverable}`

@@ -16,6 +16,7 @@ import {
   validateOutputDiversity,
   validateStrategyAlignment,
 } from "@/services/brain/executiveCoherenceService";
+import { buildSampleExecutiveInitiativeSelection } from "@/services/brain/executiveInitiativeSelectionHelpers";
 import { buildSampleExecutiveIntelligencePipeline } from "@/services/brain/executiveIntelligenceHelpers";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
@@ -158,6 +159,7 @@ function sampleUnderstanding(
       historicalCount: 0,
     },
     executiveIntelligence: buildSampleExecutiveIntelligencePipeline(),
+    executiveInitiativeSelection: buildSampleExecutiveInitiativeSelection(),
   };
 }
 

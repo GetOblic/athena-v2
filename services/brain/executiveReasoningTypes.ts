@@ -2,7 +2,7 @@ import type { OpportunityPriorityKey } from "@/lib/opportunityPriority";
 import type { MarketingDeliverableRecommendation } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
 
-export const EXECUTIVE_REASONING_VERSION = "executive_reasoning_v4_decision_synthesis";
+export const EXECUTIVE_REASONING_VERSION = "executive_reasoning_v5_initiative_selection";
 
 export const REASONING_PRIORITY_THRESHOLDS = {
   immediate: {

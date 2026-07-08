@@ -3,7 +3,158 @@ import type { ExecutiveReasoning, ExecutiveIntelligencePipeline, RecommendedDire
 
 import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 
-export const EXECUTIVE_UNDERSTANDING_VERSION = "executive_understanding_v4_decision_synthesis";
+export const EXECUTIVE_UNDERSTANDING_VERSION = "executive_understanding_v5_initiative_selection";
+
+export type ExecutiveInitiativeCategory =
+  | "product_improvement"
+  | "curriculum_redesign"
+  | "positioning_refinement"
+  | "pricing_strategy"
+  | "market_education"
+  | "sales_enablement"
+  | "objection_handling"
+  | "trust_building"
+  | "competitive_differentiation"
+  | "new_service_offering"
+  | "certification"
+  | "lead_qualification"
+  | "diagnostic_assessment"
+  | "ai_workflow"
+  | "partnership_opportunity"
+  | "customer_success"
+  | "community_building"
+  | "brand_authority"
+  | "industry_standard_creation"
+  | "thought_leadership"
+  | "process_improvement"
+  | "revenue_expansion"
+  | "retention_improvement";
+
+export type InitiativeCandidateSource =
+  | "discussion"
+  | "buyer_psychology"
+  | "market_pattern"
+  | "strategic_direction"
+  | "initiative_library";
+
+export type InitiativeCandidate = {
+  id: string;
+  label: string;
+  category: ExecutiveInitiativeCategory;
+  archetypeId: string;
+  strategicDirection: string;
+  source: InitiativeCandidateSource;
+  whyChangesBusiness: string;
+  expectedLeverage: string;
+  revenueImpact: string;
+  authorityImpact: string;
+  implementationEffort: "low" | "medium" | "high";
+  timeHorizon: "near_term" | "long_term";
+  risk: "low" | "medium" | "high";
+  evidenceFromDiscussion: string[];
+  expectedCustomerTransformation: string;
+  contentRequired: boolean;
+  preferredImplementationTypes: import("@/services/brain/executiveCoherence/executiveCoherenceTypes").MarketingDeliverableRecommendation[];
+};
+
+export type InitiativeEvaluationScores = {
+  businessLeverage: number;
+  customerTransformation: number;
+  strategicDifferentiation: number;
+  authorityCreation: number;
+  revenuePotential: number;
+  marketTiming: number;
+  defensibility: number;
+  scalability: number;
+  evidenceStrength: number;
+  longTermCompounding: number;
+  easeOfExecution: number;
+  brandAlignment: number;
+  opportunityCost: number;
+  competitiveAdvantage: number;
+  compositeScore: number;
+};
+
+export type EvaluatedInitiativeCandidate = {
+  candidate: InitiativeCandidate;
+  scores: InitiativeEvaluationScores;
+  status: "ranked" | "eliminated";
+  eliminationReason: string | null;
+};
+
+export type SelectedExecutiveInitiative = {
+  initiativeLabel: string;
+  initiativeCategory: ExecutiveInitiativeCategory;
+  archetypeId: string;
+  whyThisInitiative: string;
+  whyNotAlternatives: string[];
+  whyNow: string;
+  expectedBusinessOutcome: string;
+  expectedCustomerOutcome: string;
+  expectedAuthorityOutcome: string;
+  expectedReuse: string;
+  primarySuccessMetric: string;
+  secondarySuccessMetric: string;
+  strategicConfidence: number;
+  implementationApproach: string;
+  timeHorizon: "near_term" | "long_term";
+  revenueImpact: string;
+  riskLevel: "low" | "medium" | "high";
+  evidenceFromDiscussion: string[];
+  decisionMatrixSummary: string;
+};
+
+export type InitiativeSelectionTrace = {
+  organizationId: string;
+  timestamp: string;
+  chosenInitiative: string;
+  chosenCategory: ExecutiveInitiativeCategory;
+  rejectedInitiatives: Array<{
+    initiative: string;
+    category: ExecutiveInitiativeCategory;
+    reason: string;
+  }>;
+  decisionConfidence: number;
+  businessObjective: string;
+  expectedOutcome: string;
+  diversityApplied: boolean;
+  candidateCount: number;
+  eliminatedCount: number;
+  webinarBiasChecked: boolean;
+};
+
+export type BusinessBeforeContentAssessment = {
+  businessProblemSolved: string;
+  highestLeverageRationale: string;
+  businessChangeOutperformsContent: string;
+  contentRequired: boolean;
+  alternativeValuePaths: string[];
+  answeredAt: string;
+};
+
+export type ImplementationStrategy = {
+  initiativeLabel: string;
+  initiativeCategory: ExecutiveInitiativeCategory;
+  businessObjective: string;
+  implementationDeliverable: import("@/services/brain/executiveCoherence/executiveCoherenceTypes").MarketingDeliverableRecommendation;
+  contentRequired: boolean;
+  deploymentApproach: string;
+  channels: string[];
+  revenueMechanisms: string[];
+  rationale: string;
+};
+
+export type ExecutiveInitiativeSelection = {
+  selectionVersion: string;
+  candidatesGenerated: number;
+  possibilities: EvaluatedInitiativeCandidate[];
+  eliminated: EvaluatedInitiativeCandidate[];
+  ranked: EvaluatedInitiativeCandidate[];
+  selectedInitiative: SelectedExecutiveInitiative;
+  implementationStrategy: ImplementationStrategy;
+  businessBeforeContent: BusinessBeforeContentAssessment;
+  decisionTrace: InitiativeSelectionTrace;
+};
 
 export type UnderstandingEvidenceSource =
   | "business_identity"
@@ -114,6 +265,7 @@ export type ExecutiveUnderstanding = {
   priorityUnderstanding: PriorityUnderstanding;
   supportingEvidence: SupportingEvidence;
   executiveIntelligence: ExecutiveIntelligencePipeline;
+  executiveInitiativeSelection: ExecutiveInitiativeSelection;
 };
 
 export type BuildExecutiveUnderstandingParams = {

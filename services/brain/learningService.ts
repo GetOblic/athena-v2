@@ -3,6 +3,8 @@ import { createKnowledgeAsset } from "@/services/knowledgeAssetService";
 import { getDiscussionById } from "@/services/discussionService";
 import { getReviewById, type AthenaReview } from "@/services/reviewService";
 import { getExecutiveReasoning } from "@/services/brain/executiveReasoningService";
+import { getExecutiveUnderstanding } from "@/services/brain/executiveUnderstandingService";
+import type { ExecutiveInitiativeSelection } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
 function compactText(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -44,9 +46,11 @@ function buildExecutiveLearningNotes(input: {
   review: AthenaReview;
   discussionPlatform?: string | null;
   intelligence?: Awaited<ReturnType<typeof getExecutiveReasoning>>["executiveIntelligence"];
+  initiativeSelection?: ExecutiveInitiativeSelection;
 }): string {
   const intelligence = input.intelligence;
   const synthesis = intelligence?.executiveDecisionSynthesis;
+  const initiative = input.initiativeSelection;
   if (!intelligence) {
     return "Executive learning captured without intelligence pipeline metadata.";
   }
@@ -58,25 +62,43 @@ function buildExecutiveLearningNotes(input: {
     `Platform: ${input.discussionPlatform ?? "unknown"}`,
     `Hidden problem: ${intelligence.hiddenProblem.hiddenMarketProblem}`,
     `Buyer psychology: ${intelligence.buyerPsychology.coreFear ?? "n/a"}`,
-    decision
-      ? `Executive decision: ${decision.chosenStrategy} (confidence ${decision.strategicConfidence})`
-      : `Strategic asset: ${intelligence.assetStrategy.selectedAssetType}`,
-    decision
-      ? `Business objective: ${decision.expectedBusinessOutcome}`
-      : `Business outcome: ${intelligence.executiveRecommendation.expectedBusinessOutcome}`,
-    decision
-      ? `Deployment approach: ${decision.deploymentApproach}`
-      : "",
-    decision
-      ? `Why this strategy: ${decision.whyThisStrategy.slice(0, 240)}`
-      : "",
-    synthesis
-      ? `Rejected strategies: ${synthesis.eliminated
+    initiative
+      ? `Executive initiative: ${initiative.selectedInitiative.initiativeLabel} (${initiative.selectedInitiative.initiativeCategory}, confidence ${initiative.selectedInitiative.strategicConfidence})`
+      : decision
+        ? `Executive decision: ${decision.chosenStrategyLabel} (confidence ${decision.strategicConfidence})`
+        : `Strategic asset: ${intelligence.assetStrategy.selectedAssetType}`,
+    initiative
+      ? `Business objective: ${initiative.selectedInitiative.expectedBusinessOutcome}`
+      : decision
+        ? `Business objective: ${decision.expectedBusinessOutcome}`
+        : `Business outcome: ${intelligence.executiveRecommendation.expectedBusinessOutcome}`,
+    initiative
+      ? `Implementation approach: ${initiative.implementationStrategy.deploymentApproach}`
+      : decision
+        ? `Deployment approach: ${decision.deploymentApproach}`
+        : "",
+    initiative
+      ? `Why this initiative: ${initiative.selectedInitiative.whyThisInitiative.slice(0, 240)}`
+      : decision
+        ? `Why this strategy: ${decision.whyThisStrategy.slice(0, 240)}`
+        : "",
+    initiative
+      ? `Rejected initiatives: ${initiative.eliminated
           .slice(0, 3)
-          .map((entry) => entry.candidate.deliverable)
+          .map((entry) => entry.candidate.label)
           .join(", ") || "none"}`
+      : synthesis
+        ? `Rejected strategies: ${synthesis.eliminated
+            .slice(0, 3)
+            .map((entry) => entry.candidate.deliverable)
+            .join(", ") || "none"}`
+        : "",
+    initiative
+      ? `Reasoning path: understanding → initiative candidates → decision matrix → elimination → executive initiative → implementation → generation`
+      : `Reasoning path: reflection → possibilities → evaluation → elimination → executive decision → generation`,
+    initiative
+      ? `Business-before-content: ${initiative.businessBeforeContent.businessChangeOutperformsContent}`
       : "",
-    `Reasoning path: reflection → possibilities → evaluation → elimination → executive decision → generation`,
     `Contrarian insight: ${intelligence.contrarianThinking.assumptionChallenge}`,
   ]
     .filter(Boolean)
@@ -112,6 +134,7 @@ export async function learnFromApprovedBriefing(
   let executiveIntelligence:
     | Awaited<ReturnType<typeof getExecutiveReasoning>>["executiveIntelligence"]
     | undefined;
+  let initiativeSelection: ExecutiveInitiativeSelection | undefined;
   try {
     const reasoning = await getExecutiveReasoning({
       organizationId,
@@ -124,10 +147,23 @@ export async function learnFromApprovedBriefing(
     executiveIntelligence = undefined;
   }
 
+  try {
+    const understanding = await getExecutiveUnderstanding({
+      organizationId,
+      discussionId: review.discussion_id ?? undefined,
+      opportunityId: review.opportunity_id ?? undefined,
+      briefingId: review.id,
+    });
+    initiativeSelection = understanding?.executiveInitiativeSelection;
+  } catch {
+    initiativeSelection = undefined;
+  }
+
   const executiveLearningNotes = buildExecutiveLearningNotes({
     review,
     discussionPlatform: discussion?.platform ?? null,
     intelligence: executiveIntelligence,
+    initiativeSelection,
   });
 
   const knowledgeAsset = await createKnowledgeAsset({
@@ -144,7 +180,7 @@ export async function learnFromApprovedBriefing(
     rating: review.confidence
       ? Math.max(1, Math.min(5, Math.round(review.confidence / 20)))
       : null,
-    tags: inferTags(review, executiveIntelligence ? ["executive-learning"] : undefined),
+    tags: inferTags(review, executiveIntelligence || initiativeSelection ? ["executive-learning"] : undefined),
     notes: [
       "Automatically captured by Athena Brain after briefing approval.",
       executiveLearningNotes,

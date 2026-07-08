@@ -21,6 +21,7 @@ import {
   MARKETING_RECOMMENDATION_CONTRACTS,
 } from "@/services/brain/executiveCoherence/marketingRecommendationContracts";
 import { buildStrategicBlueprintProductionContext } from "@/services/assetBlueprints/strategicBlueprintProductionSpecs";
+import { buildSampleExecutiveInitiativeSelection, syncIntelligenceWithInitiativeSelection } from "@/services/brain/executiveInitiativeSelectionHelpers";
 import { buildSampleExecutiveIntelligencePipeline } from "@/services/brain/executiveIntelligenceHelpers";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
@@ -104,6 +105,23 @@ function sampleUnderstanding(
     applyAssetType("Educational Guide");
   }
 
+  const executiveInitiativeSelection = buildSampleExecutiveInitiativeSelection();
+  if (overrides.direction === "sales_first") {
+    executiveInitiativeSelection.implementationStrategy.implementationDeliverable = "Case Study Collection";
+    executiveInitiativeSelection.selectedInitiative.initiativeLabel = "Graduate Business Launch Framework";
+  } else if (overrides.direction === "educational") {
+    executiveInitiativeSelection.implementationStrategy.implementationDeliverable = "Educational Guide";
+    executiveInitiativeSelection.selectedInitiative.initiativeLabel = "Market Diagnostic";
+  } else if (overrides.assetType) {
+    executiveInitiativeSelection.implementationStrategy.implementationDeliverable = overrides.assetType;
+  }
+
+  const syncedIntelligence = syncIntelligenceWithInitiativeSelection({
+    intelligence: executiveIntelligence,
+    initiativeSelection: executiveInitiativeSelection,
+    organizationId: overrides.organizationId ?? "org-marketing-1",
+  });
+
   return {
     metadata: {
       generatedAt: new Date().toISOString(),
@@ -186,7 +204,8 @@ function sampleUnderstanding(
       totalCount: 1,
       historicalCount: 0,
     },
-    executiveIntelligence,
+    executiveIntelligence: syncedIntelligence,
+    executiveInitiativeSelection,
   };
 }
 

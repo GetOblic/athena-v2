@@ -1,5 +1,9 @@
 import { assertOrganizationId } from "@/services/brain/brainContextBuilder";
 import {
+  buildExecutiveInitiativeSelection,
+  syncIntelligenceWithInitiativeSelection,
+} from "@/services/brain/executiveInitiativeSelectionHelpers";
+import {
   buildBusinessUnderstanding,
   buildExecutiveSummary,
   buildMarketUnderstanding,
@@ -73,27 +77,62 @@ export function buildExecutiveUnderstanding(
     opportunityUnderstanding,
   };
 
-  const understanding: ExecutiveUnderstanding = {
-    metadata: {
-      generatedAt: new Date().toISOString(),
-      organizationId: params.organizationId,
-      discussionId: executiveSummary.discussionId,
-      understandingVersion: EXECUTIVE_UNDERSTANDING_VERSION,
-      reasoningVersion: executiveReasoning.metadata.reasoningVersion,
-      memoryEnriched,
-      learningEnriched,
-      degradationMode,
-      understandingFingerprint: buildUnderstandingFingerprint(partialUnderstanding),
-    },
+  const executiveInitiativeSelection = buildExecutiveInitiativeSelection({
+    context: brainContext,
+    executiveReasoning,
     executiveSummary,
     businessUnderstanding,
     marketUnderstanding,
     strategicUnderstanding,
     opportunityUnderstanding,
+    priorityUnderstanding,
+  });
+
+  const syncedIntelligence = syncIntelligenceWithInitiativeSelection({
+    intelligence: executiveReasoning.executiveIntelligence,
+    initiativeSelection: executiveInitiativeSelection,
+    organizationId: params.organizationId,
+  });
+
+  const initiativeHeadline =
+    executiveInitiativeSelection.selectedInitiative.initiativeLabel;
+  const enrichedSummary: typeof executiveSummary = {
+    ...executiveSummary,
+    headline: initiativeHeadline,
+    primaryObjective:
+      executiveInitiativeSelection.selectedInitiative.expectedBusinessOutcome,
+  };
+  const enrichedOpportunity: typeof opportunityUnderstanding = {
+    ...opportunityUnderstanding,
+    businessOpportunity: initiativeHeadline,
+  };
+
+  const understanding: ExecutiveUnderstanding = {
+    metadata: {
+      generatedAt: new Date().toISOString(),
+      organizationId: params.organizationId,
+      discussionId: enrichedSummary.discussionId,
+      understandingVersion: EXECUTIVE_UNDERSTANDING_VERSION,
+      reasoningVersion: executiveReasoning.metadata.reasoningVersion,
+      memoryEnriched,
+      learningEnriched,
+      degradationMode,
+      understandingFingerprint: buildUnderstandingFingerprint({
+        executiveSummary: enrichedSummary,
+        strategicUnderstanding,
+        opportunityUnderstanding: enrichedOpportunity,
+      }),
+    },
+    executiveSummary: enrichedSummary,
+    businessUnderstanding,
+    marketUnderstanding,
+    strategicUnderstanding,
+    opportunityUnderstanding: enrichedOpportunity,
     riskUnderstanding,
     priorityUnderstanding,
     supportingEvidence,
-    executiveIntelligence: executiveReasoning.executiveIntelligence,
+    executiveIntelligence: syncedIntelligence,
+    executiveInitiativeSelection,
   };
 
   return understanding;

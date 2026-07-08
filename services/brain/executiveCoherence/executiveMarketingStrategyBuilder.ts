@@ -333,7 +333,9 @@ export function buildExecutiveMarketingStrategy(input: {
 
   const intelligence = understanding.executiveIntelligence;
   const synthesis = intelligence.executiveDecisionSynthesis;
+  const initiative = understanding.executiveInitiativeSelection;
   const assetFromIntelligence =
+    initiative.implementationStrategy.implementationDeliverable ??
     synthesis.selectedDecision.chosenStrategy ??
     intelligence.executiveCognition.executiveDecisionDocument.recommendedAssetType ??
     intelligence.assetStrategy.selectedAssetType;
@@ -370,7 +372,7 @@ export function buildExecutiveMarketingStrategy(input: {
   const intelligenceRecommendation = intelligence.executiveRecommendation;
 
   const candidate: ExecutiveMarketingStrategy = {
-    businessObjective: base.primaryObjective,
+    businessObjective: initiative.selectedInitiative.expectedBusinessOutcome || base.primaryObjective,
     marketingObjective: objectives.marketingObjective,
     recommendedPrimaryDeliverable: selection.deliverable,
     recommendedSupportingDeliverable: supportingDeliverable,

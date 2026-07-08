@@ -26,6 +26,7 @@ import {
   resolveStoredHomepageLearning,
 } from "@/services/brain/masterProfileHelpers";
 import { buildExecutiveStrategyFromUnderstanding } from "@/services/brain/executiveCoherence/executiveStrategyBuilder";
+import { buildSampleExecutiveInitiativeSelection } from "@/services/brain/executiveInitiativeSelectionHelpers";
 import { buildSampleExecutiveIntelligencePipeline } from "@/services/brain/executiveIntelligenceHelpers";
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 
@@ -146,6 +147,7 @@ function sampleUnderstanding(): ExecutiveUnderstanding {
       historicalCount: 0,
     },
     executiveIntelligence: buildSampleExecutiveIntelligencePipeline(),
+    executiveInitiativeSelection: buildSampleExecutiveInitiativeSelection(),
   };
 }
 

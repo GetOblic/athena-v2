@@ -29,7 +29,7 @@ import type {
 import type { ExecutiveReasoningSourceContext } from "@/services/brain/executiveReasoningTypes";
 import type { RecommendedDirectionKey } from "@/services/brain/executiveReasoningTypes";
 
-export const EXECUTIVE_INTELLIGENCE_VERSION = "executive_decision_synthesis_v1";
+export const EXECUTIVE_INTELLIGENCE_VERSION = "executive_initiative_selection_v1";
 
 const OVERUSED_DELIVERABLES: MarketingDeliverableRecommendation[] = [
   "Executive Webinar",

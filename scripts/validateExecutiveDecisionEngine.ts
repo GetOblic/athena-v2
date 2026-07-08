@@ -13,6 +13,10 @@ import {
   generateStrategicPossibilities,
 } from "@/services/brain/executiveDecisionSynthesisHelpers";
 import {
+  buildSampleExecutiveInitiativeSelection,
+  syncIntelligenceWithInitiativeSelection,
+} from "@/services/brain/executiveInitiativeSelectionHelpers";
+import {
   buildSampleExecutiveIntelligencePipeline,
   EXECUTIVE_INTELLIGENCE_VERSION,
 } from "@/services/brain/executiveIntelligenceHelpers";
@@ -89,7 +93,10 @@ if (marketingSource.includes("executiveDecisionSynthesis")) {
   fail("Marketing strategy must consume executive decision");
 }
 
-if (contractSource.includes("Executive Decision Synthesis")) {
+if (
+  contractSource.includes("Executive Decision Synthesis") ||
+  contractSource.includes("Executive Initiative Selection")
+) {
   pass("Generation contracts bind to executive decision synthesis");
 } else {
   fail("Generation contracts missing decision synthesis rules");
@@ -144,14 +151,14 @@ if (sample.executiveDecisionSynthesis.decisionTrace.organizationId !== undefined
   fail("Decision trace missing");
 }
 
-if (EXECUTIVE_INTELLIGENCE_VERSION === "executive_decision_synthesis_v1") {
-  pass("Intelligence version reflects decision synthesis");
+if (EXECUTIVE_INTELLIGENCE_VERSION === "executive_initiative_selection_v1") {
+  pass("Intelligence version reflects initiative selection");
 } else {
   fail("Intelligence version mismatch");
 }
 
-if (EXECUTIVE_REASONING_VERSION.includes("decision_synthesis")) {
-  pass("Reasoning version reflects decision synthesis");
+if (EXECUTIVE_REASONING_VERSION.includes("initiative_selection")) {
+  pass("Reasoning version reflects initiative selection");
 } else {
   fail("Reasoning version mismatch");
 }
@@ -227,7 +234,12 @@ const sampleUnderstanding = {
     rationale: ["Strong signals"],
   },
   supportingEvidence: { entries: [], totalCount: 0, historicalCount: 0 },
-  executiveIntelligence: sample,
+  executiveIntelligence: syncIntelligenceWithInitiativeSelection({
+    intelligence: sample,
+    initiativeSelection: buildSampleExecutiveInitiativeSelection(),
+    organizationId: "org-decision-a",
+  }),
+  executiveInitiativeSelection: buildSampleExecutiveInitiativeSelection(),
 };
 
 const strategyA = buildExecutiveStrategyFromUnderstanding({
@@ -245,14 +257,17 @@ const strategyB = buildExecutiveStrategyFromUnderstanding({
 
 if (
   strategyA.marketingStrategy.recommendedPrimaryDeliverable ===
-  sample.executiveDecisionSynthesis.selectedDecision.chosenStrategy
+  sampleUnderstanding.executiveInitiativeSelection.implementationStrategy.implementationDeliverable
 ) {
   pass("Downstream marketing inherits synthesized executive decision");
 } else {
   fail("Marketing deliverable does not match executive decision");
 }
 
-if (strategyA.metadata.strategyFingerprint.includes("Decision Framework")) {
+if (
+  strategyA.metadata.strategyFingerprint.includes("Career Readiness Assessment") ||
+  strategyA.metadata.strategyFingerprint.includes("diagnostic_assessment")
+) {
   pass("Strategy fingerprint encodes executive decision for consistency");
 } else {
   fail("Strategy fingerprint missing decision encoding");
