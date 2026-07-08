@@ -2,7 +2,36 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { resolveOrganizationIdForUser } from "@/services/organizationService";
 import { getAthenaIdentityByUserId } from "@/services/identity/identityService";
 
-export type AthenaBrainContext = {
+export {
+  assertOrganizationId,
+  BrainContextNotFoundError,
+  BrainContextOrganizationRequiredError,
+  buildBrainContextForBriefing,
+  buildBrainContextForDiscussion,
+  buildBrainContextForOpportunity,
+  buildBrainContextForOrganization,
+  BRAIN_CONTEXT_LIMITS,
+} from "@/services/brain/brainContextBuilder";
+
+export type {
+  BrainEngineContext,
+  BrainContextScope,
+  BusinessMemory,
+  DomainMemory,
+  DiscussionMemory,
+  OpportunityMemory,
+  BriefingMemory,
+  AssetMemory,
+  KnowledgeMemory,
+  FeedbackSignals,
+  ContextSummary,
+  BuildBrainContextForDiscussionParams,
+  BuildBrainContextForOpportunityParams,
+  BuildBrainContextForBriefingParams,
+} from "@/services/brain/brainContextTypes";
+
+/** Legacy prompt-scoped identity context used by existing generation workflows. */
+export type PromptIdentityContext = {
   userId: string | null;
   organizationId: string | null;
   identity: {
@@ -13,7 +42,10 @@ export type AthenaBrainContext = {
   } | null;
 };
 
-export function getEmptyAthenaBrainContext(): AthenaBrainContext {
+/** @deprecated Use PromptIdentityContext for legacy prompt formatting. */
+export type AthenaBrainContext = PromptIdentityContext;
+
+export function getEmptyAthenaBrainContext(): PromptIdentityContext {
   return {
     userId: null,
     organizationId: null,
@@ -24,7 +56,7 @@ export function getEmptyAthenaBrainContext(): AthenaBrainContext {
 export async function getAthenaBrainContextForUserId(
   userId: string | null | undefined,
   organizationId: string,
-): Promise<AthenaBrainContext> {
+): Promise<PromptIdentityContext> {
   if (!userId) {
     return getEmptyAthenaBrainContext();
   }
@@ -45,7 +77,7 @@ export async function getAthenaBrainContextForUserId(
   };
 }
 
-export async function getAthenaBrainContextForCurrentUser(): Promise<AthenaBrainContext> {
+export async function getAthenaBrainContextForCurrentUser(): Promise<PromptIdentityContext> {
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -64,7 +96,7 @@ export async function getAthenaBrainContextForCurrentUser(): Promise<AthenaBrain
   return getAthenaBrainContextForUserId(user.id, organizationId);
 }
 
-export function formatBrainContextForPrompt(context: AthenaBrainContext): string {
+export function formatBrainContextForPrompt(context: PromptIdentityContext): string {
   if (!context.identity) {
     return `
 ATHENA BRAIN CONTEXT:
