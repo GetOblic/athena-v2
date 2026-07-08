@@ -94,12 +94,14 @@ export default async function CommunityDetailsPage({
           </p>
         </div>
 
-        <div className="flex flex-col items-stretch gap-4 xl:items-end">
+        <div className="flex w-full min-w-0 flex-col items-stretch gap-3 xl:w-auto xl:max-w-md xl:items-end">
           <IntelligenceDomainHeaderActions
             domain={community}
             discussionCount={discussionCount}
           />
-          <GenerateCommunityIntelligenceButton communityId={community.id} />
+          <div className="w-full xl:flex xl:justify-end">
+            <GenerateCommunityIntelligenceButton communityId={community.id} />
+          </div>
         </div>
       </div>
 

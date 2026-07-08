@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { formatIntelligenceDomainStatus } from "@/lib/intelligenceDomainStatus";
+import { INTELLIGENCE_DOMAIN_PRIORITY_HELPER } from "@/components/intelligenceDomains/IntelligenceDomainRowActions";
 
 type IntelligenceDomainHeaderActionsProps = {
   domain: {
@@ -15,6 +16,9 @@ type IntelligenceDomainHeaderActionsProps = {
   };
   discussionCount: number;
 };
+
+const headerButtonClassName =
+  "rounded-full border px-4 py-2.5 text-xs font-semibold transition sm:px-5 sm:py-3 sm:text-sm";
 
 const fieldClassName =
   "w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25";
@@ -135,8 +139,8 @@ export function IntelligenceDomainHeaderActions({
   }
 
   return (
-    <div className="flex flex-col items-stretch gap-3 lg:items-end">
-      <div className="flex flex-wrap gap-3">
+    <div className="flex w-full min-w-0 flex-col items-stretch gap-3 xl:max-w-xl xl:items-end">
+      <div className="flex flex-wrap gap-2 sm:gap-3">
         <button
           type="button"
           onClick={() => {
@@ -144,15 +148,15 @@ export function IntelligenceDomainHeaderActions({
             setShowDeleteConfirm(false);
             setError(null);
           }}
-          className="rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-[var(--athena-orange)]/40 hover:text-white"
+          className={`${headerButtonClassName} border-white/15 text-white/80 hover:border-[var(--athena-orange)]/40 hover:text-white`}
         >
-          {isEditing ? "Cancel Edit" : "Edit Intelligence Domain"}
+          {isEditing ? "Cancel Edit" : "Edit Domain"}
         </button>
 
         <button
           type="button"
           onClick={toggleStatus}
-          className="rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-[var(--athena-orange)]/40 hover:text-white"
+          className={`${headerButtonClassName} border-white/15 text-white/80 hover:border-[var(--athena-orange)]/40 hover:text-white`}
         >
           {domain.status === "active" ? "Disable" : "Enable"}
         </button>
@@ -164,7 +168,7 @@ export function IntelligenceDomainHeaderActions({
             setIsEditing(false);
             setError(null);
           }}
-          className="rounded-full border border-red-500/30 px-6 py-3 text-sm font-semibold text-red-300 transition hover:border-red-400/50"
+          className={`${headerButtonClassName} border-red-500/30 text-red-300 hover:border-red-400/50`}
         >
           Delete
         </button>
@@ -269,8 +273,12 @@ export function IntelligenceDomainHeaderActions({
                   type="number"
                   min={1}
                   max={5}
+                  placeholder="1"
                   className={fieldClassName}
                 />
+                <span className="text-xs leading-5 text-white/40">
+                  {INTELLIGENCE_DOMAIN_PRIORITY_HELPER}
+                </span>
               </label>
             </div>
           </div>

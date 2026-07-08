@@ -1,12 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { CreateIntelligenceDomainForm } from "@/components/intelligenceDomains/CreateIntelligenceDomainForm";
-import { IntelligenceDomainRowActions } from "@/components/intelligenceDomains/IntelligenceDomainRowActions";
-import { IntelligenceDomainStatusBadge } from "@/components/intelligenceDomains/IntelligenceDomainStatusBadge";
+import { IntelligenceDomainCard } from "@/components/intelligenceDomains/IntelligenceDomainRowActions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   createIntelligenceDomain,
@@ -70,7 +68,7 @@ export default async function IntelligenceDomainsPage({
       <div className="flex min-h-screen">
         <DashboardSidebar activeHref="/intelligence-domains" />
 
-        <section className="flex-1 p-10">
+        <section className="min-w-0 flex-1 p-6 lg:p-10">
           <AthenaBrandLink className="mb-8 md:hidden" />
 
           <div className="mb-10">
@@ -78,7 +76,7 @@ export default async function IntelligenceDomainsPage({
               Market Context
             </div>
 
-            <h1 className="mt-4 text-5xl font-semibold tracking-tight">
+            <h1 className="mt-4 text-4xl font-semibold tracking-tight lg:text-5xl">
               Intelligence Domains
             </h1>
 
@@ -102,55 +100,23 @@ export default async function IntelligenceDomainsPage({
             </div>
           )}
 
-          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <div className="overflow-x-auto rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)]">
-              <div className="grid min-w-[920px] grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_100px_80px_minmax(220px,1fr)] border-b border-[var(--athena-border)] px-6 py-4 text-xs uppercase tracking-[0.25em] text-white/35">
-                <div>Name</div>
-                <div>Market</div>
-                <div>Status</div>
-                <div>Priority</div>
-                <div>Actions</div>
-              </div>
-
+          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="min-w-0 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-4 sm:p-6">
               {domains.length === 0 ? (
-                <div className="p-10 text-center text-white/40">
+                <div className="p-6 text-center text-white/40">
                   No Intelligence Domains yet. Create your first domain to tell
                   Athena which market context to use.
                 </div>
               ) : (
-                domains.map((domain) => (
-                  <div
-                    key={domain.id}
-                    className="grid min-w-[920px] grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_100px_80px_minmax(220px,1fr)] items-start border-b border-white/5 px-6 py-5 text-sm last:border-b-0"
-                  >
-                    <div>
-                      <Link
-                        href={`/communities/${domain.id}`}
-                        className="font-medium text-white transition hover:text-[var(--athena-orange)]"
-                      >
-                        {domain.group_name}
-                      </Link>
-                      {domain.notes ? (
-                        <div className="mt-1 line-clamp-1 text-xs text-white/40">
-                          {domain.notes}
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="text-white/60">{domain.niche || "—"}</div>
-
-                    <div>
-                      <IntelligenceDomainStatusBadge status={domain.status} />
-                    </div>
-
-                    <div className="text-white/50">{domain.priority}</div>
-
-                    <IntelligenceDomainRowActions
+                <div className="space-y-4">
+                  {domains.map((domain) => (
+                    <IntelligenceDomainCard
+                      key={domain.id}
                       domain={domain}
                       discussionCount={discussionCounts.get(domain.id) ?? 0}
                     />
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
 
