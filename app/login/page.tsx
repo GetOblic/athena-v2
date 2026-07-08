@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { redirect } from "next/navigation";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default function LoginPage({
@@ -68,7 +69,9 @@ export default function LoginPage({
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--athena-bg)] px-6 text-white">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[var(--athena-bg)] px-6 py-10 text-white">
+      <AthenaBrandLink className="mb-10" />
+
       <div className="w-full max-w-md rounded-[32px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-10 shadow-2xl">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
           Athena Access

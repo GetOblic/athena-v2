@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { notFound } from "next/navigation";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
 import { StrategicAssetBlueprintEmpty } from "@/components/assetBlueprints/StrategicAssetBlueprintEmpty";
@@ -36,6 +37,8 @@ export default async function BriefingPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">
+      <AthenaBrandLink className="mb-8" />
+
       <Link href="/briefings" className="text-sm text-[var(--athena-orange)]">
         ← Back to Briefings
       </Link>

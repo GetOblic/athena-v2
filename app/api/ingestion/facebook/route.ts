@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { importFacebookDiscussion } from "@/services/ingestion/facebook/facebookImporter";
+import { validateDiscussionIngestionInput } from "@/services/ingestion/facebook/facebookNormalizer";
 import {
   OrganizationAccessError,
   OrganizationContextMissingError,
@@ -11,6 +12,17 @@ import {
 function readOrganizationIdFromBody(body: Record<string, unknown>): string | null {
   const raw = body.organizationId ?? body.organization_id;
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+function readStringField(body: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = body[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "";
 }
 
 export async function POST(request: Request) {
@@ -39,26 +51,23 @@ export async function POST(request: Request) {
       });
     }
 
-    const result = await importFacebookDiscussion({
+    const ingestionInput = {
       organizationId,
+      platform: readStringField(body, "platform"),
       communityId:
-        typeof body.communityId === "string"
-          ? body.communityId
-          : typeof body.community_id === "string"
-            ? body.community_id
-            : null,
+        readStringField(body, "communityId", "community_id") || null,
       userId,
-      title: typeof body.title === "string" ? body.title : null,
-      author: typeof body.author === "string" ? body.author : null,
-      url: typeof body.url === "string" ? body.url : null,
-      body: typeof body.body === "string" ? body.body : "",
+      title: readStringField(body, "title"),
+      author: readStringField(body, "author"),
+      url: readStringField(body, "url"),
+      body: readStringField(body, "body"),
       capturedAt:
-        typeof body.capturedAt === "string"
-          ? body.capturedAt
-          : typeof body.captured_at === "string"
-            ? body.captured_at
-            : null,
-    });
+        readStringField(body, "capturedAt", "captured_at") || null,
+    };
+
+    validateDiscussionIngestionInput(ingestionInput);
+
+    const result = await importFacebookDiscussion(ingestionInput);
 
     return NextResponse.json({
       success: true,
@@ -80,15 +89,25 @@ export async function POST(request: Request) {
       );
     }
 
-    console.error("Facebook ingestion failed:", error);
+    console.error("Discussion ingestion failed:", error);
 
     const message =
-      error instanceof Error ? error.message : "Failed to import Facebook discussion";
+      error instanceof Error ? error.message : "Failed to import discussion";
 
     if (message.includes("Unauthorized")) {
       return NextResponse.json(
         { success: false, error: message },
         { status: 401 },
+      );
+    }
+
+    if (
+      message.includes("required") ||
+      message.includes("Required")
+    ) {
+      return NextResponse.json(
+        { success: false, error: message },
+        { status: 400 },
       );
     }
 

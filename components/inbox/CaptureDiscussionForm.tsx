@@ -7,23 +7,42 @@ type IntelligenceDomainOption = {
   name: string;
 };
 
-type FacebookInboxFormProps = {
+type CaptureDiscussionFormProps = {
   intelligenceDomains: IntelligenceDomainOption[];
 };
 
-export function FacebookInboxForm({
+const fieldClassName =
+  "rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25";
+
+export function CaptureDiscussionForm({
   intelligenceDomains,
-}: FacebookInboxFormProps) {
+}: CaptureDiscussionFormProps) {
   const [domainId, setDomainId] = useState("");
+  const [platform, setPlatform] = useState("");
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [url, setUrl] = useState("");
   const [body, setBody] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; message: string; discussionId?: string } | null>(null);
+  const [result, setResult] = useState<{
+    ok: boolean;
+    message: string;
+    discussionId?: string;
+  } | null>(null);
+
+  const canSubmit =
+    platform.trim() &&
+    title.trim() &&
+    author.trim() &&
+    url.trim() &&
+    body.trim();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!canSubmit) {
+      return;
+    }
 
     setIsSubmitting(true);
     setResult(null);
@@ -36,10 +55,11 @@ export function FacebookInboxForm({
         },
         body: JSON.stringify({
           communityId: domainId || null,
-          title: title || null,
-          author: author || null,
-          url: url || null,
-          body,
+          platform: platform.trim(),
+          title: title.trim(),
+          author: author.trim(),
+          url: url.trim(),
+          body: body.trim(),
         }),
       });
 
@@ -51,10 +71,12 @@ export function FacebookInboxForm({
 
       setResult({
         ok: true,
-        message: "Discussion imported and processed. Briefing is ready if Athena detected an opportunity.",
+        message:
+          "Discussion imported and processed. Briefing is ready if Athena detected an opportunity.",
         discussionId: payload.discussion?.id,
       });
 
+      setPlatform("");
       setTitle("");
       setAuthor("");
       setUrl("");
@@ -62,7 +84,8 @@ export function FacebookInboxForm({
     } catch (error) {
       setResult({
         ok: false,
-        message: error instanceof Error ? error.message : "Failed to import discussion.",
+        message:
+          error instanceof Error ? error.message : "Failed to import discussion.",
       });
     } finally {
       setIsSubmitting(false);
@@ -82,7 +105,7 @@ export function FacebookInboxForm({
           <select
             value={domainId}
             onChange={(event) => setDomainId(event.target.value)}
-            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
+            className={fieldClassName}
           >
             <option value="">No Intelligence Domain selected</option>
             {intelligenceDomains.map((domain) => (
@@ -97,69 +120,90 @@ export function FacebookInboxForm({
           </span>
         </label>
 
-        <div className="grid gap-5 md:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2">
           <label className="grid gap-2">
             <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-              Title optional
+              Platform
+            </span>
+            <input
+              value={platform}
+              onChange={(event) => setPlatform(event.target.value)}
+              required
+              placeholder="Instagram, Facebook, Reddit, LinkedIn, Email..."
+              className={fieldClassName}
+            />
+          </label>
+
+          <label className="grid gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
+              Title
             </span>
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="Athena can infer it"
-              className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              required
+              placeholder="Discussion title"
+              className={fieldClassName}
             />
           </label>
 
           <label className="grid gap-2">
             <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-              Author optional
+              Author
             </span>
             <input
               value={author}
               onChange={(event) => setAuthor(event.target.value)}
-              placeholder="Facebook author"
-              className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              required
+              placeholder="Author name"
+              className={fieldClassName}
             />
           </label>
 
           <label className="grid gap-2">
             <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-              URL optional
+              Source URL
             </span>
             <input
               value={url}
               onChange={(event) => setUrl(event.target.value)}
-              placeholder="Facebook post URL"
-              className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              required
+              type="url"
+              placeholder="https://..."
+              className={fieldClassName}
             />
           </label>
         </div>
 
         <label className="grid gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Facebook discussion
+            Discussion
           </span>
           <textarea
             value={body}
             onChange={(event) => setBody(event.target.value)}
             required
             rows={14}
-            placeholder="Paste the Facebook group discussion here. Athena will normalize it into the intelligence pipeline."
-            className="resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25"
+            placeholder="Paste the discussion here. Athena will normalize it into the intelligence pipeline."
+            className={`resize-y leading-6 ${fieldClassName}`}
           />
         </label>
 
         <div className="flex flex-wrap items-center gap-4">
           <button
             type="submit"
-            disabled={isSubmitting || !body.trim()}
+            disabled={isSubmitting || !canSubmit}
             className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSubmitting ? "Importing..." : "Import Discussion"}
           </button>
 
           {result && (
-            <div className={result.ok ? "text-sm text-emerald-300" : "text-sm text-red-300"}>
+            <div
+              className={
+                result.ok ? "text-sm text-emerald-300" : "text-sm text-red-300"
+              }
+            >
               {result.message}
               {result.discussionId ? (
                 <>

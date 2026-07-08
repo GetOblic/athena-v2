@@ -169,6 +169,80 @@ export async function createDiscussion(
     return data;
 }
 
+export type UpdateDiscussionInput = {
+    platform?: string;
+    community_id?: string | null;
+    title?: string;
+    author?: string | null;
+    url?: string | null;
+    body?: string | null;
+};
+
+export async function updateDiscussion(
+    id: string,
+    organizationId: string,
+    input: UpdateDiscussionInput,
+): Promise<Discussion | null> {
+    const existing = await getDiscussionById(id, organizationId);
+
+    if (!existing) {
+        return null;
+    }
+
+    const rawJson = existing.raw_json ?? {};
+    const updatePayload: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+    };
+
+    if (input.platform !== undefined) updatePayload.platform = input.platform;
+    if (input.community_id !== undefined) {
+        updatePayload.community_id = input.community_id;
+    }
+    if (input.title !== undefined) updatePayload.title = input.title;
+    if (input.author !== undefined) updatePayload.author = input.author;
+    if (input.url !== undefined) updatePayload.url = input.url;
+    if (input.body !== undefined) {
+        updatePayload.body = input.body;
+        updatePayload.raw_json = {
+            ...rawJson,
+            original_body: input.body,
+        };
+    }
+
+    const { data, error } = await supabaseAdmin
+        .from("discussions")
+        .update(updatePayload)
+        .eq("id", id)
+        .eq("organization_id", organizationId)
+        .select("*")
+        .single();
+
+    if (error) {
+        console.error("Error updating discussion:", error);
+        return null;
+    }
+
+    return data;
+}
+
+export async function deleteDiscussion(
+    id: string,
+    organizationId: string,
+): Promise<boolean> {
+    const { error } = await supabaseAdmin
+        .from("discussions")
+        .delete()
+        .eq("id", id)
+        .eq("organization_id", organizationId);
+
+    if (error) {
+        console.error("Error deleting discussion:", error);
+        return false;
+    }
+
+    return true;
+}
+
 export type AppendDiscussionUpdateInput = {
     discussionId: string;
     organizationId: string;
@@ -191,7 +265,7 @@ export async function appendDiscussionUpdate(
     }
 
     const capturedAt = input.capturedAt ?? new Date().toISOString();
-    const author = input.updateAuthor?.trim() || "Unknown";
+    const author = input.updateAuthor?.trim() || existing.author?.trim() || "Unknown";
     const updateBody = input.updateBody.trim();
 
     if (!updateBody) {

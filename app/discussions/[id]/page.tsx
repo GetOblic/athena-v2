@@ -1,11 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 import { AppendDiscussionUpdateForm } from "@/components/discussions/AppendDiscussionUpdateForm";
 import { AthenaRecommendationRibbon } from "@/components/discussions/AthenaRecommendationRibbon";
 import { DiscussionAgeBadge } from "@/components/discussions/DiscussionAgeBadge";
+import { DiscussionHeaderActions } from "@/components/discussions/DiscussionHeaderActions";
 import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
 import { DiscussionWorkflowStrip } from "@/components/discussions/DiscussionWorkflowStrip";
 import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveIntelligenceCard";
@@ -23,6 +25,10 @@ import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getDiscussionUpdatesByDiscussionId } from "@/services/discussionUpdateService";
+import {
+  getIntelligenceDomainName,
+  getIntelligenceDomains,
+} from "@/services/intelligenceDomainService";
 
 export default async function DiscussionDetailsPage({
   params,
@@ -36,6 +42,7 @@ export default async function DiscussionDetailsPage({
   if (!discussion) {
     return (
       <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+        <AthenaBrandLink className="mb-8" />
         <Link href="/discussions" className="text-sm text-[var(--athena-orange)]">
           ← Back to Discussions
         </Link>
@@ -45,7 +52,7 @@ export default async function DiscussionDetailsPage({
     );
   }
 
-  const [community, latestAnalysis, assetBlueprint, threadUpdates, opportunity] =
+  const [community, latestAnalysis, assetBlueprint, threadUpdates, opportunity, domains] =
     await Promise.all([
       discussion.community_id
         ? getCommunityById(discussion.community_id, organizationId)
@@ -54,6 +61,7 @@ export default async function DiscussionDetailsPage({
       getDisplayAssetBlueprintByDiscussionId(id, organizationId),
       getDiscussionUpdatesByDiscussionId(id, organizationId),
       getOpportunityByDiscussionId(id, organizationId),
+      getIntelligenceDomains(organizationId),
     ]);
 
   const briefing = opportunity
@@ -74,14 +82,21 @@ export default async function DiscussionDetailsPage({
     assetBlueprint,
   });
 
+  const intelligenceDomainOptions = domains.map((domain) => ({
+    id: domain.id,
+    name: getIntelligenceDomainName(domain),
+  }));
+
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+      <AthenaBrandLink className="mb-8" />
+
       <Link href="/discussions" className="text-sm text-[var(--athena-orange)]">
         ← Back to Discussions
       </Link>
 
-      <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+      <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
             Discussion Intelligence
           </div>
@@ -94,25 +109,47 @@ export default async function DiscussionDetailsPage({
             Executive-grade intelligence for this captured market discussion.
           </p>
         </div>
+
+        <DiscussionHeaderActions
+          discussion={discussion}
+          originalBody={originalBody}
+          intelligenceDomains={intelligenceDomainOptions}
+        />
       </div>
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-5">
-        <Metric label="Platform" value={discussion.platform} />
-        <Metric label="Workflow Status">
+      <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <HeaderMetric label="Platform" value={discussion.platform} />
+        <HeaderMetric label="Author" value={discussion.author || "—"} />
+        <HeaderMetric label="Intelligence Domain" value={community?.group_name || "—"} />
+        <HeaderMetric label="Status" value={discussion.status} />
+        <HeaderMetric label="Workflow">
           <DiscussionLifecycleBadge
             discussion={discussion}
             hasAnalysis={hasAnalysis}
           />
-        </Metric>
-        <Metric label="Thread Age">
-          <DiscussionAgeBadge discussion={discussion} />
-        </Metric>
-        <Metric label="Priority" value={String(discussion.priority)} />
-        <Metric
+        </HeaderMetric>
+        <HeaderMetric
           label="Opportunity Score"
           value={String(discussion.opportunity_score)}
           highlight="orange"
         />
+        <HeaderMetric label="Thread Age">
+          <DiscussionAgeBadge discussion={discussion} />
+        </HeaderMetric>
+        <HeaderMetric label="Source URL">
+          {discussion.url ? (
+            <a
+              href={discussion.url}
+              target="_blank"
+              rel="noreferrer"
+              className="break-all text-[var(--athena-orange)] underline"
+            >
+              {discussion.url}
+            </a>
+          ) : (
+            "—"
+          )}
+        </HeaderMetric>
       </div>
 
       <DiscussionWorkflowStrip steps={workflowSteps} />
@@ -162,12 +199,13 @@ export default async function DiscussionDetailsPage({
           <div className="mt-8 grid gap-6 md:grid-cols-2">
             <Field label="Author" value={discussion.author} />
             <Field label="Intelligence Domain" value={community?.group_name} />
+            <Field label="Platform" value={discussion.platform} />
             <Field label="Original Sentiment" value={discussion.sentiment} />
-            <Field label="URL" value={discussion.url} />
+            <Field label="Source URL" value={discussion.url} link={discussion.url} />
           </div>
 
           <div className="mt-8">
-            <div className="text-sm text-white/40">Body</div>
+            <div className="text-sm text-white/40">Discussion</div>
             <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70">
               {originalBody || "No body captured."}
             </div>
@@ -205,7 +243,7 @@ export default async function DiscussionDetailsPage({
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Source
+                          Source URL
                         </a>
                       ) : null}
                     </div>
@@ -276,7 +314,7 @@ export default async function DiscussionDetailsPage({
   );
 }
 
-function Metric({
+function HeaderMetric({
   label,
   value,
   highlight,
@@ -284,22 +322,16 @@ function Metric({
 }: {
   label: string;
   value?: string;
-  highlight?: "success" | "warning" | "orange";
+  highlight?: "orange";
   children?: ReactNode;
 }) {
   const color =
-    highlight === "success"
-      ? "text-[var(--athena-success)]"
-      : highlight === "warning"
-        ? "text-[var(--athena-warning)]"
-        : highlight === "orange"
-          ? "text-[var(--athena-orange)]"
-          : "text-white";
+    highlight === "orange" ? "text-[var(--athena-orange)]" : "text-white";
 
   return (
-    <div className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-      <div className="text-sm text-white/40">{label}</div>
-      <div className={`mt-3 text-2xl font-semibold ${children ? "" : color}`}>
+    <div className="rounded-[20px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-5">
+      <div className="text-xs uppercase tracking-[0.2em] text-white/35">{label}</div>
+      <div className={`mt-3 text-lg font-semibold ${children ? "" : color}`}>
         {children ?? value}
       </div>
     </div>
@@ -311,11 +343,13 @@ function Field({
   value,
   helper,
   sublabel,
+  link,
 }: {
   label: string;
   value?: string | null;
   helper?: string;
   sublabel?: string;
+  link?: string | null;
 }) {
   return (
     <div>
@@ -328,7 +362,20 @@ function Field({
       {helper && (
         <div className="mt-1 text-xs leading-5 text-white/30">{helper}</div>
       )}
-      <div className="mt-2 text-base leading-7 text-white/80">{value || "—"}</div>
+      <div className="mt-2 text-base leading-7 text-white/80">
+        {link ? (
+          <a
+            href={link}
+            target="_blank"
+            rel="noreferrer"
+            className="break-all text-[var(--athena-orange)] underline"
+          >
+            {value || link}
+          </a>
+        ) : (
+          value || "—"
+        )}
+      </div>
     </div>
   );
 }

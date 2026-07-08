@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { redirect } from "next/navigation";
 import { TrainAthenaSubmitButton } from "@/components/identity/TrainAthenaSubmitButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -62,6 +63,8 @@ export default async function IdentityPage({
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+      <AthenaBrandLink className="mb-8" />
+
       <Link href="/" className="text-sm text-[var(--athena-orange)]">
         ← Dashboard
       </Link>

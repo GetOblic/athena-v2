@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
 import { getBriefingListSummary } from "@/lib/briefingDisplay";
@@ -20,6 +21,8 @@ export default async function BriefingsPage() {
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+      <AthenaBrandLink className="mb-8" />
+
       <Link href="/" className="text-sm text-[var(--athena-orange)]">
         ← Dashboard
       </Link>

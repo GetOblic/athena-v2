@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { DiscussionAgeBadge } from "@/components/discussions/DiscussionAgeBadge";
 import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
@@ -38,6 +39,8 @@ export default async function DiscussionsPage() {
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+      <AthenaBrandLink className="mb-8" />
+
       <Link href="/" className="text-sm text-[var(--athena-orange)]">
         ← Dashboard
       </Link>
@@ -62,7 +65,7 @@ export default async function DiscussionsPage() {
         <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-14 text-center">
           <h2 className="text-2xl font-semibold">No discussions in queue.</h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/40">
-            Capture a Facebook discussion from the inbox to start building your
+            Capture a discussion from the inbox to start building your
             intelligence pipeline.
           </p>
           <Link

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { TodaysIntelligence } from "@/components/dashboard/TodaysIntelligence";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDashboardStats } from "@/services/dashboardService";
@@ -42,6 +43,8 @@ export default async function Home() {
         <DashboardSidebar activeHref="/" />
 
         <section className="flex-1 p-10">
+          <AthenaBrandLink className="mb-8 md:hidden" />
+
           <div className="mb-12">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
               Athena Dashboard

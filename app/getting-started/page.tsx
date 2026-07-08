@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const workflowSteps = [
@@ -37,6 +38,8 @@ export default async function GettingStartedPage() {
         <DashboardSidebar activeHref="/getting-started" />
 
         <section className="flex-1 p-10">
+          <AthenaBrandLink className="mb-8 md:hidden" />
+
           <div className="mb-12 max-w-4xl">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
               Getting Started
@@ -70,7 +73,7 @@ export default async function GettingStartedPage() {
             <GuideCard
               step="Step 2"
               title="Add Conversations"
-              description="Bring in Facebook Group discussions or paste conversations manually. The more real market conversations Athena sees, the smarter your insights become."
+              description="Bring in discussions from Facebook, Instagram, Reddit, LinkedIn, email, support conversations, interviews, or meeting notes. The more real market conversations Athena sees, the smarter your insights become."
               buttonLabel="Open Inbox"
               href="/inbox"
             />
@@ -102,7 +105,7 @@ export default async function GettingStartedPage() {
             <GuideCard
               step="Step 6"
               title="Use Deployment Assets"
-              description="Copy-ready replies, private messages, follow-ups, calls to action and social posts — generated for you and ready to paste into Facebook, email or DMs."
+              description="Copy-ready replies, private messages, follow-ups, calls to action and social posts — generated for you and ready to paste into your platform of choice, email or DMs."
             />
 
             <GuideCard

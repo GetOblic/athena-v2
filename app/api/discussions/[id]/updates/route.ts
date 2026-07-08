@@ -22,7 +22,6 @@ export async function POST(request: Request, context: RouteContext) {
       discussionId: id,
       organizationId,
       updateBody: body.body,
-      updateAuthor: body.author ?? null,
       updateUrl: body.url ?? null,
       capturedAt: body.capturedAt ?? null,
     });

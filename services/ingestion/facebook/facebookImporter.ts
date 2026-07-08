@@ -2,19 +2,19 @@ import { emitBrainEvent } from "@/services/brain/eventBus";
 import { createDiscussion } from "@/services/discussionService";
 import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
 import {
-  normalizeFacebookDiscussion,
-  type FacebookDiscussionInput,
+  normalizeDiscussionIngestion,
+  type DiscussionIngestionInput,
 } from "@/services/ingestion/facebook/facebookNormalizer";
 
 export async function importFacebookDiscussion(
-  input: FacebookDiscussionInput,
+  input: DiscussionIngestionInput,
 ) {
-  const normalized = normalizeFacebookDiscussion(input);
+  const normalized = normalizeDiscussionIngestion(input);
 
   const discussion = await createDiscussion(normalized);
 
   if (!discussion) {
-    throw new Error("Failed to import Facebook discussion.");
+    throw new Error("Failed to import discussion.");
   }
 
   await emitBrainEvent("discussion.imported", {

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { FacebookInboxForm } from "@/components/inbox/FacebookInboxForm";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { CaptureDiscussionForm } from "@/components/inbox/CaptureDiscussionForm";
 import {
   getIntelligenceDomainName,
   getActiveIntelligenceDomains,
@@ -12,6 +13,8 @@ export default async function InboxPage() {
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+      <AthenaBrandLink className="mb-8" />
+
       <Link href="/" className="text-sm text-[var(--athena-orange)]">
         ← Dashboard
       </Link>
@@ -22,17 +25,17 @@ export default async function InboxPage() {
         </div>
 
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          Capture Facebook Discussions
+          Capture Discussion
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Paste a Facebook group discussion once. An Intelligence Domain tells
-          Athena which market, expertise, terminology and business context to use
-          when analyzing a discussion.
+          Paste a discussion from any source. Athena will normalize the
+          conversation, understand its context, and generate market intelligence,
+          opportunities, executive briefings and reusable assets.
         </p>
       </div>
 
-      <FacebookInboxForm
+      <CaptureDiscussionForm
         intelligenceDomains={domains.map((domain) => ({
           id: domain.id,
           name: getIntelligenceDomainName(domain),

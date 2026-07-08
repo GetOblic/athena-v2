@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import Link from "next/link";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { GoldenDatasetImportButton } from "@/components/dev/GoldenDatasetImportButton";
 
 function getGoldenFacebookFiles() {
@@ -29,6 +30,8 @@ export default function GoldenDatasetPage() {
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+      <AthenaBrandLink className="mb-8" />
+
       <Link href="/" className="text-sm text-[var(--athena-orange)]">
         ← Dashboard
       </Link>
@@ -43,7 +46,7 @@ export default function GoldenDatasetPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Import real anonymized Facebook discussions through Athena’s production
+          Import real anonymized discussions through Athena&apos;s production
           ingestion workflow.
         </p>
       </div>
@@ -72,7 +75,11 @@ export default function GoldenDatasetPage() {
                   </p>
                 </div>
 
-                <GoldenDatasetImportButton title={item.title} body={item.body} />
+                <GoldenDatasetImportButton
+                  title={item.title}
+                  body={item.body}
+                  platform="Facebook"
+                />
               </div>
             </section>
           ))

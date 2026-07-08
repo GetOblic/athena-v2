@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { OpportunityStatusBadge } from "@/components/queues/OpportunityStatusBadge";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
 import { getOpportunityWorkQueues } from "@/services/queueService";
@@ -19,6 +20,8 @@ export default async function OpportunitiesPage() {
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+      <AthenaBrandLink className="mb-8" />
+
       <Link href="/" className="text-sm text-[var(--athena-orange)]">
         ← Dashboard
       </Link>

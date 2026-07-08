@@ -5,11 +5,15 @@ import { useState } from "react";
 type GoldenDatasetImportButtonProps = {
   title: string;
   body: string;
+  platform?: string;
+  url?: string;
 };
 
 export function GoldenDatasetImportButton({
   title,
   body,
+  platform = "Golden Dataset",
+  url = "https://example.com/golden-dataset",
 }: GoldenDatasetImportButtonProps) {
   const [status, setStatus] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -26,9 +30,11 @@ export function GoldenDatasetImportButton({
           "x-athena-ingestion-key": "local-athena-ingestion-key",
         },
         body: JSON.stringify({
+          platform,
           title,
           body,
           author: "Golden Dataset",
+          url,
         }),
       });
 

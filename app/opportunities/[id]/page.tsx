@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
@@ -39,6 +40,8 @@ export default async function OpportunityPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">
+      <AthenaBrandLink className="mb-8" />
+
       <Link
         href="/opportunities"
         className="text-sm text-[var(--athena-orange)] hover:underline"

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { CreateIntelligenceDomainForm } from "@/components/intelligenceDomains/CreateIntelligenceDomainForm";
 import { IntelligenceDomainStatusBadge } from "@/components/intelligenceDomains/IntelligenceDomainStatusBadge";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -65,6 +66,8 @@ export default async function IntelligenceDomainsPage({
         <DashboardSidebar activeHref="/intelligence-domains" />
 
         <section className="flex-1 p-10">
+          <AthenaBrandLink className="mb-8 md:hidden" />
+
           <div className="mb-10">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
               Market Context

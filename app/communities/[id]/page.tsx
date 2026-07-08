@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { GenerateCommunityIntelligenceButton } from "@/components/communities/GenerateCommunityIntelligenceButton";
 import { DomainHealthCard } from "@/components/intelligenceDomains/DomainHealthCard";
 import { DomainIntelligenceSections } from "@/components/intelligenceDomains/DomainIntelligenceSections";
@@ -31,6 +32,8 @@ export default async function CommunityDetailsPage({
   if (!community) {
     return (
       <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+        <AthenaBrandLink className="mb-8" />
+
         <Link href="/intelligence-domains" className="text-sm text-[var(--athena-orange)]">
           ← Back to Intelligence Domains
         </Link>
@@ -65,6 +68,8 @@ export default async function CommunityDetailsPage({
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+      <AthenaBrandLink className="mb-8" />
+
       <Link href="/intelligence-domains" className="text-sm text-[var(--athena-orange)]">
         ← Back to Intelligence Domains
       </Link>

@@ -1,22 +1,23 @@
-export type FacebookDiscussionInput = {
+export type DiscussionIngestionInput = {
   organizationId: string;
+  platform: string;
   communityId?: string | null;
   userId?: string | null;
-  title?: string | null;
-  author?: string | null;
-  url?: string | null;
+  title: string;
+  author: string;
+  url: string;
   body: string;
   capturedAt?: string | null;
 };
 
-export type NormalizedFacebookDiscussion = {
+export type NormalizedDiscussionIngestion = {
   organization_id: string;
   community_id: string | null;
   user_id: string | null;
-  platform: "Facebook Group";
+  platform: string;
   title: string;
-  author: string | null;
-  url: string | null;
+  author: string;
+  url: string;
   body: string;
   status: "New";
   priority: number;
@@ -30,22 +31,6 @@ export type NormalizedFacebookDiscussion = {
 
 function cleanText(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
-}
-
-function inferTitle(body: string, explicitTitle?: string | null): string {
-  const cleanedTitle = cleanText(explicitTitle);
-
-  if (cleanedTitle) {
-    return cleanedTitle.slice(0, 180);
-  }
-
-  const firstUsefulLine =
-    body
-      .split("\n")
-      .map((line) => line.trim())
-      .find((line) => line.length >= 12) ?? body;
-
-  return cleanText(firstUsefulLine).slice(0, 180) || "Untitled Facebook discussion";
 }
 
 function inferPriority(body: string): number {
@@ -80,38 +65,75 @@ function inferOpportunityScore(body: string): number {
   return Math.min(100, priority * 18);
 }
 
-export function normalizeFacebookDiscussion(
-  input: FacebookDiscussionInput,
-): NormalizedFacebookDiscussion {
+export function validateDiscussionIngestionInput(input: DiscussionIngestionInput) {
+  const platform = cleanText(input.platform);
+  const title = cleanText(input.title);
+  const author = cleanText(input.author);
+  const url = cleanText(input.url);
   const body = input.body.trim();
 
-  if (!body) {
-    throw new Error("Facebook discussion body is required.");
+  if (!platform) {
+    throw new Error("Platform is required.");
   }
 
+  if (!title) {
+    throw new Error("Title is required.");
+  }
+
+  if (!author) {
+    throw new Error("Author is required.");
+  }
+
+  if (!url) {
+    throw new Error("Source URL is required.");
+  }
+
+  if (!body) {
+    throw new Error("Discussion content is required.");
+  }
+
+  return { platform, title, author, url, body };
+}
+
+export function normalizeDiscussionIngestion(
+  input: DiscussionIngestionInput,
+): NormalizedDiscussionIngestion {
+  const validated = validateDiscussionIngestionInput(input);
   const capturedAt = input.capturedAt || new Date().toISOString();
 
   return {
     organization_id: input.organizationId,
     community_id: input.communityId ?? null,
     user_id: input.userId ?? null,
-    platform: "Facebook Group",
-    title: inferTitle(body, input.title),
-    author: cleanText(input.author) || null,
-    url: cleanText(input.url) || null,
-    body,
+    platform: validated.platform,
+    title: validated.title,
+    author: validated.author,
+    url: validated.url,
+    body: validated.body,
     status: "New",
-    priority: inferPriority(body),
-    opportunity_score: inferOpportunityScore(body),
+    priority: inferPriority(validated.body),
+    opportunity_score: inferOpportunityScore(validated.body),
     sentiment: null,
     summary: null,
-    ai_notes: "Imported from Facebook ingestion v1.",
+    ai_notes: "Imported via Athena discussion ingestion.",
     last_activity: capturedAt,
     raw_json: {
-      source: "facebook_group",
-      ingestion_version: "facebook_ingestion_v1",
+      source: "discussion_ingestion",
+      ingestion_version: "discussion_ingestion_v2",
       captured_at: capturedAt,
+      original_body: validated.body,
       original: input,
     },
   };
+}
+
+/** @deprecated Use normalizeDiscussionIngestion */
+export type FacebookDiscussionInput = DiscussionIngestionInput;
+
+/** @deprecated Use NormalizedDiscussionIngestion */
+export type NormalizedFacebookDiscussion = NormalizedDiscussionIngestion;
+
+/** @deprecated Use normalizeDiscussionIngestion */
+export function normalizeFacebookDiscussion(input: DiscussionIngestionInput) {
+  return normalizeDiscussionIngestion(input);
 }

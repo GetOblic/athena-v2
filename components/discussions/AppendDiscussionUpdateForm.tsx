@@ -9,7 +9,6 @@ type AppendDiscussionUpdateFormProps = {
 export function AppendDiscussionUpdateForm({
   discussionId,
 }: AppendDiscussionUpdateFormProps) {
-  const [author, setAuthor] = useState("");
   const [url, setUrl] = useState("");
   const [body, setBody] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,8 +29,7 @@ export function AppendDiscussionUpdateForm({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          author: author || null,
-          url: url || null,
+          url: url.trim() || null,
           body,
         }),
       });
@@ -45,10 +43,9 @@ export function AppendDiscussionUpdateForm({
       setResult({
         ok: true,
         message:
-          "Thread updated successfully. Athena is regenerating the discussion analysis, opportunities, executive briefing and strategic assets. Refresh in a few seconds to view the latest intelligence.",
+          "Thread updated successfully.\n\nAthena is regenerating:\n• Discussion Analysis\n• Opportunities\n• Executive Briefing\n• Strategic Assets\n\nWhen processing is complete, click the \"Refresh AI Analysis\" button below to load the latest intelligence.",
       });
 
-      setAuthor("");
       setUrl("");
       setBody("");
     } catch (error) {
@@ -57,7 +54,7 @@ export function AppendDiscussionUpdateForm({
         message:
           error instanceof Error
             ? error.message
-            : "Failed to append thread update.",
+            : "Failed to append discussion update.",
       });
     } finally {
       setIsSubmitting(false);
@@ -69,52 +66,38 @@ export function AppendDiscussionUpdateForm({
       onSubmit={handleSubmit}
       className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8"
     >
-      <h2 className="text-xl font-semibold">Append Facebook Thread Update</h2>
+      <h2 className="text-xl font-semibold">Append Discussion Update</h2>
 
       <p className="mt-3 text-sm leading-6 text-white/45">
-        Paste new replies, reactions or follow-up messages from the same Facebook
+        Paste new replies, reactions or follow-up messages from the same
         discussion. Athena appends them to the existing thread and re-runs the
         workflow.
       </p>
 
       <div className="mt-6 grid gap-5">
-        <div className="grid gap-5 md:grid-cols-2">
-          <label className="grid gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-              Author optional
-            </span>
-            <input
-              value={author}
-              onChange={(event) => setAuthor(event.target.value)}
-              placeholder="Reply author"
-              className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
-            />
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-              URL optional
-            </span>
-            <input
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              placeholder="Facebook comment or post URL"
-              className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
-            />
-          </label>
-        </div>
-
         <label className="grid gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            New replies / reactions / messages
+            Discussion Update
           </span>
           <textarea
             value={body}
             onChange={(event) => setBody(event.target.value)}
             required
             rows={8}
-            placeholder="Paste the new Facebook thread activity here."
+            placeholder="Paste the new thread activity here."
             className="resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25"
+          />
+        </label>
+
+        <label className="grid gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
+            Source URL optional
+          </span>
+          <input
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            placeholder="Only if this update comes from a different source"
+            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
           />
         </label>
 
@@ -128,7 +111,13 @@ export function AppendDiscussionUpdateForm({
           </button>
 
           {result && (
-            <div className={result.ok ? "text-sm text-emerald-300" : "text-sm text-red-300"}>
+            <div
+              className={
+                result.ok
+                  ? "max-w-2xl whitespace-pre-line text-sm leading-6 text-emerald-300"
+                  : "text-sm text-red-300"
+              }
+            >
               {result.message}
             </div>
           )}
