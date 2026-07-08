@@ -101,7 +101,7 @@ export default async function IntelligenceDomainsPage({
           )}
 
           <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="min-w-0 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-4 sm:p-6">
+            <div className="min-w-0 overflow-hidden rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-4 sm:p-6">
               {domains.length === 0 ? (
                 <div className="p-6 text-center text-white/40">
                   No Intelligence Domains yet. Create your first domain to tell
