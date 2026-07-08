@@ -194,52 +194,23 @@ export function terminologyMapToEntries(
     }));
 }
 
+import {
+  extractBusinessConstraintsFromMasterProfile,
+  extractTerminologyFromMasterProfile,
+  extractVoiceFromMasterProfile,
+} from "@/services/brain/masterProfileHelpers";
+
 export function extractBusinessConstraints(
   masterProfile: Record<string, unknown> | null,
 ): string[] {
-  if (!masterProfile) {
-    return [];
-  }
-
-  const constraints: string[] = [];
-  const candidateKeys = [
-    "constraints",
-    "business_constraints",
-    "rules",
-    "professional_rules",
-    "do_not",
-  ];
-
-  for (const key of candidateKeys) {
-    const value = masterProfile[key];
-    if (typeof value === "string" && value.trim()) {
-      constraints.push(...splitMemoryPhrases(value));
-    } else if (Array.isArray(value)) {
-      for (const item of value) {
-        if (typeof item === "string" && item.trim()) {
-          constraints.push(item.trim());
-        }
-      }
-    }
-  }
-
-  return [...new Set(constraints.map((item) => item.trim()).filter(Boolean))];
+  return extractBusinessConstraintsFromMasterProfile(masterProfile);
 }
 
 export function extractVoiceFromProfile(
   masterProfile: Record<string, unknown> | null,
   expertise: string | null,
 ): string | null {
-  if (masterProfile) {
-    for (const key of ["voice", "brand_voice", "tone"]) {
-      const value = masterProfile[key];
-      if (typeof value === "string" && value.trim()) {
-        return value.trim();
-      }
-    }
-  }
-
-  return expertise?.trim() || null;
+  return extractVoiceFromMasterProfile(masterProfile, expertise);
 }
 
 export function collectPainPoints(input: {
@@ -412,12 +383,11 @@ export function collectTerminology(input: {
   }
 
   if (input.masterProfile) {
-    for (const key of ["terminology", "methodology", "keywords"]) {
-      const value = input.masterProfile[key];
-      if (typeof value === "string") {
-        mergeTerminology(map, splitTerminology(value), "master_profile");
-      }
-    }
+    mergeTerminology(
+      map,
+      extractTerminologyFromMasterProfile(input.masterProfile),
+      "master_profile",
+    );
   }
 
   for (const discussion of input.discussions) {

@@ -16,6 +16,7 @@ import type {
   StrategicAssessment,
 } from "@/services/brain/executiveReasoningTypes";
 import { REASONING_PRIORITY_THRESHOLDS } from "@/services/brain/executiveReasoningTypes";
+import { extractAudienceSignalsFromMasterProfile } from "@/services/brain/masterProfileHelpers";
 import type { Opportunity } from "@/services/opportunityService";
 
 export function classifyReasoningPriority(input: {
@@ -150,6 +151,9 @@ export function buildBusinessAssessment(
 ): ExecutiveReasoning["businessAssessment"] {
   const identity = context.identityMemory;
   const constraints = context.executiveMemory.businessKnowledge.businessConstraints;
+  const homepageLearning =
+    identity.homepageLearning ??
+    context.executiveMemory.businessKnowledge.homepageLearning;
 
   return {
     expertise: identity.expertise,
@@ -158,6 +162,7 @@ export function buildBusinessAssessment(
       ? `${identity.greetingName}${identity.expertise ? ` — ${identity.expertise}` : ""}`
       : context.executiveMemory.businessKnowledge.voice,
     website: identity.website,
+    homepageLearning,
     businessConstraints: constraints,
     knowledgeCompleteness: identity.completenessScore,
     isBrainTrained: identity.isBrainTrained,
@@ -200,10 +205,17 @@ export function buildMarketAssessment(
     .slice(0, 5)
     .map((entry) => `${entry.category}: ${entry.value} (${entry.occurrences}x)`);
 
-  const recurringObjections = context.marketEvidence
-    .filter((entry) => entry.category === "objection")
-    .slice(0, 5)
-    .map((entry) => entry.value);
+  const audienceSignals = extractAudienceSignalsFromMasterProfile(
+    context.identityMemory.masterProfile,
+  );
+
+  const recurringObjections = [
+    ...context.marketEvidence
+      .filter((entry) => entry.category === "objection")
+      .slice(0, 5)
+      .map((entry) => entry.value),
+    ...audienceSignals.commonObjections.slice(0, 3),
+  ].filter((value, index, array) => array.indexOf(value) === index);
 
   const recurringTerminology = context.executiveMemory.terminologyKnowledge
     .slice(0, 5)
@@ -298,6 +310,9 @@ export function buildPriorityAssessment(
   const rationale: string[] = [];
   if (focusDiscussion) {
     rationale.push(`Focus discussion score: ${focusDiscussion.opportunity_score}.`);
+    if (focusDiscussion.priority >= 3) {
+      rationale.push(`Executive-flagged discussion priority: ${focusDiscussion.priority}.`);
+    }
   }
   if (focusOpportunity) {
     rationale.push(
@@ -339,9 +354,14 @@ export function buildRiskAssessment(
 
   const revisionHistoryCount =
     context.executiveLearning.briefingLearning.revisionFrequency;
+  const refreshEvents = context.executiveLearning.refreshLearning.totalRefreshEvents;
 
   if (revisionHistoryCount >= 3) {
     signals.push("Elevated briefing revision history.");
+  }
+
+  if (refreshEvents >= 3) {
+    signals.push("Repeated refresh activity detected across discussions or analyses.");
   }
 
   const sparseHistory =
@@ -408,6 +428,9 @@ export function buildRecommendedDirection(input: {
   } else if (context.executiveLearning.briefingLearning.revisionFrequency >= 3) {
     primary = "relationship_first";
     rationale.push("Revision history suggests relationship-first approach.");
+  } else if (context.executiveLearning.refreshLearning.totalRefreshEvents >= 3) {
+    primary = "relationship_first";
+    rationale.push("Repeated refresh activity suggests improving execution over changing direction.");
   } else if (context.executiveLearning.briefingLearning.approved >= 2) {
     primary = "consultative";
     rationale.push("Prior approved briefings support consultative positioning.");
@@ -441,6 +464,8 @@ export function formatExecutiveReasoningForPrompt(
     "BUSINESS ASSESSMENT:",
     `- ${reasoning.businessAssessment.summary}`,
     `- Completeness: ${reasoning.businessAssessment.knowledgeCompleteness}%`,
+    `- Website: ${reasoning.businessAssessment.website ?? "Not recorded."}`,
+    `- Homepage knowledge: ${reasoning.businessAssessment.homepageLearning?.slice(0, 240) ?? "Not available."}`,
     `- Constraints: ${reasoning.businessAssessment.businessConstraints.join("; ") || "None recorded."}`,
     "",
     "MARKET ASSESSMENT:",

@@ -51,6 +51,11 @@ import {
   countStatusDistribution,
 } from "@/services/brain/brainContextHelpers";
 import {
+  splitMemoryPhrases,
+  splitTerminology,
+} from "@/services/brain/executiveMemoryHelpers";
+import { extractHomepageLearningFromMasterProfile } from "@/services/brain/masterProfileHelpers";
+import {
   BRAIN_CONTEXT_LIMITS,
   type BrainContextScope,
   type BrainEngineContext,
@@ -173,22 +178,7 @@ async function fetchRecentBlueprints(
 function extractHomepageLearning(
   masterProfile: Record<string, unknown> | null,
 ): string | null {
-  if (!masterProfile) {
-    return null;
-  }
-
-  const website = masterProfile.website;
-  const homepage = masterProfile.homepage_learning ?? masterProfile.homepage;
-
-  if (typeof homepage === "string" && homepage.trim()) {
-    return homepage.trim();
-  }
-
-  if (typeof website === "string" && website.trim()) {
-    return null;
-  }
-
-  return null;
+  return extractHomepageLearningFromMasterProfile(masterProfile);
 }
 
 function buildBusinessMemory(identity: AthenaIdentity | null): BusinessMemory {
@@ -253,6 +243,16 @@ async function buildDomainMemory(organizationId: string): Promise<DomainMemory> 
         discussionsAnalyzed,
       });
 
+      const rawJson = latestIntelligence?.raw_json ?? null;
+      const terminologyFromIntelligence =
+        typeof rawJson?.terminology === "string"
+          ? splitTerminology(rawJson.terminology)
+          : [];
+      const competitorsFromIntelligence =
+        typeof rawJson?.competitors_alternatives === "string"
+          ? splitMemoryPhrases(rawJson.competitors_alternatives)
+          : [];
+
       return {
         id: community.id,
         name: community.group_name,
@@ -263,8 +263,8 @@ async function buildDomainMemory(organizationId: string): Promise<DomainMemory> 
         priority: community.priority,
         platform: community.platform,
         isActive: community.status?.toLowerCase() !== "inactive",
-        terminology: [],
-        competitors: [],
+        terminology: terminologyFromIntelligence,
+        competitors: competitorsFromIntelligence,
         recurringQuestions: latestIntelligence?.recurring_questions ?? null,
         recurringObjections: latestIntelligence?.recurring_objections ?? null,
         emergingTrends: latestIntelligence?.market_trends ?? null,
@@ -295,6 +295,7 @@ function toDiscussionEntry(
     id: discussion.id,
     title: discussion.title,
     status: discussion.status,
+    priority: discussion.priority,
     opportunityScore: discussion.opportunity_score,
     communityId: discussion.community_id,
     hasAnalysis: analyzedIds.has(discussion.id),

@@ -1,3 +1,4 @@
+import { extractAudienceSignalsFromMasterProfile } from "@/services/brain/masterProfileHelpers";
 import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
 import type { ExecutiveReasoning } from "@/services/brain/executiveReasoningTypes";
 import type {
@@ -41,7 +42,10 @@ export function buildBusinessUnderstanding(
     voice: business.voice ?? identity.aboutYou,
     expertise: business.expertise ?? identity.expertise,
     website: business.website ?? identity.website,
-    homepageUnderstanding: identity.homepageLearning,
+    homepageUnderstanding:
+      business.homepageLearning ??
+      identity.homepageLearning ??
+      null,
     businessConstraints: business.businessConstraints,
     knowledgeCompleteness: business.knowledgeCompleteness,
     isBrainTrained: business.isBrainTrained,
@@ -251,6 +255,18 @@ export function buildSupportingEvidence(
     });
   }
 
+  const homepageLearning =
+    reasoning.businessAssessment.homepageLearning ??
+    context.identityMemory.homepageLearning;
+  if (homepageLearning?.trim()) {
+    entries.push({
+      source: "business_identity",
+      label: "Homepage Knowledge",
+      detail: homepageLearning.slice(0, 280),
+      optional: true,
+    });
+  }
+
   const focusDiscussion = context.discussionMemory.focus?.discussion;
   if (focusDiscussion) {
     entries.push({
@@ -296,7 +312,9 @@ export function buildSupportingEvidence(
     entries.push({
       source: "knowledge_assets",
       label: "Knowledge Asset",
-      detail: asset.title,
+      detail: asset.summary?.trim()
+        ? `${asset.title}: ${asset.summary.slice(0, 180)}`
+        : asset.title,
       optional: false,
     });
   }

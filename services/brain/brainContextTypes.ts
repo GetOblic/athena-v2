@@ -130,6 +130,7 @@ export type DiscussionMemoryEntry = {
   id: string;
   title: string;
   status: string;
+  priority: number;
   opportunityScore: number;
   communityId: string | null;
   hasAnalysis: boolean;

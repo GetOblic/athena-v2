@@ -135,6 +135,10 @@ export async function compileMasterIdentityProfile(
   const rawProfile = await generateReview(prompt);
   const masterProfile = parseJsonResponse(rawProfile);
 
+  if (websiteHomepageText?.trim()) {
+    masterProfile.homepage_learning = websiteHomepageText.trim().slice(0, 4000);
+  }
+
   const tenant = createTenantScope(organizationId);
   const { data, error } = await tenant
     .from("athena_identity")

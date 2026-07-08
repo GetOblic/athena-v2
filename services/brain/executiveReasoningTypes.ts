@@ -71,6 +71,7 @@ export type BusinessAssessment = {
   preferredPositioning: string | null;
   voice: string | null;
   website: string | null;
+  homepageLearning: string | null;
   businessConstraints: string[];
   knowledgeCompleteness: number;
   isBrainTrained: boolean;
