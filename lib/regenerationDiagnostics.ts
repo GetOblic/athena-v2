@@ -123,6 +123,9 @@ export type LlmCallMeta = {
   stage: string;
   promptSource: string;
   generationKind?: string;
+  athenaStage?: string;
+  llmRole?: string | null;
+  resolvedModel?: string | null;
   reasoningProfile?: string;
   reasoningAttached?: boolean;
   regenerationRunId?: string;
@@ -144,7 +147,9 @@ export function logLlmCallStart(meta: LlmCallMeta, prompt: string): number {
     stage: meta.stage,
     promptSource: meta.promptSource,
     generationKind: meta.generationKind ?? null,
-    model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
+    athenaStage: meta.athenaStage ?? null,
+    llmRole: meta.llmRole ?? null,
+    model: meta.resolvedModel ?? "(model unresolved)",
     regenerationRunId,
     discussionId: meta.discussionId ?? null,
     openRouterCalled: true,

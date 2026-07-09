@@ -1,4 +1,4 @@
-import { generateReview } from "@/services/aiService";
+import { generateReview, resolveModelForStage } from "@/services/aiService";
 import type { AthenaGenerationKind } from "@/lib/reasoningProfiles";
 import {
   createAssetBlueprintForBriefing,
@@ -412,10 +412,16 @@ async function processDiscussionEndToEndInternal(
     stage: string,
     promptSource: string,
     generationKind: AthenaGenerationKind,
+    athenaStage:
+      | "discussion_analysis"
+      | "executive_briefing"
+      | "opportunity_generation"
+      | "strategic_blueprint",
   ) => ({
     stage,
     promptSource,
     generationKind,
+    athenaStage,
     regenerationRunId,
     discussionId,
     explicitRegeneration,
@@ -471,6 +477,7 @@ async function processDiscussionEndToEndInternal(
                 "discussion_analysis.quality_gate",
                 analysisPromptSource,
                 "discussion_analysis",
+                "discussion_analysis",
               ),
             );
           },
@@ -504,6 +511,7 @@ async function processDiscussionEndToEndInternal(
             "discussion_analysis.fallback",
             analysisPromptSource,
             "discussion_analysis",
+            "discussion_analysis",
           ),
         );
         parsedAnalysis = parseAnalysis(rawAnalysis);
@@ -521,6 +529,7 @@ async function processDiscussionEndToEndInternal(
         buildLlmMeta(
           "discussion_analysis.legacy",
           analysisPromptSource,
+          "discussion_analysis",
           "discussion_analysis",
         ),
       );
@@ -557,7 +566,7 @@ async function processDiscussionEndToEndInternal(
       strategy_key: "elevate",
       strategy_prompt_version: ELEVATE_STRATEGY_PROMPT_VERSION,
       analysis_prompt_version: DISCUSSION_ANALYSIS_PROMPT_VERSION,
-      model: process.env.OPENROUTER_MODEL ?? null,
+      model: resolveModelForStage("discussion_analysis").model,
       generation_time_ms: Date.now() - startedAt,
       raw_json: {
         discussion,
@@ -706,6 +715,7 @@ async function processDiscussionEndToEndInternal(
                 "executive_briefing.quality_gate",
                 briefingPromptSource,
                 "executive_briefing",
+                "executive_briefing",
               ),
             );
           },
@@ -734,6 +744,7 @@ async function processDiscussionEndToEndInternal(
             "executive_briefing.fallback",
             briefingPromptSource,
             "executive_briefing",
+            "executive_briefing",
           ),
         );
         parsedReview = parseGeneratedReview(rawReview);
@@ -747,6 +758,7 @@ async function processDiscussionEndToEndInternal(
         buildLlmMeta(
           "executive_briefing.legacy",
           briefingPromptSource,
+          "executive_briefing",
           "executive_briefing",
         ),
       );
@@ -772,7 +784,7 @@ async function processDiscussionEndToEndInternal(
     recommended_response: parsedReview.recommended_response,
     cta: parsedReview.cta,
     confidence: parsedReview.confidence || opportunity.score || 0,
-    model: process.env.OPENROUTER_MODEL ?? null,
+    model: resolveModelForStage("executive_briefing").model,
     prompt_version: OPPORTUNITY_REVIEW_PROMPT_VERSION,
     generation_time_ms: Date.now() - reviewStartedAt,
     raw_json: {
