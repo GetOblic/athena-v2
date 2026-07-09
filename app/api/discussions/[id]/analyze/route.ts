@@ -100,8 +100,7 @@ export async function POST(_request: Request, context: RouteContext) {
     return jsonResponse({
       success: true,
       queued: true,
-      message:
-        "Regeneration started. Athena is rebuilding this discussion in the background. This usually takes 60–120 seconds. You may safely leave or refresh this page.",
+      message: "Regeneration started. Refresh in a few moments.",
     });
   } catch (error) {
     console.error("Regenerate intelligence failed", error);

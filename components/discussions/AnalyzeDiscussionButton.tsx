@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 type AnalyzeDiscussionButtonProps = {
   discussionId: string;
@@ -19,86 +19,8 @@ type AnalyzeResponse = {
   error?: string;
 };
 
-type RegenerationStatusResponse = {
-  success?: boolean;
-  latestAnalysisId?: string | null;
-  latestAnalysisCreatedAt?: string | null;
-  blueprintUpdatedAt?: string | null;
-};
-
-type StatusSnapshot = {
-  latestAnalysisId: string | null;
-  latestAnalysisCreatedAt: string | null;
-  blueprintUpdatedAt: string | null;
-};
-
-const REGENERATION_STARTED_MESSAGE =
-  "Regeneration started. Athena is rebuilding this discussion in the background. This usually takes 60–120 seconds. You may safely leave or refresh this page.";
-
-const REGENERATION_SUCCESS_MESSAGE = "Intelligence regenerated successfully.";
-const REGENERATION_TIMEOUT_MESSAGE =
-  "Athena is still working. Refresh this page in a minute.";
-
-const POLL_INTERVAL_MS = 5_000;
-const POLL_TIMEOUT_MS = 150_000;
-
-async function fetchRegenerationStatus(
-  discussionId: string,
-): Promise<StatusSnapshot | null> {
-  try {
-    const response = await fetch(`/api/discussions/${discussionId}/status`, {
-      cache: "no-store",
-    });
-    const data = (await response.json()) as RegenerationStatusResponse;
-
-    if (!response.ok || !data.success) {
-      return null;
-    }
-
-    return {
-      latestAnalysisId: data.latestAnalysisId ?? null,
-      latestAnalysisCreatedAt: data.latestAnalysisCreatedAt ?? null,
-      blueprintUpdatedAt: data.blueprintUpdatedAt ?? null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function isRegenerationComplete(
-  baseline: StatusSnapshot,
-  current: StatusSnapshot,
-  queuedAtMs: number,
-): boolean {
-  const queueFloorMs = queuedAtMs - 15_000;
-
-  if (
-    current.latestAnalysisId &&
-    current.latestAnalysisId !== baseline.latestAnalysisId
-  ) {
-    const createdMs = Date.parse(current.latestAnalysisCreatedAt ?? "");
-    if (!Number.isNaN(createdMs) && createdMs >= queueFloorMs) {
-      return true;
-    }
-  }
-
-  if (
-    current.blueprintUpdatedAt &&
-    current.blueprintUpdatedAt !== baseline.blueprintUpdatedAt
-  ) {
-    const updatedMs = Date.parse(current.blueprintUpdatedAt);
-    const baselineMs = Date.parse(baseline.blueprintUpdatedAt ?? "");
-    if (
-      !Number.isNaN(updatedMs) &&
-      updatedMs >= queueFloorMs &&
-      updatedMs > (Number.isNaN(baselineMs) ? 0 : baselineMs)
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-}
+const QUEUED_REFRESH_MS = 10_000;
+const QUEUED_BUTTON_LOCK_MS = 10_000;
 
 export function AnalyzeDiscussionButton({
   discussionId,
@@ -108,90 +30,25 @@ export function AnalyzeDiscussionButton({
   const router = useRouter();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [infoMessage, setInfoMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const pollCleanupRef = useRef<(() => void) | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const queuedTimersRef = useRef<number[]>([]);
 
-  useEffect(() => {
-    return () => {
-      pollCleanupRef.current?.();
-    };
-  }, []);
-
-  function stopPolling() {
-    pollCleanupRef.current?.();
-    pollCleanupRef.current = null;
-  }
-
-  function startPolling(baseline: StatusSnapshot, queuedAtMs: number) {
-    stopPolling();
-
-    const startedAt = Date.now();
-    let pollTimerId: number | null = null;
-    let cancelled = false;
-
-    const scheduleNextPoll = () => {
-      pollTimerId = window.setTimeout(() => {
-        void pollOnce();
-      }, POLL_INTERVAL_MS);
-    };
-
-    const finish = () => {
-      cancelled = true;
-      if (pollTimerId !== null) {
-        window.clearTimeout(pollTimerId);
-      }
-    };
-
-    const pollOnce = async () => {
-      if (cancelled) {
-        return;
-      }
-
-      if (Date.now() - startedAt >= POLL_TIMEOUT_MS) {
-        finish();
-        setInfoMessage(REGENERATION_TIMEOUT_MESSAGE);
-        setIsAnalyzing(false);
-        return;
-      }
-
-      const current = await fetchRegenerationStatus(discussionId);
-
-      if (cancelled) {
-        return;
-      }
-
-      if (current && isRegenerationComplete(baseline, current, queuedAtMs)) {
-        finish();
-        setInfoMessage(null);
-        setSuccessMessage(REGENERATION_SUCCESS_MESSAGE);
-        setIsAnalyzing(false);
-        router.refresh();
-        return;
-      }
-
-      scheduleNextPoll();
-    };
-
-    scheduleNextPoll();
-    pollCleanupRef.current = finish;
+  function clearQueuedTimers() {
+    for (const timerId of queuedTimersRef.current) {
+      window.clearTimeout(timerId);
+    }
+    queuedTimersRef.current = [];
   }
 
   async function handleAnalyze() {
-    stopPolling();
+    clearQueuedTimers();
     setIsAnalyzing(true);
     setError(null);
-    setInfoMessage(null);
-    setSuccessMessage(null);
+    setWarning(null);
+
+    let keepAnalyzing = false;
 
     try {
-      const baseline =
-        (await fetchRegenerationStatus(discussionId)) ?? {
-          latestAnalysisId: null,
-          latestAnalysisCreatedAt: null,
-          blueprintUpdatedAt: null,
-        };
-
       const response = await fetch(`/api/discussions/${discussionId}/analyze`, {
         method: "POST",
       });
@@ -218,26 +75,41 @@ export function AnalyzeDiscussionButton({
       }
 
       if (data.queued) {
-        const queuedAtMs = Date.now();
-        setInfoMessage(data.message || REGENERATION_STARTED_MESSAGE);
-        startPolling(baseline, queuedAtMs);
+        keepAnalyzing = true;
+        setWarning(
+          data.message ||
+            "Regeneration started. Refresh in a few moments.",
+        );
+
+        queuedTimersRef.current.push(
+          window.setTimeout(() => {
+            router.refresh();
+          }, QUEUED_REFRESH_MS),
+        );
+
+        queuedTimersRef.current.push(
+          window.setTimeout(() => {
+            setIsAnalyzing(false);
+          }, QUEUED_BUTTON_LOCK_MS),
+        );
+
         return;
       }
 
       router.refresh();
 
       if (data.partial) {
-        setInfoMessage(
+        setWarning(
           data.warning ||
             "Strategic Blueprint could not be regenerated, previous valid blueprint was preserved.",
         );
-      } else {
-        setSuccessMessage(REGENERATION_SUCCESS_MESSAGE);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setIsAnalyzing((current) => (pollCleanupRef.current ? current : false));
+      if (!keepAnalyzing) {
+        setIsAnalyzing(false);
+      }
     }
   }
 
@@ -263,14 +135,8 @@ export function AnalyzeDiscussionButton({
         {isAnalyzing ? "Regenerating Intelligence..." : label}
       </button>
 
-      {infoMessage && (
-        <div className="mt-3 text-sm leading-6 text-amber-300/90">{infoMessage}</div>
-      )}
-
-      {successMessage && (
-        <div className="mt-3 text-sm leading-6 text-emerald-300/90">
-          {successMessage}
-        </div>
+      {warning && (
+        <div className="mt-3 text-sm text-amber-300/90">{warning}</div>
       )}
 
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
