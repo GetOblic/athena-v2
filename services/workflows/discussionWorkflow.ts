@@ -11,6 +11,7 @@ import {
 import {
   assembleDiscussionAnalysisPrompt,
   assembleExecutiveBriefingPrompt,
+  clearGenerationPipelineCache,
   resolveGenerationBundle,
 } from "@/services/brain/generationContractService";
 import {
@@ -164,32 +165,45 @@ async function generateAssetBlueprint(input: {
     hasGenerationBundle: Boolean(input.generationBundle),
   });
 
-  try {
-    if (input.opportunity && input.review) {
-      return await createAssetBlueprintForBriefing({
-        discussion: input.discussion,
-        opportunity: input.opportunity,
-        briefing: input.review,
-        generationBundle: input.generationBundle ?? undefined,
-        brainContextPrompt: input.brainContextPrompt,
-      });
-    }
+  logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_LLM_CALL_STARTED", {
+    discussionId: input.discussion.id,
+    path,
+  });
 
-    return await createAssetBlueprintForDiscussionAnalysis({
+  if (input.opportunity && input.review) {
+    const blueprint = await createAssetBlueprintForBriefing({
       discussion: input.discussion,
-      analysis: input.analysis,
+      opportunity: input.opportunity,
+      briefing: input.review,
       generationBundle: input.generationBundle ?? undefined,
       brainContextPrompt: input.brainContextPrompt,
     });
-  } catch (error) {
-    console.error("Asset blueprint generation failed:", error);
-    logRegenerationDiagnostic("BLUEPRINT_GENERATION_FAILED", {
+
+    logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_LLM_CALL_COMPLETED", {
       discussionId: input.discussion.id,
       path,
-      error: error instanceof Error ? error.message : String(error),
+      blueprintId: blueprint.id,
+      blueprintTitle: blueprint.asset_title,
     });
-    return null;
+
+    return blueprint;
   }
+
+  const blueprint = await createAssetBlueprintForDiscussionAnalysis({
+    discussion: input.discussion,
+    analysis: input.analysis,
+    generationBundle: input.generationBundle ?? undefined,
+    brainContextPrompt: input.brainContextPrompt,
+  });
+
+  logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_LLM_CALL_COMPLETED", {
+    discussionId: input.discussion.id,
+    path,
+    blueprintId: blueprint.id,
+    blueprintTitle: blueprint.asset_title,
+  });
+
+  return blueprint;
 }
 
 async function resolveDiscussionAnalysisGeneration(
@@ -205,6 +219,7 @@ async function resolveDiscussionAnalysisGeneration(
       workflowType: "discussion_analysis",
       organizationId,
       discussionId,
+      bypassCache: true,
     });
 
     if (bundle) {
@@ -238,6 +253,7 @@ async function resolveExecutiveBriefingGeneration(
       organizationId,
       discussionId,
       opportunityId,
+      bypassCache: true,
     });
   } catch (error) {
     console.error("Executive briefing generation contract unavailable:", error);
@@ -258,6 +274,7 @@ async function resolveStrategicBlueprintGeneration(
       discussionId,
       opportunityId,
       briefingId,
+      bypassCache: true,
     });
   } catch (error) {
     console.error("Strategic blueprint generation contract unavailable:", error);
@@ -283,6 +300,8 @@ async function processDiscussionEndToEndInternal(
   discussionId: string,
   organizationId: string,
 ) {
+  clearGenerationPipelineCache();
+
   const startedAt = Date.now();
   const discussion = await getDiscussionById(discussionId, organizationId);
 
@@ -373,10 +392,11 @@ async function processDiscussionEndToEndInternal(
 
   logRegenerationDiagnostic("ANALYSIS_LLM_CALL_COMPLETED", {
     discussionId,
+    organizationId,
     promptSource: analysisPromptSource,
     responseCharCount: rawAnalysis.length,
     opportunityDetected: parsedAnalysis.opportunity_detected,
-    hasSuggestedCta: Boolean(parsedAnalysis.suggested_cta?.trim()),
+    deploymentAssetsGenerated: Boolean(parsedAnalysis.suggested_cta?.trim()),
   });
 
   const analysis = await createDiscussionAnalysis({
@@ -408,6 +428,13 @@ async function processDiscussionEndToEndInternal(
       parsed_analysis: parsedAnalysis,
       workflow: "discussion_end_to_end_v1",
     },
+  });
+
+  logRegenerationDiagnostic("ANALYSIS_ID_SAVED", {
+    discussionId,
+    organizationId,
+    analysisId: analysis.id,
+    createdAt: analysis.created_at,
   });
 
   if (!parsedAnalysis.opportunity_detected) {

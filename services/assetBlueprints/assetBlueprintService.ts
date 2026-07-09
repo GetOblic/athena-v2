@@ -3,6 +3,7 @@ import {
   appendBlueprintDebugMarker,
   hasBlueprintDebugMarker,
   logRegenerationDiagnostic,
+  RegenerationBlueprintError,
 } from "@/lib/regenerationDiagnostics";
 import {
   ATHENA_DEFAULT_LLM_TEMPERATURE,
@@ -174,6 +175,23 @@ export function blueprintHasPrompts(
   );
 }
 
+function blueprintRecencyMs(blueprint: AthenaAssetBlueprint): number {
+  const updated = Date.parse(blueprint.updated_at ?? "");
+  const created = Date.parse(blueprint.created_at ?? "");
+  return Math.max(
+    Number.isNaN(updated) ? 0 : updated,
+    Number.isNaN(created) ? 0 : created,
+  );
+}
+
+function sortBlueprintsByRecency(
+  blueprints: AthenaAssetBlueprint[],
+): AthenaAssetBlueprint[] {
+  return [...blueprints].sort(
+    (left, right) => blueprintRecencyMs(right) - blueprintRecencyMs(left),
+  );
+}
+
 function pickBestBlueprint(
   blueprints: AthenaAssetBlueprint[],
 ): AthenaAssetBlueprint | null {
@@ -181,7 +199,8 @@ function pickBestBlueprint(
     return null;
   }
 
-  return blueprints.find(blueprintHasPrompts) ?? blueprints[0];
+  const sorted = sortBlueprintsByRecency(blueprints);
+  return sorted.find(blueprintHasPrompts) ?? sorted[0];
 }
 
 export function selectCanonicalBlueprint(
@@ -553,41 +572,101 @@ async function generateBlueprintWithQualityGate(input: {
 }): Promise<{ parsed: ParsedAssetBlueprint; rawBlueprint: string }> {
   let attempt = 0;
 
+  const gated = await runSimplifiedQualityGateLoop({
+    generate: async (refinementSuffix) => {
+      attempt += 1;
+      const prompt = input.buildPrompt(refinementSuffix);
+      return generateBlueprintReview({
+        stage: `${input.stagePrefix}.quality_gate.attempt_${attempt}`,
+        userPrompt: prompt,
+        generationBundle: input.effectiveBundle,
+      });
+    },
+    parse: parseJsonResponse,
+    validate: (parsed, text) => {
+      const validation = validateStrategicBlueprintArtifact(
+        parsed as unknown as Record<string, unknown>,
+      );
+      if (!validation.valid) {
+        return validation;
+      }
+      return validateArtifactOutput({
+        text,
+        businessDecision: input.effectiveBundle.reasoningPipeline.decision,
+      });
+    },
+    toReviewText: blueprintReviewText,
+  });
+
+  return {
+    parsed: enrichBlueprintFromDecision(gated.parsed, input.effectiveBundle),
+    rawBlueprint: gated.raw,
+  };
+}
+
+async function runBlueprintFallbackGeneration(input: {
+  stage: string;
+  discussionId: string;
+  path: "briefing" | "analysis";
+  effectiveBundle: GenerationBundle;
+  buildPrompt: () => string;
+}): Promise<{ parsed: ParsedAssetBlueprint; rawBlueprint: string }> {
+  logRegenerationDiagnostic("BLUEPRINT_LLM_FALLBACK_STARTED", {
+    discussionId: input.discussionId,
+    path: input.path,
+    stage: input.stage,
+  });
+
   try {
-    const gated = await runSimplifiedQualityGateLoop({
-      generate: async (refinementSuffix) => {
-        attempt += 1;
-        const prompt = input.buildPrompt(refinementSuffix);
-        return generateBlueprintReview({
-          stage: `${input.stagePrefix}.quality_gate.attempt_${attempt}`,
-          userPrompt: prompt,
-          generationBundle: input.effectiveBundle,
-        });
-      },
-      parse: parseJsonResponse,
-      validate: (parsed, text) => {
-        const validation = validateStrategicBlueprintArtifact(
-          parsed as unknown as Record<string, unknown>,
-        );
-        if (!validation.valid) {
-          return validation;
-        }
-        return validateArtifactOutput({
-          text,
-          businessDecision: input.effectiveBundle.reasoningPipeline.decision,
-        });
-      },
-      toReviewText: blueprintReviewText,
+    const prompt = input.buildPrompt();
+    const rawBlueprint = await generateBlueprintReview({
+      stage: input.stage,
+      userPrompt: prompt,
+      generationBundle: input.effectiveBundle,
+    });
+    const parsed = parseJsonResponse(rawBlueprint);
+
+    logRegenerationDiagnostic("BLUEPRINT_LLM_FALLBACK_COMPLETED", {
+      discussionId: input.discussionId,
+      path: input.path,
+      assetTitle: parsed.asset_title,
     });
 
-    return {
-      parsed: enrichBlueprintFromDecision(gated.parsed, input.effectiveBundle),
-      rawBlueprint: gated.raw,
-    };
+    return { parsed, rawBlueprint };
   } catch (error) {
-    console.error("Strategic blueprint quality gate failed:", error);
-    throw error;
+    const message =
+      error instanceof Error ? error.message : "Blueprint fallback generation failed";
+    throw new RegenerationBlueprintError(message);
   }
+}
+
+async function saveRegeneratedBlueprint(input: {
+  organizationId: string;
+  userId: string | null;
+  discussionId: string;
+  opportunityId?: string | null;
+  briefingId?: string | null;
+  parsed: ParsedAssetBlueprint;
+  rawBlueprint: string;
+  source: string;
+  executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
+}): Promise<AthenaAssetBlueprint> {
+  const saved = await upsertAssetBlueprint(input);
+
+  if (!saved) {
+    throw new RegenerationBlueprintError(
+      "Strategic blueprint save failed: generated output had no executable prompts.",
+    );
+  }
+
+  if (!hasBlueprintDebugMarker(saved.notes)) {
+    throw new RegenerationBlueprintError(
+      "Strategic blueprint save failed: debug marker missing from regenerated notes.",
+      saved.id,
+    );
+  }
+
+  return saved;
 }
 
 export async function createAssetBlueprintForBriefing(input: {
@@ -596,7 +675,7 @@ export async function createAssetBlueprintForBriefing(input: {
   briefing: AthenaReview;
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
-}): Promise<AthenaAssetBlueprint | null> {
+}): Promise<AthenaAssetBlueprint> {
   const organizationId = input.discussion.organization_id ?? "";
   const effectiveBundle = await resolveBlueprintGenerationBundle({
     generationBundle: input.generationBundle,
@@ -627,59 +706,46 @@ export async function createAssetBlueprintForBriefing(input: {
       rawBlueprint = gated.rawBlueprint;
     } catch (error) {
       console.error("Blueprint generation with quality gate failed:", error);
-      const preserved = await findPreservedBlueprint({
-        organizationId,
-        briefingId: input.briefing.id,
-        opportunityId: input.opportunity.id,
+      const recovered = await runBlueprintFallbackGeneration({
+        stage: "strategic_blueprint.briefing.fallback_single_generation",
         discussionId: input.discussion.id,
+        path: "briefing",
+        effectiveBundle,
+        buildPrompt: () =>
+          assembleStrategicBlueprintPrompt({
+            bundle: effectiveBundle,
+            discussion: input.discussion as unknown as Record<string, unknown>,
+            opportunity: input.opportunity as unknown as Record<string, unknown>,
+            briefing: input.briefing as unknown as Record<string, unknown>,
+          }),
       });
-      if (preserved) {
-        logRegenerationDiagnostic("BLUEPRINT_FALLBACK_PRESERVED", {
-          discussionId: input.discussion.id,
-          path: "briefing",
-          preservedBlueprintId: preserved.id,
-          preservedCreatedAt: preserved.created_at,
-          preservedAssetTitle: preserved.asset_title,
-          fallbackUsed: true,
-          llmCallExecuted: false,
-        });
-        return preserved;
-      }
-
-      try {
-        const prompt = assembleStrategicBlueprintPrompt({
-          bundle: effectiveBundle,
-          discussion: input.discussion as unknown as Record<string, unknown>,
-          opportunity: input.opportunity as unknown as Record<string, unknown>,
-          briefing: input.briefing as unknown as Record<string, unknown>,
-        });
-        rawBlueprint = await generateBlueprintReview({
-          stage: "strategic_blueprint.briefing.fallback_single_generation",
-          userPrompt: prompt,
-          generationBundle: effectiveBundle,
-        });
-        parsed = parseJsonResponse(rawBlueprint);
-      } catch (fallbackError) {
-        console.error("Blueprint single-generation fallback failed:", fallbackError);
-        return preserved;
-      }
+      parsed = recovered.parsed;
+      rawBlueprint = recovered.rawBlueprint;
     }
   } else {
-    const prompt = buildAssetBlueprintPrompt({
-      executiveContextPrompt: input.brainContextPrompt ?? "",
-      productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-      discussion: input.discussion as unknown as Record<string, unknown>,
-      opportunity: input.opportunity as unknown as Record<string, unknown>,
-      briefing: input.briefing as unknown as Record<string, unknown>,
-    });
-    rawBlueprint = await generateBlueprintReview({
-      stage: "strategic_blueprint.briefing.legacy",
-      userPrompt: prompt,
-    });
-    parsed = parseJsonResponse(rawBlueprint);
+    try {
+      const prompt = buildAssetBlueprintPrompt({
+        executiveContextPrompt: input.brainContextPrompt ?? "",
+        productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
+        discussion: input.discussion as unknown as Record<string, unknown>,
+        opportunity: input.opportunity as unknown as Record<string, unknown>,
+        briefing: input.briefing as unknown as Record<string, unknown>,
+      });
+      rawBlueprint = await generateBlueprintReview({
+        stage: "strategic_blueprint.briefing.legacy",
+        userPrompt: prompt,
+      });
+      parsed = parseJsonResponse(rawBlueprint);
+    } catch (error) {
+      throw new RegenerationBlueprintError(
+        error instanceof Error
+          ? error.message
+          : "Legacy strategic blueprint generation failed",
+      );
+    }
   }
 
-  return upsertAssetBlueprint({
+  const saved = await saveRegeneratedBlueprint({
     organizationId,
     userId: input.discussion.user_id ?? null,
     discussionId: input.discussion.id,
@@ -691,6 +757,16 @@ export async function createAssetBlueprintForBriefing(input: {
     executiveMarketingStrategy:
       effectiveBundle?.executiveStrategy.marketingStrategy ?? null,
   });
+
+  logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_ID_SAVED", {
+    discussionId: input.discussion.id,
+    path: "briefing",
+    blueprintId: saved.id,
+    blueprintTitle: saved.asset_title,
+    fallbackUsed: false,
+  });
+
+  return saved;
 }
 
 export async function createAssetBlueprintForDiscussionAnalysis(input: {
@@ -698,7 +774,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   analysis: DiscussionAnalysis;
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
-}): Promise<AthenaAssetBlueprint | null> {
+}): Promise<AthenaAssetBlueprint> {
   const organizationId = input.discussion.organization_id ?? "";
   const effectiveBundle = await resolveBlueprintGenerationBundle({
     generationBundle: input.generationBundle,
@@ -726,55 +802,44 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
       rawBlueprint = gated.rawBlueprint;
     } catch (error) {
       console.error("Blueprint generation with quality gate failed:", error);
-      const preserved = await findPreservedBlueprint({
-        organizationId,
+      const recovered = await runBlueprintFallbackGeneration({
+        stage: "strategic_blueprint.analysis.fallback_single_generation",
         discussionId: input.discussion.id,
+        path: "analysis",
+        effectiveBundle,
+        buildPrompt: () =>
+          assembleStrategicBlueprintPrompt({
+            bundle: effectiveBundle,
+            discussion: input.discussion as unknown as Record<string, unknown>,
+            analysis: input.analysis as unknown as Record<string, unknown>,
+          }),
       });
-      if (preserved) {
-        logRegenerationDiagnostic("BLUEPRINT_FALLBACK_PRESERVED", {
-          discussionId: input.discussion.id,
-          path: "analysis",
-          preservedBlueprintId: preserved.id,
-          preservedCreatedAt: preserved.created_at,
-          preservedAssetTitle: preserved.asset_title,
-          fallbackUsed: true,
-          llmCallExecuted: false,
-        });
-        return preserved;
-      }
-
-      try {
-        const prompt = assembleStrategicBlueprintPrompt({
-          bundle: effectiveBundle,
-          discussion: input.discussion as unknown as Record<string, unknown>,
-          analysis: input.analysis as unknown as Record<string, unknown>,
-        });
-        rawBlueprint = await generateBlueprintReview({
-          stage: "strategic_blueprint.analysis.fallback_single_generation",
-          userPrompt: prompt,
-          generationBundle: effectiveBundle,
-        });
-        parsed = parseJsonResponse(rawBlueprint);
-      } catch (fallbackError) {
-        console.error("Blueprint single-generation fallback failed:", fallbackError);
-        return preserved;
-      }
+      parsed = recovered.parsed;
+      rawBlueprint = recovered.rawBlueprint;
     }
   } else {
-    const prompt = buildAssetBlueprintFromAnalysisPrompt({
-      executiveContextPrompt: input.brainContextPrompt ?? "",
-      productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-      discussion: input.discussion as unknown as Record<string, unknown>,
-      analysis: input.analysis as unknown as Record<string, unknown>,
-    });
-    rawBlueprint = await generateBlueprintReview({
-      stage: "strategic_blueprint.analysis.legacy",
-      userPrompt: prompt,
-    });
-    parsed = parseJsonResponse(rawBlueprint);
+    try {
+      const prompt = buildAssetBlueprintFromAnalysisPrompt({
+        executiveContextPrompt: input.brainContextPrompt ?? "",
+        productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
+        discussion: input.discussion as unknown as Record<string, unknown>,
+        analysis: input.analysis as unknown as Record<string, unknown>,
+      });
+      rawBlueprint = await generateBlueprintReview({
+        stage: "strategic_blueprint.analysis.legacy",
+        userPrompt: prompt,
+      });
+      parsed = parseJsonResponse(rawBlueprint);
+    } catch (error) {
+      throw new RegenerationBlueprintError(
+        error instanceof Error
+          ? error.message
+          : "Legacy strategic blueprint generation failed",
+      );
+    }
   }
 
-  return upsertAssetBlueprint({
+  const saved = await saveRegeneratedBlueprint({
     organizationId,
     userId: input.discussion.user_id ?? null,
     discussionId: input.discussion.id,
@@ -784,6 +849,16 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
     executiveMarketingStrategy:
       effectiveBundle?.executiveStrategy.marketingStrategy ?? null,
   });
+
+  logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_ID_SAVED", {
+    discussionId: input.discussion.id,
+    path: "analysis",
+    blueprintId: saved.id,
+    blueprintTitle: saved.asset_title,
+    fallbackUsed: false,
+  });
+
+  return saved;
 }
 
 export async function getAssetBlueprintsByBriefingId(
@@ -866,7 +941,7 @@ export async function getDisplayAssetBlueprintByDiscussionId(
     organizationId,
   );
   const selected = pickBestBlueprint(blueprints);
-  const newest = blueprints[0] ?? null;
+  const newest = sortBlueprintsByRecency(blueprints)[0] ?? null;
 
   logRegenerationDiagnostic("BLUEPRINT_DISPLAY_SELECTION", {
     context: "discussion_page",
@@ -878,12 +953,15 @@ export async function getDisplayAssetBlueprintByDiscussionId(
     selectedUpdatedAt: selected?.updated_at ?? null,
     selectedAssetTitle: selected?.asset_title ?? null,
     newestBlueprintId: newest?.id ?? null,
-    newestCreatedAt: newest?.created_at ?? null,
+    newestUpdatedAt: newest?.updated_at ?? null,
     isNewestRow: Boolean(selected && newest && selected.id === newest.id),
     selectionUsesPromptPriority: Boolean(
       selected && newest && selected.id !== newest.id,
     ),
     hasDebugMarker: hasBlueprintDebugMarker(selected?.notes),
+    fallbackUsed: Boolean(
+      selected && !hasBlueprintDebugMarker(selected.notes),
+    ),
   });
 
   return selected;

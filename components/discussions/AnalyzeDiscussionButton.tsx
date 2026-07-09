@@ -28,10 +28,20 @@ export function AnalyzeDiscussionButton({
       });
 
       const text = await response.text();
-      let data: { success?: boolean; error?: string };
+      let data: {
+        success?: boolean;
+        regenerated?: boolean;
+        error?: string;
+        fallbackUsed?: boolean;
+      };
 
       try {
-        data = JSON.parse(text) as { success?: boolean; error?: string };
+        data = JSON.parse(text) as {
+          success?: boolean;
+          regenerated?: boolean;
+          error?: string;
+          fallbackUsed?: boolean;
+        };
       } catch {
         console.error(
           "Regenerate intelligence non-JSON response:",
@@ -42,7 +52,12 @@ export function AnalyzeDiscussionButton({
         );
       }
 
-      if (!response.ok || !data.success) {
+      if (
+        !response.ok ||
+        !data.success ||
+        data.regenerated === false ||
+        data.fallbackUsed
+      ) {
         throw new Error(data.error || "Failed to regenerate intelligence");
       }
 

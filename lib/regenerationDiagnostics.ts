@@ -27,6 +27,18 @@ export function hasBlueprintDebugMarker(notes?: string | null): boolean {
   return Boolean(notes?.includes(DEBUG_MARKER_PREFIX));
 }
 
+export class RegenerationBlueprintError extends Error {
+  readonly code = "REGENERATION_BLUEPRINT_FAILED";
+
+  constructor(
+    message: string,
+    readonly preservedBlueprintId?: string | null,
+  ) {
+    super(message);
+    this.name = "RegenerationBlueprintError";
+  }
+}
+
 export type LlmCallMeta = {
   stage: string;
   promptSource: string;

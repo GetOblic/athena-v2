@@ -4,6 +4,7 @@ import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisServic
 import {
   logRegenerationDiagnostic,
   hasBlueprintDebugMarker,
+  RegenerationBlueprintError,
 } from "@/lib/regenerationDiagnostics";
 import {
   OrganizationAccessError,
@@ -29,7 +30,7 @@ export async function POST(_request: Request, context: RouteContext) {
 
     const existingAnalysis = await getLatestDiscussionAnalysis(id, organizationId);
 
-    logRegenerationDiagnostic("REGENERATE STARTED", {
+    logRegenerationDiagnostic("REGENERATE START", {
       discussionId: id,
       organizationId,
       existingAnalysisLoaded: Boolean(existingAnalysis),
@@ -52,44 +53,78 @@ export async function POST(_request: Request, context: RouteContext) {
 
     const result = await processDiscussionEndToEnd(id, organizationId);
 
-    logRegenerationDiagnostic("REGENERATE COMPLETED", {
+    const fallbackUsed = Boolean(
+      result.assetBlueprint &&
+        !hasBlueprintDebugMarker(result.assetBlueprint.notes),
+    );
+    const generatedAt =
+      result.assetBlueprint?.updated_at ??
+      result.assetBlueprint?.created_at ??
+      result.analysis?.created_at ??
+      null;
+
+    logRegenerationDiagnostic("REGENERATE END", {
       discussionId: id,
       organizationId,
       model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
       status: result.status,
       previousAnalysisId: existingAnalysis?.id ?? null,
-      newAnalysisId: result.analysis?.id ?? null,
-      updatedAnalysisId: null,
-      newAnalysisCreatedAt: result.analysis?.created_at ?? null,
-      newAnalysisPromptVersion: result.analysis?.analysis_prompt_version ?? null,
+      analysisId: result.analysis?.id ?? null,
+      analysisCreatedAt: result.analysis?.created_at ?? null,
       analysisWasNewInsert:
         Boolean(result.analysis?.id) &&
         result.analysis?.id !== existingAnalysis?.id,
-      deploymentAssetsRegenerated: Boolean(
-        result.analysis?.suggested_cta?.trim(),
-      ),
+      deploymentAssetsGenerated: Boolean(result.analysis?.suggested_cta?.trim()),
       blueprintId: result.assetBlueprint?.id ?? null,
-      blueprintAssetTitle: result.assetBlueprint?.asset_title ?? null,
-      blueprintCreatedAt: result.assetBlueprint?.created_at ?? null,
+      blueprintTitle: result.assetBlueprint?.asset_title ?? null,
       blueprintUpdatedAt: result.assetBlueprint?.updated_at ?? null,
-      newBlueprintInserted:
-        Boolean(result.assetBlueprint?.created_at) &&
-        result.assetBlueprint?.created_at === result.assetBlueprint?.updated_at,
-      fallbackBlueprintUsed: Boolean(
-        result.assetBlueprint &&
-          !hasBlueprintDebugMarker(result.assetBlueprint.notes),
-      ),
+      fallbackUsed,
       blueprintHasDebugMarker: hasBlueprintDebugMarker(
         result.assetBlueprint?.notes,
       ),
-      blueprintPromptVersion:
-        (result.assetBlueprint?.raw_json as { prompt_version?: string } | null)
-          ?.prompt_version ?? null,
+      regenerated: Boolean(result.assetBlueprint && !fallbackUsed),
     });
+
+    if (!result.analysis) {
+      return NextResponse.json(
+        {
+          success: false,
+          discussionId: id,
+          regenerated: false,
+          error: "Discussion analysis was not saved.",
+        },
+        { status: 422, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    if (!result.assetBlueprint || fallbackUsed) {
+      return NextResponse.json(
+        {
+          success: false,
+          discussionId: id,
+          regenerated: false,
+          analysisId: result.analysis.id,
+          blueprintId: result.assetBlueprint?.id ?? null,
+          blueprintTitle: result.assetBlueprint?.asset_title ?? null,
+          generatedAt,
+          fallbackUsed,
+          error: fallbackUsed
+            ? "Strategic blueprint regeneration returned stale content instead of fresh LLM output."
+            : "Strategic blueprint was not generated.",
+        },
+        { status: 422, headers: { "Cache-Control": "no-store" } },
+      );
+    }
 
     const payload = {
       success: true as const,
       discussionId: id,
+      regenerated: true,
+      analysisId: result.analysis.id,
+      blueprintId: result.assetBlueprint.id,
+      blueprintTitle: result.assetBlueprint.asset_title,
+      generatedAt,
+      fallbackUsed: false,
       message: "Discussion intelligence regenerated successfully",
       analysis: result.analysis,
       opportunity: result.opportunity,
@@ -106,6 +141,11 @@ export async function POST(_request: Request, context: RouteContext) {
         {
           success: true,
           discussionId: id,
+          regenerated: true,
+          analysisId: result.analysis.id,
+          blueprintId: result.assetBlueprint.id,
+          blueprintTitle: result.assetBlueprint.asset_title,
+          generatedAt,
           message: "Discussion intelligence regenerated successfully",
           status: result.status,
         },
@@ -118,7 +158,8 @@ export async function POST(_request: Request, context: RouteContext) {
     });
   } catch (error) {
     console.error("Regenerate intelligence failed", error);
-    logRegenerationDiagnostic("REGENERATE FAILED", {
+    logRegenerationDiagnostic("REGENERATE END", {
+      success: false,
       error: error instanceof Error ? error.message : String(error),
     });
 
@@ -129,9 +170,23 @@ export async function POST(_request: Request, context: RouteContext) {
       );
     }
 
+    if (error instanceof RegenerationBlueprintError) {
+      return NextResponse.json(
+        {
+          success: false,
+          regenerated: false,
+          error: error.message,
+          preservedBlueprintId: error.preservedBlueprintId ?? null,
+          fallbackUsed: false,
+        },
+        { status: 422, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
     return NextResponse.json(
       {
         success: false,
+        regenerated: false,
         error: error instanceof Error ? error.message : "Regeneration failed",
       },
       { status: 500, headers: { "Cache-Control": "no-store" } },
