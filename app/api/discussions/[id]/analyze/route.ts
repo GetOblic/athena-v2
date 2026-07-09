@@ -55,8 +55,11 @@ export async function POST(_request: Request, context: RouteContext) {
     logRegenerationDiagnostic("REGENERATE COMPLETED", {
       discussionId: id,
       organizationId,
+      model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
       status: result.status,
+      previousAnalysisId: existingAnalysis?.id ?? null,
       newAnalysisId: result.analysis?.id ?? null,
+      updatedAnalysisId: null,
       newAnalysisCreatedAt: result.analysis?.created_at ?? null,
       newAnalysisPromptVersion: result.analysis?.analysis_prompt_version ?? null,
       analysisWasNewInsert:
@@ -69,6 +72,13 @@ export async function POST(_request: Request, context: RouteContext) {
       blueprintAssetTitle: result.assetBlueprint?.asset_title ?? null,
       blueprintCreatedAt: result.assetBlueprint?.created_at ?? null,
       blueprintUpdatedAt: result.assetBlueprint?.updated_at ?? null,
+      newBlueprintInserted:
+        Boolean(result.assetBlueprint?.created_at) &&
+        result.assetBlueprint?.created_at === result.assetBlueprint?.updated_at,
+      fallbackBlueprintUsed: Boolean(
+        result.assetBlueprint &&
+          !hasBlueprintDebugMarker(result.assetBlueprint.notes),
+      ),
       blueprintHasDebugMarker: hasBlueprintDebugMarker(
         result.assetBlueprint?.notes,
       ),

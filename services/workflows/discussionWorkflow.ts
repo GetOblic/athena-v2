@@ -313,7 +313,7 @@ async function processDiscussionEndToEndInternal(
     ? "services/brain/generationContracts/generationPromptAssembly.ts::assembleDiscussionAnalysisPrompt"
     : "services/ai/prompts/discussionAnalysisPrompt.ts::buildDiscussionAnalysisPrompt";
 
-  logRegenerationDiagnostic("ANALYSIS_LLM_PREPARED", {
+  logRegenerationDiagnostic("ANALYSIS_LLM_CALL_STARTED", {
     discussionId,
     organizationId,
     promptSource: analysisPromptSource,
@@ -371,7 +371,7 @@ async function processDiscussionEndToEndInternal(
     parsedAnalysis = parseAnalysis(rawAnalysis);
   }
 
-  logRegenerationDiagnostic("ANALYSIS_LLM_COMPLETED", {
+  logRegenerationDiagnostic("ANALYSIS_LLM_CALL_COMPLETED", {
     discussionId,
     promptSource: analysisPromptSource,
     responseCharCount: rawAnalysis.length,
@@ -487,7 +487,7 @@ async function processDiscussionEndToEndInternal(
     ? "services/brain/generationContracts/generationPromptAssembly.ts::assembleExecutiveBriefingPrompt"
     : "services/ai/prompts/opportunityReviewPrompt.ts::buildOpportunityReviewPrompt";
 
-  logRegenerationDiagnostic("BRIEFING_LLM_PREPARED", {
+  logRegenerationDiagnostic("BRIEFING_LLM_CALL_STARTED", {
     discussionId,
     opportunityId: opportunity.id,
     promptSource: briefingPromptSource,
@@ -540,7 +540,7 @@ async function processDiscussionEndToEndInternal(
     parsedReview = parseGeneratedReview(rawReview);
   }
 
-  logRegenerationDiagnostic("BRIEFING_LLM_COMPLETED", {
+  logRegenerationDiagnostic("BRIEFING_LLM_CALL_COMPLETED", {
     discussionId,
     promptSource: briefingPromptSource,
     responseCharCount: rawReview.length,
