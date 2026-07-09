@@ -1,5 +1,16 @@
 import { generateReview } from "@/services/aiService";
 import {
+  appendBlueprintDebugMarker,
+  hasBlueprintDebugMarker,
+  logRegenerationDiagnostic,
+} from "@/lib/regenerationDiagnostics";
+import {
+  ATHENA_DEFAULT_LLM_TEMPERATURE,
+  ATHENA_REVIEW_SYSTEM_PROMPT,
+  isAthenaDebugPromptsEnabled,
+  logAthenaPromptDebug,
+} from "@/lib/athenaDebugPrompts";
+import {
   normalizeStrategicBlueprintArtifact,
   strategicBlueprintReviewText,
   validateStrategicBlueprintArtifact,
@@ -11,6 +22,7 @@ import {
   ASSET_BLUEPRINT_PROMPT_VERSION,
   buildAssetBlueprintFromAnalysisPrompt,
   buildAssetBlueprintPrompt,
+  getAssetBlueprintOutputSchemaForDebug,
 } from "@/services/assetBlueprints/prompts/assetBlueprintPrompt";
 import { assembleStrategicBlueprintPrompt } from "@/services/brain/generationContractService";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
@@ -360,10 +372,20 @@ async function upsertAssetBlueprint(input: {
   source: string;
   executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
 }): Promise<AthenaAssetBlueprint | null> {
-  if (!blueprintHasPrompts(input.parsed)) {
+  const parsedWithDebugMarker: ParsedAssetBlueprint = {
+    ...input.parsed,
+    notes: appendBlueprintDebugMarker(input.parsed.notes),
+  };
+
+  if (!blueprintHasPrompts(parsedWithDebugMarker)) {
     console.warn(
       `Skipping asset blueprint save for discussion ${input.discussionId}: no prompts generated`,
     );
+    logRegenerationDiagnostic("BLUEPRINT_SAVE_SKIPPED", {
+      discussionId: input.discussionId,
+      reason: "no_prompts_generated",
+      assetTitle: parsedWithDebugMarker.asset_title,
+    });
     return null;
   }
 
@@ -376,17 +398,46 @@ async function upsertAssetBlueprint(input: {
   const existing = selectCanonicalBlueprint(existingRows);
 
   if (existing) {
-    return updateAssetBlueprint(existing.id, input.organizationId, {
-      parsed: input.parsed,
+    const updated = await updateAssetBlueprint(existing.id, input.organizationId, {
+      parsed: parsedWithDebugMarker,
       rawBlueprint: input.rawBlueprint,
       source: input.source,
       opportunityId: input.opportunityId,
       briefingId: input.briefingId,
       executiveMarketingStrategy: input.executiveMarketingStrategy,
     });
+
+    logRegenerationDiagnostic("BLUEPRINT_ROW_UPDATED", {
+      blueprintId: updated?.id ?? existing.id,
+      discussionId: input.discussionId,
+      previousBlueprintId: existing.id,
+      operation: "update",
+      assetTitle: parsedWithDebugMarker.asset_title,
+      createdAt: updated?.created_at ?? existing.created_at,
+      updatedAt: updated?.updated_at ?? null,
+      hasDebugMarker: hasBlueprintDebugMarker(updated?.notes),
+      fallbackUsed: false,
+    });
+
+    return updated;
   }
 
-  return insertAssetBlueprint(input);
+  const inserted = await insertAssetBlueprint({
+    ...input,
+    parsed: parsedWithDebugMarker,
+  });
+
+  logRegenerationDiagnostic("BLUEPRINT_ROW_INSERTED", {
+    blueprintId: inserted?.id ?? null,
+    discussionId: input.discussionId,
+    operation: "insert",
+    assetTitle: parsedWithDebugMarker.asset_title,
+    createdAt: inserted?.created_at ?? null,
+    hasDebugMarker: hasBlueprintDebugMarker(inserted?.notes),
+    fallbackUsed: false,
+  });
+
+  return inserted;
 }
 
 export async function getCanonicalBlueprintCount(
@@ -420,8 +471,6 @@ export async function getCanonicalBlueprintCount(
 
 const LEGACY_PRODUCTION_SPECS_PROMPT =
   "Legacy fallback mode: produce production-ready asset specifications using available business context only.";
-const LEGACY_ASSET_STANDARD_PROMPT =
-  "Legacy fallback mode: apply professional structure, visual hierarchy, and executive polish.";
 
 
 function blueprintReviewText(parsed: ParsedAssetBlueprint): string {
@@ -449,14 +498,72 @@ function enrichBlueprintFromDecision(
   };
 }
 
+function blueprintGenerationContractForDebug(
+  bundle?: GenerationBundle,
+): Record<string, unknown> | undefined {
+  if (!bundle?.generationContract) {
+    return undefined;
+  }
+
+  return bundle.generationContract as unknown as Record<string, unknown>;
+}
+
+async function generateBlueprintReview(input: {
+  stage: string;
+  userPrompt: string;
+  generationBundle?: GenerationBundle;
+}): Promise<string> {
+  logRegenerationDiagnostic("BLUEPRINT_LLM_CALL_START", {
+    stage: input.stage,
+    promptSource:
+      "services/brain/generationContracts/generationPromptAssembly.ts::assembleStrategicBlueprintPrompt → services/assetBlueprints/prompts/assetBlueprintPrompt.ts",
+    model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
+  });
+
+  if (isAthenaDebugPromptsEnabled()) {
+    logAthenaPromptDebug({
+      stage: input.stage,
+      temperature: ATHENA_DEFAULT_LLM_TEMPERATURE,
+      max_tokens: null,
+      systemPrompt: ATHENA_REVIEW_SYSTEM_PROMPT,
+      userPrompt: input.userPrompt,
+      outputSchema: getAssetBlueprintOutputSchemaForDebug(),
+      jsonContract: blueprintGenerationContractForDebug(input.generationBundle),
+    });
+  }
+
+  const content = await generateReview(input.userPrompt, {
+    stage: input.stage,
+    promptSource:
+      "services/assetBlueprints/prompts/assetBlueprintPrompt.ts via assembleStrategicBlueprintPrompt",
+  });
+
+  logRegenerationDiagnostic("BLUEPRINT_LLM_CALL_COMPLETED", {
+    stage: input.stage,
+    responseCharCount: content.length,
+  });
+
+  return content;
+}
+
 async function generateBlueprintWithQualityGate(input: {
+  stagePrefix: string;
   effectiveBundle: GenerationBundle;
   buildPrompt: (refinementSuffix: string) => string;
 }): Promise<{ parsed: ParsedAssetBlueprint; rawBlueprint: string }> {
+  let attempt = 0;
+
   try {
     const gated = await runSimplifiedQualityGateLoop({
-      generate: async (refinementSuffix) =>
-        generateReview(input.buildPrompt(refinementSuffix)),
+      generate: async (refinementSuffix) => {
+        attempt += 1;
+        const prompt = input.buildPrompt(refinementSuffix);
+        return generateBlueprintReview({
+          stage: `${input.stagePrefix}.quality_gate.attempt_${attempt}`,
+          userPrompt: prompt,
+          generationBundle: input.effectiveBundle,
+        });
+      },
       parse: parseJsonResponse,
       validate: (parsed, text) => {
         const validation = validateStrategicBlueprintArtifact(
@@ -505,6 +612,7 @@ export async function createAssetBlueprintForBriefing(input: {
   if (effectiveBundle) {
     try {
       const gated = await generateBlueprintWithQualityGate({
+        stagePrefix: "strategic_blueprint.briefing",
         effectiveBundle,
         buildPrompt: (refinementSuffix) =>
           assembleStrategicBlueprintPrompt({
@@ -526,6 +634,15 @@ export async function createAssetBlueprintForBriefing(input: {
         discussionId: input.discussion.id,
       });
       if (preserved) {
+        logRegenerationDiagnostic("BLUEPRINT_FALLBACK_PRESERVED", {
+          discussionId: input.discussion.id,
+          path: "briefing",
+          preservedBlueprintId: preserved.id,
+          preservedCreatedAt: preserved.created_at,
+          preservedAssetTitle: preserved.asset_title,
+          fallbackUsed: true,
+          llmCallExecuted: false,
+        });
         return preserved;
       }
 
@@ -536,7 +653,11 @@ export async function createAssetBlueprintForBriefing(input: {
           opportunity: input.opportunity as unknown as Record<string, unknown>,
           briefing: input.briefing as unknown as Record<string, unknown>,
         });
-        rawBlueprint = await generateReview(prompt);
+        rawBlueprint = await generateBlueprintReview({
+          stage: "strategic_blueprint.briefing.fallback_single_generation",
+          userPrompt: prompt,
+          generationBundle: effectiveBundle,
+        });
         parsed = parseJsonResponse(rawBlueprint);
       } catch (fallbackError) {
         console.error("Blueprint single-generation fallback failed:", fallbackError);
@@ -547,12 +668,14 @@ export async function createAssetBlueprintForBriefing(input: {
     const prompt = buildAssetBlueprintPrompt({
       executiveContextPrompt: input.brainContextPrompt ?? "",
       productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-      assetStandardPrompt: LEGACY_ASSET_STANDARD_PROMPT,
       discussion: input.discussion as unknown as Record<string, unknown>,
       opportunity: input.opportunity as unknown as Record<string, unknown>,
       briefing: input.briefing as unknown as Record<string, unknown>,
     });
-    rawBlueprint = await generateReview(prompt);
+    rawBlueprint = await generateBlueprintReview({
+      stage: "strategic_blueprint.briefing.legacy",
+      userPrompt: prompt,
+    });
     parsed = parseJsonResponse(rawBlueprint);
   }
 
@@ -589,6 +712,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   if (effectiveBundle) {
     try {
       const gated = await generateBlueprintWithQualityGate({
+        stagePrefix: "strategic_blueprint.analysis",
         effectiveBundle,
         buildPrompt: (refinementSuffix) =>
           assembleStrategicBlueprintPrompt({
@@ -607,6 +731,15 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
         discussionId: input.discussion.id,
       });
       if (preserved) {
+        logRegenerationDiagnostic("BLUEPRINT_FALLBACK_PRESERVED", {
+          discussionId: input.discussion.id,
+          path: "analysis",
+          preservedBlueprintId: preserved.id,
+          preservedCreatedAt: preserved.created_at,
+          preservedAssetTitle: preserved.asset_title,
+          fallbackUsed: true,
+          llmCallExecuted: false,
+        });
         return preserved;
       }
 
@@ -616,7 +749,11 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
           discussion: input.discussion as unknown as Record<string, unknown>,
           analysis: input.analysis as unknown as Record<string, unknown>,
         });
-        rawBlueprint = await generateReview(prompt);
+        rawBlueprint = await generateBlueprintReview({
+          stage: "strategic_blueprint.analysis.fallback_single_generation",
+          userPrompt: prompt,
+          generationBundle: effectiveBundle,
+        });
         parsed = parseJsonResponse(rawBlueprint);
       } catch (fallbackError) {
         console.error("Blueprint single-generation fallback failed:", fallbackError);
@@ -627,11 +764,13 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
     const prompt = buildAssetBlueprintFromAnalysisPrompt({
       executiveContextPrompt: input.brainContextPrompt ?? "",
       productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-      assetStandardPrompt: LEGACY_ASSET_STANDARD_PROMPT,
       discussion: input.discussion as unknown as Record<string, unknown>,
       analysis: input.analysis as unknown as Record<string, unknown>,
     });
-    rawBlueprint = await generateReview(prompt);
+    rawBlueprint = await generateBlueprintReview({
+      stage: "strategic_blueprint.analysis.legacy",
+      userPrompt: prompt,
+    });
     parsed = parseJsonResponse(rawBlueprint);
   }
 
@@ -726,7 +865,28 @@ export async function getDisplayAssetBlueprintByDiscussionId(
     discussionId,
     organizationId,
   );
-  return pickBestBlueprint(blueprints);
+  const selected = pickBestBlueprint(blueprints);
+  const newest = blueprints[0] ?? null;
+
+  logRegenerationDiagnostic("BLUEPRINT_DISPLAY_SELECTION", {
+    context: "discussion_page",
+    discussionId,
+    organizationId,
+    totalRows: blueprints.length,
+    selectedBlueprintId: selected?.id ?? null,
+    selectedCreatedAt: selected?.created_at ?? null,
+    selectedUpdatedAt: selected?.updated_at ?? null,
+    selectedAssetTitle: selected?.asset_title ?? null,
+    newestBlueprintId: newest?.id ?? null,
+    newestCreatedAt: newest?.created_at ?? null,
+    isNewestRow: Boolean(selected && newest && selected.id === newest.id),
+    selectionUsesPromptPriority: Boolean(
+      selected && newest && selected.id !== newest.id,
+    ),
+    hasDebugMarker: hasBlueprintDebugMarker(selected?.notes),
+  });
+
+  return selected;
 }
 
 export async function getDisplayAssetBlueprintForBriefing(input: {

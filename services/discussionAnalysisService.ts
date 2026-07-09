@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { logRegenerationDiagnostic } from "@/lib/regenerationDiagnostics";
 import { getDiscussionIdsByCommunityId } from "@/services/discussionService";
 
 export type DiscussionAnalysis = {
@@ -75,6 +76,16 @@ export async function createDiscussionAnalysis(
   if (error) {
     throw error;
   }
+
+  logRegenerationDiagnostic("ANALYSIS_ROW_INSERTED", {
+    analysisId: data.id,
+    discussionId: data.discussion_id,
+    organizationId: data.organization_id,
+    createdAt: data.created_at,
+    analysisPromptVersion: data.analysis_prompt_version,
+    model: data.model,
+    hasSuggestedCta: Boolean(data.suggested_cta?.trim()),
+  });
 
   return data;
 }

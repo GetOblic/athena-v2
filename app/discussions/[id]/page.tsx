@@ -31,6 +31,8 @@ import {
   getIntelligenceDomains,
 } from "@/services/intelligenceDomainService";
 
+export const dynamic = "force-dynamic";
+
 export default async function DiscussionDetailsPage({
   params,
 }: {

@@ -32,6 +32,7 @@ import { upsertOpportunityFromAnalysis } from "@/services/opportunityService";
 import { upsertReviewFromGeneration } from "@/services/reviewService";
 import { computeCompositeOpportunityScoreFromAnalysis } from "@/services/brain/executiveIntelligenceHelpers";
 import { runSimplifiedQualityGateLoop } from "@/services/brain/reasoningPipeline/simplifiedQualityGate";
+import { logRegenerationDiagnostic } from "@/lib/regenerationDiagnostics";
 
 function analysisReviewText(parsed: GeneratedDiscussionAnalysis): string {
   return [
@@ -150,6 +151,19 @@ async function generateAssetBlueprint(input: {
   generationBundle?: GenerationBundle | null;
   brainContextPrompt?: string;
 }) {
+  const path =
+    input.opportunity && input.review
+      ? "createAssetBlueprintForBriefing"
+      : "createAssetBlueprintForDiscussionAnalysis";
+
+  logRegenerationDiagnostic("BLUEPRINT_GENERATION_REQUESTED", {
+    discussionId: input.discussion.id,
+    path,
+    hasOpportunity: Boolean(input.opportunity),
+    hasReview: Boolean(input.review),
+    hasGenerationBundle: Boolean(input.generationBundle),
+  });
+
   try {
     if (input.opportunity && input.review) {
       return await createAssetBlueprintForBriefing({
@@ -169,6 +183,11 @@ async function generateAssetBlueprint(input: {
     });
   } catch (error) {
     console.error("Asset blueprint generation failed:", error);
+    logRegenerationDiagnostic("BLUEPRINT_GENERATION_FAILED", {
+      discussionId: input.discussion.id,
+      path,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }
@@ -290,6 +309,18 @@ async function processDiscussionEndToEndInternal(
   let parsedAnalysis: GeneratedDiscussionAnalysis;
   let rawAnalysis: string;
 
+  const analysisPromptSource = analysisBundle
+    ? "services/brain/generationContracts/generationPromptAssembly.ts::assembleDiscussionAnalysisPrompt"
+    : "services/ai/prompts/discussionAnalysisPrompt.ts::buildDiscussionAnalysisPrompt";
+
+  logRegenerationDiagnostic("ANALYSIS_LLM_PREPARED", {
+    discussionId,
+    organizationId,
+    promptSource: analysisPromptSource,
+    hasGenerationBundle: Boolean(analysisBundle),
+    usingLegacyBrainPrompt: Boolean(legacyBrainPrompt),
+  });
+
   if (analysisBundle) {
     try {
       const gated = await runSimplifiedQualityGateLoop({
@@ -299,7 +330,10 @@ async function processDiscussionEndToEndInternal(
             discussion: analysisDiscussion,
             qualityRefinementSuffix: refinementSuffix,
           });
-          return generateReview(prompt);
+          return generateReview(prompt, {
+            stage: "discussion_analysis.quality_gate",
+            promptSource: analysisPromptSource,
+          });
         },
         parse: parseAnalysis,
         validate: (_parsed, text) => ({
@@ -319,7 +353,10 @@ async function processDiscussionEndToEndInternal(
         bundle: analysisBundle,
         discussion: analysisDiscussion,
       });
-      rawAnalysis = await generateReview(prompt);
+      rawAnalysis = await generateReview(prompt, {
+        stage: "discussion_analysis.fallback",
+        promptSource: analysisPromptSource,
+      });
       parsedAnalysis = parseAnalysis(rawAnalysis);
     }
   } else {
@@ -327,9 +364,20 @@ async function processDiscussionEndToEndInternal(
       analysisDiscussion,
       legacyBrainPrompt ?? "",
     );
-    rawAnalysis = await generateReview(analysisPrompt);
+    rawAnalysis = await generateReview(analysisPrompt, {
+      stage: "discussion_analysis.legacy",
+      promptSource: analysisPromptSource,
+    });
     parsedAnalysis = parseAnalysis(rawAnalysis);
   }
+
+  logRegenerationDiagnostic("ANALYSIS_LLM_COMPLETED", {
+    discussionId,
+    promptSource: analysisPromptSource,
+    responseCharCount: rawAnalysis.length,
+    opportunityDetected: parsedAnalysis.opportunity_detected,
+    hasSuggestedCta: Boolean(parsedAnalysis.suggested_cta?.trim()),
+  });
 
   const analysis = await createDiscussionAnalysis({
     organization_id: organizationId,
@@ -435,6 +483,17 @@ async function processDiscussionEndToEndInternal(
   let parsedReview: GeneratedReview;
   let rawReview: string;
 
+  const briefingPromptSource = briefingBundle
+    ? "services/brain/generationContracts/generationPromptAssembly.ts::assembleExecutiveBriefingPrompt"
+    : "services/ai/prompts/opportunityReviewPrompt.ts::buildOpportunityReviewPrompt";
+
+  logRegenerationDiagnostic("BRIEFING_LLM_PREPARED", {
+    discussionId,
+    opportunityId: opportunity.id,
+    promptSource: briefingPromptSource,
+    hasGenerationBundle: Boolean(briefingBundle),
+  });
+
   if (briefingBundle) {
     try {
       const gated = await runSimplifiedQualityGateLoop({
@@ -444,7 +503,10 @@ async function processDiscussionEndToEndInternal(
             opportunity,
             qualityRefinementSuffix: refinementSuffix,
           });
-          return generateReview(prompt);
+          return generateReview(prompt, {
+            stage: "executive_briefing.quality_gate",
+            promptSource: briefingPromptSource,
+          });
         },
         parse: parseGeneratedReview,
         validate: (_parsed, text) => ({
@@ -464,13 +526,26 @@ async function processDiscussionEndToEndInternal(
         bundle: briefingBundle,
         opportunity,
       });
-      rawReview = await generateReview(prompt);
+      rawReview = await generateReview(prompt, {
+        stage: "executive_briefing.fallback",
+        promptSource: briefingPromptSource,
+      });
       parsedReview = parseGeneratedReview(rawReview);
     }
   } else {
-    rawReview = await generateReview(buildOpportunityReviewPrompt(opportunity));
+    rawReview = await generateReview(buildOpportunityReviewPrompt(opportunity), {
+      stage: "executive_briefing.legacy",
+      promptSource: briefingPromptSource,
+    });
     parsedReview = parseGeneratedReview(rawReview);
   }
+
+  logRegenerationDiagnostic("BRIEFING_LLM_COMPLETED", {
+    discussionId,
+    promptSource: briefingPromptSource,
+    responseCharCount: rawReview.length,
+    hasDeploymentAssets: Boolean(parsedReview.recommended_response?.trim()),
+  });
 
   const review = await upsertReviewFromGeneration({
     organization_id: organizationId,
