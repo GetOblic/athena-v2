@@ -2,6 +2,7 @@ import { generateReview } from "@/services/aiService";
 import {
   createAssetBlueprintForBriefing,
   createAssetBlueprintForDiscussionAnalysis,
+  type BlueprintGenerationOutcome,
 } from "@/services/assetBlueprints/assetBlueprintService";
 import {
   formatBrainContextForPrompt,
@@ -151,7 +152,7 @@ async function generateAssetBlueprint(input: {
   review?: Awaited<ReturnType<typeof upsertReviewFromGeneration>> | null;
   generationBundle?: GenerationBundle | null;
   brainContextPrompt?: string;
-}) {
+}): Promise<BlueprintGenerationOutcome> {
   const path =
     input.opportunity && input.review
       ? "createAssetBlueprintForBriefing"
@@ -170,40 +171,36 @@ async function generateAssetBlueprint(input: {
     path,
   });
 
+  let outcome: BlueprintGenerationOutcome;
+
   if (input.opportunity && input.review) {
-    const blueprint = await createAssetBlueprintForBriefing({
+    outcome = await createAssetBlueprintForBriefing({
       discussion: input.discussion,
       opportunity: input.opportunity,
       briefing: input.review,
       generationBundle: input.generationBundle ?? undefined,
       brainContextPrompt: input.brainContextPrompt,
     });
-
-    logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_LLM_CALL_COMPLETED", {
-      discussionId: input.discussion.id,
-      path,
-      blueprintId: blueprint.id,
-      blueprintTitle: blueprint.asset_title,
+  } else {
+    outcome = await createAssetBlueprintForDiscussionAnalysis({
+      discussion: input.discussion,
+      analysis: input.analysis,
+      generationBundle: input.generationBundle ?? undefined,
+      brainContextPrompt: input.brainContextPrompt,
     });
-
-    return blueprint;
   }
-
-  const blueprint = await createAssetBlueprintForDiscussionAnalysis({
-    discussion: input.discussion,
-    analysis: input.analysis,
-    generationBundle: input.generationBundle ?? undefined,
-    brainContextPrompt: input.brainContextPrompt,
-  });
 
   logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_LLM_CALL_COMPLETED", {
     discussionId: input.discussion.id,
     path,
-    blueprintId: blueprint.id,
-    blueprintTitle: blueprint.asset_title,
+    blueprintId: outcome.blueprint?.id ?? null,
+    blueprintTitle: outcome.blueprint?.asset_title ?? null,
+    blueprintGenerated: outcome.blueprintGenerated,
+    parseFailed: outcome.parseFailed,
+    fallbackUsed: outcome.fallbackUsed,
   });
 
-  return blueprint;
+  return outcome;
 }
 
 async function resolveDiscussionAnalysisGeneration(
@@ -445,7 +442,7 @@ async function processDiscussionEndToEndInternal(
       organizationId,
       discussion.id,
     );
-    const assetBlueprint = await generateAssetBlueprint({
+    const blueprintOutcome = await generateAssetBlueprint({
       discussion,
       analysis,
       generationBundle: blueprintBundle,
@@ -457,7 +454,11 @@ async function processDiscussionEndToEndInternal(
       analysis,
       opportunity: null,
       review: null,
-      assetBlueprint,
+      assetBlueprint: blueprintOutcome.blueprint,
+      blueprintGenerated: blueprintOutcome.blueprintGenerated,
+      blueprintError: blueprintOutcome.blueprintError,
+      blueprintParseFailed: blueprintOutcome.parseFailed,
+      fallbackUsed: blueprintOutcome.fallbackUsed,
       status: "analysis_completed_no_opportunity",
     };
   }
@@ -613,7 +614,7 @@ async function processDiscussionEndToEndInternal(
     opportunity.id,
     review.id,
   );
-  const assetBlueprint = await generateAssetBlueprint({
+  const blueprintOutcome = await generateAssetBlueprint({
     discussion,
     analysis,
     opportunity,
@@ -658,7 +659,11 @@ async function processDiscussionEndToEndInternal(
     analysis,
     opportunity,
     review,
-    assetBlueprint,
+    assetBlueprint: blueprintOutcome.blueprint,
+    blueprintGenerated: blueprintOutcome.blueprintGenerated,
+    blueprintError: blueprintOutcome.blueprintError,
+    blueprintParseFailed: blueprintOutcome.parseFailed,
+    fallbackUsed: blueprintOutcome.fallbackUsed,
     status: "review_ready",
   };
 }

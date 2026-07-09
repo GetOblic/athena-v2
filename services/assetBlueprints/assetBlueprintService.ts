@@ -3,7 +3,6 @@ import {
   appendBlueprintDebugMarker,
   hasBlueprintDebugMarker,
   logRegenerationDiagnostic,
-  RegenerationBlueprintError,
 } from "@/lib/regenerationDiagnostics";
 import {
   ATHENA_DEFAULT_LLM_TEMPERATURE,
@@ -17,7 +16,14 @@ import {
   validateStrategicBlueprintArtifact,
   type StrategicBlueprintArtifact,
 } from "@/services/assetBlueprints/strategicBlueprintArtifactContract";
-import { runSimplifiedQualityGateLoop, validateArtifactOutput } from "@/services/brain/reasoningPipeline/simplifiedQualityGate";
+import {
+  runSimplifiedQualityGateLoop,
+  validateArtifactOutput,
+} from "@/services/brain/reasoningPipeline/simplifiedQualityGate";
+import {
+  parseStrategicBlueprintResponseOrThrow,
+  safeParseStrategicBlueprintResponse,
+} from "@/services/assetBlueprints/safeParseStrategicBlueprintResponse";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   ASSET_BLUEPRINT_PROMPT_VERSION,
@@ -128,23 +134,28 @@ async function resolveBlueprintGenerationBundle(input: {
   );
 }
 
-function parseJsonResponse(rawText: string): ParsedAssetBlueprint {
-  const cleaned = rawText
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```$/i, "")
-    .trim();
+export type BlueprintGenerationOutcome = {
+  blueprint: AthenaAssetBlueprint | null;
+  blueprintGenerated: boolean;
+  blueprintError?: string;
+  parseFailed: boolean;
+  preservedPrevious: boolean;
+  fallbackUsed: boolean;
+};
 
-  try {
-    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
-    return normalizeParsedAssetBlueprint(parsed);
-  } catch (error) {
-    console.error("Blueprint JSON parse failed:", error);
-    return normalizeParsedAssetBlueprint({
-      asset_title: "Strategic Asset",
-      notes: cleaned.slice(0, 2000),
-    });
+function parseJsonResponseForQualityGate(rawText: string): ParsedAssetBlueprint {
+  const data = parseStrategicBlueprintResponseOrThrow(rawText);
+  return normalizeParsedAssetBlueprint(data);
+}
+
+function tryParseJsonResponse(rawText: string):
+  | { ok: true; parsed: ParsedAssetBlueprint }
+  | { ok: false; error: string } {
+  const result = safeParseStrategicBlueprintResponse(rawText);
+  if (!result.ok) {
+    return { ok: false, error: result.error };
   }
+  return { ok: true, parsed: normalizeParsedAssetBlueprint(result.data) };
 }
 
 async function findPreservedBlueprint(input: {
@@ -582,7 +593,7 @@ async function generateBlueprintWithQualityGate(input: {
         generationBundle: input.effectiveBundle,
       });
     },
-    parse: parseJsonResponse,
+    parse: parseJsonResponseForQualityGate,
     validate: (parsed, text) => {
       const validation = validateStrategicBlueprintArtifact(
         parsed as unknown as Record<string, unknown>,
@@ -610,7 +621,10 @@ async function runBlueprintFallbackGeneration(input: {
   path: "briefing" | "analysis";
   effectiveBundle: GenerationBundle;
   buildPrompt: () => string;
-}): Promise<{ parsed: ParsedAssetBlueprint; rawBlueprint: string }> {
+}): Promise<
+  | { ok: true; parsed: ParsedAssetBlueprint; rawBlueprint: string }
+  | { ok: false; error: string; rawBlueprint?: string }
+> {
   logRegenerationDiagnostic("BLUEPRINT_LLM_FALLBACK_STARTED", {
     discussionId: input.discussionId,
     path: input.path,
@@ -624,7 +638,25 @@ async function runBlueprintFallbackGeneration(input: {
       userPrompt: prompt,
       generationBundle: input.effectiveBundle,
     });
-    const parsed = parseJsonResponse(rawBlueprint);
+    const parsedResult = tryParseJsonResponse(rawBlueprint);
+
+    if (!parsedResult.ok) {
+      logRegenerationDiagnostic("BLUEPRINT_LLM_FALLBACK_PARSE_FAILED", {
+        discussionId: input.discussionId,
+        path: input.path,
+        error: parsedResult.error,
+      });
+      return {
+        ok: false,
+        error: parsedResult.error,
+        rawBlueprint,
+      };
+    }
+
+    const parsed = enrichBlueprintFromDecision(
+      parsedResult.parsed,
+      input.effectiveBundle,
+    );
 
     logRegenerationDiagnostic("BLUEPRINT_LLM_FALLBACK_COMPLETED", {
       discussionId: input.discussionId,
@@ -632,41 +664,105 @@ async function runBlueprintFallbackGeneration(input: {
       assetTitle: parsed.asset_title,
     });
 
-    return { parsed, rawBlueprint };
+    return { ok: true, parsed, rawBlueprint };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Blueprint fallback generation failed";
-    throw new RegenerationBlueprintError(message);
+    logRegenerationDiagnostic("BLUEPRINT_LLM_FALLBACK_FAILED", {
+      discussionId: input.discussionId,
+      path: input.path,
+      error: message,
+    });
+    return { ok: false, error: message };
   }
 }
 
-async function saveRegeneratedBlueprint(input: {
+async function persistBlueprintOrPreserve(input: {
   organizationId: string;
   userId: string | null;
   discussionId: string;
   opportunityId?: string | null;
   briefingId?: string | null;
-  parsed: ParsedAssetBlueprint;
-  rawBlueprint: string;
+  parsed: ParsedAssetBlueprint | null;
+  rawBlueprint: string | null;
   source: string;
+  path: "briefing" | "analysis";
   executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
-}): Promise<AthenaAssetBlueprint> {
-  const saved = await upsertAssetBlueprint(input);
+  parseFailed: boolean;
+  blueprintError?: string;
+}): Promise<BlueprintGenerationOutcome> {
+  const preserved = await findPreservedBlueprint({
+    organizationId: input.organizationId,
+    briefingId: input.briefingId,
+    opportunityId: input.opportunityId,
+    discussionId: input.discussionId,
+  });
 
-  if (!saved) {
-    throw new RegenerationBlueprintError(
-      "Strategic blueprint save failed: generated output had no executable prompts.",
-    );
+  if (input.parseFailed || !input.parsed || !input.rawBlueprint) {
+    logRegenerationDiagnostic("BLUEPRINT_GENERATION_SKIPPED_PRESERVING_PREVIOUS", {
+      discussionId: input.discussionId,
+      path: input.path,
+      preservedBlueprintId: preserved?.id ?? null,
+      fallbackUsed: Boolean(preserved),
+      error: input.blueprintError ?? null,
+    });
+    return {
+      blueprint: preserved,
+      blueprintGenerated: false,
+      blueprintError:
+        input.blueprintError ??
+        "Strategic Blueprint response could not be parsed",
+      parseFailed: input.parseFailed,
+      preservedPrevious: Boolean(preserved),
+      fallbackUsed: Boolean(preserved),
+    };
   }
 
-  if (!hasBlueprintDebugMarker(saved.notes)) {
-    throw new RegenerationBlueprintError(
-      "Strategic blueprint save failed: debug marker missing from regenerated notes.",
-      saved.id,
-    );
+  const saved = await upsertAssetBlueprint({
+    organizationId: input.organizationId,
+    userId: input.userId,
+    discussionId: input.discussionId,
+    opportunityId: input.opportunityId,
+    briefingId: input.briefingId,
+    parsed: input.parsed,
+    rawBlueprint: input.rawBlueprint,
+    source: input.source,
+    executiveMarketingStrategy: input.executiveMarketingStrategy,
+  });
+
+  if (!saved || !hasBlueprintDebugMarker(saved.notes)) {
+    logRegenerationDiagnostic("BLUEPRINT_GENERATION_SKIPPED_PRESERVING_PREVIOUS", {
+      discussionId: input.discussionId,
+      path: input.path,
+      preservedBlueprintId: preserved?.id ?? null,
+      fallbackUsed: Boolean(preserved),
+      error: "Strategic blueprint save did not produce valid prompts",
+    });
+    return {
+      blueprint: preserved,
+      blueprintGenerated: false,
+      blueprintError: "Strategic blueprint save did not produce valid prompts",
+      parseFailed: false,
+      preservedPrevious: Boolean(preserved),
+      fallbackUsed: Boolean(preserved),
+    };
   }
 
-  return saved;
+  logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_ID_SAVED", {
+    discussionId: input.discussionId,
+    path: input.path,
+    blueprintId: saved.id,
+    blueprintTitle: saved.asset_title,
+    fallbackUsed: false,
+  });
+
+  return {
+    blueprint: saved,
+    blueprintGenerated: true,
+    parseFailed: false,
+    preservedPrevious: false,
+    fallbackUsed: false,
+  };
 }
 
 export async function createAssetBlueprintForBriefing(input: {
@@ -675,7 +771,7 @@ export async function createAssetBlueprintForBriefing(input: {
   briefing: AthenaReview;
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
-}): Promise<AthenaAssetBlueprint> {
+}): Promise<BlueprintGenerationOutcome> {
   const organizationId = input.discussion.organization_id ?? "";
   const effectiveBundle = await resolveBlueprintGenerationBundle({
     generationBundle: input.generationBundle,
@@ -685,8 +781,10 @@ export async function createAssetBlueprintForBriefing(input: {
     briefingId: input.briefing.id,
   });
 
-  let parsed: ParsedAssetBlueprint;
-  let rawBlueprint: string;
+  let parsed: ParsedAssetBlueprint | null = null;
+  let rawBlueprint: string | null = null;
+  let parseFailed = false;
+  let blueprintError: string | undefined;
 
   if (effectiveBundle) {
     try {
@@ -719,8 +817,14 @@ export async function createAssetBlueprintForBriefing(input: {
             briefing: input.briefing as unknown as Record<string, unknown>,
           }),
       });
-      parsed = recovered.parsed;
-      rawBlueprint = recovered.rawBlueprint;
+      if (!recovered.ok) {
+        parseFailed = true;
+        blueprintError = recovered.error;
+        rawBlueprint = recovered.rawBlueprint ?? null;
+      } else {
+        parsed = recovered.parsed;
+        rawBlueprint = recovered.rawBlueprint;
+      }
     }
   } else {
     try {
@@ -735,17 +839,23 @@ export async function createAssetBlueprintForBriefing(input: {
         stage: "strategic_blueprint.briefing.legacy",
         userPrompt: prompt,
       });
-      parsed = parseJsonResponse(rawBlueprint);
+      const parsedResult = tryParseJsonResponse(rawBlueprint);
+      if (!parsedResult.ok) {
+        parseFailed = true;
+        blueprintError = parsedResult.error;
+      } else {
+        parsed = parsedResult.parsed;
+      }
     } catch (error) {
-      throw new RegenerationBlueprintError(
+      parseFailed = true;
+      blueprintError =
         error instanceof Error
           ? error.message
-          : "Legacy strategic blueprint generation failed",
-      );
+          : "Legacy strategic blueprint generation failed";
     }
   }
 
-  const saved = await saveRegeneratedBlueprint({
+  return persistBlueprintOrPreserve({
     organizationId,
     userId: input.discussion.user_id ?? null,
     discussionId: input.discussion.id,
@@ -754,19 +864,12 @@ export async function createAssetBlueprintForBriefing(input: {
     parsed,
     rawBlueprint,
     source: "briefing",
+    path: "briefing",
     executiveMarketingStrategy:
       effectiveBundle?.executiveStrategy.marketingStrategy ?? null,
+    parseFailed,
+    blueprintError,
   });
-
-  logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_ID_SAVED", {
-    discussionId: input.discussion.id,
-    path: "briefing",
-    blueprintId: saved.id,
-    blueprintTitle: saved.asset_title,
-    fallbackUsed: false,
-  });
-
-  return saved;
 }
 
 export async function createAssetBlueprintForDiscussionAnalysis(input: {
@@ -774,7 +877,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   analysis: DiscussionAnalysis;
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
-}): Promise<AthenaAssetBlueprint> {
+}): Promise<BlueprintGenerationOutcome> {
   const organizationId = input.discussion.organization_id ?? "";
   const effectiveBundle = await resolveBlueprintGenerationBundle({
     generationBundle: input.generationBundle,
@@ -782,8 +885,10 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
     discussionId: input.discussion.id,
   });
 
-  let parsed: ParsedAssetBlueprint;
-  let rawBlueprint: string;
+  let parsed: ParsedAssetBlueprint | null = null;
+  let rawBlueprint: string | null = null;
+  let parseFailed = false;
+  let blueprintError: string | undefined;
 
   if (effectiveBundle) {
     try {
@@ -814,8 +919,14 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
             analysis: input.analysis as unknown as Record<string, unknown>,
           }),
       });
-      parsed = recovered.parsed;
-      rawBlueprint = recovered.rawBlueprint;
+      if (!recovered.ok) {
+        parseFailed = true;
+        blueprintError = recovered.error;
+        rawBlueprint = recovered.rawBlueprint ?? null;
+      } else {
+        parsed = recovered.parsed;
+        rawBlueprint = recovered.rawBlueprint;
+      }
     }
   } else {
     try {
@@ -829,36 +940,35 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
         stage: "strategic_blueprint.analysis.legacy",
         userPrompt: prompt,
       });
-      parsed = parseJsonResponse(rawBlueprint);
+      const parsedResult = tryParseJsonResponse(rawBlueprint);
+      if (!parsedResult.ok) {
+        parseFailed = true;
+        blueprintError = parsedResult.error;
+      } else {
+        parsed = parsedResult.parsed;
+      }
     } catch (error) {
-      throw new RegenerationBlueprintError(
+      parseFailed = true;
+      blueprintError =
         error instanceof Error
           ? error.message
-          : "Legacy strategic blueprint generation failed",
-      );
+          : "Legacy strategic blueprint generation failed";
     }
   }
 
-  const saved = await saveRegeneratedBlueprint({
+  return persistBlueprintOrPreserve({
     organizationId,
     userId: input.discussion.user_id ?? null,
     discussionId: input.discussion.id,
     parsed,
     rawBlueprint,
     source: "discussion_analysis",
+    path: "analysis",
     executiveMarketingStrategy:
       effectiveBundle?.executiveStrategy.marketingStrategy ?? null,
+    parseFailed,
+    blueprintError,
   });
-
-  logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_ID_SAVED", {
-    discussionId: input.discussion.id,
-    path: "analysis",
-    blueprintId: saved.id,
-    blueprintTitle: saved.asset_title,
-    fallbackUsed: false,
-  });
-
-  return saved;
 }
 
 export async function getAssetBlueprintsByBriefingId(

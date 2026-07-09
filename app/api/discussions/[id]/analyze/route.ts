@@ -57,10 +57,8 @@ export async function POST(_request: Request, context: RouteContext) {
 
     const result = await processDiscussionEndToEnd(id, organizationId);
 
-    const fallbackUsed = Boolean(
-      result.assetBlueprint &&
-        !hasBlueprintDebugMarker(result.assetBlueprint.notes),
-    );
+    const fallbackUsed = Boolean(result.fallbackUsed);
+    const blueprintGenerated = Boolean(result.blueprintGenerated);
     const generatedAt =
       result.assetBlueprint?.updated_at ??
       result.assetBlueprint?.created_at ??
@@ -97,10 +95,13 @@ export async function POST(_request: Request, context: RouteContext) {
       blueprintTitle: result.assetBlueprint?.asset_title ?? null,
       blueprintUpdatedAt: result.assetBlueprint?.updated_at ?? null,
       fallbackUsed,
+      blueprintGenerated,
+      blueprintParseFailed: Boolean(result.blueprintParseFailed),
+      blueprintError: result.blueprintError ?? null,
       blueprintHasDebugMarker: hasBlueprintDebugMarker(
         result.assetBlueprint?.notes,
       ),
-      regenerated: Boolean(result.assetBlueprint && !fallbackUsed),
+      regenerated: Boolean(result.analysis),
       ...(process.env.NODE_ENV === "development"
         ? {
             llmCallsExecuted: true,
@@ -144,20 +145,51 @@ export async function POST(_request: Request, context: RouteContext) {
       );
     }
 
-    if (!result.assetBlueprint || fallbackUsed) {
+    const partialBlueprintFailure =
+      !blueprintGenerated && Boolean(result.blueprintParseFailed || result.blueprintError);
+
+    if (partialBlueprintFailure) {
+      logRegenerationDiagnostic("REGENERATE_PARTIAL_SUCCESS", {
+        discussionId: id,
+        organizationId,
+        analysisId: result.analysis.id,
+        blueprintId: result.assetBlueprint?.id ?? null,
+        blueprintError: result.blueprintError ?? null,
+        fallbackUsed,
+        preservedPrevious: fallbackUsed,
+      });
+
       return NextResponse.json(
         {
-          success: false,
+          success: true,
           discussionId: id,
-          regenerated: false,
+          regenerated: true,
+          blueprintGenerated: false,
+          blueprintError:
+            result.blueprintError ??
+            "Strategic Blueprint response could not be parsed",
           analysisId: result.analysis.id,
           blueprintId: result.assetBlueprint?.id ?? null,
           blueprintTitle: result.assetBlueprint?.asset_title ?? null,
           generatedAt,
           fallbackUsed,
-          error: fallbackUsed
-            ? "Strategic blueprint regeneration returned stale content instead of fresh LLM output."
-            : "Strategic blueprint was not generated.",
+          message:
+            "Discussion intelligence regenerated; previous strategic blueprint preserved.",
+          status: result.status,
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
+    if (!blueprintGenerated) {
+      return NextResponse.json(
+        {
+          success: false,
+          discussionId: id,
+          regenerated: false,
+          blueprintGenerated: false,
+          analysisId: result.analysis.id,
+          error: result.blueprintError ?? "Strategic blueprint was not generated.",
         },
         { status: 422, headers: { "Cache-Control": "no-store" } },
       );
@@ -167,9 +199,10 @@ export async function POST(_request: Request, context: RouteContext) {
       success: true as const,
       discussionId: id,
       regenerated: true,
+      blueprintGenerated: true,
       analysisId: result.analysis.id,
-      blueprintId: result.assetBlueprint.id,
-      blueprintTitle: result.assetBlueprint.asset_title,
+      blueprintId: result.assetBlueprint?.id ?? null,
+      blueprintTitle: result.assetBlueprint?.asset_title ?? null,
       generatedAt,
       fallbackUsed: false,
       message: "Discussion intelligence regenerated successfully",
@@ -189,9 +222,10 @@ export async function POST(_request: Request, context: RouteContext) {
           success: true,
           discussionId: id,
           regenerated: true,
+          blueprintGenerated: true,
           analysisId: result.analysis.id,
-          blueprintId: result.assetBlueprint.id,
-          blueprintTitle: result.assetBlueprint.asset_title,
+          blueprintId: result.assetBlueprint?.id ?? null,
+          blueprintTitle: result.assetBlueprint?.asset_title ?? null,
           generatedAt,
           message: "Discussion intelligence regenerated successfully",
           status: result.status,

@@ -9,6 +9,16 @@ type AnalyzeDiscussionButtonProps = {
   compact?: boolean;
 };
 
+type AnalyzeResponse = {
+  success?: boolean;
+  regenerated?: boolean;
+  blueprintGenerated?: boolean;
+  blueprintError?: string;
+  error?: string;
+  fallbackUsed?: boolean;
+  message?: string;
+};
+
 export function AnalyzeDiscussionButton({
   discussionId,
   label = "Regenerate Intelligence",
@@ -17,10 +27,12 @@ export function AnalyzeDiscussionButton({
   const router = useRouter();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   async function handleAnalyze() {
     setIsAnalyzing(true);
     setError(null);
+    setWarning(null);
 
     try {
       const response = await fetch(`/api/discussions/${discussionId}/analyze`, {
@@ -28,20 +40,10 @@ export function AnalyzeDiscussionButton({
       });
 
       const text = await response.text();
-      let data: {
-        success?: boolean;
-        regenerated?: boolean;
-        error?: string;
-        fallbackUsed?: boolean;
-      };
+      let data: AnalyzeResponse;
 
       try {
-        data = JSON.parse(text) as {
-          success?: boolean;
-          regenerated?: boolean;
-          error?: string;
-          fallbackUsed?: boolean;
-        };
+        data = JSON.parse(text) as AnalyzeResponse;
       } catch {
         console.error(
           "Regenerate intelligence non-JSON response:",
@@ -52,12 +54,21 @@ export function AnalyzeDiscussionButton({
         );
       }
 
-      if (
-        !response.ok ||
-        !data.success ||
-        data.regenerated === false ||
-        data.fallbackUsed
-      ) {
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to regenerate intelligence");
+      }
+
+      if (data.regenerated && data.blueprintGenerated === false) {
+        router.refresh();
+        setWarning(
+          data.blueprintError ||
+            data.message ||
+            "Analysis regenerated; previous strategic blueprint preserved.",
+        );
+        return;
+      }
+
+      if (!data.regenerated) {
         throw new Error(data.error || "Failed to regenerate intelligence");
       }
 
@@ -89,6 +100,10 @@ export function AnalyzeDiscussionButton({
       >
         {isAnalyzing ? "Regenerating Intelligence..." : label}
       </button>
+
+      {warning && (
+        <div className="mt-3 text-sm text-amber-300/90">{warning}</div>
+      )}
 
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
     </div>
