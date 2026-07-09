@@ -768,18 +768,29 @@ export function formatStrategicBlueprintProductionSpecsForPrompt(
 
 export function formatStrategicBlueprintProductionSpecsCompactForPrompt(
   context: StrategicBlueprintProductionContext,
+  options?: { blueprintSelection?: boolean },
 ): string {
-  return [
-    "PRODUCTION SIGNALS:",
+  const lines = [
+    "PRODUCTION CONTEXT:",
     `- Initiative: ${context.strategyFirst.executiveInitiative}`,
     `- Market problem: ${context.strategyFirst.marketProblem}`,
     `- Strategic angle: ${context.strategicAngle.replace(/_/g, " ")}`,
     `- Primary pain: ${context.primaryPainPoint ?? "From discussion"}`,
     `- Core message: ${context.coreMessage}`,
-    `- Deliverable hint: ${context.recommendedPrimaryDeliverable}`,
+  ];
+
+  if (!options?.blueprintSelection) {
+    lines.push(
+      `- Deliverable hint: ${context.recommendedPrimaryDeliverable}`,
+      `- Output format hint: ${context.production.outputFormat}`,
+    );
+  }
+
+  lines.push(
     `- CTA objective: ${context.production.ctaObjective}`,
-    `- Output format hint: ${context.production.outputFormat}`,
     `- Sophistication: ${context.sophisticationLevel}`,
-    "Use these as signals. You must still run the multi-option asset comparison and pick the strongest commercial asset.",
-  ].join("\n");
+    "Choose the strongest asset format after evaluating buyer uncertainty, objection, commercial objective, conversion mechanism, and reusable value.",
+  );
+
+  return lines.join("\n");
 }

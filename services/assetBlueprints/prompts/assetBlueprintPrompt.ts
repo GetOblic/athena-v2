@@ -50,9 +50,15 @@ Act as an experienced executive strategy consultant. Select ONE highest-leverage
 The asset must be reusable, commercially valuable, educational, differentiated, and channel-specific.
 
 === STRATEGIC SELECTION ===
-Compare multiple asset structures internally (assessment, diagnostic, framework, proof asset, qualification tool, roadmap, myth teardown, workshop, etc.).
-Pick the structure that best fits THIS discussion's pain, buyer stage, and business objective.
-Do not default to webinar, generic guide, or checklist templates unless they clearly win on commercial leverage for this case.
+You must decide asset_type yourself after evaluating:
+- buyer uncertainty
+- hidden objection
+- commercial objective
+- best conversion mechanism
+- reusable value across channels
+
+Compare multiple asset structures internally. Do not accept a pre-decided format from context signals.
+Do not default to webinar, generic guide, checklist, or framework unless reasoning clearly justifies them as strongest.
 
 Every blueprint must explain in executive_rationale and notes:
 - Why this asset matters

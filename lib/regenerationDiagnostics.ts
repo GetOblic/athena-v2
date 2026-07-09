@@ -42,6 +42,9 @@ export class RegenerationBlueprintError extends Error {
 export type LlmCallMeta = {
   stage: string;
   promptSource: string;
+  generationKind?: string;
+  reasoningProfile?: string;
+  reasoningAttached?: boolean;
 };
 
 export function logLlmCallStart(meta: LlmCallMeta): number {
@@ -50,6 +53,13 @@ export function logLlmCallStart(meta: LlmCallMeta): number {
     promptSource: meta.promptSource,
     model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
     startedAt: new Date().toISOString(),
+    ...(process.env.NODE_ENV === "development"
+      ? {
+          generationKind: meta.generationKind ?? null,
+          reasoningProfile: meta.reasoningProfile ?? null,
+          reasoningAttached: meta.reasoningAttached ?? null,
+        }
+      : {}),
   });
   return Date.now();
 }

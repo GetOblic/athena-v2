@@ -1,6 +1,9 @@
 import {
   getReasoningProfile,
+  isReasoningUnsupportedError,
   isReasoningSupportedByModel,
+  resolveReasoningAttachment,
+  type AthenaGenerationKind,
   type ReasoningProfileType,
 } from "@/lib/reasoningProfiles";
 
@@ -12,7 +15,36 @@ type OpenRouterMessage = {
 export type OpenRouterCallOptions = {
   temperature?: number;
   reasoningProfile?: ReasoningProfileType;
+  generationKind?: AthenaGenerationKind;
 };
+
+function shouldLogReasoningDev(): boolean {
+  return process.env.NODE_ENV === "development";
+}
+
+function logReasoningDev(data: Record<string, unknown>): void {
+  if (!shouldLogReasoningDev()) {
+    return;
+  }
+
+  console.log(
+    `[OPENROUTER_REASONING] ${JSON.stringify({
+      ...data,
+      loggedAt: new Date().toISOString(),
+    })}`,
+  );
+}
+
+async function postChatCompletion(
+  headers: Record<string, string>,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  return fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+}
 
 export async function callOpenRouter(
   messages: OpenRouterMessage[],
@@ -31,29 +63,53 @@ export async function callOpenRouter(
     throw new Error("Missing OPENROUTER_MODEL environment variable");
   }
 
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": siteUrl,
+    "X-Title": appName,
+  };
+
+  const profile = options?.reasoningProfile ?? "BALANCED";
+  const attachment = resolveReasoningAttachment({ model, profile });
+
   const body: Record<string, unknown> = {
     model,
     messages,
     temperature: options?.temperature ?? 0.2,
   };
 
-  if (
-    options?.reasoningProfile &&
-    isReasoningSupportedByModel(model)
-  ) {
-    Object.assign(body, getReasoningProfile(options.reasoningProfile));
+  if (attachment.attach) {
+    Object.assign(body, getReasoningProfile(profile));
   }
 
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": siteUrl,
-      "X-Title": appName,
-    },
-    body: JSON.stringify(body),
+  logReasoningDev({
+    generationKind: options?.generationKind ?? null,
+    model,
+    reasoningProfile: profile,
+    reasoningEffort: attachment.effort,
+    reasoningAttached: attachment.attach,
+    modelSupportsReasoning: isReasoningSupportedByModel(model),
   });
+
+  let response = await postChatCompletion(headers, body);
+
+  if (!response.ok && body.reasoning) {
+    const errorText = await response.text();
+    if (isReasoningUnsupportedError(response.status, errorText)) {
+      const { reasoning: _removed, ...bodyWithoutReasoning } = body;
+      logReasoningDev({
+        generationKind: options?.generationKind ?? null,
+        model,
+        reasoningProfile: profile,
+        reasoningAttached: false,
+        fallback: "retry_without_reasoning",
+      });
+      response = await postChatCompletion(headers, bodyWithoutReasoning);
+    } else {
+      throw new Error(`OpenRouter API error: ${response.status} ${errorText}`);
+    }
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

@@ -7,6 +7,10 @@ import {
   RegenerationBlueprintError,
 } from "@/lib/regenerationDiagnostics";
 import {
+  getReasoningProfileForGeneration,
+  resolveReasoningAttachment,
+} from "@/lib/reasoningProfiles";
+import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
 } from "@/services/organizationService";
@@ -63,10 +67,24 @@ export async function POST(_request: Request, context: RouteContext) {
       result.analysis?.created_at ??
       null;
 
+    const model = process.env.OPENROUTER_MODEL ?? "";
+    const analysisReasoning = resolveReasoningAttachment({
+      model,
+      profile: getReasoningProfileForGeneration("discussion_analysis"),
+    });
+    const briefingReasoning = resolveReasoningAttachment({
+      model,
+      profile: getReasoningProfileForGeneration("executive_briefing"),
+    });
+    const blueprintReasoning = resolveReasoningAttachment({
+      model,
+      profile: getReasoningProfileForGeneration("strategic_blueprint"),
+    });
+
     logRegenerationDiagnostic("REGENERATE END", {
       discussionId: id,
       organizationId,
-      model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
+      model: model || "(OPENROUTER_MODEL not set)",
       status: result.status,
       previousAnalysisId: existingAnalysis?.id ?? null,
       analysisId: result.analysis?.id ?? null,
@@ -83,6 +101,35 @@ export async function POST(_request: Request, context: RouteContext) {
         result.assetBlueprint?.notes,
       ),
       regenerated: Boolean(result.assetBlueprint && !fallbackUsed),
+      ...(process.env.NODE_ENV === "development"
+        ? {
+            llmCallsExecuted: true,
+            reasoningProfiles: {
+              discussion_analysis: {
+                profile: getReasoningProfileForGeneration("discussion_analysis"),
+                attached: analysisReasoning.attach,
+                effort: analysisReasoning.effort,
+              },
+              executive_briefing: {
+                profile: getReasoningProfileForGeneration("executive_briefing"),
+                attached: briefingReasoning.attach,
+                effort: briefingReasoning.effort,
+              },
+              strategic_blueprint: {
+                profile: getReasoningProfileForGeneration("strategic_blueprint"),
+                attached: blueprintReasoning.attach,
+                effort: blueprintReasoning.effort,
+              },
+            },
+            deploymentAssetOutputs: [
+              "community_reply",
+              "private_message",
+              "social_post",
+              "follow_up_reply",
+              "cta",
+            ],
+          }
+        : {}),
     });
 
     if (!result.analysis) {

@@ -19,6 +19,24 @@ export function formatReasoningPipelineCompactForPrompt(
   ].join("\n");
 }
 
+/** Blueprint selection context — no pre-decided asset type. */
+export function formatReasoningContextForBlueprintSelection(
+  pipeline: ReasoningPipeline,
+): string {
+  const { evidence, reasoning, decision } = pipeline;
+
+  return [
+    "=== COMMERCIAL CONTEXT (evaluate before choosing asset format) ===",
+    `- Buyer uncertainty: ${evidence.statedPainPoints.slice(0, 3).join("; ") || "See discussion"}`,
+    `- Hidden objection: ${evidence.objections.slice(0, 2).join("; ") || "Infer from discussion"}`,
+    `- Leverage move: ${reasoning.highestLeverageMove}`,
+    `- Commercial objective: ${decision.intendedOutcome}`,
+    `- Target audience: ${decision.targetAudience}`,
+    `- Primary CTA direction: ${decision.primaryCta}`,
+    "You must choose asset_type after evaluating buyer uncertainty, hidden objection, commercial objective, conversion mechanism, and reusable value.",
+  ].join("\n");
+}
+
 /** @deprecated Use formatReasoningPipelineCompactForPrompt — full pipeline removed from prompts. */
 export function formatReasoningPipelineForPrompt(
   pipeline: ReasoningPipeline,
@@ -29,5 +47,5 @@ export function formatReasoningPipelineForPrompt(
 export function formatReasoningPipelineCompactForBlueprint(
   pipeline: ReasoningPipeline,
 ): string {
-  return formatReasoningPipelineCompactForPrompt(pipeline);
+  return formatReasoningContextForBlueprintSelection(pipeline);
 }

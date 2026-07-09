@@ -60,16 +60,27 @@ export function formatExecutiveMarketingStrategyForPrompt(
 
 export function formatExecutiveStrategyCompactForBlueprint(
   strategy: ExecutiveStrategy,
+  options?: { blueprintSelection?: boolean },
 ): string {
   const marketing = strategy.marketingStrategy;
-  return [
-    "STRATEGY SIGNALS (inform selection — not a format mandate):",
+  const lines = [
+    options?.blueprintSelection
+      ? "STRATEGY CONTEXT (no pre-selected asset format):"
+      : "STRATEGY SIGNALS (inform selection — not a format mandate):",
     `- Objective: ${strategy.primaryObjective}`,
     `- Audience: ${strategy.primaryAudience}`,
-    `- Deliverable hint: ${marketing.recommendedPrimaryDeliverable}`,
+  ];
+
+  if (!options?.blueprintSelection) {
+    lines.push(`- Deliverable hint: ${marketing.recommendedPrimaryDeliverable}`);
+  }
+
+  lines.push(
     `- Conversion goal: ${marketing.conversionObjective}`,
     `- Trust goal: ${marketing.trustObjective}`,
-  ].join("\n");
+  );
+
+  return lines.join("\n");
 }
 
 export function formatExecutiveStrategyForPrompt(

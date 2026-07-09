@@ -32,7 +32,9 @@ export function assembleExecutiveGenerationContextBlock(input: {
 
   if (input.blueprintMode) {
     return [
-      formatExecutiveStrategyCompactForBlueprint(input.executiveStrategy),
+      formatExecutiveStrategyCompactForBlueprint(input.executiveStrategy, {
+        blueprintSelection: true,
+      }),
       formatGenerationContractCompact(input.generationContract),
       refinementBlock,
     ]

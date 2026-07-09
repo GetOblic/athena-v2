@@ -1,6 +1,7 @@
 import { callOpenRouter } from "@/lib/openrouter";
 import {
   getReasoningProfileForGeneration,
+  resolveReasoningAttachment,
   type AthenaGenerationKind,
   type ReasoningProfileType,
 } from "@/lib/reasoningProfiles";
@@ -68,8 +69,21 @@ export async function generateReview(
   prompt: string,
   meta?: GenerateReviewOptions,
 ) {
-  const startedAt = meta ? logLlmCallStart(meta) : 0;
   const reasoningProfile = resolveReasoningProfile(meta);
+  const model = process.env.OPENROUTER_MODEL ?? "";
+  const attachment = resolveReasoningAttachment({
+    model,
+    profile: reasoningProfile,
+  });
+
+  const startedAt = meta
+    ? logLlmCallStart({
+        ...meta,
+        generationKind: meta.generationKind,
+        reasoningProfile,
+        reasoningAttached: attachment.attach,
+      })
+    : 0;
 
   const content = await callOpenRouter(
     [
@@ -82,7 +96,10 @@ export async function generateReview(
         content: prompt,
       },
     ],
-    { reasoningProfile },
+    {
+      reasoningProfile,
+      generationKind: meta?.generationKind,
+    },
   );
 
   if (meta) {
@@ -95,6 +112,10 @@ export async function generateReview(
 export {
   getReasoningProfile,
   getReasoningProfileForGeneration,
+  getReasoningProfileForOutputType,
+  isReasoningSupportedByModel,
+  resolveReasoningAttachment,
   type AthenaGenerationKind,
+  type AthenaOutputType,
   type ReasoningProfileType,
 } from "@/lib/reasoningProfiles";

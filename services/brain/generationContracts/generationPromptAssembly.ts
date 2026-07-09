@@ -14,7 +14,10 @@ import {
 } from "@/services/assetBlueprints/strategicBlueprintProductionSpecs";
 import { formatStructuredBusinessContext } from "@/services/brain/generationContracts/businessContextBlock";
 import { assembleExecutiveGenerationContextBlock } from "@/services/brain/generationContracts/contractPromptFormatting";
-import { formatReasoningPipelineCompactForPrompt } from "@/services/brain/reasoningPipeline/reasoningPipelinePromptFormatting";
+import {
+  formatReasoningPipelineCompactForPrompt,
+  formatReasoningContextForBlueprintSelection,
+} from "@/services/brain/reasoningPipeline/reasoningPipelinePromptFormatting";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 
 type PromptAssemblyOptions = {
@@ -50,6 +53,40 @@ function buildExecutiveContext(
   });
 
   return [businessContext, decisionSignals, strategyBlock]
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+}
+
+function buildBlueprintExecutiveContext(
+  bundle: GenerationBundle,
+  options?: PromptAssemblyOptions & {
+    discussion?: {
+      title?: string | null;
+      body?: string | null;
+      content?: string | null;
+    };
+    analysis?: Record<string, unknown>;
+    opportunity?: Record<string, unknown>;
+  },
+): string {
+  const businessContext = formatStructuredBusinessContext({
+    bundle,
+    discussion: options?.discussion,
+    analysis: options?.analysis,
+    opportunity: options?.opportunity,
+  });
+  const commercialContext = formatReasoningContextForBlueprintSelection(
+    bundle.reasoningPipeline,
+  );
+  const strategyBlock = assembleExecutiveGenerationContextBlock({
+    executiveStrategy: bundle.executiveStrategy,
+    generationContract: bundle.generationContract,
+    qualityRefinementSuffix: options?.qualityRefinementSuffix,
+    blueprintMode: true,
+  });
+
+  return [businessContext, commercialContext, strategyBlock]
     .filter(Boolean)
     .join("\n\n")
     .trim();
@@ -96,7 +133,7 @@ export function assembleStrategicBlueprintPrompt(input: {
   analysis?: Record<string, unknown>;
   qualityRefinementSuffix?: string;
 }): string {
-  const executiveContextBlock = buildExecutiveContext(input.bundle, {
+  const executiveContextBlock = buildBlueprintExecutiveContext(input.bundle, {
     qualityRefinementSuffix: input.qualityRefinementSuffix,
     discussion: input.discussion,
     analysis: input.analysis,
@@ -108,7 +145,9 @@ export function assembleStrategicBlueprintPrompt(input: {
     input.bundle.executiveStrategy,
   );
   const productionSpecsPrompt =
-    formatStrategicBlueprintProductionSpecsCompactForPrompt(productionContext);
+    formatStrategicBlueprintProductionSpecsCompactForPrompt(productionContext, {
+      blueprintSelection: true,
+    });
 
   if (input.analysis) {
     return buildAssetBlueprintFromAnalysisPrompt({
