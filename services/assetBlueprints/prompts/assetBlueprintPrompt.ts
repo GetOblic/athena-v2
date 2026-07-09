@@ -1,5 +1,5 @@
 export const ASSET_BLUEPRINT_PROMPT_VERSION =
-  "asset_blueprint_v4_commercial_strategist";
+  "asset_blueprint_v5_output_quality";
 
 export const ASSET_BLUEPRINT_OUTPUT_SCHEMA = `
 {
@@ -31,10 +31,10 @@ export const ASSET_BLUEPRINT_OUTPUT_SCHEMA = `
     "reuse_strategy": "How to reuse across channels."
   },
   "business_goal": "Commercial goal: what revenue, trust, or conversion outcome this asset must produce — not 'educate audience'.",
-  "image_prompt": "COMPLETE paste-ready prompt for cover/visual generation including style, composition, typography, color palette, cover copy, and positioning angle.",
-  "pdf_prompt": "COMPLETE production-ready prompt with section hierarchy, positioning angle, audience psychology, proof structure, diagrams/tables/callouts, and CTA page.",
-  "social_prompt": "COMPLETE campaign prompt with multi-post or slide sequence, hooks, objection-handling beats, proof moments, and CTA — not a single generic post.",
-  "notes": "REJECTED GENERIC OPTION: [what you rejected]. REJECTION REASON: [why]. CORE STRATEGIC ANGLE: [angle]. PRIMARY CTA: [exact CTA]. REUSE PLAN: [how to redeploy]."
+  "image_prompt": "COMPLETE production-ready visual prompt: format, composition, emotional hierarchy, typography direction, visual metaphor, brand tone, background, color palette, subject matter, cover copy, and explicit AVOID list (stock clichés, fake medical imagery, income promises).",
+  "pdf_prompt": "COMPLETE production-ready PDF/asset prompt: title, audience, strategic angle, page-by-page structure with section headlines, self-diagnosis flow, voice instructions, design tone, CTA page, and explicit what-NOT-to-include list. This is a conversion asset — not a generic guide.",
+  "social_prompt": "COMPLETE campaign-ready prompt: platform, hook, post/carousel/video structure slide-by-slide, emotional trigger, core insight, caption direction, visual direction, CTA, and reuse plan. Must be specific (e.g. belief-shift carousel), not 'Create a 5-slide carousel about...'.",
+  "notes": "REJECTED GENERIC OPTION: [what you rejected]. REJECTION REASON: [why]. SELECTED STRATEGIC ANGLE: [angle]. PRIMARY CTA: [exact CTA]. REUSE PLAN: [how to redeploy]. COMMERCIAL STRENGTH: [why this asset beats obvious webinar/guide/social post for THIS discussion]."
 }`.trim();
 
 export const ASSET_BLUEPRINT_GENERATION_RULES = `
@@ -52,19 +52,64 @@ CRITICAL RULES:
 - supporting_evidence must reference provided discussion, analysis, or briefing evidence.
 
 FIELD QUALITY BAR:
-- asset_title: Must be specific and commercially sharp. FAIL if it could apply to any educator in the domain.
-- business_goal: Must state a commercial goal (trust, qualification, conversion, objection removal) — not 'educate' or 'raise awareness' alone.
-- why_this_asset: Must name at least one rejected generic alternative and why this asset wins.
-- pdf_prompt: Must include sections, angle, positioning, audience psychology, proof beats, and CTA.
-- social_prompt: Must be a campaign sequence plan, not one generic post.
-- notes: Must include rejected generic option, rejection reason, core strategic angle, primary CTA, and reuse plan.
+- asset_title: Must be specific and commercially sharp — name the insight, not the format. FAIL if it could apply to any educator in the domain.
+  Bad: "The Career Foundation Webinar"
+  Good: "The Business Readiness Scorecard: Are You Actually Ready to Take Paying Clients?"
+  Strong patterns: readiness scorecard, confidence audit, first-90-days roadmap, missing-half teardown, clinical-skill-is-not-a-business-plan, investment-recovery diagnosis.
+- business_goal: Must state commercial outcome (trust, qualification, conversion, objection removal) — not 'educate audience' alone.
+- why_this_asset: Must name at least one rejected generic alternative and why this asset wins commercially.
+- image_prompt: Must specify format, composition, emotional hierarchy, typography, visual metaphor, palette, subject, brand tone, and what to avoid.
+- pdf_prompt: Must include title, audience, angle, page-by-page structure, headlines, self-diagnosis flow, CTA, voice, design tone — conversion asset not generic guide.
+- social_prompt: Must specify platform, hook, structure, emotional trigger, captions, visuals, CTA, reuse — campaign-ready not generic carousel outline.
+- notes: Must include rejected generic option, rejection reason, selected angle, primary CTA, reuse plan, and commercial strength vs obvious assets.
 
 HARD ANTI-GENERIC FAILURES (do not produce output that triggers these):
 - If the output could be produced by a generic ChatGPT prompt with no discussion context, it FAILS.
 - If the asset does not reveal a specific strategic insight from THIS discussion, it FAILS.
 - If the title could apply to any operator in this domain without modification, it FAILS.
 - If asset_type is webinar, guide, pdf_guide, checklist, carousel, or lead_magnet, why_this_asset MUST explain why diagnostic, scorecard, audit, proof, comparison, or decision assets would NOT be stronger.
-- Ban empty filler: 'comprehensive guide', 'thought leadership', 'best practices', 'we are experts' unless directly quoting source context.
+- Ban empty filler: 'comprehensive guide', 'ultimate guide', 'valuable insights', 'take your business to the next level', 'help you succeed', 'learn everything you need', 'join our webinar', 'comment below', 'thought leadership', 'best practices', 'we are experts' unless directly quoting source context.
+`.trim();
+
+const PRODUCTION_PROMPT_FIELD_INSTRUCTIONS = `
+PRODUCTION PROMPT FIELD INSTRUCTIONS:
+
+image_prompt must include ALL of:
+- Format (cover, hero, carousel slide 1, etc.)
+- Composition and focal hierarchy
+- Emotional tone (reassuring, clinical, premium — match brand)
+- Typography direction
+- Visual metaphor tied to strategic angle
+- Background and color palette
+- Subject matter specifics from discussion
+- Cover/copy text direction
+- AVOID list (stock smiling students, fake medical imagery, income promises, competitor attacks, exaggerated luxury)
+
+pdf_prompt must include ALL of:
+- Asset title and target audience
+- Strategic angle and conversion objective
+- Page-by-page or section-by-section structure with headlines
+- Self-diagnosis or decision flow (reader identifies their gap)
+- Voice and design tone from Athena Brain/persona
+- Proof or credibility beats (no invented claims)
+- Final CTA page driving consultation/application/next step
+- Explicit what-NOT-to-include (generic guide filler, unsupported guarantees)
+
+social_prompt must include ALL of:
+- Target platform(s)
+- Campaign hook and emotional trigger
+- Slide/post/scene structure with belief-shift arc
+- Core insight from discussion
+- Caption direction per unit
+- Visual direction per unit
+- CTA and reuse plan across channels
+- Must read like: "Create a 5-slide belief-shift carousel that reframes success from certification to client-readiness" — NOT "Create a carousel about training"
+`.trim();
+
+const BLUEPRINT_SELF_CHECK = `
+SELF-CHECK (complete silently before returning — do not expose scores):
+Score 1–10: Specificity, Commercial leverage, Differentiation, Voice/persona fit, Execution readiness, Non-generic insight, Title sharpness, Image prompt readiness, PDF prompt readiness, Social prompt readiness.
+If ANY category is below 9/10, rewrite before returning.
 `.trim();
 
 const COMMERCIAL_STRATEGIST_PREAMBLE = `
@@ -97,18 +142,20 @@ Before selecting the asset, determine from the provided context:
 Prefer sharper commercial assets such as:
 - diagnostic assessment
 - readiness scorecard
-- implementation teardown
-- comparison framework
-- objection-breaking proof asset
-- case-study sequence
 - decision matrix
 - business readiness audit
-- ROI calculator
-- launch roadmap
-- authority manifesto
+- objection-breaking proof asset
+- implementation teardown
 - market myth teardown
-- offer-positioning asset
+- ROI calculator
+- launch roadmap / first-90-days roadmap
+- authority manifesto
 - consultation qualification tool
+- comparison framework
+- mistake map
+- confidence audit
+- operating system
+- benchmark report
 
 Use Athena Brain identity, persona, expertise, and Intelligence Domain context when present in the executive context blocks.
 Use discussion title/body, executive intelligence/analysis, opportunity, and briefing when provided.
@@ -167,6 +214,10 @@ ${input.assetStandardPrompt}
 
 ${formatDiscussionSourceContext(input.discussion)}
 ${secondaryBlock}
+
+${PRODUCTION_PROMPT_FIELD_INSTRUCTIONS}
+
+${BLUEPRINT_SELF_CHECK}
 
 Return exactly this JSON structure:
 
