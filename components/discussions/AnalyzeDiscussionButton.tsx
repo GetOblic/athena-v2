@@ -12,11 +12,9 @@ type AnalyzeDiscussionButtonProps = {
 type AnalyzeResponse = {
   success?: boolean;
   regenerated?: boolean;
-  blueprintGenerated?: boolean;
-  blueprintError?: string;
+  partial?: boolean;
+  warning?: string;
   error?: string;
-  fallbackUsed?: boolean;
-  message?: string;
 };
 
 export function AnalyzeDiscussionButton({
@@ -50,29 +48,24 @@ export function AnalyzeDiscussionButton({
           text.slice(0, 300),
         );
         throw new Error(
-          "Server returned a non-JSON error. Check production logs.",
+          "Regeneration failed because the server returned an unexpected response.",
         );
       }
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to regenerate intelligence");
-      }
-
-      if (data.regenerated && data.blueprintGenerated === false) {
-        router.refresh();
-        setWarning(
-          data.blueprintError ||
-            data.message ||
-            "Analysis regenerated; previous strategic blueprint preserved.",
+      if (!data.success) {
+        throw new Error(
+          data.error || "Regeneration failed. Please check logs.",
         );
-        return;
-      }
-
-      if (!data.regenerated) {
-        throw new Error(data.error || "Failed to regenerate intelligence");
       }
 
       router.refresh();
+
+      if (data.partial) {
+        setWarning(
+          data.warning ||
+            "Strategic Blueprint could not be regenerated, previous valid blueprint was preserved.",
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {

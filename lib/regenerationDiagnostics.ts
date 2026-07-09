@@ -1,15 +1,45 @@
 const DEBUG_MARKER_PREFIX = "Generation debug timestamp:";
 
-export function logRegenerationDiagnostic(
+const PRODUCTION_REGENERATION_EVENTS = new Set([
+  "REGENERATE_START",
+  "REGENERATE_SUCCESS",
+  "REGENERATE_PARTIAL_SUCCESS",
+  "REGENERATE_FAILED",
+  "BLUEPRINT_PARSE_FAILED_PRESERVED_PREVIOUS",
+]);
+
+export function logRegenerationEvent(
   event: string,
   data: Record<string, unknown> = {},
 ): void {
+  if (
+    process.env.NODE_ENV === "production" &&
+    !PRODUCTION_REGENERATION_EVENTS.has(event)
+  ) {
+    return;
+  }
+
   console.log(
-    `[REGENERATE_DIAG] ${event} ${JSON.stringify({
+    `[REGENERATION] ${event} ${JSON.stringify({
       ...data,
       loggedAt: new Date().toISOString(),
     })}`,
   );
+}
+
+/** @deprecated Use logRegenerationEvent for route/workflow events. */
+export function logRegenerationDiagnostic(
+  event: string,
+  data: Record<string, unknown> = {},
+): void {
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[REGENERATE_DIAG] ${event} ${JSON.stringify({
+        ...data,
+        loggedAt: new Date().toISOString(),
+      })}`,
+    );
+  }
 }
 
 export function appendBlueprintDebugMarker(notes: string): string {
@@ -48,19 +78,13 @@ export type LlmCallMeta = {
 };
 
 export function logLlmCallStart(meta: LlmCallMeta): number {
-  logRegenerationDiagnostic("LLM_CALL_START", {
-    stage: meta.stage,
-    promptSource: meta.promptSource,
-    model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
-    startedAt: new Date().toISOString(),
-    ...(process.env.NODE_ENV === "development"
-      ? {
-          generationKind: meta.generationKind ?? null,
-          reasoningProfile: meta.reasoningProfile ?? null,
-          reasoningAttached: meta.reasoningAttached ?? null,
-        }
-      : {}),
-  });
+  if (process.env.NODE_ENV === "development") {
+    logRegenerationDiagnostic("LLM_CALL_START", {
+      stage: meta.stage,
+      promptSource: meta.promptSource,
+      model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
+    });
+  }
   return Date.now();
 }
 
@@ -69,12 +93,12 @@ export function logLlmCallEnd(
   startedAtMs: number,
   responseCharCount: number,
 ): void {
-  logRegenerationDiagnostic("LLM_CALL_END", {
-    stage: meta.stage,
-    promptSource: meta.promptSource,
-    model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
-    endedAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAtMs,
-    responseCharCount,
-  });
+  if (process.env.NODE_ENV === "development") {
+    logRegenerationDiagnostic("LLM_CALL_END", {
+      stage: meta.stage,
+      promptSource: meta.promptSource,
+      durationMs: Date.now() - startedAtMs,
+      responseCharCount,
+    });
+  }
 }
