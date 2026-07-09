@@ -24,7 +24,7 @@ import { formatRegenerationRunStamp } from "@/lib/regenerationDiagnostics";
 type PromptAssemblyOptions = {
   qualityRefinementSuffix?: string;
   /** Unique per regeneration run — prevents byte-identical OpenRouter requests. */
-  regenerationNonce?: string;
+  regenerationRunId?: string;
 };
 
 function buildExecutiveContext(
@@ -59,7 +59,7 @@ function buildExecutiveContext(
     businessContext,
     decisionSignals,
     strategyBlock,
-    formatRegenerationRunStamp(options?.regenerationNonce),
+    formatRegenerationRunStamp(options?.regenerationRunId),
   ]
     .filter(Boolean)
     .join("\n\n")
@@ -98,7 +98,7 @@ function buildBlueprintExecutiveContext(
     businessContext,
     commercialContext,
     strategyBlock,
-    formatRegenerationRunStamp(options?.regenerationNonce),
+    formatRegenerationRunStamp(options?.regenerationRunId),
   ]
     .filter(Boolean)
     .join("\n\n")
@@ -109,11 +109,11 @@ export function assembleDiscussionAnalysisPrompt(input: {
   bundle: GenerationBundle;
   discussion: Discussion;
   qualityRefinementSuffix?: string;
-  regenerationNonce?: string;
+  regenerationRunId?: string;
 }): string {
   const executiveContextBlock = buildExecutiveContext(input.bundle, {
     qualityRefinementSuffix: input.qualityRefinementSuffix,
-    regenerationNonce: input.regenerationNonce,
+    regenerationRunId: input.regenerationRunId,
     discussion: input.discussion,
   });
   return buildDiscussionAnalysisPrompt(input.discussion, executiveContextBlock);
@@ -123,11 +123,11 @@ export function assembleExecutiveBriefingPrompt(input: {
   bundle: GenerationBundle;
   opportunity: Opportunity;
   qualityRefinementSuffix?: string;
-  regenerationNonce?: string;
+  regenerationRunId?: string;
 }): string {
   const executiveContextBlock = buildExecutiveContext(input.bundle, {
     qualityRefinementSuffix: input.qualityRefinementSuffix,
-    regenerationNonce: input.regenerationNonce,
+    regenerationRunId: input.regenerationRunId,
     opportunity: input.opportunity as unknown as Record<string, unknown>,
   });
   const taskPrompt = buildOpportunityReviewPrompt(input.opportunity);
@@ -149,11 +149,11 @@ export function assembleStrategicBlueprintPrompt(input: {
   briefing?: Record<string, unknown>;
   analysis?: Record<string, unknown>;
   qualityRefinementSuffix?: string;
-  regenerationNonce?: string;
+  regenerationRunId?: string;
 }): string {
   const executiveContextBlock = buildBlueprintExecutiveContext(input.bundle, {
     qualityRefinementSuffix: input.qualityRefinementSuffix,
-    regenerationNonce: input.regenerationNonce,
+    regenerationRunId: input.regenerationRunId,
     discussion: input.discussion,
     analysis: input.analysis,
     opportunity: input.opportunity,

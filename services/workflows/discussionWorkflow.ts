@@ -37,11 +37,13 @@ import { computeCompositeOpportunityScoreFromAnalysis } from "@/services/brain/e
 import { runSimplifiedQualityGateLoop } from "@/services/brain/reasoningPipeline/simplifiedQualityGate";
 import {
   appendRegenerationRunStamp,
+  hashContent,
+  logPersistedRegenerationOutput,
   logRegenerationEvent,
 } from "@/lib/regenerationDiagnostics";
 
 export type RegenerationRunContext = {
-  regenerationNonce: string;
+  regenerationRunId: string;
   explicitRegeneration?: boolean;
 };
 
@@ -251,7 +253,7 @@ async function generateAssetBlueprint(input: {
   review?: Awaited<ReturnType<typeof upsertReviewFromGeneration>> | null;
   generationBundle?: GenerationBundle | null;
   brainContextPrompt?: string;
-  regenerationNonce?: string;
+  regenerationRunId?: string;
   explicitRegeneration?: boolean;
 }): Promise<BlueprintGenerationOutcome> {
   try {
@@ -262,7 +264,7 @@ async function generateAssetBlueprint(input: {
         briefing: input.review,
         generationBundle: input.generationBundle ?? undefined,
         brainContextPrompt: input.brainContextPrompt,
-        regenerationNonce: input.regenerationNonce,
+        regenerationRunId: input.regenerationRunId,
         explicitRegeneration: input.explicitRegeneration,
       });
     }
@@ -272,7 +274,7 @@ async function generateAssetBlueprint(input: {
       analysis: input.analysis,
       generationBundle: input.generationBundle ?? undefined,
       brainContextPrompt: input.brainContextPrompt,
-      regenerationNonce: input.regenerationNonce,
+      regenerationRunId: input.regenerationRunId,
       explicitRegeneration: input.explicitRegeneration,
     });
   } catch (error) {
@@ -395,7 +397,7 @@ async function processDiscussionEndToEndInternal(
   clearGenerationPipelineCache();
 
   const startedAt = Date.now();
-  const regenerationNonce = runContext?.regenerationNonce;
+  const regenerationRunId = runContext?.regenerationRunId;
   const explicitRegeneration = Boolean(runContext?.explicitRegeneration);
   const buildLlmMeta = (
     stage: string,
@@ -405,8 +407,9 @@ async function processDiscussionEndToEndInternal(
     stage,
     promptSource,
     generationKind,
-    regenerationNonce,
+    regenerationRunId,
     discussionId,
+    explicitRegeneration,
   });
   const discussion = await getDiscussionById(discussionId, organizationId);
 
@@ -446,7 +449,7 @@ async function processDiscussionEndToEndInternal(
               bundle: analysisBundle,
               discussion: analysisDiscussion,
               qualityRefinementSuffix: refinementSuffix,
-              regenerationNonce,
+              regenerationRunId,
             });
             return generateReview(
               prompt,
@@ -474,7 +477,7 @@ async function processDiscussionEndToEndInternal(
         const prompt = assembleDiscussionAnalysisPrompt({
           bundle: analysisBundle,
           discussion: analysisDiscussion,
-          regenerationNonce,
+          regenerationRunId,
         });
         rawAnalysis = await generateReview(
           prompt,
@@ -492,7 +495,7 @@ async function processDiscussionEndToEndInternal(
           analysisDiscussion,
           legacyBrainPrompt ?? "",
         ),
-        regenerationNonce,
+        regenerationRunId,
       );
       rawAnalysis = await generateReview(
         analysisPrompt,
@@ -542,24 +545,26 @@ async function processDiscussionEndToEndInternal(
         raw_ai_response: rawAnalysis,
         parsed_analysis: parsedAnalysis,
         workflow: "discussion_end_to_end_v1",
-        regeneration_nonce: regenerationNonce ?? null,
+        regeneration_run_id: regenerationRunId ?? null,
       },
     });
 
-    logRegenerationEvent("ANALYSIS_PERSISTED", {
+    logPersistedRegenerationOutput({
+      regenerationRunId,
       discussionId,
       organizationId,
-      regenerationNonce: regenerationNonce ?? null,
-      analysisId: analysis.id,
-      summaryLength: analysis.summary?.length ?? 0,
+      stage: "analysis",
+      persistedHash: hashContent(analysis.summary),
+      recordId: analysis.id,
     });
 
-    logRegenerationEvent("DEPLOYMENT_ASSETS_PERSISTED", {
+    logPersistedRegenerationOutput({
+      regenerationRunId,
       discussionId,
       organizationId,
-      regenerationNonce: regenerationNonce ?? null,
-      analysisId: analysis.id,
-      deploymentAssetLength: analysis.suggested_cta?.length ?? 0,
+      stage: "deployment_assets",
+      persistedHash: hashContent(analysis.suggested_cta),
+      recordId: analysis.id,
     });
   } catch (error) {
     console.error("Discussion analysis save failed:", error);
@@ -576,7 +581,7 @@ async function processDiscussionEndToEndInternal(
       analysis,
       generationBundle: blueprintBundle,
       brainContextPrompt: legacyBrainPrompt ?? undefined,
-      regenerationNonce,
+      regenerationRunId,
       explicitRegeneration,
     });
 
@@ -661,7 +666,7 @@ async function processDiscussionEndToEndInternal(
               bundle: briefingBundle,
               opportunity,
               qualityRefinementSuffix: refinementSuffix,
-              regenerationNonce,
+              regenerationRunId,
             });
             return generateReview(
               prompt,
@@ -689,7 +694,7 @@ async function processDiscussionEndToEndInternal(
         const prompt = assembleExecutiveBriefingPrompt({
           bundle: briefingBundle,
           opportunity,
-          regenerationNonce,
+          regenerationRunId,
         });
         rawReview = await generateReview(
           prompt,
@@ -705,7 +710,7 @@ async function processDiscussionEndToEndInternal(
       rawReview = await generateReview(
         appendRegenerationRunStamp(
           buildOpportunityReviewPrompt(opportunity),
-          regenerationNonce,
+          regenerationRunId,
         ),
         buildLlmMeta(
           "executive_briefing.legacy",
@@ -772,7 +777,7 @@ async function processDiscussionEndToEndInternal(
     review,
     generationBundle: blueprintBundle,
     brainContextPrompt: legacyBrainPrompt ?? undefined,
-    regenerationNonce,
+    regenerationRunId,
     explicitRegeneration,
   });
 

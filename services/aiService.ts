@@ -6,6 +6,7 @@ import {
   type ReasoningProfileType,
 } from "@/lib/reasoningProfiles";
 import {
+  hashContent,
   logLlmCallEnd,
   logLlmCallStart,
   type LlmCallMeta,
@@ -15,8 +16,6 @@ export type GenerateReviewOptions = LlmCallMeta & {
   generationKind?: AthenaGenerationKind;
   reasoningProfile?: ReasoningProfileType;
   systemPrompt?: string;
-  regenerationNonce?: string;
-  discussionId?: string;
 };
 
 const DEFAULT_SYSTEM_PROMPTS: Partial<Record<AthenaGenerationKind, string>> = {
@@ -67,6 +66,10 @@ function resolveReasoningProfile(
   return "BALANCED";
 }
 
+function resolveRunId(meta?: GenerateReviewOptions): string | undefined {
+  return meta?.regenerationRunId ?? meta?.regenerationNonce;
+}
+
 export async function generateReview(
   prompt: string,
   meta?: GenerateReviewOptions,
@@ -79,12 +82,15 @@ export async function generateReview(
   });
 
   const startedAt = meta
-    ? logLlmCallStart({
-        ...meta,
-        generationKind: meta.generationKind,
-        reasoningProfile,
-        reasoningAttached: attachment.attach,
-      })
+    ? logLlmCallStart(
+        {
+          ...meta,
+          generationKind: meta.generationKind,
+          reasoningProfile,
+          reasoningAttached: attachment.attach,
+        },
+        prompt,
+      )
     : 0;
 
   const content = await callOpenRouter(
@@ -101,14 +107,14 @@ export async function generateReview(
     {
       reasoningProfile,
       generationKind: meta?.generationKind,
-      regenerationNonce: meta?.regenerationNonce,
+      regenerationRunId: resolveRunId(meta),
       discussionId: meta?.discussionId,
       stage: meta?.stage,
     },
   );
 
   if (meta) {
-    logLlmCallEnd(meta, startedAt, content.length);
+    logLlmCallEnd(meta, startedAt, content, hashContent(content));
   }
 
   return content;

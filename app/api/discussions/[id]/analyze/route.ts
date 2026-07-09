@@ -1,6 +1,6 @@
 import { after, NextResponse } from "next/server";
 import {
-  createRegenerationNonce,
+  createRegenerationRunId,
   logRegenerationEvent,
 } from "@/lib/regenerationDiagnostics";
 import {
@@ -30,33 +30,35 @@ const inFlightDiscussionRegenerations = new Set<string>();
 function runRegenerationInBackground(
   discussionId: string,
   organizationId: string,
-  regenerationNonce: string,
+  regenerationRunId: string,
+  startedAt: string,
 ): void {
   inFlightDiscussionRegenerations.add(discussionId);
 
   after(() => {
     void processDiscussionEndToEnd(discussionId, organizationId, {
-      regenerationNonce,
+      regenerationRunId,
       explicitRegeneration: true,
     })
       .then((result) => {
         if (!result.success) {
-        logRegenerationEvent("BACKGROUND_FAILED", {
-          discussionId,
-          organizationId,
-          regenerationNonce,
-          error: result.error ?? "Regeneration failed",
-        });
+          logRegenerationEvent("BACKGROUND_FAILED", {
+            discussionId,
+            organizationId,
+            regenerationRunId,
+            startedAt,
+            error: result.error ?? "Regeneration failed",
+          });
           return;
         }
 
         logRegenerationEvent("BACKGROUND_SUCCESS", {
           discussionId,
           organizationId,
-          regenerationNonce,
+          regenerationRunId,
+          startedAt,
           analysisId: result.analysisId ?? null,
           blueprintId: result.blueprintId ?? null,
-          partial: Boolean(result.partial),
           blueprintGenerated: result.blueprintGenerated,
         });
       })
@@ -64,12 +66,14 @@ function runRegenerationInBackground(
         console.error("[REGENERATION] BACKGROUND_FAILED", {
           discussionId,
           organizationId,
+          regenerationRunId,
           error: error instanceof Error ? error.message : "Unknown error",
         });
         logRegenerationEvent("BACKGROUND_FAILED", {
           discussionId,
           organizationId,
-          regenerationNonce,
+          regenerationRunId,
+          startedAt,
           error: error instanceof Error ? error.message : "Unknown error",
         });
       })
@@ -99,17 +103,11 @@ export async function POST(_request: Request, context: RouteContext) {
       throw error;
     }
 
-    const regenerationNonce = createRegenerationNonce();
+    const regenerationRunId = createRegenerationRunId();
+    const startedAt = new Date().toISOString();
 
     try {
       if (inFlightDiscussionRegenerations.has(id)) {
-        logRegenerationEvent("QUEUED", {
-          discussionId,
-          organizationId,
-          regenerationNonce,
-          skippedDuplicate: true,
-        });
-
         return jsonResponse({
           success: true,
           queued: true,
@@ -120,10 +118,16 @@ export async function POST(_request: Request, context: RouteContext) {
       logRegenerationEvent("REGENERATION_STARTED", {
         discussionId,
         organizationId,
-        regenerationNonce,
+        regenerationRunId,
+        startedAt,
       });
 
-      runRegenerationInBackground(id, organizationId, regenerationNonce);
+      runRegenerationInBackground(
+        id,
+        organizationId,
+        regenerationRunId,
+        startedAt,
+      );
     } catch (error) {
       console.error("Failed to queue regeneration:", error);
       return jsonResponse(
@@ -131,12 +135,6 @@ export async function POST(_request: Request, context: RouteContext) {
         500,
       );
     }
-
-    logRegenerationEvent("QUEUED", {
-      discussionId,
-      organizationId,
-      regenerationNonce,
-    });
 
     return jsonResponse({
       success: true,

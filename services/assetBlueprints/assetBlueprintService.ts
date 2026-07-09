@@ -2,6 +2,8 @@ import { generateReview } from "@/services/aiService";
 import {
   appendBlueprintDebugMarker,
   hasBlueprintDebugMarker,
+  hashContent,
+  logPersistedRegenerationOutput,
   logRegenerationDiagnostic,
   logRegenerationEvent,
 } from "@/lib/regenerationDiagnostics";
@@ -272,6 +274,7 @@ async function updateAssetBlueprint(
     opportunityId?: string | null;
     briefingId?: string | null;
     executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
+    regenerationRunId?: string | null;
   },
 ): Promise<AthenaAssetBlueprint | null> {
   const { data, error } = await supabaseAdmin
@@ -296,6 +299,7 @@ async function updateAssetBlueprint(
         parsed: input.parsed,
         raw_ai_response: input.rawBlueprint,
         executive_marketing_strategy: input.executiveMarketingStrategy ?? null,
+        regeneration_run_id: input.regenerationRunId ?? null,
       },
       updated_at: new Date().toISOString(),
     })
@@ -322,6 +326,7 @@ async function insertAssetBlueprint(input: {
   rawBlueprint: string;
   source: string;
   executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
+  regenerationRunId?: string | null;
 }): Promise<AthenaAssetBlueprint | null> {
   if (!blueprintHasPrompts(input.parsed)) {
     console.warn(
@@ -355,6 +360,7 @@ async function insertAssetBlueprint(input: {
         parsed: input.parsed,
         raw_ai_response: input.rawBlueprint,
         executive_marketing_strategy: input.executiveMarketingStrategy ?? null,
+        regeneration_run_id: input.regenerationRunId ?? null,
       },
     })
     .select("*")
@@ -424,6 +430,8 @@ async function upsertAssetBlueprint(input: {
   rawBlueprint: string;
   source: string;
   executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
+  forceInsert?: boolean;
+  regenerationRunId?: string | null;
 }): Promise<AthenaAssetBlueprint | null> {
   const parsedWithDebugMarker: ParsedAssetBlueprint = {
     ...input.parsed,
@@ -442,6 +450,33 @@ async function upsertAssetBlueprint(input: {
     return null;
   }
 
+  if (input.forceInsert) {
+    const inserted = await insertAssetBlueprint({
+      organizationId: input.organizationId,
+      userId: input.userId,
+      discussionId: input.discussionId,
+      opportunityId: input.opportunityId,
+      briefingId: input.briefingId,
+      parsed: parsedWithDebugMarker,
+      rawBlueprint: input.rawBlueprint,
+      source: input.source,
+      executiveMarketingStrategy: input.executiveMarketingStrategy,
+      regenerationRunId: input.regenerationRunId,
+    });
+
+    logRegenerationDiagnostic("BLUEPRINT_ROW_INSERTED", {
+      blueprintId: inserted?.id ?? null,
+      discussionId: input.discussionId,
+      operation: "insert_forced",
+      assetTitle: parsedWithDebugMarker.asset_title,
+      createdAt: inserted?.created_at ?? null,
+      hasDebugMarker: hasBlueprintDebugMarker(inserted?.notes),
+      fallbackUsed: false,
+    });
+
+    return inserted;
+  }
+
   const existingRows = await findExistingBlueprints({
     organizationId: input.organizationId,
     briefingId: input.briefingId,
@@ -458,6 +493,7 @@ async function upsertAssetBlueprint(input: {
       opportunityId: input.opportunityId,
       briefingId: input.briefingId,
       executiveMarketingStrategy: input.executiveMarketingStrategy,
+      regenerationRunId: input.regenerationRunId,
     });
 
     logRegenerationDiagnostic("BLUEPRINT_ROW_UPDATED", {
@@ -478,6 +514,7 @@ async function upsertAssetBlueprint(input: {
   const inserted = await insertAssetBlueprint({
     ...input,
     parsed: parsedWithDebugMarker,
+    regenerationRunId: input.regenerationRunId,
   });
 
   logRegenerationDiagnostic("BLUEPRINT_ROW_INSERTED", {
@@ -564,6 +601,9 @@ async function generateBlueprintReview(input: {
   stage: string;
   userPrompt: string;
   generationBundle?: GenerationBundle;
+  regenerationRunId?: string;
+  discussionId?: string;
+  explicitRegeneration?: boolean;
 }): Promise<string> {
   logRegenerationDiagnostic("BLUEPRINT_LLM_CALL_START", {
     stage: input.stage,
@@ -589,6 +629,9 @@ async function generateBlueprintReview(input: {
     promptSource:
       "services/brain/generationContracts/generationPromptAssembly.ts::assembleStrategicBlueprintPrompt → services/assetBlueprints/prompts/assetBlueprintPrompt.ts",
     generationKind: "strategic_blueprint",
+    regenerationRunId: input.regenerationRunId,
+    discussionId: input.discussionId,
+    explicitRegeneration: input.explicitRegeneration,
   });
 
   logRegenerationDiagnostic("BLUEPRINT_LLM_CALL_COMPLETED", {
@@ -603,6 +646,9 @@ async function generateBlueprintWithQualityGate(input: {
   stagePrefix: string;
   effectiveBundle: GenerationBundle;
   buildPrompt: (refinementSuffix: string) => string;
+  regenerationRunId?: string;
+  discussionId?: string;
+  explicitRegeneration?: boolean;
 }): Promise<
   | { ok: true; parsed: ParsedAssetBlueprint; rawBlueprint: string }
   | { ok: false; error: string; rawBlueprint?: string }
@@ -618,6 +664,9 @@ async function generateBlueprintWithQualityGate(input: {
           stage: `${input.stagePrefix}.quality_gate.attempt_${attempt}`,
           userPrompt: prompt,
           generationBundle: input.effectiveBundle,
+          regenerationRunId: input.regenerationRunId,
+          discussionId: input.discussionId,
+          explicitRegeneration: input.explicitRegeneration,
         });
       },
       parse: parseJsonResponseForQualityGate,
@@ -658,6 +707,8 @@ async function runBlueprintFallbackGeneration(input: {
   path: "briefing" | "analysis";
   effectiveBundle: GenerationBundle;
   buildPrompt: () => string;
+  regenerationRunId?: string;
+  explicitRegeneration?: boolean;
 }): Promise<
   | { ok: true; parsed: ParsedAssetBlueprint; rawBlueprint: string }
   | { ok: false; error: string; rawBlueprint?: string }
@@ -674,6 +725,9 @@ async function runBlueprintFallbackGeneration(input: {
       stage: input.stage,
       userPrompt: prompt,
       generationBundle: input.effectiveBundle,
+      regenerationRunId: input.regenerationRunId,
+      discussionId: input.discussionId,
+      explicitRegeneration: input.explicitRegeneration,
     });
     const parsedResult = tryParseJsonResponse(rawBlueprint);
 
@@ -728,13 +782,13 @@ async function persistBlueprintOrPreserve(input: {
   parseFailed: boolean;
   blueprintError?: string;
   explicitRegeneration?: boolean;
-  regenerationNonce?: string;
+  regenerationRunId?: string;
 }): Promise<BlueprintGenerationOutcome> {
   if (input.explicitRegeneration && (input.parseFailed || !input.parsed || !input.rawBlueprint)) {
     logRegenerationEvent("BLUEPRINT_REGENERATION_FAILED", {
       discussionId: input.discussionId,
       path: input.path,
-      regenerationNonce: input.regenerationNonce ?? null,
+      regenerationRunId: input.regenerationRunId ?? null,
       error:
         input.blueprintError ??
         "Strategic Blueprint response could not be parsed during explicit regeneration.",
@@ -765,7 +819,7 @@ async function persistBlueprintOrPreserve(input: {
       logRegenerationEvent("BLUEPRINT_REGENERATION_FAILED", {
         discussionId: input.discussionId,
         path: input.path,
-        regenerationNonce: input.regenerationNonce ?? null,
+        regenerationRunId: input.regenerationRunId ?? null,
         error:
           input.blueprintError ??
           "Strategic Blueprint response could not be parsed during explicit regeneration.",
@@ -810,6 +864,8 @@ async function persistBlueprintOrPreserve(input: {
     rawBlueprint: input.rawBlueprint,
     source: input.source,
     executiveMarketingStrategy: input.executiveMarketingStrategy,
+    forceInsert: input.explicitRegeneration,
+    regenerationRunId: input.regenerationRunId,
   });
 
   if (!saved || !hasBlueprintDebugMarker(saved.notes)) {
@@ -817,7 +873,7 @@ async function persistBlueprintOrPreserve(input: {
       logRegenerationEvent("BLUEPRINT_REGENERATION_FAILED", {
         discussionId: input.discussionId,
         path: input.path,
-        regenerationNonce: input.regenerationNonce ?? null,
+        regenerationRunId: input.regenerationRunId ?? null,
         error: "Strategic blueprint save did not produce valid prompts",
       });
       return {
@@ -846,13 +902,20 @@ async function persistBlueprintOrPreserve(input: {
     };
   }
 
-  logRegenerationEvent("BLUEPRINT_PERSISTED", {
+  logPersistedRegenerationOutput({
+    regenerationRunId: input.regenerationRunId,
     discussionId: input.discussionId,
-    path: input.path,
-    regenerationNonce: input.regenerationNonce ?? null,
-    blueprintId: saved.id,
-    blueprintTitle: saved.asset_title,
-    updatedAt: saved.updated_at,
+    organizationId: input.organizationId,
+    stage: "blueprint",
+    persistedHash: hashContent(
+      [
+        saved.asset_title,
+        saved.pdf_prompt,
+        saved.image_prompt,
+        saved.social_prompt,
+      ].join("|"),
+    ),
+    recordId: saved.id,
   });
 
   logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_ID_SAVED", {
@@ -878,7 +941,7 @@ export async function createAssetBlueprintForBriefing(input: {
   briefing: AthenaReview;
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
-  regenerationNonce?: string;
+  regenerationRunId?: string;
   explicitRegeneration?: boolean;
 }): Promise<BlueprintGenerationOutcome> {
   try {
@@ -901,6 +964,9 @@ export async function createAssetBlueprintForBriefing(input: {
       const gated = await generateBlueprintWithQualityGate({
         stagePrefix: "strategic_blueprint.briefing",
         effectiveBundle,
+        regenerationRunId: input.regenerationRunId,
+        discussionId: input.discussion.id,
+        explicitRegeneration: input.explicitRegeneration,
         buildPrompt: (refinementSuffix) =>
           assembleStrategicBlueprintPrompt({
             bundle: effectiveBundle,
@@ -908,7 +974,7 @@ export async function createAssetBlueprintForBriefing(input: {
             opportunity: input.opportunity as unknown as Record<string, unknown>,
             briefing: input.briefing as unknown as Record<string, unknown>,
             qualityRefinementSuffix: refinementSuffix,
-            regenerationNonce: input.regenerationNonce,
+            regenerationRunId: input.regenerationRunId,
           }),
       });
 
@@ -921,13 +987,15 @@ export async function createAssetBlueprintForBriefing(input: {
           discussionId: input.discussion.id,
           path: "briefing",
           effectiveBundle,
+          regenerationRunId: input.regenerationRunId,
+          explicitRegeneration: input.explicitRegeneration,
           buildPrompt: () =>
             assembleStrategicBlueprintPrompt({
               bundle: effectiveBundle,
               discussion: input.discussion as unknown as Record<string, unknown>,
               opportunity: input.opportunity as unknown as Record<string, unknown>,
               briefing: input.briefing as unknown as Record<string, unknown>,
-              regenerationNonce: input.regenerationNonce,
+              regenerationRunId: input.regenerationRunId,
             }),
         });
         if (!recovered.ok) {
@@ -951,6 +1019,9 @@ export async function createAssetBlueprintForBriefing(input: {
         rawBlueprint = await generateBlueprintReview({
           stage: "strategic_blueprint.briefing.legacy",
           userPrompt: prompt,
+          regenerationRunId: input.regenerationRunId,
+          discussionId: input.discussion.id,
+          explicitRegeneration: input.explicitRegeneration,
         });
         const parsedResult = tryParseJsonResponse(rawBlueprint);
         if (!parsedResult.ok) {
@@ -983,7 +1054,7 @@ export async function createAssetBlueprintForBriefing(input: {
       parseFailed,
       blueprintError,
       explicitRegeneration: input.explicitRegeneration,
-      regenerationNonce: input.regenerationNonce,
+      regenerationRunId: input.regenerationRunId,
     });
   } catch (error) {
     console.error("createAssetBlueprintForBriefing failed:", error);
@@ -1025,7 +1096,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   analysis: DiscussionAnalysis;
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
-  regenerationNonce?: string;
+  regenerationRunId?: string;
   explicitRegeneration?: boolean;
 }): Promise<BlueprintGenerationOutcome> {
   try {
@@ -1046,13 +1117,16 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
       const gated = await generateBlueprintWithQualityGate({
         stagePrefix: "strategic_blueprint.analysis",
         effectiveBundle,
+        regenerationRunId: input.regenerationRunId,
+        discussionId: input.discussion.id,
+        explicitRegeneration: input.explicitRegeneration,
         buildPrompt: (refinementSuffix) =>
           assembleStrategicBlueprintPrompt({
             bundle: effectiveBundle,
             discussion: input.discussion as unknown as Record<string, unknown>,
             analysis: input.analysis as unknown as Record<string, unknown>,
             qualityRefinementSuffix: refinementSuffix,
-            regenerationNonce: input.regenerationNonce,
+            regenerationRunId: input.regenerationRunId,
           }),
       });
 
@@ -1065,12 +1139,14 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
           discussionId: input.discussion.id,
           path: "analysis",
           effectiveBundle,
+          regenerationRunId: input.regenerationRunId,
+          explicitRegeneration: input.explicitRegeneration,
           buildPrompt: () =>
             assembleStrategicBlueprintPrompt({
               bundle: effectiveBundle,
               discussion: input.discussion as unknown as Record<string, unknown>,
               analysis: input.analysis as unknown as Record<string, unknown>,
-              regenerationNonce: input.regenerationNonce,
+              regenerationRunId: input.regenerationRunId,
             }),
         });
         if (!recovered.ok) {
@@ -1093,6 +1169,9 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
         rawBlueprint = await generateBlueprintReview({
           stage: "strategic_blueprint.analysis.legacy",
           userPrompt: prompt,
+          regenerationRunId: input.regenerationRunId,
+          discussionId: input.discussion.id,
+          explicitRegeneration: input.explicitRegeneration,
         });
         const parsedResult = tryParseJsonResponse(rawBlueprint);
         if (!parsedResult.ok) {
@@ -1123,7 +1202,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
       parseFailed,
       blueprintError,
       explicitRegeneration: input.explicitRegeneration,
-      regenerationNonce: input.regenerationNonce,
+      regenerationRunId: input.regenerationRunId,
     });
   } catch (error) {
     console.error("createAssetBlueprintForDiscussionAnalysis failed:", error);
