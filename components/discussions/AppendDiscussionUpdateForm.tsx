@@ -63,10 +63,7 @@ export function AppendDiscussionUpdateForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8"
-    >
+    <div className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <h2 className="text-xl font-semibold">Append Discussion Update</h2>
 
       <p className="mt-3 text-sm leading-6 text-white/45">
@@ -75,7 +72,7 @@ export function AppendDiscussionUpdateForm({
         workflow.
       </p>
 
-      <div className="mt-6 grid gap-5">
+      <form onSubmit={handleSubmit} className="mt-6 grid gap-5">
         <label className="grid gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
             Discussion Update
@@ -102,38 +99,36 @@ export function AppendDiscussionUpdateForm({
           />
         </label>
 
-        <div className="flex flex-wrap items-start gap-4">
-          <button
-            type="submit"
-            disabled={isSubmitting || !body.trim()}
-            className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        <button
+          type="submit"
+          disabled={isSubmitting || !body.trim()}
+          className="w-fit rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {isSubmitting ? "Updating..." : "Append & Reprocess"}
+        </button>
+      </form>
+
+      {result && (
+        <div className="mt-6 max-w-2xl space-y-4">
+          <div
+            className={
+              result.ok
+                ? "text-sm leading-6 text-emerald-300"
+                : "text-sm text-red-300"
+            }
           >
-            {isSubmitting ? "Updating..." : "Append & Reprocess"}
-          </button>
+            {result.message}
+          </div>
 
-          {result && (
-            <div className="max-w-2xl space-y-4">
-              <div
-                className={
-                  result.ok
-                    ? "text-sm leading-6 text-emerald-300"
-                    : "text-sm text-red-300"
-                }
-              >
-                {result.message}
-              </div>
-
-              {result.ok && (
-                <AnalyzeDiscussionButton
-                  discussionId={discussionId}
-                  label="Refresh Intelligence"
-                  compact
-                />
-              )}
-            </div>
+          {result.ok && (
+            <AnalyzeDiscussionButton
+              discussionId={discussionId}
+              label="Refresh Intelligence"
+              compact
+            />
           )}
         </div>
-      </div>
-    </form>
+      )}
+    </div>
   );
 }
