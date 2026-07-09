@@ -178,7 +178,9 @@ export async function resolveGenerationBundle(
     reasoningPipeline,
   };
 
-  writeCache(cacheKey, bundle);
+  if (!params.bypassCache) {
+    writeCache(cacheKey, bundle);
+  }
   return bundle;
 }
 

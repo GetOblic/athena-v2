@@ -864,7 +864,7 @@ async function persistBlueprintOrPreserve(input: {
     rawBlueprint: input.rawBlueprint,
     source: input.source,
     executiveMarketingStrategy: input.executiveMarketingStrategy,
-    forceInsert: input.explicitRegeneration,
+    forceInsert: false,
     regenerationRunId: input.regenerationRunId,
   });
 
@@ -1317,20 +1317,6 @@ export async function getDisplayAssetBlueprintByDiscussionId(
     organizationId,
   );
   const newest = sortBlueprintsByRecency(blueprints)[0] ?? null;
-
-  logRegenerationDiagnostic("BLUEPRINT_DISPLAY_SELECTION", {
-    context: "discussion_page",
-    discussionId,
-    organizationId,
-    totalRows: blueprints.length,
-    selectedBlueprintId: newest?.id ?? null,
-    selectedCreatedAt: newest?.created_at ?? null,
-    selectedUpdatedAt: newest?.updated_at ?? null,
-    selectedAssetTitle: newest?.asset_title ?? null,
-    hasDebugMarker: hasBlueprintDebugMarker(newest?.notes),
-    fallbackUsed: false,
-    selectionPolicy: "newest_by_recency",
-  });
 
   return newest;
 }

@@ -40,6 +40,7 @@ import {
   hashContent,
   logPersistedRegenerationOutput,
   logRegenerationEvent,
+  logRegenerationForensic,
 } from "@/lib/regenerationDiagnostics";
 
 export type RegenerationRunContext = {
@@ -399,6 +400,14 @@ async function processDiscussionEndToEndInternal(
   const startedAt = Date.now();
   const regenerationRunId = runContext?.regenerationRunId;
   const explicitRegeneration = Boolean(runContext?.explicitRegeneration);
+
+  logRegenerationEvent("REGENERATION_STARTED", {
+    discussionId,
+    organizationId,
+    regenerationRunId: regenerationRunId ?? null,
+    explicitRegeneration,
+  });
+
   const buildLlmMeta = (
     stage: string,
     promptSource: string,
@@ -451,6 +460,11 @@ async function processDiscussionEndToEndInternal(
               qualityRefinementSuffix: refinementSuffix,
               regenerationRunId,
             });
+            logRegenerationForensic("PROMPT_ASSEMBLED", {
+              stage: "discussion_analysis",
+              regenerationRunId: regenerationRunId ?? null,
+              promptHash: hashContent(prompt),
+            });
             return generateReview(
               prompt,
               buildLlmMeta(
@@ -478,6 +492,11 @@ async function processDiscussionEndToEndInternal(
           bundle: analysisBundle,
           discussion: analysisDiscussion,
           regenerationRunId,
+        });
+        logRegenerationForensic("PROMPT_ASSEMBLED", {
+          stage: "discussion_analysis.fallback",
+          regenerationRunId: regenerationRunId ?? null,
+          promptHash: hashContent(prompt),
         });
         rawAnalysis = await generateReview(
           prompt,
@@ -565,6 +584,19 @@ async function processDiscussionEndToEndInternal(
       stage: "deployment_assets",
       persistedHash: hashContent(analysis.suggested_cta),
       recordId: analysis.id,
+    });
+
+    logRegenerationForensic("EXECUTIVE_INTELLIGENCE_REGENERATED", {
+      regenerationRunId: regenerationRunId ?? null,
+      discussionId,
+      analysisId: analysis.id,
+      summaryHash: hashContent(analysis.summary),
+    });
+    logRegenerationForensic("DEPLOYMENT_ASSETS_REGENERATED", {
+      regenerationRunId: regenerationRunId ?? null,
+      discussionId,
+      analysisId: analysis.id,
+      deploymentAssetsHash: hashContent(analysis.suggested_cta),
     });
   } catch (error) {
     console.error("Discussion analysis save failed:", error);

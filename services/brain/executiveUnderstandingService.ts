@@ -132,7 +132,9 @@ export async function resolveExecutiveUnderstandingBundle(
     executiveStrategy,
   };
 
-  writeCache(cacheKey, bundle);
+  if (!params.bypassCache) {
+    writeCache(cacheKey, bundle);
+  }
   return bundle;
 }
 
