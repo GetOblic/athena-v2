@@ -1,4 +1,5 @@
 import { generateReview } from "@/services/aiService";
+import type { AthenaGenerationKind } from "@/lib/reasoningProfiles";
 import {
   createAssetBlueprintForBriefing,
   createAssetBlueprintForDiscussionAnalysis,
@@ -34,6 +35,15 @@ import { upsertOpportunityFromAnalysis } from "@/services/opportunityService";
 import { upsertReviewFromGeneration } from "@/services/reviewService";
 import { computeCompositeOpportunityScoreFromAnalysis } from "@/services/brain/executiveIntelligenceHelpers";
 import { runSimplifiedQualityGateLoop } from "@/services/brain/reasoningPipeline/simplifiedQualityGate";
+import {
+  appendRegenerationRunStamp,
+  logRegenerationEvent,
+} from "@/lib/regenerationDiagnostics";
+
+export type RegenerationRunContext = {
+  regenerationNonce: string;
+  explicitRegeneration?: boolean;
+};
 
 export type DiscussionEndToEndResult = {
   success: boolean;
@@ -69,9 +79,30 @@ function workflowSuccess(input: {
   reviewId?: string | null;
   blueprintOutcome: BlueprintGenerationOutcome;
   status: string;
+  explicitRegeneration?: boolean;
 }): DiscussionEndToEndResult {
+  if (
+    input.explicitRegeneration &&
+    (input.blueprintOutcome.preservedPrevious ||
+      input.blueprintOutcome.fallbackUsed)
+  ) {
+    return workflowFailure(
+      input.discussionId,
+      input.blueprintOutcome.blueprintError ??
+        "Strategic Blueprint regeneration failed.",
+    );
+  }
+
   const blueprintGenerated = input.blueprintOutcome.blueprintGenerated;
   const partial = !blueprintGenerated;
+
+  if (partial && input.explicitRegeneration) {
+    return workflowFailure(
+      input.discussionId,
+      input.blueprintOutcome.blueprintError ??
+        "Strategic Blueprint regeneration failed.",
+    );
+  }
 
   if (partial) {
     return {
@@ -220,7 +251,8 @@ async function generateAssetBlueprint(input: {
   review?: Awaited<ReturnType<typeof upsertReviewFromGeneration>> | null;
   generationBundle?: GenerationBundle | null;
   brainContextPrompt?: string;
-  regenerationRunStartedAt?: number;
+  regenerationNonce?: string;
+  explicitRegeneration?: boolean;
 }): Promise<BlueprintGenerationOutcome> {
   try {
     if (input.opportunity && input.review) {
@@ -230,7 +262,8 @@ async function generateAssetBlueprint(input: {
         briefing: input.review,
         generationBundle: input.generationBundle ?? undefined,
         brainContextPrompt: input.brainContextPrompt,
-        regenerationRunStartedAt: input.regenerationRunStartedAt,
+        regenerationNonce: input.regenerationNonce,
+        explicitRegeneration: input.explicitRegeneration,
       });
     }
 
@@ -239,7 +272,8 @@ async function generateAssetBlueprint(input: {
       analysis: input.analysis,
       generationBundle: input.generationBundle ?? undefined,
       brainContextPrompt: input.brainContextPrompt,
-      regenerationRunStartedAt: input.regenerationRunStartedAt,
+      regenerationNonce: input.regenerationNonce,
+      explicitRegeneration: input.explicitRegeneration,
     });
   } catch (error) {
     console.error("generateAssetBlueprint failed:", error);
@@ -336,9 +370,14 @@ async function resolveStrategicBlueprintGeneration(
 export async function processDiscussionEndToEnd(
   discussionId: string,
   organizationId: string,
+  runContext?: RegenerationRunContext,
 ): Promise<DiscussionEndToEndResult> {
   try {
-    return await processDiscussionEndToEndInternal(discussionId, organizationId);
+    return await processDiscussionEndToEndInternal(
+      discussionId,
+      organizationId,
+      runContext,
+    );
   } catch (error) {
     console.error("processDiscussionEndToEnd failed:", error);
     return workflowFailure(
@@ -351,10 +390,24 @@ export async function processDiscussionEndToEnd(
 async function processDiscussionEndToEndInternal(
   discussionId: string,
   organizationId: string,
+  runContext?: RegenerationRunContext,
 ): Promise<DiscussionEndToEndResult> {
   clearGenerationPipelineCache();
 
   const startedAt = Date.now();
+  const regenerationNonce = runContext?.regenerationNonce;
+  const explicitRegeneration = Boolean(runContext?.explicitRegeneration);
+  const buildLlmMeta = (
+    stage: string,
+    promptSource: string,
+    generationKind: AthenaGenerationKind,
+  ) => ({
+    stage,
+    promptSource,
+    generationKind,
+    regenerationNonce,
+    discussionId,
+  });
   const discussion = await getDiscussionById(discussionId, organizationId);
 
   if (!discussion) {
@@ -393,13 +446,16 @@ async function processDiscussionEndToEndInternal(
               bundle: analysisBundle,
               discussion: analysisDiscussion,
               qualityRefinementSuffix: refinementSuffix,
-              regenerationRunStartedAt: startedAt,
+              regenerationNonce,
             });
-            return generateReview(prompt, {
-              stage: "discussion_analysis.quality_gate",
-              promptSource: analysisPromptSource,
-              generationKind: "discussion_analysis",
-            });
+            return generateReview(
+              prompt,
+              buildLlmMeta(
+                "discussion_analysis.quality_gate",
+                analysisPromptSource,
+                "discussion_analysis",
+              ),
+            );
           },
           parse: parseAnalysis,
           validate: (_parsed, text) => ({
@@ -418,25 +474,34 @@ async function processDiscussionEndToEndInternal(
         const prompt = assembleDiscussionAnalysisPrompt({
           bundle: analysisBundle,
           discussion: analysisDiscussion,
-          regenerationRunStartedAt: startedAt,
+          regenerationNonce,
         });
-        rawAnalysis = await generateReview(prompt, {
-          stage: "discussion_analysis.fallback",
-          promptSource: analysisPromptSource,
-          generationKind: "discussion_analysis",
-        });
+        rawAnalysis = await generateReview(
+          prompt,
+          buildLlmMeta(
+            "discussion_analysis.fallback",
+            analysisPromptSource,
+            "discussion_analysis",
+          ),
+        );
         parsedAnalysis = parseAnalysis(rawAnalysis);
       }
     } else {
-      const analysisPrompt = buildDiscussionAnalysisPrompt(
-        analysisDiscussion,
-        legacyBrainPrompt ?? "",
+      const analysisPrompt = appendRegenerationRunStamp(
+        buildDiscussionAnalysisPrompt(
+          analysisDiscussion,
+          legacyBrainPrompt ?? "",
+        ),
+        regenerationNonce,
       );
-      rawAnalysis = await generateReview(analysisPrompt, {
-        stage: "discussion_analysis.legacy",
-        promptSource: analysisPromptSource,
-        generationKind: "discussion_analysis",
-      });
+      rawAnalysis = await generateReview(
+        analysisPrompt,
+        buildLlmMeta(
+          "discussion_analysis.legacy",
+          analysisPromptSource,
+          "discussion_analysis",
+        ),
+      );
       parsedAnalysis = parseAnalysis(rawAnalysis);
     }
   } catch (error) {
@@ -477,7 +542,24 @@ async function processDiscussionEndToEndInternal(
         raw_ai_response: rawAnalysis,
         parsed_analysis: parsedAnalysis,
         workflow: "discussion_end_to_end_v1",
+        regeneration_nonce: regenerationNonce ?? null,
       },
+    });
+
+    logRegenerationEvent("ANALYSIS_PERSISTED", {
+      discussionId,
+      organizationId,
+      regenerationNonce: regenerationNonce ?? null,
+      analysisId: analysis.id,
+      summaryLength: analysis.summary?.length ?? 0,
+    });
+
+    logRegenerationEvent("DEPLOYMENT_ASSETS_PERSISTED", {
+      discussionId,
+      organizationId,
+      regenerationNonce: regenerationNonce ?? null,
+      analysisId: analysis.id,
+      deploymentAssetLength: analysis.suggested_cta?.length ?? 0,
     });
   } catch (error) {
     console.error("Discussion analysis save failed:", error);
@@ -494,7 +576,8 @@ async function processDiscussionEndToEndInternal(
       analysis,
       generationBundle: blueprintBundle,
       brainContextPrompt: legacyBrainPrompt ?? undefined,
-      regenerationRunStartedAt: startedAt,
+      regenerationNonce,
+      explicitRegeneration,
     });
 
     return workflowSuccess({
@@ -502,6 +585,7 @@ async function processDiscussionEndToEndInternal(
       analysisId: analysis.id,
       blueprintOutcome,
       status: "analysis_completed_no_opportunity",
+      explicitRegeneration,
     });
   }
 
@@ -577,13 +661,16 @@ async function processDiscussionEndToEndInternal(
               bundle: briefingBundle,
               opportunity,
               qualityRefinementSuffix: refinementSuffix,
-              regenerationRunStartedAt: startedAt,
+              regenerationNonce,
             });
-            return generateReview(prompt, {
-              stage: "executive_briefing.quality_gate",
-              promptSource: briefingPromptSource,
-              generationKind: "executive_briefing",
-            });
+            return generateReview(
+              prompt,
+              buildLlmMeta(
+                "executive_briefing.quality_gate",
+                briefingPromptSource,
+                "executive_briefing",
+              ),
+            );
           },
           parse: parseGeneratedReview,
           validate: (_parsed, text) => ({
@@ -602,35 +689,38 @@ async function processDiscussionEndToEndInternal(
         const prompt = assembleExecutiveBriefingPrompt({
           bundle: briefingBundle,
           opportunity,
-          regenerationRunStartedAt: startedAt,
+          regenerationNonce,
         });
-        rawReview = await generateReview(prompt, {
-          stage: "executive_briefing.fallback",
-          promptSource: briefingPromptSource,
-          generationKind: "executive_briefing",
-        });
+        rawReview = await generateReview(
+          prompt,
+          buildLlmMeta(
+            "executive_briefing.fallback",
+            briefingPromptSource,
+            "executive_briefing",
+          ),
+        );
         parsedReview = parseGeneratedReview(rawReview);
       }
     } else {
-      rawReview = await generateReview(buildOpportunityReviewPrompt(opportunity), {
-        stage: "executive_briefing.legacy",
-        promptSource: briefingPromptSource,
-        generationKind: "executive_briefing",
-      });
+      rawReview = await generateReview(
+        appendRegenerationRunStamp(
+          buildOpportunityReviewPrompt(opportunity),
+          regenerationNonce,
+        ),
+        buildLlmMeta(
+          "executive_briefing.legacy",
+          briefingPromptSource,
+          "executive_briefing",
+        ),
+      );
       parsedReview = parseGeneratedReview(rawReview);
     }
   } catch (error) {
     console.error("Executive briefing generation failed:", error);
-    return {
-      success: true,
-      partial: true,
-      warning: "Analysis and opportunity regenerated but briefing generation failed.",
+    return workflowFailure(
       discussionId,
-      analysisId: analysis.id,
-      opportunityId: opportunity.id,
-      blueprintGenerated: false,
-      status: "briefing_generation_failed",
-    };
+      "Analysis and opportunity regenerated but briefing generation failed.",
+    );
   }
 
   const review = await upsertReviewFromGeneration({
@@ -682,7 +772,8 @@ async function processDiscussionEndToEndInternal(
     review,
     generationBundle: blueprintBundle,
     brainContextPrompt: legacyBrainPrompt ?? undefined,
-    regenerationRunStartedAt: startedAt,
+    regenerationNonce,
+    explicitRegeneration,
   });
 
   if (analysisBundle && briefingBundle) {
@@ -723,5 +814,6 @@ async function processDiscussionEndToEndInternal(
     reviewId: review.id,
     blueprintOutcome,
     status: "review_ready",
+    explicitRegeneration,
   });
 }

@@ -6,6 +6,7 @@ import {
   type AthenaGenerationKind,
   type ReasoningProfileType,
 } from "@/lib/reasoningProfiles";
+import { logRegenerationEvent } from "@/lib/regenerationDiagnostics";
 
 type OpenRouterMessage = {
   role: "system" | "user" | "assistant";
@@ -16,6 +17,9 @@ export type OpenRouterCallOptions = {
   temperature?: number;
   reasoningProfile?: ReasoningProfileType;
   generationKind?: AthenaGenerationKind;
+  regenerationNonce?: string;
+  discussionId?: string;
+  stage?: string;
 };
 
 function shouldLogReasoningDev(): boolean {
@@ -83,6 +87,15 @@ export async function callOpenRouter(
     Object.assign(body, getReasoningProfile(profile));
   }
 
+  const callStartedAt = Date.now();
+  logRegenerationEvent("OPENROUTER_CALL_STARTED", {
+    stage: options?.stage ?? null,
+    generationKind: options?.generationKind ?? null,
+    model,
+    regenerationNonce: options?.regenerationNonce ?? null,
+    discussionId: options?.discussionId ?? null,
+  });
+
   logReasoningDev({
     generationKind: options?.generationKind ?? null,
     model,
@@ -117,6 +130,17 @@ export async function callOpenRouter(
   }
 
   const data = await response.json();
+  const content = data.choices?.[0]?.message?.content ?? "";
 
-  return data.choices?.[0]?.message?.content ?? "";
+  logRegenerationEvent("OPENROUTER_RESPONSE_RECEIVED", {
+    stage: options?.stage ?? null,
+    generationKind: options?.generationKind ?? null,
+    model,
+    durationMs: Date.now() - callStartedAt,
+    responseCharCount: content.length,
+    regenerationNonce: options?.regenerationNonce ?? null,
+    discussionId: options?.discussionId ?? null,
+  });
+
+  return content;
 }

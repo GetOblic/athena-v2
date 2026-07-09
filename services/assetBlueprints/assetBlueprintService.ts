@@ -108,9 +108,14 @@ async function resolveBlueprintGenerationBundle(input: {
   discussionId: string;
   opportunityId?: string | null;
   briefingId?: string | null;
+  explicitRegeneration?: boolean;
 }): Promise<GenerationBundle | undefined> {
   if (!input.generationBundle) {
     return undefined;
+  }
+
+  if (input.explicitRegeneration) {
+    return input.generationBundle;
   }
 
   const existingRows = await findExistingBlueprints({
@@ -722,15 +727,61 @@ async function persistBlueprintOrPreserve(input: {
   executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
   parseFailed: boolean;
   blueprintError?: string;
+  explicitRegeneration?: boolean;
+  regenerationNonce?: string;
 }): Promise<BlueprintGenerationOutcome> {
-  const preserved = await findPreservedBlueprint({
-    organizationId: input.organizationId,
-    briefingId: input.briefingId,
-    opportunityId: input.opportunityId,
-    discussionId: input.discussionId,
-  });
+  if (input.explicitRegeneration && (input.parseFailed || !input.parsed || !input.rawBlueprint)) {
+    logRegenerationEvent("BLUEPRINT_REGENERATION_FAILED", {
+      discussionId: input.discussionId,
+      path: input.path,
+      regenerationNonce: input.regenerationNonce ?? null,
+      error:
+        input.blueprintError ??
+        "Strategic Blueprint response could not be parsed during explicit regeneration.",
+    });
+    return {
+      blueprint: null,
+      blueprintGenerated: false,
+      blueprintError:
+        input.blueprintError ??
+        "Strategic Blueprint response could not be parsed during explicit regeneration.",
+      parseFailed: input.parseFailed,
+      preservedPrevious: false,
+      fallbackUsed: false,
+    };
+  }
+
+  const preserved = input.explicitRegeneration
+    ? null
+    : await findPreservedBlueprint({
+        organizationId: input.organizationId,
+        briefingId: input.briefingId,
+        opportunityId: input.opportunityId,
+        discussionId: input.discussionId,
+      });
 
   if (input.parseFailed || !input.parsed || !input.rawBlueprint) {
+    if (input.explicitRegeneration) {
+      logRegenerationEvent("BLUEPRINT_REGENERATION_FAILED", {
+        discussionId: input.discussionId,
+        path: input.path,
+        regenerationNonce: input.regenerationNonce ?? null,
+        error:
+          input.blueprintError ??
+          "Strategic Blueprint response could not be parsed during explicit regeneration.",
+      });
+      return {
+        blueprint: null,
+        blueprintGenerated: false,
+        blueprintError:
+          input.blueprintError ??
+          "Strategic Blueprint response could not be parsed during explicit regeneration.",
+        parseFailed: input.parseFailed,
+        preservedPrevious: false,
+        fallbackUsed: false,
+      };
+    }
+
     logRegenerationEvent("BLUEPRINT_PARSE_FAILED_PRESERVED_PREVIOUS", {
       discussionId: input.discussionId,
       path: input.path,
@@ -762,6 +813,23 @@ async function persistBlueprintOrPreserve(input: {
   });
 
   if (!saved || !hasBlueprintDebugMarker(saved.notes)) {
+    if (input.explicitRegeneration) {
+      logRegenerationEvent("BLUEPRINT_REGENERATION_FAILED", {
+        discussionId: input.discussionId,
+        path: input.path,
+        regenerationNonce: input.regenerationNonce ?? null,
+        error: "Strategic blueprint save did not produce valid prompts",
+      });
+      return {
+        blueprint: null,
+        blueprintGenerated: false,
+        blueprintError: "Strategic blueprint save did not produce valid prompts",
+        parseFailed: false,
+        preservedPrevious: false,
+        fallbackUsed: false,
+      };
+    }
+
     logRegenerationEvent("BLUEPRINT_PARSE_FAILED_PRESERVED_PREVIOUS", {
       discussionId: input.discussionId,
       path: input.path,
@@ -777,6 +845,15 @@ async function persistBlueprintOrPreserve(input: {
       fallbackUsed: Boolean(preserved),
     };
   }
+
+  logRegenerationEvent("BLUEPRINT_PERSISTED", {
+    discussionId: input.discussionId,
+    path: input.path,
+    regenerationNonce: input.regenerationNonce ?? null,
+    blueprintId: saved.id,
+    blueprintTitle: saved.asset_title,
+    updatedAt: saved.updated_at,
+  });
 
   logRegenerationDiagnostic("STRATEGIC_BLUEPRINT_ID_SAVED", {
     discussionId: input.discussionId,
@@ -801,7 +878,8 @@ export async function createAssetBlueprintForBriefing(input: {
   briefing: AthenaReview;
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
-  regenerationRunStartedAt?: number;
+  regenerationNonce?: string;
+  explicitRegeneration?: boolean;
 }): Promise<BlueprintGenerationOutcome> {
   try {
     const organizationId = input.discussion.organization_id ?? "";
@@ -811,6 +889,7 @@ export async function createAssetBlueprintForBriefing(input: {
       discussionId: input.discussion.id,
       opportunityId: input.opportunity.id,
       briefingId: input.briefing.id,
+      explicitRegeneration: input.explicitRegeneration,
     });
 
     let parsed: ParsedAssetBlueprint | null = null;
@@ -829,7 +908,7 @@ export async function createAssetBlueprintForBriefing(input: {
             opportunity: input.opportunity as unknown as Record<string, unknown>,
             briefing: input.briefing as unknown as Record<string, unknown>,
             qualityRefinementSuffix: refinementSuffix,
-            regenerationRunStartedAt: input.regenerationRunStartedAt,
+            regenerationNonce: input.regenerationNonce,
           }),
       });
 
@@ -848,7 +927,7 @@ export async function createAssetBlueprintForBriefing(input: {
               discussion: input.discussion as unknown as Record<string, unknown>,
               opportunity: input.opportunity as unknown as Record<string, unknown>,
               briefing: input.briefing as unknown as Record<string, unknown>,
-              regenerationRunStartedAt: input.regenerationRunStartedAt,
+              regenerationNonce: input.regenerationNonce,
             }),
         });
         if (!recovered.ok) {
@@ -903,9 +982,25 @@ export async function createAssetBlueprintForBriefing(input: {
         effectiveBundle?.executiveStrategy.marketingStrategy ?? null,
       parseFailed,
       blueprintError,
+      explicitRegeneration: input.explicitRegeneration,
+      regenerationNonce: input.regenerationNonce,
     });
   } catch (error) {
     console.error("createAssetBlueprintForBriefing failed:", error);
+    if (input.explicitRegeneration) {
+      return {
+        blueprint: null,
+        blueprintGenerated: false,
+        blueprintError:
+          error instanceof Error
+            ? error.message
+            : "Strategic blueprint generation failed",
+        parseFailed: true,
+        preservedPrevious: false,
+        fallbackUsed: false,
+      };
+    }
+
     return persistBlueprintOrPreserve({
       organizationId: input.discussion.organization_id ?? "",
       userId: input.discussion.user_id ?? null,
@@ -930,7 +1025,8 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   analysis: DiscussionAnalysis;
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
-  regenerationRunStartedAt?: number;
+  regenerationNonce?: string;
+  explicitRegeneration?: boolean;
 }): Promise<BlueprintGenerationOutcome> {
   try {
     const organizationId = input.discussion.organization_id ?? "";
@@ -938,6 +1034,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
       generationBundle: input.generationBundle,
       organizationId,
       discussionId: input.discussion.id,
+      explicitRegeneration: input.explicitRegeneration,
     });
 
     let parsed: ParsedAssetBlueprint | null = null;
@@ -955,7 +1052,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
             discussion: input.discussion as unknown as Record<string, unknown>,
             analysis: input.analysis as unknown as Record<string, unknown>,
             qualityRefinementSuffix: refinementSuffix,
-            regenerationRunStartedAt: input.regenerationRunStartedAt,
+            regenerationNonce: input.regenerationNonce,
           }),
       });
 
@@ -973,7 +1070,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
               bundle: effectiveBundle,
               discussion: input.discussion as unknown as Record<string, unknown>,
               analysis: input.analysis as unknown as Record<string, unknown>,
-              regenerationRunStartedAt: input.regenerationRunStartedAt,
+              regenerationNonce: input.regenerationNonce,
             }),
         });
         if (!recovered.ok) {
@@ -1025,9 +1122,25 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
         effectiveBundle?.executiveStrategy.marketingStrategy ?? null,
       parseFailed,
       blueprintError,
+      explicitRegeneration: input.explicitRegeneration,
+      regenerationNonce: input.regenerationNonce,
     });
   } catch (error) {
     console.error("createAssetBlueprintForDiscussionAnalysis failed:", error);
+    if (input.explicitRegeneration) {
+      return {
+        blueprint: null,
+        blueprintGenerated: false,
+        blueprintError:
+          error instanceof Error
+            ? error.message
+            : "Strategic blueprint generation failed",
+        parseFailed: true,
+        preservedPrevious: false,
+        fallbackUsed: false,
+      };
+    }
+
     return persistBlueprintOrPreserve({
       organizationId: input.discussion.organization_id ?? "",
       userId: input.discussion.user_id ?? null,
@@ -1124,7 +1237,6 @@ export async function getDisplayAssetBlueprintByDiscussionId(
     discussionId,
     organizationId,
   );
-  const selected = pickBestBlueprint(blueprints);
   const newest = sortBlueprintsByRecency(blueprints)[0] ?? null;
 
   logRegenerationDiagnostic("BLUEPRINT_DISPLAY_SELECTION", {
@@ -1132,23 +1244,16 @@ export async function getDisplayAssetBlueprintByDiscussionId(
     discussionId,
     organizationId,
     totalRows: blueprints.length,
-    selectedBlueprintId: selected?.id ?? null,
-    selectedCreatedAt: selected?.created_at ?? null,
-    selectedUpdatedAt: selected?.updated_at ?? null,
-    selectedAssetTitle: selected?.asset_title ?? null,
-    newestBlueprintId: newest?.id ?? null,
-    newestUpdatedAt: newest?.updated_at ?? null,
-    isNewestRow: Boolean(selected && newest && selected.id === newest.id),
-    selectionUsesPromptPriority: Boolean(
-      selected && newest && selected.id !== newest.id,
-    ),
-    hasDebugMarker: hasBlueprintDebugMarker(selected?.notes),
-    fallbackUsed: Boolean(
-      selected && !hasBlueprintDebugMarker(selected.notes),
-    ),
+    selectedBlueprintId: newest?.id ?? null,
+    selectedCreatedAt: newest?.created_at ?? null,
+    selectedUpdatedAt: newest?.updated_at ?? null,
+    selectedAssetTitle: newest?.asset_title ?? null,
+    hasDebugMarker: hasBlueprintDebugMarker(newest?.notes),
+    fallbackUsed: false,
+    selectionPolicy: "newest_by_recency",
   });
 
-  return selected;
+  return newest;
 }
 
 export async function getDisplayAssetBlueprintForBriefing(input: {

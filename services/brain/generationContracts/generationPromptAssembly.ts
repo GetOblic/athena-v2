@@ -19,20 +19,13 @@ import {
   formatReasoningContextForBlueprintSelection,
 } from "@/services/brain/reasoningPipeline/reasoningPipelinePromptFormatting";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
+import { formatRegenerationRunStamp } from "@/lib/regenerationDiagnostics";
 
 type PromptAssemblyOptions = {
   qualityRefinementSuffix?: string;
   /** Unique per regeneration run — prevents byte-identical OpenRouter requests. */
-  regenerationRunStartedAt?: number;
+  regenerationNonce?: string;
 };
-
-function formatRegenerationRunStamp(startedAt?: number): string {
-  if (startedAt == null) {
-    return "";
-  }
-
-  return `[Regeneration run: ${new Date(startedAt).toISOString()}]`;
-}
 
 function buildExecutiveContext(
   bundle: GenerationBundle,
@@ -66,7 +59,7 @@ function buildExecutiveContext(
     businessContext,
     decisionSignals,
     strategyBlock,
-    formatRegenerationRunStamp(options?.regenerationRunStartedAt),
+    formatRegenerationRunStamp(options?.regenerationNonce),
   ]
     .filter(Boolean)
     .join("\n\n")
@@ -105,7 +98,7 @@ function buildBlueprintExecutiveContext(
     businessContext,
     commercialContext,
     strategyBlock,
-    formatRegenerationRunStamp(options?.regenerationRunStartedAt),
+    formatRegenerationRunStamp(options?.regenerationNonce),
   ]
     .filter(Boolean)
     .join("\n\n")
@@ -116,11 +109,11 @@ export function assembleDiscussionAnalysisPrompt(input: {
   bundle: GenerationBundle;
   discussion: Discussion;
   qualityRefinementSuffix?: string;
-  regenerationRunStartedAt?: number;
+  regenerationNonce?: string;
 }): string {
   const executiveContextBlock = buildExecutiveContext(input.bundle, {
     qualityRefinementSuffix: input.qualityRefinementSuffix,
-    regenerationRunStartedAt: input.regenerationRunStartedAt,
+    regenerationNonce: input.regenerationNonce,
     discussion: input.discussion,
   });
   return buildDiscussionAnalysisPrompt(input.discussion, executiveContextBlock);
@@ -130,11 +123,11 @@ export function assembleExecutiveBriefingPrompt(input: {
   bundle: GenerationBundle;
   opportunity: Opportunity;
   qualityRefinementSuffix?: string;
-  regenerationRunStartedAt?: number;
+  regenerationNonce?: string;
 }): string {
   const executiveContextBlock = buildExecutiveContext(input.bundle, {
     qualityRefinementSuffix: input.qualityRefinementSuffix,
-    regenerationRunStartedAt: input.regenerationRunStartedAt,
+    regenerationNonce: input.regenerationNonce,
     opportunity: input.opportunity as unknown as Record<string, unknown>,
   });
   const taskPrompt = buildOpportunityReviewPrompt(input.opportunity);
@@ -156,11 +149,11 @@ export function assembleStrategicBlueprintPrompt(input: {
   briefing?: Record<string, unknown>;
   analysis?: Record<string, unknown>;
   qualityRefinementSuffix?: string;
-  regenerationRunStartedAt?: number;
+  regenerationNonce?: string;
 }): string {
   const executiveContextBlock = buildBlueprintExecutiveContext(input.bundle, {
     qualityRefinementSuffix: input.qualityRefinementSuffix,
-    regenerationRunStartedAt: input.regenerationRunStartedAt,
+    regenerationNonce: input.regenerationNonce,
     discussion: input.discussion,
     analysis: input.analysis,
     opportunity: input.opportunity,

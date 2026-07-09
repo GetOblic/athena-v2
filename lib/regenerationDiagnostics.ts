@@ -1,15 +1,28 @@
+import { randomUUID } from "node:crypto";
+
 const DEBUG_MARKER_PREFIX = "Generation debug timestamp:";
 
 const PRODUCTION_REGENERATION_EVENTS = new Set([
   "QUEUED",
+  "REGENERATION_STARTED",
   "BACKGROUND_SUCCESS",
   "BACKGROUND_FAILED",
   "REGENERATE_START",
   "REGENERATE_SUCCESS",
   "REGENERATE_PARTIAL_SUCCESS",
   "REGENERATE_FAILED",
+  "OPENROUTER_CALL_STARTED",
+  "OPENROUTER_RESPONSE_RECEIVED",
+  "ANALYSIS_PERSISTED",
+  "DEPLOYMENT_ASSETS_PERSISTED",
+  "BLUEPRINT_PERSISTED",
+  "BLUEPRINT_REGENERATION_FAILED",
   "BLUEPRINT_PARSE_FAILED_PRESERVED_PREVIOUS",
 ]);
+
+export function createRegenerationNonce(): string {
+  return randomUUID();
+}
 
 export function logRegenerationEvent(
   event: string,
@@ -78,16 +91,19 @@ export type LlmCallMeta = {
   generationKind?: string;
   reasoningProfile?: string;
   reasoningAttached?: boolean;
+  regenerationNonce?: string;
+  discussionId?: string;
 };
 
 export function logLlmCallStart(meta: LlmCallMeta): number {
-  if (process.env.NODE_ENV === "development") {
-    logRegenerationDiagnostic("LLM_CALL_START", {
-      stage: meta.stage,
-      promptSource: meta.promptSource,
-      model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
-    });
-  }
+  logRegenerationEvent("OPENROUTER_CALL_STARTED", {
+    stage: meta.stage,
+    promptSource: meta.promptSource,
+    generationKind: meta.generationKind ?? null,
+    model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
+    regenerationNonce: meta.regenerationNonce ?? null,
+    discussionId: meta.discussionId ?? null,
+  });
   return Date.now();
 }
 
@@ -96,12 +112,33 @@ export function logLlmCallEnd(
   startedAtMs: number,
   responseCharCount: number,
 ): void {
-  if (process.env.NODE_ENV === "development") {
-    logRegenerationDiagnostic("LLM_CALL_END", {
-      stage: meta.stage,
-      promptSource: meta.promptSource,
-      durationMs: Date.now() - startedAtMs,
-      responseCharCount,
-    });
+  logRegenerationEvent("OPENROUTER_RESPONSE_RECEIVED", {
+    stage: meta.stage,
+    promptSource: meta.promptSource,
+    generationKind: meta.generationKind ?? null,
+    durationMs: Date.now() - startedAtMs,
+    responseCharCount,
+    regenerationNonce: meta.regenerationNonce ?? null,
+    discussionId: meta.discussionId ?? null,
+  });
+}
+
+export function formatRegenerationRunStamp(nonce?: string): string {
+  if (!nonce?.trim()) {
+    return "";
   }
+
+  return `[Regeneration run: ${nonce.trim()}]`;
+}
+
+export function appendRegenerationRunStamp(
+  prompt: string,
+  nonce?: string,
+): string {
+  const stamp = formatRegenerationRunStamp(nonce);
+  if (!stamp) {
+    return prompt;
+  }
+
+  return `${prompt.trim()}\n\n${stamp}`;
 }

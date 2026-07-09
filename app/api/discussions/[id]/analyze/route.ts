@@ -1,5 +1,8 @@
 import { after, NextResponse } from "next/server";
-import { logRegenerationEvent } from "@/lib/regenerationDiagnostics";
+import {
+  createRegenerationNonce,
+  logRegenerationEvent,
+} from "@/lib/regenerationDiagnostics";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -27,24 +30,30 @@ const inFlightDiscussionRegenerations = new Set<string>();
 function runRegenerationInBackground(
   discussionId: string,
   organizationId: string,
+  regenerationNonce: string,
 ): void {
   inFlightDiscussionRegenerations.add(discussionId);
 
   after(() => {
-    void processDiscussionEndToEnd(discussionId, organizationId)
+    void processDiscussionEndToEnd(discussionId, organizationId, {
+      regenerationNonce,
+      explicitRegeneration: true,
+    })
       .then((result) => {
         if (!result.success) {
-          logRegenerationEvent("BACKGROUND_FAILED", {
-            discussionId,
-            organizationId,
-            error: result.error ?? "Regeneration failed",
-          });
+        logRegenerationEvent("BACKGROUND_FAILED", {
+          discussionId,
+          organizationId,
+          regenerationNonce,
+          error: result.error ?? "Regeneration failed",
+        });
           return;
         }
 
         logRegenerationEvent("BACKGROUND_SUCCESS", {
           discussionId,
           organizationId,
+          regenerationNonce,
           analysisId: result.analysisId ?? null,
           blueprintId: result.blueprintId ?? null,
           partial: Boolean(result.partial),
@@ -60,6 +69,7 @@ function runRegenerationInBackground(
         logRegenerationEvent("BACKGROUND_FAILED", {
           discussionId,
           organizationId,
+          regenerationNonce,
           error: error instanceof Error ? error.message : "Unknown error",
         });
       })
@@ -89,11 +99,14 @@ export async function POST(_request: Request, context: RouteContext) {
       throw error;
     }
 
+    const regenerationNonce = createRegenerationNonce();
+
     try {
       if (inFlightDiscussionRegenerations.has(id)) {
         logRegenerationEvent("QUEUED", {
           discussionId,
           organizationId,
+          regenerationNonce,
           skippedDuplicate: true,
         });
 
@@ -104,7 +117,13 @@ export async function POST(_request: Request, context: RouteContext) {
         });
       }
 
-      runRegenerationInBackground(id, organizationId);
+      logRegenerationEvent("REGENERATION_STARTED", {
+        discussionId,
+        organizationId,
+        regenerationNonce,
+      });
+
+      runRegenerationInBackground(id, organizationId, regenerationNonce);
     } catch (error) {
       console.error("Failed to queue regeneration:", error);
       return jsonResponse(
@@ -116,6 +135,7 @@ export async function POST(_request: Request, context: RouteContext) {
     logRegenerationEvent("QUEUED", {
       discussionId,
       organizationId,
+      regenerationNonce,
     });
 
     return jsonResponse({

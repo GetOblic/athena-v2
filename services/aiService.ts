@@ -15,6 +15,8 @@ export type GenerateReviewOptions = LlmCallMeta & {
   generationKind?: AthenaGenerationKind;
   reasoningProfile?: ReasoningProfileType;
   systemPrompt?: string;
+  regenerationNonce?: string;
+  discussionId?: string;
 };
 
 const DEFAULT_SYSTEM_PROMPTS: Partial<Record<AthenaGenerationKind, string>> = {
@@ -99,6 +101,9 @@ export async function generateReview(
     {
       reasoningProfile,
       generationKind: meta?.generationKind,
+      regenerationNonce: meta?.regenerationNonce,
+      discussionId: meta?.discussionId,
+      stage: meta?.stage,
     },
   );
 
