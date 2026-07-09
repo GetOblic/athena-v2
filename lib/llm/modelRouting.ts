@@ -29,24 +29,27 @@ export type ResolvedModelRoute = {
   reasoningEffort: string;
 };
 
-const DEFAULT_MODEL_SLUG = "anthropic/claude-sonnet-4";
+const DEFAULT_ANALYSIS_MODEL = "google/gemini-2.5-flash";
+const DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4";
 
+/** Fallback for calls without an explicit Athena stage (legacy / unspecified). */
 export function resolveOpenRouterFallbackModel(): string {
-  return process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL_SLUG;
+  return process.env.OPENROUTER_MODEL?.trim() || DEFAULT_PREMIUM_MODEL;
 }
 
 export function getLLMModelRoles(): Record<AthenaLLMRole, LLMModelRoleConfig> {
-  const fallbackModel = resolveOpenRouterFallbackModel();
+  const premiumFallback = resolveOpenRouterFallbackModel();
 
   return {
     analysis: {
       model:
-        process.env.OPENROUTER_ANALYSIS_MODEL?.trim() || fallbackModel,
+        process.env.OPENROUTER_ANALYSIS_MODEL?.trim() || DEFAULT_ANALYSIS_MODEL,
       reasoningEffort:
         process.env.OPENROUTER_ANALYSIS_REASONING_EFFORT?.trim() || "medium",
     },
     premiumStrategicOutput: {
-      model: process.env.OPENROUTER_PREMIUM_MODEL?.trim() || fallbackModel,
+      model:
+        process.env.OPENROUTER_PREMIUM_MODEL?.trim() || premiumFallback,
       reasoningEffort:
         process.env.OPENROUTER_PREMIUM_REASONING_EFFORT?.trim() || "high",
     },
@@ -143,9 +146,13 @@ export function resolveModelForGenerationKind(
   return resolveModelForStage(resolveAthenaStageFromGenerationKind(kind));
 }
 
-export function logAthenaLlmRouting(route: ResolvedModelRoute): void {
+export function logAthenaLlmRouting(
+  route: ResolvedModelRoute,
+  reasoning?: string | null,
+): void {
+  const reasoningLabel = reasoning ?? route.reasoningEffort;
   console.log(
-    `[Athena LLM] stage=${route.stage} role=${route.role} model=${route.model}`,
+    `[Athena LLM] stage=${route.stage} role=${route.role} model=${route.model} reasoning=${reasoningLabel}`,
   );
 }
 

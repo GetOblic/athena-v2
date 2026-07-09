@@ -140,14 +140,6 @@ export async function callOpenRouter(
 
   const { model, route } = resolveCallModel(options);
 
-  if (route) {
-    logAthenaLlmRouting(route);
-  } else {
-    console.log(
-      `[Athena LLM] stage=unspecified role=fallback model=${model}`,
-    );
-  }
-
   const headers = {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
@@ -157,6 +149,17 @@ export async function callOpenRouter(
 
   const profile = options?.reasoningProfile ?? "BALANCED";
   const attachment = resolveReasoningAttachment({ model, profile });
+  const reasoningLabel =
+    attachment.attach && attachment.effort ? attachment.effort : profile;
+
+  if (route) {
+    logAthenaLlmRouting(route, reasoningLabel);
+  } else {
+    console.log(
+      `[Athena LLM] stage=unspecified role=fallback model=${model} reasoning=${reasoningLabel}`,
+    );
+  }
+
   const baseMaxTokens = resolveDefaultMaxTokens();
   const tokenBudgetSchedule = buildTokenBudgetSchedule(baseMaxTokens);
   const callStartedAt = Date.now();

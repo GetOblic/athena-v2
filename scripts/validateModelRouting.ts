@@ -6,12 +6,28 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
-  getLLMStageRoutes,
   resolveAthenaStageFromGenerationKind,
   resolveModelForStage,
-  resolveOpenRouterFallbackModel,
   resolveRoleForStage,
 } from "@/lib/llm/modelRouting";
+
+const DEFAULT_ANALYSIS_MODEL = "google/gemini-2.5-flash";
+const DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4";
+
+const CORE_STAGES = [
+  "discussion_analysis",
+  "opportunity_generation",
+  "executive_briefing",
+  "deployment_assets",
+  "strategic_blueprint",
+] as const;
+
+const ANALYSIS_EXTENDED_STAGES = [
+  "community_intelligence",
+  "production_intelligence",
+  "identity_profile",
+  "generic_review",
+] as const;
 
 let failures = 0;
 
@@ -24,28 +40,68 @@ function fail(message: string) {
   console.error(`✗ ${message}`);
 }
 
-console.log("Athena Model Routing Validation\n");
+function isClaudeModel(model: string): boolean {
+  return model.toLowerCase().includes("claude");
+}
 
-const fallback = resolveOpenRouterFallbackModel();
+console.log("Athena LLM Routing\n");
+
+for (const stage of CORE_STAGES) {
+  const role = resolveRoleForStage(stage);
+  const model = resolveModelForStage(stage).model;
+  console.log(`${stage} -> ${role} -> ${model}`);
+}
+
+console.log("");
+
+for (const stage of CORE_STAGES) {
+  const route = resolveModelForStage(stage);
+  if (!route.model) {
+    fail(`${stage} resolved to undefined model`);
+    continue;
+  }
+  pass(`${stage} resolves to ${route.model}`);
+}
+
 const analysisModel = resolveModelForStage("discussion_analysis").model;
 const premiumModel = resolveModelForStage("strategic_blueprint").model;
 
-if (analysisModel === fallback && premiumModel === fallback) {
-  pass("Analysis and premium stages default to the same fallback model");
+if (analysisModel === DEFAULT_ANALYSIS_MODEL) {
+  pass(`Analysis default is ${DEFAULT_ANALYSIS_MODEL}`);
 } else {
-  fail("Unexpected default model divergence without role-specific env vars");
+  fail(
+    `Expected analysis default ${DEFAULT_ANALYSIS_MODEL}, got ${analysisModel}`,
+  );
 }
 
-if (resolveRoleForStage("discussion_analysis") === "analysis") {
-  pass("discussion_analysis maps to analysis role");
+if (premiumModel === DEFAULT_PREMIUM_MODEL) {
+  pass(`Premium default is ${DEFAULT_PREMIUM_MODEL}`);
 } else {
-  fail("discussion_analysis role mapping incorrect");
+  fail(
+    `Expected premium default ${DEFAULT_PREMIUM_MODEL}, got ${premiumModel}`,
+  );
 }
 
-if (resolveRoleForStage("strategic_blueprint") === "premiumStrategicOutput") {
-  pass("strategic_blueprint maps to premiumStrategicOutput role");
+if (analysisModel !== premiumModel) {
+  pass("Analysis and premium stages use distinct default models");
 } else {
-  fail("strategic_blueprint role mapping incorrect");
+  fail("Analysis and premium stages must not share the same default model");
+}
+
+for (const stage of [...CORE_STAGES, ...ANALYSIS_EXTENDED_STAGES]) {
+  const route = resolveModelForStage(stage);
+  if (route.role === "analysis" && isClaudeModel(route.model)) {
+    fail(`${stage} analysis role must not default to Claude outside env override`);
+  }
+}
+
+for (const stage of ["deployment_assets", "strategic_blueprint"] as const) {
+  const route = resolveModelForStage(stage);
+  if (!isClaudeModel(route.model)) {
+    fail(`${stage} premium role must default to Claude`);
+  } else {
+    pass(`${stage} premium role defaults to Claude`);
+  }
 }
 
 if (
@@ -57,27 +113,16 @@ if (
   fail("opportunity_review stage mapping incorrect");
 }
 
-const stageRoutes = getLLMStageRoutes();
-for (const stage of [
-  "discussion_analysis",
-  "opportunity_generation",
-  "executive_briefing",
-  "deployment_assets",
-  "strategic_blueprint",
-] as const) {
-  if (stageRoutes[stage]?.model) {
-    pass(`Stage route configured for ${stage}`);
-  } else {
-    fail(`Missing stage route for ${stage}`);
-  }
-}
-
 const openrouterSource = readFileSync(
   join(process.cwd(), "lib/openrouter.ts"),
   "utf8",
 );
 const aiServiceSource = readFileSync(
   join(process.cwd(), "services/aiService.ts"),
+  "utf8",
+);
+const modelRoutingSource = readFileSync(
+  join(process.cwd(), "lib/llm/modelRouting.ts"),
   "utf8",
 );
 
@@ -92,13 +137,19 @@ for (const [file, source] of [
   }
 }
 
-if (openrouterSource.includes("[Athena LLM]")) {
-  pass("OpenRouter wrapper logs Athena LLM routing metadata");
+if (openrouterSource.includes("reasoning=")) {
+  pass("OpenRouter wrapper logs reasoning in Athena LLM routing metadata");
 } else {
-  fail("OpenRouter wrapper missing Athena LLM routing logs");
+  fail("OpenRouter wrapper missing reasoning in Athena LLM routing logs");
 }
 
-if (!aiServiceSource.includes('process.env.OPENROUTER_MODEL')) {
+if (!modelRoutingSource.includes("google/gemini-2.5-flash")) {
+  fail("modelRouting.ts missing Gemini analysis default");
+} else {
+  pass("modelRouting.ts defines Gemini analysis default");
+}
+
+if (!aiServiceSource.includes("process.env.OPENROUTER_MODEL")) {
   pass("aiService no longer reads OPENROUTER_MODEL directly");
 } else {
   fail("aiService still reads OPENROUTER_MODEL directly");

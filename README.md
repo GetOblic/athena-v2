@@ -174,6 +174,19 @@ Production server:
 npm run start
 ```
 
+### V2 LLM routing (optional)
+
+Role-based model selection is configured in `lib/llm/modelRouting.ts`. Optional overrides:
+
+```bash
+OPENROUTER_ANALYSIS_MODEL=google/gemini-2.5-flash
+OPENROUTER_PREMIUM_MODEL=anthropic/claude-sonnet-4
+OPENROUTER_ANALYSIS_REASONING_EFFORT=medium
+OPENROUTER_PREMIUM_REASONING_EFFORT=high
+```
+
+Analysis stages (discussion analysis, briefings, community intelligence, etc.) use the analysis model. Deployment assets and strategic blueprint use the premium model.
+
 ---
 
 # Project Principles
