@@ -90,6 +90,34 @@ export async function createDiscussionAnalysis(
   return data;
 }
 
+export async function updateDiscussionAnalysisDeploymentFields(
+  analysisId: string,
+  organizationId: string,
+  input: {
+    suggested_cta: string;
+    raw_json?: Record<string, unknown> | null;
+  },
+): Promise<DiscussionAnalysis | null> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_discussion_analysis")
+    .update({
+      suggested_cta: input.suggested_cta,
+      raw_json: input.raw_json ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", analysisId)
+    .eq("organization_id", organizationId)
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Error updating deployment assets on analysis:", error);
+    return null;
+  }
+
+  return data;
+}
+
 export async function getRecentDiscussionAnalysesByCommunityId(
   communityId: string,
   organizationId: string,
