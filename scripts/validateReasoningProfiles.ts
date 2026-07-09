@@ -127,6 +127,8 @@ const requiredSourceChecks = [
   ["openrouter", "reasoningProfile"],
   ["openrouter", "resolveReasoningAttachment"],
   ["openrouter", "retry_without_reasoning"],
+  ["openrouter", "buildTokenBudgetSchedule"],
+  ["openrouter", "max_tokens:"],
   ["openrouter", 'NODE_ENV === "development"'],
   ["aiService", "getReasoningProfileForGeneration"],
   ["aiService", "generationKind"],

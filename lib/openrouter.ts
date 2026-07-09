@@ -6,6 +6,14 @@ import {
   type AthenaGenerationKind,
   type ReasoningProfileType,
 } from "@/lib/reasoningProfiles";
+import {
+  buildTokenBudgetSchedule,
+  capMaxTokensForRetry,
+  isTokenBudgetError,
+  logOpenRouterTokenBudget,
+  parseAvailableTokensFromError,
+  resolveDefaultMaxTokens,
+} from "@/lib/openrouterTokenBudget";
 
 type OpenRouterMessage = {
   role: "system" | "user" | "assistant";
@@ -51,6 +59,48 @@ async function postChatCompletion(
   });
 }
 
+type ChatCompletionResult =
+  | { ok: true; content: string }
+  | { ok: false; status: number; errorText: string };
+
+async function requestChatCompletion(input: {
+  headers: Record<string, string>;
+  body: Record<string, unknown>;
+  options?: OpenRouterCallOptions;
+  profile: ReasoningProfileType;
+  model: string;
+}): Promise<ChatCompletionResult> {
+  let body = { ...input.body };
+  let response = await postChatCompletion(input.headers, body);
+
+  if (!response.ok && body.reasoning) {
+    const errorText = await response.text();
+    if (isReasoningUnsupportedError(response.status, errorText)) {
+      const { reasoning: _removed, ...bodyWithoutReasoning } = body;
+      logReasoningDev({
+        generationKind: input.options?.generationKind ?? null,
+        model: input.model,
+        reasoningProfile: input.profile,
+        reasoningAttached: false,
+        fallback: "retry_without_reasoning",
+      });
+      body = bodyWithoutReasoning;
+      response = await postChatCompletion(input.headers, body);
+    } else {
+      return { ok: false, status: response.status, errorText };
+    }
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    return { ok: false, status: response.status, errorText };
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content ?? "";
+  return { ok: true, content };
+}
+
 export async function callOpenRouter(
   messages: OpenRouterMessage[],
   options?: OpenRouterCallOptions,
@@ -77,18 +127,10 @@ export async function callOpenRouter(
 
   const profile = options?.reasoningProfile ?? "BALANCED";
   const attachment = resolveReasoningAttachment({ model, profile });
-
-  const body: Record<string, unknown> = {
-    model,
-    messages,
-    temperature: options?.temperature ?? 0.2,
-  };
-
-  if (attachment.attach) {
-    Object.assign(body, getReasoningProfile(profile));
-  }
-
+  const baseMaxTokens = resolveDefaultMaxTokens();
+  const tokenBudgetSchedule = buildTokenBudgetSchedule(baseMaxTokens);
   const callStartedAt = Date.now();
+  let lastErrorText = "";
 
   logReasoningDev({
     generationKind: options?.generationKind ?? null,
@@ -97,43 +139,99 @@ export async function callOpenRouter(
     reasoningEffort: attachment.effort,
     reasoningAttached: attachment.attach,
     modelSupportsReasoning: isReasoningSupportedByModel(model),
+    baseMaxTokens,
   });
 
-  let response = await postChatCompletion(headers, body);
+  for (let attemptIndex = 0; attemptIndex < tokenBudgetSchedule.length; attemptIndex++) {
+    const attemptNumber = attemptIndex + 1;
+    let maxTokens = tokenBudgetSchedule[attemptIndex];
 
-  if (!response.ok && body.reasoning) {
-    const errorText = await response.text();
-    if (isReasoningUnsupportedError(response.status, errorText)) {
-      const { reasoning: _removed, ...bodyWithoutReasoning } = body;
+    if (lastErrorText) {
+      maxTokens = capMaxTokensForRetry(maxTokens, lastErrorText);
+    }
+
+    const body: Record<string, unknown> = {
+      model,
+      messages,
+      temperature: options?.temperature ?? 0.2,
+      max_tokens: maxTokens,
+    };
+
+    if (attachment.attach) {
+      Object.assign(body, getReasoningProfile(profile));
+    }
+
+    logOpenRouterTokenBudget("OpenRouter token budget attempt", {
+      attempt: attemptNumber,
+      max_tokens: maxTokens,
+      stage: options?.stage ?? null,
+      generationKind: options?.generationKind ?? null,
+      discussionId: options?.discussionId ?? null,
+      regenerationRunId:
+        options?.regenerationRunId ?? options?.regenerationNonce ?? null,
+      availableTokens: lastErrorText
+        ? parseAvailableTokensFromError(lastErrorText)
+        : null,
+    });
+
+    const result = await requestChatCompletion({
+      headers,
+      body,
+      options,
+      profile,
+      model,
+    });
+
+    if (result.ok) {
+      logOpenRouterTokenBudget(`Succeeded on attempt ${attemptNumber}`, {
+        attempt: attemptNumber,
+        max_tokens: maxTokens,
+        durationMs: Date.now() - callStartedAt,
+        stage: options?.stage ?? null,
+        generationKind: options?.generationKind ?? null,
+        discussionId: options?.discussionId ?? null,
+        regenerationRunId:
+          options?.regenerationRunId ?? options?.regenerationNonce ?? null,
+      });
+
       logReasoningDev({
         generationKind: options?.generationKind ?? null,
         model,
-        reasoningProfile: profile,
-        reasoningAttached: false,
-        fallback: "retry_without_reasoning",
+        durationMs: Date.now() - callStartedAt,
+        responseCharCount: result.content.length,
+        regenerationRunId:
+          options?.regenerationRunId ?? options?.regenerationNonce ?? null,
+        maxTokens,
+        attempt: attemptNumber,
       });
-      response = await postChatCompletion(headers, bodyWithoutReasoning);
-    } else {
-      throw new Error(`OpenRouter API error: ${response.status} ${errorText}`);
+
+      return result.content;
+    }
+
+    lastErrorText = result.errorText;
+
+    const canRetry =
+      isTokenBudgetError(result.status, result.errorText) &&
+      attemptIndex < tokenBudgetSchedule.length - 1;
+
+    if (!canRetry) {
+      throw new Error(
+        `OpenRouter API error: ${result.status} ${result.errorText}`,
+      );
     }
   }
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenRouter API error: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content ?? "";
-
-  logReasoningDev({
+  logOpenRouterTokenBudget("All retry attempts exhausted.", {
+    attempts: tokenBudgetSchedule.length,
+    stage: options?.stage ?? null,
     generationKind: options?.generationKind ?? null,
-    model,
-    durationMs: Date.now() - callStartedAt,
-    responseCharCount: content.length,
+    discussionId: options?.discussionId ?? null,
     regenerationRunId:
       options?.regenerationRunId ?? options?.regenerationNonce ?? null,
+    lastStatus: lastErrorText ? "token_budget" : null,
   });
 
-  return content;
+  throw new Error(
+    `OpenRouter token budget retries exhausted. ${lastErrorText}`,
+  );
 }
