@@ -38,16 +38,27 @@ function asStringArray(value: unknown): string[] {
     .filter(Boolean);
 }
 
+function resolveWhyThisAsset(parsed: Record<string, unknown>): string {
+  const direct = String(parsed.why_this_asset ?? parsed.whyThisAsset ?? "").trim();
+  if (direct) {
+    return direct;
+  }
+
+  const notesRaw = parsed.notes;
+  if (notesRaw && typeof notesRaw === "object" && !Array.isArray(notesRaw)) {
+    return String((notesRaw as Record<string, unknown>).whyThisAsset ?? "").trim();
+  }
+
+  return "";
+}
+
 function resolveNotesText(parsed: Record<string, unknown>): string {
   const notesRaw = parsed.notes;
 
   if (notesRaw && typeof notesRaw === "object" && !Array.isArray(notesRaw)) {
     const notesObject = notesRaw as Record<string, unknown>;
-    const whyThisAsset = String(notesObject.whyThisAsset ?? "").trim();
     const text = String(notesObject.text ?? notesObject.summary ?? "").trim();
-    return [whyThisAsset ? `Why this asset: ${whyThisAsset}` : "", text]
-      .filter(Boolean)
-      .join("\n\n");
+    return text;
   }
 
   return String(notesRaw ?? "").trim();
@@ -68,6 +79,7 @@ export function normalizeStrategicBlueprintArtifact(
   const strategicAngle = String(parsed.strategic_angle ?? "");
   const buyerStage = String(parsed.buyer_stage ?? "");
   const primaryPainPoint = String(parsed.primary_pain_point ?? "");
+  const whyThisAsset = resolveWhyThisAsset(parsed);
   const notesText = resolveNotesText(parsed);
 
   const businessGoal =
@@ -79,6 +91,7 @@ export function normalizeStrategicBlueprintArtifact(
     [buyerStage, sophisticationLevel].filter(Boolean).join(" — ");
 
   const notesParts = [
+    whyThisAsset ? `Why this asset: ${whyThisAsset}` : "",
     executiveRationale ? `Executive rationale: ${executiveRationale}` : "",
     strategicAngle ? `Strategic angle: ${strategicAngle}` : "",
     primaryPainPoint ? `Primary pain point: ${primaryPainPoint}` : "",
