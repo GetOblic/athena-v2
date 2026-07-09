@@ -1,65 +1,33 @@
 import type { ReasoningPipeline } from "@/services/brain/reasoningPipeline/reasoningPipelineTypes";
 
-export function formatReasoningPipelineForPrompt(
+export function formatReasoningPipelineCompactForPrompt(
   pipeline: ReasoningPipeline,
 ): string {
   const { evidence, memory, reasoning, decision } = pipeline;
 
   return [
-    "ATHENA EVIDENCE-FIRST REASONING PIPELINE (AUTHORITATIVE — DO NOT CONTRADICT):",
-    "",
-    "EVIDENCE EXTRACTION (grounded facts only):",
-    `- Explicit buyer need: ${evidence.explicitBuyerNeed ?? "Not stated"}`,
-    `- Pain points: ${evidence.statedPainPoints.join("; ") || "None recorded"}`,
-    `- Objections: ${evidence.objections.join("; ") || "None recorded"}`,
-    `- Urgency signals: ${evidence.urgencySignals.join("; ") || "None recorded"}`,
-    `- Buying intent: ${evidence.buyingIntent ?? "Unclear"}`,
-    `- Decision criteria: ${evidence.decisionCriteria.join("; ") || "None recorded"}`,
-    `- Constraints: ${evidence.constraints.join("; ") || "None recorded"}`,
-    `- Requested solution: ${evidence.requestedSolution ?? "None stated"}`,
-    `- Emotional tone: ${evidence.emotionalTone ?? "Neutral/unknown"}`,
-    `- Evidence snippets: ${evidence.quotedEvidenceSnippets.join(" | ") || "None extracted"}`,
-    `- Missing information: ${evidence.missingInformation.join("; ") || "None flagged"}`,
-    `- Evidence confidence: ${evidence.confidence}`,
-    "",
-    "RELEVANT MEMORY (organization-scoped):",
-    `- Recurring objections: ${memory.recurringObjections.join("; ") || "None"}`,
-    `- Recurring buyer concerns: ${memory.recurringBuyerConcerns.join("; ") || "None"}`,
-    `- Prior winning angles: ${memory.priorWinningAngles.join("; ") || "None"}`,
-    `- Prior rejected angles: ${memory.priorRejectedAngles.join("; ") || "None"}`,
-    `- Existing assets: ${memory.existingAssets.join("; ") || "None"}`,
-    `- Existing positioning: ${memory.existingPositioning ?? "Not recorded"}`,
-    `- Domain terminology: ${memory.relevantDomainTerminology.join(", ") || "None"}`,
-    "",
-    "BUSINESS REASONING:",
-    `- Real opportunity: ${reasoning.realBusinessOpportunity}`,
-    `- Why now: ${reasoning.whyItMattersNow}`,
-    `- Highest-leverage move: ${reasoning.highestLeverageMove}`,
-    `- Generic response to avoid: ${reasoning.genericResponseToAvoid}`,
-    `- Why avoid generic: ${reasoning.whyAvoidGenericResponse}`,
-    `- Senior operator action: ${reasoning.seniorOperatorAction}`,
-    `- Supporting evidence: ${reasoning.supportingEvidence.join("; ") || "Limited"}`,
-    `- Memory support: ${reasoning.memorySupport.join("; ") || "None"}`,
-    `- Memory contradictions: ${reasoning.memoryContradictions.join("; ") || "None"}`,
-    `- Risks: ${reasoning.risks.join("; ") || "None flagged"}`,
-    `- Reasoning confidence: ${reasoning.confidence}`,
-    "",
-    "BUSINESS DECISION (single selected action — all outputs must follow this):",
-    `- Decision: ${decision.decision}`,
-    `- Rationale: ${decision.rationale}`,
-    `- Why this beats alternatives: ${decision.whyThisBeatsAlternatives}`,
-    `- Target audience: ${decision.targetAudience}`,
-    `- Intended outcome: ${decision.intendedOutcome}`,
-    `- Primary CTA: ${decision.primaryCta}`,
-    `- Recommended channel: ${decision.recommendedChannel}`,
-    `- Urgency: ${decision.urgency}`,
-    `- Success metric: ${decision.successMetric}`,
-    `- Why this asset: ${decision.whyThisAsset}`,
-    `- Recommended asset type: ${decision.recommendedAssetType}`,
-    `- Decision confidence: ${decision.confidence}`,
-    "",
-    "INSTRUCTIONS:",
-    "Generate outputs from Evidence + Memory + Business Reasoning + Business Decision.",
-    "Do not invent a different strategy. Do not contradict the Business Decision.",
+    "=== DECISION SIGNALS (inform reasoning — not a format mandate) ===",
+    `- Pain: ${evidence.statedPainPoints.slice(0, 3).join("; ") || "See discussion"}`,
+    `- Objections: ${evidence.objections.slice(0, 2).join("; ") || "None recorded"}`,
+    `- Leverage move: ${reasoning.highestLeverageMove}`,
+    `- Prior winning angles: ${memory.priorWinningAngles.slice(0, 2).join("; ") || "None"}`,
+    `- Domain terms: ${memory.relevantDomainTerminology.slice(0, 8).join(", ") || "None"}`,
+    `- Selected decision: ${decision.decision}`,
+    `- Suggested asset type: ${decision.recommendedAssetType}`,
+    `- Why: ${decision.whyThisAsset}`,
+    `- Primary CTA direction: ${decision.primaryCta}`,
   ].join("\n");
+}
+
+/** @deprecated Use formatReasoningPipelineCompactForPrompt — full pipeline removed from prompts. */
+export function formatReasoningPipelineForPrompt(
+  pipeline: ReasoningPipeline,
+): string {
+  return formatReasoningPipelineCompactForPrompt(pipeline);
+}
+
+export function formatReasoningPipelineCompactForBlueprint(
+  pipeline: ReasoningPipeline,
+): string {
+  return formatReasoningPipelineCompactForPrompt(pipeline);
 }

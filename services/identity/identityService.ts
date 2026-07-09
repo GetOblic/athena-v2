@@ -132,7 +132,11 @@ export async function compileMasterIdentityProfile(
     websiteHomepageText,
   });
 
-  const rawProfile = await generateReview(prompt);
+  const rawProfile = await generateReview(prompt, {
+    stage: "identity.master_profile",
+    promptSource: "services/identity/identityService.ts",
+    generationKind: "identity_profile",
+  });
   const masterProfile = parseJsonResponse(rawProfile);
 
   if (websiteHomepageText?.trim()) {

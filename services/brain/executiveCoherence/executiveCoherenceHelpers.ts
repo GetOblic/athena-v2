@@ -58,6 +58,20 @@ export function formatExecutiveMarketingStrategyForPrompt(
   return sections.join("\n").trim();
 }
 
+export function formatExecutiveStrategyCompactForBlueprint(
+  strategy: ExecutiveStrategy,
+): string {
+  const marketing = strategy.marketingStrategy;
+  return [
+    "STRATEGY SIGNALS (inform selection — not a format mandate):",
+    `- Objective: ${strategy.primaryObjective}`,
+    `- Audience: ${strategy.primaryAudience}`,
+    `- Deliverable hint: ${marketing.recommendedPrimaryDeliverable}`,
+    `- Conversion goal: ${marketing.conversionObjective}`,
+    `- Trust goal: ${marketing.trustObjective}`,
+  ].join("\n");
+}
+
 export function formatExecutiveStrategyForPrompt(
   strategy: ExecutiveStrategy,
 ): string {

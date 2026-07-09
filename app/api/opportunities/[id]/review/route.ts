@@ -86,7 +86,11 @@ export async function POST(_request: Request, context: RouteContext) {
       ? assembleExecutiveBriefingPrompt({ bundle: briefingBundle, opportunity })
       : buildOpportunityReviewPrompt(opportunity);
 
-    const rawReview = await generateReview(prompt);
+    const rawReview = await generateReview(prompt, {
+      stage: "opportunity_review",
+      promptSource: "app/api/opportunities/[id]/review/route.ts",
+      generationKind: "opportunity_review",
+    });
     const parsedReview = parseGeneratedReview(rawReview);
     const generationTimeMs = Date.now() - startedAt;
 

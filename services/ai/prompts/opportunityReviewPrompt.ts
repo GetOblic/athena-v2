@@ -1,47 +1,50 @@
 import type { Opportunity } from "@/services/opportunityService";
 import {
-  DEPLOYMENT_ASSETS_BRIEFING_QUALITY_INSTRUCTIONS,
-  DEPLOYMENT_ASSETS_FORMAT,
-} from "@/services/ai/prompts/deploymentAssetsInstructions";
+  SHARED_DEPLOYMENT_QUALITY,
+  SHARED_JSON_OUTPUT_RULES,
+} from "@/services/ai/prompts/sharedPromptConstraints";
 
 export const OPPORTUNITY_REVIEW_PROMPT_VERSION =
-  "opportunity_review_v4_output_quality";
+  "opportunity_review_v6_reasoning";
 
 export function buildOpportunityReviewPrompt(opportunity: Opportunity): string {
   return `
-You are Athena, an institutional intelligence operator and senior commercial strategist.
+=== OBJECTIVE ===
+Produce an executive briefing and paste-ready deployment assets for this opportunity.
 
-Analyze this business opportunity and produce:
-1. A concise executive briefing (analytical intelligence).
-2. Ready-to-use deployment assets the operator can copy and paste immediately.
+=== AVAILABLE DATA ===
+${JSON.stringify(
+  {
+    id: opportunity.id,
+    title: opportunity.title,
+    reason: opportunity.reason,
+    score: opportunity.score,
+    status: opportunity.status,
+    intent: opportunity.intent,
+    risk_level: opportunity.risk_level,
+    ai_summary: opportunity.ai_summary,
+    suggested_cta: opportunity.suggested_cta,
+  },
+  null,
+  2,
+)}
 
-Opportunity:
-${JSON.stringify(opportunity, null, 2)}
-
-${DEPLOYMENT_ASSETS_BRIEFING_QUALITY_INSTRUCTIONS}
-
-CRITICAL OUTPUT RULES:
-- Return ONLY valid JSON. No markdown. No code fences.
-- "recommended_response" must contain paste-ready deployment copy, NOT strategy language.
-- "cta" must be the exact CTA sentence to paste — not a description of a CTA.
-- Do not write "respond by", "position this as", "recommend offering", or "use a soft CTA" in deployment fields.
-- Do not overpromise. Do not mention Athena unless context supports it.
-
-${DEPLOYMENT_ASSETS_FORMAT}
-
-For recommended_response, populate COMMUNITY_REPLY, PRIVATE_MESSAGE, SOCIAL_POST, and FOLLOW_UP with complete paste-ready copy.
-
-Return exactly this JSON structure:
+=== REQUIRED OUTPUT ===
+${SHARED_JSON_OUTPUT_RULES}
 
 {
-  "summary": "Concise executive summary of the opportunity.",
-  "pain_points": "Main pain points or business problems detected.",
-  "buyer_stage": "Likely buyer stage such as Awareness, Consideration, Decision, or High Intent.",
+  "summary": "Executive summary.",
+  "pain_points": "Main pain points.",
+  "buyer_stage": "Awareness | Consideration | Decision | High Intent",
   "recommended_response": "COMMUNITY_REPLY:\\n...\\n\\nPRIVATE_MESSAGE:\\n...\\n\\nSOCIAL_POST:\\n...\\n\\nFOLLOW_UP:\\n...",
-  "cta": "Exact copy-paste CTA sentence or short paragraph.",
+  "cta": "Exact paste-ready CTA sentence.",
   "confidence": 0
 }
 
-The confidence value must be an integer from 0 to 100.
+confidence must be integer 0-100.
+
+=== QUALITY STANDARD ===
+${SHARED_DEPLOYMENT_QUALITY}
+Briefing summary stays analytical. recommended_response holds deployment copy; cta holds one exact CTA sentence.
 `.trim();
 }

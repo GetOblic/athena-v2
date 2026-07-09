@@ -95,7 +95,11 @@ export async function POST(_request: Request, context: RouteContext) {
       intelligence,
     });
 
-    const rawProductionIntelligence = await generateReview(prompt);
+    const rawProductionIntelligence = await generateReview(prompt, {
+      stage: "production_intelligence",
+      promptSource: "app/api/communities/[id]/production-intelligence/route.ts",
+      generationKind: "production_intelligence",
+    });
     const parsedProductionIntelligence = parseProductionIntelligence(
       rawProductionIntelligence,
     );

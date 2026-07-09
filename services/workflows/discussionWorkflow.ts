@@ -352,6 +352,7 @@ async function processDiscussionEndToEndInternal(
           return generateReview(prompt, {
             stage: "discussion_analysis.quality_gate",
             promptSource: analysisPromptSource,
+            generationKind: "discussion_analysis",
           });
         },
         parse: parseAnalysis,
@@ -375,6 +376,7 @@ async function processDiscussionEndToEndInternal(
       rawAnalysis = await generateReview(prompt, {
         stage: "discussion_analysis.fallback",
         promptSource: analysisPromptSource,
+        generationKind: "discussion_analysis",
       });
       parsedAnalysis = parseAnalysis(rawAnalysis);
     }
@@ -386,6 +388,7 @@ async function processDiscussionEndToEndInternal(
     rawAnalysis = await generateReview(analysisPrompt, {
       stage: "discussion_analysis.legacy",
       promptSource: analysisPromptSource,
+      generationKind: "discussion_analysis",
     });
     parsedAnalysis = parseAnalysis(rawAnalysis);
   }
@@ -533,6 +536,7 @@ async function processDiscussionEndToEndInternal(
           return generateReview(prompt, {
             stage: "executive_briefing.quality_gate",
             promptSource: briefingPromptSource,
+            generationKind: "executive_briefing",
           });
         },
         parse: parseGeneratedReview,
@@ -556,6 +560,7 @@ async function processDiscussionEndToEndInternal(
       rawReview = await generateReview(prompt, {
         stage: "executive_briefing.fallback",
         promptSource: briefingPromptSource,
+        generationKind: "executive_briefing",
       });
       parsedReview = parseGeneratedReview(rawReview);
     }
@@ -563,6 +568,7 @@ async function processDiscussionEndToEndInternal(
     rawReview = await generateReview(buildOpportunityReviewPrompt(opportunity), {
       stage: "executive_briefing.legacy",
       promptSource: briefingPromptSource,
+      generationKind: "executive_briefing",
     });
     parsedReview = parseGeneratedReview(rawReview);
   }

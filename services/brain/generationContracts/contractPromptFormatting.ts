@@ -1,4 +1,7 @@
-import { formatExecutiveStrategyForPrompt } from "@/services/brain/executiveCoherence/executiveCoherenceHelpers";
+import {
+  formatExecutiveStrategyCompactForBlueprint,
+  formatExecutiveStrategyForPrompt,
+} from "@/services/brain/executiveCoherence/executiveCoherenceHelpers";
 import { formatOutputResponsibilityForPrompt } from "@/services/brain/executiveCoherence/outputResponsibilityContracts";
 import type { ExecutiveStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import {
@@ -8,12 +11,47 @@ import {
 import type { ExecutiveUnderstanding } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
 import type { GenerationContract } from "@/services/brain/generationContracts/generationContractTypes";
 
+export function formatGenerationContractCompact(
+  contract: GenerationContract,
+): string {
+  return [
+    `OUTPUT CONTRACT (${contract.purpose.workflowType}): JSON only, no markdown.`,
+    `Required fields: ${contract.requiredSections.sections.join(", ")}`,
+  ].join("\n");
+}
+
 export function assembleExecutiveGenerationContextBlock(input: {
   executiveStrategy: ExecutiveStrategy;
   generationContract: GenerationContract;
   executiveUnderstanding?: ExecutiveUnderstanding;
   qualityRefinementSuffix?: string;
+  compact?: boolean;
+  blueprintMode?: boolean;
 }): string {
+  const refinementBlock = input.qualityRefinementSuffix?.trim() ?? "";
+
+  if (input.blueprintMode) {
+    return [
+      formatExecutiveStrategyCompactForBlueprint(input.executiveStrategy),
+      formatGenerationContractCompact(input.generationContract),
+      refinementBlock,
+    ]
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+  }
+
+  if (input.compact) {
+    return [
+      formatExecutiveStrategyCompactForBlueprint(input.executiveStrategy),
+      formatGenerationContractCompact(input.generationContract),
+      refinementBlock,
+    ]
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+  }
+
   const strategyBlock = formatExecutiveStrategyForPrompt(input.executiveStrategy);
   const responsibilityBlock = formatOutputResponsibilityForPrompt(
     input.generationContract.purpose.workflowType,
@@ -31,16 +69,12 @@ export function assembleExecutiveGenerationContextBlock(input: {
 
   const reviewBlock =
     input.executiveUnderstanding?.executiveOutputReview &&
-    input.executiveUnderstanding.executiveCampaignNarrative
+    input.executiveUnderstanding?.executiveCampaignNarrative
       ? formatExecutiveOutputReviewForPrompt(
           input.executiveUnderstanding.executiveOutputReview,
           input.executiveUnderstanding.executiveCampaignNarrative,
         )
       : "";
-
-  const refinementBlock = input.qualityRefinementSuffix?.trim()
-    ? input.qualityRefinementSuffix.trim()
-    : "";
 
   return [
     strategyBlock,

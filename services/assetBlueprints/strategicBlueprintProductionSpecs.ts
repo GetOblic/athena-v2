@@ -765,3 +765,21 @@ export function formatStrategicBlueprintProductionSpecsForPrompt(
 
   return sections.join("\n").trim();
 }
+
+export function formatStrategicBlueprintProductionSpecsCompactForPrompt(
+  context: StrategicBlueprintProductionContext,
+): string {
+  return [
+    "PRODUCTION SIGNALS:",
+    `- Initiative: ${context.strategyFirst.executiveInitiative}`,
+    `- Market problem: ${context.strategyFirst.marketProblem}`,
+    `- Strategic angle: ${context.strategicAngle.replace(/_/g, " ")}`,
+    `- Primary pain: ${context.primaryPainPoint ?? "From discussion"}`,
+    `- Core message: ${context.coreMessage}`,
+    `- Deliverable hint: ${context.recommendedPrimaryDeliverable}`,
+    `- CTA objective: ${context.production.ctaObjective}`,
+    `- Output format hint: ${context.production.outputFormat}`,
+    `- Sophistication: ${context.sophisticationLevel}`,
+    "Use these as signals. You must still run the multi-option asset comparison and pick the strongest commercial asset.",
+  ].join("\n");
+}

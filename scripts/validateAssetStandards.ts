@@ -114,12 +114,12 @@ if (
 }
 
 if (
-  promptSource.includes("EXECUTIVE ASSET STANDARDS") &&
-  promptSource.includes("assetStandardPrompt")
+  promptSource.includes("STRATEGIC SELECTION") &&
+  promptSource.includes("image_prompt")
 ) {
-  pass("Blueprint prompt consumes asset standards");
+  pass("Blueprint prompt includes strategist selection and production fields");
 } else {
-  fail("Blueprint prompt missing asset standards section");
+  fail("Blueprint prompt missing strategist/production instructions");
 }
 
 if (

@@ -23,7 +23,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const review = await generateReview(prompt);
+    const review = await generateReview(prompt, {
+      stage: "generic_review",
+      promptSource: "app/api/ai/review/route.ts",
+      generationKind: "generic_review",
+    });
 
     return NextResponse.json({
       success: true,

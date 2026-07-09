@@ -10,14 +10,11 @@ import {
 } from "@/services/assetBlueprints/prompts/assetBlueprintPrompt";
 import {
   buildStrategicBlueprintProductionContext,
-  formatStrategicBlueprintProductionSpecsForPrompt,
+  formatStrategicBlueprintProductionSpecsCompactForPrompt,
 } from "@/services/assetBlueprints/strategicBlueprintProductionSpecs";
-import {
-  formatExecutiveAssetStandardForPrompt,
-  resolveAssetStandard,
-} from "@/services/brain/assetStandards/assetStandardRegistry";
+import { formatStructuredBusinessContext } from "@/services/brain/generationContracts/businessContextBlock";
 import { assembleExecutiveGenerationContextBlock } from "@/services/brain/generationContracts/contractPromptFormatting";
-import { formatReasoningPipelineForPrompt } from "@/services/brain/reasoningPipeline/reasoningPipelinePromptFormatting";
+import { formatReasoningPipelineCompactForPrompt } from "@/services/brain/reasoningPipeline/reasoningPipelinePromptFormatting";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 
 type PromptAssemblyOptions = {
@@ -26,17 +23,36 @@ type PromptAssemblyOptions = {
 
 function buildExecutiveContext(
   bundle: GenerationBundle,
-  options?: PromptAssemblyOptions,
+  options?: PromptAssemblyOptions & {
+    discussion?: {
+      title?: string | null;
+      body?: string | null;
+      content?: string | null;
+    };
+    analysis?: Record<string, unknown>;
+    opportunity?: Record<string, unknown>;
+  },
 ): string {
-  const pipelineBlock = formatReasoningPipelineForPrompt(bundle.reasoningPipeline);
+  const businessContext = formatStructuredBusinessContext({
+    bundle,
+    discussion: options?.discussion,
+    analysis: options?.analysis,
+    opportunity: options?.opportunity,
+  });
+  const decisionSignals = formatReasoningPipelineCompactForPrompt(
+    bundle.reasoningPipeline,
+  );
   const strategyBlock = assembleExecutiveGenerationContextBlock({
     executiveStrategy: bundle.executiveStrategy,
     generationContract: bundle.generationContract,
-    executiveUnderstanding: bundle.executiveUnderstanding,
     qualityRefinementSuffix: options?.qualityRefinementSuffix,
+    compact: true,
   });
 
-  return [pipelineBlock, strategyBlock].filter(Boolean).join("\n\n").trim();
+  return [businessContext, decisionSignals, strategyBlock]
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
 }
 
 export function assembleDiscussionAnalysisPrompt(input: {
@@ -44,7 +60,10 @@ export function assembleDiscussionAnalysisPrompt(input: {
   discussion: Discussion;
   qualityRefinementSuffix?: string;
 }): string {
-  const executiveContextBlock = buildExecutiveContext(input.bundle, input);
+  const executiveContextBlock = buildExecutiveContext(input.bundle, {
+    qualityRefinementSuffix: input.qualityRefinementSuffix,
+    discussion: input.discussion,
+  });
   return buildDiscussionAnalysisPrompt(input.discussion, executiveContextBlock);
 }
 
@@ -53,9 +72,12 @@ export function assembleExecutiveBriefingPrompt(input: {
   opportunity: Opportunity;
   qualityRefinementSuffix?: string;
 }): string {
-  const executiveContextBlock = buildExecutiveContext(input.bundle, input);
-  const basePrompt = buildOpportunityReviewPrompt(input.opportunity);
-  return `${basePrompt.trim()}\n\n=== ATHENA EXECUTIVE GENERATION CONTEXT ===\n${executiveContextBlock}`;
+  const executiveContextBlock = buildExecutiveContext(input.bundle, {
+    qualityRefinementSuffix: input.qualityRefinementSuffix,
+    opportunity: input.opportunity as unknown as Record<string, unknown>,
+  });
+  const taskPrompt = buildOpportunityReviewPrompt(input.opportunity);
+  return `${executiveContextBlock}\n\n${taskPrompt}`.trim();
 }
 
 export function assembleOpportunityReviewPrompt(input: {
@@ -74,22 +96,24 @@ export function assembleStrategicBlueprintPrompt(input: {
   analysis?: Record<string, unknown>;
   qualityRefinementSuffix?: string;
 }): string {
-  const executiveContextBlock = buildExecutiveContext(input.bundle, input);
+  const executiveContextBlock = buildExecutiveContext(input.bundle, {
+    qualityRefinementSuffix: input.qualityRefinementSuffix,
+    discussion: input.discussion,
+    analysis: input.analysis,
+    opportunity: input.opportunity,
+  });
 
   const productionContext = buildStrategicBlueprintProductionContext(
     input.bundle.executiveUnderstanding,
     input.bundle.executiveStrategy,
   );
   const productionSpecsPrompt =
-    formatStrategicBlueprintProductionSpecsForPrompt(productionContext);
-  const assetStandard = resolveAssetStandard(productionContext.preferredAssetType);
-  const assetStandardPrompt = formatExecutiveAssetStandardForPrompt(assetStandard);
+    formatStrategicBlueprintProductionSpecsCompactForPrompt(productionContext);
 
   if (input.analysis) {
     return buildAssetBlueprintFromAnalysisPrompt({
       executiveContextPrompt: executiveContextBlock,
       productionSpecsPrompt,
-      assetStandardPrompt,
       discussion: input.discussion,
       analysis: input.analysis,
     });
@@ -104,7 +128,6 @@ export function assembleStrategicBlueprintPrompt(input: {
   return buildAssetBlueprintPrompt({
     executiveContextPrompt: executiveContextBlock,
     productionSpecsPrompt,
-    assetStandardPrompt,
     discussion: input.discussion,
     opportunity: input.opportunity,
     briefing: input.briefing,

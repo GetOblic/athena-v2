@@ -97,7 +97,11 @@ export async function POST(_request: Request, context: RouteContext) {
       analyses,
     });
 
-    const rawIntelligence = await generateReview(prompt);
+    const rawIntelligence = await generateReview(prompt, {
+      stage: "community_intelligence",
+      promptSource: "app/api/communities/[id]/intelligence/route.ts",
+      generationKind: "community_intelligence",
+    });
     const parsedIntelligence = parseCommunityIntelligence(rawIntelligence);
     const generationTimeMs = Date.now() - startedAt;
 

@@ -509,7 +509,6 @@ function enrichBlueprintFromDecision(
 
   return {
     ...parsed,
-    asset_type: parsed.asset_type || decision.recommendedAssetType,
     business_goal: parsed.business_goal || decision.intendedOutcome,
     target_audience: parsed.target_audience || decision.targetAudience,
     notes: notesParts.join("\n\n"),
@@ -554,7 +553,8 @@ async function generateBlueprintReview(input: {
   const content = await generateReview(input.userPrompt, {
     stage: input.stage,
     promptSource:
-      "services/assetBlueprints/prompts/assetBlueprintPrompt.ts via assembleStrategicBlueprintPrompt",
+      "services/brain/generationContracts/generationPromptAssembly.ts::assembleStrategicBlueprintPrompt → services/assetBlueprints/prompts/assetBlueprintPrompt.ts",
+    generationKind: "strategic_blueprint",
   });
 
   logRegenerationDiagnostic("BLUEPRINT_LLM_CALL_COMPLETED", {
