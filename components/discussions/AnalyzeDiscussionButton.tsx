@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type AnalyzeDiscussionButtonProps = {
   discussionId: string;
@@ -11,11 +11,16 @@ type AnalyzeDiscussionButtonProps = {
 
 type AnalyzeResponse = {
   success?: boolean;
+  queued?: boolean;
   regenerated?: boolean;
   partial?: boolean;
   warning?: string;
+  message?: string;
   error?: string;
 };
+
+const QUEUED_REFRESH_MS = 10_000;
+const QUEUED_BUTTON_LOCK_MS = 10_000;
 
 export function AnalyzeDiscussionButton({
   discussionId,
@@ -26,11 +31,22 @@ export function AnalyzeDiscussionButton({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const queuedTimersRef = useRef<number[]>([]);
+
+  function clearQueuedTimers() {
+    for (const timerId of queuedTimersRef.current) {
+      window.clearTimeout(timerId);
+    }
+    queuedTimersRef.current = [];
+  }
 
   async function handleAnalyze() {
+    clearQueuedTimers();
     setIsAnalyzing(true);
     setError(null);
     setWarning(null);
+
+    let keepAnalyzing = false;
 
     try {
       const response = await fetch(`/api/discussions/${discussionId}/analyze`, {
@@ -58,6 +74,28 @@ export function AnalyzeDiscussionButton({
         );
       }
 
+      if (data.queued) {
+        keepAnalyzing = true;
+        setWarning(
+          data.message ||
+            "Regeneration started. Refresh in a few moments.",
+        );
+
+        queuedTimersRef.current.push(
+          window.setTimeout(() => {
+            router.refresh();
+          }, QUEUED_REFRESH_MS),
+        );
+
+        queuedTimersRef.current.push(
+          window.setTimeout(() => {
+            setIsAnalyzing(false);
+          }, QUEUED_BUTTON_LOCK_MS),
+        );
+
+        return;
+      }
+
       router.refresh();
 
       if (data.partial) {
@@ -69,7 +107,9 @@ export function AnalyzeDiscussionButton({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setIsAnalyzing(false);
+      if (!keepAnalyzing) {
+        setIsAnalyzing(false);
+      }
     }
   }
 

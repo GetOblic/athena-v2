@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { logRegenerationEvent } from "@/lib/regenerationDiagnostics";
 import {
   OrganizationAccessError,
@@ -22,6 +22,46 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
+function runRegenerationInBackground(
+  discussionId: string,
+  organizationId: string,
+): void {
+  after(() => {
+    void processDiscussionEndToEnd(discussionId, organizationId)
+      .then((result) => {
+        if (!result.success) {
+          logRegenerationEvent("BACKGROUND_FAILED", {
+            discussionId,
+            organizationId,
+            error: result.error ?? "Regeneration failed",
+          });
+          return;
+        }
+
+        logRegenerationEvent("BACKGROUND_SUCCESS", {
+          discussionId,
+          organizationId,
+          analysisId: result.analysisId ?? null,
+          blueprintId: result.blueprintId ?? null,
+          partial: Boolean(result.partial),
+          blueprintGenerated: result.blueprintGenerated,
+        });
+      })
+      .catch((error) => {
+        console.error("[REGENERATION] BACKGROUND_FAILED", {
+          discussionId,
+          organizationId,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+        logRegenerationEvent("BACKGROUND_FAILED", {
+          discussionId,
+          organizationId,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      });
+  });
+}
+
 export async function POST(_request: Request, context: RouteContext) {
   let discussionId = "unknown";
 
@@ -29,67 +69,38 @@ export async function POST(_request: Request, context: RouteContext) {
     const { id } = await context.params;
     discussionId = id;
 
-    logRegenerationEvent("REGENERATE_START", { discussionId });
-
     let organizationId: string;
     try {
       ({ organizationId } = await requireCurrentOrganizationContext());
     } catch (error) {
       if (error instanceof OrganizationAccessError) {
-        logRegenerationEvent("REGENERATE_FAILED", {
-          discussionId,
-          reason: "organization_access",
-        });
         return jsonResponse(
-          { success: false, error: error.message },
+          { success: false, error: "Authentication required" },
           401,
         );
       }
       throw error;
     }
 
-    const result = await processDiscussionEndToEnd(id, organizationId);
-
-    if (!result.success) {
-      logRegenerationEvent("REGENERATE_FAILED", {
-        discussionId,
-        error: result.error ?? null,
-      });
+    try {
+      runRegenerationInBackground(id, organizationId);
+    } catch (error) {
+      console.error("Failed to queue regeneration:", error);
       return jsonResponse(
-        {
-          success: false,
-          error: result.error ?? "Regeneration failed. Please check logs.",
-        },
-        422,
+        { success: false, error: "Could not start regeneration." },
+        500,
       );
     }
 
-    if (result.partial) {
-      logRegenerationEvent("REGENERATE_PARTIAL_SUCCESS", {
-        discussionId,
-        analysisId: result.analysisId ?? null,
-        blueprintId: result.blueprintId ?? null,
-        blueprintGenerated: result.blueprintGenerated,
-      });
-      return jsonResponse({
-        success: true,
-        regenerated: true,
-        partial: true,
-        warning:
-          result.warning ??
-          "Strategic Blueprint could not be regenerated, previous valid blueprint was preserved.",
-      });
-    }
-
-    logRegenerationEvent("REGENERATE_SUCCESS", {
+    logRegenerationEvent("QUEUED", {
       discussionId,
-      analysisId: result.analysisId ?? null,
-      blueprintId: result.blueprintId ?? null,
+      organizationId,
     });
 
     return jsonResponse({
       success: true,
-      regenerated: true,
+      queued: true,
+      message: "Regeneration started. Refresh in a few moments.",
     });
   } catch (error) {
     console.error("Regenerate intelligence failed", error);
@@ -100,7 +111,7 @@ export async function POST(_request: Request, context: RouteContext) {
     return jsonResponse(
       {
         success: false,
-        error: "Regeneration failed. Please check logs.",
+        error: "Could not start regeneration.",
       },
       500,
     );
