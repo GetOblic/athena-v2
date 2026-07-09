@@ -801,6 +801,7 @@ export async function createAssetBlueprintForBriefing(input: {
   briefing: AthenaReview;
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
+  regenerationRunStartedAt?: number;
 }): Promise<BlueprintGenerationOutcome> {
   try {
     const organizationId = input.discussion.organization_id ?? "";
@@ -828,6 +829,7 @@ export async function createAssetBlueprintForBriefing(input: {
             opportunity: input.opportunity as unknown as Record<string, unknown>,
             briefing: input.briefing as unknown as Record<string, unknown>,
             qualityRefinementSuffix: refinementSuffix,
+            regenerationRunStartedAt: input.regenerationRunStartedAt,
           }),
       });
 
@@ -846,6 +848,7 @@ export async function createAssetBlueprintForBriefing(input: {
               discussion: input.discussion as unknown as Record<string, unknown>,
               opportunity: input.opportunity as unknown as Record<string, unknown>,
               briefing: input.briefing as unknown as Record<string, unknown>,
+              regenerationRunStartedAt: input.regenerationRunStartedAt,
             }),
         });
         if (!recovered.ok) {
@@ -927,6 +930,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   analysis: DiscussionAnalysis;
   brainContextPrompt?: string;
   generationBundle?: GenerationBundle;
+  regenerationRunStartedAt?: number;
 }): Promise<BlueprintGenerationOutcome> {
   try {
     const organizationId = input.discussion.organization_id ?? "";
@@ -951,6 +955,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
             discussion: input.discussion as unknown as Record<string, unknown>,
             analysis: input.analysis as unknown as Record<string, unknown>,
             qualityRefinementSuffix: refinementSuffix,
+            regenerationRunStartedAt: input.regenerationRunStartedAt,
           }),
       });
 
@@ -968,6 +973,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
               bundle: effectiveBundle,
               discussion: input.discussion as unknown as Record<string, unknown>,
               analysis: input.analysis as unknown as Record<string, unknown>,
+              regenerationRunStartedAt: input.regenerationRunStartedAt,
             }),
         });
         if (!recovered.ok) {

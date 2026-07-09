@@ -1,3 +1,6 @@
+import { clearExecutiveLearningCache } from "@/services/brain/executiveLearningService";
+import { clearExecutiveMemoryCache } from "@/services/brain/executiveMemoryService";
+import { clearExecutiveReasoningCache } from "@/services/brain/executiveReasoningService";
 import {
   resolveExecutiveUnderstandingBundle,
   clearExecutiveUnderstandingCache,
@@ -118,6 +121,9 @@ export function clearGenerationContractCache(): void {
 export function clearGenerationPipelineCache(): void {
   bundleCache.clear();
   clearExecutiveUnderstandingCache();
+  clearExecutiveMemoryCache();
+  clearExecutiveLearningCache();
+  clearExecutiveReasoningCache();
 }
 
 export async function resolveGenerationBundle(

@@ -220,6 +220,7 @@ async function generateAssetBlueprint(input: {
   review?: Awaited<ReturnType<typeof upsertReviewFromGeneration>> | null;
   generationBundle?: GenerationBundle | null;
   brainContextPrompt?: string;
+  regenerationRunStartedAt?: number;
 }): Promise<BlueprintGenerationOutcome> {
   try {
     if (input.opportunity && input.review) {
@@ -229,6 +230,7 @@ async function generateAssetBlueprint(input: {
         briefing: input.review,
         generationBundle: input.generationBundle ?? undefined,
         brainContextPrompt: input.brainContextPrompt,
+        regenerationRunStartedAt: input.regenerationRunStartedAt,
       });
     }
 
@@ -237,6 +239,7 @@ async function generateAssetBlueprint(input: {
       analysis: input.analysis,
       generationBundle: input.generationBundle ?? undefined,
       brainContextPrompt: input.brainContextPrompt,
+      regenerationRunStartedAt: input.regenerationRunStartedAt,
     });
   } catch (error) {
     console.error("generateAssetBlueprint failed:", error);
@@ -390,6 +393,7 @@ async function processDiscussionEndToEndInternal(
               bundle: analysisBundle,
               discussion: analysisDiscussion,
               qualityRefinementSuffix: refinementSuffix,
+              regenerationRunStartedAt: startedAt,
             });
             return generateReview(prompt, {
               stage: "discussion_analysis.quality_gate",
@@ -414,6 +418,7 @@ async function processDiscussionEndToEndInternal(
         const prompt = assembleDiscussionAnalysisPrompt({
           bundle: analysisBundle,
           discussion: analysisDiscussion,
+          regenerationRunStartedAt: startedAt,
         });
         rawAnalysis = await generateReview(prompt, {
           stage: "discussion_analysis.fallback",
@@ -489,6 +494,7 @@ async function processDiscussionEndToEndInternal(
       analysis,
       generationBundle: blueprintBundle,
       brainContextPrompt: legacyBrainPrompt ?? undefined,
+      regenerationRunStartedAt: startedAt,
     });
 
     return workflowSuccess({
@@ -571,6 +577,7 @@ async function processDiscussionEndToEndInternal(
               bundle: briefingBundle,
               opportunity,
               qualityRefinementSuffix: refinementSuffix,
+              regenerationRunStartedAt: startedAt,
             });
             return generateReview(prompt, {
               stage: "executive_briefing.quality_gate",
@@ -595,6 +602,7 @@ async function processDiscussionEndToEndInternal(
         const prompt = assembleExecutiveBriefingPrompt({
           bundle: briefingBundle,
           opportunity,
+          regenerationRunStartedAt: startedAt,
         });
         rawReview = await generateReview(prompt, {
           stage: "executive_briefing.fallback",
@@ -674,6 +682,7 @@ async function processDiscussionEndToEndInternal(
     review,
     generationBundle: blueprintBundle,
     brainContextPrompt: legacyBrainPrompt ?? undefined,
+    regenerationRunStartedAt: startedAt,
   });
 
   if (analysisBundle && briefingBundle) {

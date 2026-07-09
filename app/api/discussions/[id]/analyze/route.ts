@@ -22,10 +22,14 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
+const inFlightDiscussionRegenerations = new Set<string>();
+
 function runRegenerationInBackground(
   discussionId: string,
   organizationId: string,
 ): void {
+  inFlightDiscussionRegenerations.add(discussionId);
+
   after(() => {
     void processDiscussionEndToEnd(discussionId, organizationId)
       .then((result) => {
@@ -58,6 +62,9 @@ function runRegenerationInBackground(
           organizationId,
           error: error instanceof Error ? error.message : "Unknown error",
         });
+      })
+      .finally(() => {
+        inFlightDiscussionRegenerations.delete(discussionId);
       });
   });
 }
@@ -83,6 +90,20 @@ export async function POST(_request: Request, context: RouteContext) {
     }
 
     try {
+      if (inFlightDiscussionRegenerations.has(id)) {
+        logRegenerationEvent("QUEUED", {
+          discussionId,
+          organizationId,
+          skippedDuplicate: true,
+        });
+
+        return jsonResponse({
+          success: true,
+          queued: true,
+          message: "Regeneration already in progress.",
+        });
+      }
+
       runRegenerationInBackground(id, organizationId);
     } catch (error) {
       console.error("Failed to queue regeneration:", error);
