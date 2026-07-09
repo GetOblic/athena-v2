@@ -1,5 +1,10 @@
 import { after, NextResponse } from "next/server";
 import {
+  clearDiscussionRegenerationInFlight,
+  markDiscussionRegenerationInFlight,
+  isDiscussionRegenerationInFlight,
+} from "@/lib/discussionRegenerationInFlight";
+import {
   createRegenerationRunId,
   logRegenerationEvent,
 } from "@/lib/regenerationDiagnostics";
@@ -25,7 +30,9 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
-const inFlightDiscussionRegenerations = new Set<string>();
+const inFlightDiscussionRegenerations = {
+  has: isDiscussionRegenerationInFlight,
+};
 
 function runRegenerationInBackground(
   discussionId: string,
@@ -33,7 +40,7 @@ function runRegenerationInBackground(
   regenerationRunId: string,
   startedAt: string,
 ): void {
-  inFlightDiscussionRegenerations.add(discussionId);
+  markDiscussionRegenerationInFlight(discussionId);
 
   after(() => {
     void processDiscussionEndToEnd(discussionId, organizationId, {
@@ -78,7 +85,7 @@ function runRegenerationInBackground(
         });
       })
       .finally(() => {
-        inFlightDiscussionRegenerations.delete(discussionId);
+        clearDiscussionRegenerationInFlight(discussionId);
       });
   });
 }

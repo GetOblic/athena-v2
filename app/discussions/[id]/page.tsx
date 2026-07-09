@@ -6,12 +6,17 @@ import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 import { AppendDiscussionUpdateForm } from "@/components/discussions/AppendDiscussionUpdateForm";
 import { AthenaRecommendationRibbon } from "@/components/discussions/AthenaRecommendationRibbon";
+import {
+  DiscussionRegenerationProgress,
+  DiscussionRegenerationProvider,
+} from "@/components/discussions/DiscussionRegenerationProvider";
 import { DiscussionAgeBadge } from "@/components/discussions/DiscussionAgeBadge";
 import { DiscussionHeaderActions } from "@/components/discussions/DiscussionHeaderActions";
 import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
 import { DiscussionStatusControl } from "@/components/discussions/DiscussionStatusControl";
 import { DiscussionWorkflowStrip } from "@/components/discussions/DiscussionWorkflowStrip";
 import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveIntelligenceCard";
+import { RegenerationMetadata } from "@/components/discussions/RegenerationMetadata";
 import {
   getOriginalDiscussionBody,
   getThreadUpdatesForDisplay,
@@ -90,8 +95,19 @@ export default async function DiscussionDetailsPage({
     name: getIntelligenceDomainName(domain),
   }));
 
+  const initialRegenerationSnapshot = {
+    latestAnalysisId: latestAnalysis?.id ?? null,
+    latestAnalysisCreatedAt: latestAnalysis?.created_at ?? null,
+    blueprintUpdatedAt: assetBlueprint?.updated_at ?? null,
+    regenerationInFlight: false,
+  };
+
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+    <DiscussionRegenerationProvider
+      discussionId={id}
+      initialSnapshot={initialRegenerationSnapshot}
+    >
+      <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
       <AthenaBrandLink className="mb-8" />
 
       <Link href="/discussions" className="text-sm text-[var(--athena-orange)]">
@@ -160,13 +176,18 @@ export default async function DiscussionDetailsPage({
 
       <DiscussionWorkflowStrip steps={workflowSteps} />
 
+      <div className="mt-8">
+        <DiscussionRegenerationProgress />
+      </div>
+
       {latestAnalysis ? (
         <>
           <div className="mt-8">
             <AthenaRecommendationRibbon analysis={latestAnalysis} />
+            <RegenerationMetadata analysis={latestAnalysis} />
           </div>
 
-          <div className="mt-6">
+          <div id="executive-intelligence" className="mt-6 scroll-mt-24">
             <ExecutiveIntelligenceCard analysis={latestAnalysis} />
           </div>
         </>
@@ -316,7 +337,8 @@ export default async function DiscussionDetailsPage({
           </div>
         </section>
       </div>
-    </main>
+      </main>
+    </DiscussionRegenerationProvider>
   );
 }
 

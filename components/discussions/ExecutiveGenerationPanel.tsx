@@ -1,0 +1,146 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { REGENERATION_LONG_RUNNING_MS } from "@/lib/discussionRegenerationStatus";
+
+type GenerationPhase = {
+  id: string;
+  label: string;
+  state: "complete" | "active" | "pending";
+};
+
+type ExecutiveGenerationPanelProps = {
+  startedAtMs: number;
+  resumed?: boolean;
+  duplicateNotice?: string | null;
+};
+
+function buildPhases(elapsedMs: number): GenerationPhase[] {
+  const phaseIndex =
+    elapsedMs >= 45_000 ? 3 : elapsedMs >= 20_000 ? 2 : elapsedMs >= 8_000 ? 1 : 0;
+
+  const labels = [
+    "Understanding discussion",
+    "Building executive intelligence",
+    "Creating deployment assets",
+    "Preparing strategic blueprint",
+  ];
+
+  return labels.map((label, index) => ({
+    id: label,
+    label,
+    state:
+      index < phaseIndex
+        ? "complete"
+        : index === phaseIndex
+          ? "active"
+          : "pending",
+  }));
+}
+
+function PhaseIcon({ state }: { state: GenerationPhase["state"] }) {
+  if (state === "complete") {
+    return <span className="text-emerald-400">✓</span>;
+  }
+
+  if (state === "active") {
+    return (
+      <span
+        className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--athena-orange)]/30 border-t-[var(--athena-orange)]"
+        aria-hidden="true"
+      />
+    );
+  }
+
+  return <span className="text-white/25">⏳</span>;
+}
+
+export function ExecutiveGenerationPanel({
+  startedAtMs,
+  resumed = false,
+  duplicateNotice = null,
+}: ExecutiveGenerationPanelProps) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1_000);
+
+    return () => window.clearInterval(timerId);
+  }, []);
+
+  const elapsedMs = Math.max(0, nowMs - startedAtMs);
+  const phases = buildPhases(elapsedMs);
+  const isLongRunning = elapsedMs >= REGENERATION_LONG_RUNNING_MS;
+
+  return (
+    <div className="rounded-[24px] border border-[var(--athena-orange)]/20 bg-[var(--athena-orange)]/[0.06] p-6 sm:p-7">
+      <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
+        Executive Generation
+      </div>
+
+      <h3 className="mt-3 text-lg font-semibold text-white">
+        {resumed
+          ? "Executive Intelligence is currently being regenerated."
+          : "Executive Intelligence is being regenerated."}
+      </h3>
+
+      {resumed && (
+        <p className="mt-2 text-sm leading-6 text-white/55">
+          The previous analysis remains available while Athena prepares the
+          updated version.
+        </p>
+      )}
+
+      {duplicateNotice && (
+        <p className="mt-3 text-sm leading-6 text-amber-200/90">
+          {duplicateNotice}
+        </p>
+      )}
+
+      <ul className="mt-6 space-y-3">
+        {phases.map((phase) => (
+          <li
+            key={phase.id}
+            className={`flex items-center gap-3 text-sm ${
+              phase.state === "active"
+                ? "font-medium text-white"
+                : phase.state === "complete"
+                  ? "text-white/70"
+                  : "text-white/40"
+            }`}
+          >
+            <span className="flex h-4 w-4 items-center justify-center">
+              <PhaseIcon state={phase.state} />
+            </span>
+            <span>{phase.label}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-6 border-t border-white/10 pt-5 text-sm leading-6 text-white/55">
+        {isLongRunning ? (
+          <>
+            <p className="font-medium text-white/75">
+              Athena is still generating a new executive analysis.
+            </p>
+            <p className="mt-2">
+              Complex discussions occasionally require additional reasoning. You
+              may safely leave this page. Generation will continue automatically.
+            </p>
+          </>
+        ) : (
+          <>
+            <p>
+              <span className="text-white/70">Estimated time:</span> 30–90 seconds
+            </p>
+            <p className="mt-2">
+              You may continue browsing Athena while generation completes.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
