@@ -1,6 +1,7 @@
 export type RegenerationStatusSnapshot = {
   latestAnalysisId: string | null;
   latestAnalysisCreatedAt: string | null;
+  latestAnalysisUpdatedAt: string | null;
   blueprintUpdatedAt: string | null;
   regenerationInFlight: boolean;
 };
@@ -11,6 +12,7 @@ export type RegenerationStatusResponse = {
   regenerationInFlight?: boolean;
   latestAnalysisId?: string | null;
   latestAnalysisCreatedAt?: string | null;
+  latestAnalysisUpdatedAt?: string | null;
   blueprintUpdatedAt?: string | null;
   error?: string;
 };
@@ -24,37 +26,26 @@ export function emptyRegenerationSnapshot(): RegenerationStatusSnapshot {
   return {
     latestAnalysisId: null,
     latestAnalysisCreatedAt: null,
+    latestAnalysisUpdatedAt: null,
     blueprintUpdatedAt: null,
     regenerationInFlight: false,
   };
 }
 
-export function isRegenerationComplete(
+export function isFullPipelineRegenerationComplete(
   baseline: Pick<
     RegenerationStatusSnapshot,
-    | "latestAnalysisId"
-    | "latestAnalysisCreatedAt"
+    | "latestAnalysisUpdatedAt"
     | "blueprintUpdatedAt"
   >,
-  current: Pick<
-    RegenerationStatusSnapshot,
-    | "latestAnalysisId"
-    | "latestAnalysisCreatedAt"
-    | "blueprintUpdatedAt"
-  >,
+  current: RegenerationStatusSnapshot,
   queuedAtMs: number,
 ): boolean {
-  const queueFloorMs = queuedAtMs - 15_000;
-
-  if (
-    current.latestAnalysisId &&
-    current.latestAnalysisId !== baseline.latestAnalysisId
-  ) {
-    const createdMs = Date.parse(current.latestAnalysisCreatedAt ?? "");
-    if (!Number.isNaN(createdMs) && createdMs >= queueFloorMs) {
-      return true;
-    }
+  if (current.regenerationInFlight) {
+    return false;
   }
+
+  const queueFloorMs = queuedAtMs - 15_000;
 
   if (
     current.blueprintUpdatedAt &&
@@ -66,6 +57,23 @@ export function isRegenerationComplete(
       !Number.isNaN(updatedMs) &&
       updatedMs >= queueFloorMs &&
       updatedMs > (Number.isNaN(baselineMs) ? 0 : baselineMs)
+    ) {
+      return true;
+    }
+  }
+
+  if (
+    current.latestAnalysisUpdatedAt &&
+    current.latestAnalysisUpdatedAt !== baseline.latestAnalysisUpdatedAt
+  ) {
+    const updatedMs = Date.parse(current.latestAnalysisUpdatedAt);
+    const baselineMs = Date.parse(baseline.latestAnalysisUpdatedAt ?? "");
+    if (
+      !Number.isNaN(updatedMs) &&
+      updatedMs >= queueFloorMs &&
+      updatedMs > (Number.isNaN(baselineMs) ? 0 : baselineMs) &&
+      !baseline.blueprintUpdatedAt &&
+      !current.blueprintUpdatedAt
     ) {
       return true;
     }
@@ -90,6 +98,7 @@ export async function fetchRegenerationStatus(
     return {
       latestAnalysisId: data.latestAnalysisId ?? null,
       latestAnalysisCreatedAt: data.latestAnalysisCreatedAt ?? null,
+      latestAnalysisUpdatedAt: data.latestAnalysisUpdatedAt ?? null,
       blueprintUpdatedAt: data.blueprintUpdatedAt ?? null,
       regenerationInFlight: Boolean(data.regenerationInFlight),
     };
@@ -103,8 +112,7 @@ export type PersistedRegenerationSession = {
   startedAtMs: number;
   baseline: Pick<
     RegenerationStatusSnapshot,
-    | "latestAnalysisId"
-    | "latestAnalysisCreatedAt"
+    | "latestAnalysisUpdatedAt"
     | "blueprintUpdatedAt"
   >;
 };
@@ -128,6 +136,17 @@ export function readRegenerationSession(
 
     const parsed = JSON.parse(raw) as PersistedRegenerationSession;
     if (parsed.discussionId !== discussionId || !parsed.startedAtMs) {
+      return null;
+    }
+
+    if (
+      !parsed.baseline ||
+      !Object.prototype.hasOwnProperty.call(
+        parsed.baseline,
+        "latestAnalysisUpdatedAt",
+      )
+    ) {
+      window.sessionStorage.removeItem(sessionStorageKey(discussionId));
       return null;
     }
 

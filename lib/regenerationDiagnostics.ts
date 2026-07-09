@@ -30,6 +30,16 @@ export function hashContent(value: string | null | undefined): string {
     .slice(0, 16);
 }
 
+export function logRegenerationPipelineStageComplete(
+  stage: "deployment_assets" | "strategic_blueprint",
+): void {
+  console.log(`[Athena Regeneration] stage=${stage} status=complete`);
+}
+
+export function logRegenerationPipelineComplete(): void {
+  console.log("[Athena Regeneration] status=complete");
+}
+
 export function logRegenerationEvent(
   event: string,
   data: Record<string, unknown> = {},

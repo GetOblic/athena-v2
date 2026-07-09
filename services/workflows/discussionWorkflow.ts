@@ -45,6 +45,8 @@ import {
   logPersistedRegenerationOutput,
   logRegenerationEvent,
   logRegenerationForensic,
+  logRegenerationPipelineComplete,
+  logRegenerationPipelineStageComplete,
 } from "@/lib/regenerationDiagnostics";
 
 export type RegenerationRunContext = {
@@ -186,6 +188,10 @@ function workflowSuccess(input: {
       blueprintError: input.blueprintOutcome.blueprintError,
       status: input.status,
     };
+  }
+
+  if (input.explicitRegeneration) {
+    logRegenerationPipelineComplete();
   }
 
   return {
@@ -682,6 +688,9 @@ async function processDiscussionEndToEndInternal(
         analysisId: deploymentResult.analysis.id,
         deploymentAssetsHash: hashContent(deploymentResult.analysis.suggested_cta),
       });
+      if (explicitRegeneration) {
+        logRegenerationPipelineStageComplete("deployment_assets");
+      }
     } catch (error) {
       console.error("Deployment assets generation failed:", error);
       if (explicitRegeneration) {
@@ -704,6 +713,10 @@ async function processDiscussionEndToEndInternal(
       regenerationRunId,
       explicitRegeneration,
     });
+
+    if (explicitRegeneration && blueprintOutcome.blueprintGenerated) {
+      logRegenerationPipelineStageComplete("strategic_blueprint");
+    }
 
     return workflowSuccess({
       discussionId,
@@ -916,6 +929,9 @@ async function processDiscussionEndToEndInternal(
       analysisId: deploymentResult.analysis.id,
       deploymentAssetsHash: hashContent(deploymentResult.analysis.suggested_cta),
     });
+    if (explicitRegeneration) {
+      logRegenerationPipelineStageComplete("deployment_assets");
+    }
   } catch (error) {
     console.error("Deployment assets generation failed:", error);
     if (explicitRegeneration) {
@@ -976,6 +992,10 @@ async function processDiscussionEndToEndInternal(
     } catch (error) {
       console.error("Executive output coherence check failed:", error);
     }
+  }
+
+  if (explicitRegeneration && blueprintOutcome.blueprintGenerated) {
+    logRegenerationPipelineStageComplete("strategic_blueprint");
   }
 
   return workflowSuccess({

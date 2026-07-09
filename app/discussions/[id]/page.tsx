@@ -98,6 +98,7 @@ export default async function DiscussionDetailsPage({
   const initialRegenerationSnapshot = {
     latestAnalysisId: latestAnalysis?.id ?? null,
     latestAnalysisCreatedAt: latestAnalysis?.created_at ?? null,
+    latestAnalysisUpdatedAt: latestAnalysis?.updated_at ?? null,
     blueprintUpdatedAt: assetBlueprint?.updated_at ?? null,
     regenerationInFlight: false,
   };
