@@ -15,7 +15,7 @@ import { RegenerationCompleteToast } from "@/components/discussions/Regeneration
 import {
   clearRegenerationSession,
   fetchRegenerationStatus,
-  isRegenerationComplete,
+  isFullPipelineRegenerationComplete,
   readRegenerationSession,
   REGENERATION_POLL_INTERVAL_MS,
   REGENERATION_POLL_TIMEOUT_MS,
@@ -125,8 +125,7 @@ export function DiscussionRegenerationProvider({
     (
       baseline: Pick<
         RegenerationStatusSnapshot,
-        | "latestAnalysisId"
-        | "latestAnalysisCreatedAt"
+        | "latestAnalysisUpdatedAt"
         | "blueprintUpdatedAt"
       >,
       queuedAtMs: number,
@@ -161,7 +160,10 @@ export function DiscussionRegenerationProvider({
           return;
         }
 
-        if (current && isRegenerationComplete(baseline, current, queuedAtMs)) {
+        if (
+          current &&
+          isFullPipelineRegenerationComplete(baseline, current, queuedAtMs)
+        ) {
           finish();
           markCompleted();
           return;
@@ -185,8 +187,7 @@ export function DiscussionRegenerationProvider({
     (
       baseline: Pick<
         RegenerationStatusSnapshot,
-        | "latestAnalysisId"
-        | "latestAnalysisCreatedAt"
+        | "latestAnalysisUpdatedAt"
         | "blueprintUpdatedAt"
       >,
       queuedAtMs: number,
@@ -219,7 +220,11 @@ export function DiscussionRegenerationProvider({
     if (session) {
       if (
         status &&
-        isRegenerationComplete(session.baseline, status, session.startedAtMs)
+        isFullPipelineRegenerationComplete(
+          session.baseline,
+          status,
+          session.startedAtMs,
+        )
       ) {
         clearRegenerationSession(discussionId);
         return;
@@ -232,8 +237,7 @@ export function DiscussionRegenerationProvider({
     if (status?.regenerationInFlight) {
       beginGeneration(
         {
-          latestAnalysisId: status.latestAnalysisId,
-          latestAnalysisCreatedAt: status.latestAnalysisCreatedAt,
+          latestAnalysisUpdatedAt: status.latestAnalysisUpdatedAt,
           blueprintUpdatedAt: status.blueprintUpdatedAt,
         },
         Date.now(),

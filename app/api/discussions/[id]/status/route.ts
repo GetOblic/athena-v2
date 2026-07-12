@@ -51,6 +51,7 @@ export async function GET(_request: Request, context: RouteContext) {
       regenerationInFlight: isDiscussionRegenerationInFlight(id),
       latestAnalysisId: analysis?.id ?? null,
       latestAnalysisCreatedAt: analysis?.created_at ?? null,
+      latestAnalysisUpdatedAt: analysis?.updated_at ?? null,
       blueprintUpdatedAt: blueprint?.updated_at ?? null,
       status: discussion.status,
     });

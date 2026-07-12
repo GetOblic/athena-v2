@@ -1,5 +1,11 @@
 import { callOpenRouter } from "@/lib/openrouter";
 import {
+  resolveAthenaStageFromGenerationKind,
+  resolveModelForStage,
+  resolveOpenRouterFallbackModel,
+  type AthenaExtendedLLMStage,
+} from "@/lib/llm/modelRouting";
+import {
   getReasoningProfileForGeneration,
   resolveReasoningAttachment,
   type AthenaGenerationKind,
@@ -14,6 +20,7 @@ import {
 
 export type GenerateReviewOptions = LlmCallMeta & {
   generationKind?: AthenaGenerationKind;
+  athenaStage?: AthenaExtendedLLMStage;
   reasoningProfile?: ReasoningProfileType;
   systemPrompt?: string;
 };
@@ -70,12 +77,30 @@ function resolveRunId(meta?: GenerateReviewOptions): string | undefined {
   return meta?.regenerationRunId ?? meta?.regenerationNonce;
 }
 
+function resolveCallStage(
+  meta?: GenerateReviewOptions,
+): AthenaExtendedLLMStage | undefined {
+  if (meta?.athenaStage) {
+    return meta.athenaStage;
+  }
+
+  if (meta?.generationKind) {
+    return resolveAthenaStageFromGenerationKind(meta.generationKind);
+  }
+
+  return undefined;
+}
+
 export async function generateReview(
   prompt: string,
   meta?: GenerateReviewOptions,
 ) {
   const reasoningProfile = resolveReasoningProfile(meta);
-  const model = process.env.OPENROUTER_MODEL ?? "";
+  const athenaStage = resolveCallStage(meta);
+  const routedModel = athenaStage
+    ? resolveModelForStage(athenaStage)
+    : null;
+  const model = routedModel?.model ?? resolveOpenRouterFallbackModel();
   const attachment = resolveReasoningAttachment({
     model,
     profile: reasoningProfile,
@@ -86,6 +111,9 @@ export async function generateReview(
         {
           ...meta,
           generationKind: meta.generationKind,
+          athenaStage,
+          resolvedModel: routedModel?.model ?? null,
+          llmRole: routedModel?.role ?? null,
           reasoningProfile,
           reasoningAttached: attachment.attach,
         },
@@ -107,6 +135,7 @@ export async function generateReview(
     {
       reasoningProfile,
       generationKind: meta?.generationKind,
+      athenaStage,
       regenerationRunId: resolveRunId(meta),
       discussionId: meta?.discussionId,
       stage: meta?.stage,
@@ -130,3 +159,11 @@ export {
   type AthenaOutputType,
   type ReasoningProfileType,
 } from "@/lib/reasoningProfiles";
+
+export {
+  resolveModelForGenerationKind,
+  resolveModelForStage,
+  type AthenaExtendedLLMStage,
+  type AthenaLLMRole,
+  type AthenaLLMStage,
+} from "@/lib/llm/modelRouting";

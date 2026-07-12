@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateReview } from "@/services/aiService";
+import { generateReview, resolveModelForGenerationKind } from "@/services/aiService";
 import { getOpportunityById } from "@/services/opportunityService";
 import { upsertReviewFromGeneration } from "@/services/reviewService";
 import {
@@ -90,6 +90,7 @@ export async function POST(_request: Request, context: RouteContext) {
       stage: "opportunity_review",
       promptSource: "app/api/opportunities/[id]/review/route.ts",
       generationKind: "opportunity_review",
+      athenaStage: "opportunity_generation",
     });
     const parsedReview = parseGeneratedReview(rawReview);
     const generationTimeMs = Date.now() - startedAt;
@@ -107,7 +108,7 @@ export async function POST(_request: Request, context: RouteContext) {
       cta: parsedReview.cta,
       confidence: parsedReview.confidence || opportunity.score || 0,
 
-      model: process.env.OPENROUTER_MODEL ?? null,
+      model: resolveModelForGenerationKind("opportunity_review").model,
       prompt_version: OPPORTUNITY_REVIEW_PROMPT_VERSION,
       generation_time_ms: generationTimeMs,
 

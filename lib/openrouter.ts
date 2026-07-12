@@ -7,6 +7,12 @@ import {
   type ReasoningProfileType,
 } from "@/lib/reasoningProfiles";
 import {
+  logAthenaLlmRouting,
+  resolveModelForStage,
+  resolveOpenRouterFallbackModel,
+  type AthenaExtendedLLMStage,
+} from "@/lib/llm/modelRouting";
+import {
   buildTokenBudgetSchedule,
   capMaxTokensForRetry,
   isTokenBudgetError,
@@ -24,12 +30,31 @@ export type OpenRouterCallOptions = {
   temperature?: number;
   reasoningProfile?: ReasoningProfileType;
   generationKind?: AthenaGenerationKind;
+  athenaStage?: AthenaExtendedLLMStage;
   regenerationRunId?: string;
   /** @deprecated Use regenerationRunId */
   regenerationNonce?: string;
   discussionId?: string;
+  /** Pipeline sub-stage label for diagnostics (e.g. discussion_analysis.quality_gate). */
   stage?: string;
 };
+
+function resolveCallModel(options?: OpenRouterCallOptions): {
+  model: string;
+  route: ReturnType<typeof resolveModelForStage> | null;
+} {
+  if (options?.athenaStage) {
+    const route = resolveModelForStage(options.athenaStage);
+    return { model: route.model, route };
+  }
+
+  const fallback = resolveOpenRouterFallbackModel();
+  if (!fallback) {
+    throw new Error("Missing OPENROUTER_MODEL environment variable");
+  }
+
+  return { model: fallback, route: null };
+}
 
 function shouldLogReasoningDev(): boolean {
   return process.env.NODE_ENV === "development";
@@ -106,7 +131,6 @@ export async function callOpenRouter(
   options?: OpenRouterCallOptions,
 ) {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  const model = process.env.OPENROUTER_MODEL;
   const siteUrl = process.env.OPENROUTER_SITE_URL || "http://localhost:3000";
   const appName = process.env.OPENROUTER_APP_NAME || "Athena";
 
@@ -114,9 +138,7 @@ export async function callOpenRouter(
     throw new Error("Missing OPENROUTER_API_KEY environment variable");
   }
 
-  if (!model) {
-    throw new Error("Missing OPENROUTER_MODEL environment variable");
-  }
+  const { model, route } = resolveCallModel(options);
 
   const headers = {
     Authorization: `Bearer ${apiKey}`,
@@ -127,6 +149,17 @@ export async function callOpenRouter(
 
   const profile = options?.reasoningProfile ?? "BALANCED";
   const attachment = resolveReasoningAttachment({ model, profile });
+  const reasoningLabel =
+    attachment.attach && attachment.effort ? attachment.effort : profile;
+
+  if (route) {
+    logAthenaLlmRouting(route, reasoningLabel);
+  } else {
+    console.log(
+      `[Athena LLM] stage=unspecified role=fallback model=${model} reasoning=${reasoningLabel}`,
+    );
+  }
+
   const baseMaxTokens = resolveDefaultMaxTokens();
   const tokenBudgetSchedule = buildTokenBudgetSchedule(baseMaxTokens);
   const callStartedAt = Date.now();
@@ -134,6 +167,7 @@ export async function callOpenRouter(
 
   logReasoningDev({
     generationKind: options?.generationKind ?? null,
+    athenaStage: options?.athenaStage ?? null,
     model,
     reasoningProfile: profile,
     reasoningEffort: attachment.effort,
@@ -165,6 +199,7 @@ export async function callOpenRouter(
       attempt: attemptNumber,
       max_tokens: maxTokens,
       stage: options?.stage ?? null,
+      athenaStage: options?.athenaStage ?? null,
       generationKind: options?.generationKind ?? null,
       discussionId: options?.discussionId ?? null,
       regenerationRunId:

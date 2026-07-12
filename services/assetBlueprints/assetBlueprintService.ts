@@ -1,4 +1,4 @@
-import { generateReview } from "@/services/aiService";
+import { generateReview, resolveModelForStage } from "@/services/aiService";
 import {
   appendBlueprintDebugMarker,
   hasBlueprintDebugMarker,
@@ -609,12 +609,14 @@ async function generateBlueprintReview(input: {
     stage: input.stage,
     promptSource:
       "services/brain/generationContracts/generationPromptAssembly.ts::assembleStrategicBlueprintPrompt → services/assetBlueprints/prompts/assetBlueprintPrompt.ts",
-    model: process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
+    model: resolveModelForStage("strategic_blueprint").model,
+    athenaStage: "strategic_blueprint",
   });
 
   if (isAthenaDebugPromptsEnabled()) {
     logAthenaPromptDebug({
       stage: input.stage,
+      model: resolveModelForStage("strategic_blueprint").model,
       temperature: ATHENA_DEFAULT_LLM_TEMPERATURE,
       max_tokens: null,
       systemPrompt: ATHENA_REVIEW_SYSTEM_PROMPT,
@@ -629,6 +631,7 @@ async function generateBlueprintReview(input: {
     promptSource:
       "services/brain/generationContracts/generationPromptAssembly.ts::assembleStrategicBlueprintPrompt → services/assetBlueprints/prompts/assetBlueprintPrompt.ts",
     generationKind: "strategic_blueprint",
+    athenaStage: "strategic_blueprint",
     regenerationRunId: input.regenerationRunId,
     discussionId: input.discussionId,
     explicitRegeneration: input.explicitRegeneration,

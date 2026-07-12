@@ -1,3 +1,5 @@
+import { resolveOpenRouterFallbackModel } from "@/lib/llm/modelRouting";
+
 export const ATHENA_REVIEW_SYSTEM_PROMPT =
   "You are Athena, an institutional intelligence analyst. Produce concise, professional business intelligence.";
 
@@ -27,7 +29,7 @@ export function logAthenaPromptDebug(payload: AthenaPromptDebugPayload): void {
     tag: "ATHENA_DEBUG_PROMPTS",
     stage: payload.stage,
     timestamp: new Date().toISOString(),
-    model: payload.model ?? process.env.OPENROUTER_MODEL ?? "(OPENROUTER_MODEL not set)",
+    model: payload.model ?? resolveOpenRouterFallbackModel(),
     temperature: payload.temperature ?? ATHENA_DEFAULT_LLM_TEMPERATURE,
     max_tokens: payload.max_tokens ?? null,
     system_prompt: payload.systemPrompt,

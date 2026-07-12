@@ -39,6 +39,8 @@ export {
   assembleStrategicBlueprintPrompt,
 } from "@/services/brain/generationContracts/generationPromptAssembly";
 
+export { assembleDeploymentAssetsPrompt } from "@/services/brain/generationContracts/deploymentAssetsPromptAssembly";
+
 export type {
   GenerationContract,
   GenerationBundle,

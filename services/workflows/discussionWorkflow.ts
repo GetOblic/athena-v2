@@ -1,4 +1,4 @@
-import { generateReview } from "@/services/aiService";
+import { generateReview, resolveModelForStage } from "@/services/aiService";
 import type { AthenaGenerationKind } from "@/lib/reasoningProfiles";
 import {
   createAssetBlueprintForBriefing,
@@ -36,12 +36,22 @@ import { upsertReviewFromGeneration } from "@/services/reviewService";
 import { computeCompositeOpportunityScoreFromAnalysis } from "@/services/brain/executiveIntelligenceHelpers";
 import { runSimplifiedQualityGateLoop } from "@/services/brain/reasoningPipeline/simplifiedQualityGate";
 import {
+  generateDeploymentAssets,
+  persistDeploymentAssets,
+} from "@/services/workflows/deploymentAssetsWorkflow";
+import {
   appendRegenerationRunStamp,
   hashContent,
   logPersistedRegenerationOutput,
   logRegenerationEvent,
   logRegenerationForensic,
+  logRegenerationPipelineComplete,
+  logRegenerationPipelineStageComplete,
 } from "@/lib/regenerationDiagnostics";
+import {
+  ensureCurrentLiveIntelligenceIsVersioned,
+  publishExecutiveIntelligenceVersion,
+} from "@/services/executiveVersions/executiveVersionService";
 
 export type RegenerationRunContext = {
   regenerationRunId: string;
@@ -62,6 +72,64 @@ export type DiscussionEndToEndResult = {
   blueprintError?: string;
   status?: string;
 };
+
+function stripAnalysisDeploymentFields(
+  parsed: GeneratedDiscussionAnalysis,
+): GeneratedDiscussionAnalysis {
+  return {
+    ...parsed,
+    suggested_cta: "",
+  };
+}
+
+function stripReviewDeploymentFields(parsed: GeneratedReview): GeneratedReview {
+  return {
+    ...parsed,
+    recommended_response: "",
+    cta: "",
+  };
+}
+
+async function runDeploymentAssetsStage(input: {
+  discussion: NonNullable<Awaited<ReturnType<typeof getDiscussionById>>>;
+  analysis: Awaited<ReturnType<typeof createDiscussionAnalysis>>;
+  organizationId: string;
+  discussionId: string;
+  regenerationRunId?: string;
+  explicitRegeneration?: boolean;
+  opportunity?: Awaited<ReturnType<typeof upsertOpportunityFromAnalysis>> | null;
+  review?: Awaited<ReturnType<typeof upsertReviewFromGeneration>> | null;
+  parsedAnalysis: GeneratedDiscussionAnalysis;
+  parsedReview?: GeneratedReview;
+}) {
+  const advisoryAnalysis = {
+    ...input.parsedAnalysis,
+    suggested_cta: "",
+  };
+
+  const { assets, rawResponse, model } = await generateDeploymentAssets({
+    discussion: input.discussion,
+    analysis: advisoryAnalysis,
+    opportunity: input.opportunity ?? undefined,
+    briefing: input.review ?? undefined,
+    regenerationRunId: input.regenerationRunId,
+    discussionId: input.discussionId,
+    organizationId: input.organizationId,
+    explicitRegeneration: input.explicitRegeneration,
+  });
+
+  return persistDeploymentAssets({
+    organizationId: input.organizationId,
+    discussionId: input.discussionId,
+    analysis: input.analysis,
+    opportunity: input.opportunity ?? undefined,
+    review: input.review ?? undefined,
+    assets,
+    rawResponse,
+    model,
+    regenerationRunId: input.regenerationRunId,
+  });
+}
 
 function workflowFailure(
   discussionId: string,
@@ -124,6 +192,10 @@ function workflowSuccess(input: {
       blueprintError: input.blueprintOutcome.blueprintError,
       status: input.status,
     };
+  }
+
+  if (input.explicitRegeneration) {
+    logRegenerationPipelineComplete();
   }
 
   return {
@@ -375,12 +447,52 @@ export async function processDiscussionEndToEnd(
   organizationId: string,
   runContext?: RegenerationRunContext,
 ): Promise<DiscussionEndToEndResult> {
+  const generationStartedAt = Date.now();
+
   try {
-    return await processDiscussionEndToEndInternal(
+    // Persist previous live intelligence as an immutable version before
+    // the pipeline publishes new Current intelligence (no-op if already versioned).
+    try {
+      await ensureCurrentLiveIntelligenceIsVersioned(
+        discussionId,
+        organizationId,
+      );
+    } catch (error) {
+      console.error(
+        "Failed to preserve previous executive intelligence version:",
+        error,
+      );
+    }
+
+    const result = await processDiscussionEndToEndInternal(
       discussionId,
       organizationId,
       runContext,
     );
+
+    // Generation pipeline is unchanged. After a successful run, publish a
+    // brand-new Executive Intelligence Version and mark it Current.
+    if (result.success && result.analysisId) {
+      try {
+        await publishExecutiveIntelligenceVersion({
+          discussionId,
+          organizationId,
+          regenerationRunId: runContext?.regenerationRunId ?? null,
+          generationDurationMs: Date.now() - generationStartedAt,
+          analysisId: result.analysisId,
+          opportunityId: result.opportunityId ?? null,
+          reviewId: result.reviewId ?? null,
+          blueprintId: result.blueprintId ?? null,
+        });
+      } catch (error) {
+        console.error(
+          "Failed to publish executive intelligence version:",
+          error,
+        );
+      }
+    }
+
+    return result;
   } catch (error) {
     console.error("processDiscussionEndToEnd failed:", error);
     return workflowFailure(
@@ -412,10 +524,16 @@ async function processDiscussionEndToEndInternal(
     stage: string,
     promptSource: string,
     generationKind: AthenaGenerationKind,
+    athenaStage:
+      | "discussion_analysis"
+      | "executive_briefing"
+      | "opportunity_generation"
+      | "strategic_blueprint",
   ) => ({
     stage,
     promptSource,
     generationKind,
+    athenaStage,
     regenerationRunId,
     discussionId,
     explicitRegeneration,
@@ -471,6 +589,7 @@ async function processDiscussionEndToEndInternal(
                 "discussion_analysis.quality_gate",
                 analysisPromptSource,
                 "discussion_analysis",
+                "discussion_analysis",
               ),
             );
           },
@@ -504,6 +623,7 @@ async function processDiscussionEndToEndInternal(
             "discussion_analysis.fallback",
             analysisPromptSource,
             "discussion_analysis",
+            "discussion_analysis",
           ),
         );
         parsedAnalysis = parseAnalysis(rawAnalysis);
@@ -522,6 +642,7 @@ async function processDiscussionEndToEndInternal(
           "discussion_analysis.legacy",
           analysisPromptSource,
           "discussion_analysis",
+          "discussion_analysis",
         ),
       );
       parsedAnalysis = parseAnalysis(rawAnalysis);
@@ -533,6 +654,8 @@ async function processDiscussionEndToEndInternal(
       "Discussion analysis generation failed.",
     );
   }
+
+  parsedAnalysis = stripAnalysisDeploymentFields(parsedAnalysis);
 
   let analysis;
   try {
@@ -551,13 +674,13 @@ async function processDiscussionEndToEndInternal(
       opportunity_title: parsedAnalysis.opportunity_title,
       opportunity_reason: parsedAnalysis.opportunity_reason,
       recommended_action: parsedAnalysis.recommended_action,
-      suggested_cta: parsedAnalysis.suggested_cta,
+      suggested_cta: "",
       risk_level: parsedAnalysis.risk_level,
       confidence: parsedAnalysis.confidence,
       strategy_key: "elevate",
       strategy_prompt_version: ELEVATE_STRATEGY_PROMPT_VERSION,
       analysis_prompt_version: DISCUSSION_ANALYSIS_PROMPT_VERSION,
-      model: process.env.OPENROUTER_MODEL ?? null,
+      model: resolveModelForStage("discussion_analysis").model,
       generation_time_ms: Date.now() - startedAt,
       raw_json: {
         discussion,
@@ -577,26 +700,11 @@ async function processDiscussionEndToEndInternal(
       recordId: analysis.id,
     });
 
-    logPersistedRegenerationOutput({
-      regenerationRunId,
-      discussionId,
-      organizationId,
-      stage: "deployment_assets",
-      persistedHash: hashContent(analysis.suggested_cta),
-      recordId: analysis.id,
-    });
-
     logRegenerationForensic("EXECUTIVE_INTELLIGENCE_REGENERATED", {
       regenerationRunId: regenerationRunId ?? null,
       discussionId,
       analysisId: analysis.id,
       summaryHash: hashContent(analysis.summary),
-    });
-    logRegenerationForensic("DEPLOYMENT_ASSETS_REGENERATED", {
-      regenerationRunId: regenerationRunId ?? null,
-      discussionId,
-      analysisId: analysis.id,
-      deploymentAssetsHash: hashContent(analysis.suggested_cta),
     });
   } catch (error) {
     console.error("Discussion analysis save failed:", error);
@@ -604,22 +712,59 @@ async function processDiscussionEndToEndInternal(
   }
 
   if (!parsedAnalysis.opportunity_detected) {
+    let analysisForBlueprint = analysis;
+
+    try {
+      const deploymentResult = await runDeploymentAssetsStage({
+        discussion,
+        analysis,
+        organizationId,
+        discussionId,
+        regenerationRunId,
+        explicitRegeneration,
+        parsedAnalysis,
+      });
+      analysisForBlueprint = deploymentResult.analysis;
+
+      logRegenerationForensic("DEPLOYMENT_ASSETS_REGENERATED", {
+        regenerationRunId: regenerationRunId ?? null,
+        discussionId,
+        analysisId: deploymentResult.analysis.id,
+        deploymentAssetsHash: hashContent(deploymentResult.analysis.suggested_cta),
+      });
+      if (explicitRegeneration) {
+        logRegenerationPipelineStageComplete("deployment_assets");
+      }
+    } catch (error) {
+      console.error("Deployment assets generation failed:", error);
+      if (explicitRegeneration) {
+        return workflowFailure(
+          discussionId,
+          "Deployment assets generation failed.",
+        );
+      }
+    }
+
     const blueprintBundle = await resolveStrategicBlueprintGeneration(
       organizationId,
       discussion.id,
     );
     const blueprintOutcome = await generateAssetBlueprint({
       discussion,
-      analysis,
+      analysis: analysisForBlueprint,
       generationBundle: blueprintBundle,
       brainContextPrompt: legacyBrainPrompt ?? undefined,
       regenerationRunId,
       explicitRegeneration,
     });
 
+    if (explicitRegeneration && blueprintOutcome.blueprintGenerated) {
+      logRegenerationPipelineStageComplete("strategic_blueprint");
+    }
+
     return workflowSuccess({
       discussionId,
-      analysisId: analysis.id,
+      analysisId: analysisForBlueprint.id,
       blueprintOutcome,
       status: "analysis_completed_no_opportunity",
       explicitRegeneration,
@@ -653,7 +798,7 @@ async function processDiscussionEndToEndInternal(
     title: opportunityTitle,
     reason: parsedAnalysis.opportunity_reason,
     recommended_action: parsedAnalysis.recommended_action,
-    suggested_cta: parsedAnalysis.suggested_cta,
+    suggested_cta: "",
     ai_summary: parsedAnalysis.summary,
     ai_recommendation: parsedAnalysis.recommended_action,
     raw_json: {
@@ -706,6 +851,7 @@ async function processDiscussionEndToEndInternal(
                 "executive_briefing.quality_gate",
                 briefingPromptSource,
                 "executive_briefing",
+                "executive_briefing",
               ),
             );
           },
@@ -734,6 +880,7 @@ async function processDiscussionEndToEndInternal(
             "executive_briefing.fallback",
             briefingPromptSource,
             "executive_briefing",
+            "executive_briefing",
           ),
         );
         parsedReview = parseGeneratedReview(rawReview);
@@ -748,6 +895,7 @@ async function processDiscussionEndToEndInternal(
           "executive_briefing.legacy",
           briefingPromptSource,
           "executive_briefing",
+          "executive_briefing",
         ),
       );
       parsedReview = parseGeneratedReview(rawReview);
@@ -759,6 +907,8 @@ async function processDiscussionEndToEndInternal(
       "Analysis and opportunity regenerated but briefing generation failed.",
     );
   }
+
+  parsedReview = stripReviewDeploymentFields(parsedReview);
 
   const review = await upsertReviewFromGeneration({
     organization_id: organizationId,
@@ -772,7 +922,7 @@ async function processDiscussionEndToEndInternal(
     recommended_response: parsedReview.recommended_response,
     cta: parsedReview.cta,
     confidence: parsedReview.confidence || opportunity.score || 0,
-    model: process.env.OPENROUTER_MODEL ?? null,
+    model: resolveModelForStage("executive_briefing").model,
     prompt_version: OPPORTUNITY_REVIEW_PROMPT_VERSION,
     generation_time_ms: Date.now() - reviewStartedAt,
     raw_json: {
@@ -796,17 +946,57 @@ async function processDiscussionEndToEndInternal(
     };
   }
 
+  let analysisForBlueprint = analysis;
+  let reviewForBlueprint = review;
+  let opportunityForBlueprint = opportunity;
+
+  try {
+    const deploymentResult = await runDeploymentAssetsStage({
+      discussion,
+      analysis,
+      organizationId,
+      discussionId,
+      regenerationRunId,
+      explicitRegeneration,
+      opportunity,
+      review,
+      parsedAnalysis,
+      parsedReview,
+    });
+    analysisForBlueprint = deploymentResult.analysis;
+    reviewForBlueprint = deploymentResult.review ?? review;
+    opportunityForBlueprint = deploymentResult.opportunity ?? opportunity;
+
+    logRegenerationForensic("DEPLOYMENT_ASSETS_REGENERATED", {
+      regenerationRunId: regenerationRunId ?? null,
+      discussionId,
+      analysisId: deploymentResult.analysis.id,
+      deploymentAssetsHash: hashContent(deploymentResult.analysis.suggested_cta),
+    });
+    if (explicitRegeneration) {
+      logRegenerationPipelineStageComplete("deployment_assets");
+    }
+  } catch (error) {
+    console.error("Deployment assets generation failed:", error);
+    if (explicitRegeneration) {
+      return workflowFailure(
+        discussionId,
+        "Deployment assets generation failed.",
+      );
+    }
+  }
+
   const blueprintBundle = await resolveStrategicBlueprintGeneration(
     organizationId,
     discussion.id,
-    opportunity.id,
-    review.id,
+    opportunityForBlueprint.id,
+    reviewForBlueprint.id,
   );
   const blueprintOutcome = await generateAssetBlueprint({
     discussion,
-    analysis,
-    opportunity,
-    review,
+    analysis: analysisForBlueprint,
+    opportunity: opportunityForBlueprint,
+    review: reviewForBlueprint,
     generationBundle: blueprintBundle,
     brainContextPrompt: legacyBrainPrompt ?? undefined,
     regenerationRunId,
@@ -828,7 +1018,11 @@ async function processDiscussionEndToEndInternal(
           },
           {
             type: "deployment_asset",
-            text: extractDeploymentFields(parsedReview.recommended_response),
+            text: extractDeploymentFields(
+              analysisForBlueprint.suggested_cta ??
+                reviewForBlueprint.recommended_response ??
+                "",
+            ),
           },
         ],
       });
@@ -844,11 +1038,15 @@ async function processDiscussionEndToEndInternal(
     }
   }
 
+  if (explicitRegeneration && blueprintOutcome.blueprintGenerated) {
+    logRegenerationPipelineStageComplete("strategic_blueprint");
+  }
+
   return workflowSuccess({
     discussionId,
-    analysisId: analysis.id,
-    opportunityId: opportunity.id,
-    reviewId: review.id,
+    analysisId: analysisForBlueprint.id,
+    opportunityId: opportunityForBlueprint.id,
+    reviewId: reviewForBlueprint.id,
     blueprintOutcome,
     status: "review_ready",
     explicitRegeneration,

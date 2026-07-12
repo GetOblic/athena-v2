@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateReview } from "@/services/aiService";
+import { generateReview, resolveModelForGenerationKind } from "@/services/aiService";
 import { getCommunityById } from "@/services/communityService";
 import { getLatestCommunityIntelligenceByCommunityId } from "@/services/communityIntelligenceService";
 import { createProductionIntelligence } from "@/services/productionIntelligenceService";
@@ -127,7 +127,7 @@ export async function POST(_request: Request, context: RouteContext) {
 
       strategy_prompt_version: ELEVATE_STRATEGY_PROMPT_VERSION,
       content_prompt_version: PRODUCTION_INTELLIGENCE_PROMPT_VERSION,
-      model: process.env.OPENROUTER_MODEL ?? null,
+      model: resolveModelForGenerationKind("production_intelligence").model,
       generation_time_ms: generationTimeMs,
 
       raw_json: {
