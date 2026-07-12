@@ -1,11 +1,14 @@
 import { emitBrainEvent } from "@/services/brain/eventBus";
 import { createDiscussion } from "@/services/discussionService";
-import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
 import {
   normalizeDiscussionIngestion,
   type DiscussionIngestionInput,
 } from "@/services/ingestion/facebook/facebookNormalizer";
 
+/**
+ * Persist a new discussion and emit the import learning signal.
+ * Does NOT run the AI pipeline — callers must enqueue a durable generation job.
+ */
 export async function importFacebookDiscussion(
   input: DiscussionIngestionInput,
 ) {
@@ -23,14 +26,7 @@ export async function importFacebookDiscussion(
     platform: discussion.platform,
   });
 
-  const organizationId = discussion.organization_id ?? input.organizationId;
-  const workflow = await processDiscussionEndToEnd(
-    discussion.id,
-    organizationId,
-  );
-
   return {
     discussion,
-    workflow,
   };
 }

@@ -26,11 +26,13 @@ import {
 
 type AnalyzeResponse = {
   success?: boolean;
+  accepted?: boolean;
   queued?: boolean;
   partial?: boolean;
   warning?: string;
   message?: string;
-  error?: string;
+  error?: string | { code?: string; message?: string };
+  jobId?: string;
 };
 
 type DiscussionRegenerationContextValue = {
@@ -41,6 +43,13 @@ type DiscussionRegenerationContextValue = {
   startedAtMs: number | null;
   resumed: boolean;
   startRegeneration: () => Promise<void>;
+  /** Track an already-queued durable job using the same polling UX as Refresh. */
+  trackQueuedGeneration: (
+    baseline: Pick<
+      RegenerationStatusSnapshot,
+      "latestAnalysisUpdatedAt" | "blueprintUpdatedAt"
+    >,
+  ) => void;
   scrollToUpdatedAnalysis: () => void;
 };
 
@@ -290,19 +299,22 @@ export function DiscussionRegenerationProvider({
         data = JSON.parse(text) as AnalyzeResponse;
       } catch {
         throw new Error(
-          "Regeneration failed because the server returned an unexpected response.",
+          "Athena received an unexpected server response while queuing regeneration.",
         );
       }
 
       if (!data.success) {
-        throw new Error(
-          data.error || "Regeneration failed. Please check logs.",
-        );
+        const message =
+          typeof data.error === "string"
+            ? data.error
+            : data.error?.message || "Regeneration failed. Please check logs.";
+        throw new Error(message);
       }
 
       const queuedAtMs = Date.now();
       const alreadyInProgress = Boolean(
-        data.message?.toLowerCase().includes("already in progress"),
+        data.message?.toLowerCase().includes("already in progress") ||
+          data.accepted === false,
       );
 
       if (alreadyInProgress) {
@@ -327,6 +339,18 @@ export function DiscussionRegenerationProvider({
     }
   }, [beginGeneration, discussionId, isGenerating, stopPolling]);
 
+  const trackQueuedGeneration = useCallback(
+    (
+      baseline: Pick<
+        RegenerationStatusSnapshot,
+        "latestAnalysisUpdatedAt" | "blueprintUpdatedAt"
+      >,
+    ) => {
+      beginGeneration(baseline, Date.now());
+    },
+    [beginGeneration],
+  );
+
   return (
     <DiscussionRegenerationContext.Provider
       value={{
@@ -337,6 +361,7 @@ export function DiscussionRegenerationProvider({
         startedAtMs,
         resumed,
         startRegeneration,
+        trackQueuedGeneration,
         scrollToUpdatedAnalysis,
       }}
     >

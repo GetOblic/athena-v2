@@ -1,15 +1,47 @@
 "use client";
 
 import { useState } from "react";
-import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
+import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
+import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import {
+  emptyRegenerationSnapshot,
+  fetchRegenerationStatus,
+} from "@/lib/discussionRegenerationStatus";
 
 type AppendDiscussionUpdateFormProps = {
   discussionId: string;
 };
 
+type AppendResponse = {
+  ok?: boolean;
+  success?: boolean;
+  accepted?: boolean;
+  discussionId?: string;
+  discussionUpdateId?: string;
+  jobId?: string;
+  status?: string;
+  message?: string;
+  error?: string | { code?: string; message?: string };
+};
+
+function errorMessageFromPayload(payload: AppendResponse): string {
+  if (typeof payload.error === "string" && payload.error.trim()) {
+    return payload.error;
+  }
+  if (
+    payload.error &&
+    typeof payload.error === "object" &&
+    typeof payload.error.message === "string"
+  ) {
+    return payload.error.message;
+  }
+  return "Failed to append update.";
+}
+
 export function AppendDiscussionUpdateForm({
   discussionId,
 }: AppendDiscussionUpdateFormProps) {
+  const { trackQueuedGeneration, isGenerating } = useDiscussionRegeneration();
   const [url, setUrl] = useState("");
   const [body, setBody] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -20,10 +52,18 @@ export function AppendDiscussionUpdateForm({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (isSubmitting || isGenerating || !body.trim()) {
+      return;
+    }
+
     setIsSubmitting(true);
     setResult(null);
 
     try {
+      const baseline =
+        (await fetchRegenerationStatus(discussionId)) ??
+        emptyRegenerationSnapshot();
+
       const response = await fetch(`/api/discussions/${discussionId}/updates`, {
         method: "POST",
         headers: {
@@ -35,20 +75,29 @@ export function AppendDiscussionUpdateForm({
         }),
       });
 
-      const payload = await response.json();
+      const payload = await parseJsonResponse<AppendResponse>(response, {
+        unexpectedMessage:
+          "Athena received an unexpected server response while queuing this discussion update.",
+      });
 
-      if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to append update.");
+      if (!response.ok || (!payload.success && !payload.ok)) {
+        throw new Error(errorMessageFromPayload(payload));
       }
 
       setResult({
         ok: true,
         message:
-          "Thread updated successfully. Athena is regenerating the discussion analysis, opportunities, executive briefing and strategic assets. Refresh in a few seconds to view the latest intelligence.",
+          payload.message ??
+          "Update saved. Athena is regenerating intelligence in the background. You can leave this page safely.",
       });
 
       setUrl("");
       setBody("");
+
+      trackQueuedGeneration({
+        latestAnalysisUpdatedAt: baseline.latestAnalysisUpdatedAt,
+        blueprintUpdatedAt: baseline.blueprintUpdatedAt,
+      });
     } catch (error) {
       setResult({
         ok: false,
@@ -72,7 +121,7 @@ export function AppendDiscussionUpdateForm({
       <p className="mt-3 text-sm leading-6 text-white/45">
         Paste new replies, reactions or follow-up messages from the same
         discussion. Athena appends them to the existing thread and re-runs the
-        workflow.
+        workflow in the background.
       </p>
 
       <div className="mt-6 grid gap-5">
@@ -105,31 +154,25 @@ export function AppendDiscussionUpdateForm({
         <div className="flex flex-wrap items-start gap-4">
           <button
             type="submit"
-            disabled={isSubmitting || !body.trim()}
+            disabled={isSubmitting || isGenerating || !body.trim()}
             className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isSubmitting ? "Updating..." : "Append & Reprocess"}
+            {isSubmitting
+              ? "Queuing..."
+              : isGenerating
+                ? "Processing..."
+                : "Append & Reprocess"}
           </button>
 
           {result && (
-            <div className="max-w-2xl space-y-4">
-              <div
-                className={
-                  result.ok
-                    ? "text-sm leading-6 text-emerald-300"
-                    : "text-sm text-red-300"
-                }
-              >
-                {result.message}
-              </div>
-
-              {result.ok && (
-                <AnalyzeDiscussionButton
-                  discussionId={discussionId}
-                  label="Refresh Intelligence"
-                  compact
-                />
-              )}
+            <div
+              className={
+                result.ok
+                  ? "max-w-2xl text-sm leading-6 text-emerald-300"
+                  : "text-sm text-red-300"
+              }
+            >
+              {result.message}
             </div>
           )}
         </div>

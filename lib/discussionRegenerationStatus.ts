@@ -4,6 +4,10 @@ export type RegenerationStatusSnapshot = {
   latestAnalysisUpdatedAt: string | null;
   blueprintUpdatedAt: string | null;
   regenerationInFlight: boolean;
+  jobId?: string | null;
+  jobStatus?: string | null;
+  jobTriggerType?: string | null;
+  jobStage?: string | null;
 };
 
 export type RegenerationStatusResponse = {
@@ -14,6 +18,10 @@ export type RegenerationStatusResponse = {
   latestAnalysisCreatedAt?: string | null;
   latestAnalysisUpdatedAt?: string | null;
   blueprintUpdatedAt?: string | null;
+  jobId?: string | null;
+  jobStatus?: string | null;
+  jobTriggerType?: string | null;
+  jobStage?: string | null;
   error?: string;
 };
 
@@ -101,6 +109,10 @@ export async function fetchRegenerationStatus(
       latestAnalysisUpdatedAt: data.latestAnalysisUpdatedAt ?? null,
       blueprintUpdatedAt: data.blueprintUpdatedAt ?? null,
       regenerationInFlight: Boolean(data.regenerationInFlight),
+      jobId: data.jobId ?? null,
+      jobStatus: data.jobStatus ?? null,
+      jobTriggerType: data.jobTriggerType ?? null,
+      jobStage: data.jobStage ?? null,
     };
   } catch {
     return null;

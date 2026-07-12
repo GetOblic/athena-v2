@@ -1,12 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type GoldenDatasetImportButtonProps = {
   title: string;
   body: string;
   platform?: string;
   url?: string;
+};
+
+type ImportResponse = {
+  success?: boolean;
+  discussion?: { id?: string };
+  discussionId?: string;
+  error?: string | { message?: string };
 };
 
 export function GoldenDatasetImportButton({
@@ -19,6 +27,10 @@ export function GoldenDatasetImportButton({
   const [isImporting, setIsImporting] = useState(false);
 
   async function handleImport() {
+    if (isImporting) {
+      return;
+    }
+
     setIsImporting(true);
     setStatus(null);
 
@@ -38,13 +50,25 @@ export function GoldenDatasetImportButton({
         }),
       });
 
-      const payload = await response.json();
+      const payload = await parseJsonResponse<ImportResponse>(response, {
+        unexpectedMessage:
+          "Athena received an unexpected server response while queuing this discussion.",
+      });
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Import failed.");
+        const message =
+          typeof payload.error === "string"
+            ? payload.error
+            : payload.error?.message || "Import failed.";
+        throw new Error(message);
       }
 
-      setStatus(`Imported. Discussion: ${payload.discussion?.id}`);
+      const discussionId = payload.discussionId ?? payload.discussion?.id;
+      setStatus(
+        discussionId
+          ? `Imported and queued. Discussion: ${discussionId}`
+          : "Imported and queued.",
+      );
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Import failed.");
     } finally {

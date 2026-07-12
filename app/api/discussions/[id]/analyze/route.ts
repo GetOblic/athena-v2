@@ -1,18 +1,9 @@
-import { after, NextResponse } from "next/server";
-import {
-  clearDiscussionRegenerationInFlight,
-  markDiscussionRegenerationInFlight,
-  isDiscussionRegenerationInFlight,
-} from "@/lib/discussionRegenerationInFlight";
-import {
-  createRegenerationRunId,
-  logRegenerationEvent,
-} from "@/lib/regenerationDiagnostics";
+import { NextResponse } from "next/server";
+import { enqueueDiscussionGenerationJob } from "@/services/generationJobs/generationJobRunner";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
 } from "@/services/organizationService";
-import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -30,66 +21,6 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
-const inFlightDiscussionRegenerations = {
-  has: isDiscussionRegenerationInFlight,
-};
-
-function runRegenerationInBackground(
-  discussionId: string,
-  organizationId: string,
-  regenerationRunId: string,
-  startedAt: string,
-): void {
-  markDiscussionRegenerationInFlight(discussionId);
-
-  after(() => {
-    void processDiscussionEndToEnd(discussionId, organizationId, {
-      regenerationRunId,
-      explicitRegeneration: true,
-    })
-      .then((result) => {
-        if (!result.success) {
-          logRegenerationEvent("BACKGROUND_FAILED", {
-            discussionId,
-            organizationId,
-            regenerationRunId,
-            startedAt,
-            error: result.error ?? "Regeneration failed",
-          });
-          return;
-        }
-
-        logRegenerationEvent("BACKGROUND_SUCCESS", {
-          discussionId,
-          organizationId,
-          regenerationRunId,
-          startedAt,
-          analysisId: result.analysisId ?? null,
-          blueprintId: result.blueprintId ?? null,
-          blueprintGenerated: result.blueprintGenerated,
-        });
-      })
-      .catch((error) => {
-        console.error("[REGENERATION] BACKGROUND_FAILED", {
-          discussionId,
-          organizationId,
-          regenerationRunId,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
-        logRegenerationEvent("BACKGROUND_FAILED", {
-          discussionId,
-          organizationId,
-          regenerationRunId,
-          startedAt,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
-      })
-      .finally(() => {
-        clearDiscussionRegenerationInFlight(discussionId);
-      });
-  });
-}
-
 export async function POST(_request: Request, context: RouteContext) {
   let discussionId = "unknown";
 
@@ -98,66 +29,85 @@ export async function POST(_request: Request, context: RouteContext) {
     discussionId = id;
 
     let organizationId: string;
+    let userId: string;
     try {
-      ({ organizationId } = await requireCurrentOrganizationContext());
+      ({ organizationId, userId } = await requireCurrentOrganizationContext());
     } catch (error) {
       if (error instanceof OrganizationAccessError) {
         return jsonResponse(
-          { success: false, error: "Authentication required" },
+          {
+            ok: false,
+            success: false,
+            error: {
+              code: "UNAUTHORIZED",
+              message: "Authentication required",
+            },
+          },
           401,
         );
       }
       throw error;
     }
 
-    const regenerationRunId = createRegenerationRunId();
-    const startedAt = new Date().toISOString();
-
     try {
-      if (inFlightDiscussionRegenerations.has(id)) {
+      const enqueueResult = await enqueueDiscussionGenerationJob({
+        organizationId,
+        discussionId: id,
+        triggerType: "manual_refresh",
+        requestedBy: userId,
+        allowExisting: true,
+      });
+
+      if (!enqueueResult.accepted) {
         return jsonResponse({
+          ok: true,
           success: true,
+          accepted: false,
           queued: true,
+          jobId: enqueueResult.job.id,
+          status: enqueueResult.job.status,
+          existingJobId: enqueueResult.job.id,
           message: "Regeneration already in progress.",
         });
       }
 
-      logRegenerationEvent("REGENERATION_STARTED", {
-        discussionId,
-        organizationId,
-        regenerationRunId,
-        startedAt,
-      });
-
-      runRegenerationInBackground(
-        id,
-        organizationId,
-        regenerationRunId,
-        startedAt,
+      return jsonResponse(
+        {
+          ok: true,
+          success: true,
+          accepted: true,
+          queued: true,
+          jobId: enqueueResult.job.id,
+          status: enqueueResult.job.status,
+          discussionId: id,
+          message: "Regeneration started. Refresh in a few moments.",
+        },
+        202,
       );
     } catch (error) {
       console.error("Failed to queue regeneration:", error);
       return jsonResponse(
-        { success: false, error: "Could not start regeneration." },
+        {
+          ok: false,
+          success: false,
+          error: {
+            code: "PROCESSING_REQUEST_FAILED",
+            message: "Could not start regeneration.",
+          },
+        },
         500,
       );
     }
-
-    return jsonResponse({
-      success: true,
-      queued: true,
-      message: "Regeneration started. Refresh in a few moments.",
-    });
   } catch (error) {
     console.error("Regenerate intelligence failed", error);
-    logRegenerationEvent("REGENERATE_FAILED", {
-      discussionId,
-      error: error instanceof Error ? error.message : String(error),
-    });
     return jsonResponse(
       {
+        ok: false,
         success: false,
-        error: "Could not start regeneration.",
+        error: {
+          code: "PROCESSING_REQUEST_FAILED",
+          message: "Could not start regeneration.",
+        },
       },
       500,
     );

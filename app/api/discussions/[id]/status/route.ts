@@ -5,6 +5,8 @@ import { isDiscussionRegenerationInFlight } from "@/lib/discussionRegenerationIn
 import { getDiscussionById, updateDiscussion } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
+import { ensureDiscussionGenerationJobRunning } from "@/services/generationJobs/generationJobRunner";
+import { getActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -39,21 +41,37 @@ export async function GET(_request: Request, context: RouteContext) {
       );
     }
 
+    // Recover queued/stale durable jobs after process restarts.
+    const activeJob =
+      (await ensureDiscussionGenerationJobRunning(id, organizationId)) ??
+      (await getActiveGenerationJobForDiscussion(id, organizationId));
+
     const analysis = await getLatestDiscussionAnalysis(id, organizationId);
     const blueprint = await getDisplayAssetBlueprintByDiscussionId(
       id,
       organizationId,
     );
 
+    const regenerationInFlight =
+      isDiscussionRegenerationInFlight(id) ||
+      Boolean(
+        activeJob &&
+          (activeJob.status === "queued" || activeJob.status === "processing"),
+      );
+
     return noStoreJson({
       success: true,
       discussionId: id,
-      regenerationInFlight: isDiscussionRegenerationInFlight(id),
+      regenerationInFlight,
       latestAnalysisId: analysis?.id ?? null,
       latestAnalysisCreatedAt: analysis?.created_at ?? null,
       latestAnalysisUpdatedAt: analysis?.updated_at ?? null,
       blueprintUpdatedAt: blueprint?.updated_at ?? null,
       status: discussion.status,
+      jobId: activeJob?.id ?? null,
+      jobStatus: activeJob?.status ?? null,
+      jobTriggerType: activeJob?.trigger_type ?? null,
+      jobStage: activeJob?.current_stage ?? null,
     });
   } catch (error) {
     if (error instanceof OrganizationAccessError) {

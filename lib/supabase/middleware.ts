@@ -35,6 +35,8 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
+  const isApiPath = path.startsWith("/api/");
+
   const isPublicPath =
     path === "/login" ||
     path.startsWith("/auth/callback") ||
@@ -42,7 +44,26 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/_next") ||
     path === "/favicon.ico";
 
+  // Programmatic API clients must never receive an HTML login redirect.
+  // Browser pages still redirect; API routes return structured JSON 401.
   if (!user && !isPublicPath) {
+    if (isApiPath) {
+      return NextResponse.json(
+        {
+          ok: false,
+          success: false,
+          error: {
+            code: "UNAUTHORIZED",
+            message: "Your session has expired.",
+          },
+        },
+        {
+          status: 401,
+          headers: { "Cache-Control": "no-store" },
+        },
+      );
+    }
+
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("redirectedFrom", path);

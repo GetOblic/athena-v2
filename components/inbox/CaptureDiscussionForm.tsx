@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type IntelligenceDomainOption = {
   id: string;
@@ -11,8 +12,34 @@ type CaptureDiscussionFormProps = {
   intelligenceDomains: IntelligenceDomainOption[];
 };
 
+type ImportResponse = {
+  ok?: boolean;
+  success?: boolean;
+  accepted?: boolean;
+  discussionId?: string;
+  discussion?: { id?: string };
+  jobId?: string;
+  status?: string;
+  message?: string;
+  error?: string | { code?: string; message?: string };
+};
+
 const fieldClassName =
   "rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25";
+
+function errorMessageFromPayload(payload: ImportResponse): string {
+  if (typeof payload.error === "string" && payload.error.trim()) {
+    return payload.error;
+  }
+  if (
+    payload.error &&
+    typeof payload.error === "object" &&
+    typeof payload.error.message === "string"
+  ) {
+    return payload.error.message;
+  }
+  return "Failed to import discussion.";
+}
 
 export function CaptureDiscussionForm({
   intelligenceDomains,
@@ -40,7 +67,7 @@ export function CaptureDiscussionForm({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!canSubmit) {
+    if (!canSubmit || isSubmitting) {
       return;
     }
 
@@ -63,17 +90,28 @@ export function CaptureDiscussionForm({
         }),
       });
 
-      const payload = await response.json();
+      const payload = await parseJsonResponse<ImportResponse>(response, {
+        unexpectedMessage:
+          "Athena received an unexpected server response while queuing this discussion.",
+      });
 
-      if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to import discussion.");
+      const discussionId =
+        payload.discussionId ?? payload.discussion?.id ?? undefined;
+
+      if (!response.ok || (!payload.success && !payload.ok)) {
+        throw new Error(errorMessageFromPayload(payload));
+      }
+
+      if (!discussionId) {
+        throw new Error("Discussion was queued but no discussion id was returned.");
       }
 
       setResult({
         ok: true,
         message:
-          "Discussion imported and processed. Briefing is ready if Athena detected an opportunity.",
-        discussionId: payload.discussion?.id,
+          payload.message ??
+          "Discussion imported. Athena is processing intelligence in the background — you can open it now.",
+        discussionId,
       });
 
       setPlatform("");

@@ -350,7 +350,7 @@ export type AppendDiscussionUpdateInput = {
 
 export async function appendDiscussionUpdate(
     input: AppendDiscussionUpdateInput,
-): Promise<Discussion | null> {
+): Promise<{ discussion: Discussion; updateId: string } | null> {
     const existing = await getDiscussionById(
         input.discussionId,
         input.organizationId,
@@ -420,5 +420,8 @@ export async function appendDiscussionUpdate(
         return null;
     }
 
-    return data;
+    return {
+        discussion: data,
+        updateId: savedUpdate.id,
+    };
 }
