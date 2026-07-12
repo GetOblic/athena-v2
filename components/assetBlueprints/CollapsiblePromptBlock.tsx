@@ -26,22 +26,18 @@ export function CollapsiblePromptBlock({
         fullWidth ? "lg:col-span-2" : ""
       }`}
     >
-      <button
-        type="button"
-        onClick={() => setIsOpen((open) => !open)}
-        className="flex w-full cursor-pointer items-center justify-between gap-4 p-5 text-left transition hover:bg-white/[0.02]"
-        aria-expanded={isOpen}
-      >
-        <div className="flex items-center gap-3">
+      <div className="flex w-full items-center justify-between gap-4 p-5 transition hover:bg-white/[0.02]">
+        <button
+          type="button"
+          onClick={() => setIsOpen((open) => !open)}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+          aria-expanded={isOpen}
+        >
           <span className="text-sm font-medium text-white/55">{label}</span>
           <span className="text-xs text-white/30">{isOpen ? "▲" : "▼"}</span>
-        </div>
-        {hasContent && content && isOpen && (
-          <span onClick={(event) => event.stopPropagation()}>
-            <CopyButton text={content} />
-          </span>
-        )}
-      </button>
+        </button>
+        {hasContent && content && isOpen && <CopyButton text={content} />}
+      </div>
 
       {isOpen && (
         <div className="border-t border-white/10 px-5 pb-5 pt-4">
