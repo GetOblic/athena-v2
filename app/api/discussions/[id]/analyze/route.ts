@@ -67,7 +67,10 @@ export async function POST(_request: Request, context: RouteContext) {
           jobId: enqueueResult.job.id,
           status: enqueueResult.job.status,
           existingJobId: enqueueResult.job.id,
-          message: "Regeneration already in progress.",
+          followUpRequested: Boolean(enqueueResult.followUpRequested),
+          message: enqueueResult.followUpRequested
+            ? "Generation already in progress. A follow-up refresh will run after it finishes."
+            : "Regeneration already in progress.",
         });
       }
 

@@ -8,9 +8,9 @@ import {
   createWorkerIdentity,
 } from "@/services/generationJobs/generationJobExecutor";
 import {
-  GENERATION_WORKER_IDLE_POLL_MS,
-  GENERATION_WORKER_SHUTDOWN_GRACE_MS,
-} from "@/services/generationJobs/generationJobTypes";
+  getAthenaWorkerConfig,
+  resetAthenaWorkerConfigCache,
+} from "@/services/generationJobs/generationJobWorkerConfig";
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -27,9 +27,15 @@ function sleep(ms: number): Promise<void> {
 async function main(): Promise<void> {
   requireEnv("NEXT_PUBLIC_SUPABASE_URL");
   requireEnv("SUPABASE_SERVICE_ROLE_KEY");
-  // OpenRouter is required for generation; fail fast if absent.
   if (!process.env.OPENROUTER_API_KEY?.trim()) {
     throw new Error("Missing required environment variable: OPENROUTER_API_KEY");
+  }
+
+  resetAthenaWorkerConfigCache();
+  const config = getAthenaWorkerConfig();
+
+  if (config.concurrency !== 1) {
+    throw new Error("athena-worker concurrency must be 1 in V3.2");
   }
 
   const workerId = createWorkerIdentity();
@@ -39,8 +45,12 @@ async function main(): Promise<void> {
   console.log("[ATHENA_WORKER] worker_started", {
     workerId,
     pid: process.pid,
-    idlePollMs: GENERATION_WORKER_IDLE_POLL_MS,
-    shutdownGraceMs: GENERATION_WORKER_SHUTDOWN_GRACE_MS,
+    pollIntervalMs: config.pollIntervalMs,
+    heartbeatIntervalMs: config.heartbeatIntervalMs,
+    leaseSeconds: config.leaseSeconds,
+    maxAttempts: config.maxAttempts,
+    shutdownTimeoutMs: config.shutdownTimeoutMs,
+    concurrency: config.concurrency,
   });
 
   const beginShutdown = (signal: string) => {
@@ -64,7 +74,7 @@ async function main(): Promise<void> {
       currentWork = null;
 
       if (!didWork) {
-        await sleep(GENERATION_WORKER_IDLE_POLL_MS);
+        await sleep(config.pollIntervalMs);
       }
     } catch (error) {
       currentWork = null;
@@ -72,12 +82,12 @@ async function main(): Promise<void> {
         workerId,
         error: error instanceof Error ? error.message : String(error),
       });
-      await sleep(GENERATION_WORKER_IDLE_POLL_MS);
+      await sleep(config.pollIntervalMs);
     }
   }
 
   if (currentWork) {
-    const grace = sleep(GENERATION_WORKER_SHUTDOWN_GRACE_MS);
+    const grace = sleep(config.shutdownTimeoutMs);
     await Promise.race([
       currentWork.then(
         () => undefined,

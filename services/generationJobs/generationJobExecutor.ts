@@ -6,14 +6,15 @@ import {
   failGenerationJobWithClaim,
   getGenerationJobById,
   heartbeatGenerationJob,
+  isActiveGenerationJobStatus,
+  markDiscussionPendingGenerationFollowUp,
 } from "@/services/generationJobs/generationJobService";
 import { classifyGenerationError } from "@/services/generationJobs/generationJobErrors";
 import { resolvePublishedVersionForJob } from "@/services/generationJobs/generationJobVersionIdempotency";
 import {
-  GENERATION_JOB_HEARTBEAT_MS,
-  GENERATION_JOB_LEASE_SECONDS,
   type AthenaGenerationJob,
 } from "@/services/generationJobs/generationJobTypes";
+import { getAthenaWorkerConfig } from "@/services/generationJobs/generationJobWorkerConfig";
 import { createWorkerIdentity } from "@/services/generationJobs/generationJobWorkerIdentity";
 import { createRegenerationRunId } from "@/lib/regenerationDiagnostics";
 import { getDiscussionById } from "@/services/discussionService";
@@ -66,6 +67,7 @@ export async function executeClaimedGenerationJob(
 ): Promise<"completed" | "failed" | "retryable" | "claim_lost"> {
   const { job, claimToken } = claimed;
   const startedMs = Date.now();
+  const workerConfig = getAthenaWorkerConfig();
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   let claimLost = false;
 
@@ -80,7 +82,7 @@ export async function executeClaimedGenerationJob(
     const renewed = await heartbeatGenerationJob({
       jobId: job.id,
       claimToken,
-      leaseSeconds: GENERATION_JOB_LEASE_SECONDS,
+      leaseSeconds: workerConfig.leaseSeconds,
       stage: stage ?? job.current_stage,
     });
 
@@ -100,7 +102,7 @@ export async function executeClaimedGenerationJob(
 
   heartbeatTimer = setInterval(() => {
     void renewLease();
-  }, GENERATION_JOB_HEARTBEAT_MS);
+  }, workerConfig.heartbeatIntervalMs);
 
   try {
     console.log("[ATHENA_WORKER] job_started", {
@@ -123,6 +125,8 @@ export async function executeClaimedGenerationJob(
         attemptCount: job.attempt_count,
         failedStage: "preparing",
       });
+      // Preserve coalesced Refresh/Append intent after terminal failure.
+      await maybeEnqueueFollowUp(job);
       return "failed";
     }
 
@@ -215,6 +219,11 @@ export async function executeClaimedGenerationJob(
         errorCode: classified.code,
       });
 
+      // On terminal failure, promote coalesced follow-up so newer intent is not lost.
+      if (failed?.status === "failed") {
+        await maybeEnqueueFollowUp(job);
+      }
+
       return failed?.status === "retryable" ? "retryable" : "failed";
     }
 
@@ -294,6 +303,10 @@ export async function executeClaimedGenerationJob(
       status: failed?.status ?? null,
     });
 
+    if (failed?.status === "failed") {
+      await maybeEnqueueFollowUp(job);
+    }
+
     return failed?.status === "retryable" ? "retryable" : "failed";
   } finally {
     stopHeartbeat();
@@ -310,9 +323,14 @@ async function maybeEnqueueFollowUp(job: AthenaGenerationJob): Promise<void> {
     return;
   }
 
-  // Ensure no active job remains (this job should now be completed).
+  // Parent should be terminal. If it is somehow still active, restore the
+  // durable marker so Refresh/Append intent is not lost.
   const fresh = await getGenerationJobById(job.id, job.organization_id);
-  if (fresh && (fresh.status === "queued" || fresh.status === "processing")) {
+  if (fresh && isActiveGenerationJobStatus(fresh.status)) {
+    await markDiscussionPendingGenerationFollowUp(
+      job.discussion_id,
+      job.organization_id,
+    );
     return;
   }
 
@@ -331,12 +349,16 @@ async function maybeEnqueueFollowUp(job: AthenaGenerationJob): Promise<void> {
       discussionId: job.discussion_id,
     });
   } catch (error) {
-    // If unique active constraint races, re-set the follow-up marker.
+    // If unique active constraint races, restore the follow-up marker.
     console.error("[ATHENA_WORKER] follow_up_enqueue_failed", {
       parentJobId: job.id,
       discussionId: job.discussion_id,
       error: error instanceof Error ? error.message : String(error),
     });
+    await markDiscussionPendingGenerationFollowUp(
+      job.discussion_id,
+      job.organization_id,
+    );
   }
 }
 
@@ -344,7 +366,11 @@ export async function claimAndExecuteNextJob(
   workerId: string,
   options?: { shouldStop?: () => boolean },
 ): Promise<boolean> {
-  const claimed = await claimNextGenerationJob({ workerId });
+  const workerConfig = getAthenaWorkerConfig();
+  const claimed = await claimNextGenerationJob({
+    workerId,
+    leaseSeconds: workerConfig.leaseSeconds,
+  });
   if (!claimed) {
     return false;
   }

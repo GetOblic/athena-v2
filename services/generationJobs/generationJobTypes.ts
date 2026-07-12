@@ -66,22 +66,19 @@ export type AthenaGenerationJob = {
   updated_at: string;
 };
 
-/** Default lease duration for an active claim (seconds). */
-export const GENERATION_JOB_LEASE_SECONDS = 120;
-
-/** Heartbeat interval while processing (ms). */
-export const GENERATION_JOB_HEARTBEAT_MS = 20_000;
-
-/** Idle poll interval when the queue is empty (ms). */
-export const GENERATION_WORKER_IDLE_POLL_MS = 3_000;
-
-/** Bounded grace period on SIGTERM while finishing current job (ms). */
-export const GENERATION_WORKER_SHUTDOWN_GRACE_MS = 90_000;
-
-export const GENERATION_JOB_MAX_ATTEMPTS = 3;
-
-/** Backoff delays after attempt N fails (before next claim). */
+/** Backoff delays after attempt N fails (before next claim). Business logic, not ops config. */
 export const GENERATION_JOB_RETRY_BACKOFF_MS = [
   30_000, // after attempt 1
   120_000, // after attempt 2
 ] as const;
+
+/** @deprecated Use getAthenaWorkerConfig().leaseSeconds */
+export const GENERATION_JOB_LEASE_SECONDS = 120;
+/** @deprecated Use getAthenaWorkerConfig().heartbeatIntervalMs */
+export const GENERATION_JOB_HEARTBEAT_MS = 20_000;
+/** @deprecated Use getAthenaWorkerConfig().pollIntervalMs */
+export const GENERATION_WORKER_IDLE_POLL_MS = 3_000;
+/** @deprecated Use getAthenaWorkerConfig().shutdownTimeoutMs */
+export const GENERATION_WORKER_SHUTDOWN_GRACE_MS = 90_000;
+/** @deprecated Use getAthenaWorkerConfig().maxAttempts */
+export const GENERATION_JOB_MAX_ATTEMPTS = 3;

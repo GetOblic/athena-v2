@@ -1,12 +1,11 @@
 import { randomUUID } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
-  GENERATION_JOB_LEASE_SECONDS,
-  GENERATION_JOB_MAX_ATTEMPTS,
   GENERATION_JOB_RETRY_BACKOFF_MS,
   type AthenaGenerationJob,
   type AthenaGenerationTriggerType,
 } from "@/services/generationJobs/generationJobTypes";
+import { getAthenaWorkerConfig } from "@/services/generationJobs/generationJobWorkerConfig";
 
 export function mapGenerationJobRow(
   row: Record<string, unknown>,
@@ -22,7 +21,7 @@ export function mapGenerationJobRow(
     current_stage: (row.current_stage as string | null) ?? null,
     progress: (row.progress as Record<string, unknown>) ?? {},
     attempt_count: Number(row.attempt_count ?? 0),
-    max_attempts: Number(row.max_attempts ?? GENERATION_JOB_MAX_ATTEMPTS),
+    max_attempts: Number(row.max_attempts ?? getAthenaWorkerConfig().maxAttempts),
     regeneration_run_id: (row.regeneration_run_id as string | null) ?? null,
     analysis_id: (row.analysis_id as string | null) ?? null,
     opportunity_id: (row.opportunity_id as string | null) ?? null,
@@ -134,7 +133,7 @@ export async function createGenerationJob(input: {
       current_stage: "queued",
       progress: {},
       attempt_count: 0,
-      max_attempts: GENERATION_JOB_MAX_ATTEMPTS,
+      max_attempts: getAthenaWorkerConfig().maxAttempts,
       regeneration_run_id: input.regenerationRunId ?? null,
       created_at: now,
       updated_at: now,
@@ -180,7 +179,7 @@ export async function claimNextGenerationJob(input: {
   const { data, error } = await supabaseAdmin.rpc("claim_athena_generation_job", {
     p_worker_id: input.workerId,
     p_claim_token: claimToken,
-    p_lease_seconds: input.leaseSeconds ?? GENERATION_JOB_LEASE_SECONDS,
+    p_lease_seconds: input.leaseSeconds ?? getAthenaWorkerConfig().leaseSeconds,
   });
 
   if (error) {
@@ -216,7 +215,7 @@ export async function heartbeatGenerationJob(input: {
     {
       p_job_id: input.jobId,
       p_claim_token: input.claimToken,
-      p_lease_seconds: input.leaseSeconds ?? GENERATION_JOB_LEASE_SECONDS,
+      p_lease_seconds: input.leaseSeconds ?? getAthenaWorkerConfig().leaseSeconds,
       p_stage: input.stage ?? null,
       p_progress: input.progress ?? null,
     },

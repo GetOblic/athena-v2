@@ -6,6 +6,7 @@ import {
   isActiveGenerationJobStatus,
   markDiscussionPendingGenerationFollowUp,
 } from "@/services/generationJobs/generationJobService";
+import { shouldRequestFollowUpWhenActiveJobExists } from "@/services/generationJobs/generationJobWorkerConfig";
 import type {
   AthenaGenerationJob,
   AthenaGenerationTriggerType,
@@ -25,6 +26,28 @@ export type EnqueueGenerationJobResult =
       followUpRequested?: boolean;
     };
 
+async function coalesceIntoActiveJob(
+  existing: AthenaGenerationJob,
+  organizationId: string,
+  discussionId: string,
+): Promise<EnqueueGenerationJobResult> {
+  // Keep retryable/queued/processing as the single active intent.
+  // Any new executive action (Refresh / Append / Import) must set the
+  // durable follow-up marker so it is not silently lost.
+  let followUpRequested = false;
+  if (shouldRequestFollowUpWhenActiveJobExists()) {
+    await markDiscussionPendingGenerationFollowUp(discussionId, organizationId);
+    followUpRequested = true;
+  }
+
+  return {
+    accepted: false,
+    job: existing,
+    alreadyActive: true,
+    followUpRequested,
+  };
+}
+
 /**
  * Persist a durable generation job for the athena-worker to claim.
  * Does NOT execute the pipeline and does NOT use Next.js after().
@@ -38,8 +61,8 @@ export async function enqueueDiscussionGenerationJob(input: {
   /** When true, reuse an existing active job instead of throwing. */
   allowExisting?: boolean;
   /**
-   * When enqueueing a discussion_update while another job is active,
-   * mark a coalesced durable follow-up instead of creating a second job.
+   * @deprecated Follow-up is always requested when an active job exists.
+   * Kept for call-site compatibility.
    */
   requestFollowUpIfActive?: boolean;
 }): Promise<EnqueueGenerationJobResult> {
@@ -53,24 +76,11 @@ export async function enqueueDiscussionGenerationJob(input: {
       throw new ActiveGenerationJobConflictError(existing);
     }
 
-    let followUpRequested = false;
-    if (
-      input.requestFollowUpIfActive ||
-      input.triggerType === "discussion_update"
-    ) {
-      await markDiscussionPendingGenerationFollowUp(
-        input.discussionId,
-        input.organizationId,
-      );
-      followUpRequested = true;
-    }
-
-    return {
-      accepted: false,
-      job: existing,
-      alreadyActive: true,
-      followUpRequested,
-    };
+    return coalesceIntoActiveJob(
+      existing,
+      input.organizationId,
+      input.discussionId,
+    );
   }
 
   const regenerationRunId = createRegenerationRunId();
@@ -95,24 +105,11 @@ export async function enqueueDiscussionGenerationJob(input: {
         throw error;
       }
 
-      let followUpRequested = false;
-      if (
-        input.requestFollowUpIfActive ||
-        input.triggerType === "discussion_update"
-      ) {
-        await markDiscussionPendingGenerationFollowUp(
-          input.discussionId,
-          input.organizationId,
-        );
-        followUpRequested = true;
-      }
-
-      return {
-        accepted: false,
-        job: error.existingJob,
-        alreadyActive: true,
-        followUpRequested,
-      };
+      return coalesceIntoActiveJob(
+        error.existingJob,
+        input.organizationId,
+        input.discussionId,
+      );
     }
     throw error;
   }
