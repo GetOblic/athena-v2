@@ -1,11 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
-import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
-import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
-import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 import { AppendDiscussionUpdateForm } from "@/components/discussions/AppendDiscussionUpdateForm";
-import { AthenaRecommendationRibbon } from "@/components/discussions/AthenaRecommendationRibbon";
 import {
   DiscussionRegenerationProgress,
   DiscussionRegenerationProvider,
@@ -15,8 +11,7 @@ import { DiscussionHeaderActions } from "@/components/discussions/DiscussionHead
 import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
 import { DiscussionStatusControl } from "@/components/discussions/DiscussionStatusControl";
 import { DiscussionWorkflowStrip } from "@/components/discussions/DiscussionWorkflowStrip";
-import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveIntelligenceCard";
-import { RegenerationMetadata } from "@/components/discussions/RegenerationMetadata";
+import { ExecutiveIntelligenceWorkspace } from "@/components/discussions/ExecutiveIntelligenceWorkspace";
 import {
   getOriginalDiscussionBody,
   getThreadUpdatesForDisplay,
@@ -26,7 +21,6 @@ import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprin
 import { getCommunityById } from "@/services/communityService";
 import { getDiscussionById } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
-import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
 import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -35,6 +29,10 @@ import {
   getIntelligenceDomainName,
   getIntelligenceDomains,
 } from "@/services/intelligenceDomainService";
+import {
+  getExecutiveVersionsForDiscussionPage,
+  loadLiveExecutiveIntelligence,
+} from "@/services/executiveVersions/executiveVersionService";
 
 export const dynamic = "force-dynamic";
 
@@ -60,34 +58,48 @@ export default async function DiscussionDetailsPage({
     );
   }
 
-  const [community, latestAnalysis, assetBlueprint, threadUpdates, opportunity, domains] =
-    await Promise.all([
-      discussion.community_id
-        ? getCommunityById(discussion.community_id, organizationId)
-        : Promise.resolve(null),
-      getLatestDiscussionAnalysis(id, organizationId),
-      getDisplayAssetBlueprintByDiscussionId(id, organizationId),
-      getDiscussionUpdatesByDiscussionId(id, organizationId),
-      getOpportunityByDiscussionId(id, organizationId),
-      getIntelligenceDomains(organizationId),
-    ]);
+  const [
+    community,
+    latestAnalysis,
+    assetBlueprint,
+    threadUpdates,
+    opportunity,
+    domains,
+    versionState,
+    liveIntelligence,
+  ] = await Promise.all([
+    discussion.community_id
+      ? getCommunityById(discussion.community_id, organizationId)
+      : Promise.resolve(null),
+    getLatestDiscussionAnalysis(id, organizationId),
+    getDisplayAssetBlueprintByDiscussionId(id, organizationId),
+    getDiscussionUpdatesByDiscussionId(id, organizationId),
+    getOpportunityByDiscussionId(id, organizationId),
+    getIntelligenceDomains(organizationId),
+    getExecutiveVersionsForDiscussionPage(id, organizationId),
+    loadLiveExecutiveIntelligence(id, organizationId),
+  ]);
 
   const briefing = opportunity
     ? await getLatestReviewByOpportunityId(opportunity.id, organizationId)
     : null;
 
-  const deploymentAssets = buildDiscussionDeploymentAssets(latestAnalysis);
   const originalBody = getOriginalDiscussionBody(discussion);
   const displayedUpdates = getThreadUpdatesForDisplay(
     discussion,
     threadUpdates,
   );
-  const hasAnalysis = Boolean(latestAnalysis);
+  const hasAnalysis = Boolean(
+    versionState.current?.intelligence.analysis ?? latestAnalysis,
+  );
   const workflowSteps = buildDiscussionWorkflowSteps({
-    analysis: latestAnalysis,
-    opportunity,
-    briefing,
-    assetBlueprint,
+    analysis:
+      versionState.current?.intelligence.analysis ?? latestAnalysis,
+    opportunity:
+      versionState.current?.intelligence.opportunity ?? opportunity,
+    briefing: versionState.current?.intelligence.briefing ?? briefing,
+    assetBlueprint:
+      versionState.current?.intelligence.blueprint ?? assetBlueprint,
   });
 
   const intelligenceDomainOptions = domains.map((domain) => ({
@@ -181,163 +193,83 @@ export default async function DiscussionDetailsPage({
         <DiscussionRegenerationProgress />
       </div>
 
-      {latestAnalysis ? (
-        <>
+      <ExecutiveIntelligenceWorkspace
+        discussionId={discussion.id}
+        versions={versionState.versions}
+        fallbackIntelligence={
+          versionState.current?.intelligence ?? liveIntelligence
+        }
+        afterBlueprint={
           <div className="mt-8">
-            <AthenaRecommendationRibbon analysis={latestAnalysis} />
-            <RegenerationMetadata analysis={latestAnalysis} />
+            <AppendDiscussionUpdateForm discussionId={discussion.id} />
           </div>
+        }
+        originalDiscussionSection={
+          <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:col-span-2">
+            <h2 className="text-xl font-semibold">Original Discussion</h2>
 
-          <div id="executive-intelligence" className="mt-6 scroll-mt-24">
-            <ExecutiveIntelligenceCard analysis={latestAnalysis} />
-          </div>
-        </>
-      ) : (
-        <div className="mt-8 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Executive Intelligence
-          </div>
-          <p className="mt-4 text-white/50">
-            Run Athena analysis to unlock executive intelligence for this
-            discussion.
-          </p>
-        </div>
-      )}
-
-      {deploymentAssets.length > 0 && (
-        <div className="mt-8">
-          <DeploymentAssets assets={deploymentAssets} />
-        </div>
-      )}
-
-      {assetBlueprint && (
-        <div className="mt-8">
-          <StrategicAssetBlueprint blueprint={assetBlueprint} />
-        </div>
-      )}
-
-      <div className="mt-8">
-        <AppendDiscussionUpdateForm discussionId={discussion.id} />
-      </div>
-
-      <div className="mt-8 grid gap-8 lg:grid-cols-3">
-        <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:col-span-2">
-          <h2 className="text-xl font-semibold">Original Discussion</h2>
-
-          <div className="mt-8 grid gap-6 md:grid-cols-2">
-            <Field label="Author" value={discussion.author} />
-            <Field label="Intelligence Domain" value={community?.group_name} />
-            <Field label="Platform" value={discussion.platform} />
-            <Field label="Original Sentiment" value={discussion.sentiment} />
-            <Field label="Source URL" value={discussion.url} link={discussion.url} />
-          </div>
-
-          <div className="mt-8">
-            <div className="text-sm text-white/40">Discussion</div>
-            <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70">
-              {originalBody || "No body captured."}
+            <div className="mt-8 grid gap-6 md:grid-cols-2">
+              <Field label="Author" value={discussion.author} />
+              <Field label="Intelligence Domain" value={community?.group_name} />
+              <Field label="Platform" value={discussion.platform} />
+              <Field label="Original Sentiment" value={discussion.sentiment} />
+              <Field label="Source URL" value={discussion.url} link={discussion.url} />
             </div>
-          </div>
 
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold">Thread Updates / Follow-ups</h3>
-
-            {displayedUpdates.length === 0 ? (
-              <div className="mt-4 text-sm text-white/45">
-                No follow-up updates captured yet.
+            <div className="mt-8">
+              <div className="text-sm text-white/40">Discussion</div>
+              <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70">
+                {originalBody || "No body captured."}
               </div>
-            ) : (
-              <div className="mt-4 space-y-4">
-                {displayedUpdates.map((update) => (
-                  <div
-                    key={update.id}
-                    className="rounded-2xl border border-white/10 bg-black/20 p-5"
-                  >
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/40">
-                      <span>
-                        {new Date(update.capturedAt).toLocaleString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                      {update.author ? <span>{update.author}</span> : null}
-                      {update.url ? (
-                        <a
-                          href={update.url}
-                          className="text-[var(--athena-orange)] underline"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Source URL
-                        </a>
-                      ) : null}
+            </div>
+
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold">Thread Updates / Follow-ups</h3>
+
+              {displayedUpdates.length === 0 ? (
+                <div className="mt-4 text-sm text-white/45">
+                  No follow-up updates captured yet.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-4">
+                  {displayedUpdates.map((update) => (
+                    <div
+                      key={update.id}
+                      className="rounded-2xl border border-white/10 bg-black/20 p-5"
+                    >
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/40">
+                        <span>
+                          {new Date(update.capturedAt).toLocaleString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        {update.author ? <span>{update.author}</span> : null}
+                        {update.url ? (
+                          <a
+                            href={update.url}
+                            className="text-[var(--athena-orange)] underline"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Source URL
+                          </a>
+                        ) : null}
+                      </div>
+                      <div className="mt-3 text-sm leading-7 text-white/70">
+                        {update.body}
+                      </div>
                     </div>
-                    <div className="mt-3 text-sm leading-7 text-white/70">
-                      {update.body}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="text-xl font-semibold">Detailed Athena Reasoning</h2>
-
-            {latestAnalysis && (
-              <div className="text-sm text-white/40">
-                Analysis Status:{" "}
-                <span className="text-[var(--athena-orange)]">
-                  {latestAnalysis.status}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-8 space-y-7">
-            {latestAnalysis ? (
-              <>
-                <Field label="Summary" value={latestAnalysis.summary} />
-                <Field label="Sentiment" value={latestAnalysis.sentiment} />
-                <Field label="Intent" value={latestAnalysis.intent} />
-                <Field label="Buyer Stage" value={latestAnalysis.buyer_stage} />
-                <Field label="Pain Points" value={latestAnalysis.pain_points} />
-                <Field
-                  label="Opportunity"
-                  value={latestAnalysis.opportunity_detected ? "Yes" : "No"}
-                />
-                <Field
-                  label="Opportunity Title"
-                  value={latestAnalysis.opportunity_title}
-                />
-                <Field
-                  label="Opportunity Reason"
-                  value={latestAnalysis.opportunity_reason}
-                />
-                <Field
-                  label="Strategic Recommendation"
-                  sublabel="Recommended Action"
-                  value={latestAnalysis.recommended_action}
-                  helper="Guidance for internal decision-making."
-                />
-                <Field label="Risk Level" value={latestAnalysis.risk_level} />
-                <Field label="Confidence" value={`${latestAnalysis.confidence}%`} />
-              </>
-            ) : (
-              <div className="text-white/50">
-                No generated Athena analysis has been saved for this discussion yet.
-              </div>
-            )}
-
-            <AnalyzeDiscussionButton discussionId={discussion.id} />
-          </div>
-        </section>
-      </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        }
+      />
       </main>
     </DiscussionRegenerationProvider>
   );

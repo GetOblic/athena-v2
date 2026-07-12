@@ -48,6 +48,10 @@ import {
   logRegenerationPipelineComplete,
   logRegenerationPipelineStageComplete,
 } from "@/lib/regenerationDiagnostics";
+import {
+  ensureCurrentLiveIntelligenceIsVersioned,
+  publishExecutiveIntelligenceVersion,
+} from "@/services/executiveVersions/executiveVersionService";
 
 export type RegenerationRunContext = {
   regenerationRunId: string;
@@ -443,12 +447,52 @@ export async function processDiscussionEndToEnd(
   organizationId: string,
   runContext?: RegenerationRunContext,
 ): Promise<DiscussionEndToEndResult> {
+  const generationStartedAt = Date.now();
+
   try {
-    return await processDiscussionEndToEndInternal(
+    // Persist previous live intelligence as an immutable version before
+    // the pipeline publishes new Current intelligence (no-op if already versioned).
+    try {
+      await ensureCurrentLiveIntelligenceIsVersioned(
+        discussionId,
+        organizationId,
+      );
+    } catch (error) {
+      console.error(
+        "Failed to preserve previous executive intelligence version:",
+        error,
+      );
+    }
+
+    const result = await processDiscussionEndToEndInternal(
       discussionId,
       organizationId,
       runContext,
     );
+
+    // Generation pipeline is unchanged. After a successful run, publish a
+    // brand-new Executive Intelligence Version and mark it Current.
+    if (result.success && result.analysisId) {
+      try {
+        await publishExecutiveIntelligenceVersion({
+          discussionId,
+          organizationId,
+          regenerationRunId: runContext?.regenerationRunId ?? null,
+          generationDurationMs: Date.now() - generationStartedAt,
+          analysisId: result.analysisId,
+          opportunityId: result.opportunityId ?? null,
+          reviewId: result.reviewId ?? null,
+          blueprintId: result.blueprintId ?? null,
+        });
+      } catch (error) {
+        console.error(
+          "Failed to publish executive intelligence version:",
+          error,
+        );
+      }
+    }
+
+    return result;
   } catch (error) {
     console.error("processDiscussionEndToEnd failed:", error);
     return workflowFailure(
