@@ -57,6 +57,72 @@ function stripJsonFence(text: string): string {
     .trim();
 }
 
+function looksLikeLabeledDeploymentAssets(text: string): boolean {
+  return /(?:^|\n)[A-Z][A-Z0-9_]+:\s*/.test(text);
+}
+
+/**
+ * Known object-key shapes observed in deployment_assets.raw_ai_response when
+ * the model returns Discussion-style JSON instead of { suggested_cta, ... }.
+ * Order matters: longer Prospect keys first so they win over FOLLOW_UP.
+ */
+const RAW_JSON_ASSET_OBJECT_KEYS = [
+  "PERSONALIZED_OUTREACH_EMAIL",
+  "FOLLOW_UP_EMAIL",
+  "LINKEDIN_CONNECTION",
+  "LINKEDIN_FOLLOW_UP",
+  "COLD_CALL_OPENING",
+  "DISCOVERY_QUESTIONS",
+  "PERSONALIZED_VALUE_PROPOSITION",
+  "OBJECTION_ANTICIPATION",
+  "MEETING_PREPARATION",
+  "RECOMMENDED_CTA",
+  "FOLLOW_UP_SEQUENCE",
+  "PERSONALIZED_VIDEO_SCRIPT",
+  "COLD_EMAIL",
+  "OBJECTION_HANDLING",
+  "COMMUNITY_REPLY",
+  "PRIVATE_MESSAGE",
+  "SOCIAL_POST",
+  "CALL_TO_ACTION",
+  "FOLLOW_UP",
+] as const;
+
+/**
+ * Convert alternate deployment-asset JSON shapes into the labeled
+ * suggested_cta string expected by buildDiscussionDeploymentAssets.
+ *
+ * Proven production Prospect shape stores assets under Discussion keys with
+ * Prospect labels nested inside CALL_TO_ACTION (suggested_cta empty).
+ */
+export function composeSuggestedCtaFromRawAssetObject(
+  parsed: Record<string, unknown>,
+): string | null {
+  // Prefer any string field that already embeds labeled asset blocks.
+  for (const key of RAW_JSON_ASSET_OBJECT_KEYS) {
+    const value = String(parsed[key] ?? "").trim();
+    if (
+      value &&
+      looksLikeLabeledDeploymentAssets(value) &&
+      /(?:^|\n)(PERSONALIZED_|LINKEDIN_|FOLLOW_UP_EMAIL|DISCOVERY_|OBJECTION_|MEETING_|RECOMMENDED_|COLD_|COMMUNITY_REPLY|PRIVATE_MESSAGE|SOCIAL_POST)/.test(
+        value,
+      )
+    ) {
+      return value;
+    }
+  }
+
+  const parts: string[] = [];
+  for (const key of RAW_JSON_ASSET_OBJECT_KEYS) {
+    const value = String(parsed[key] ?? "").trim();
+    if (value) {
+      parts.push(`${key}:\n${value}`);
+    }
+  }
+
+  return parts.length > 0 ? parts.join("\n\n") : null;
+}
+
 /**
  * Compose the labeled Deployment Assets string V2 expects in suggested_cta
  * from briefing fields written by the deployment-assets persist path.
@@ -109,10 +175,15 @@ export function extractSuggestedCtaFromAnalysisRawJson(
     if (fromBriefingShape) {
       return fromBriefingShape;
     }
+
+    const fromObjectKeys = composeSuggestedCtaFromRawAssetObject(parsed);
+    if (fromObjectKeys) {
+      return fromObjectKeys;
+    }
   } catch {
     const trimmed = rawAi.trim();
     // Accept Discussion or Prospect labeled asset blocks stored as plain text.
-    if (/(?:^|\n)[A-Z][A-Z0-9_]+:\s*/.test(trimmed)) {
+    if (looksLikeLabeledDeploymentAssets(trimmed)) {
       return trimmed;
     }
   }

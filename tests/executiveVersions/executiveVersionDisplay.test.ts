@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   composeSuggestedCtaFromBriefing,
+  composeSuggestedCtaFromRawAssetObject,
   extractSuggestedCtaFromAnalysisRawJson,
   resolveVersionIntelligenceForDisplay,
   shouldPatchIncompleteCurrentVersion,
@@ -637,5 +638,102 @@ describe("deployment assets recovery for empty suggested_cta", () => {
     });
     assert.match(before.analysis.suggested_cta ?? "", /old/);
     assert.equal(before.blueprint?.id, BLUEPRINT_HISTORICAL);
+  });
+
+  it("recovers Prospect assets nested under Discussion-shaped CALL_TO_ACTION JSON", () => {
+    // Proven production shape for Hochstein Medspa Current Version:
+    // suggested_cta empty; raw_ai_response uses Discussion keys with Prospect
+    // labeled blocks nested inside CALL_TO_ACTION.
+    const rawPayload = JSON.stringify({
+      COMMUNITY_REPLY: "",
+      PRIVATE_MESSAGE: "",
+      SOCIAL_POST: "",
+      FOLLOW_UP: "",
+      CALL_TO_ACTION:
+        "PERSONALIZED_OUTREACH_EMAIL:\nHello Acme\n\nFOLLOW_UP_EMAIL:\nChecking in\n\nLINKEDIN_CONNECTION:\nConnect?\n\nRECOMMENDED_CTA:\nBook a call",
+    });
+
+    const fromObject = composeSuggestedCtaFromRawAssetObject(
+      JSON.parse(rawPayload) as Record<string, unknown>,
+    );
+    assert.match(fromObject ?? "", /PERSONALIZED_OUTREACH_EMAIL/);
+
+    const recovered = extractSuggestedCtaFromAnalysisRawJson({
+      deployment_assets: { raw_ai_response: rawPayload },
+    });
+    assert.match(recovered ?? "", /PERSONALIZED_OUTREACH_EMAIL/);
+
+    const resolved = resolveVersionIntelligenceForDisplay({
+      version: version({
+        is_current: true,
+        intelligence: {
+          analysis: analysis({
+            suggested_cta: "",
+            raw_json: {
+              deployment_assets: { raw_ai_response: rawPayload },
+            },
+          }),
+          opportunity: null,
+          briefing: null,
+          blueprint: blueprint(BLUEPRINT_CURRENT),
+        },
+      }),
+      blueprintById: null,
+      liveIntelligence: null,
+    });
+
+    const assets = buildDiscussionDeploymentAssets(resolved.analysis);
+    assert.ok(assets.length >= 4);
+    assert.equal(assets[0]?.title, "Personalized Outreach Email");
+    assert.equal(resolved.blueprint?.id, BLUEPRINT_CURRENT);
+  });
+
+  it("Historical Version recovers its own nested CALL_TO_ACTION assets, not Current live", () => {
+    const historicalRaw = JSON.stringify({
+      COMMUNITY_REPLY: "",
+      CALL_TO_ACTION:
+        "PERSONALIZED_OUTREACH_EMAIL:\nhistorical outreach only",
+    });
+    const currentRaw = JSON.stringify({
+      COMMUNITY_REPLY: "",
+      CALL_TO_ACTION:
+        "PERSONALIZED_OUTREACH_EMAIL:\ncurrent outreach only",
+    });
+
+    const resolved = resolveVersionIntelligenceForDisplay({
+      version: version({
+        is_current: false,
+        intelligence: {
+          analysis: analysis({
+            suggested_cta: "",
+            raw_json: {
+              deployment_assets: { raw_ai_response: historicalRaw },
+            },
+          }),
+          opportunity: null,
+          briefing: null,
+          blueprint: blueprint(BLUEPRINT_HISTORICAL),
+        },
+      }),
+      blueprintById: blueprint(BLUEPRINT_HISTORICAL),
+      liveIntelligence: {
+        analysis: analysis({
+          suggested_cta: "",
+          raw_json: {
+            deployment_assets: { raw_ai_response: currentRaw },
+          },
+        }),
+        opportunity: null,
+        briefing: null,
+        blueprint: blueprint(BLUEPRINT_CURRENT),
+      },
+    });
+
+    assert.match(resolved.analysis.suggested_cta ?? "", /historical outreach/);
+    assert.doesNotMatch(
+      resolved.analysis.suggested_cta ?? "",
+      /current outreach/,
+    );
+    assert.equal(resolved.blueprint?.id, BLUEPRINT_HISTORICAL);
   });
 });
