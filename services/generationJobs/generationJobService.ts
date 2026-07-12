@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { normalizeClaimRpcResult } from "@/services/generationJobs/generationJobClaimResult";
 import {
   GENERATION_JOB_RETRY_BACKOFF_MS,
   type AthenaGenerationJob,
@@ -190,17 +191,27 @@ export async function claimNextGenerationJob(input: {
     throw error;
   }
 
-  if (!data) {
+  const normalized = normalizeClaimRpcResult(
+    data,
+    mapGenerationJobRow,
+    claimToken,
+  );
+
+  if (normalized.kind === "empty") {
     return null;
   }
 
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row) {
+  if (normalized.kind === "invalid") {
+    console.error("[ATHENA_JOB] invalid_claim_result", {
+      workerId: input.workerId,
+      shape: normalized.shape,
+      hasId: normalized.hasId,
+      reason: normalized.reason,
+    });
     return null;
   }
 
-  const job = mapGenerationJobRow(row as Record<string, unknown>);
-  return { job, claimToken: job.claim_token ?? claimToken };
+  return { job: normalized.job, claimToken: normalized.claimToken };
 }
 
 export async function heartbeatGenerationJob(input: {

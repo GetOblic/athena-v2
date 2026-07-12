@@ -1,4 +1,8 @@
 import {
+  describeClaimRpcDataShape,
+  isExecutableClaimedJob,
+} from "@/services/generationJobs/generationJobClaimResult";
+import {
   claimNextGenerationJob,
   completeGenerationJobWithClaim,
   consumeDiscussionPendingGenerationFollowUp,
@@ -364,14 +368,39 @@ async function maybeEnqueueFollowUp(job: AthenaGenerationJob): Promise<void> {
 
 export async function claimAndExecuteNextJob(
   workerId: string,
-  options?: { shouldStop?: () => boolean },
+  options?: {
+    shouldStop?: () => boolean;
+    /** Test seam — defaults to claimNextGenerationJob. */
+    claimFn?: typeof claimNextGenerationJob;
+    /** Test seam — defaults to executeClaimedGenerationJob. */
+    executeFn?: typeof executeClaimedGenerationJob;
+  },
 ): Promise<boolean> {
   const workerConfig = getAthenaWorkerConfig();
-  const claimed = await claimNextGenerationJob({
+  const claimFn = options?.claimFn ?? claimNextGenerationJob;
+  const executeFn = options?.executeFn ?? executeClaimedGenerationJob;
+  const claimed = await claimFn({
     workerId,
     leaseSeconds: workerConfig.leaseSeconds,
   });
+
+  // Empty queue (including PostgREST null-composite) → quiet poll.
   if (!claimed) {
+    return false;
+  }
+
+  // Capture diagnostics before the type guard narrows the failure branch to never.
+  const claimShape = describeClaimRpcDataShape(claimed.job);
+  const claimHasId = Boolean(claimed.job?.id);
+
+  // Defence in depth: never log or execute malformed claims.
+  if (!isExecutableClaimedJob(claimed)) {
+    console.error("[ATHENA_WORKER] invalid_claim_result", {
+      workerId,
+      shape: claimShape,
+      hasId: claimHasId,
+      reason: "failed_claim_validation",
+    });
     return false;
   }
 
@@ -384,6 +413,6 @@ export async function claimAndExecuteNextJob(
     attemptCount: claimed.job.attempt_count,
   });
 
-  await executeClaimedGenerationJob(workerId, claimed, options);
+  await executeFn(workerId, claimed, options);
   return true;
 }
