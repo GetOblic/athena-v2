@@ -10,10 +10,12 @@ import {
 import { DiscussionWorkflowStrip } from "@/components/discussions/DiscussionWorkflowStrip";
 import { ExecutiveIntelligenceWorkspace } from "@/components/discussions/ExecutiveIntelligenceWorkspace";
 import { AppendProspectInformationForm } from "@/components/prospects/AppendProspectInformationForm";
+import { ProspectHomepageIntelligence } from "@/components/prospects/ProspectHomepageIntelligence";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import {
-  formatProspectOpportunityScore,
+  formatProspectOpportunityScoreWithRecommendation,
   resolveProspectDisplayStatus,
+  resolveProspectOpportunityRecommendation,
   resolveProspectOpportunityScore,
 } from "@/services/prospects/prospectDisplay";
 import { getActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
@@ -28,6 +30,7 @@ import {
 import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getProspectById } from "@/services/prospects/prospectService";
+import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 
 export default async function ProspectDetailsPage({
@@ -111,6 +114,13 @@ export default async function ProspectDetailsPage({
       null,
     denormalizedScore: prospect.opportunity_score,
   });
+  const currentRecommendation = resolveProspectOpportunityRecommendation(
+    versionState.current?.intelligence.analysis ?? latestAnalysis,
+  );
+  const scorePresentation = formatProspectOpportunityScoreWithRecommendation({
+    score: currentVersionScore,
+    recommendation: currentRecommendation,
+  });
   const scrapeStatus = !prospect.website
     ? "No website provided"
     : typeof websiteIntel.error === "string" && websiteIntel.error
@@ -118,6 +128,8 @@ export default async function ProspectDetailsPage({
       : typeof websiteIntel.scraped_at === "string"
         ? "Homepage learned"
         : "Homepage learning pending";
+  const websiteHref = normalizeWebsiteUrl(prospect.website);
+  const linkedinHref = normalizeWebsiteUrl(prospect.linkedin);
 
   return (
     <DiscussionRegenerationProvider
@@ -143,7 +155,20 @@ export default async function ProspectDetailsPage({
         </div>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <HeaderMetric label="Website" value={prospect.website || "—"} />
+          <HeaderMetric label="Website">
+            {websiteHref ? (
+              <a
+                href={websiteHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--athena-orange)] underline underline-offset-2"
+              >
+                {prospect.website}
+              </a>
+            ) : (
+              prospect.website || "—"
+            )}
+          </HeaderMetric>
           <HeaderMetric label="Industry" value={prospect.industry || "—"} />
           <HeaderMetric
             label="Decision Maker"
@@ -153,11 +178,17 @@ export default async function ProspectDetailsPage({
           <HeaderMetric label="Email" value={prospect.email || "—"} />
           <HeaderMetric label="Phone" value={prospect.phone || "—"} />
           <HeaderMetric label="Status" value={displayStatus} />
-          <HeaderMetric
-            label="Opportunity Score"
-            value={formatProspectOpportunityScore(currentVersionScore)}
-            highlight="orange"
-          />
+          <HeaderMetric label="Opportunity Score" highlight="orange">
+            <div>
+              <div>{scorePresentation.scoreLabel}</div>
+              {scorePresentation.recommendation &&
+                scorePresentation.scoreLabel !== "—" && (
+                  <div className="mt-1 text-sm font-medium text-white/55">
+                    {scorePresentation.recommendation}
+                  </div>
+                )}
+            </div>
+          </HeaderMetric>
           <HeaderMetric
             label="Created"
             value={new Date(prospect.created_at).toLocaleDateString("en-US")}
@@ -166,7 +197,20 @@ export default async function ProspectDetailsPage({
             label="Updated"
             value={new Date(prospect.updated_at).toLocaleDateString("en-US")}
           />
-          <HeaderMetric label="LinkedIn" value={prospect.linkedin || "—"} />
+          <HeaderMetric label="LinkedIn">
+            {linkedinHref ? (
+              <a
+                href={linkedinHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--athena-orange)] underline underline-offset-2"
+              >
+                {prospect.linkedin}
+              </a>
+            ) : (
+              prospect.linkedin || "—"
+            )}
+          </HeaderMetric>
           <HeaderMetric label="Source" value={prospect.source || "—"} />
           <HeaderMetric label="Homepage Learning" value={scrapeStatus} />
           <HeaderMetric
@@ -180,12 +224,17 @@ export default async function ProspectDetailsPage({
         </div>
 
         <div className="mt-8">
-          <ProspectMetadataEditor prospect={prospect} />
+          <ProspectMetadataEditor
+            prospect={prospect}
+            discussionId={discussion?.id ?? null}
+          />
         </div>
 
         {discussion ? (
           <>
-            <DiscussionWorkflowStrip steps={workflowSteps} />
+            <div className="mt-8">
+              <DiscussionWorkflowStrip steps={workflowSteps} />
+            </div>
             <div className="mt-8">
               <DiscussionRegenerationProgress />
             </div>
@@ -206,76 +255,16 @@ export default async function ProspectDetailsPage({
               originalDiscussionSection={
                 <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:col-span-2">
                   <h2 className="text-xl font-semibold">
-                    Prospect Details
+                    Source Context
                   </h2>
-                  <div className="mt-8 grid gap-6 md:grid-cols-2">
-                    <Field label="Business Name" value={prospect.business_name} />
-                    <Field label="Website" value={prospect.website} link={prospect.website} />
-                    <Field label="Industry" value={prospect.industry} />
-                    <Field label="Category" value={prospect.category} />
-                    <Field label="Decision Maker" value={prospect.decision_maker} />
-                    <Field label="Job Title" value={prospect.job_title} />
-                    <Field label="Email" value={prospect.email} />
-                    <Field label="Phone" value={prospect.phone} />
-                    <Field
-                      label="Location"
-                      value={[prospect.address, prospect.city, prospect.state, prospect.country]
-                        .filter(Boolean)
-                        .join(", ") || null}
-                    />
-                    <Field label="Company Size" value={prospect.company_size} />
-                    <Field label="Revenue" value={prospect.revenue} />
-                    <Field label="Employee Count" value={prospect.employee_count} />
-                    <Field label="Technologies" value={prospect.technologies} />
-                    <Field label="Pain Points" value={prospect.pain_points} />
-                    <Field label="Source" value={prospect.source} />
-                  </div>
-                  <div className="mt-8">
-                    <div className="text-sm text-white/40">Homepage Intelligence</div>
-                    <div className="mt-2 text-xs text-white/35">{scrapeStatus}</div>
-                    <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70 whitespace-pre-wrap">
-                      {[
-                        typeof websiteIntel.positioning === "string"
-                          ? `Positioning:\n${websiteIntel.positioning}`
-                          : null,
-                        typeof websiteIntel.products === "string"
-                          ? `Products:\n${websiteIntel.products}`
-                          : null,
-                        typeof websiteIntel.services === "string"
-                          ? `Services:\n${websiteIntel.services}`
-                          : null,
-                        typeof websiteIntel.about === "string"
-                          ? `About:\n${websiteIntel.about}`
-                          : null,
-                        typeof websiteIntel.target_audience === "string"
-                          ? `Target Audience:\n${websiteIntel.target_audience}`
-                          : null,
-                        typeof websiteIntel.messaging === "string"
-                          ? `Messaging:\n${websiteIntel.messaging}`
-                          : null,
-                        typeof websiteIntel.value_proposition === "string"
-                          ? `Value Proposition:\n${websiteIntel.value_proposition}`
-                          : null,
-                        typeof websiteIntel.cta === "string"
-                          ? `CTA:\n${websiteIntel.cta}`
-                          : null,
-                        typeof websiteIntel.differentiators === "string"
-                          ? `Differentiators:\n${websiteIntel.differentiators}`
-                          : null,
-                        typeof websiteIntel.trust_signals === "string"
-                          ? `Trust Signals:\n${websiteIntel.trust_signals}`
-                          : null,
-                        typeof websiteIntel.contact_information === "string"
-                          ? `Contact Information:\n${websiteIntel.contact_information}`
-                          : null,
-                        typeof websiteIntel.brand_tone === "string"
-                          ? `Brand Tone:\n${websiteIntel.brand_tone}`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join("\n\n") || "No homepage intelligence captured yet."}
-                    </div>
-                  </div>
+                  <p className="mt-3 text-sm leading-6 text-white/45">
+                    Homepage Intelligence captured for this Prospect. Profile
+                    fields are managed in Prospect Details above.
+                  </p>
+                  <ProspectHomepageIntelligence
+                    websiteIntelligence={prospect.website_intelligence}
+                    scrapeStatus={scrapeStatus}
+                  />
                 </section>
               }
             />
@@ -311,36 +300,6 @@ function HeaderMetric({
       </div>
       <div className={`mt-3 text-lg font-semibold ${color}`}>
         {children ?? value ?? "—"}
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  link,
-}: {
-  label: string;
-  value?: string | null;
-  link?: string | null;
-}) {
-  return (
-    <div>
-      <div className="text-sm text-white/40">{label}</div>
-      <div className="mt-2 text-sm text-white/75">
-        {link ? (
-          <a
-            href={link}
-            target="_blank"
-            rel="noreferrer"
-            className="text-[var(--athena-orange)] underline"
-          >
-            {value || link}
-          </a>
-        ) : (
-          value || "—"
-        )}
       </div>
     </div>
   );

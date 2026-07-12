@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  deleteProspect,
   getProspectById,
   updateProspect,
 } from "@/services/prospects/prospectService";
@@ -177,6 +178,75 @@ export async function PATCH(
         },
       },
       400,
+    );
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await context.params;
+    const { organizationId } = await requireCurrentOrganizationContext();
+
+    const existing = await getProspectById(id, organizationId);
+    if (!existing) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: "NOT_FOUND", message: "Prospect not found." },
+        },
+        404,
+      );
+    }
+
+    const deleted = await deleteProspect(id, organizationId);
+    if (!deleted) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: {
+            code: "DELETE_FAILED",
+            message: "Failed to delete prospect.",
+          },
+        },
+        500,
+      );
+    }
+
+    return json({
+      ok: true,
+      success: true,
+      message: "Prospect deleted.",
+    });
+  } catch (error) {
+    if (error instanceof OrganizationAccessError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+        },
+        401,
+      );
+    }
+
+    return json(
+      {
+        ok: false,
+        success: false,
+        error: {
+          code: "DELETE_FAILED",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to delete prospect.",
+        },
+      },
+      500,
     );
   }
 }

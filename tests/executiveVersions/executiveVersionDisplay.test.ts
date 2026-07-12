@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  composeSuggestedCtaFromBriefing,
+  extractSuggestedCtaFromAnalysisRawJson,
   resolveVersionIntelligenceForDisplay,
   shouldPatchIncompleteCurrentVersion,
   withResolvedVersionIntelligence,
 } from "../../services/executiveVersions/executiveVersionDisplay";
+import { buildDiscussionDeploymentAssets } from "../../lib/deploymentAssets";
+import type { AthenaReview } from "../../services/reviewService";
 import type {
   ExecutiveIntelligencePayload,
   ExecutiveIntelligenceVersion,
@@ -75,6 +79,35 @@ function blueprint(
     raw_json: {},
     created_at: "2026-07-12T00:01:00.000Z",
     updated_at: "2026-07-12T00:01:00.000Z",
+    ...overrides,
+  };
+}
+
+
+function briefing(overrides: Partial<AthenaReview> = {}): AthenaReview {
+  return {
+    id: "77777777-7777-4777-8777-777777777777",
+    created_at: "2026-07-12T00:00:00.000Z",
+    updated_at: "2026-07-12T00:00:00.000Z",
+    organization_id: ORG,
+    opportunity_id: null,
+    discussion_id: DISCUSSION,
+    user_id: null,
+    status: "completed",
+    summary: null,
+    pain_points: null,
+    buyer_stage: null,
+    recommended_response: null,
+    cta: null,
+    confidence: 0.8,
+    model: null,
+    prompt_version: null,
+    generation_time_ms: null,
+    raw_json: null,
+    version: 1,
+    approved_by: null,
+    approved_at: null,
+    notes: null,
     ...overrides,
   };
 }
@@ -380,5 +413,229 @@ describe("executive version display hydration", () => {
       }),
       false,
     );
+  });
+});
+
+describe("deployment assets recovery for empty suggested_cta", () => {
+  it("recovers from analysis.raw_json.deployment_assets.raw_ai_response", () => {
+    const rawPayload = JSON.stringify({
+      recommended_response:
+        "COMMUNITY_REPLY:\nHello\n\nPRIVATE_MESSAGE:\nHi",
+      cta: "Book a call",
+    });
+    const resolved = resolveVersionIntelligenceForDisplay({
+      version: version({
+        is_current: true,
+        intelligence: {
+          analysis: analysis({
+            suggested_cta: "",
+            raw_json: {
+              deployment_assets: { raw_ai_response: rawPayload },
+            },
+          }),
+          opportunity: null,
+          briefing: null,
+          blueprint: blueprint(BLUEPRINT_CURRENT),
+        },
+      }),
+      blueprintById: null,
+      liveIntelligence: null,
+    });
+
+    const assets = buildDiscussionDeploymentAssets(resolved.analysis);
+    assert.ok(assets.length >= 2);
+    assert.ok(resolved.blueprint);
+  });
+
+  it("Prospect Current Version with Deployment Assets and Blueprint renders both", () => {
+    const prospectCta =
+      "PERSONALIZED_OUTREACH_EMAIL:\nHello Acme\n\nFOLLOW_UP_EMAIL:\nChecking in\n\nLINKEDIN_CONNECTION:\nConnect?\n\nRECOMMENDED_CTA:\nBook a call";
+    const resolved = resolveVersionIntelligenceForDisplay({
+      version: version({
+        is_current: true,
+        intelligence: {
+          analysis: analysis({ suggested_cta: prospectCta }),
+          opportunity: null,
+          briefing: null,
+          blueprint: blueprint(BLUEPRINT_CURRENT),
+        },
+      }),
+      blueprintById: null,
+      liveIntelligence: null,
+    });
+
+    const assets = buildDiscussionDeploymentAssets(resolved.analysis);
+    assert.equal(assets[0]?.title, "Personalized Outreach Email");
+    assert.equal(resolved.blueprint?.id, BLUEPRINT_CURRENT);
+    assert.ok(assets.length >= 3);
+  });
+
+  it("Historical Prospect Version keeps its own assets and does not borrow Current", () => {
+    const resolved = resolveVersionIntelligenceForDisplay({
+      version: version({
+        is_current: false,
+        intelligence: {
+          analysis: analysis({
+            suggested_cta: "PERSONALIZED_OUTREACH_EMAIL:\nhistorical outreach",
+          }),
+          opportunity: null,
+          briefing: null,
+          blueprint: blueprint(BLUEPRINT_HISTORICAL),
+        },
+      }),
+      blueprintById: blueprint(BLUEPRINT_HISTORICAL),
+      liveIntelligence: {
+        analysis: analysis({
+          suggested_cta: "PERSONALIZED_OUTREACH_EMAIL:\ncurrent outreach",
+        }),
+        opportunity: null,
+        briefing: null,
+        blueprint: blueprint(BLUEPRINT_CURRENT),
+      },
+    });
+
+    assert.match(resolved.analysis.suggested_cta ?? "", /historical outreach/);
+    assert.equal(resolved.blueprint?.id, BLUEPRINT_HISTORICAL);
+  });
+
+  it("Original Prospect Version without Deployment Assets stays empty", () => {
+    const resolved = resolveVersionIntelligenceForDisplay({
+      version: version({
+        is_current: false,
+        intelligence: {
+          analysis: analysis({ suggested_cta: "" }),
+          opportunity: null,
+          briefing: null,
+          blueprint: null,
+        },
+      }),
+      blueprintById: null,
+      liveIntelligence: {
+        analysis: analysis({
+          suggested_cta: "PERSONALIZED_OUTREACH_EMAIL:\nlive only",
+        }),
+        opportunity: null,
+        briefing: null,
+        blueprint: blueprint(BLUEPRINT_CURRENT),
+      },
+    });
+
+    assert.equal(
+      buildDiscussionDeploymentAssets(resolved.analysis).length,
+      0,
+    );
+    assert.equal(resolved.blueprint, null);
+  });
+
+  it("Missing Deployment Assets does not hide a valid Blueprint", () => {
+    const resolved = resolveVersionIntelligenceForDisplay({
+      version: version({
+        is_current: true,
+        intelligence: {
+          analysis: analysis({ suggested_cta: "" }),
+          opportunity: null,
+          briefing: null,
+          blueprint: null,
+        },
+      }),
+      blueprintById: blueprint(BLUEPRINT_CURRENT),
+      liveIntelligence: null,
+    });
+
+    assert.equal(resolved.blueprint?.id, BLUEPRINT_CURRENT);
+    assert.equal(
+      buildDiscussionDeploymentAssets(resolved.analysis).length,
+      0,
+    );
+  });
+
+  it("Missing Blueprint does not hide valid Deployment Assets", () => {
+    const resolved = resolveVersionIntelligenceForDisplay({
+      version: version({
+        is_current: true,
+        intelligence: {
+          analysis: analysis({
+            suggested_cta: "PERSONALIZED_OUTREACH_EMAIL:\nKeep me",
+          }),
+          opportunity: null,
+          briefing: null,
+          blueprint: null,
+        },
+      }),
+      blueprintById: null,
+      liveIntelligence: null,
+    });
+
+    assert.equal(resolved.blueprint, null);
+    assert.equal(
+      buildDiscussionDeploymentAssets(resolved.analysis).length,
+      1,
+    );
+  });
+
+  it("composeSuggestedCtaFromBriefing appends CALL_TO_ACTION when missing", () => {
+    const composed = composeSuggestedCtaFromBriefing({
+      recommended_response: "COMMUNITY_REPLY:\nHello",
+      cta: "Book a call",
+    });
+    assert.match(composed ?? "", /CALL_TO_ACTION/);
+    assert.match(composed ?? "", /Book a call/);
+  });
+
+  it("extractSuggestedCtaFromAnalysisRawJson recovers prospect labeled plain text", () => {
+    const recovered = extractSuggestedCtaFromAnalysisRawJson({
+      deployment_assets: {
+        raw_ai_response: "PERSONALIZED_OUTREACH_EMAIL:\nHello prospect",
+      },
+    });
+    assert.match(recovered ?? "", /PERSONALIZED_OUTREACH_EMAIL/);
+  });
+
+  it("Discussion Deployment Assets remain unaffected by prospect recovery path", () => {
+    const resolved = resolveVersionIntelligenceForDisplay({
+      version: version({
+        is_current: true,
+        intelligence: {
+          analysis: analysis({
+            suggested_cta:
+              "COMMUNITY_REPLY:\nHello\n\nFOLLOW_UP:\nFollow\n\nCALL_TO_ACTION:\nCTA",
+          }),
+          opportunity: null,
+          briefing: null,
+          blueprint: null,
+        },
+      }),
+      blueprintById: null,
+      liveIntelligence: null,
+    });
+    const assets = buildDiscussionDeploymentAssets(resolved.analysis);
+    assert.equal(assets[0]?.title, "Community Reply");
+  });
+
+  it("Passive version viewing is pure resolution with no generation side effects", () => {
+    const before = resolveVersionIntelligenceForDisplay({
+      version: version({
+        is_current: false,
+        intelligence: {
+          analysis: analysis({ suggested_cta: "COMMUNITY_REPLY:\nold" }),
+          opportunity: null,
+          briefing: briefing({
+            recommended_response: "COMMUNITY_REPLY:\nold briefing",
+          }),
+          blueprint: blueprint(BLUEPRINT_HISTORICAL),
+        },
+      }),
+      blueprintById: blueprint(BLUEPRINT_HISTORICAL),
+      liveIntelligence: {
+        analysis: analysis({ suggested_cta: "COMMUNITY_REPLY:\nlive" }),
+        opportunity: null,
+        briefing: briefing({
+          recommended_response: "COMMUNITY_REPLY:\nlive briefing",
+        }),
+        blueprint: blueprint(BLUEPRINT_CURRENT),
+      },
+    });
+    assert.match(before.analysis.suggested_cta ?? "", /old/);
+    assert.equal(before.blueprint?.id, BLUEPRINT_HISTORICAL);
   });
 });

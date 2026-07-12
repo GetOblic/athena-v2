@@ -1,7 +1,14 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
+import {
+  emptyRegenerationSnapshot,
+  fetchRegenerationStatus,
+} from "@/lib/discussionRegenerationStatus";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 import type { Prospect } from "@/services/prospects/prospectService";
 
 const fieldClassName =
@@ -9,6 +16,7 @@ const fieldClassName =
 
 type ProspectMetadataEditorProps = {
   prospect: Prospect;
+  discussionId?: string | null;
 };
 
 const TEXT_FIELDS = [
@@ -35,10 +43,42 @@ const TEXT_FIELDS = [
   ["google_business_url", "Google Business URL"],
 ] as const;
 
-export function ProspectMetadataEditor({
-  prospect,
-}: ProspectMetadataEditorProps) {
-  const [form, setForm] = useState({
+type FormState = {
+  business_name: string;
+  website: string;
+  decision_maker: string;
+  job_title: string;
+  industry: string;
+  category: string;
+  country: string;
+  state: string;
+  city: string;
+  address: string;
+  company_size: string;
+  revenue: string;
+  employee_count: string;
+  technologies: string;
+  pain_points: string;
+  email: string;
+  phone: string;
+  linkedin: string;
+  facebook: string;
+  instagram: string;
+  google_business_url: string;
+  notes: string;
+  additional_context: string;
+};
+
+const URL_FIELDS = new Set([
+  "website",
+  "linkedin",
+  "facebook",
+  "instagram",
+  "google_business_url",
+]);
+
+function formFromProspect(prospect: Prospect): FormState {
+  return {
     business_name: prospect.business_name ?? "",
     website: prospect.website ?? "",
     decision_maker: prospect.decision_maker ?? "",
@@ -62,15 +102,75 @@ export function ProspectMetadataEditor({
     google_business_url: prospect.google_business_url ?? "",
     notes: prospect.notes ?? "",
     additional_context: prospect.additional_context ?? "",
-  });
+  };
+}
+
+function ExternalValueLink({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  const href = normalizeWebsiteUrl(value);
+  if (!href) {
+    return <span className="text-white/75">{value || "—"}</span>;
+  }
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[var(--athena-orange)] underline underline-offset-2"
+    >
+      {label || href}
+    </a>
+  );
+}
+
+export function ProspectMetadataEditor({
+  prospect,
+  discussionId,
+}: ProspectMetadataEditorProps) {
+  const router = useRouter();
+  const { trackQueuedGeneration, isGenerating } = useDiscussionRegeneration();
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState(() => formFromProspect(prospect));
+  const [savedForm, setSavedForm] = useState(() => formFromProspect(prospect));
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function beginEdit() {
+    setForm(savedForm);
+    setIsEditing(true);
+    setShowDeleteConfirm(false);
+    setMessage(null);
+    setError(null);
+  }
+
+  function cancelEdit() {
+    setForm(savedForm);
+    setIsEditing(false);
+    setMessage(null);
+    setError(null);
+  }
 
   async function save() {
     setSaving(true);
     setMessage(null);
+    setError(null);
     try {
+      const baseline =
+        discussionId
+          ? ((await fetchRegenerationStatus(discussionId)) ??
+            emptyRegenerationSnapshot())
+          : emptyRegenerationSnapshot();
+
       const response = await fetch(`/api/prospects/${prospect.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -78,6 +178,7 @@ export function ProspectMetadataEditor({
       });
       const payload = await parseJsonResponse<{
         ok?: boolean;
+        regenerationQueued?: boolean;
         error?: string | { message?: string };
         message?: string;
       }>(response);
@@ -85,26 +186,52 @@ export function ProspectMetadataEditor({
         typeof payload.error === "string"
           ? payload.error
           : payload.error?.message;
-      setMessage(
-        payload.message ||
-          (payload.ok ? "Prospect metadata saved." : errorMessage || "Save failed."),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Save failed.");
+
+      if (!response.ok || !payload.ok) {
+        setError(errorMessage || "Save failed.");
+        return;
+      }
+
+      const nextSaved = { ...form };
+      setSavedForm(nextSaved);
+      setForm(nextSaved);
+      setIsEditing(false);
+      setMessage(payload.message || "Prospect metadata saved.");
+
+      if (payload.regenerationQueued) {
+        trackQueuedGeneration(baseline);
+      }
+
+      router.refresh();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Save failed.");
     } finally {
       setSaving(false);
     }
   }
 
   async function refreshIntelligence() {
+    if (refreshing || isGenerating) return;
+
     setRefreshing(true);
     setMessage(null);
+    setError(null);
+
     try {
+      const statusDiscussionId = discussionId ?? prospect.linked_discussion_id;
+      const baseline = statusDiscussionId
+        ? ((await fetchRegenerationStatus(statusDiscussionId)) ??
+          emptyRegenerationSnapshot())
+        : emptyRegenerationSnapshot();
+
       const response = await fetch(`/api/prospects/${prospect.id}/refresh`, {
         method: "POST",
       });
       const payload = await parseJsonResponse<{
         ok?: boolean;
+        success?: boolean;
+        accepted?: boolean;
+        queued?: boolean;
         message?: string;
         error?: string | { message?: string };
       }>(response);
@@ -112,17 +239,65 @@ export function ProspectMetadataEditor({
         typeof payload.error === "string"
           ? payload.error
           : payload.error?.message;
+
+      if (!response.ok || !payload.ok) {
+        setError(errorMessage || "Refresh failed.");
+        return;
+      }
+
+      trackQueuedGeneration(baseline);
       setMessage(
-        payload.message || errorMessage || "Refresh request completed.",
+        payload.message ||
+          "Prospect intelligence refresh queued. Athena is regenerating in the background.",
       );
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Refresh failed.",
+      router.refresh();
+    } catch (refreshError) {
+      setError(
+        refreshError instanceof Error
+          ? refreshError.message
+          : "Refresh failed.",
       );
     } finally {
       setRefreshing(false);
     }
   }
+
+  async function handleDelete() {
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/prospects/${prospect.id}`, {
+        method: "DELETE",
+      });
+      const payload = await parseJsonResponse<{
+        ok?: boolean;
+        success?: boolean;
+        error?: string | { message?: string };
+      }>(response);
+      const errorMessage =
+        typeof payload.error === "string"
+          ? payload.error
+          : payload.error?.message;
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(errorMessage || "Failed to delete prospect.");
+      }
+
+      router.push("/prospects");
+      router.refresh();
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Failed to delete prospect.",
+      );
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  }
+
+  const display = isEditing ? form : savedForm;
 
   return (
     <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
@@ -131,80 +306,189 @@ export function ProspectMetadataEditor({
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
             Prospect Details
           </div>
-          <h2 className="mt-3 text-2xl font-semibold">Editable profile</h2>
-          <p className="mt-2 text-sm text-white/40">
-            Meaningful edits queue asynchronous regeneration. Historical
-            Executive Versions remain immutable.
+          <h2 className="mt-3 text-2xl font-semibold">
+            {isEditing ? "Edit profile" : "Profile"}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-white/40">
+            {isEditing
+              ? "Save meaningful source changes to queue asynchronous regeneration. Historical Executive Versions remain immutable."
+              : "Review prospect fields in read-only mode. Edit to update source data, or Refresh Intelligence to regenerate."}
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={saving}
-            className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void refreshIntelligence()}
-            disabled={refreshing}
-            className="rounded-full bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
-          >
-            {refreshing ? "Queuing…" : "Refresh Intelligence"}
-          </button>
+
+        <div className="flex flex-col items-stretch gap-3 sm:items-end">
+          <div className="flex flex-wrap justify-end gap-3">
+            {!isEditing ? (
+              <button
+                type="button"
+                onClick={beginEdit}
+                className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-[var(--athena-orange)]/40 hover:text-white"
+              >
+                Edit
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  disabled={saving}
+                  className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void save()}
+                  disabled={saving}
+                  className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
+                >
+                  {saving ? "Saving…" : "Save"}
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowDeleteConfirm(true);
+                setError(null);
+              }}
+              className="rounded-full border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-300 transition hover:border-red-400/50 hover:text-red-200"
+            >
+              Delete
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void refreshIntelligence()}
+              disabled={refreshing || isGenerating}
+              className="rounded-full bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              {refreshing || isGenerating
+                ? "Queuing…"
+                : "Refresh Intelligence"}
+            </button>
+          </div>
+
+          {showDeleteConfirm && (
+            <div className="w-full max-w-md rounded-2xl border border-red-500/20 bg-black/30 p-5 sm:text-right">
+              <p className="text-sm leading-6 text-white/70">
+                Delete this Prospect permanently? The Prospect record will be
+                removed. This cannot be undone.
+              </p>
+              <div className="mt-4 flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="rounded-full border border-white/15 px-5 py-2 text-sm text-white/70"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  disabled={isDeleting}
+                  className="rounded-full bg-red-500/20 px-5 py-2 text-sm font-semibold text-red-200 disabled:opacity-50"
+                >
+                  {isDeleting ? "Deleting..." : "Confirm Delete"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-2">
-        {TEXT_FIELDS.map(([key, label]) => (
-          <label key={key} className="block text-sm text-white/45">
-            {label}
-            <input
-              value={form[key]}
+      {isEditing ? (
+        <>
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            {TEXT_FIELDS.map(([key, label]) => (
+              <label key={key} className="block text-sm text-white/45">
+                {label}
+                <input
+                  value={form[key]}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      [key]: event.target.value,
+                    }))
+                  }
+                  className={`mt-2 ${fieldClassName}`}
+                />
+              </label>
+            ))}
+          </div>
+
+          <label className="mt-4 block text-sm text-white/45">
+            Notes
+            <textarea
+              value={form.notes}
               onChange={(event) =>
                 setForm((previous) => ({
                   ...previous,
-                  [key]: event.target.value,
+                  notes: event.target.value,
                 }))
               }
+              rows={4}
               className={`mt-2 ${fieldClassName}`}
             />
           </label>
-        ))}
-      </div>
 
-      <label className="mt-4 block text-sm text-white/45">
-        Notes
-        <textarea
-          value={form.notes}
-          onChange={(event) =>
-            setForm((previous) => ({ ...previous, notes: event.target.value }))
-          }
-          rows={4}
-          className={`mt-2 ${fieldClassName}`}
-        />
-      </label>
+          <label className="mt-4 block text-sm text-white/45">
+            Additional Context
+            <textarea
+              value={form.additional_context}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  additional_context: event.target.value,
+                }))
+              }
+              rows={4}
+              className={`mt-2 ${fieldClassName}`}
+            />
+          </label>
+        </>
+      ) : (
+        <>
+          <div className="mt-8 grid gap-6 md:grid-cols-2">
+            {TEXT_FIELDS.map(([key, label]) => (
+              <div key={key}>
+                <div className="text-sm text-white/40">{label}</div>
+                <div className="mt-2 text-sm">
+                  {URL_FIELDS.has(key) ? (
+                    <ExternalValueLink label={display[key]} value={display[key]} />
+                  ) : (
+                    <span className="text-white/75">
+                      {display[key] || "—"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
 
-      <label className="mt-4 block text-sm text-white/45">
-        Additional Context
-        <textarea
-          value={form.additional_context}
-          onChange={(event) =>
-            setForm((previous) => ({
-              ...previous,
-              additional_context: event.target.value,
-            }))
-          }
-          rows={4}
-          className={`mt-2 ${fieldClassName}`}
-        />
-      </label>
+          <div className="mt-6">
+            <div className="text-sm text-white/40">Notes</div>
+            <div className="mt-2 whitespace-pre-wrap text-sm text-white/75">
+              {display.notes || "—"}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <div className="text-sm text-white/40">Additional Context</div>
+            <div className="mt-2 whitespace-pre-wrap text-sm text-white/75">
+              {display.additional_context || "—"}
+            </div>
+          </div>
+        </>
+      )}
 
       {message && (
-        <p className="mt-4 text-sm text-white/60 whitespace-pre-wrap">{message}</p>
+        <p className="mt-4 text-sm text-white/60 whitespace-pre-wrap">
+          {message}
+        </p>
       )}
+      {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
     </section>
   );
 }

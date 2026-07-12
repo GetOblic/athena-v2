@@ -113,7 +113,15 @@ function mapRowToInput(
  */
 export async function ensureProspectGenerationQueued(
   prospect: Prospect,
-  options?: { requestedBy?: string | null },
+  options?: {
+    requestedBy?: string | null;
+    /**
+     * Import/append keep discussion_import / discussion_update semantics.
+     * Explicit Refresh Intelligence must use manual_refresh so the worker
+     * runs with explicitRegeneration and publishes a new Current Version.
+     */
+    triggerType?: "discussion_import" | "manual_refresh" | "discussion_update";
+  },
 ): Promise<{ prospect: Prospect; queued: boolean; jobId?: string }> {
   let current = prospect;
   const bridgeBody = buildProspectAnalysisBody(current);
@@ -161,7 +169,7 @@ export async function ensureProspectGenerationQueued(
   const enqueue = await enqueueDiscussionGenerationJob({
     organizationId: current.organization_id,
     discussionId,
-    triggerType: "discussion_import",
+    triggerType: options?.triggerType ?? "discussion_import",
     requestedBy: options?.requestedBy ?? current.user_id,
     allowExisting: true,
     requestFollowUpIfActive: true,

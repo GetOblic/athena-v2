@@ -4,6 +4,11 @@
  */
 
 import {
+  getAthenaVerdict,
+  type AthenaVerdict,
+} from "@/lib/discussionExecutiveIntel";
+import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
+import {
   PROSPECT_DISPLAY_STATUSES,
   type ProspectDisplayStatus,
 } from "@/services/prospects/prospectStatus";
@@ -76,4 +81,25 @@ export function formatProspectOpportunityScore(
     return "—";
   }
   return String(Math.round(score));
+}
+
+/**
+ * Pair Opportunity Score with the existing Athena executive recommendation
+ * when analysis is available. Does not invent new scoring thresholds.
+ */
+export function resolveProspectOpportunityRecommendation(
+  analysis: DiscussionAnalysis | null | undefined,
+): AthenaVerdict | null {
+  if (!analysis) return null;
+  return getAthenaVerdict(analysis);
+}
+
+export function formatProspectOpportunityScoreWithRecommendation(input: {
+  score: number | null | undefined;
+  recommendation?: AthenaVerdict | null;
+}): { scoreLabel: string; recommendation: AthenaVerdict | null } {
+  return {
+    scoreLabel: formatProspectOpportunityScore(input.score),
+    recommendation: input.recommendation ?? null,
+  };
 }

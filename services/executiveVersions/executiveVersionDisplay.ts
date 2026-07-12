@@ -1,11 +1,19 @@
 /**
  * Read-path helpers for Executive Version intelligence display.
- * Pure logic — no DB access. Restores Deployment Assets / Strategic Blueprint
- * when immutable snapshots were published before those stages finished.
+ * Pure logic — no DB writes.
+ *
+ * Deployment Assets and Strategic Asset Blueprint are distinct surfaces.
+ * Blueprint prompts never replace Deployment Assets.
+ *
+ * V2 Discussion Deployment Assets are rendered from analysis.suggested_cta via
+ * buildDiscussionDeploymentAssets → DeploymentAssets. When suggested_cta was
+ * persisted empty, recover from historical alternate storage formats already
+ * present on the version/live records.
  */
 
 import type { AthenaAssetBlueprint } from "@/services/assetBlueprints/assetBlueprintService";
 import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
+import type { AthenaReview } from "@/services/reviewService";
 import type {
   ExecutiveIntelligencePayload,
   ExecutiveIntelligenceVersion,
@@ -21,13 +29,18 @@ function hasBlueprint(
   return Boolean(blueprint?.id);
 }
 
+function hasBriefingDeploymentAssets(
+  briefing: AthenaReview | null | undefined,
+): boolean {
+  return Boolean(
+    briefing?.recommended_response?.trim() || briefing?.cta?.trim(),
+  );
+}
+
 function blueprintMatchesVersion(
   blueprint: AthenaAssetBlueprint,
   version: ExecutiveIntelligenceVersion,
 ): boolean {
-  // Tenant isolation is enforced by getAssetBlueprintById(organizationId).
-  // Also reject discussion mismatches so historical versions cannot bind
-  // an unrelated discussion's blueprint if IDs were ever crossed.
   if (
     blueprint.discussion_id &&
     blueprint.discussion_id !== version.discussion_id
@@ -35,6 +48,121 @@ function blueprintMatchesVersion(
     return false;
   }
   return true;
+}
+
+function stripJsonFence(text: string): string {
+  return text
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+}
+
+/**
+ * Compose the labeled Deployment Assets string V2 expects in suggested_cta
+ * from briefing fields written by the deployment-assets persist path.
+ */
+export function composeSuggestedCtaFromBriefing(
+  briefing: Pick<AthenaReview, "recommended_response" | "cta"> | null | undefined,
+): string | null {
+  const response = briefing?.recommended_response?.trim() ?? "";
+  const cta = briefing?.cta?.trim() ?? "";
+
+  if (!response && !cta) {
+    return null;
+  }
+
+  if (response && cta && !/(?:^|\n)CALL_TO_ACTION:\s*/i.test(response)) {
+    return `${response}\n\nCALL_TO_ACTION:\n${cta}`;
+  }
+
+  return response || `CALL_TO_ACTION:\n${cta}`;
+}
+
+/**
+ * Recover Deployment Assets text from analysis.raw_json.deployment_assets
+ * when suggested_cta was persisted empty (known alternate response shape).
+ */
+export function extractSuggestedCtaFromAnalysisRawJson(
+  rawJson: Record<string, unknown> | null | undefined,
+): string | null {
+  const deployment = rawJson?.deployment_assets;
+  if (!deployment || typeof deployment !== "object") {
+    return null;
+  }
+
+  const rawAi = (deployment as Record<string, unknown>).raw_ai_response;
+  if (typeof rawAi !== "string" || !rawAi.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(stripJsonFence(rawAi)) as Record<string, unknown>;
+    const suggested = String(parsed.suggested_cta ?? "").trim();
+    if (suggested) {
+      return suggested;
+    }
+
+    const fromBriefingShape = composeSuggestedCtaFromBriefing({
+      recommended_response: String(parsed.recommended_response ?? "") || null,
+      cta: String(parsed.cta ?? "") || null,
+    });
+    if (fromBriefingShape) {
+      return fromBriefingShape;
+    }
+  } catch {
+    const trimmed = rawAi.trim();
+    // Accept Discussion or Prospect labeled asset blocks stored as plain text.
+    if (/(?:^|\n)[A-Z][A-Z0-9_]+:\s*/.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Resolve the Deployment Assets source string for display.
+ * Does not treat Strategic Blueprint presence as Deployment Assets.
+ */
+export function resolveDeploymentAssetsSuggestedCta(input: {
+  analysis: DiscussionAnalysis;
+  briefing: AthenaReview | null;
+  liveAnalysis?: DiscussionAnalysis | null;
+  liveBriefing?: AthenaReview | null;
+  isCurrent: boolean;
+}): string | null {
+  const { analysis, briefing, liveAnalysis, liveBriefing, isCurrent } = input;
+
+  if (analysis.suggested_cta?.trim()) {
+    return analysis.suggested_cta;
+  }
+
+  const fromSnapshotRaw = extractSuggestedCtaFromAnalysisRawJson(analysis.raw_json);
+  if (fromSnapshotRaw) {
+    return fromSnapshotRaw;
+  }
+
+  const fromSnapshotBriefing = composeSuggestedCtaFromBriefing(briefing);
+  if (fromSnapshotBriefing) {
+    return fromSnapshotBriefing;
+  }
+
+  if (!isCurrent) {
+    return null;
+  }
+
+  if (liveAnalysis?.suggested_cta?.trim()) {
+    return liveAnalysis.suggested_cta;
+  }
+
+  const fromLiveRaw = extractSuggestedCtaFromAnalysisRawJson(
+    liveAnalysis?.raw_json,
+  );
+  if (fromLiveRaw) {
+    return fromLiveRaw;
+  }
+
+  return composeSuggestedCtaFromBriefing(liveBriefing ?? null);
 }
 
 export type VersionIntelligenceResolutionInput = {
@@ -51,14 +179,16 @@ export type VersionIntelligenceResolutionInput = {
 /**
  * Resolve display intelligence for a version without mutating stored history.
  *
- * Blueprint preference:
+ * Blueprint preference (Strategic Asset Blueprint only):
  * 1. Snapshot intelligence.blueprint
- * 2. Row fetched by version.blueprint_id (tenant + discussion checked)
+ * 2. Row fetched by version.blueprint_id
  * 3. Live blueprint — Current version only
  *
- * Deployment assets (suggested_cta) preference:
- * 1. Snapshot analysis.suggested_cta when non-empty
- * 2. Live analysis.suggested_cta — Current version only
+ * Deployment Assets preference:
+ * 1. Snapshot analysis.suggested_cta
+ * 2. Snapshot analysis.raw_json.deployment_assets recovery
+ * 3. Snapshot briefing.recommended_response (+ cta)
+ * 4. Live equivalents — Current version only
  */
 export function resolveVersionIntelligenceForDisplay(
   input: VersionIntelligenceResolutionInput,
@@ -85,22 +215,49 @@ export function resolveVersionIntelligenceForDisplay(
     blueprint = liveIntelligence.blueprint;
   }
 
-  let analysis = snapshot.analysis;
+  let briefing = snapshot.briefing;
   if (
-    !hasSuggestedCta(analysis) &&
     isCurrent &&
-    hasSuggestedCta(liveIntelligence?.analysis)
+    !hasBriefingDeploymentAssets(briefing) &&
+    hasBriefingDeploymentAssets(liveIntelligence?.briefing)
+  ) {
+    briefing = liveIntelligence!.briefing;
+  }
+
+  let analysis = snapshot.analysis;
+  // For Current, prefer live analysis.raw_json when snapshot CTA is empty so
+  // recovery can read deployment_assets even if the version JSON froze early.
+  if (
+    isCurrent &&
+    !hasSuggestedCta(analysis) &&
+    liveIntelligence?.analysis &&
+    liveIntelligence.analysis.id === analysis.id
   ) {
     analysis = {
       ...analysis,
-      suggested_cta: liveIntelligence!.analysis.suggested_cta,
+      raw_json: liveIntelligence.analysis.raw_json ?? analysis.raw_json,
+    };
+  }
+
+  const resolvedCta = resolveDeploymentAssetsSuggestedCta({
+    analysis,
+    briefing,
+    liveAnalysis: liveIntelligence?.analysis ?? null,
+    liveBriefing: liveIntelligence?.briefing ?? null,
+    isCurrent,
+  });
+
+  if (resolvedCta && resolvedCta !== (analysis.suggested_cta ?? "")) {
+    analysis = {
+      ...analysis,
+      suggested_cta: resolvedCta,
     };
   }
 
   return {
     analysis,
     opportunity: snapshot.opportunity,
-    briefing: snapshot.briefing,
+    briefing,
     blueprint,
   };
 }
@@ -134,7 +291,13 @@ export function shouldPatchIncompleteCurrentVersion(input: {
   const snapshotMissingBlueprint = !hasBlueprint(current.intelligence.blueprint);
   const liveHasBlueprint = hasBlueprint(live.blueprint);
   const snapshotMissingCta = !hasSuggestedCta(current.intelligence.analysis);
-  const liveHasCta = hasSuggestedCta(live.analysis);
+  const liveHasCta = Boolean(
+    resolveDeploymentAssetsSuggestedCta({
+      analysis: live.analysis,
+      briefing: live.briefing,
+      isCurrent: true,
+    }),
+  );
 
   return (
     (snapshotMissingBlueprint && liveHasBlueprint) ||

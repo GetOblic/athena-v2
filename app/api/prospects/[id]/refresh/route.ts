@@ -40,6 +40,7 @@ export async function POST(
 
     const result = await ensureProspectGenerationQueued(prospect, {
       requestedBy: userId,
+      triggerType: "manual_refresh",
     });
 
     return json(
@@ -47,11 +48,14 @@ export async function POST(
         ok: true,
         success: true,
         accepted: result.queued,
+        queued: result.queued,
         prospect: toPublicProspect(result.prospect),
         prospectId: result.prospect.id,
         jobId: result.jobId ?? null,
         status: result.prospect.status,
-        message: "Prospect intelligence refresh queued.",
+        message: result.queued
+          ? "Prospect intelligence refresh queued."
+          : "Prospect refresh could not be queued.",
       },
       202,
     );

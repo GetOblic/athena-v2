@@ -397,3 +397,40 @@ export async function updateProspect(
 
   return data as Prospect;
 }
+
+/**
+ * Delete a Prospect owned by the organization.
+ * Also removes the temporary Discussion compatibility bridge (and its cascaded
+ * generation jobs / executive versions) via the existing deleteDiscussion path.
+ */
+export async function deleteProspect(
+  id: string,
+  organizationId: string,
+): Promise<boolean> {
+  const existing = await getProspectById(id, organizationId);
+  if (!existing) {
+    return false;
+  }
+
+  const bridgeDiscussionId = existing.linked_discussion_id;
+
+  const { error } = await supabaseAdmin
+    .from("prospects")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", organizationId);
+
+  if (error) {
+    console.error("Error deleting prospect:", error);
+    return false;
+  }
+
+  if (bridgeDiscussionId) {
+    const { deleteDiscussion } = await import(
+      "@/services/discussionService"
+    );
+    await deleteDiscussion(bridgeDiscussionId, organizationId);
+  }
+
+  return true;
+}
