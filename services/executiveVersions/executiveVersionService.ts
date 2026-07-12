@@ -1,9 +1,16 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
+import {
+  getAssetBlueprintById,
+  getDisplayAssetBlueprintByDiscussionId,
+} from "@/services/assetBlueprints/assetBlueprintService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 import { buildExecutiveVersionGenerationMetadata } from "@/services/executiveVersions/executiveVersionMetadata";
+import {
+  shouldPatchIncompleteCurrentVersion,
+  withResolvedVersionIntelligence,
+} from "@/services/executiveVersions/executiveVersionDisplay";
 import {
   EXECUTIVE_INTELLIGENCE_PIPELINE_VERSION,
   type ExecutiveIntelligencePayload,
@@ -243,6 +250,18 @@ export async function publishExecutiveIntelligenceVersion(input: {
     current.analysis_id &&
     current.analysis_id === intelligence.analysis.id
   ) {
+    // Mid-pipeline ensure can publish an incomplete snapshot (analysis before
+    // deployment assets / blueprint). Patch that incomplete Current in place
+    // so the immutable row matches the finished live intelligence.
+    if (shouldPatchIncompleteCurrentVersion({ current, live: intelligence })) {
+      return patchIncompleteCurrentExecutiveVersion({
+        current,
+        intelligence,
+        blueprintId: input.blueprintId ?? intelligence.blueprint?.id ?? null,
+        regenerationRunId: input.regenerationRunId,
+        generationDurationMs: input.generationDurationMs,
+      });
+    }
     return current;
   }
 
@@ -259,6 +278,55 @@ export async function publishExecutiveIntelligenceVersion(input: {
     reviewId: input.reviewId ?? intelligence.briefing?.id ?? null,
     blueprintId: input.blueprintId ?? intelligence.blueprint?.id ?? null,
   });
+}
+
+/**
+ * Complete an incomplete Current version snapshot without creating a new
+ * version number. Only used when analysis_id matches and asset fields were
+ * missing at first publish.
+ */
+async function patchIncompleteCurrentExecutiveVersion(input: {
+  current: ExecutiveIntelligenceVersion;
+  intelligence: ExecutiveIntelligencePayload;
+  blueprintId?: string | null;
+  regenerationRunId?: string | null;
+  generationDurationMs?: number | null;
+}): Promise<ExecutiveIntelligenceVersion> {
+  const blueprintId =
+    input.blueprintId ??
+    input.intelligence.blueprint?.id ??
+    input.current.blueprint_id ??
+    null;
+
+  const { data, error } = await supabaseAdmin
+    .from("athena_executive_intelligence_versions")
+    .update({
+      intelligence: input.intelligence,
+      blueprint_id: blueprintId,
+      opportunity_id:
+        input.intelligence.opportunity?.id ?? input.current.opportunity_id,
+      review_id: input.intelligence.briefing?.id ?? input.current.review_id,
+      regeneration_run_id:
+        input.regenerationRunId ?? input.current.regeneration_run_id,
+      generation_duration_ms:
+        input.generationDurationMs ?? input.current.generation_duration_ms,
+    })
+    .eq("id", input.current.id)
+    .eq("organization_id", input.current.organization_id)
+    .eq("discussion_id", input.current.discussion_id)
+    .eq("is_current", true)
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error(
+      "Failed to patch incomplete current executive version:",
+      error,
+    );
+    throw error;
+  }
+
+  return mapVersionRow(data);
 }
 
 export async function listExecutiveVersionSummaries(
@@ -353,8 +421,30 @@ export async function getExecutiveVersionsForDiscussionPage(
   await ensureCurrentLiveIntelligenceIsVersioned(discussionId, organizationId);
 
   const versions = await listExecutiveVersions(discussionId, organizationId);
-  const current =
-    versions.find((version) => version.is_current) ?? versions[0] ?? null;
+  const liveIntelligence = await loadLiveExecutiveIntelligence(
+    discussionId,
+    organizationId,
+  );
 
-  return { versions, current };
+  const resolvedVersions = await Promise.all(
+    versions.map(async (version) => {
+      const blueprintById = version.blueprint_id
+        ? await getAssetBlueprintById(version.blueprint_id, organizationId)
+        : null;
+
+      return withResolvedVersionIntelligence({
+        version,
+        blueprintById,
+        // Live overlay is only consumed for is_current inside the resolver.
+        liveIntelligence,
+      });
+    }),
+  );
+
+  const current =
+    resolvedVersions.find((version) => version.is_current) ??
+    resolvedVersions[0] ??
+    null;
+
+  return { versions: resolvedVersions, current };
 }

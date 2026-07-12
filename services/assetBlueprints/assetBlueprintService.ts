@@ -1278,6 +1278,37 @@ export async function getAssetBlueprintsByDiscussionId(
   return data ?? [];
 }
 
+/**
+ * Load a single blueprint by id with tenant isolation.
+ * Used by Executive Version display to honor version.blueprint_id.
+ */
+export async function getAssetBlueprintById(
+  blueprintId: string,
+  organizationId: string,
+): Promise<AthenaAssetBlueprint | null> {
+  if (!blueprintId?.trim()) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("athena_asset_blueprints")
+    .select("*")
+    .eq("id", blueprintId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching asset blueprint by id:", {
+      blueprintId,
+      organizationId,
+      error: error.message,
+    });
+    return null;
+  }
+
+  return data ?? null;
+}
+
 export async function getLatestAssetBlueprintByBriefingId(
   briefingId: string,
   organizationId: string,
