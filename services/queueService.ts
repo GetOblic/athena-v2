@@ -22,6 +22,7 @@ import type { Opportunity } from "@/services/opportunityService";
 import { getCanonicalOpportunities } from "@/services/opportunityService";
 import type { AthenaReview } from "@/services/reviewService";
 import { getCanonicalReviews } from "@/services/reviewService";
+import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 
 export type DiscussionQueueSection = {
   key: DiscussionQueueKey;
@@ -113,6 +114,9 @@ export async function getDiscussionQueues(
   };
 
   for (const discussion of discussions) {
+    if (discussion.platform === PROSPECT_INTELLIGENCE_PLATFORM) {
+      continue;
+    }
     const hasAnalysis = analyzedDiscussionIds.has(discussion.id);
     const queueKey = classifyDiscussionQueue(hasAnalysis, discussion.status);
     grouped[queueKey].push(discussion);

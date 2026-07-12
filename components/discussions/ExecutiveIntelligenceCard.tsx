@@ -8,14 +8,18 @@ import { WhyAthenaMatters } from "@/components/discussions/WhyAthenaMatters";
 
 type ExecutiveIntelligenceCardProps = {
   analysis: DiscussionAnalysis;
+  /** Isolated source wording. Defaults to discussion labels. */
+  sourceKind?: "discussion" | "prospect";
 };
 
 export function ExecutiveIntelligenceCard({
   analysis,
+  sourceKind = "discussion",
 }: ExecutiveIntelligenceCardProps) {
   const confidence = Math.max(0, Math.min(100, analysis.confidence ?? 0));
   const confidenceLabel = formatConfidenceLabel(confidence);
   const whyBullets = buildWhyAthenaBullets(analysis);
+  const isProspect = sourceKind === "prospect";
 
   return (
     <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:p-10">
@@ -30,16 +34,18 @@ export function ExecutiveIntelligenceCard({
       <div className="mt-8 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
         <div className="space-y-7">
           <IntelBlock
-            label="Executive Insight"
+            label={isProspect ? "Prospect Assessment" : "Executive Insight"}
             value={analysis.summary}
             prominent
           />
           <IntelBlock
-            label="Primary Buyer Concern"
+            label={
+              isProspect ? "Primary Business Concern" : "Primary Buyer Concern"
+            }
             value={analysis.pain_points}
           />
           <IntelBlock
-            label="Recommended Strategy"
+            label={isProspect ? "Outreach Strategy" : "Recommended Strategy"}
             value={analysis.recommended_action}
           />
         </div>

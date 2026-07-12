@@ -1,3 +1,4 @@
+import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectBridgeMarker";
 import { getOriginalDiscussionBody } from "@/lib/discussionContent";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createDiscussionUpdate } from "@/services/discussionUpdateService";
@@ -30,7 +31,8 @@ export async function getDiscussionCount(
     const { count, error } = await supabaseAdmin
         .from("discussions")
         .select("*", { count: "exact", head: true })
-        .eq("organization_id", organizationId);
+        .eq("organization_id", organizationId)
+        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM);
 
     if (error) {
         console.error("Error fetching discussion count:", error);
@@ -48,6 +50,7 @@ export async function getHighPriorityDiscussions(
         .from("discussions")
         .select("*")
         .eq("organization_id", organizationId)
+        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
         .in("status", ["New", "Needs Review", "Reviewing"])
         .order("opportunity_score", { ascending: false })
         .order("priority", { ascending: false })
@@ -68,6 +71,7 @@ export async function getDiscussions(
         .from("discussions")
         .select("*")
         .eq("organization_id", organizationId)
+        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -105,7 +109,8 @@ export async function getDiscussionIdsByCommunityId(
         .from("discussions")
         .select("id")
         .eq("community_id", communityId)
-        .eq("organization_id", organizationId);
+        .eq("organization_id", organizationId)
+        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM);
 
     if (error) {
         console.error("Error fetching community discussion ids:", error);
@@ -124,6 +129,7 @@ export async function getDiscussionsByCommunityId(
         .select("*")
         .eq("community_id", communityId)
         .eq("organization_id", organizationId)
+        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
         .order("created_at", { ascending: false });
 
     if (error) {

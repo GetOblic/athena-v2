@@ -5,6 +5,7 @@ import { getReviewById, type AthenaReview } from "@/services/reviewService";
 import { getExecutiveReasoning } from "@/services/brain/executiveReasoningService";
 import { getExecutiveUnderstanding } from "@/services/brain/executiveUnderstandingService";
 import type { ExecutiveInitiativeSelection } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
+import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 
 function compactText(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -135,6 +136,14 @@ export async function learnFromApprovedBriefing(
     const discussion = review.discussion_id
       ? await getDiscussionById(review.discussion_id, organizationId)
       : null;
+
+    if (isProspectIntelligenceBridge(discussion)) {
+      return {
+        learned: false,
+        reason:
+          "Prospect Intelligence sources do not emit Discussion learning signals.",
+      };
+    }
 
     let executiveIntelligence:
       | Awaited<ReturnType<typeof getExecutiveReasoning>>["executiveIntelligence"]

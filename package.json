@@ -11,7 +11,7 @@
     "worker:dev": "node --import tsx workers/athenaWorker.ts",
     "worker:start": "node dist/worker/athenaWorker.js",
     "lint": "eslint",
-    "test:worker": "node --import tsx --test tests/generationJobs/*.test.ts tests/executiveVersions/*.test.ts"
+    "test:worker": "node --import tsx --test tests/generationJobs/*.test.ts tests/executiveVersions/*.test.ts tests/prospects/*.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

@@ -8,6 +8,7 @@ export const dashboardNavItems = [
   { label: "Intelligence Domains", href: "/intelligence-domains" },
   { label: "Inbox", href: "/inbox" },
   { label: "Discussions", href: "/discussions" },
+  { label: "Prospects", href: "/prospects" },
   { label: "Opportunities", href: "/opportunities" },
   { label: "Briefings", href: "/briefings" },
 ];

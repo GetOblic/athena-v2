@@ -16,6 +16,7 @@ import {
   getCommunityIntelligenceHistory,
   type CommunityIntelligence,
 } from "@/services/communityIntelligenceService";
+import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectBridgeMarker";
 
 export type IntelligenceDomain = Community;
 
@@ -121,6 +122,7 @@ export async function getIntelligenceDomainDiscussionCounts(
     .from("discussions")
     .select("community_id")
     .eq("organization_id", organizationId)
+    .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
     .not("community_id", "is", null);
 
   if (error) {
@@ -191,7 +193,8 @@ export async function getIntelligenceDomainStats(
         .from("discussions")
         .select("id, opportunity_score")
         .eq("community_id", communityId)
-        .eq("organization_id", organizationId),
+        .eq("organization_id", organizationId)
+        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM),
       getAnalyzedDiscussionIds(organizationId),
     ]);
 
@@ -310,6 +313,7 @@ export async function getDomainLearningTimeline(
       .select("id, title, created_at")
       .eq("community_id", communityId)
       .eq("organization_id", organizationId)
+      .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
       .order("created_at", { ascending: false })
       .limit(10),
     discussionIds.length > 0

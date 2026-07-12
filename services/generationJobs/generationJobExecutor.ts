@@ -22,6 +22,12 @@ import { getAthenaWorkerConfig } from "@/services/generationJobs/generationJobWo
 import { createWorkerIdentity } from "@/services/generationJobs/generationJobWorkerIdentity";
 import { createRegenerationRunId } from "@/lib/regenerationDiagnostics";
 import { getDiscussionById } from "@/services/discussionService";
+import {
+  markProspectGenerationFailed,
+  markProspectGenerationReady,
+  prepareProspectBridgeBeforeGeneration,
+} from "@/services/prospects/prospectImporter";
+import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
 
 export { createWorkerIdentity };
@@ -186,6 +192,25 @@ export async function executeClaimedGenerationJob(
       return "claim_lost";
     }
 
+    const discussion = await getDiscussionById(
+      job.discussion_id,
+      job.organization_id,
+    );
+    if (discussion?.platform === PROSPECT_INTELLIGENCE_PLATFORM) {
+      await renewLease("website_intelligence");
+      if (claimLost) {
+        return "claim_lost";
+      }
+      await prepareProspectBridgeBeforeGeneration(
+        job.discussion_id,
+        job.organization_id,
+      );
+      await renewLease("discussion_analysis");
+      if (claimLost) {
+        return "claim_lost";
+      }
+    }
+
     const result = await processDiscussionEndToEnd(
       job.discussion_id,
       job.organization_id,
@@ -225,6 +250,10 @@ export async function executeClaimedGenerationJob(
 
       // On terminal failure, promote coalesced follow-up so newer intent is not lost.
       if (failed?.status === "failed") {
+        await markProspectGenerationFailed(
+          job.discussion_id,
+          job.organization_id,
+        );
         await maybeEnqueueFollowUp(job);
       }
 
@@ -270,6 +299,26 @@ export async function executeClaimedGenerationJob(
       return "claim_lost";
     }
 
+    let opportunityScore: number | null = null;
+    if (result.opportunityId) {
+      const { getOpportunityById } = await import(
+        "@/services/opportunityService"
+      );
+      const opportunity = await getOpportunityById(
+        result.opportunityId,
+        job.organization_id,
+      );
+      if (typeof opportunity?.score === "number") {
+        opportunityScore = opportunity.score;
+      }
+    }
+
+    await markProspectGenerationReady(
+      job.discussion_id,
+      job.organization_id,
+      opportunityScore,
+    );
+
     await maybeEnqueueFollowUp(job);
 
     console.log("[ATHENA_WORKER] job_completed", {
@@ -308,6 +357,10 @@ export async function executeClaimedGenerationJob(
     });
 
     if (failed?.status === "failed") {
+      await markProspectGenerationFailed(
+        job.discussion_id,
+        job.organization_id,
+      );
       await maybeEnqueueFollowUp(job);
     }
 

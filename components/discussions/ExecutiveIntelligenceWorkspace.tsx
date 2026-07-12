@@ -89,6 +89,8 @@ type ExecutiveIntelligenceWorkspaceProps = {
   originalDiscussionSection: ReactNode;
   /** Rendered between blueprint and the bottom grid (e.g. append update form). */
   afterBlueprint?: ReactNode;
+  /** Isolated source wording. Defaults to discussion labels. */
+  sourceKind?: "discussion" | "prospect";
 };
 
 function formatVersionGeneratedAt(value: string, includeTime: boolean): string {
@@ -130,8 +132,10 @@ export function ExecutiveIntelligenceWorkspace({
   fallbackIntelligence,
   originalDiscussionSection,
   afterBlueprint,
+  sourceKind = "discussion",
 }: ExecutiveIntelligenceWorkspaceProps) {
   const { isGenerating, isCompleted } = useDiscussionRegeneration();
+  const isProspect = sourceKind === "prospect";
 
   const sortedVersions = useMemo(
     () =>
@@ -422,7 +426,10 @@ export function ExecutiveIntelligenceWorkspace({
       </div>
 
       <div id="executive-intelligence" className="mt-6 scroll-mt-24">
-        <ExecutiveIntelligenceCard analysis={intelligence.analysis} />
+        <ExecutiveIntelligenceCard
+          analysis={intelligence.analysis}
+          sourceKind={sourceKind}
+        />
       </div>
 
       {deploymentAssets.length > 0 && (
@@ -453,7 +460,10 @@ export function ExecutiveIntelligenceWorkspace({
           </div>
 
           <div className="mt-8 space-y-7">
-            <DetailField label="Summary" value={intelligence.analysis.summary} />
+            <DetailField
+              label={isProspect ? "Prospect Assessment" : "Summary"}
+              value={intelligence.analysis.summary}
+            />
             <DetailField
               label="Sentiment"
               value={intelligence.analysis.sentiment}
@@ -468,21 +478,40 @@ export function ExecutiveIntelligenceWorkspace({
               value={intelligence.analysis.pain_points}
             />
             <DetailField
-              label="Opportunity"
+              label={isProspect ? "Prospect Opportunity" : "Opportunity"}
               value={
                 intelligence.analysis.opportunity_detected ? "Yes" : "No"
               }
             />
+            {isProspect && (
+              <DetailField
+                label="Opportunity Score"
+                value={
+                  typeof intelligence.opportunity?.score === "number" &&
+                  intelligence.opportunity.score > 0
+                    ? String(Math.round(intelligence.opportunity.score))
+                    : "—"
+                }
+              />
+            )}
             <DetailField
-              label="Opportunity Title"
+              label={
+                isProspect ? "Prospect Opportunity Title" : "Opportunity Title"
+              }
               value={intelligence.analysis.opportunity_title}
             />
             <DetailField
-              label="Opportunity Reason"
+              label={
+                isProspect
+                  ? "Prospect Opportunity Reason"
+                  : "Opportunity Reason"
+              }
               value={intelligence.analysis.opportunity_reason}
             />
             <DetailField
-              label="Strategic Recommendation"
+              label={
+                isProspect ? "Outreach Strategy" : "Strategic Recommendation"
+              }
               sublabel="Recommended Action"
               value={intelligence.analysis.recommended_action}
               helper="Guidance for internal decision-making."
@@ -495,7 +524,9 @@ export function ExecutiveIntelligenceWorkspace({
               label="Confidence"
               value={`${intelligence.analysis.confidence}%`}
             />
-            <AnalyzeDiscussionButton discussionId={discussionId} />
+            {!isProspect && (
+              <AnalyzeDiscussionButton discussionId={discussionId} />
+            )}
           </div>
         </section>
       </div>

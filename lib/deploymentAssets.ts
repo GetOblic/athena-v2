@@ -2,6 +2,10 @@ import type { DeploymentAsset } from "@/components/deployment/DeploymentAssets";
 import type { AthenaReview } from "@/services/reviewService";
 import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import type { Opportunity } from "@/services/opportunityService";
+import {
+  PROSPECT_DEPLOYMENT_ASSET_KEYS,
+  PROSPECT_DEPLOYMENT_ASSET_META,
+} from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
 
 function isNonEmpty(value?: string | null): value is string {
   return Boolean(value?.trim());
@@ -26,7 +30,7 @@ function dedupeAssets(assets: DeploymentAsset[]): DeploymentAsset[] {
   });
 }
 
-const LABELS: Record<string, { title: string; objective: string }> = {
+const DISCUSSION_LABELS: Record<string, { title: string; objective: string }> = {
   COMMUNITY_REPLY: {
     title: "Community Reply",
     objective: "Public reply ready to post directly in the discussion.",
@@ -49,12 +53,30 @@ const LABELS: Record<string, { title: string; objective: string }> = {
   },
 };
 
+const LABELS: Record<string, { title: string; objective: string }> = {
+  ...DISCUSSION_LABELS,
+  ...PROSPECT_DEPLOYMENT_ASSET_META,
+};
+
+// Longer labels first so FOLLOW_UP_EMAIL / FOLLOW_UP_SEQUENCE win over FOLLOW_UP.
+const LABELED_ASSET_PATTERN = new RegExp(
+  `(?:^|\\n)(${[
+    ...PROSPECT_DEPLOYMENT_ASSET_KEYS,
+    "COMMUNITY_REPLY",
+    "PRIVATE_MESSAGE",
+    "SOCIAL_POST",
+    "CALL_TO_ACTION",
+    "FOLLOW_UP",
+  ].join("|")}):\\s*`,
+  "g",
+);
+
 function parseLabeledAssets(value?: string | null): DeploymentAsset[] {
   if (!isNonEmpty(value)) {
     return [];
   }
 
-  const matches = [...value.matchAll(/(?:^|\n)(COMMUNITY_REPLY|PRIVATE_MESSAGE|SOCIAL_POST|FOLLOW_UP|CALL_TO_ACTION):\s*/g)];
+  const matches = [...value.matchAll(LABELED_ASSET_PATTERN)];
 
   if (matches.length === 0) {
     return [];
@@ -72,7 +94,10 @@ function parseLabeledAssets(value?: string | null): DeploymentAsset[] {
         return null;
       }
 
-      const meta = LABELS[label];
+      const meta = LABELS[label] ?? {
+        title: label.replace(/_/g, " "),
+        objective: "Generated deployment asset.",
+      };
 
       return {
         title: meta.title,
