@@ -70,6 +70,7 @@ export async function POST(request: Request, context: RouteContext) {
         triggerType: "discussion_update",
         requestedBy: userId,
         allowExisting: true,
+        requestFollowUpIfActive: true,
       });
     } catch (error) {
       console.error("[ATHENA_JOB] Update persisted but enqueue failed:", {
@@ -108,7 +109,9 @@ export async function POST(request: Request, context: RouteContext) {
         status: enqueueResult.job.status,
         message: enqueueResult.accepted
           ? "Update saved. Athena is regenerating intelligence in the background."
-          : "Update saved. This discussion is already being processed.",
+          : enqueueResult.followUpRequested
+            ? "Update saved. A follow-up reprocess will run after the current job finishes."
+            : "Update saved. This discussion is already being processed.",
       },
       { status: enqueueResult.accepted ? 202 : 200 },
     );

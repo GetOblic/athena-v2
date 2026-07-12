@@ -20,6 +20,7 @@ export type AthenaGenerationJobStatus =
 
 export const ATHENA_GENERATION_STAGES = [
   "queued",
+  "preparing",
   "discussion_analysis",
   "opportunity",
   "executive_briefing",
@@ -49,14 +50,38 @@ export type AthenaGenerationJob = {
   review_id: string | null;
   blueprint_id: string | null;
   executive_version_id: string | null;
+  published_version_id: string | null;
   error_code: string | null;
   error_message: string | null;
   error_metadata: Record<string, unknown> | null;
+  claimed_by: string | null;
+  claim_token: string | null;
+  claimed_at: string | null;
+  claim_expires_at: string | null;
+  heartbeat_at: string | null;
+  next_attempt_at: string | null;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
-/** Jobs older than this while processing are considered stale and recoverable. */
-export const STALE_PROCESSING_JOB_MS = 10 * 60 * 1000;
+/** Default lease duration for an active claim (seconds). */
+export const GENERATION_JOB_LEASE_SECONDS = 120;
+
+/** Heartbeat interval while processing (ms). */
+export const GENERATION_JOB_HEARTBEAT_MS = 20_000;
+
+/** Idle poll interval when the queue is empty (ms). */
+export const GENERATION_WORKER_IDLE_POLL_MS = 3_000;
+
+/** Bounded grace period on SIGTERM while finishing current job (ms). */
+export const GENERATION_WORKER_SHUTDOWN_GRACE_MS = 90_000;
+
+export const GENERATION_JOB_MAX_ATTEMPTS = 3;
+
+/** Backoff delays after attempt N fails (before next claim). */
+export const GENERATION_JOB_RETRY_BACKOFF_MS = [
+  30_000, // after attempt 1
+  120_000, // after attempt 2
+] as const;

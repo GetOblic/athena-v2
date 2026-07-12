@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./*"]
+    },
+    "types": ["node"]
+  },
+  "include": [
+    "workers/**/*.ts",
+    "services/generationJobs/**/*.ts",
+    "services/workflows/**/*.ts",
+    "services/executiveVersions/**/*.ts",
+    "services/**/*.ts",
+    "lib/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".next", "app", "components"]
+}

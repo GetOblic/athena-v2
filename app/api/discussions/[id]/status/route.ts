@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { DISCUSSION_STATUS_OPTIONS } from "@/lib/discussionStatus";
-import { isDiscussionRegenerationInFlight } from "@/lib/discussionRegenerationInFlight";
 import { getDiscussionById, updateDiscussion } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
-import { ensureDiscussionGenerationJobRunning } from "@/services/generationJobs/generationJobRunner";
 import { getActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
 import {
   OrganizationAccessError,
@@ -27,6 +25,10 @@ function noStoreJson(body: Record<string, unknown>, status = 200) {
   });
 }
 
+/**
+ * Read-only observability for discussion regeneration state.
+ * Does NOT claim, requeue, execute, or recover jobs — athena-worker owns that.
+ */
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
@@ -41,10 +43,10 @@ export async function GET(_request: Request, context: RouteContext) {
       );
     }
 
-    // Recover queued/stale durable jobs after process restarts.
-    const activeJob =
-      (await ensureDiscussionGenerationJobRunning(id, organizationId)) ??
-      (await getActiveGenerationJobForDiscussion(id, organizationId));
+    const activeJob = await getActiveGenerationJobForDiscussion(
+      id,
+      organizationId,
+    );
 
     const analysis = await getLatestDiscussionAnalysis(id, organizationId);
     const blueprint = await getDisplayAssetBlueprintByDiscussionId(
@@ -52,12 +54,12 @@ export async function GET(_request: Request, context: RouteContext) {
       organizationId,
     );
 
-    const regenerationInFlight =
-      isDiscussionRegenerationInFlight(id) ||
-      Boolean(
-        activeJob &&
-          (activeJob.status === "queued" || activeJob.status === "processing"),
-      );
+    const regenerationInFlight = Boolean(
+      activeJob &&
+        (activeJob.status === "queued" ||
+          activeJob.status === "processing" ||
+          activeJob.status === "retryable"),
+    );
 
     return noStoreJson({
       success: true,
@@ -72,6 +74,13 @@ export async function GET(_request: Request, context: RouteContext) {
       jobStatus: activeJob?.status ?? null,
       jobTriggerType: activeJob?.trigger_type ?? null,
       jobStage: activeJob?.current_stage ?? null,
+      jobAttemptCount: activeJob?.attempt_count ?? null,
+      jobErrorCode: activeJob?.error_code ?? null,
+      jobErrorMessage: activeJob?.error_message ?? null,
+      publishedVersionId:
+        activeJob?.published_version_id ??
+        activeJob?.executive_version_id ??
+        null,
     });
   } catch (error) {
     if (error instanceof OrganizationAccessError) {
