@@ -1,35 +1,12 @@
 /**
- * Website Intelligence providers for Prospect sources.
+ * Homepage-only Website Intelligence provider for Prospect sources.
  *
- * - homepage_only: single-page extract (kept for compatibility / tests)
- * - multi_page_discovery: intelligent discovery of up to 10 high-value pages,
- *   rich extraction, and merged Business Brain knowledge
+ * Designed so a future multi-page crawler can implement the same
+ * WebsiteIntelligenceProvider contract without changing Prospect orchestration.
  */
 
-import { discoverCandidatePages } from "@/services/prospects/prospectWebsiteDiscovery";
-import { extractPageContent } from "@/services/prospects/prospectWebsiteExtraction";
-import {
-  emptyBusinessKnowledge,
-  mergeWebsiteKnowledge,
-  type BusinessKnowledgePackage,
-} from "@/services/prospects/prospectWebsiteKnowledgeMerge";
-import {
-  pageDisplayLabel,
-  rankAndSelectPages,
-} from "@/services/prospects/prospectWebsiteRanking";
-import {
-  normalizeCrawlUrl,
-  WEBSITE_INTELLIGENCE_MAX_PAGES,
-} from "@/services/prospects/prospectWebsiteUrl";
-
-export type AnalyzedPageSummary = {
-  url: string;
-  title: string | null;
-  label: string;
-};
-
 export type HomepageIntelligence = {
-  provider: "homepage_only" | "multi_page_discovery";
+  provider: "homepage_only";
   url: string;
   scraped_at: string;
   title: string | null;
@@ -48,23 +25,12 @@ export type HomepageIntelligence = {
   contact_information: string;
   brand_tone: string;
   error?: string;
-  /** Multi-page discovery metadata (optional for legacy homepage_only rows). */
-  pages_analyzed?: number;
-  pages_limit?: number;
-  pages?: AnalyzedPageSummary[];
-  business_knowledge?: BusinessKnowledgePackage;
-  crawl_partial?: boolean;
-  crawl_timeout?: boolean;
 };
 
 export type WebsiteIntelligenceProvider = {
   readonly id: string;
   extract(websiteUrl: string): Promise<HomepageIntelligence>;
 };
-
-const PER_PAGE_TIMEOUT_MS = 8_000;
-const OVERALL_CRAWL_TIMEOUT_MS = 28_000;
-const FETCH_CONCURRENCY = 3;
 
 function decodeEntities(value: string): string {
   return value
@@ -124,10 +90,9 @@ function emptyResult(
   websiteUrl: string,
   scrapedAt: string,
   error?: string,
-  provider: HomepageIntelligence["provider"] = "homepage_only",
 ): HomepageIntelligence {
   return {
-    provider,
+    provider: "homepage_only",
     url: websiteUrl,
     scraped_at: scrapedAt,
     title: null,
@@ -146,89 +111,7 @@ function emptyResult(
     contact_information: "",
     brand_tone: "",
     error,
-    pages_analyzed: 0,
-    pages_limit: WEBSITE_INTELLIGENCE_MAX_PAGES,
-    pages: [],
-    business_knowledge: emptyBusinessKnowledge(),
-    crawl_partial: Boolean(error),
   };
-}
-
-async function fetchHtml(
-  url: string,
-  signal: AbortSignal,
-): Promise<{ ok: true; html: string; finalUrl: string } | { ok: false; error: string }> {
-  try {
-    const pageController = new AbortController();
-    const onAbort = () => pageController.abort();
-    signal.addEventListener("abort", onAbort, { once: true });
-    const pageTimeout = setTimeout(
-      () => pageController.abort(),
-      PER_PAGE_TIMEOUT_MS,
-    );
-
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        redirect: "follow",
-        signal: pageController.signal,
-        headers: {
-          "User-Agent": "AthenaProspectIntelligence/1.0",
-          Accept: "text/html,application/xhtml+xml",
-        },
-      });
-
-      if (!response.ok) {
-        return { ok: false, error: `HTTP ${response.status}` };
-      }
-
-      const contentType = response.headers.get("content-type") ?? "";
-      if (
-        contentType &&
-        !/text\/html|application\/xhtml\+xml|text\/plain/i.test(contentType)
-      ) {
-        return { ok: false, error: `Unsupported content-type ${contentType}` };
-      }
-
-      const html = await response.text();
-      return { ok: true, html, finalUrl: response.url || url };
-    } finally {
-      clearTimeout(pageTimeout);
-      signal.removeEventListener("abort", onAbort);
-    }
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  worker: (item: T, index: number) => Promise<R>,
-  shouldStop: () => boolean,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let nextIndex = 0;
-
-  async function runWorker() {
-    while (true) {
-      if (shouldStop()) return;
-      const current = nextIndex;
-      nextIndex += 1;
-      if (current >= items.length) return;
-      results[current] = await worker(items[current], current);
-    }
-  }
-
-  const runners = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    () => runWorker(),
-  );
-  await Promise.all(runners);
-  return results;
 }
 
 export const homepageOnlyWebsiteIntelligenceProvider: WebsiteIntelligenceProvider =
@@ -339,9 +222,7 @@ export const homepageOnlyWebsiteIntelligenceProvider: WebsiteIntelligenceProvide
           4,
         );
         const positioning = uniqueJoin(
-          [title, metaDescription, headings.split("\n")[0]].filter(
-            Boolean,
-          ) as string[],
+          [title, metaDescription, headings.split("\n")[0]].filter(Boolean) as string[],
           3,
         );
         const brandTone = messaging
@@ -355,7 +236,9 @@ export const homepageOnlyWebsiteIntelligenceProvider: WebsiteIntelligenceProvide
           /<(?:a|button)[^>]*>([\s\S]*?(?:book|demo|contact|get started|talk|schedule|learn more)[\s\S]*?)<\/(?:a|button)>/gi,
         );
         const emails = [
-          ...html.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi),
+          ...html.matchAll(
+            /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+          ),
         ].map((match) => match[0]);
         const phones = [
           ...html.matchAll(
@@ -382,22 +265,6 @@ export const homepageOnlyWebsiteIntelligenceProvider: WebsiteIntelligenceProvide
           trust_signals: trustSignals,
           contact_information: uniqueJoin([...emails, ...phones], 8),
           brand_tone: brandTone,
-          pages_analyzed: 1,
-          pages_limit: WEBSITE_INTELLIGENCE_MAX_PAGES,
-          pages: [
-            {
-              url: websiteUrl,
-              title,
-              label: "Home",
-            },
-          ],
-          business_knowledge: {
-            ...emptyBusinessKnowledge(),
-            overview: about || positioning,
-            products,
-            services,
-            contact: uniqueJoin([...emails, ...phones], 8),
-          },
         };
       } catch (error) {
         return emptyResult(
@@ -409,170 +276,9 @@ export const homepageOnlyWebsiteIntelligenceProvider: WebsiteIntelligenceProvide
     },
   };
 
-export const multiPageWebsiteIntelligenceProvider: WebsiteIntelligenceProvider =
-  {
-    id: "multi_page_discovery",
-    async extract(websiteUrl: string): Promise<HomepageIntelligence> {
-      const scrapedAt = new Date().toISOString();
-      const rootUrl =
-        normalizeCrawlUrl(websiteUrl, websiteUrl) ?? websiteUrl.trim();
-
-      const overallController = new AbortController();
-      const overallTimeout = setTimeout(
-        () => overallController.abort(),
-        OVERALL_CRAWL_TIMEOUT_MS,
-      );
-
-      let crawlTimeout = false;
-
-      try {
-        const homepageFetch = await fetchHtml(
-          rootUrl,
-          overallController.signal,
-        );
-        if (!homepageFetch.ok) {
-          return emptyResult(
-            rootUrl,
-            scrapedAt,
-            homepageFetch.error,
-            "multi_page_discovery",
-          );
-        }
-
-        const candidates = discoverCandidatePages(
-          homepageFetch.html,
-          homepageFetch.finalUrl || rootUrl,
-        );
-        const selected = rankAndSelectPages(
-          candidates,
-          WEBSITE_INTELLIGENCE_MAX_PAGES,
-        );
-
-        // Ensure homepage is present even if discovery returned empty.
-        if (selected.length === 0) {
-          selected.push({
-            url: normalizeCrawlUrl(rootUrl, rootUrl) ?? rootUrl,
-            source: "homepage",
-            anchorText: "Home",
-          });
-        }
-
-        const extracts = await mapWithConcurrency(
-          selected,
-          FETCH_CONCURRENCY,
-          async (candidate) => {
-            if (overallController.signal.aborted) {
-              crawlTimeout = true;
-              return null;
-            }
-
-            // Reuse already-fetched homepage HTML when URL matches.
-            const homepageNormalized =
-              normalizeCrawlUrl(
-                homepageFetch.finalUrl || rootUrl,
-                homepageFetch.finalUrl || rootUrl,
-              ) ?? rootUrl;
-            const candidateNormalized =
-              normalizeCrawlUrl(candidate.url, rootUrl) ?? candidate.url;
-
-            let html = "";
-            if (candidateNormalized === homepageNormalized) {
-              html = homepageFetch.html;
-            } else {
-              const pageFetch = await fetchHtml(
-                candidate.url,
-                overallController.signal,
-              );
-              if (!pageFetch.ok) {
-                return null;
-              }
-              html = pageFetch.html;
-            }
-
-            const label = pageDisplayLabel(candidate);
-            return extractPageContent(html, candidate.url, label);
-          },
-          () => {
-            if (overallController.signal.aborted) {
-              crawlTimeout = true;
-              return true;
-            }
-            return false;
-          },
-        );
-
-        const successful = extracts.filter(
-          (value): value is NonNullable<typeof value> => Boolean(value),
-        );
-
-        if (successful.length === 0) {
-          return emptyResult(
-            rootUrl,
-            scrapedAt,
-            crawlTimeout
-              ? "Website crawl timed out before pages could be extracted"
-              : "No pages could be extracted",
-            "multi_page_discovery",
-          );
-        }
-
-        const merged = mergeWebsiteKnowledge(successful);
-        const pages: AnalyzedPageSummary[] = successful.map((page) => ({
-          url: page.url,
-          title: page.title,
-          label: page.label,
-        }));
-
-        return {
-          provider: "multi_page_discovery",
-          url: rootUrl,
-          scraped_at: scrapedAt,
-          title: successful[0]?.title ?? null,
-          headings: merged.headings,
-          paragraphs: merged.paragraphs,
-          positioning: merged.positioning,
-          products: merged.products,
-          services: merged.services,
-          about: merged.about,
-          target_audience: merged.target_audience,
-          messaging: merged.messaging,
-          value_proposition: merged.value_proposition,
-          cta: merged.cta,
-          differentiators: merged.differentiators,
-          trust_signals: merged.trust_signals,
-          contact_information: merged.contact_information,
-          brand_tone: merged.brand_tone,
-          pages_analyzed: successful.length,
-          pages_limit: WEBSITE_INTELLIGENCE_MAX_PAGES,
-          pages,
-          business_knowledge: merged.business_knowledge,
-          crawl_partial:
-            crawlTimeout || successful.length < selected.length,
-          crawl_timeout: crawlTimeout,
-          error: crawlTimeout
-            ? "Partial website learning — crawl timeout; continuing with extracted pages"
-            : undefined,
-        };
-      } catch (error) {
-        return emptyResult(
-          rootUrl,
-          scrapedAt,
-          error instanceof Error ? error.message : String(error),
-          "multi_page_discovery",
-        );
-      } finally {
-        clearTimeout(overallTimeout);
-      }
-    },
-  };
-
-/**
- * Default Prospect website intelligence extract.
- * Uses multi-page discovery; callers may inject homepage_only for tests.
- */
 export async function scrapeHomepageIntelligence(
   websiteUrl: string,
-  provider: WebsiteIntelligenceProvider = multiPageWebsiteIntelligenceProvider,
+  provider: WebsiteIntelligenceProvider = homepageOnlyWebsiteIntelligenceProvider,
 ): Promise<HomepageIntelligence> {
   return provider.extract(websiteUrl);
 }

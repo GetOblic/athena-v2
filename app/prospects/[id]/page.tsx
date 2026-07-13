@@ -130,18 +130,10 @@ export default async function ProspectDetailsPage({
   const scrapeStatus = !prospect.website
     ? "No website provided"
     : typeof websiteIntel.error === "string" && websiteIntel.error
-      ? websiteIntel.crawl_partial || websiteIntel.crawl_timeout
-        ? "Website learning partial — generation continued with available pages"
-        : "Website learning incomplete — generation continued with available fields"
+      ? "Homepage learning incomplete — generation continued with available fields"
       : typeof websiteIntel.scraped_at === "string"
-        ? typeof websiteIntel.pages_analyzed === "number"
-          ? `Website learned (${websiteIntel.pages_analyzed}/${
-              typeof websiteIntel.pages_limit === "number"
-                ? websiteIntel.pages_limit
-                : 10
-            } pages)`
-          : "Website learned"
-        : "Website learning pending";
+        ? "Homepage learned"
+        : "Homepage learning pending";
   const websiteHref = normalizeWebsiteUrl(prospect.website);
   const linkedinHref = normalizeWebsiteUrl(prospect.linkedin);
 
@@ -234,7 +226,7 @@ export default async function ProspectDetailsPage({
             )}
           </HeaderMetric>
           <HeaderMetric label="Source" value={prospect.source || "—"} />
-          <HeaderMetric label="Website Learning" value={scrapeStatus} />
+          <HeaderMetric label="Homepage Learning" value={scrapeStatus} />
         </div>
 
         <div className="mt-4 max-w-md">
@@ -269,7 +261,7 @@ export default async function ProspectDetailsPage({
               originalDiscussionSection={
                 <div className="space-y-4">
                   <p className="text-sm leading-6 text-white/45">
-                    Website Analysis and Ads Content captured for this
+                    Homepage Intelligence and Ads Content captured for this
                     Prospect. Profile fields are managed in Prospect Details
                     below.
                   </p>

@@ -5,8 +5,6 @@
  */
 
 import type { HomepageIntelligence } from "@/services/prospects/prospectWebsiteIntelligence";
-import { formatBusinessKnowledgeForPipeline } from "@/services/prospects/prospectWebsiteKnowledgeMerge";
-import { WEBSITE_INTELLIGENCE_MAX_PAGES } from "@/services/prospects/prospectWebsiteUrl";
 
 export type ProspectFieldSnapshot = {
   business_name: string;
@@ -214,43 +212,6 @@ export function formatNormalizedProspectInputForPipeline(
       : null,
     typeof homepage.paragraphs === "string" && homepage.paragraphs
       ? `Key Content:\n${homepage.paragraphs}`
-      : null,
-    "",
-    "WEBSITE LEARNING COVERAGE",
-    typeof homepage.pages_analyzed === "number"
-      ? `Pages analyzed: ${homepage.pages_analyzed} / ${
-          typeof homepage.pages_limit === "number"
-            ? homepage.pages_limit
-            : WEBSITE_INTELLIGENCE_MAX_PAGES
-        }`
-      : null,
-    Array.isArray(homepage.pages) && homepage.pages.length > 0
-      ? `Pages:\n${homepage.pages
-          .map((page) => {
-            if (!page || typeof page !== "object") return null;
-            const label =
-              typeof (page as { label?: unknown }).label === "string"
-                ? (page as { label: string }).label
-                : "Page";
-            const url =
-              typeof (page as { url?: unknown }).url === "string"
-                ? (page as { url: string }).url
-                : "";
-            return `• ${label}${url ? ` (${url})` : ""}`;
-          })
-          .filter(Boolean)
-          .join("\n")}`
-      : null,
-    homepage.crawl_partial ? "Crawl status: partial (timeout or page failures)" : null,
-    "",
-    "NORMALIZED BUSINESS KNOWLEDGE",
-    homepage.business_knowledge &&
-    typeof homepage.business_knowledge === "object"
-      ? formatBusinessKnowledgeForPipeline(
-          homepage.business_knowledge as Parameters<
-            typeof formatBusinessKnowledgeForPipeline
-          >[0],
-        )
       : null,
   ].filter(Boolean);
 
