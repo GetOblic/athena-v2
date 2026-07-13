@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import {
@@ -96,12 +97,12 @@ export function AppendProspectInformationForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8"
+    <AthenaCollapsibleSection
+      title="Append Information"
+      defaultOpen={Boolean(result)}
     >
-      <h2 className="text-xl font-semibold">Append Information</h2>
-      <p className="mt-3 text-sm leading-6 text-white/45">
+    <form onSubmit={handleSubmit}>
+      <p className="text-sm leading-6 text-white/45">
         Add new notes or context without replacing imported fields. Athena
         preserves history and regenerates a new Current Executive Version in the
         background.
@@ -146,5 +147,6 @@ export function AppendProspectInformationForm({
         )}
       </div>
     </form>
+    </AthenaCollapsibleSection>
   );
 }

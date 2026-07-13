@@ -107,6 +107,7 @@ export async function PATCH(
       google_business_url: optionalString(body.google_business_url),
       notes: optionalString(body.notes),
       additional_context: optionalString(body.additional_context),
+      ads_content: optionalString(body.ads_content),
       community_id:
         body.community_id === null
           ? null

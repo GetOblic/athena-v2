@@ -8,6 +8,7 @@ import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveInt
 import { RegenerationMetadata } from "@/components/discussions/RegenerationMetadata";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
 import type {
   ExecutiveIntelligencePayload,
@@ -89,6 +90,8 @@ type ExecutiveIntelligenceWorkspaceProps = {
   originalDiscussionSection: ReactNode;
   /** Rendered between blueprint and the bottom grid (e.g. append update form). */
   afterBlueprint?: ReactNode;
+  /** Rendered after the bottom grid (e.g. prospect lifecycle footer). */
+  afterDetailedReasoning?: ReactNode;
   /** Isolated source wording. Defaults to discussion labels. */
   sourceKind?: "discussion" | "prospect";
 };
@@ -132,10 +135,14 @@ export function ExecutiveIntelligenceWorkspace({
   fallbackIntelligence,
   originalDiscussionSection,
   afterBlueprint,
+  afterDetailedReasoning,
   sourceKind = "discussion",
 }: ExecutiveIntelligenceWorkspaceProps) {
   const { isGenerating, isCompleted } = useDiscussionRegeneration();
   const isProspect = sourceKind === "prospect";
+  const sourceContextTitle = isProspect
+    ? "Source Context"
+    : "Original Discussion";
 
   const sortedVersions = useMemo(
     () =>
@@ -264,18 +271,27 @@ export function ExecutiveIntelligenceWorkspace({
         </div>
         {afterBlueprint}
         <div className="mt-8 grid gap-8 lg:grid-cols-3">
-          {originalDiscussionSection}
-          <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-            <h2 className="text-xl font-semibold">Detailed Athena Reasoning</h2>
-            <div className="mt-8 space-y-7">
+          <AthenaCollapsibleSection
+            title={sourceContextTitle}
+            defaultOpen={false}
+            className="lg:col-span-2"
+          >
+            {originalDiscussionSection}
+          </AthenaCollapsibleSection>
+          <AthenaCollapsibleSection
+            title="Detailed Athena Reasoning"
+            defaultOpen={false}
+          >
+            <div className="space-y-7">
               <div className="text-white/50">
                 No generated Athena analysis has been saved for this discussion
                 yet.
               </div>
               <AnalyzeDiscussionButton discussionId={discussionId} />
             </div>
-          </section>
+          </AthenaCollapsibleSection>
         </div>
+        {afterDetailedReasoning}
       </>
     );
   }
@@ -316,17 +332,18 @@ export function ExecutiveIntelligenceWorkspace({
   return (
     <>
       {sortedVersions.length > 0 && (
-        <section className="mt-8 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Executive Versions
-          </div>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">
+        <AthenaCollapsibleSection
+          title="Executive Versions"
+          defaultOpen={Boolean(selectedVersion && !selectedVersion.is_current)}
+          className="mt-8"
+        >
+          <p className="mb-8 max-w-2xl text-sm leading-6 text-white/45">
             Browse Athena&apos;s complete strategic understanding over time.
             Opening a previous version is view-only and never regenerates
             intelligence.
           </p>
 
-          <div className="mt-8 space-y-0">
+          <div className="space-y-0">
             {sortedVersions.map((version, index) => {
               const expanded = expandedVersionIds.has(version.id);
               const selected = selectedVersion?.id === version.id;
@@ -409,7 +426,7 @@ export function ExecutiveIntelligenceWorkspace({
               );
             })}
           </div>
-        </section>
+        </AthenaCollapsibleSection>
       )}
 
       {!selectedVersion?.is_current && selectedVersion && (
@@ -433,33 +450,48 @@ export function ExecutiveIntelligenceWorkspace({
       </div>
 
       {deploymentAssets.length > 0 && (
-        <div className="mt-8">
+        <AthenaCollapsibleSection
+          title="Deployment Assets"
+          defaultOpen={true}
+          className="mt-8"
+        >
           <DeploymentAssets assets={deploymentAssets} />
-        </div>
+        </AthenaCollapsibleSection>
       )}
 
       {intelligence.blueprint && (
-        <div className="mt-8">
+        <AthenaCollapsibleSection
+          title="Strategic Asset Blueprint"
+          defaultOpen={true}
+          className="mt-8"
+        >
           <StrategicAssetBlueprint blueprint={intelligence.blueprint} />
-        </div>
+        </AthenaCollapsibleSection>
       )}
 
       {afterBlueprint}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-3">
-        {originalDiscussionSection}
-        <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="text-xl font-semibold">Detailed Athena Reasoning</h2>
+        <AthenaCollapsibleSection
+          title={sourceContextTitle}
+          defaultOpen={false}
+          className="lg:col-span-2"
+        >
+          {originalDiscussionSection}
+        </AthenaCollapsibleSection>
+        <AthenaCollapsibleSection
+          title="Detailed Athena Reasoning"
+          defaultOpen={false}
+          headerAside={
             <div className="text-sm text-white/40">
               Analysis Status:{" "}
               <span className="text-[var(--athena-orange)]">
                 {intelligence.analysis.status}
               </span>
             </div>
-          </div>
-
-          <div className="mt-8 space-y-7">
+          }
+        >
+          <div className="space-y-7">
             <DetailField
               label={isProspect ? "Prospect Assessment" : "Summary"}
               value={intelligence.analysis.summary}
@@ -528,8 +560,10 @@ export function ExecutiveIntelligenceWorkspace({
               <AnalyzeDiscussionButton discussionId={discussionId} />
             )}
           </div>
-        </section>
+        </AthenaCollapsibleSection>
       </div>
+
+      {afterDetailedReasoning}
     </>
   );
 }

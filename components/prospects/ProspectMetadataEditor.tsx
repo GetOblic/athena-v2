@@ -8,6 +8,7 @@ import {
   fetchRegenerationStatus,
 } from "@/lib/discussionRegenerationStatus";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 import type { Prospect } from "@/services/prospects/prospectService";
 
@@ -67,6 +68,7 @@ type FormState = {
   google_business_url: string;
   notes: string;
   additional_context: string;
+  ads_content: string;
 };
 
 const URL_FIELDS = new Set([
@@ -102,6 +104,7 @@ function formFromProspect(prospect: Prospect): FormState {
     google_business_url: prospect.google_business_url ?? "",
     notes: prospect.notes ?? "",
     additional_context: prospect.additional_context ?? "",
+    ads_content: prospect.ads_content ?? "",
   };
 }
 
@@ -300,16 +303,14 @@ export function ProspectMetadataEditor({
   const display = isEditing ? form : savedForm;
 
   return (
-    <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+    <AthenaCollapsibleSection
+      title={isEditing ? "Edit profile" : "Prospect Details"}
+      eyebrow="Prospect Details"
+      defaultOpen={false}
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Prospect Details
-          </div>
-          <h2 className="mt-3 text-2xl font-semibold">
-            {isEditing ? "Edit profile" : "Profile"}
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm text-white/40">
+          <p className="max-w-2xl text-sm text-white/40">
             {isEditing
               ? "Save meaningful source changes to queue asynchronous regeneration. Historical Executive Versions remain immutable."
               : "Review prospect fields in read-only mode. Edit to update source data, or Refresh Intelligence to regenerate."}
@@ -447,6 +448,22 @@ export function ProspectMetadataEditor({
               className={`mt-2 ${fieldClassName}`}
             />
           </label>
+
+          <label className="mt-4 block text-sm text-white/45">
+            Ads Content
+            <textarea
+              value={form.ads_content}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  ads_content: event.target.value,
+                }))
+              }
+              rows={5}
+              placeholder="Paste Google Ads, Meta Ads, or other observed advertising copy."
+              className={`mt-2 ${fieldClassName}`}
+            />
+          </label>
         </>
       ) : (
         <>
@@ -480,6 +497,13 @@ export function ProspectMetadataEditor({
               {display.additional_context || "—"}
             </div>
           </div>
+
+          <div className="mt-6">
+            <div className="text-sm text-white/40">Ads Content</div>
+            <div className="mt-2 whitespace-pre-wrap text-sm text-white/75">
+              {display.ads_content || "—"}
+            </div>
+          </div>
         </>
       )}
 
@@ -489,6 +513,6 @@ export function ProspectMetadataEditor({
         </p>
       )}
       {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
-    </section>
+    </AthenaCollapsibleSection>
   );
 }

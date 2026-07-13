@@ -31,6 +31,7 @@ export type ProspectAnalysisFields = {
   google_business_url: string | null;
   notes: string | null;
   additional_context: string | null;
+  ads_content: string | null;
   source?: string | null;
   website_intelligence: Record<string, unknown> | null;
 };
@@ -113,6 +114,7 @@ export const PROSPECT_MEANINGFUL_EDIT_FIELDS = [
   "google_business_url",
   "notes",
   "additional_context",
+  "ads_content",
 ] as const;
 
 export function hasMeaningfulProspectEdit(

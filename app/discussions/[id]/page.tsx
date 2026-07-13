@@ -199,16 +199,15 @@ export default async function DiscussionDetailsPage({
         fallbackIntelligence={
           versionState.current?.intelligence ?? liveIntelligence
         }
-        afterBlueprint={
+        afterBlueprint={null}
+        afterDetailedReasoning={
           <div className="mt-8">
             <AppendDiscussionUpdateForm discussionId={discussion.id} />
           </div>
         }
         originalDiscussionSection={
-          <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:col-span-2">
-            <h2 className="text-xl font-semibold">Original Discussion</h2>
-
-            <div className="mt-8 grid gap-6 md:grid-cols-2">
+          <div className="space-y-8">
+            <div className="grid gap-6 md:grid-cols-2">
               <Field label="Author" value={discussion.author} />
               <Field label="Intelligence Domain" value={community?.group_name} />
               <Field label="Platform" value={discussion.platform} />
@@ -216,14 +215,14 @@ export default async function DiscussionDetailsPage({
               <Field label="Source URL" value={discussion.url} link={discussion.url} />
             </div>
 
-            <div className="mt-8">
+            <div>
               <div className="text-sm text-white/40">Discussion</div>
               <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70">
                 {originalBody || "No body captured."}
               </div>
             </div>
 
-            <div className="mt-8">
+            <div>
               <h3 className="text-lg font-semibold">Thread Updates / Follow-ups</h3>
 
               {displayedUpdates.length === 0 ? (
@@ -267,7 +266,7 @@ export default async function DiscussionDetailsPage({
                 </div>
               )}
             </div>
-          </section>
+          </div>
         }
       />
       </main>

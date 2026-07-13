@@ -45,9 +45,7 @@ export function ProspectHomepageIntelligence({
   scrapeStatus,
 }: ProspectHomepageIntelligenceProps) {
   const sections = sectionsFromIntelligence(websiteIntelligence);
-  const [openKeys, setOpenKeys] = useState<Set<string>>(() =>
-    sections[0] ? new Set([sections[0].key]) : new Set(),
-  );
+  const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set());
 
   function toggle(key: string) {
     setOpenKeys((previous) => {

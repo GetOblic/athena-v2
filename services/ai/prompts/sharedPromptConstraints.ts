@@ -36,6 +36,8 @@ PRIVATE_MESSAGE:
 SOCIAL_POST:
 FOLLOW_UP:
 CALL_TO_ACTION:
+NEWSLETTER_IDEA:
+BLOG_POST_IDEA:
 `.trim();
 
 export const DEPLOYMENT_CHANNEL_GUIDE = `
@@ -44,6 +46,8 @@ PRIVATE_MESSAGE — short, warm, references exact concern; one next step.
 FOLLOW_UP — one qualifying question that creates momentum.
 SOCIAL_POST — market insight or belief shift; platform-ready; not educational filler.
 CALL_TO_ACTION — one paste-ready sentence tied to the insight; low-friction.
+NEWSLETTER_IDEA — concept for the Athena client's audience newsletter (not outreach to a prospect): subject/title, central angle, why relevant now, key points/sections, suggested CTA, optional opening hook.
+BLOG_POST_IDEA — concept for the Athena client's audience blog (not a full article): proposed title, search/reader intent, central thesis, recommended outline, key expert insights, suggested CTA, optional differentiation angle.
 `.trim();
 
 export const SHARED_DEPLOYMENT_QUALITY = `

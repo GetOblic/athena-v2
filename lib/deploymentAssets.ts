@@ -51,6 +51,16 @@ const DISCUSSION_LABELS: Record<string, { title: string; objective: string }> = 
     title: "Call to Action",
     objective: "Exact CTA sentence ready to paste.",
   },
+  NEWSLETTER_IDEA: {
+    title: "Newsletter Idea",
+    objective:
+      "Concept for the Athena client's audience newsletter — not prospect outreach.",
+  },
+  BLOG_POST_IDEA: {
+    title: "Blog Post Idea",
+    objective:
+      "Concept for the Athena client's audience blog — not a full article or prospect outreach.",
+  },
 };
 
 const LABELS: Record<string, { title: string; objective: string }> = {
@@ -66,6 +76,8 @@ const LABELED_ASSET_PATTERN = new RegExp(
     "PRIVATE_MESSAGE",
     "SOCIAL_POST",
     "CALL_TO_ACTION",
+    "NEWSLETTER_IDEA",
+    "BLOG_POST_IDEA",
     "FOLLOW_UP",
   ].join("|")}):\\s*`,
   "g",

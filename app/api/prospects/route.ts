@@ -45,6 +45,7 @@ function rowFromBody(body: Record<string, unknown>) {
     notes: String(body.notes ?? "") || null,
     additional_context:
       String(body.additional_context ?? body.additionalContext ?? "") || null,
+    ads_content: String(body.ads_content ?? body.adsContent ?? "") || null,
     source: String(body.source ?? "") || null,
   };
 }

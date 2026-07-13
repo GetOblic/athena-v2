@@ -4,6 +4,7 @@
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { normalizeProspectLifecycleStatus } from "@/services/prospects/prospectLifecycle";
 import {
   buildProspectAnalysisBody,
   normalizeWebsiteUrl,
@@ -54,6 +55,8 @@ export type Prospect = {
   additional_context: string | null;
   source: string;
   status: string;
+  lifecycle_status: string;
+  ads_content: string | null;
   opportunity_score: number | null;
   priority: number;
   website_intelligence: Record<string, unknown> | null;
@@ -89,8 +92,10 @@ export type CreateProspectInput = {
   google_business_url?: string | null;
   notes?: string | null;
   additional_context?: string | null;
+  ads_content?: string | null;
   source?: string;
   status?: string;
+  lifecycle_status?: string;
   import_batch_id?: string | null;
   raw_json?: Record<string, unknown> | null;
 };
@@ -106,12 +111,22 @@ export type UpdateProspectInput = Partial<
   priority?: number;
   website_intelligence?: Record<string, unknown> | null;
   last_activity?: string | null;
+  lifecycle_status?: string;
+  ads_content?: string | null;
 };
 
 function normalizeOptional(value?: string | null): string | null {
   if (value == null) return null;
   const trimmed = String(value).trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function mapProspectRow(data: Prospect): Prospect {
+  return {
+    ...data,
+    lifecycle_status: normalizeProspectLifecycleStatus(data.lifecycle_status),
+    ads_content: data.ads_content ?? null,
+  };
 }
 
 export async function getProspects(
@@ -128,7 +143,7 @@ export async function getProspects(
     return [];
   }
 
-  return (data ?? []) as Prospect[];
+  return ((data ?? []) as Prospect[]).map(mapProspectRow);
 }
 
 export async function getProspectById(
@@ -147,7 +162,7 @@ export async function getProspectById(
     return null;
   }
 
-  return (data as Prospect | null) ?? null;
+  return data ? mapProspectRow(data as Prospect) : null;
 }
 
 export async function findProspectByWebsite(
@@ -170,7 +185,7 @@ export async function findProspectByWebsite(
     return null;
   }
 
-  return (data as Prospect | null) ?? null;
+  return data ? mapProspectRow(data as Prospect) : null;
 }
 
 export async function findProspectByNameAndCity(
@@ -202,7 +217,7 @@ export async function findProspectByNameAndCity(
     return rowCity === cityValue;
   });
 
-  return match ?? null;
+  return match ? mapProspectRow(match) : null;
 }
 
 export async function getProspectByLinkedDiscussionId(
@@ -221,7 +236,7 @@ export async function getProspectByLinkedDiscussionId(
     return null;
   }
 
-  return (data as Prospect | null) ?? null;
+  return data ? mapProspectRow(data as Prospect) : null;
 }
 
 export async function createProspect(
@@ -263,8 +278,10 @@ export async function createProspect(
       google_business_url: normalizeOptional(input.google_business_url),
       notes: normalizeOptional(input.notes),
       additional_context: normalizeOptional(input.additional_context),
+      ads_content: normalizeOptional(input.ads_content),
       source: input.source ?? "manual",
       status: input.status ?? "Queued",
+      lifecycle_status: normalizeProspectLifecycleStatus(input.lifecycle_status),
       import_batch_id: input.import_batch_id ?? null,
       raw_json: input.raw_json ?? null,
       last_activity: new Date().toISOString(),
@@ -277,7 +294,7 @@ export async function createProspect(
     throw error;
   }
 
-  return data as Prospect;
+  return mapProspectRow(data as Prospect);
 }
 
 export async function updateProspect(
@@ -363,6 +380,14 @@ export async function updateProspect(
   if (input.additional_context !== undefined) {
     payload.additional_context = normalizeOptional(input.additional_context);
   }
+  if (input.ads_content !== undefined) {
+    payload.ads_content = normalizeOptional(input.ads_content);
+  }
+  if (input.lifecycle_status !== undefined) {
+    payload.lifecycle_status = normalizeProspectLifecycleStatus(
+      input.lifecycle_status,
+    );
+  }
   if (input.community_id !== undefined) {
     payload.community_id = input.community_id;
   }
@@ -395,7 +420,7 @@ export async function updateProspect(
     return null;
   }
 
-  return data as Prospect;
+  return mapProspectRow(data as Prospect);
 }
 
 /**

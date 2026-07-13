@@ -11,6 +11,7 @@ import { DiscussionWorkflowStrip } from "@/components/discussions/DiscussionWork
 import { ExecutiveIntelligenceWorkspace } from "@/components/discussions/ExecutiveIntelligenceWorkspace";
 import { AppendProspectInformationForm } from "@/components/prospects/AppendProspectInformationForm";
 import { ProspectHomepageIntelligence } from "@/components/prospects/ProspectHomepageIntelligence";
+import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectLifecycleStatusControl";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import {
   formatProspectOpportunityScoreWithRecommendation,
@@ -18,6 +19,7 @@ import {
   resolveProspectOpportunityRecommendation,
   resolveProspectOpportunityScore,
 } from "@/services/prospects/prospectDisplay";
+import { normalizeProspectLifecycleStatus } from "@/services/prospects/prospectLifecycle";
 import { getActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
 import { buildDiscussionWorkflowSteps } from "@/lib/discussionWorkflow";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
@@ -101,12 +103,15 @@ export default async function ProspectDetailsPage({
     ? await getActiveGenerationJobForDiscussion(discussion.id, organizationId)
     : null;
   const hasCurrentVersion = Boolean(versionState.current);
-  const displayStatus = resolveProspectDisplayStatus({
+  const intelligenceReadiness = resolveProspectDisplayStatus({
     prospectStatus: prospect.status,
     jobStatus: activeJob?.status ?? null,
     jobStage: activeJob?.current_stage ?? null,
     hasCurrentVersion,
   });
+  const lifecycleStatus = normalizeProspectLifecycleStatus(
+    prospect.lifecycle_status,
+  );
   const currentVersionScore = resolveProspectOpportunityScore({
     canonicalScore:
       versionState.current?.intelligence.opportunity?.score ??
@@ -169,7 +174,7 @@ export default async function ProspectDetailsPage({
               prospect.website || "—"
             )}
           </HeaderMetric>
-          <HeaderMetric label="Industry" value={prospect.industry || "—"} />
+          <HeaderMetric label="Category" value={prospect.category || "—"} />
           <HeaderMetric
             label="Decision Maker"
             value={prospect.decision_maker || "—"}
@@ -177,7 +182,11 @@ export default async function ProspectDetailsPage({
           <HeaderMetric label="Job Title" value={prospect.job_title || "—"} />
           <HeaderMetric label="Email" value={prospect.email || "—"} />
           <HeaderMetric label="Phone" value={prospect.phone || "—"} />
-          <HeaderMetric label="Status" value={displayStatus} />
+          <HeaderMetric label="Prospect Status" value={lifecycleStatus} />
+          <HeaderMetric
+            label="Intelligence"
+            value={intelligenceReadiness}
+          />
           <HeaderMetric label="Opportunity Score" highlight="orange">
             <div>
               <div>{scorePresentation.scoreLabel}</div>
@@ -213,21 +222,10 @@ export default async function ProspectDetailsPage({
           </HeaderMetric>
           <HeaderMetric label="Source" value={prospect.source || "—"} />
           <HeaderMetric label="Homepage Learning" value={scrapeStatus} />
-          <HeaderMetric
-            label="Last Scraped"
-            value={
-              typeof websiteIntel.scraped_at === "string"
-                ? new Date(websiteIntel.scraped_at).toLocaleString("en-US")
-                : "—"
-            }
-          />
         </div>
 
-        <div className="mt-8">
-          <ProspectMetadataEditor
-            prospect={prospect}
-            discussionId={discussion?.id ?? null}
-          />
+        <div className="mt-4 max-w-md">
+          <ProspectLifecycleStatusControl prospect={prospect} />
         </div>
 
         {discussion ? (
@@ -238,12 +236,6 @@ export default async function ProspectDetailsPage({
             <div className="mt-8">
               <DiscussionRegenerationProgress />
             </div>
-            <div className="mt-8">
-              <AppendProspectInformationForm
-                prospectId={prospect.id}
-                discussionId={discussion.id}
-              />
-            </div>
             <ExecutiveIntelligenceWorkspace
               discussionId={discussion.id}
               sourceKind="prospect"
@@ -252,29 +244,50 @@ export default async function ProspectDetailsPage({
                 versionState.current?.intelligence ?? liveIntelligence
               }
               afterBlueprint={null}
+              afterDetailedReasoning={
+                <div className="mt-8">
+                  <AppendProspectInformationForm
+                    prospectId={prospect.id}
+                    discussionId={discussion.id}
+                  />
+                </div>
+              }
               originalDiscussionSection={
-                <section className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:col-span-2">
-                  <h2 className="text-xl font-semibold">
-                    Source Context
-                  </h2>
-                  <p className="mt-3 text-sm leading-6 text-white/45">
-                    Homepage Intelligence captured for this Prospect. Profile
-                    fields are managed in Prospect Details above.
+                <div className="space-y-4">
+                  <p className="text-sm leading-6 text-white/45">
+                    Homepage Intelligence and Ads Content captured for this
+                    Prospect. Profile fields are managed in Prospect Details
+                    below.
                   </p>
+                  {prospect.ads_content?.trim() ? (
+                    <div>
+                      <div className="text-sm text-white/40">Ads Content</div>
+                      <div className="mt-2 whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70">
+                        {prospect.ads_content}
+                      </div>
+                    </div>
+                  ) : null}
                   <ProspectHomepageIntelligence
                     websiteIntelligence={prospect.website_intelligence}
                     scrapeStatus={scrapeStatus}
                   />
-                </section>
+                </div>
               }
             />
           </>
         ) : (
           <div className="mt-8 rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-10 text-white/50">
             Prospect Intelligence has not been queued yet. Use Refresh
-            Intelligence to start asynchronous generation.
+            Intelligence in Prospect Details to start asynchronous generation.
           </div>
         )}
+
+        <div className="mt-8">
+          <ProspectMetadataEditor
+            prospect={prospect}
+            discussionId={discussion?.id ?? null}
+          />
+        </div>
       </main>
     </DiscussionRegenerationProvider>
   );

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { PROSPECT_LIFECYCLE_STATUSES } from "@/services/prospects/prospectLifecycle";
 import type { ProspectLibraryRow } from "@/services/prospects/prospectLibraryEnrichment";
 
 type ProspectsLibraryClientProps = {
@@ -30,19 +31,30 @@ export function ProspectsLibraryClient({
   const [page, setPage] = useState(1);
 
   const statuses = useMemo(() => {
-    const set = new Set(prospects.map((prospect) => prospect.display_status));
+    const set = new Set(
+      prospects.map((prospect) => prospect.display_lifecycle_status),
+    );
+    for (const option of PROSPECT_LIFECYCLE_STATUSES) {
+      set.add(option);
+    }
     return ["all", ...Array.from(set).sort()];
   }, [prospects]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     let rows = prospects.filter((prospect) => {
-      if (status !== "all" && prospect.display_status !== status) return false;
+      if (
+        status !== "all" &&
+        prospect.display_lifecycle_status !== status
+      ) {
+        return false;
+      }
       if (!needle) return true;
       const haystack = [
         prospect.business_name,
         prospect.website,
         prospect.decision_maker,
+        prospect.category,
         prospect.industry,
         prospect.email,
         prospect.city,
@@ -96,7 +108,7 @@ export function ProspectsLibraryClient({
                 setQuery(event.target.value);
                 setPage(1);
               }}
-              placeholder="Business, website, decision maker…"
+              placeholder="Business, website, decision maker, category…"
               className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
             />
           </label>
@@ -155,7 +167,7 @@ export function ProspectsLibraryClient({
             <div>Business Name</div>
             <div>Website</div>
             <div>Decision Maker</div>
-            <div>Industry</div>
+            <div>Category</div>
             <div>Status</div>
             <div>Opportunity Score</div>
             <div>Created</div>
@@ -177,9 +189,14 @@ export function ProspectsLibraryClient({
               <div className="text-white/55">
                 {prospect.decision_maker || "—"}
               </div>
-              <div className="text-white/55">{prospect.industry || "—"}</div>
-              <div className="text-[var(--athena-orange)]">
-                {prospect.display_status}
+              <div className="text-white/55">{prospect.category || "—"}</div>
+              <div>
+                <div className="text-[var(--athena-orange)]">
+                  {prospect.display_lifecycle_status}
+                </div>
+                <div className="mt-1 text-xs text-white/35">
+                  {prospect.display_status}
+                </div>
               </div>
               <div>{prospect.display_opportunity_score_label}</div>
               <div className="text-white/45">

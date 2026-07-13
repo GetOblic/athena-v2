@@ -26,6 +26,7 @@ export type ProspectCsvRow = {
   google_business_url?: string | null;
   notes?: string | null;
   additional_context?: string | null;
+  ads_content?: string | null;
   source?: string | null;
 };
 
@@ -87,6 +88,12 @@ export function parseProspectCsv(text: string): ProspectCsvRow[] {
     notes: "notes",
     additional_context: "additional_context",
     context: "additional_context",
+    ads_content: "ads_content",
+    ad_content: "ads_content",
+    advertising_content: "ads_content",
+    google_ads: "ads_content",
+    meta_ads: "ads_content",
+    ads: "ads_content",
     source: "source",
   };
 

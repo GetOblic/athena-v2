@@ -16,6 +16,8 @@ MEETING_PREPARATION:
 RECOMMENDED_CTA:
 FOLLOW_UP_SEQUENCE:
 PERSONALIZED_VIDEO_SCRIPT:
+NEWSLETTER_IDEA:
+BLOG_POST_IDEA:
 `.trim();
 
 export const PROSPECT_DEPLOYMENT_CHANNEL_GUIDE = `
@@ -31,6 +33,8 @@ MEETING_PREPARATION — briefing bullets for a seller before a meeting.
 RECOMMENDED_CTA — one paste-ready next-step CTA.
 FOLLOW_UP_SEQUENCE — 3–5 touch sequence outline (channels + intent only; no automation).
 PERSONALIZED_VIDEO_SCRIPT — 45–60 second personalized video script.
+NEWSLETTER_IDEA — concept for the Athena client's audience newsletter (not outreach to a prospect): subject/title, central angle, why relevant now, key points/sections, suggested CTA, optional opening hook.
+BLOG_POST_IDEA — concept for the Athena client's audience blog (not a full article): proposed title, search/reader intent, central thesis, recommended outline, key expert insights, suggested CTA, optional differentiation angle.
 `.trim();
 
 export const PROSPECT_DEPLOYMENT_ASSET_KEYS = [
@@ -46,6 +50,8 @@ export const PROSPECT_DEPLOYMENT_ASSET_KEYS = [
   "RECOMMENDED_CTA",
   "FOLLOW_UP_SEQUENCE",
   "PERSONALIZED_VIDEO_SCRIPT",
+  "NEWSLETTER_IDEA",
+  "BLOG_POST_IDEA",
   // Backward-compatible aliases still parsed if older drafts exist.
   "COLD_EMAIL",
   "OBJECTION_HANDLING",
@@ -105,6 +111,16 @@ export const PROSPECT_DEPLOYMENT_ASSET_META: Record<
   PERSONALIZED_VIDEO_SCRIPT: {
     title: "Personalized Video Script",
     objective: "Short personalized video script.",
+  },
+  NEWSLETTER_IDEA: {
+    title: "Newsletter Idea",
+    objective:
+      "Concept for the Athena client's audience newsletter — not prospect outreach.",
+  },
+  BLOG_POST_IDEA: {
+    title: "Blog Post Idea",
+    objective:
+      "Concept for the Athena client's audience blog — not a full article or prospect outreach.",
   },
   COLD_EMAIL: {
     title: "Personalized Outreach Email",

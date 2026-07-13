@@ -46,6 +46,7 @@ export function ProspectImportForms() {
       ...MANUAL_FIELDS.map(([key]) => [key, ""]),
       ["notes", ""],
       ["additional_context", ""],
+      ["ads_content", ""],
     ]),
   );
   const [manualSubmitting, setManualSubmitting] = useState(false);
@@ -186,6 +187,22 @@ export function ProspectImportForms() {
             />
           </label>
 
+          <label className="block text-sm text-white/50">
+            Ads Content
+            <textarea
+              value={manual.ads_content ?? ""}
+              onChange={(event) =>
+                setManual((previous) => ({
+                  ...previous,
+                  ads_content: event.target.value,
+                }))
+              }
+              rows={5}
+              placeholder="Paste Google Ads, Meta Ads, or other observed advertising copy."
+              className={`mt-2 w-full ${fieldClassName}`}
+            />
+          </label>
+
           <button
             type="submit"
             disabled={manualSubmitting}
@@ -236,7 +253,7 @@ export function ProspectImportForms() {
             job_title, industry, category, country, state, city, address,
             email, phone, linkedin, facebook, instagram, company_size, revenue,
             employee_count, technologies, pain_points, notes,
-            additional_context, source.
+            additional_context, ads_content, source.
           </p>
 
           <button

@@ -101,6 +101,7 @@ function mapRowToInput(
     google_business_url: row.google_business_url,
     notes: row.notes,
     additional_context: row.additional_context,
+    ads_content: row.ads_content,
     source: row.source?.trim() || source,
     status: "Queued",
     import_batch_id: batchId,

@@ -30,6 +30,7 @@ export type ProspectFieldSnapshot = {
   google_business_url: string | null;
   notes: string | null;
   additional_context: string | null;
+  ads_content: string | null;
   source: string | null;
   website_intelligence: HomepageIntelligence | Record<string, unknown> | null;
 };
@@ -58,6 +59,7 @@ export type NormalizedExecutiveSourceInput = {
   };
   operatorNotes: string | null;
   additionalContext: string | null;
+  adsContent: string | null;
   technologies: string | null;
   painPoints: string | null;
   homepageIntelligence: HomepageIntelligence | Record<string, unknown> | null;
@@ -97,6 +99,7 @@ export function normalizeProspectExecutiveInput(
     },
     operatorNotes: prospect.notes,
     additionalContext: prospect.additional_context,
+    adsContent: prospect.ads_content,
     technologies: prospect.technologies,
     painPoints: prospect.pain_points,
     homepageIntelligence: prospect.website_intelligence,
@@ -139,6 +142,7 @@ export function formatNormalizedProspectInputForPipeline(
     input.additionalContext
       ? `Additional Context:\n${input.additionalContext}`
       : null,
+    input.adsContent ? `Ads Content:\n${input.adsContent}` : null,
     input.technologies ? `Technologies:\n${input.technologies}` : null,
     input.painPoints ? `Pain Points:\n${input.painPoints}` : null,
     "",

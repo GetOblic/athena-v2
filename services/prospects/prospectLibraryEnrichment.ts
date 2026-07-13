@@ -11,10 +11,17 @@ import {
   resolveProspectOpportunityScore,
   type ProspectDisplayStatus,
 } from "@/services/prospects/prospectDisplay";
+import {
+  normalizeProspectLifecycleStatus,
+  type ProspectLifecycleStatus,
+} from "@/services/prospects/prospectLifecycle";
 import type { Prospect } from "@/services/prospects/prospectService";
 
 export type ProspectLibraryRow = Prospect & {
+  /** Intelligence readiness (Queued / Ready / …). */
   display_status: ProspectDisplayStatus;
+  /** Client-managed lifecycle for Status column/filter. */
+  display_lifecycle_status: ProspectLifecycleStatus;
   display_opportunity_score: number | null;
   display_opportunity_score_label: string;
 };
@@ -93,6 +100,9 @@ export async function enrichProspectsForLibrary(
       return {
         ...prospect,
         display_status,
+        display_lifecycle_status: normalizeProspectLifecycleStatus(
+          prospect.lifecycle_status,
+        ),
         display_opportunity_score,
         display_opportunity_score_label: formatProspectOpportunityScore(
           display_opportunity_score,

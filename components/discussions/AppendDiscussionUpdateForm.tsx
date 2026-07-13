@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import {
@@ -112,13 +113,12 @@ export function AppendDiscussionUpdateForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8"
+    <AthenaCollapsibleSection
+      title="Append Discussion Update"
+      defaultOpen={Boolean(result)}
     >
-      <h2 className="text-xl font-semibold">Append Discussion Update</h2>
-
-      <p className="mt-3 text-sm leading-6 text-white/45">
+    <form onSubmit={handleSubmit}>
+      <p className="text-sm leading-6 text-white/45">
         Paste new replies, reactions or follow-up messages from the same
         discussion. Athena appends them to the existing thread and re-runs the
         workflow in the background.
@@ -178,5 +178,6 @@ export function AppendDiscussionUpdateForm({
         </div>
       </div>
     </form>
+    </AthenaCollapsibleSection>
   );
 }
