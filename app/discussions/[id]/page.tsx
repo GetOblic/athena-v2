@@ -100,6 +100,7 @@ export default async function DiscussionDetailsPage({
     briefing: versionState.current?.intelligence.briefing ?? briefing,
     assetBlueprint:
       versionState.current?.intelligence.blueprint ?? assetBlueprint,
+    clientStatusLabel: discussion.status || "New",
   });
 
   const intelligenceDomainOptions = domains.map((domain) => ({

@@ -9,6 +9,7 @@ import {
   PROSPECT_DEPLOYMENT_CHANNEL_GUIDE,
   PROSPECT_DEPLOYMENT_SECTION_LABELS,
 } from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
+import { WHATSAPP_OUTREACH_GENERATION_RULES } from "@/services/ai/prompts/whatsappOutreachConstraints";
 import {
   SHARED_ANTI_GENERIC_RULES,
   SHARED_JSON_OUTPUT_RULES,
@@ -108,8 +109,8 @@ export function assembleDeploymentAssetsPrompt(input: {
 ${SHARED_JSON_OUTPUT_RULES}
 
 {
-  "suggested_cta": "PERSONALIZED_OUTREACH_EMAIL:\\n...\\n\\nFOLLOW_UP_EMAIL:\\n...\\n\\nLINKEDIN_CONNECTION:\\n...\\n\\nLINKEDIN_FOLLOW_UP:\\n...\\n\\nCOLD_CALL_OPENING:\\n...\\n\\nDISCOVERY_QUESTIONS:\\n...\\n\\nPERSONALIZED_VALUE_PROPOSITION:\\n...\\n\\nOBJECTION_ANTICIPATION:\\n...\\n\\nMEETING_PREPARATION:\\n...\\n\\nRECOMMENDED_CTA:\\n...\\n\\nFOLLOW_UP_SEQUENCE:\\n...\\n\\nPERSONALIZED_VIDEO_SCRIPT:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...",
-  "recommended_response": "PERSONALIZED_OUTREACH_EMAIL:\\n...\\n\\nFOLLOW_UP_EMAIL:\\n...\\n\\nLINKEDIN_CONNECTION:\\n...\\n\\nLINKEDIN_FOLLOW_UP:\\n...\\n\\nCOLD_CALL_OPENING:\\n...\\n\\nDISCOVERY_QUESTIONS:\\n...\\n\\nPERSONALIZED_VALUE_PROPOSITION:\\n...\\n\\nOBJECTION_ANTICIPATION:\\n...\\n\\nMEETING_PREPARATION:\\n...\\n\\nRECOMMENDED_CTA:\\n...\\n\\nFOLLOW_UP_SEQUENCE:\\n...\\n\\nPERSONALIZED_VIDEO_SCRIPT:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...",
+  "suggested_cta": "PERSONALIZED_OUTREACH_EMAIL:\\n...\\n\\nFOLLOW_UP_EMAIL:\\n...\\n\\nLINKEDIN_CONNECTION:\\n...\\n\\nLINKEDIN_FOLLOW_UP:\\n...\\n\\nCOLD_CALL_OPENING:\\n...\\n\\nDISCOVERY_QUESTIONS:\\n...\\n\\nPERSONALIZED_VALUE_PROPOSITION:\\n...\\n\\nOBJECTION_ANTICIPATION:\\n...\\n\\nMEETING_PREPARATION:\\n...\\n\\nRECOMMENDED_CTA:\\n...\\n\\nFOLLOW_UP_SEQUENCE:\\n...\\n\\nPERSONALIZED_VIDEO_SCRIPT:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...\\n\\nWHATSAPP_OUTREACH:\\nINITIAL MESSAGE\\n...\\n\\nFOLLOW-UP\\n...",
+  "recommended_response": "PERSONALIZED_OUTREACH_EMAIL:\\n...\\n\\nFOLLOW_UP_EMAIL:\\n...\\n\\nLINKEDIN_CONNECTION:\\n...\\n\\nLINKEDIN_FOLLOW_UP:\\n...\\n\\nCOLD_CALL_OPENING:\\n...\\n\\nDISCOVERY_QUESTIONS:\\n...\\n\\nPERSONALIZED_VALUE_PROPOSITION:\\n...\\n\\nOBJECTION_ANTICIPATION:\\n...\\n\\nMEETING_PREPARATION:\\n...\\n\\nRECOMMENDED_CTA:\\n...\\n\\nFOLLOW_UP_SEQUENCE:\\n...\\n\\nPERSONALIZED_VIDEO_SCRIPT:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...\\n\\nWHATSAPP_OUTREACH:\\nINITIAL MESSAGE\\n...\\n\\nFOLLOW-UP\\n...",
   "cta": "Exact paste-ready CTA sentence."
 }
 `.trim()
@@ -140,6 +141,8 @@ ${PROSPECT_DEPLOYMENT_CHANNEL_GUIDE}
 
 Use exact section labels:
 ${PROSPECT_DEPLOYMENT_SECTION_LABELS}
+
+${WHATSAPP_OUTREACH_GENERATION_RULES}
 
 Newsletter Idea and Blog Post Idea are for the Athena client's audience, using prospect/homepage/ads as market evidence — not outreach emails.
 

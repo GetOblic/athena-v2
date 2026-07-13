@@ -81,6 +81,9 @@ export default async function ProspectDetailsPage({
     ? await getLatestReviewByOpportunityId(opportunity.id, organizationId)
     : null;
 
+  const lifecycleStatus = normalizeProspectLifecycleStatus(
+    prospect.lifecycle_status,
+  );
   const workflowSteps = buildDiscussionWorkflowSteps({
     analysis: versionState.current?.intelligence.analysis ?? latestAnalysis,
     opportunity:
@@ -88,6 +91,7 @@ export default async function ProspectDetailsPage({
     briefing: versionState.current?.intelligence.briefing ?? briefing,
     assetBlueprint:
       versionState.current?.intelligence.blueprint ?? assetBlueprint,
+    clientStatusLabel: lifecycleStatus,
   });
 
   const initialRegenerationSnapshot = {
@@ -109,9 +113,6 @@ export default async function ProspectDetailsPage({
     jobStage: activeJob?.current_stage ?? null,
     hasCurrentVersion,
   });
-  const lifecycleStatus = normalizeProspectLifecycleStatus(
-    prospect.lifecycle_status,
-  );
   const currentVersionScore = resolveProspectOpportunityScore({
     canonicalScore:
       versionState.current?.intelligence.opportunity?.score ??
@@ -182,6 +183,10 @@ export default async function ProspectDetailsPage({
           <HeaderMetric label="Job Title" value={prospect.job_title || "—"} />
           <HeaderMetric label="Email" value={prospect.email || "—"} />
           <HeaderMetric label="Phone" value={prospect.phone || "—"} />
+          <HeaderMetric
+            label="WhatsApp Number"
+            value={prospect.whatsapp_number || "—"}
+          />
           <HeaderMetric label="Prospect Status" value={lifecycleStatus} />
           <HeaderMetric
             label="Intelligence"
@@ -238,6 +243,7 @@ export default async function ProspectDetailsPage({
             </div>
             <ExecutiveIntelligenceWorkspace
               discussionId={discussion.id}
+              prospectId={prospect.id}
               sourceKind="prospect"
               versions={versionState.versions}
               fallbackIntelligence={

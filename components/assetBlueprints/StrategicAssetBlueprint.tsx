@@ -1,13 +1,21 @@
+"use client";
+
 import { CollapsiblePromptBlock } from "@/components/assetBlueprints/CollapsiblePromptBlock";
+import type { AssetCopyTrackingContext } from "@/components/deployment/CopyButton";
 import { formatBlueprintReadiness } from "@/lib/blueprintReadiness";
+import { BLUEPRINT_ASSET_TYPES } from "@/services/assetInteractions/assetInteractionKeys";
 import type { AthenaAssetBlueprint } from "@/services/assetBlueprints/assetBlueprintService";
 
 type StrategicAssetBlueprintProps = {
   blueprint: AthenaAssetBlueprint;
+  copyContext?: Omit<AssetCopyTrackingContext, "assetType"> | null;
+  doneByAssetType?: Record<string, boolean>;
 };
 
 export function StrategicAssetBlueprint({
   blueprint,
+  copyContext = null,
+  doneByAssetType = {},
 }: StrategicAssetBlueprintProps) {
   const readinessBadges = formatBlueprintReadiness(blueprint);
 
@@ -71,10 +79,41 @@ export function StrategicAssetBlueprint({
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <CollapsiblePromptBlock label="Image Prompt" text={blueprint.image_prompt} />
-        <CollapsiblePromptBlock label="PDF Prompt" text={blueprint.pdf_prompt} />
-        <CollapsiblePromptBlock label="Social Prompt" text={blueprint.social_prompt} />
-        <CollapsiblePromptBlock label="Notes" text={blueprint.notes} fullWidth />
+        <CollapsiblePromptBlock
+          label="Image Prompt"
+          text={blueprint.image_prompt}
+          assetType={BLUEPRINT_ASSET_TYPES.image_prompt}
+          copyContext={copyContext}
+          initiallyDone={Boolean(
+            doneByAssetType[BLUEPRINT_ASSET_TYPES.image_prompt],
+          )}
+        />
+        <CollapsiblePromptBlock
+          label="PDF Prompt"
+          text={blueprint.pdf_prompt}
+          assetType={BLUEPRINT_ASSET_TYPES.pdf_prompt}
+          copyContext={copyContext}
+          initiallyDone={Boolean(
+            doneByAssetType[BLUEPRINT_ASSET_TYPES.pdf_prompt],
+          )}
+        />
+        <CollapsiblePromptBlock
+          label="Social Prompt"
+          text={blueprint.social_prompt}
+          assetType={BLUEPRINT_ASSET_TYPES.social_prompt}
+          copyContext={copyContext}
+          initiallyDone={Boolean(
+            doneByAssetType[BLUEPRINT_ASSET_TYPES.social_prompt],
+          )}
+        />
+        <CollapsiblePromptBlock
+          label="Notes"
+          text={blueprint.notes}
+          fullWidth
+          assetType={BLUEPRINT_ASSET_TYPES.notes}
+          copyContext={copyContext}
+          initiallyDone={Boolean(doneByAssetType[BLUEPRINT_ASSET_TYPES.notes])}
+        />
       </div>
     </section>
   );
@@ -99,9 +138,8 @@ function MetaField({
           highlight ? "font-semibold text-[var(--athena-orange)]" : "text-white/85"
         }`}
       >
-        {value || "—"}
+        {value?.trim() || "—"}
       </div>
     </div>
   );
 }
-

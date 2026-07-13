@@ -6,6 +6,7 @@ import {
   PROSPECT_DEPLOYMENT_ASSET_KEYS,
   PROSPECT_DEPLOYMENT_ASSET_META,
 } from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
+import { canonicalDeploymentAssetType } from "@/services/assetInteractions/assetInteractionKeys";
 
 function isNonEmpty(value?: string | null): value is string {
   return Boolean(value?.trim());
@@ -94,30 +95,34 @@ function parseLabeledAssets(value?: string | null): DeploymentAsset[] {
     return [];
   }
 
-  return matches
-    .map((match, index) => {
-      const label = match[1];
-      const start = (match.index ?? 0) + match[0].length;
-      const next = matches[index + 1];
-      const end = next?.index ?? value.length;
-      const content = value.slice(start, end).trim();
+  const assets: DeploymentAsset[] = [];
 
-      if (!content) {
-        return null;
-      }
+  for (let index = 0; index < matches.length; index += 1) {
+    const match = matches[index];
+    const label = match[1];
+    const start = (match.index ?? 0) + match[0].length;
+    const next = matches[index + 1];
+    const end = next?.index ?? value.length;
+    const content = value.slice(start, end).trim();
 
-      const meta = LABELS[label] ?? {
-        title: label.replace(/_/g, " "),
-        objective: "Generated deployment asset.",
-      };
+    if (!content) {
+      continue;
+    }
 
-      return {
-        title: meta.title,
-        objective: meta.objective,
-        content,
-      };
-    })
-    .filter((asset): asset is DeploymentAsset => Boolean(asset));
+    const meta = LABELS[label] ?? {
+      title: label.replace(/_/g, " "),
+      objective: "Generated deployment asset.",
+    };
+
+    assets.push({
+      assetKey: canonicalDeploymentAssetType(label),
+      title: meta.title,
+      objective: meta.objective,
+      content,
+    });
+  }
+
+  return assets;
 }
 
 export function buildDiscussionDeploymentAssets(
@@ -136,6 +141,7 @@ export function buildDiscussionDeploymentAssets(
 
   if (isNonEmpty(analysis.suggested_cta)) {
     assets.push({
+      assetKey: "primary_reply",
       title: "Primary Reply",
       objective: "Copy-ready response generated from Athena's analysis.",
       content: analysis.suggested_cta,
@@ -158,6 +164,7 @@ export function buildOpportunityDeploymentAssets(
       assets.push(...structuredAssets);
     } else {
       assets.push({
+        assetKey: "community_reply",
         title: "Community Reply",
         objective: "Public community response ready to post.",
         content: latestReview.recommended_response,
@@ -167,6 +174,7 @@ export function buildOpportunityDeploymentAssets(
 
   if (latestReview && isNonEmpty(latestReview.cta)) {
     assets.push({
+      assetKey: "call_to_action",
       title: "Call to Action",
       objective: "Exact CTA from the executive briefing.",
       content: latestReview.cta,
@@ -180,6 +188,7 @@ export function buildOpportunityDeploymentAssets(
       assets.push(...structuredAssets);
     } else {
       assets.push({
+        assetKey: "call_to_action",
         title: "Call to Action",
         objective: "Suggested call to action from opportunity analysis.",
         content: opportunity.suggested_cta,
@@ -200,6 +209,7 @@ export function buildBriefingDeploymentAssets(
     assets.push(...structuredAssets);
   } else if (isNonEmpty(review.recommended_response)) {
     assets.push({
+      assetKey: "community_reply",
       title: "Community Reply",
       objective: "Public community response ready to post.",
       content: review.recommended_response,
@@ -208,6 +218,7 @@ export function buildBriefingDeploymentAssets(
 
   if (isNonEmpty(review.cta)) {
     assets.push({
+      assetKey: "call_to_action",
       title: "Call to Action",
       objective: "Exact CTA for the next engagement step.",
       content: review.cta,
