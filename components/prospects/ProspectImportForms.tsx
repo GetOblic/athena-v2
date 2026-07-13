@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ProspectCsvImport } from "@/components/prospects/ProspectCsvImport";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 const fieldClassName =
@@ -41,6 +42,7 @@ const MANUAL_FIELDS = [
 
 export function ProspectImportForms() {
   const router = useRouter();
+
   const [manual, setManual] = useState<Record<string, string>>(
     Object.fromEntries([
       ...MANUAL_FIELDS.map(([key]) => [key, ""]),
@@ -51,10 +53,6 @@ export function ProspectImportForms() {
   );
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualResult, setManualResult] = useState<ManualResult | null>(null);
-
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [csvSubmitting, setCsvSubmitting] = useState(false);
-  const [csvMessage, setCsvMessage] = useState<string | null>(null);
 
   async function submitManual(event: React.FormEvent) {
     event.preventDefault();
@@ -97,37 +95,6 @@ export function ProspectImportForms() {
       });
     } finally {
       setManualSubmitting(false);
-    }
-  }
-
-  async function submitCsv(event: React.FormEvent) {
-    event.preventDefault();
-    if (!csvFile || csvSubmitting) return;
-
-    setCsvSubmitting(true);
-    setCsvMessage(null);
-
-    try {
-      const form = new FormData();
-      form.append("file", csvFile);
-      const response = await fetch("/api/prospects/import", {
-        method: "POST",
-        body: form,
-      });
-      const payload = await parseJsonResponse<{
-        ok?: boolean;
-        message?: string;
-        error?: string | { message?: string };
-      }>(response);
-      const errorMessage =
-        typeof payload.error === "string"
-          ? payload.error
-          : payload.error?.message;
-      setCsvMessage(payload.message || errorMessage || "CSV import finished.");
-    } catch (error) {
-      setCsvMessage(error instanceof Error ? error.message : "CSV import failed.");
-    } finally {
-      setCsvSubmitting(false);
     }
   }
 
@@ -229,48 +196,7 @@ export function ProspectImportForms() {
         )}
       </section>
 
-      <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <h2 className="text-2xl font-semibold">CSV Import</h2>
-        <p className="mt-3 text-sm leading-6 text-white/45">
-          Bulk import creates Prospect records immediately and queues durable
-          analysis jobs. Homepage learning and executive generation run in the
-          background.
-        </p>
-
-        <form onSubmit={submitCsv} className="mt-8 space-y-4">
-          <label className="block text-sm text-white/50">
-            CSV file
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(event) => setCsvFile(event.target.files?.[0] ?? null)}
-              className="mt-2 block w-full text-sm text-white/70"
-            />
-          </label>
-
-          <p className="text-xs leading-6 text-white/35">
-            Supported columns include business_name, website, decision_maker,
-            job_title, industry, category, country, state, city, address,
-            email, phone, linkedin, facebook, instagram, company_size, revenue,
-            employee_count, technologies, pain_points, notes,
-            additional_context, ads_content, source.
-          </p>
-
-          <button
-            type="submit"
-            disabled={!csvFile || csvSubmitting}
-            className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
-          >
-            {csvSubmitting ? "Importing…" : "Import CSV"}
-          </button>
-        </form>
-
-        {csvMessage && (
-          <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70 whitespace-pre-wrap">
-            {csvMessage}
-          </div>
-        )}
-      </section>
+      <ProspectCsvImport />
     </div>
   );
 }

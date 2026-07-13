@@ -3,7 +3,10 @@ import {
   parseProspectCsvDocument,
   validateProspectCsvDataRowLimit,
 } from "@/services/prospects/prospectCsv";
-import { importProspectsFromRows } from "@/services/prospects/prospectImporter";
+import {
+  buildProspectImportPreviewPayload,
+  prepareProspectImportRows,
+} from "@/services/prospects/prospectImportPreparation";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -11,7 +14,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 function json(data: unknown, status = 200) {
   return NextResponse.json(data, {
@@ -20,11 +23,13 @@ function json(data: unknown, status = 200) {
   });
 }
 
-/** CSV Prospect import — persist + enqueue only; no AI / homepage scrape. */
+/**
+ * CSV Prospect import preview — parse + classify only.
+ * Never inserts, updates, enqueues, scrapes, or generates.
+ */
 export async function POST(request: Request) {
   try {
-    const { organizationId, userId } =
-      await requireCurrentOrganizationContext();
+    const { organizationId } = await requireCurrentOrganizationContext();
     const contentType = request.headers.get("content-type") ?? "";
 
     let csvText: string | null = null;
@@ -43,7 +48,7 @@ export async function POST(request: Request) {
       }
       csvText = await file.text();
     } else {
-      const body = (await request.json()) as { csvText?: string; rows?: unknown };
+      const body = (await request.json()) as { csvText?: string };
       if (typeof body.csvText === "string") {
         csvText = body.csvText;
       } else {
@@ -121,41 +126,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const summary = await importProspectsFromRows({
+    const batch = await prepareProspectImportRows({
       organizationId,
-      userId,
       records: document.records,
-      source: "csv",
     });
 
-    return json(
-      {
-        ok: true,
-        success: true,
-        mode: "csv",
-        summary: {
-          imported: summary.imported,
-          duplicates: summary.duplicates,
-          invalidWebsites: summary.invalidWebsites,
-          invalidRows: summary.invalidRows,
-          queued: summary.queued,
-          withoutWebsite: summary.withoutWebsite,
-          batchId: summary.batchId,
-          invalidRowDetails: summary.invalidRowDetails,
-        },
-        message: [
-          `Imported: ${summary.imported}`,
-          `Duplicates skipped: ${summary.duplicates}`,
-          `Invalid rows: ${summary.invalidRows}`,
-          `Invalid websites: ${summary.invalidWebsites}`,
-          `Queued for analysis: ${summary.queued}`,
-          `Created without website: ${summary.withoutWebsite}`,
-          "",
-          "Website learning and Executive Intelligence continue in the background.",
-        ].join("\n"),
-      },
-      202,
-    );
+    const preview = buildProspectImportPreviewPayload({
+      batch,
+      recognizedColumns: document.recognizedColumns.map(String),
+      ignoredColumns: document.ignoredColumns,
+    });
+
+    return json({
+      ok: true,
+      success: true,
+      mode: "preview",
+      preview,
+    });
   } catch (error) {
     if (error instanceof OrganizationAccessError) {
       return json(
@@ -168,14 +155,14 @@ export async function POST(request: Request) {
       );
     }
 
-    console.error("[PROSPECT_IMPORT] failed", error);
+    console.error("[PROSPECT_IMPORT_PREVIEW] failed", error);
     return json(
       {
         ok: false,
         success: false,
         error: {
-          code: "IMPORT_FAILED",
-          message: "Prospect CSV import failed.",
+          code: "PREVIEW_FAILED",
+          message: "Prospect CSV preview failed.",
         },
       },
       500,

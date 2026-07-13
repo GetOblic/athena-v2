@@ -15,10 +15,13 @@ import {
 } from "@/services/discussionService";
 import { enqueueDiscussionGenerationJob } from "@/services/generationJobs/generationJobRunner";
 import {
+  findExistingProspectDuplicate,
+  prepareProspectImportRows,
+  type FindProspectDuplicateFn,
+} from "@/services/prospects/prospectImportPreparation";
+import {
   buildProspectAnalysisBody,
   createProspect,
-  findProspectByNameAndCity,
-  findProspectByWebsite,
   getProspectByLinkedDiscussionId,
   normalizeWebsiteUrl,
   PROSPECT_INTELLIGENCE_PLATFORM,
@@ -28,6 +31,8 @@ import {
 } from "@/services/prospects/prospectService";
 import {
   parseProspectCsv,
+  toProspectCsvParsedRecords,
+  type ProspectCsvParsedRecord,
   type ProspectCsvRow,
 } from "@/services/prospects/prospectCsv";
 import { resolveProspectBusinessName } from "@/services/prospects/prospectUtils";
@@ -54,18 +59,6 @@ export type ProspectImportSummary = {
 };
 
 const CSV_PERSIST_CHUNK_SIZE = 50;
-
-async function findExistingDuplicate(
-  organizationId: string,
-  website: string | null,
-  businessName: string,
-  city: string | null,
-): Promise<Prospect | null> {
-  if (website) {
-    return findProspectByWebsite(organizationId, website);
-  }
-  return findProspectByNameAndCity(organizationId, businessName, city);
-}
 
 function mapRowToInput(
   row: ProspectImportRow,
@@ -298,7 +291,7 @@ export async function importProspectManual(input: {
     : null;
   const invalidWebsite = Boolean(websiteRaw) && !normalizedWebsite;
 
-  const existing = await findExistingDuplicate(
+  const existing = await findExistingProspectDuplicate(
     input.organizationId,
     invalidWebsite ? null : normalizedWebsite,
     businessName,
@@ -350,78 +343,70 @@ export async function importProspectManual(input: {
 export async function importProspectsFromRows(input: {
   organizationId: string;
   userId: string | null;
-  rows: ProspectImportRow[];
+  records?: ProspectCsvParsedRecord[];
+  /** Compatibility input when callers only have field maps. */
+  rows?: ProspectImportRow[];
   source?: string;
+  findDuplicate?: FindProspectDuplicateFn;
+  createProspect?: typeof createProspect;
+  ensureQueued?: typeof ensureProspectGenerationQueued;
 }): Promise<ProspectImportSummary> {
   const batchId = randomUUID();
+  const persist = input.createProspect ?? createProspect;
+  const enqueue = input.ensureQueued ?? ensureProspectGenerationQueued;
+  const records =
+    input.records ??
+    toProspectCsvParsedRecords(input.rows ?? []);
+
+  const prepared = await prepareProspectImportRows({
+    organizationId: input.organizationId,
+    records,
+    findDuplicate: input.findDuplicate,
+  });
+
   const summary: ProspectImportSummary = {
     imported: 0,
-    duplicates: 0,
-    invalidWebsites: 0,
-    invalidRows: 0,
+    duplicates: prepared.duplicateRows,
+    invalidWebsites: prepared.invalidWebsiteRows,
+    invalidRows: prepared.invalidRows,
     queued: 0,
     withoutWebsite: 0,
     prospectIds: [],
     batchId,
-    invalidRowDetails: [],
+    invalidRowDetails: prepared.rows
+      .filter((row) => row.status === "invalid")
+      .slice(0, 25)
+      .map((row) => ({
+        rowNumber: row.rowNumber,
+        reason: row.reason ?? "Invalid row.",
+      })),
   };
 
-  for (let index = 0; index < input.rows.length; index += 1) {
-    const row = input.rows[index];
-    const rowNumber = index + 2; // header is row 1
-
-    const businessName = resolveProspectBusinessName(row);
-    if (!businessName) {
-      summary.invalidRows += 1;
-      if (summary.invalidRowDetails.length < 25) {
-        summary.invalidRowDetails.push({
-          rowNumber,
-          reason: "Missing Business Name and no usable fallback identifier.",
-        });
-      }
-      continue;
-    }
-
-    const websiteRaw = String(row.website ?? "").trim();
-    const normalizedWebsite = websiteRaw
-      ? normalizeWebsiteUrl(websiteRaw)
-      : null;
-    const invalidWebsite = Boolean(websiteRaw) && !normalizedWebsite;
-    if (invalidWebsite) {
-      summary.invalidWebsites += 1;
-    }
-
-    const existing = await findExistingDuplicate(
-      input.organizationId,
-      invalidWebsite ? null : normalizedWebsite,
-      businessName,
-      row.city ?? null,
-    );
-    if (existing) {
-      summary.duplicates += 1;
+  for (const item of prepared.rows) {
+    if (!item.importable || !item.businessName) {
       continue;
     }
 
     try {
       const mapped = mapRowToInput(
-        row,
+        item.row,
         input.organizationId,
         input.userId,
         input.source ?? "csv",
         batchId,
-        businessName,
+        item.businessName,
       );
-      mapped.website = invalidWebsite ? null : normalizedWebsite;
-      if (invalidWebsite) {
-        mapped.raw_json = { invalid_website_input: websiteRaw };
+      mapped.website = item.websiteToPersist;
+      if (item.invalidWebsite && item.websiteInput) {
+        mapped.raw_json = { invalid_website_input: item.websiteInput };
       }
 
-      const created = await createProspect(mapped);
+      const created = await persist(mapped);
       if (!created) {
         summary.invalidRows += 1;
         if (summary.invalidRowDetails.length < 25) {
           summary.invalidRowDetails.push({
-            rowNumber,
+            rowNumber: item.rowNumber,
             reason: "Could not create Prospect record.",
           });
         }
@@ -433,7 +418,7 @@ export async function importProspectsFromRows(input: {
       if (!created.website) summary.withoutWebsite += 1;
 
       // Persist + enqueue only — no homepage scrape in the HTTP path.
-      const queued = await ensureProspectGenerationQueued(created, {
+      const queued = await enqueue(created, {
         requestedBy: input.userId,
       });
       if (queued.queued) {
@@ -442,7 +427,7 @@ export async function importProspectsFromRows(input: {
         summary.invalidRows += 1;
         if (summary.invalidRowDetails.length < 25) {
           summary.invalidRowDetails.push({
-            rowNumber,
+            rowNumber: item.rowNumber,
             reason: "Prospect created but generation job was not queued.",
           });
         }
@@ -456,13 +441,13 @@ export async function importProspectsFromRows(input: {
       summary.invalidRows += 1;
       if (summary.invalidRowDetails.length < 25) {
         summary.invalidRowDetails.push({
-          rowNumber,
+          rowNumber: item.rowNumber,
           reason: "Row could not be imported.",
         });
       }
       console.error("[PROSPECT_IMPORT] row_failed", {
-        rowNumber,
-        businessName,
+        rowNumber: item.rowNumber,
+        businessName: item.businessName,
         error: error instanceof Error ? error.message : String(error),
       });
     }
