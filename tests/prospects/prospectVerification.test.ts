@@ -32,7 +32,7 @@ describe("prospect scrape execution location", () => {
     assert.doesNotMatch(enqueueFn, /Learning from Website/);
   });
 
-  it("worker prep path source invokes homepage scraping when website exists", () => {
+  it("worker prep path can invoke homepage scraping for import (policy-gated)", () => {
     const prepFn = importerSource.slice(
       importerSource.indexOf(
         "export async function prepareProspectBridgeBeforeGeneration",
@@ -42,7 +42,9 @@ describe("prospect scrape execution location", () => {
       ),
     );
     assert.match(prepFn, /scrapeHomepageIntelligence/);
+    assert.match(prepFn, /resolveProspectWebsiteLearningDecision/);
     assert.match(prepFn, /Learning from Website/);
+    assert.match(prepFn, /website_learning_skipped/);
   });
 });
 

@@ -140,8 +140,11 @@ export async function PATCH(
     let queued = false;
     let jobId: string | null = null;
     if (meaningful) {
+      // Metadata edits regenerate intelligence from stored context —
+      // never re-crawl the website (import-only website learning).
       const result = await ensureProspectGenerationQueued(prospect, {
         requestedBy: userId,
+        triggerType: "discussion_update",
       });
       queued = result.queued;
       jobId = result.jobId ?? null;

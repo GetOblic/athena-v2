@@ -144,6 +144,12 @@ export function ProspectHomepageIntelligence({
     <section className="mt-8">
       <div className="text-sm text-white/40">Website Analysis</div>
       <div className="mt-2 text-xs text-white/35">{scrapeStatus}</div>
+      {typeof websiteIntelligence?.scraped_at === "string" ? (
+        <p className="mt-2 max-w-2xl text-xs leading-5 text-white/40">
+          Website knowledge was captured during Prospect import and is reused
+          for intelligence regeneration.
+        </p>
+      ) : null}
 
       {(pagesAnalyzed > 0 || pages.length > 0) && (
         <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-5">

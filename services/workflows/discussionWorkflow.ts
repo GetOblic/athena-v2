@@ -40,6 +40,17 @@ import {
   persistDeploymentAssets,
 } from "@/services/workflows/deploymentAssetsWorkflow";
 import {
+  ensureCurrentLiveIntelligenceIsVersioned,
+  publishExecutiveIntelligenceVersion,
+} from "@/services/executiveVersions/executiveVersionService";
+import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectBridgeMarker";
+import {
+  evaluateProspectDeploymentCompleteness,
+  websiteIntelligenceSupportsKnowledgeEnhancement,
+} from "@/services/prospects/prospectDeploymentAssetContract";
+import { logProspectGenerationEvent } from "@/services/prospects/prospectGenerationDiagnostics";
+import { getProspectByLinkedDiscussionId } from "@/services/prospects/prospectService";
+import {
   appendRegenerationRunStamp,
   hashContent,
   logPersistedRegenerationOutput,
@@ -48,10 +59,44 @@ import {
   logRegenerationPipelineComplete,
   logRegenerationPipelineStageComplete,
 } from "@/lib/regenerationDiagnostics";
-import {
-  ensureCurrentLiveIntelligenceIsVersioned,
-  publishExecutiveIntelligenceVersion,
-} from "@/services/executiveVersions/executiveVersionService";
+
+async function assertProspectDeploymentAssetsComplete(input: {
+  discussionId: string;
+  organizationId: string;
+  suggestedCta: string | null | undefined;
+  regenerationRunId?: string | null;
+}): Promise<string | null> {
+  const prospect = await getProspectByLinkedDiscussionId(
+    input.discussionId,
+    input.organizationId,
+  );
+  if (!prospect) return null;
+
+  const requireKnowledgeEnhancement =
+    websiteIntelligenceSupportsKnowledgeEnhancement(
+      (prospect.website_intelligence as Record<string, unknown> | null) ?? null,
+    );
+  const report = evaluateProspectDeploymentCompleteness({
+    suggestedCta: input.suggestedCta,
+    requireKnowledgeEnhancement,
+  });
+
+  logProspectGenerationEvent(
+    report.complete ? "deployment_parse_completed" : "deployment_parse_incomplete",
+    {
+      discussionId: input.discussionId,
+      organizationId: input.organizationId,
+      prospectId: prospect.id,
+      regenerationRunId: input.regenerationRunId ?? null,
+      parsedAssetKeys: report.parsedKeys,
+      missingRequiredAssetKeys: report.missingRequiredKeys,
+      rawOutputChars: input.suggestedCta?.length ?? 0,
+    },
+  );
+
+  if (report.complete) return null;
+  return report.warnings.join("; ");
+}
 
 export type RegenerationRunContext = {
   regenerationRunId: string;
@@ -472,8 +517,15 @@ export async function processDiscussionEndToEnd(
 
     // Generation pipeline is unchanged. After a successful run, publish a
     // brand-new Executive Intelligence Version and mark it Current.
+    // Incomplete Prospect candidates throw and must fail the run so prior
+    // Current Version remains displayed.
     if (result.success && result.analysisId) {
       try {
+        logProspectGenerationEvent("executive_version_persist_started", {
+          discussionId,
+          organizationId,
+          regenerationRunId: runContext?.regenerationRunId ?? null,
+        });
         await publishExecutiveIntelligenceVersion({
           discussionId,
           organizationId,
@@ -484,10 +536,30 @@ export async function processDiscussionEndToEnd(
           reviewId: result.reviewId ?? null,
           blueprintId: result.blueprintId ?? null,
         });
+        logProspectGenerationEvent("executive_version_persist_completed", {
+          discussionId,
+          organizationId,
+          regenerationRunId: runContext?.regenerationRunId ?? null,
+        });
       } catch (error) {
         console.error(
           "Failed to publish executive intelligence version:",
           error,
+        );
+        logProspectGenerationEvent("prospect_generation_failed", {
+          discussionId,
+          organizationId,
+          regenerationRunId: runContext?.regenerationRunId ?? null,
+          stage: "executive_version_publish",
+          errorMessage:
+            error instanceof Error ? error.message : String(error),
+          retryable: false,
+        });
+        return workflowFailure(
+          discussionId,
+          error instanceof Error
+            ? error.message
+            : "Executive Version publication failed.",
         );
       }
     }
@@ -543,6 +615,12 @@ async function processDiscussionEndToEndInternal(
   if (!discussion) {
     return workflowFailure(discussionId, "Discussion not found");
   }
+
+  const isProspectSource =
+    discussion.platform === PROSPECT_INTELLIGENCE_PLATFORM;
+  // Prospect imports and refreshes must not silently publish incomplete assets.
+  const requireCompleteDeployment =
+    explicitRegeneration || isProspectSource;
 
   const { bundle: analysisBundle, legacyBrainPrompt } =
     await resolveDiscussionAnalysisGeneration(
@@ -735,9 +813,21 @@ async function processDiscussionEndToEndInternal(
       if (explicitRegeneration) {
         logRegenerationPipelineStageComplete("deployment_assets");
       }
+
+      if (isProspectSource) {
+        const incompleteReason = await assertProspectDeploymentAssetsComplete({
+          discussionId,
+          organizationId,
+          suggestedCta: deploymentResult.analysis.suggested_cta,
+          regenerationRunId,
+        });
+        if (incompleteReason) {
+          return workflowFailure(discussionId, incompleteReason);
+        }
+      }
     } catch (error) {
       console.error("Deployment assets generation failed:", error);
-      if (explicitRegeneration) {
+      if (requireCompleteDeployment) {
         return workflowFailure(
           discussionId,
           "Deployment assets generation failed.",
@@ -767,7 +857,7 @@ async function processDiscussionEndToEndInternal(
       analysisId: analysisForBlueprint.id,
       blueprintOutcome,
       status: "analysis_completed_no_opportunity",
-      explicitRegeneration,
+      explicitRegeneration: requireCompleteDeployment,
     });
   }
 
@@ -976,9 +1066,21 @@ async function processDiscussionEndToEndInternal(
     if (explicitRegeneration) {
       logRegenerationPipelineStageComplete("deployment_assets");
     }
+
+    if (isProspectSource) {
+      const incompleteReason = await assertProspectDeploymentAssetsComplete({
+        discussionId,
+        organizationId,
+        suggestedCta: deploymentResult.analysis.suggested_cta,
+        regenerationRunId,
+      });
+      if (incompleteReason) {
+        return workflowFailure(discussionId, incompleteReason);
+      }
+    }
   } catch (error) {
     console.error("Deployment assets generation failed:", error);
-    if (explicitRegeneration) {
+    if (requireCompleteDeployment) {
       return workflowFailure(
         discussionId,
         "Deployment assets generation failed.",
@@ -1049,6 +1151,6 @@ async function processDiscussionEndToEndInternal(
     reviewId: reviewForBlueprint.id,
     blueprintOutcome,
     status: "review_ready",
-    explicitRegeneration,
+    explicitRegeneration: requireCompleteDeployment,
   });
 }

@@ -36,7 +36,7 @@ describe("worker configuration defaults", () => {
     const config = resolveAthenaWorkerConfig({});
     assert.equal(config.pollIntervalMs, 3_000);
     assert.equal(config.heartbeatIntervalMs, 20_000);
-    assert.equal(config.leaseSeconds, 120);
+    assert.equal(config.leaseSeconds, 180);
     assert.equal(config.maxAttempts, 3);
     assert.equal(config.shutdownTimeoutMs, 90_000);
     assert.equal(config.concurrency, 1);
@@ -52,7 +52,7 @@ describe("worker configuration defaults", () => {
       ATHENA_WORKER_MAX_ATTEMPTS: "nope",
     });
     assert.equal(config.pollIntervalMs, 3_000);
-    assert.equal(config.leaseSeconds, 120);
+    assert.equal(config.leaseSeconds, 180);
     assert.equal(config.maxAttempts, 3);
   });
 

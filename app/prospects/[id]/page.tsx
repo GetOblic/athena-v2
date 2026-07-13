@@ -149,6 +149,7 @@ export default async function ProspectDetailsPage({
     <DiscussionRegenerationProvider
       discussionId={discussion?.id ?? prospect.id}
       initialSnapshot={initialRegenerationSnapshot}
+      sourceKind="prospect"
     >
       <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
         <AthenaBrandLink className="mb-8" />

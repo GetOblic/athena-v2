@@ -25,10 +25,33 @@ export type RegenerationStatusResponse = {
   error?: string;
 };
 
-export const REGENERATION_POLL_INTERVAL_MS = 5_000;
-export const REGENERATION_POLL_TIMEOUT_MS = 150_000;
+/** Initial poll cadence while a durable job is active. */
+export const REGENERATION_POLL_INTERVAL_MS = 2_500;
+/** Back off after the job has been running for a while. */
+export const REGENERATION_POLL_INTERVAL_BACKOFF_MS = 7_500;
+export const REGENERATION_POLL_BACKOFF_AFTER_MS = 60_000;
+/**
+ * Soft client ceiling. Does not mark the job complete or idle —
+ * polling continues at a restrained cadence while the durable job is active.
+ */
+export const REGENERATION_POLL_SAFETY_CEILING_MS = 15 * 60 * 1000;
+/** @deprecated Prefer REGENERATION_POLL_SAFETY_CEILING_MS — timeout must not hide active jobs. */
+export const REGENERATION_POLL_TIMEOUT_MS = REGENERATION_POLL_SAFETY_CEILING_MS;
 export const REGENERATION_SUCCESS_BUTTON_MS = 5_000;
 export const REGENERATION_LONG_RUNNING_MS = 60_000;
+
+export const REGENERATION_STILL_RUNNING_NOTICE =
+  "Generation is still running in the background. Refresh this page to check its latest status.";
+
+export const REGENERATION_FAILED_PRESERVE_NOTICE =
+  "Latest regeneration failed. Your previous Executive Version remains available.";
+
+const ACTIVE_JOB_STATUSES = new Set([
+  "queued",
+  "processing",
+  "retryable",
+  "claimed",
+]);
 
 export function emptyRegenerationSnapshot(): RegenerationStatusSnapshot {
   return {
@@ -38,6 +61,37 @@ export function emptyRegenerationSnapshot(): RegenerationStatusSnapshot {
     blueprintUpdatedAt: null,
     regenerationInFlight: false,
   };
+}
+
+export function isActiveRegenerationJobStatus(
+  jobStatus: string | null | undefined,
+): boolean {
+  if (!jobStatus) return false;
+  return ACTIVE_JOB_STATUSES.has(String(jobStatus).trim().toLowerCase());
+}
+
+export function isTerminalFailedRegeneration(
+  current: Pick<
+    RegenerationStatusSnapshot,
+    "regenerationInFlight" | "jobStatus"
+  >,
+): boolean {
+  if (current.regenerationInFlight) return false;
+  return String(current.jobStatus ?? "").trim().toLowerCase() === "failed";
+}
+
+export function nextRegenerationPollIntervalMs(input: {
+  elapsedMs: number;
+  documentHidden?: boolean;
+  pastSafetyCeiling?: boolean;
+}): number {
+  if (input.documentHidden || input.pastSafetyCeiling) {
+    return 10_000;
+  }
+  if (input.elapsedMs >= REGENERATION_POLL_BACKOFF_AFTER_MS) {
+    return REGENERATION_POLL_INTERVAL_BACKOFF_MS;
+  }
+  return REGENERATION_POLL_INTERVAL_MS;
 }
 
 export function isFullPipelineRegenerationComplete(
@@ -50,6 +104,14 @@ export function isFullPipelineRegenerationComplete(
   queuedAtMs: number,
 ): boolean {
   if (current.regenerationInFlight) {
+    return false;
+  }
+
+  if (isActiveRegenerationJobStatus(current.jobStatus)) {
+    return false;
+  }
+
+  if (isTerminalFailedRegeneration(current)) {
     return false;
   }
 
@@ -87,6 +149,8 @@ export function isFullPipelineRegenerationComplete(
     }
   }
 
+  // Durable completion is detected via pipeline fingerprints above.
+  // Do not treat a stale completed job as success without fingerprint change.
   return false;
 }
 
@@ -97,6 +161,15 @@ export async function fetchRegenerationStatus(
     const response = await fetch(`/api/discussions/${discussionId}/status`, {
       cache: "no-store",
     });
+
+    if (response.status === 401 || response.status === 403) {
+      return {
+        ...emptyRegenerationSnapshot(),
+        regenerationInFlight: false,
+        jobStatus: "auth_lost",
+      };
+    }
+
     const data = (await response.json()) as RegenerationStatusResponse;
 
     if (!response.ok || !data.success) {
@@ -162,9 +235,11 @@ export function readRegenerationSession(
       return null;
     }
 
-    if (Date.now() - parsed.startedAtMs > REGENERATION_POLL_TIMEOUT_MS) {
-      window.sessionStorage.removeItem(sessionStorageKey(discussionId));
-      return null;
+    // Keep session while a long durable job may still be active.
+    // Resume path also re-checks regenerationInFlight from the status API.
+    if (Date.now() - parsed.startedAtMs > REGENERATION_POLL_SAFETY_CEILING_MS) {
+      // Retain baseline for resume messaging; still return so UI can continue.
+      return parsed;
     }
 
     return parsed;
