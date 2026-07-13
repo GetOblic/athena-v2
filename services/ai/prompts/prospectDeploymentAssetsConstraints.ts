@@ -1,9 +1,6 @@
 /**
  * Prospect-specific deployment asset section labels (MVP set).
  * Used only when discussion.platform === prospect_intelligence.
- *
- * All Prospect Deployment Assets are generated together by Gemini
- * (`prospect_deployment_assets` stage). Strategic Blueprint remains Claude.
  */
 
 export const PROSPECT_DEPLOYMENT_SECTION_LABELS = `
@@ -22,15 +19,12 @@ PERSONALIZED_VIDEO_SCRIPT:
 NEWSLETTER_IDEA:
 BLOG_POST_IDEA:
 WHATSAPP_OUTREACH:
-KNOWLEDGE_BASE_ENHANCEMENT:
-SUBSTACK_POST:
-REDDIT_POST:
 `.trim();
 
 export const PROSPECT_DEPLOYMENT_CHANNEL_GUIDE = `
-PERSONALIZED_OUTREACH_EMAIL — concise outbound email tailored to this prospect; specific hook from homepage/fields. Must read like email (not WhatsApp/Reddit).
+PERSONALIZED_OUTREACH_EMAIL — concise outbound email tailored to this prospect; specific hook from homepage/fields.
 FOLLOW_UP_EMAIL — short second-touch email referencing prior outreach angle.
-LINKEDIN_CONNECTION — connection request note under character limits; personalized LinkedIn tone.
+LINKEDIN_CONNECTION — connection request note under character limits; personalized.
 LINKEDIN_FOLLOW_UP — post-accept LinkedIn message with one clear ask.
 COLD_CALL_OPENING — first 15–20 seconds of a cold call; natural, not scripted-sounding.
 DISCOVERY_QUESTIONS — 5–8 sharp discovery questions for a first conversation.
@@ -43,19 +37,7 @@ PERSONALIZED_VIDEO_SCRIPT — 45–60 second personalized video script.
 NEWSLETTER_IDEA — concept for the Athena client's audience newsletter (not outreach to a prospect): subject/title, central angle, why relevant now, key points/sections, suggested CTA, optional opening hook.
 BLOG_POST_IDEA — concept for the Athena client's audience blog (not a full article): proposed title, search/reader intent, central thesis, recommended outline, key expert insights, suggested CTA, optional differentiation angle.
 WHATSAPP_OUTREACH — native WhatsApp outreach (not email). Include INITIAL MESSAGE and FOLLOW-UP sublabels. Conversational, concise, one grounded observation, one low-friction question. No subject line, no signature block, no formal salutation.
-KNOWLEDGE_BASE_ENHANCEMENT — structured factual business knowledge for listings, support, and voice AI. Verified facts only; no hype; omit empty sections; mark gaps under Information Requiring Verification.
-SUBSTACK_POST — publication-ready long-form thought leadership for Substack (TITLE, SUBTITLE, POST, CLOSING CTA). Editorial and educational; not a blog outline or sales letter.
-REDDIT_POST — transparent, community-native Reddit discussion content (SUGGESTED TITLE, POST, optional DISCUSSION QUESTION). Useful before promotional; no astroturfing.
 `.trim();
-
-export const PROSPECT_CONTENT_ASSET_LABELS = [
-  "KNOWLEDGE_BASE_ENHANCEMENT",
-  "SUBSTACK_POST",
-  "REDDIT_POST",
-] as const;
-
-export type ProspectContentAssetLabel =
-  (typeof PROSPECT_CONTENT_ASSET_LABELS)[number];
 
 export const PROSPECT_DEPLOYMENT_ASSET_KEYS = [
   "PERSONALIZED_OUTREACH_EMAIL",
@@ -73,9 +55,6 @@ export const PROSPECT_DEPLOYMENT_ASSET_KEYS = [
   "NEWSLETTER_IDEA",
   "BLOG_POST_IDEA",
   "WHATSAPP_OUTREACH",
-  "KNOWLEDGE_BASE_ENHANCEMENT",
-  "SUBSTACK_POST",
-  "REDDIT_POST",
   // Backward-compatible aliases still parsed if older drafts exist.
   "COLD_EMAIL",
   "OBJECTION_HANDLING",
@@ -150,21 +129,6 @@ export const PROSPECT_DEPLOYMENT_ASSET_META: Record<
     title: "WhatsApp Outreach",
     objective:
       "Native WhatsApp initial message and follow-up — conversational, not email-formatted.",
-  },
-  KNOWLEDGE_BASE_ENHANCEMENT: {
-    title: "Knowledge Base Enhancement",
-    objective:
-      "Structured factual business knowledge for listings, support, and voice AI.",
-  },
-  SUBSTACK_POST: {
-    title: "Substack Post",
-    objective:
-      "Publication-ready long-form thought leadership for Substack.",
-  },
-  REDDIT_POST: {
-    title: "Reddit Post",
-    objective:
-      "Transparent, community-native discussion content for Reddit.",
   },
   COLD_EMAIL: {
     title: "Personalized Outreach Email",

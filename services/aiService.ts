@@ -163,7 +163,6 @@ export {
 export {
   resolveModelForGenerationKind,
   resolveModelForStage,
-  resolveDeploymentAssetsStage,
   type AthenaExtendedLLMStage,
   type AthenaLLMRole,
   type AthenaLLMStage,

@@ -9,17 +9,13 @@ export type AthenaLLMStage =
   | "deployment_assets"
   | "strategic_blueprint";
 
-/**
- * Extended stages. `prospect_deployment_assets` is the Prospect-aware
- * Deployment Assets stage (Gemini). Discussion keeps `deployment_assets` (Claude).
- */
+/** Additional pipeline stages routed through the analysis role until split further. */
 export type AthenaExtendedLLMStage =
   | AthenaLLMStage
   | "community_intelligence"
   | "production_intelligence"
   | "identity_profile"
-  | "generic_review"
-  | "prospect_deployment_assets";
+  | "generic_review";
 
 export type LLMModelRoleConfig = {
   model: string;
@@ -70,7 +66,6 @@ export function getLLMStageRoutes(): Record<
     discussion_analysis: roles.analysis,
     opportunity_generation: roles.analysis,
     executive_briefing: roles.analysis,
-    // Discussion Deployment Assets remain on premium Claude.
     deployment_assets: roles.premiumStrategicOutput,
     strategic_blueprint: roles.premiumStrategicOutput,
   };
@@ -92,22 +87,7 @@ const EXTENDED_STAGE_ROLE: Record<
   production_intelligence: "analysis",
   identity_profile: "analysis",
   generic_review: "analysis",
-  // All Prospect Deployment Assets (including Knowledge Base / Substack / Reddit).
-  prospect_deployment_assets: "analysis",
 };
-
-/**
- * Resolve the Deployment Assets stage for a given intelligence source.
- * Prospects → Gemini (`prospect_deployment_assets`).
- * Discussions → Claude premium (`deployment_assets`).
- */
-export function resolveDeploymentAssetsStage(input: {
-  isProspectSource: boolean;
-}): AthenaExtendedLLMStage {
-  return input.isProspectSource
-    ? "prospect_deployment_assets"
-    : "deployment_assets";
-}
 
 export function resolveAthenaStageFromGenerationKind(
   kind: AthenaGenerationKind,
