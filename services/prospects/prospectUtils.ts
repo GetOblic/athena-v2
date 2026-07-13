@@ -31,6 +31,7 @@ export type ProspectAnalysisFields = {
   job_title: string | null;
   email: string | null;
   phone: string | null;
+  whatsapp_number?: string | null;
   google_business_url: string | null;
   notes: string | null;
   additional_context: string | null;
@@ -139,6 +140,7 @@ export const PROSPECT_MEANINGFUL_EDIT_FIELDS = [
   "job_title",
   "email",
   "phone",
+  "whatsapp_number",
   "google_business_url",
   "notes",
   "additional_context",
