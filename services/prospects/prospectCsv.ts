@@ -24,7 +24,6 @@ export type ProspectCsvRow = {
   job_title?: string | null;
   email?: string | null;
   phone?: string | null;
-  whatsapp_number?: string | null;
   google_business_url?: string | null;
   notes?: string | null;
   additional_context?: string | null;
@@ -99,14 +98,6 @@ export const PROSPECT_CSV_FIELD_ALIASES: Record<
   title: "job_title",
   email: "email",
   phone: "phone",
-  whatsapp_number: "whatsapp_number",
-  whatsapp: "whatsapp_number",
-  whatsapp_phone: "whatsapp_number",
-  whatsapp_mobile: "whatsapp_number",
-  whatsapp_contact: "whatsapp_number",
-  whatsapp_no: "whatsapp_number",
-  whatsapp_num: "whatsapp_number",
-  wa_number: "whatsapp_number",
   google_business_url: "google_business_url",
   google_business: "google_business_url",
   gbp: "google_business_url",

@@ -1,19 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import {
-  CopyButton,
-  type AssetCopyTrackingContext,
-} from "@/components/deployment/CopyButton";
+import { CopyButton } from "@/components/deployment/CopyButton";
 
 type CollapsiblePromptBlockProps = {
   label: string;
   text?: string | null;
   fullWidth?: boolean;
   defaultOpen?: boolean;
-  assetType?: string;
-  copyContext?: Omit<AssetCopyTrackingContext, "assetType"> | null;
-  initiallyDone?: boolean;
 };
 
 export function CollapsiblePromptBlock({
@@ -21,9 +15,6 @@ export function CollapsiblePromptBlock({
   text,
   fullWidth,
   defaultOpen = false,
-  assetType,
-  copyContext = null,
-  initiallyDone = false,
 }: CollapsiblePromptBlockProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const content = text?.trim();
@@ -45,17 +36,7 @@ export function CollapsiblePromptBlock({
           <span className="text-sm font-medium text-white/55">{label}</span>
           <span className="text-xs text-white/30">{isOpen ? "▲" : "▼"}</span>
         </button>
-        {hasContent && content && isOpen && (
-          <CopyButton
-            text={content}
-            initiallyDone={initiallyDone}
-            tracking={
-              copyContext && assetType
-                ? { ...copyContext, assetType }
-                : null
-            }
-          />
-        )}
+        {hasContent && content && isOpen && <CopyButton text={content} />}
       </div>
 
       {isOpen && (

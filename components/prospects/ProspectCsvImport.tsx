@@ -217,8 +217,8 @@ export function ProspectCsvImport() {
           <div>
             <p className="font-medium text-white/55">Required or recommended</p>
             <p className="mt-1 text-white/35">
-              Business Name, Website, Decision Maker, Email, Phone,
-              WhatsApp Number, Industry, Location
+              Business Name, Website, Decision Maker, Email, Phone, Industry,
+              Location
             </p>
           </div>
           <div>

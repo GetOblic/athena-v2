@@ -108,7 +108,6 @@ export async function PATCH(
       job_title: optionalString(body.job_title),
       email: optionalString(body.email),
       phone: optionalString(body.phone),
-      whatsapp_number: optionalString(body.whatsapp_number),
       google_business_url: optionalString(body.google_business_url),
       notes: optionalString(body.notes),
       additional_context: optionalString(body.additional_context),

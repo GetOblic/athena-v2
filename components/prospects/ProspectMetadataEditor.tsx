@@ -10,7 +10,6 @@ import {
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
-import { buildWhatsAppMeUrl } from "@/services/prospects/prospectWhatsApp";
 import type { Prospect } from "@/services/prospects/prospectService";
 
 const fieldClassName =
@@ -32,7 +31,6 @@ const TEXT_FIELDS = [
   ["job_title", "Job Title"],
   ["email", "Email"],
   ["phone", "Phone"],
-  ["whatsapp_number", "WhatsApp Number"],
   ["industry", "Industry"],
   ["category", "Category"],
   ["country", "Country"],
@@ -56,7 +54,6 @@ const OPTIONAL_DISPLAY_FIELDS = new Set([
   "last_name",
   "external_contact_id",
   "timezone",
-  "whatsapp_number",
 ]);
 
 type FormState = {
@@ -81,7 +78,6 @@ type FormState = {
   pain_points: string;
   email: string;
   phone: string;
-  whatsapp_number: string;
   linkedin: string;
   facebook: string;
   instagram: string;
@@ -122,7 +118,6 @@ function formFromProspect(prospect: Prospect): FormState {
     pain_points: prospect.pain_points ?? "",
     email: prospect.email ?? "",
     phone: prospect.phone ?? "",
-    whatsapp_number: prospect.whatsapp_number ?? "",
     linkedin: prospect.linkedin ?? "",
     facebook: prospect.facebook ?? "",
     instagram: prospect.instagram ?? "",
@@ -154,27 +149,6 @@ function ExternalValueLink({
     >
       {label || href}
     </a>
-  );
-}
-
-function WhatsAppDisplayValue({ value }: { value: string }) {
-  const href = buildWhatsAppMeUrl(value);
-  return (
-    <div className="space-y-2">
-      <span className="text-white/75">{value}</span>
-      {href ? (
-        <div>
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-[var(--athena-orange)] underline underline-offset-2"
-          >
-            Open WhatsApp
-          </a>
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -521,9 +495,7 @@ export function ProspectMetadataEditor({
               <div key={key}>
                 <div className="text-sm text-white/40">{label}</div>
                 <div className="mt-2 text-sm">
-                  {key === "whatsapp_number" ? (
-                    <WhatsAppDisplayValue value={display[key]} />
-                  ) : URL_FIELDS.has(key) ? (
+                  {URL_FIELDS.has(key) ? (
                     <ExternalValueLink label={display[key]} value={display[key]} />
                   ) : (
                     <span className="text-white/75">

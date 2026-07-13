@@ -54,7 +54,6 @@ export type Prospect = {
   job_title: string | null;
   email: string | null;
   phone: string | null;
-  whatsapp_number: string | null;
   google_business_url: string | null;
   notes: string | null;
   additional_context: string | null;
@@ -98,7 +97,6 @@ export type CreateProspectInput = {
   job_title?: string | null;
   email?: string | null;
   phone?: string | null;
-  whatsapp_number?: string | null;
   google_business_url?: string | null;
   notes?: string | null;
   additional_context?: string | null;
@@ -140,7 +138,6 @@ function mapProspectRow(data: Prospect): Prospect {
     last_name: data.last_name ?? null,
     external_contact_id: data.external_contact_id ?? null,
     timezone: data.timezone ?? null,
-    whatsapp_number: data.whatsapp_number ?? null,
   };
 }
 
@@ -294,7 +291,6 @@ export async function createProspect(
       job_title: normalizeOptional(input.job_title),
       email: normalizeOptional(input.email),
       phone: normalizeOptional(input.phone),
-      whatsapp_number: normalizeOptional(input.whatsapp_number),
       google_business_url: normalizeOptional(input.google_business_url),
       notes: normalizeOptional(input.notes),
       additional_context: normalizeOptional(input.additional_context),
@@ -402,9 +398,6 @@ export async function updateProspect(
   }
   if (input.phone !== undefined) {
     payload.phone = normalizeOptional(input.phone);
-  }
-  if (input.whatsapp_number !== undefined) {
-    payload.whatsapp_number = normalizeOptional(input.whatsapp_number);
   }
   if (input.google_business_url !== undefined) {
     payload.google_business_url = normalizeOptional(input.google_business_url);

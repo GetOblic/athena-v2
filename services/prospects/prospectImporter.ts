@@ -98,7 +98,6 @@ function mapRowToInput(
     job_title: row.job_title,
     email: row.email,
     phone: row.phone,
-    whatsapp_number: row.whatsapp_number,
     google_business_url: row.google_business_url,
     notes: row.notes,
     additional_context: row.additional_context,

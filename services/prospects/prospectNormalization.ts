@@ -30,7 +30,6 @@ export type ProspectFieldSnapshot = {
   job_title: string | null;
   email: string | null;
   phone: string | null;
-  whatsapp_number?: string | null;
   google_business_url: string | null;
   notes: string | null;
   additional_context: string | null;
@@ -59,7 +58,6 @@ export type NormalizedExecutiveSourceInput = {
     jobTitle: string | null;
     email: string | null;
     phone: string | null;
-    whatsappNumber: string | null;
     linkedin: string | null;
     facebook: string | null;
     instagram: string | null;
@@ -103,7 +101,6 @@ export function normalizeProspectExecutiveInput(
       jobTitle: prospect.job_title,
       email: prospect.email,
       phone: prospect.phone,
-      whatsappNumber: prospect.whatsapp_number ?? null,
       linkedin: prospect.linkedin,
       facebook: prospect.facebook,
       instagram: prospect.instagram,
@@ -151,9 +148,6 @@ export function formatNormalizedProspectInputForPipeline(
     input.contacts.timezone ? `Timezone: ${input.contacts.timezone}` : null,
     input.contacts.email ? `Email: ${input.contacts.email}` : null,
     input.contacts.phone ? `Phone: ${input.contacts.phone}` : null,
-    input.contacts.whatsappNumber
-      ? `WhatsApp: ${input.contacts.whatsappNumber}`
-      : null,
     input.contacts.linkedin ? `LinkedIn: ${input.contacts.linkedin}` : null,
     input.contacts.facebook ? `Facebook: ${input.contacts.facebook}` : null,
     input.contacts.instagram ? `Instagram: ${input.contacts.instagram}` : null,

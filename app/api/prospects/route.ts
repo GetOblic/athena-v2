@@ -45,8 +45,6 @@ function rowFromBody(body: Record<string, unknown>) {
     job_title: String(body.job_title ?? body.jobTitle ?? "") || null,
     email: String(body.email ?? "") || null,
     phone: String(body.phone ?? "") || null,
-    whatsapp_number:
-      String(body.whatsapp_number ?? body.whatsappNumber ?? "") || null,
     google_business_url:
       String(body.google_business_url ?? body.googleBusinessUrl ?? "") || null,
     notes: String(body.notes ?? "") || null,

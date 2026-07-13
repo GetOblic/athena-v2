@@ -35,7 +35,6 @@ const MANUAL_FIELDS = [
   ["job_title", "Job Title"],
   ["email", "Email"],
   ["phone", "Phone"],
-  ["whatsapp_number", "WhatsApp Number"],
   ["google_business_url", "Google Business URL"],
   ["company_size", "Company Size"],
   ["revenue", "Revenue"],
