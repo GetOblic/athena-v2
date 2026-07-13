@@ -27,6 +27,7 @@ const ANALYSIS_EXTENDED_STAGES = [
   "production_intelligence",
   "identity_profile",
   "generic_review",
+  "prospect_deployment_assets",
 ] as const;
 
 let failures = 0;
@@ -95,12 +96,26 @@ for (const stage of [...CORE_STAGES, ...ANALYSIS_EXTENDED_STAGES]) {
   }
 }
 
-for (const stage of ["deployment_assets", "strategic_blueprint"] as const) {
+for (const stage of [
+  "deployment_assets",
+  "prospect_deployment_assets",
+] as const) {
   const route = resolveModelForStage(stage);
-  if (!isClaudeModel(route.model)) {
-    fail(`${stage} premium role must default to Claude`);
+  if (route.role !== "analysis") {
+    fail(`${stage} must use analysis role (Gemini)`);
+  } else if (isClaudeModel(route.model)) {
+    fail(`${stage} analysis role must not default to Claude`);
   } else {
-    pass(`${stage} premium role defaults to Claude`);
+    pass(`${stage} analysis role defaults to Gemini (${route.model})`);
+  }
+}
+
+{
+  const route = resolveModelForStage("strategic_blueprint");
+  if (route.role !== "premiumStrategicOutput" || !isClaudeModel(route.model)) {
+    fail("strategic_blueprint premium role must default to Claude");
+  } else {
+    pass("strategic_blueprint premium role defaults to Claude");
   }
 }
 
