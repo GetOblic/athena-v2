@@ -25,6 +25,9 @@ export type ProspectAnalysisFields = {
   technologies: string | null;
   pain_points: string | null;
   decision_maker: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  timezone?: string | null;
   job_title: string | null;
   email: string | null;
   phone: string | null;
@@ -54,11 +57,33 @@ export function normalizeWebsiteUrl(value?: string | null): string | null {
   }
 }
 
+/**
+ * Primary contact display name.
+ * Explicit decision_maker wins; otherwise derive from first/last name parts.
+ */
+export function resolveProspectDecisionMaker(input: {
+  decision_maker?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+}): string | null {
+  const explicit = String(input.decision_maker ?? "").trim();
+  if (explicit) return explicit;
+
+  const first = String(input.first_name ?? "").trim();
+  const last = String(input.last_name ?? "").trim();
+  if (first && last) return `${first} ${last}`;
+  if (first) return first;
+  if (last) return last;
+  return null;
+}
+
 /** Resolve a stable display name when Business Name is empty. */
 export function resolveProspectBusinessName(input: {
   business_name?: string | null;
   website?: string | null;
   decision_maker?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
 }): string | null {
   const name = String(input.business_name ?? "").trim();
   if (name) return name;
@@ -72,7 +97,7 @@ export function resolveProspectBusinessName(input: {
     }
   }
 
-  const contact = String(input.decision_maker ?? "").trim();
+  const contact = resolveProspectDecisionMaker(input);
   if (contact) return contact;
 
   return null;
@@ -108,6 +133,9 @@ export const PROSPECT_MEANINGFUL_EDIT_FIELDS = [
   "technologies",
   "pain_points",
   "decision_maker",
+  "first_name",
+  "last_name",
+  "timezone",
   "job_title",
   "email",
   "phone",

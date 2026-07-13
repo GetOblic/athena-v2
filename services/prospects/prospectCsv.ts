@@ -28,6 +28,10 @@ export type ProspectCsvRow = {
   notes?: string | null;
   additional_context?: string | null;
   ads_content?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  external_contact_id?: string | null;
+  timezone?: string | null;
   source?: string | null;
 };
 
@@ -60,6 +64,8 @@ export const PROSPECT_CSV_FIELD_ALIASES: Record<
   state: "state",
   city: "city",
   address: "address",
+  street_address: "address",
+  street: "address",
   company_size: "company_size",
   size: "company_size",
   revenue: "revenue",
@@ -73,6 +79,21 @@ export const PROSPECT_CSV_FIELD_ALIASES: Record<
   decision_maker: "decision_maker",
   contact: "decision_maker",
   contact_name: "decision_maker",
+  first_name: "first_name",
+  firstname: "first_name",
+  contact_first_name: "first_name",
+  last_name: "last_name",
+  lastname: "last_name",
+  contact_last_name: "last_name",
+  external_contact_id: "external_contact_id",
+  contact_id: "external_contact_id",
+  contactid: "external_contact_id",
+  crm_contact_id: "external_contact_id",
+  crm_id: "external_contact_id",
+  external_id: "external_contact_id",
+  timezone: "timezone",
+  time_zone: "timezone",
+  tz: "timezone",
   job_title: "job_title",
   title: "job_title",
   email: "email",
@@ -80,6 +101,9 @@ export const PROSPECT_CSV_FIELD_ALIASES: Record<
   google_business_url: "google_business_url",
   google_business: "google_business_url",
   gbp: "google_business_url",
+  google_url: "google_business_url",
+  google_url_: "google_business_url",
+  google_business_profile: "google_business_url",
   notes: "notes",
   additional_context: "additional_context",
   context: "additional_context",

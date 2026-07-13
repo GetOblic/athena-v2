@@ -57,6 +57,12 @@ function extractErrorMessage(
   return fallback;
 }
 
+function previewRowWarningText(row: PreviewRow): string {
+  if (row.warnings.length > 0) return row.warnings[0];
+  if (row.reason) return row.reason;
+  return "—";
+}
+
 export function ProspectCsvImport() {
   const csvInputId = useId();
   const csvFileInputRef = useRef<HTMLInputElement>(null);
@@ -300,25 +306,43 @@ export function ProspectCsvImport() {
             </dl>
           </div>
 
-          {preview.recognizedColumns.length > 0 && (
-            <div>
-              <p className="text-sm font-medium text-white/55">
-                Recognized columns
-              </p>
-              <p className="mt-2 text-sm leading-6 text-white/40">
-                {preview.recognizedColumns.join(", ")}
-              </p>
-            </div>
-          )}
-
-          {preview.ignoredColumns.length > 0 && (
-            <div
-              className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm text-amber-100/80"
-              role="status"
-            >
-              Ignored columns: {preview.ignoredColumns.join(", ")}
-            </div>
-          )}
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-white/55">
+              Recognized: {preview.recognizedColumns.length} columns
+              {preview.ignoredColumns.length > 0
+                ? ` · Ignored: ${preview.ignoredColumns.length} columns`
+                : " · Ignored: 0 columns"}
+            </p>
+            <details className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-white/40">
+              <summary className="cursor-pointer text-white/55">
+                Column details
+              </summary>
+              <div className="mt-3 space-y-2 leading-6">
+                <p>
+                  <span className="text-white/50">Recognized: </span>
+                  {preview.recognizedColumns.length > 0
+                    ? preview.recognizedColumns.join(", ")
+                    : "—"}
+                </p>
+                <p>
+                  <span className="text-white/50">Ignored: </span>
+                  {preview.ignoredColumns.length > 0
+                    ? preview.ignoredColumns.join(", ")
+                    : "—"}
+                </p>
+              </div>
+            </details>
+            {preview.ignoredColumns.length > 0 && (
+              <div
+                className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm text-amber-100/80"
+                role="status"
+              >
+                {preview.ignoredColumns.length} ignored column
+                {preview.ignoredColumns.length === 1 ? "" : "s"} will not be
+                imported: {preview.ignoredColumns.join(", ")}
+              </div>
+            )}
+          </div>
 
           <div className="overflow-x-auto rounded-2xl border border-white/10">
             <table className="min-w-full text-left text-sm">
@@ -345,6 +369,9 @@ export function ProspectCsvImport() {
                   <th scope="col" className="px-4 py-3 font-medium">
                     Status
                   </th>
+                  <th scope="col" className="px-4 py-3 font-medium">
+                    Warnings
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -359,14 +386,6 @@ export function ProspectCsvImport() {
                     </td>
                     <td className="px-4 py-3 text-white/60">
                       {row.normalizedWebsite ?? row.websiteInput ?? "—"}
-                      {row.warnings.length > 0 && (
-                        <p className="mt-1 text-xs text-orange-300/80">
-                          {row.warnings[0]}
-                        </p>
-                      )}
-                      {row.reason && row.status !== "ready" && (
-                        <p className="mt-1 text-xs text-white/40">{row.reason}</p>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-white/60">
                       {row.decisionMaker ?? "—"}
@@ -381,6 +400,9 @@ export function ProspectCsvImport() {
                       className={`px-4 py-3 font-medium ${STATUS_STYLES[row.status]}`}
                     >
                       {STATUS_LABELS[row.status]}
+                    </td>
+                    <td className="px-4 py-3 text-xs leading-5 text-white/45">
+                      {previewRowWarningText(row)}
                     </td>
                   </tr>
                 ))}

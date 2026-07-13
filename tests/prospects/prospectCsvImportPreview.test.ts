@@ -13,6 +13,14 @@ import {
   prepareProspectImportRows,
   PROSPECT_IMPORT_PREVIEW_ROW_LIMIT,
 } from "../../services/prospects/prospectImportPreparation";
+import {
+  formatNormalizedProspectInputForPipeline,
+  normalizeProspectExecutiveInput,
+} from "../../services/prospects/prospectNormalization";
+import {
+  resolveProspectBusinessName,
+  resolveProspectDecisionMaker,
+} from "../../services/prospects/prospectUtils";
 
 const ROOT = join(process.cwd());
 
@@ -174,8 +182,138 @@ describe("prospect CSV multiline and source row parsing", () => {
     assert.ok(document.records.length <= PROSPECT_CSV_MAX_DATA_ROWS);
     assert.equal(document.ignoredColumns.length, 0);
     assert.equal(document.rows[0].business_name, "Example Aesthetics Clinic");
-    assert.match(document.rows[0].address ?? "", /Suite 400/);
+    assert.equal(document.rows[0].address, "123 Lake Shore Drive, Suite 400");
+    assert.equal(document.rows[0].first_name, "Jordan");
+    assert.equal(document.rows[0].last_name, "Taylor");
+    assert.equal(document.rows[0].external_contact_id, "CRM-10042");
+    assert.equal(document.rows[0].timezone, "America/Chicago");
     assert.match(document.rows[0].technologies ?? "", /injectables/);
+  });
+
+  it("maps CRM-friendly headers into new and existing fields", () => {
+    const document = parseProspectCsvDocument(
+      [
+        "Contact Id,First Name,Last Name,Street Address,Timezone,Google_Url,Business Name",
+        "CRM-9,Alex,Rivera,100 Main St,America/Chicago,https://maps.example.com/a,Rivera Clinic",
+      ].join("\n"),
+    );
+
+    assert.equal(document.ignoredColumns.length, 0);
+    assert.equal(document.rows[0].external_contact_id, "CRM-9");
+    assert.equal(document.rows[0].first_name, "Alex");
+    assert.equal(document.rows[0].last_name, "Rivera");
+    assert.equal(document.rows[0].address, "100 Main St");
+    assert.equal(document.rows[0].timezone, "America/Chicago");
+    assert.equal(
+      document.rows[0].google_business_url,
+      "https://maps.example.com/a",
+    );
+  });
+
+  it("still maps canonical snake_case CRM headers", () => {
+    const rows = parseProspectCsv(
+      "business_name,external_contact_id,first_name,last_name,timezone,google_url\nAcme,EXT-1,Pat,Lee,UTC,https://maps.example.com/b\n",
+    );
+    assert.equal(rows[0].external_contact_id, "EXT-1");
+    assert.equal(rows[0].first_name, "Pat");
+    assert.equal(rows[0].last_name, "Lee");
+    assert.equal(rows[0].timezone, "UTC");
+    assert.equal(rows[0].google_business_url, "https://maps.example.com/b");
+  });
+});
+
+describe("prospect contact name resolution", () => {
+  it("keeps explicit decision_maker and derives first/last fallbacks", () => {
+    assert.equal(
+      resolveProspectDecisionMaker({
+        decision_maker: "Explicit Name",
+        first_name: "A",
+        last_name: "B",
+      }),
+      "Explicit Name",
+    );
+    assert.equal(
+      resolveProspectDecisionMaker({
+        decision_maker: "",
+        first_name: "Jordan",
+        last_name: "Taylor",
+      }),
+      "Jordan Taylor",
+    );
+    assert.equal(
+      resolveProspectDecisionMaker({
+        decision_maker: "",
+        first_name: "Jordan",
+        last_name: "",
+      }),
+      "Jordan",
+    );
+    assert.equal(
+      resolveProspectDecisionMaker({
+        decision_maker: "",
+        first_name: "",
+        last_name: "Taylor",
+      }),
+      "Taylor",
+    );
+    assert.equal(
+      resolveProspectBusinessName({
+        business_name: "Clinic",
+        first_name: "Jordan",
+        last_name: "Taylor",
+      }),
+      "Clinic",
+    );
+    assert.equal(
+      resolveProspectBusinessName({
+        business_name: "",
+        website: "",
+        first_name: "Jordan",
+        last_name: "Taylor",
+      }),
+      "Jordan Taylor",
+    );
+  });
+
+  it("includes first name, last name, and timezone in generation context without CRM id", () => {
+    const body = formatNormalizedProspectInputForPipeline(
+      normalizeProspectExecutiveInput({
+        business_name: "Acme",
+        website: null,
+        linkedin: null,
+        facebook: null,
+        instagram: null,
+        industry: null,
+        category: null,
+        country: null,
+        state: null,
+        city: null,
+        address: null,
+        company_size: null,
+        revenue: null,
+        employee_count: null,
+        technologies: null,
+        pain_points: null,
+        decision_maker: "Pat Lee",
+        first_name: "Pat",
+        last_name: "Lee",
+        timezone: "America/Chicago",
+        job_title: null,
+        email: null,
+        phone: null,
+        google_business_url: null,
+        notes: null,
+        additional_context: null,
+        ads_content: null,
+        source: "csv",
+        website_intelligence: null,
+      }),
+    );
+
+    assert.match(body, /Contact First Name: Pat/);
+    assert.match(body, /Contact Last Name: Lee/);
+    assert.match(body, /Timezone: America\/Chicago/);
+    assert.doesNotMatch(body, /CRM-|external_contact/i);
   });
 });
 
@@ -457,6 +595,89 @@ describe("final prospect CSV import behavior", () => {
     assert.equal(queued.length, 2);
   });
 
+  it("preserves CRM fields through preparation and final import without using external_contact_id as a duplicate key", async () => {
+    const { importProspectsFromRows } = await loadImporter();
+    const persisted: Array<Record<string, unknown>> = [];
+
+    const prepared = await prepareProspectImportRows({
+      organizationId: "org-a",
+      findDuplicate: async () => null,
+      records: [
+        {
+          sourceRowNumber: 2,
+          fields: {
+            business_name: "Clinic A",
+            website: "clinica.com",
+            first_name: "Sam",
+            last_name: "Lee",
+            external_contact_id: "CRM-1",
+            timezone: "America/Chicago",
+            address: "1 Main",
+          },
+        },
+        {
+          sourceRowNumber: 3,
+          fields: {
+            business_name: "Clinic B",
+            website: "clinicb.com",
+            external_contact_id: "CRM-1",
+            first_name: "Other",
+            last_name: "Person",
+          },
+        },
+      ],
+    });
+
+    assert.equal(prepared.importableRows, 2);
+    assert.equal(prepared.duplicateRows, 0);
+    assert.equal(prepared.rows[0].decisionMaker, "Sam Lee");
+
+    const summary = await importProspectsFromRows({
+      organizationId: "org-a",
+      userId: "user-1",
+      findDuplicate: async () => null,
+      createProspect: async (input) => {
+        persisted.push({
+          first_name: input.first_name ?? null,
+          last_name: input.last_name ?? null,
+          external_contact_id: input.external_contact_id ?? null,
+          timezone: input.timezone ?? null,
+          decision_maker: input.decision_maker ?? null,
+        });
+        return stubProspect({
+          id: `p-${persisted.length}`,
+          business_name: input.business_name,
+          website: (input.website as string | null) ?? null,
+        });
+      },
+      ensureQueued: async (prospect) => ({
+        prospect,
+        queued: true,
+        jobId: `job-${prospect.id}`,
+      }),
+      records: [
+        {
+          sourceRowNumber: 2,
+          fields: {
+            business_name: "Clinic A",
+            website: "clinica.com",
+            first_name: "Sam",
+            last_name: "Lee",
+            external_contact_id: "CRM-1",
+            timezone: "America/Chicago",
+          },
+        },
+      ],
+    });
+
+    assert.equal(summary.imported, 1);
+    assert.equal(persisted[0].first_name, "Sam");
+    assert.equal(persisted[0].last_name, "Lee");
+    assert.equal(persisted[0].external_contact_id, "CRM-1");
+    assert.equal(persisted[0].timezone, "America/Chicago");
+    assert.equal(persisted[0].decision_maker, "Sam Lee");
+  });
+
   it("HTTP import path contracts still avoid scrape and AI work", () => {
     const importer = readFileSync(
       join(ROOT, "services/prospects/prospectImporter.ts"),
@@ -491,17 +712,50 @@ describe("prospect CSV UI extraction contracts", () => {
 
     assert.match(parent, /ProspectCsvImport/);
     assert.match(parent, /Manual Import/);
+    assert.match(parent, /External Contact ID/);
+    assert.match(parent, /First Name/);
+    assert.match(parent, /Last Name/);
+    assert.match(parent, /Timezone/);
     assert.doesNotMatch(parent, /Review CSV/);
     assert.match(csv, /Download CSV Template/);
     assert.match(csv, /download="Athena_Prospect_Import_Template\.csv"/);
     assert.match(csv, /Review CSV/);
-    assert.match(csv, /\/api\/prospects\/import\/preview/);
-    assert.match(csv, /Confirm Import/);
-    assert.match(csv, /importableRows <= 0/);
+    assert.match(csv, /Recognized:/);
+    assert.match(csv, /Ignored:/);
+    assert.match(csv, /Warnings/);
+    assert.match(csv, /preview\.ignoredColumns\.length > 0/);
     assert.match(csv, /Maximum 500 Prospects per CSV/);
-    assert.match(csv, /clearCsvReviewState|setPreview\(null\)/);
     assert.match(csv, /Open Prospect Library/);
     assert.doesNotMatch(csv, />Import CSV</);
+  });
+
+  it("metadata editor and API routes accept CRM contact fields", () => {
+    const editor = readFileSync(
+      join(ROOT, "components/prospects/ProspectMetadataEditor.tsx"),
+      "utf8",
+    );
+    const createRoute = readFileSync(
+      join(ROOT, "app/api/prospects/route.ts"),
+      "utf8",
+    );
+    const updateRoute = readFileSync(
+      join(ROOT, "app/api/prospects/[id]/route.ts"),
+      "utf8",
+    );
+    const normalization = readFileSync(
+      join(ROOT, "services/prospects/prospectNormalization.ts"),
+      "utf8",
+    );
+
+    assert.match(editor, /External Contact ID/);
+    assert.match(editor, /OPTIONAL_DISPLAY_FIELDS/);
+    assert.match(createRoute, /external_contact_id/);
+    assert.match(createRoute, /first_name/);
+    assert.match(updateRoute, /external_contact_id/);
+    assert.match(normalization, /Contact First Name/);
+    assert.match(normalization, /Contact Last Name/);
+    assert.match(normalization, /Timezone:/);
+    assert.doesNotMatch(normalization, /external_contact_id|External Contact/);
   });
 
   it("preview route authenticates and never writes", () => {

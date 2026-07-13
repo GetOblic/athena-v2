@@ -24,6 +24,10 @@ const TEXT_FIELDS = [
   ["business_name", "Business Name"],
   ["website", "Website"],
   ["decision_maker", "Decision Maker / Contact Name"],
+  ["first_name", "First Name"],
+  ["last_name", "Last Name"],
+  ["external_contact_id", "External Contact ID"],
+  ["timezone", "Timezone"],
   ["job_title", "Job Title"],
   ["email", "Email"],
   ["phone", "Phone"],
@@ -44,10 +48,22 @@ const TEXT_FIELDS = [
   ["google_business_url", "Google Business URL"],
 ] as const;
 
+/** Hide empty CRM/contact split fields in read-only view. */
+const OPTIONAL_DISPLAY_FIELDS = new Set([
+  "first_name",
+  "last_name",
+  "external_contact_id",
+  "timezone",
+]);
+
 type FormState = {
   business_name: string;
   website: string;
   decision_maker: string;
+  first_name: string;
+  last_name: string;
+  external_contact_id: string;
+  timezone: string;
   job_title: string;
   industry: string;
   category: string;
@@ -84,6 +100,10 @@ function formFromProspect(prospect: Prospect): FormState {
     business_name: prospect.business_name ?? "",
     website: prospect.website ?? "",
     decision_maker: prospect.decision_maker ?? "",
+    first_name: prospect.first_name ?? "",
+    last_name: prospect.last_name ?? "",
+    external_contact_id: prospect.external_contact_id ?? "",
+    timezone: prospect.timezone ?? "",
     job_title: prospect.job_title ?? "",
     industry: prospect.industry ?? "",
     category: prospect.category ?? "",
@@ -468,7 +488,10 @@ export function ProspectMetadataEditor({
       ) : (
         <>
           <div className="mt-8 grid gap-6 md:grid-cols-2">
-            {TEXT_FIELDS.map(([key, label]) => (
+            {TEXT_FIELDS.filter(
+              ([key]) =>
+                !OPTIONAL_DISPLAY_FIELDS.has(key) || Boolean(display[key]),
+            ).map(([key, label]) => (
               <div key={key}>
                 <div className="text-sm text-white/40">{label}</div>
                 <div className="mt-2 text-sm">

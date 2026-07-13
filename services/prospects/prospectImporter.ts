@@ -35,7 +35,10 @@ import {
   type ProspectCsvParsedRecord,
   type ProspectCsvRow,
 } from "@/services/prospects/prospectCsv";
-import { resolveProspectBusinessName } from "@/services/prospects/prospectUtils";
+import {
+  resolveProspectBusinessName,
+  resolveProspectDecisionMaker,
+} from "@/services/prospects/prospectUtils";
 import { scrapeHomepageIntelligence } from "@/services/prospects/prospectWebsiteIntelligence";
 
 export type ProspectImportRow = ProspectCsvRow;
@@ -87,7 +90,11 @@ function mapRowToInput(
     employee_count: row.employee_count,
     technologies: row.technologies,
     pain_points: row.pain_points,
-    decision_maker: row.decision_maker,
+    decision_maker: resolveProspectDecisionMaker(row),
+    first_name: row.first_name,
+    last_name: row.last_name,
+    external_contact_id: row.external_contact_id,
+    timezone: row.timezone,
     job_title: row.job_title,
     email: row.email,
     phone: row.phone,
@@ -278,7 +285,10 @@ export async function importProspectManual(input: {
   withoutWebsite: boolean;
   jobId?: string;
 }> {
-  const businessName = resolveProspectBusinessName(input.row);
+  const businessName = resolveProspectBusinessName({
+    ...input.row,
+    decision_maker: resolveProspectDecisionMaker(input.row),
+  });
   if (!businessName) {
     throw new Error(
       "Business Name is required when no website or contact name is available.",

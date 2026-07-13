@@ -13,6 +13,7 @@ import type { Prospect } from "@/services/prospects/prospectService";
 import {
   normalizeWebsiteUrl,
   resolveProspectBusinessName,
+  resolveProspectDecisionMaker,
 } from "@/services/prospects/prospectUtils";
 
 export type ProspectImportRowStatus =
@@ -173,7 +174,11 @@ export async function prepareProspectImportRows(input: {
       ? normalizeWebsiteUrl(websiteInput)
       : null;
     const invalidWebsite = Boolean(websiteInput) && !normalizedWebsite;
-    const businessName = resolveProspectBusinessName(row);
+    const decisionMaker = resolveProspectDecisionMaker(row);
+    const businessName = resolveProspectBusinessName({
+      ...row,
+      decision_maker: decisionMaker,
+    });
     const city = row.city ?? null;
     const warnings: string[] = [];
 
@@ -183,7 +188,7 @@ export async function prepareProspectImportRows(input: {
       businessName,
       websiteInput,
       normalizedWebsite,
-      decisionMaker: row.decision_maker?.trim() || null,
+      decisionMaker,
       industry: row.industry?.trim() || null,
       city: city?.trim() || null,
       email: row.email?.trim() || null,

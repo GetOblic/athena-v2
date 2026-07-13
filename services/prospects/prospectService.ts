@@ -47,6 +47,10 @@ export type Prospect = {
   technologies: string | null;
   pain_points: string | null;
   decision_maker: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  external_contact_id: string | null;
+  timezone: string | null;
   job_title: string | null;
   email: string | null;
   phone: string | null;
@@ -86,6 +90,10 @@ export type CreateProspectInput = {
   technologies?: string | null;
   pain_points?: string | null;
   decision_maker?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  external_contact_id?: string | null;
+  timezone?: string | null;
   job_title?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -126,6 +134,10 @@ function mapProspectRow(data: Prospect): Prospect {
     ...data,
     lifecycle_status: normalizeProspectLifecycleStatus(data.lifecycle_status),
     ads_content: data.ads_content ?? null,
+    first_name: data.first_name ?? null,
+    last_name: data.last_name ?? null,
+    external_contact_id: data.external_contact_id ?? null,
+    timezone: data.timezone ?? null,
   };
 }
 
@@ -272,6 +284,10 @@ export async function createProspect(
       technologies: normalizeOptional(input.technologies),
       pain_points: normalizeOptional(input.pain_points),
       decision_maker: normalizeOptional(input.decision_maker),
+      first_name: normalizeOptional(input.first_name),
+      last_name: normalizeOptional(input.last_name),
+      external_contact_id: normalizeOptional(input.external_contact_id),
+      timezone: normalizeOptional(input.timezone),
       job_title: normalizeOptional(input.job_title),
       email: normalizeOptional(input.email),
       phone: normalizeOptional(input.phone),
@@ -361,6 +377,18 @@ export async function updateProspect(
   }
   if (input.decision_maker !== undefined) {
     payload.decision_maker = normalizeOptional(input.decision_maker);
+  }
+  if (input.first_name !== undefined) {
+    payload.first_name = normalizeOptional(input.first_name);
+  }
+  if (input.last_name !== undefined) {
+    payload.last_name = normalizeOptional(input.last_name);
+  }
+  if (input.external_contact_id !== undefined) {
+    payload.external_contact_id = normalizeOptional(input.external_contact_id);
+  }
+  if (input.timezone !== undefined) {
+    payload.timezone = normalizeOptional(input.timezone);
   }
   if (input.job_title !== undefined) {
     payload.job_title = normalizeOptional(input.job_title);

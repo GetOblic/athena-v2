@@ -24,6 +24,9 @@ export type ProspectFieldSnapshot = {
   technologies: string | null;
   pain_points: string | null;
   decision_maker: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  timezone?: string | null;
   job_title: string | null;
   email: string | null;
   phone: string | null;
@@ -49,6 +52,9 @@ export type NormalizedExecutiveSourceInput = {
   };
   contacts: {
     decisionMaker: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    timezone: string | null;
     jobTitle: string | null;
     email: string | null;
     phone: string | null;
@@ -89,6 +95,9 @@ export function normalizeProspectExecutiveInput(
     },
     contacts: {
       decisionMaker: prospect.decision_maker,
+      firstName: prospect.first_name ?? null,
+      lastName: prospect.last_name ?? null,
+      timezone: prospect.timezone ?? null,
       jobTitle: prospect.job_title,
       email: prospect.email,
       phone: prospect.phone,
@@ -130,6 +139,13 @@ export function formatNormalizedProspectInputForPipeline(
           input.contacts.jobTitle ? ` (${input.contacts.jobTitle})` : ""
         }`
       : null,
+    input.contacts.firstName
+      ? `Contact First Name: ${input.contacts.firstName}`
+      : null,
+    input.contacts.lastName
+      ? `Contact Last Name: ${input.contacts.lastName}`
+      : null,
+    input.contacts.timezone ? `Timezone: ${input.contacts.timezone}` : null,
     input.contacts.email ? `Email: ${input.contacts.email}` : null,
     input.contacts.phone ? `Phone: ${input.contacts.phone}` : null,
     input.contacts.linkedin ? `LinkedIn: ${input.contacts.linkedin}` : null,

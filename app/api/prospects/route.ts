@@ -37,6 +37,11 @@ function rowFromBody(body: Record<string, unknown>) {
     pain_points: String(body.pain_points ?? body.painPoints ?? "") || null,
     decision_maker:
       String(body.decision_maker ?? body.decisionMaker ?? "") || null,
+    first_name: String(body.first_name ?? body.firstName ?? "") || null,
+    last_name: String(body.last_name ?? body.lastName ?? "") || null,
+    external_contact_id:
+      String(body.external_contact_id ?? body.externalContactId ?? "") || null,
+    timezone: String(body.timezone ?? "") || null,
     job_title: String(body.job_title ?? body.jobTitle ?? "") || null,
     email: String(body.email ?? "") || null,
     phone: String(body.phone ?? "") || null,
