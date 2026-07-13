@@ -185,7 +185,7 @@ OPENROUTER_ANALYSIS_REASONING_EFFORT=medium
 OPENROUTER_PREMIUM_REASONING_EFFORT=high
 ```
 
-Analysis stages (discussion analysis, briefings, deployment assets, community intelligence, etc.) use the analysis model. Strategic blueprint uses the premium model.
+Analysis stages (discussion analysis, briefings, community intelligence, etc.) use the analysis model. Deployment assets and strategic blueprint use the premium model.
 
 ---
 

@@ -10,9 +10,6 @@ import {
   PROSPECT_DEPLOYMENT_SECTION_LABELS,
 } from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
 import { WHATSAPP_OUTREACH_GENERATION_RULES } from "@/services/ai/prompts/whatsappOutreachConstraints";
-import { KNOWLEDGE_BASE_ENHANCEMENT_GENERATION_RULES } from "@/services/ai/prompts/knowledgeBaseEnhancementConstraints";
-import { SUBSTACK_POST_GENERATION_RULES } from "@/services/ai/prompts/substackPostConstraints";
-import { REDDIT_POST_GENERATION_RULES } from "@/services/ai/prompts/redditPostConstraints";
 import {
   SHARED_ANTI_GENERIC_RULES,
   SHARED_JSON_OUTPUT_RULES,
@@ -112,8 +109,8 @@ export function assembleDeploymentAssetsPrompt(input: {
 ${SHARED_JSON_OUTPUT_RULES}
 
 {
-  "suggested_cta": "PERSONALIZED_OUTREACH_EMAIL:\\n...\\n\\nFOLLOW_UP_EMAIL:\\n...\\n\\nLINKEDIN_CONNECTION:\\n...\\n\\nLINKEDIN_FOLLOW_UP:\\n...\\n\\nCOLD_CALL_OPENING:\\n...\\n\\nDISCOVERY_QUESTIONS:\\n...\\n\\nPERSONALIZED_VALUE_PROPOSITION:\\n...\\n\\nOBJECTION_ANTICIPATION:\\n...\\n\\nMEETING_PREPARATION:\\n...\\n\\nRECOMMENDED_CTA:\\n...\\n\\nFOLLOW_UP_SEQUENCE:\\n...\\n\\nPERSONALIZED_VIDEO_SCRIPT:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...\\n\\nWHATSAPP_OUTREACH:\\nINITIAL MESSAGE\\n...\\n\\nFOLLOW-UP\\n...\\n\\nKNOWLEDGE_BASE_ENHANCEMENT:\\n...\\n\\nSUBSTACK_POST:\\nTITLE\\n...\\n\\nSUBTITLE\\n...\\n\\nPOST\\n...\\n\\nCLOSING CTA\\n...\\n\\nREDDIT_POST:\\nSUGGESTED TITLE\\n...\\n\\nPOST\\n...\\n\\nOPTIONAL DISCUSSION QUESTION\\n...",
-  "recommended_response": "PERSONALIZED_OUTREACH_EMAIL:\\n...\\n\\nFOLLOW_UP_EMAIL:\\n...\\n\\nLINKEDIN_CONNECTION:\\n...\\n\\nLINKEDIN_FOLLOW_UP:\\n...\\n\\nCOLD_CALL_OPENING:\\n...\\n\\nDISCOVERY_QUESTIONS:\\n...\\n\\nPERSONALIZED_VALUE_PROPOSITION:\\n...\\n\\nOBJECTION_ANTICIPATION:\\n...\\n\\nMEETING_PREPARATION:\\n...\\n\\nRECOMMENDED_CTA:\\n...\\n\\nFOLLOW_UP_SEQUENCE:\\n...\\n\\nPERSONALIZED_VIDEO_SCRIPT:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...\\n\\nWHATSAPP_OUTREACH:\\nINITIAL MESSAGE\\n...\\n\\nFOLLOW-UP\\n...\\n\\nKNOWLEDGE_BASE_ENHANCEMENT:\\n...\\n\\nSUBSTACK_POST:\\nTITLE\\n...\\n\\nSUBTITLE\\n...\\n\\nPOST\\n...\\n\\nCLOSING CTA\\n...\\n\\nREDDIT_POST:\\nSUGGESTED TITLE\\n...\\n\\nPOST\\n...\\n\\nOPTIONAL DISCUSSION QUESTION\\n...",
+  "suggested_cta": "PERSONALIZED_OUTREACH_EMAIL:\\n...\\n\\nFOLLOW_UP_EMAIL:\\n...\\n\\nLINKEDIN_CONNECTION:\\n...\\n\\nLINKEDIN_FOLLOW_UP:\\n...\\n\\nCOLD_CALL_OPENING:\\n...\\n\\nDISCOVERY_QUESTIONS:\\n...\\n\\nPERSONALIZED_VALUE_PROPOSITION:\\n...\\n\\nOBJECTION_ANTICIPATION:\\n...\\n\\nMEETING_PREPARATION:\\n...\\n\\nRECOMMENDED_CTA:\\n...\\n\\nFOLLOW_UP_SEQUENCE:\\n...\\n\\nPERSONALIZED_VIDEO_SCRIPT:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...\\n\\nWHATSAPP_OUTREACH:\\nINITIAL MESSAGE\\n...\\n\\nFOLLOW-UP\\n...",
+  "recommended_response": "PERSONALIZED_OUTREACH_EMAIL:\\n...\\n\\nFOLLOW_UP_EMAIL:\\n...\\n\\nLINKEDIN_CONNECTION:\\n...\\n\\nLINKEDIN_FOLLOW_UP:\\n...\\n\\nCOLD_CALL_OPENING:\\n...\\n\\nDISCOVERY_QUESTIONS:\\n...\\n\\nPERSONALIZED_VALUE_PROPOSITION:\\n...\\n\\nOBJECTION_ANTICIPATION:\\n...\\n\\nMEETING_PREPARATION:\\n...\\n\\nRECOMMENDED_CTA:\\n...\\n\\nFOLLOW_UP_SEQUENCE:\\n...\\n\\nPERSONALIZED_VIDEO_SCRIPT:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...\\n\\nWHATSAPP_OUTREACH:\\nINITIAL MESSAGE\\n...\\n\\nFOLLOW-UP\\n...",
   "cta": "Exact paste-ready CTA sentence."
 }
 `.trim()
@@ -147,20 +144,7 @@ ${PROSPECT_DEPLOYMENT_SECTION_LABELS}
 
 ${WHATSAPP_OUTREACH_GENERATION_RULES}
 
-${KNOWLEDGE_BASE_ENHANCEMENT_GENERATION_RULES}
-
-${SUBSTACK_POST_GENERATION_RULES}
-
-${REDDIT_POST_GENERATION_RULES}
-
-Channel isolation is mandatory:
-- Email must read like email; WhatsApp must read like WhatsApp; LinkedIn must read like LinkedIn.
-- Substack must be publication-ready long-form editorial content — not SEO or sales copy.
-- Reddit must be transparent and community-native.
-- Knowledge Base Enhancement must be factual operational knowledge — never invent facts; omit unknowns.
-Do not let one asset format leak into another.
 Newsletter Idea and Blog Post Idea are for the Athena client's audience, using prospect/homepage/ads as market evidence — not outreach emails.
-Substack Post and Reddit Post must be materially different from each other and from Newsletter/Blog Idea.
 
 ${SHARED_OUTPUT_DIVERSITY_RULES}
 `.trim()

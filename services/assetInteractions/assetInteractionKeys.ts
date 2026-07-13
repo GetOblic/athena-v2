@@ -31,9 +31,6 @@ export const DEPLOYMENT_ASSET_TYPE_BY_LABEL: Record<string, string> = {
   FOLLOW_UP_SEQUENCE: "follow_up_sequence",
   PERSONALIZED_VIDEO_SCRIPT: "personalized_video_script",
   WHATSAPP_OUTREACH: "whatsapp_outreach",
-  KNOWLEDGE_BASE_ENHANCEMENT: "knowledge_base_enhancement",
-  SUBSTACK_POST: "substack_post",
-  REDDIT_POST: "reddit_post",
   PRIMARY_REPLY: "primary_reply",
 };
 

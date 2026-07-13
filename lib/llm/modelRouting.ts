@@ -15,9 +15,7 @@ export type AthenaExtendedLLMStage =
   | "community_intelligence"
   | "production_intelligence"
   | "identity_profile"
-  | "generic_review"
-  /** All Prospect Deployment Assets (existing + Knowledge Base / Substack / Reddit) → Gemini. */
-  | "prospect_deployment_assets";
+  | "generic_review";
 
 export type LLMModelRoleConfig = {
   model: string;
@@ -68,8 +66,7 @@ export function getLLMStageRoutes(): Record<
     discussion_analysis: roles.analysis,
     opportunity_generation: roles.analysis,
     executive_briefing: roles.analysis,
-    // Standalone Deployment Assets (Discussion + shared stage) → Gemini analysis.
-    deployment_assets: roles.analysis,
+    deployment_assets: roles.premiumStrategicOutput,
     strategic_blueprint: roles.premiumStrategicOutput,
   };
 }
@@ -78,7 +75,7 @@ const STAGE_TO_ROLE: Record<AthenaLLMStage, AthenaLLMRole> = {
   discussion_analysis: "analysis",
   opportunity_generation: "analysis",
   executive_briefing: "analysis",
-  deployment_assets: "analysis",
+  deployment_assets: "premiumStrategicOutput",
   strategic_blueprint: "premiumStrategicOutput",
 };
 
@@ -90,21 +87,7 @@ const EXTENDED_STAGE_ROLE: Record<
   production_intelligence: "analysis",
   identity_profile: "analysis",
   generic_review: "analysis",
-  prospect_deployment_assets: "analysis",
 };
-
-/**
- * Prospects → Gemini (`prospect_deployment_assets`).
- * Discussions → Gemini (`deployment_assets`).
- * Both use the analysis/Gemini model stack; Blueprint remains Claude.
- */
-export function resolveDeploymentAssetsStage(input: {
-  isProspectSource: boolean;
-}): AthenaExtendedLLMStage {
-  return input.isProspectSource
-    ? "prospect_deployment_assets"
-    : "deployment_assets";
-}
 
 export function resolveAthenaStageFromGenerationKind(
   kind: AthenaGenerationKind,
