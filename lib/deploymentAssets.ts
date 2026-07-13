@@ -69,6 +69,26 @@ const LABELS: Record<string, { title: string; objective: string }> = {
   ...PROSPECT_DEPLOYMENT_ASSET_META,
 };
 
+/**
+ * Normalize human/model heading variants into canonical LABEL: keys
+ * before labeled parsing. Order-independent; does not invent assets.
+ */
+export function canonicalizeDeploymentAssetHeadings(text: string): string {
+  return text
+    .replace(
+      /(^|\n)\s*KNOWLEDGE[\s_-]*BASE[\s_-]*ENHANCEMENT\s*:/gi,
+      "$1KNOWLEDGE_BASE_ENHANCEMENT:",
+    )
+    .replace(
+      /(^|\n)\s*SUBSTACK[\s_-]*POST\s*:/gi,
+      "$1SUBSTACK_POST:",
+    )
+    .replace(
+      /(^|\n)\s*REDDIT[\s_-]*POST\s*:/gi,
+      "$1REDDIT_POST:",
+    );
+}
+
 // Longer labels first so FOLLOW_UP_EMAIL / FOLLOW_UP_SEQUENCE win over FOLLOW_UP.
 const LABELED_ASSET_PATTERN = new RegExp(
   `(?:^|\\n)(${[
@@ -89,7 +109,8 @@ function parseLabeledAssets(value?: string | null): DeploymentAsset[] {
     return [];
   }
 
-  const matches = [...value.matchAll(LABELED_ASSET_PATTERN)];
+  const normalized = canonicalizeDeploymentAssetHeadings(value);
+  const matches = [...normalized.matchAll(LABELED_ASSET_PATTERN)];
 
   if (matches.length === 0) {
     return [];
@@ -102,8 +123,8 @@ function parseLabeledAssets(value?: string | null): DeploymentAsset[] {
     const label = match[1];
     const start = (match.index ?? 0) + match[0].length;
     const next = matches[index + 1];
-    const end = next?.index ?? value.length;
-    const content = value.slice(start, end).trim();
+    const end = next?.index ?? normalized.length;
+    const content = normalized.slice(start, end).trim();
 
     if (!content) {
       continue;
@@ -123,6 +144,13 @@ function parseLabeledAssets(value?: string | null): DeploymentAsset[] {
   }
 
   return assets;
+}
+
+/** Public parse helper for merge / tests — same behavior as internal parser. */
+export function parseLabeledDeploymentAssets(
+  value?: string | null,
+): DeploymentAsset[] {
+  return parseLabeledAssets(value);
 }
 
 export function buildDiscussionDeploymentAssets(

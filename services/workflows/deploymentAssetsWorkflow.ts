@@ -15,6 +15,8 @@ import {
   hashContent,
   logPersistedRegenerationOutput,
 } from "@/lib/regenerationDiagnostics";
+import { resolveDeploymentAssetsStage } from "@/lib/llm/modelRouting";
+import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 
 export type GeneratedDeploymentAssets = {
   suggested_cta: string;
@@ -102,6 +104,10 @@ export async function generateDeploymentAssets(input: {
     throw new Error("Deployment assets generation bundle unavailable.");
   }
 
+  const isProspectSource =
+    input.discussion.platform === PROSPECT_INTELLIGENCE_PLATFORM;
+  const athenaStage = resolveDeploymentAssetsStage({ isProspectSource });
+
   const prompt = assembleDeploymentAssetsPrompt({
     bundle,
     discussion: input.discussion,
@@ -112,11 +118,15 @@ export async function generateDeploymentAssets(input: {
   });
 
   const rawResponse = await generateReview(prompt, {
-    stage: "deployment_assets.generation",
+    stage: isProspectSource
+      ? "prospect_deployment_assets.generation"
+      : "deployment_assets.generation",
     promptSource:
       "services/brain/generationContracts/deploymentAssetsPromptAssembly.ts::assembleDeploymentAssetsPrompt",
     generationKind: input.opportunity ? "executive_briefing" : "discussion_analysis",
-    athenaStage: "deployment_assets",
+    athenaStage,
+    // Prospect content set (incl. Substack) benefits from executive reasoning.
+    reasoningProfile: isProspectSource ? "EXECUTIVE" : undefined,
     regenerationRunId: input.regenerationRunId,
     discussionId: input.discussionId,
     explicitRegeneration: input.explicitRegeneration,
@@ -125,7 +135,7 @@ export async function generateDeploymentAssets(input: {
   return {
     assets: parseDeploymentAssetsResponse(rawResponse),
     rawResponse,
-    model: resolveModelForStage("deployment_assets").model,
+    model: resolveModelForStage(athenaStage).model,
   };
 }
 
