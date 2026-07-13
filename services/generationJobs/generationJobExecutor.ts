@@ -371,12 +371,12 @@ export async function executeClaimedGenerationJob(
 }
 
 async function maybeEnqueueFollowUp(job: AthenaGenerationJob): Promise<void> {
-  const pending = await consumeDiscussionPendingGenerationFollowUp(
+  const consumption = await consumeDiscussionPendingGenerationFollowUp(
     job.discussion_id,
     job.organization_id,
   );
 
-  if (!pending) {
+  if (!consumption.pending) {
     return;
   }
 
@@ -387,23 +387,32 @@ async function maybeEnqueueFollowUp(job: AthenaGenerationJob): Promise<void> {
     await markDiscussionPendingGenerationFollowUp(
       job.discussion_id,
       job.organization_id,
+      { triggerType: consumption.triggerType ?? undefined },
     );
     return;
   }
+
+  const followUpTrigger =
+    consumption.triggerType === "manual_refresh"
+      ? "manual_refresh"
+      : consumption.triggerType === "discussion_import"
+        ? "discussion_import"
+        : "discussion_update";
 
   try {
     const followUp = await createGenerationJob({
       organizationId: job.organization_id,
       discussionId: job.discussion_id,
-      triggerType: "discussion_update",
+      triggerType: followUpTrigger,
       requestedBy: job.requested_by,
       regenerationRunId: createRegenerationRunId(),
     });
 
-    console.log("[ATHENA_WORKER] follow_up_queued", {
+    console.log("[ATHENA_WORKER] follow_up_materialized", {
       parentJobId: job.id,
       followUpJobId: followUp.id,
       discussionId: job.discussion_id,
+      triggerType: followUpTrigger,
     });
   } catch (error) {
     // If unique active constraint races, restore the follow-up marker.
@@ -415,6 +424,7 @@ async function maybeEnqueueFollowUp(job: AthenaGenerationJob): Promise<void> {
     await markDiscussionPendingGenerationFollowUp(
       job.discussion_id,
       job.organization_id,
+      { triggerType: consumption.triggerType ?? undefined },
     );
   }
 }

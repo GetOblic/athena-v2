@@ -12,15 +12,17 @@ import {
 import { useRouter } from "next/navigation";
 import { ExecutiveGenerationPanel } from "@/components/discussions/ExecutiveGenerationPanel";
 import { RegenerationCompleteToast } from "@/components/discussions/RegenerationCompleteToast";
+import type { ContinuityTrackState } from "@/lib/generationContinuity";
 import {
+  buildContinuityFromTrackOptions,
   clearRegenerationSession,
+  evaluateRegenerationPoll,
   fetchRegenerationStatus,
-  isFullPipelineRegenerationComplete,
   readRegenerationSession,
   REGENERATION_POLL_INTERVAL_MS,
-  REGENERATION_POLL_TIMEOUT_MS,
   REGENERATION_SUCCESS_BUTTON_MS,
   type RegenerationStatusSnapshot,
+  type TrackQueuedGenerationOptions,
   writeRegenerationSession,
 } from "@/lib/discussionRegenerationStatus";
 
@@ -33,6 +35,9 @@ type AnalyzeResponse = {
   message?: string;
   error?: string | { code?: string; message?: string };
   jobId?: string;
+  followUpRequested?: boolean;
+  existingJobId?: string;
+  parentJobId?: string | null;
 };
 
 type DiscussionRegenerationContextValue = {
@@ -49,6 +54,7 @@ type DiscussionRegenerationContextValue = {
       RegenerationStatusSnapshot,
       "latestAnalysisUpdatedAt" | "blueprintUpdatedAt"
     >,
+    options?: TrackQueuedGenerationOptions,
   ) => void;
   scrollToUpdatedAnalysis: () => void;
 };
@@ -92,6 +98,7 @@ export function DiscussionRegenerationProvider({
   const completionToastShownRef = useRef(false);
   const successButtonTimerRef = useRef<number | null>(null);
   const baselineRef = useRef(initialSnapshot);
+  const continuityRef = useRef<ContinuityTrackState | null>(null);
 
   const stopPolling = useCallback(() => {
     pollCleanupRef.current?.();
@@ -104,19 +111,43 @@ export function DiscussionRegenerationProvider({
     setShowToast(false);
   }, []);
 
+  const markFailed = useCallback(
+    (message: string) => {
+      stopPolling();
+      clearRegenerationSession(discussionId);
+      continuityRef.current = null;
+      setIsGenerating(false);
+      setIsCompleted(false);
+      setResumed(false);
+      setStartedAtMs(null);
+      setError(message);
+      console.log("[ATHENA_REFRESH] logical_refresh_failed", {
+        discussionId,
+        message,
+      });
+    },
+    [discussionId, stopPolling],
+  );
+
   const markCompleted = useCallback(() => {
     stopPolling();
     clearRegenerationSession(discussionId);
+    continuityRef.current = null;
     setIsGenerating(false);
     setIsCompleted(true);
     setDuplicateNotice(null);
     setResumed(false);
     setStartedAtMs(null);
+    setError(null);
 
     if (!completionToastShownRef.current) {
       completionToastShownRef.current = true;
       setShowToast(true);
     }
+
+    console.log("[ATHENA_REFRESH] logical_refresh_completed", {
+      discussionId,
+    });
 
     router.refresh();
 
@@ -138,8 +169,10 @@ export function DiscussionRegenerationProvider({
         | "blueprintUpdatedAt"
       >,
       queuedAtMs: number,
+      continuity: ContinuityTrackState | null,
     ) => {
       stopPolling();
+      continuityRef.current = continuity;
 
       let cancelled = false;
       let pollTimerId: number | null = null;
@@ -151,15 +184,18 @@ export function DiscussionRegenerationProvider({
         }
       };
 
+      const persistSession = (nextContinuity: ContinuityTrackState | null) => {
+        continuityRef.current = nextContinuity;
+        writeRegenerationSession({
+          discussionId,
+          startedAtMs: queuedAtMs,
+          baseline,
+          continuity: nextContinuity,
+        });
+      };
+
       const pollOnce = async () => {
         if (cancelled) {
-          return;
-        }
-
-        if (Date.now() - queuedAtMs >= REGENERATION_POLL_TIMEOUT_MS) {
-          finish();
-          setIsGenerating(false);
-          clearRegenerationSession(discussionId);
           return;
         }
 
@@ -169,10 +205,45 @@ export function DiscussionRegenerationProvider({
           return;
         }
 
-        if (
-          current &&
-          isFullPipelineRegenerationComplete(baseline, current, queuedAtMs)
-        ) {
+        if (!current) {
+          pollTimerId = window.setTimeout(() => {
+            void pollOnce();
+          }, REGENERATION_POLL_INTERVAL_MS);
+          return;
+        }
+
+        const evaluation = evaluateRegenerationPoll({
+          baseline,
+          current,
+          queuedAtMs,
+          continuity: continuityRef.current,
+        });
+
+        if (evaluation.note === "follow_up_materialized") {
+          console.log("[ATHENA_REFRESH] follow_up_materialized", {
+            discussionId,
+            followUpJobId: current.jobId,
+            parentJobId: continuityRef.current?.parentJobId ?? null,
+          });
+        }
+
+        persistSession(evaluation.continuity);
+
+        if (evaluation.decision === "timeout") {
+          finish();
+          setIsGenerating(false);
+          clearRegenerationSession(discussionId);
+          continuityRef.current = null;
+          return;
+        }
+
+        if (evaluation.decision === "fail") {
+          finish();
+          markFailed(evaluation.error || "Generation failed.");
+          return;
+        }
+
+        if (evaluation.decision === "complete") {
           finish();
           markCompleted();
           return;
@@ -189,7 +260,7 @@ export function DiscussionRegenerationProvider({
 
       pollCleanupRef.current = finish;
     },
-    [discussionId, markCompleted, stopPolling],
+    [discussionId, markCompleted, markFailed, stopPolling],
   );
 
   const beginGeneration = useCallback(
@@ -200,7 +271,11 @@ export function DiscussionRegenerationProvider({
         | "blueprintUpdatedAt"
       >,
       queuedAtMs: number,
-      options?: { resumed?: boolean; duplicateNotice?: string | null },
+      options?: {
+        resumed?: boolean;
+        duplicateNotice?: string | null;
+        continuity?: ContinuityTrackState | null;
+      },
     ) => {
       completionToastShownRef.current = false;
       setError(null);
@@ -211,13 +286,17 @@ export function DiscussionRegenerationProvider({
       setDuplicateNotice(options?.duplicateNotice ?? null);
       setStartedAtMs(queuedAtMs);
 
+      const continuity = options?.continuity ?? null;
+      continuityRef.current = continuity;
+
       writeRegenerationSession({
         discussionId,
         startedAtMs: queuedAtMs,
         baseline,
+        continuity,
       });
 
-      startPolling(baseline, queuedAtMs);
+      startPolling(baseline, queuedAtMs, continuity);
     },
     [discussionId, startPolling],
   );
@@ -227,30 +306,52 @@ export function DiscussionRegenerationProvider({
     const status = await fetchRegenerationStatus(discussionId);
 
     if (session) {
-      if (
-        status &&
-        isFullPipelineRegenerationComplete(
-          session.baseline,
-          status,
-          session.startedAtMs,
-        )
-      ) {
+      const evaluation = status
+        ? evaluateRegenerationPoll({
+            baseline: session.baseline,
+            current: status,
+            queuedAtMs: session.startedAtMs,
+            continuity: session.continuity ?? null,
+          })
+        : null;
+
+      if (evaluation?.decision === "complete") {
         clearRegenerationSession(discussionId);
         return;
       }
 
-      beginGeneration(session.baseline, session.startedAtMs, { resumed: true });
+      if (evaluation?.decision === "fail") {
+        clearRegenerationSession(discussionId);
+        setError(evaluation.error || "Generation failed.");
+        return;
+      }
+
+      beginGeneration(session.baseline, session.startedAtMs, {
+        resumed: true,
+        continuity: session.continuity ?? evaluation?.continuity ?? null,
+      });
       return;
     }
 
-    if (status?.regenerationInFlight) {
+    // Revisit: resume visibility of an active job or pending follow-up chain.
+    // Does not enqueue.
+    if (status?.regenerationInFlight || status?.pendingGenerationFollowUp) {
+      const continuity =
+        status.pendingGenerationFollowUp
+          ? buildContinuityFromTrackOptions({
+              followUpRequested: true,
+              parentJobId: status.jobId ?? status.latestJobId ?? null,
+              baselineCurrentVersionId: status.currentVersionId ?? null,
+            })
+          : null;
+
       beginGeneration(
         {
           latestAnalysisUpdatedAt: status.latestAnalysisUpdatedAt,
           blueprintUpdatedAt: status.blueprintUpdatedAt,
         },
         Date.now(),
-        { resumed: true },
+        { resumed: true, continuity },
       );
     }
   }, [beginGeneration, discussionId]);
@@ -312,21 +413,37 @@ export function DiscussionRegenerationProvider({
       }
 
       const queuedAtMs = Date.now();
+      const followUpRequested = Boolean(data.followUpRequested);
       const alreadyInProgress = Boolean(
         data.message?.toLowerCase().includes("already in progress") ||
-          data.accepted === false,
+          data.accepted === false ||
+          followUpRequested,
       );
 
       if (alreadyInProgress) {
         const session = readRegenerationSession(discussionId);
         const current = await fetchRegenerationStatus(discussionId);
+        const continuity = followUpRequested
+          ? buildContinuityFromTrackOptions({
+              followUpRequested: true,
+              parentJobId:
+                data.parentJobId ??
+                data.existingJobId ??
+                data.jobId ??
+                null,
+              baselineCurrentVersionId: current?.currentVersionId ?? null,
+            })
+          : (session?.continuity ?? null);
 
         beginGeneration(
           session?.baseline ?? current ?? baseline,
           session?.startedAtMs ?? queuedAtMs,
           {
-            duplicateNotice: "Generation already in progress.",
+            duplicateNotice: followUpRequested
+              ? "Generation already in progress. Tracking follow-up."
+              : "Generation already in progress.",
             resumed: true,
+            continuity,
           },
         );
         return;
@@ -345,10 +462,18 @@ export function DiscussionRegenerationProvider({
         RegenerationStatusSnapshot,
         "latestAnalysisUpdatedAt" | "blueprintUpdatedAt"
       >,
+      options?: TrackQueuedGenerationOptions,
     ) => {
-      beginGeneration(baseline, Date.now());
+      const continuity = buildContinuityFromTrackOptions(options);
+      if (options?.followUpRequested) {
+        console.log("[ATHENA_REFRESH] tracking_coalesced_chain", {
+          discussionId,
+          parentJobId: options.parentJobId ?? options.jobId ?? null,
+        });
+      }
+      beginGeneration(baseline, Date.now(), { continuity });
     },
-    [beginGeneration],
+    [beginGeneration, discussionId],
   );
 
   return (

@@ -1,4 +1,9 @@
 import { randomUUID } from "crypto";
+import {
+  FOLLOW_UP_TRIGGER_RAW_KEY,
+  parseFollowUpTrigger,
+  preferFollowUpTrigger,
+} from "@/lib/generationContinuity";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { normalizeClaimRpcResult } from "@/services/generationJobs/generationJobClaimResult";
 import {
@@ -85,6 +90,57 @@ export async function getActiveGenerationJobForDiscussion(
   }
 
   return data ? mapGenerationJobRow(data) : null;
+}
+
+/** Most recently updated job for a discussion (active or terminal). */
+export async function getLatestGenerationJobForDiscussion(
+  discussionId: string,
+  organizationId: string,
+): Promise<AthenaGenerationJob | null> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_generation_jobs")
+    .select("*")
+    .eq("discussion_id", discussionId)
+    .eq("organization_id", organizationId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[ATHENA_JOB] Failed to load latest job:", {
+      discussionId,
+      organizationId,
+      error: error.message,
+    });
+    return null;
+  }
+
+  return data ? mapGenerationJobRow(data) : null;
+}
+
+export async function getDiscussionPendingGenerationFollowUp(
+  discussionId: string,
+  organizationId: string,
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from("discussions")
+    .select("pending_generation_follow_up")
+    .eq("id", discussionId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[ATHENA_JOB] Failed to read pending follow-up flag:", {
+      discussionId,
+      error: error.message,
+    });
+    return false;
+  }
+
+  return Boolean(
+    (data as { pending_generation_follow_up?: boolean } | null)
+      ?.pending_generation_follow_up,
+  );
 }
 
 export async function getGenerationJobById(
@@ -336,13 +392,54 @@ export async function failGenerationJobWithClaim(input: {
   return row ? mapGenerationJobRow(row as Record<string, unknown>) : null;
 }
 
+export type PendingFollowUpConsumption = {
+  pending: boolean;
+  triggerType: AthenaGenerationTriggerType | null;
+};
+
 export async function markDiscussionPendingGenerationFollowUp(
   discussionId: string,
   organizationId: string,
+  options?: { triggerType?: AthenaGenerationTriggerType },
 ): Promise<void> {
+  const { data: existing, error: readError } = await supabaseAdmin
+    .from("discussions")
+    .select("raw_json, pending_generation_follow_up")
+    .eq("id", discussionId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (readError) {
+    console.error("[ATHENA_JOB] Failed to read discussion for follow-up:", {
+      discussionId,
+      organizationId,
+      error: readError.message,
+    });
+    throw readError;
+  }
+
+  const rawJson =
+    existing && typeof existing.raw_json === "object" && existing.raw_json
+      ? { ...(existing.raw_json as Record<string, unknown>) }
+      : {};
+  const existingTrigger = parseFollowUpTrigger(
+    rawJson[FOLLOW_UP_TRIGGER_RAW_KEY],
+  );
+  const preferred = preferFollowUpTrigger(
+    existingTrigger,
+    options?.triggerType ?? null,
+  );
+
+  if (preferred) {
+    rawJson[FOLLOW_UP_TRIGGER_RAW_KEY] = preferred;
+  }
+
   const { error } = await supabaseAdmin
     .from("discussions")
-    .update({ pending_generation_follow_up: true })
+    .update({
+      pending_generation_follow_up: true,
+      raw_json: rawJson,
+    })
     .eq("id", discussionId)
     .eq("organization_id", organizationId);
 
@@ -354,15 +451,24 @@ export async function markDiscussionPendingGenerationFollowUp(
     });
     throw error;
   }
+
+  console.log("[ATHENA_JOB] follow_up_requested", {
+    discussionId,
+    triggerType: preferred,
+    alreadyPending: Boolean(
+      (existing as { pending_generation_follow_up?: boolean } | null)
+        ?.pending_generation_follow_up,
+    ),
+  });
 }
 
 export async function consumeDiscussionPendingGenerationFollowUp(
   discussionId: string,
   organizationId: string,
-): Promise<boolean> {
+): Promise<PendingFollowUpConsumption> {
   const { data, error } = await supabaseAdmin
     .from("discussions")
-    .select("pending_generation_follow_up")
+    .select("pending_generation_follow_up, raw_json")
     .eq("id", discussionId)
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -372,16 +478,29 @@ export async function consumeDiscussionPendingGenerationFollowUp(
       discussionId,
       error: error.message,
     });
-    return false;
+    return { pending: false, triggerType: null };
   }
 
-  if (!data?.pending_generation_follow_up) {
-    return false;
+  const row = data as {
+    pending_generation_follow_up?: boolean;
+    raw_json?: Record<string, unknown> | null;
+  } | null;
+
+  if (!row?.pending_generation_follow_up) {
+    return { pending: false, triggerType: null };
   }
+
+  const rawJson =
+    row.raw_json && typeof row.raw_json === "object" ? { ...row.raw_json } : {};
+  const triggerType = parseFollowUpTrigger(rawJson[FOLLOW_UP_TRIGGER_RAW_KEY]);
+  delete rawJson[FOLLOW_UP_TRIGGER_RAW_KEY];
 
   const { error: clearError } = await supabaseAdmin
     .from("discussions")
-    .update({ pending_generation_follow_up: false })
+    .update({
+      pending_generation_follow_up: false,
+      raw_json: rawJson,
+    })
     .eq("id", discussionId)
     .eq("organization_id", organizationId)
     .eq("pending_generation_follow_up", true);
@@ -391,10 +510,10 @@ export async function consumeDiscussionPendingGenerationFollowUp(
       discussionId,
       error: clearError.message,
     });
-    return false;
+    return { pending: false, triggerType: null };
   }
 
-  return true;
+  return { pending: true, triggerType };
 }
 
 export function isActiveGenerationJobStatus(

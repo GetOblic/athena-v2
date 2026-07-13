@@ -4,7 +4,12 @@ import { DISCUSSION_STATUS_OPTIONS } from "@/lib/discussionStatus";
 import { getDiscussionById, updateDiscussion } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
-import { getActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
+import {
+  getActiveGenerationJobForDiscussion,
+  getDiscussionPendingGenerationFollowUp,
+  getLatestGenerationJobForDiscussion,
+} from "@/services/generationJobs/generationJobService";
+import { getCurrentExecutiveVersion } from "@/services/executiveVersions/executiveVersionService";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -43,10 +48,13 @@ export async function GET(_request: Request, context: RouteContext) {
       );
     }
 
-    const activeJob = await getActiveGenerationJobForDiscussion(
-      id,
-      organizationId,
-    );
+    const [activeJob, latestJob, pendingGenerationFollowUp, currentVersion] =
+      await Promise.all([
+        getActiveGenerationJobForDiscussion(id, organizationId),
+        getLatestGenerationJobForDiscussion(id, organizationId),
+        getDiscussionPendingGenerationFollowUp(id, organizationId),
+        getCurrentExecutiveVersion(id, organizationId),
+      ]);
 
     const analysis = await getLatestDiscussionAnalysis(id, organizationId);
     const blueprint = await getDisplayAssetBlueprintByDiscussionId(
@@ -65,6 +73,7 @@ export async function GET(_request: Request, context: RouteContext) {
       success: true,
       discussionId: id,
       regenerationInFlight,
+      pendingGenerationFollowUp,
       latestAnalysisId: analysis?.id ?? null,
       latestAnalysisCreatedAt: analysis?.created_at ?? null,
       latestAnalysisUpdatedAt: analysis?.updated_at ?? null,
@@ -77,9 +86,15 @@ export async function GET(_request: Request, context: RouteContext) {
       jobAttemptCount: activeJob?.attempt_count ?? null,
       jobErrorCode: activeJob?.error_code ?? null,
       jobErrorMessage: activeJob?.error_message ?? null,
+      latestJobId: latestJob?.id ?? null,
+      latestJobStatus: latestJob?.status ?? null,
+      latestJobErrorCode: latestJob?.error_code ?? null,
+      latestJobErrorMessage: latestJob?.error_message ?? null,
+      currentVersionId: currentVersion?.id ?? null,
       publishedVersionId:
         activeJob?.published_version_id ??
         activeJob?.executive_version_id ??
+        currentVersion?.id ??
         null,
     });
   } catch (error) {

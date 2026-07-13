@@ -64,9 +64,11 @@ export async function POST(_request: Request, context: RouteContext) {
           success: true,
           accepted: false,
           queued: true,
+          coalesced: true,
           jobId: enqueueResult.job.id,
           status: enqueueResult.job.status,
           existingJobId: enqueueResult.job.id,
+          parentJobId: enqueueResult.job.id,
           followUpRequested: Boolean(enqueueResult.followUpRequested),
           message: enqueueResult.followUpRequested
             ? "Generation already in progress. A follow-up refresh will run after it finishes."
@@ -80,6 +82,9 @@ export async function POST(_request: Request, context: RouteContext) {
           success: true,
           accepted: true,
           queued: true,
+          coalesced: false,
+          followUpRequested: false,
+          parentJobId: null,
           jobId: enqueueResult.job.id,
           status: enqueueResult.job.status,
           discussionId: id,
