@@ -238,15 +238,7 @@ export function ExecutiveIntelligenceWorkspace({
     }
 
     if (currentVersion.id === pending.baselineCurrentVersionId) {
-      // In-place Current patch: same version id, refreshed intelligence.
-      // Still adopt Current and clear pending so the UI is not stuck.
-      setSelectedVersionId(currentVersion.id);
-      setExpandedVersionIds((previous) => {
-        const next = new Set(previous);
-        next.add(currentVersion.id);
-        return next;
-      });
-      clearPendingAutoSelect(discussionId);
+      // Completion signaled, but refreshed Current Version has not arrived yet.
       return;
     }
 

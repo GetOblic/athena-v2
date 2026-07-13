@@ -124,15 +124,7 @@ export async function ensureProspectGenerationQueued(
      */
     triggerType?: "discussion_import" | "manual_refresh" | "discussion_update";
   },
-): Promise<{
-  prospect: Prospect;
-  queued: boolean;
-  jobId?: string;
-  accepted: boolean;
-  alreadyActive: boolean;
-  followUpRequested: boolean;
-  parentJobId: string | null;
-}> {
+): Promise<{ prospect: Prospect; queued: boolean; jobId?: string }> {
   let current = prospect;
   const bridgeBody = buildProspectAnalysisBody(current);
   let discussionId = current.linked_discussion_id;
@@ -196,10 +188,6 @@ export async function ensureProspectGenerationQueued(
     prospect: current,
     queued,
     jobId: enqueue.job.id,
-    accepted: enqueue.accepted,
-    alreadyActive: Boolean(enqueue.alreadyActive),
-    followUpRequested: Boolean(enqueue.followUpRequested),
-    parentJobId: enqueue.alreadyActive ? enqueue.job.id : null,
   };
 }
 

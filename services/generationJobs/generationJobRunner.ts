@@ -30,26 +30,15 @@ async function coalesceIntoActiveJob(
   existing: AthenaGenerationJob,
   organizationId: string,
   discussionId: string,
-  triggerType: AthenaGenerationTriggerType,
 ): Promise<EnqueueGenerationJobResult> {
   // Keep retryable/queued/processing as the single active intent.
   // Any new executive action (Refresh / Append / Import) must set the
   // durable follow-up marker so it is not silently lost.
   let followUpRequested = false;
   if (shouldRequestFollowUpWhenActiveJobExists()) {
-    await markDiscussionPendingGenerationFollowUp(discussionId, organizationId, {
-      triggerType,
-    });
+    await markDiscussionPendingGenerationFollowUp(discussionId, organizationId);
     followUpRequested = true;
   }
-
-  console.log("[ATHENA_JOB] refresh_coalesced", {
-    discussionId,
-    parentJobId: existing.id,
-    parentTriggerType: existing.trigger_type,
-    requestedTriggerType: triggerType,
-    followUpRequested,
-  });
 
   return {
     accepted: false,
@@ -91,7 +80,6 @@ export async function enqueueDiscussionGenerationJob(input: {
       existing,
       input.organizationId,
       input.discussionId,
-      input.triggerType,
     );
   }
 
@@ -105,12 +93,6 @@ export async function enqueueDiscussionGenerationJob(input: {
       triggerType: input.triggerType,
       requestedBy: input.requestedBy,
       regenerationRunId,
-    });
-
-    console.log("[ATHENA_JOB] refresh_accepted_new_job", {
-      discussionId: input.discussionId,
-      jobId: job.id,
-      triggerType: input.triggerType,
     });
 
     return {
@@ -127,7 +109,6 @@ export async function enqueueDiscussionGenerationJob(input: {
         error.existingJob,
         input.organizationId,
         input.discussionId,
-        input.triggerType,
       );
     }
     throw error;

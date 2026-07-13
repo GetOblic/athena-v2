@@ -281,10 +281,6 @@ export function ProspectMetadataEditor({
         success?: boolean;
         accepted?: boolean;
         queued?: boolean;
-        coalesced?: boolean;
-        followUpRequested?: boolean;
-        parentJobId?: string | null;
-        jobId?: string | null;
         message?: string;
         error?: string | { message?: string };
       }>(response);
@@ -298,12 +294,7 @@ export function ProspectMetadataEditor({
         return;
       }
 
-      trackQueuedGeneration(baseline, {
-        followUpRequested: Boolean(payload.followUpRequested),
-        parentJobId: payload.parentJobId ?? null,
-        jobId: payload.jobId ?? null,
-        baselineCurrentVersionId: baseline.currentVersionId ?? null,
-      });
+      trackQueuedGeneration(baseline);
       setMessage(
         payload.message ||
           "Prospect intelligence refresh queued. Athena is regenerating in the background.",

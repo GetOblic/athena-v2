@@ -43,35 +43,19 @@ export async function POST(
       triggerType: "manual_refresh",
     });
 
-    const coalesced = Boolean(result.alreadyActive);
-    const message = !result.queued
-      ? "Prospect refresh could not be queued."
-      : result.followUpRequested
-        ? "Prospect intelligence refresh accepted. A follow-up will run after the active job finishes."
-        : "Prospect intelligence refresh queued.";
-
-    console.log("[ATHENA_REFRESH] accepted", {
-      prospectId: result.prospect.id,
-      jobId: result.jobId ?? null,
-      coalesced,
-      followUpRequested: result.followUpRequested,
-      parentJobId: result.parentJobId,
-    });
-
     return json(
       {
         ok: true,
         success: true,
-        accepted: result.accepted,
+        accepted: result.queued,
         queued: result.queued,
-        coalesced,
-        followUpRequested: result.followUpRequested,
-        parentJobId: result.parentJobId,
         prospect: toPublicProspect(result.prospect),
         prospectId: result.prospect.id,
         jobId: result.jobId ?? null,
         status: result.prospect.status,
-        message,
+        message: result.queued
+          ? "Prospect intelligence refresh queued."
+          : "Prospect refresh could not be queued.",
       },
       202,
     );
