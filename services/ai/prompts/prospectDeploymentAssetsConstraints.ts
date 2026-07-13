@@ -19,6 +19,7 @@ PERSONALIZED_VIDEO_SCRIPT:
 NEWSLETTER_IDEA:
 BLOG_POST_IDEA:
 WHATSAPP_OUTREACH:
+KNOWLEDGE_ENHANCEMENT:
 `.trim();
 
 export const PROSPECT_DEPLOYMENT_CHANNEL_GUIDE = `
@@ -37,6 +38,7 @@ PERSONALIZED_VIDEO_SCRIPT — 45–60 second personalized video script.
 NEWSLETTER_IDEA — concept for the Athena client's audience newsletter (not outreach to a prospect): subject/title, central angle, why relevant now, key points/sections, suggested CTA, optional opening hook.
 BLOG_POST_IDEA — concept for the Athena client's audience blog (not a full article): proposed title, search/reader intent, central thesis, recommended outline, key expert insights, suggested CTA, optional differentiation angle.
 WHATSAPP_OUTREACH — native WhatsApp outreach (not email). Include INITIAL MESSAGE and FOLLOW-UP sublabels. Conversational, concise, one grounded observation, one low-friction question. No subject line, no signature block, no formal salutation.
+KNOWLEDGE_ENHANCEMENT — factual structured business knowledge for GetOblic AI Receptionists. Bullet points only. No marketing language. Include only sections supported by website intelligence.
 `.trim();
 
 export const PROSPECT_DEPLOYMENT_ASSET_KEYS = [
@@ -55,6 +57,7 @@ export const PROSPECT_DEPLOYMENT_ASSET_KEYS = [
   "NEWSLETTER_IDEA",
   "BLOG_POST_IDEA",
   "WHATSAPP_OUTREACH",
+  "KNOWLEDGE_ENHANCEMENT",
   // Backward-compatible aliases still parsed if older drafts exist.
   "COLD_EMAIL",
   "OBJECTION_HANDLING",
@@ -129,6 +132,11 @@ export const PROSPECT_DEPLOYMENT_ASSET_META: Record<
     title: "WhatsApp Outreach",
     objective:
       "Native WhatsApp initial message and follow-up — conversational, not email-formatted.",
+  },
+  KNOWLEDGE_ENHANCEMENT: {
+    title: "Knowledge Enhancement",
+    objective:
+      "Factual structured business knowledge for GetOblic AI Receptionists — not marketing copy.",
   },
   COLD_EMAIL: {
     title: "Personalized Outreach Email",
