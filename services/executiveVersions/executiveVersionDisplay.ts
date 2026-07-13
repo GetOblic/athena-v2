@@ -18,7 +18,6 @@ import type {
   ExecutiveIntelligencePayload,
   ExecutiveIntelligenceVersion,
 } from "@/services/executiveVersions/executiveVersionTypes";
-import { evaluateProspectDeploymentCompleteness } from "@/services/prospects/prospectDeploymentAssetContract";
 
 function hasSuggestedCta(analysis: DiscussionAnalysis | null | undefined): boolean {
   return Boolean(analysis?.suggested_cta?.trim());
@@ -82,8 +81,6 @@ const RAW_JSON_ASSET_OBJECT_KEYS = [
   "PERSONALIZED_VIDEO_SCRIPT",
   "NEWSLETTER_IDEA",
   "BLOG_POST_IDEA",
-  "WHATSAPP_OUTREACH",
-  "KNOWLEDGE_ENHANCEMENT",
   "COLD_EMAIL",
   "OBJECTION_HANDLING",
   "COMMUNITY_REPLY",
@@ -109,7 +106,7 @@ export function composeSuggestedCtaFromRawAssetObject(
     if (
       value &&
       looksLikeLabeledDeploymentAssets(value) &&
-      /(?:^|\n)(PERSONALIZED_|LINKEDIN_|FOLLOW_UP_EMAIL|DISCOVERY_|OBJECTION_|MEETING_|RECOMMENDED_|COLD_|WHATSAPP_|KNOWLEDGE_|COMMUNITY_REPLY|PRIVATE_MESSAGE|SOCIAL_POST)/.test(
+      /(?:^|\n)(PERSONALIZED_|LINKEDIN_|FOLLOW_UP_EMAIL|DISCOVERY_|OBJECTION_|MEETING_|RECOMMENDED_|COLD_|COMMUNITY_REPLY|PRIVATE_MESSAGE|SOCIAL_POST)/.test(
         value,
       )
     ) {
@@ -379,56 +376,4 @@ export function shouldPatchIncompleteCurrentVersion(input: {
     (snapshotMissingBlueprint && liveHasBlueprint) ||
     (snapshotMissingCta && liveHasCta)
   );
-}
-
-/**
- * Whether live intelligence is safe to snapshot as an immutable version.
- * Prevents mid-pipeline page-load ensure from freezing analysis-only Current.
- */
-export function isSafeToVersionLiveIntelligence(
-  intelligence: ExecutiveIntelligencePayload,
-): boolean {
-  const cta = resolveDeploymentAssetsSuggestedCta({
-    analysis: intelligence.analysis,
-    briefing: intelligence.briefing,
-    isCurrent: true,
-  });
-  return Boolean(cta?.trim()) || hasBlueprint(intelligence.blueprint);
-}
-
-/**
- * Prospect Current promotion gate: required deployment assets + blueprint.
- */
-export function isProspectExecutiveCandidateComplete(input: {
-  intelligence: ExecutiveIntelligencePayload;
-  requireKnowledgeEnhancement: boolean;
-}): {
-  complete: boolean;
-  missingRequiredKeys: string[];
-  warnings: string[];
-  suggestedCta: string | null;
-} {
-  const suggestedCta = resolveDeploymentAssetsSuggestedCta({
-    analysis: input.intelligence.analysis,
-    briefing: input.intelligence.briefing,
-    isCurrent: true,
-  });
-
-  const report = evaluateProspectDeploymentCompleteness({
-    suggestedCta,
-    requireKnowledgeEnhancement: input.requireKnowledgeEnhancement,
-  });
-
-  const warnings = [...report.warnings];
-  if (!hasBlueprint(input.intelligence.blueprint)) {
-    warnings.push("Strategic Blueprint is missing");
-  }
-
-  return {
-    complete:
-      report.complete && hasBlueprint(input.intelligence.blueprint),
-    missingRequiredKeys: report.missingRequiredKeys,
-    warnings,
-    suggestedCta,
-  };
 }

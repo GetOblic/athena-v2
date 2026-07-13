@@ -35,25 +35,17 @@ export function resolveProspectDisplayStatus(input: {
     return "Generating Executive Intelligence";
   }
 
-  // No active job — failed refresh must not appear Ready merely because an
-  // older Current Version still exists.
-  const current = String(input.prospectStatus ?? "").trim();
-  if (
-    current === "Processing Failed" ||
-    /fail/i.test(current)
-  ) {
-    return "Processing Failed";
-  }
-
   // No active job — prefer Ready when a Current Version exists.
   if (input.hasCurrentVersion) {
     return "Ready";
   }
 
+  const current = String(input.prospectStatus ?? "").trim();
   if ((PROSPECT_DISPLAY_STATUSES as readonly string[]).includes(current)) {
     return current as ProspectDisplayStatus;
   }
 
+  if (/fail/i.test(current)) return "Processing Failed";
   if (/ready/i.test(current)) return "Ready";
   if (/learn|scrape|website/i.test(current)) return "Learning from Website";
   if (/generat|analyz/i.test(current)) {

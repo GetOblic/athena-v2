@@ -15,8 +15,7 @@ export type AthenaWorkerRuntimeConfig = {
 export const ATHENA_WORKER_CONFIG_DEFAULTS: AthenaWorkerRuntimeConfig = {
   pollIntervalMs: 3_000,
   heartbeatIntervalMs: 20_000,
-  // Prospect multi-page crawl + LLM stages need headroom beyond homepage-only.
-  leaseSeconds: 180,
+  leaseSeconds: 120,
   maxAttempts: 3,
   shutdownTimeoutMs: 90_000,
   concurrency: 1,

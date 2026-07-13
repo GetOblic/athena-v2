@@ -27,8 +27,7 @@ import {
   markProspectGenerationReady,
   prepareProspectBridgeBeforeGeneration,
 } from "@/services/prospects/prospectImporter";
-import { getProspectByLinkedDiscussionId, PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
-import { resolveProspectWebsiteLearningDecision } from "@/services/prospects/prospectWebsiteLearningPolicy";
+import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
 
 export { createWorkerIdentity };
@@ -198,27 +197,13 @@ export async function executeClaimedGenerationJob(
       job.organization_id,
     );
     if (discussion?.platform === PROSPECT_INTELLIGENCE_PLATFORM) {
-      const prospect = await getProspectByLinkedDiscussionId(
-        job.discussion_id,
-        job.organization_id,
-      );
-      const websiteDecision = resolveProspectWebsiteLearningDecision({
-        triggerType: job.trigger_type,
-        hasWebsite: Boolean(prospect?.website),
-        websiteIntelligence:
-          (prospect?.website_intelligence as Record<string, unknown> | null) ??
-          null,
-      });
-      await renewLease(
-        websiteDecision.shouldCrawl ? "website_intelligence" : "preparing",
-      );
+      await renewLease("website_intelligence");
       if (claimLost) {
         return "claim_lost";
       }
       await prepareProspectBridgeBeforeGeneration(
         job.discussion_id,
         job.organization_id,
-        { triggerType: job.trigger_type },
       );
       await renewLease("discussion_analysis");
       if (claimLost) {
@@ -240,23 +225,14 @@ export async function executeClaimedGenerationJob(
       return "claim_lost";
     }
 
-    const treatPartialAsFailure =
-      discussion?.platform === PROSPECT_INTELLIGENCE_PLATFORM;
-
-    if (!result.success || (treatPartialAsFailure && result.partial)) {
-      const classified = classifyGenerationError(
-        result.error ??
-          result.warning ??
-          "Prospect generation completed only partially.",
-      );
+    if (!result.success) {
+      const classified = classifyGenerationError(result.error);
       const failed = await failGenerationJobWithClaim({
         jobId: job.id,
         claimToken,
         errorCode: classified.code,
         errorMessage: classified.message,
-        retryable:
-          !(treatPartialAsFailure && result.partial) &&
-          classified.classification === "retryable",
+        retryable: classified.classification === "retryable",
         attemptCount: job.attempt_count,
         failedStage: job.current_stage,
         errorMetadata: {
@@ -270,7 +246,6 @@ export async function executeClaimedGenerationJob(
         jobId: job.id,
         status: failed?.status ?? null,
         errorCode: classified.code,
-        partial: result.partial ?? false,
       });
 
       // On terminal failure, promote coalesced follow-up so newer intent is not lost.

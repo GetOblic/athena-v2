@@ -457,15 +457,6 @@ export const multiPageWebsiteIntelligenceProvider: WebsiteIntelligenceProvider =
           });
         }
 
-        console.log(
-          "[ATHENA_PROSPECT_GEN] website_pages_selected",
-          JSON.stringify({
-            event: "website_pages_selected",
-            pagesSelected: selected.length,
-            urls: selected.map((page) => page.url).slice(0, 10),
-          }),
-        );
-
         const extracts = await mapWithConcurrency(
           selected,
           FETCH_CONCURRENCY,

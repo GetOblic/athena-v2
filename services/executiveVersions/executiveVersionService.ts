@@ -8,14 +8,9 @@ import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 import { buildExecutiveVersionGenerationMetadata } from "@/services/executiveVersions/executiveVersionMetadata";
 import {
-  isProspectExecutiveCandidateComplete,
-  isSafeToVersionLiveIntelligence,
   shouldPatchIncompleteCurrentVersion,
   withResolvedVersionIntelligence,
 } from "@/services/executiveVersions/executiveVersionDisplay";
-import { websiteIntelligenceSupportsKnowledgeEnhancement } from "@/services/prospects/prospectDeploymentAssetContract";
-import { logProspectGenerationEvent } from "@/services/prospects/prospectGenerationDiagnostics";
-import { getProspectByLinkedDiscussionId } from "@/services/prospects/prospectService";
 import {
   EXECUTIVE_INTELLIGENCE_PIPELINE_VERSION,
   type ExecutiveIntelligencePayload,
@@ -206,11 +201,6 @@ export async function ensureCurrentLiveIntelligenceIsVersioned(
     return null;
   }
 
-  // Never freeze analysis-only mid-pipeline state as Original/Current.
-  if (!isSafeToVersionLiveIntelligence(intelligence)) {
-    return null;
-  }
-
   return insertExecutiveVersion({
     discussionId,
     organizationId,
@@ -249,47 +239,6 @@ export async function publishExecutiveIntelligenceVersion(input: {
     return null;
   }
 
-  // Prospect: refuse to promote incomplete candidates as Current.
-  const prospect = await getProspectByLinkedDiscussionId(
-    input.discussionId,
-    input.organizationId,
-  );
-  const isProspect = Boolean(prospect);
-  if (isProspect) {
-    const requireKnowledgeEnhancement =
-      websiteIntelligenceSupportsKnowledgeEnhancement(
-        (prospect?.website_intelligence as Record<string, unknown> | null) ??
-          null,
-      );
-    const gate = isProspectExecutiveCandidateComplete({
-      intelligence,
-      requireKnowledgeEnhancement,
-    });
-    if (!gate.complete) {
-      logProspectGenerationEvent("deployment_parse_incomplete", {
-        discussionId: input.discussionId,
-        organizationId: input.organizationId,
-        prospectId: prospect?.id ?? null,
-        regenerationRunId: input.regenerationRunId ?? null,
-        parsedAssetKeys: gate.suggestedCta
-          ? gate.suggestedCta.match(/(?:^|\n)([A-Z][A-Z0-9_]+):/g)
-          : [],
-        missingRequiredAssetKeys: gate.missingRequiredKeys,
-        errorMessage: gate.warnings.join("; "),
-      });
-      throw new Error(
-        `Incomplete Prospect Executive candidate: ${gate.warnings.join("; ")}`,
-      );
-    }
-  }
-
-  logProspectGenerationEvent("current_version_publish_started", {
-    discussionId: input.discussionId,
-    organizationId: input.organizationId,
-    prospectId: prospect?.id ?? null,
-    regenerationRunId: input.regenerationRunId ?? null,
-  });
-
   // Avoid duplicate Current when the live analysis was already published
   // (e.g. ensure step just created Version 1 and no new analysis ran).
   const current = await getCurrentExecutiveVersion(
@@ -305,27 +254,18 @@ export async function publishExecutiveIntelligenceVersion(input: {
     // deployment assets / blueprint). Patch that incomplete Current in place
     // so the immutable row matches the finished live intelligence.
     if (shouldPatchIncompleteCurrentVersion({ current, live: intelligence })) {
-      const patched = await patchIncompleteCurrentExecutiveVersion({
+      return patchIncompleteCurrentExecutiveVersion({
         current,
         intelligence,
         blueprintId: input.blueprintId ?? intelligence.blueprint?.id ?? null,
         regenerationRunId: input.regenerationRunId,
         generationDurationMs: input.generationDurationMs,
       });
-      logProspectGenerationEvent("current_version_publish_completed", {
-        discussionId: input.discussionId,
-        organizationId: input.organizationId,
-        prospectId: prospect?.id ?? null,
-        regenerationRunId: input.regenerationRunId ?? null,
-        executiveVersionId: patched.id,
-        stage: "patched_incomplete_current",
-      });
-      return patched;
     }
     return current;
   }
 
-  const published = await insertExecutiveVersion({
+  return insertExecutiveVersion({
     discussionId: input.discussionId,
     organizationId: input.organizationId,
     userId: intelligence.analysis.user_id,
@@ -338,16 +278,6 @@ export async function publishExecutiveIntelligenceVersion(input: {
     reviewId: input.reviewId ?? intelligence.briefing?.id ?? null,
     blueprintId: input.blueprintId ?? intelligence.blueprint?.id ?? null,
   });
-
-  logProspectGenerationEvent("current_version_publish_completed", {
-    discussionId: input.discussionId,
-    organizationId: input.organizationId,
-    prospectId: prospect?.id ?? null,
-    regenerationRunId: input.regenerationRunId ?? null,
-    executiveVersionId: published.id,
-  });
-
-  return published;
 }
 
 /**

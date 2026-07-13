@@ -88,14 +88,6 @@ describe("prospect refresh and delete route contracts", () => {
     assert.doesNotMatch(source, /scrape|fetch\(|processDiscussionEndToEnd/);
   });
 
-  it("meaningful prospect PATCH uses discussion_update (no website re-crawl)", () => {
-    const route = readFileSync(
-      join(ROOT, "app/api/prospects/[id]/route.ts"),
-      "utf8",
-    );
-    assert.match(route, /triggerType:\s*"discussion_update"/);
-  });
-
   it("importer supports explicit manual_refresh while defaulting import", () => {
     const source = readFileSync(
       join(ROOT, "services/prospects/prospectImporter.ts"),

@@ -15,7 +15,6 @@ import {
   hashContent,
   logPersistedRegenerationOutput,
 } from "@/lib/regenerationDiagnostics";
-import { canonicalizeDeploymentAssetLabels } from "@/services/prospects/prospectDeploymentAssetContract";
 
 export type GeneratedDeploymentAssets = {
   suggested_cta: string;
@@ -36,12 +35,10 @@ export function parseDeploymentAssetsResponse(
 ): GeneratedDeploymentAssets {
   try {
     const parsed = JSON.parse(stripJsonFence(rawText)) as Record<string, unknown>;
-    const suggestedCta = canonicalizeDeploymentAssetLabels(
-      String(parsed.suggested_cta ?? "").trim(),
-    );
-    const recommendedResponse = canonicalizeDeploymentAssetLabels(
-      String(parsed.recommended_response ?? suggestedCta).trim(),
-    );
+    const suggestedCta = String(parsed.suggested_cta ?? "").trim();
+    const recommendedResponse = String(
+      parsed.recommended_response ?? suggestedCta,
+    ).trim();
     const cta = String(parsed.cta ?? "").trim();
 
     return {
@@ -50,7 +47,7 @@ export function parseDeploymentAssetsResponse(
       cta,
     };
   } catch {
-    const trimmed = canonicalizeDeploymentAssetLabels(rawText.trim());
+    const trimmed = rawText.trim();
     return {
       suggested_cta: trimmed,
       recommended_response: trimmed,

@@ -39,14 +39,7 @@ import {
   resolveProspectBusinessName,
   resolveProspectDecisionMaker,
 } from "@/services/prospects/prospectUtils";
-import {
-  websiteIntelligenceHasUsableContent,
-} from "@/services/prospects/prospectDeploymentAssetContract";
-import { logProspectGenerationEvent } from "@/services/prospects/prospectGenerationDiagnostics";
-import { resolveProspectWebsiteLearningDecision } from "@/services/prospects/prospectWebsiteLearningPolicy";
-import type { HomepageIntelligence } from "@/services/prospects/prospectWebsiteIntelligence";
 import { scrapeHomepageIntelligence } from "@/services/prospects/prospectWebsiteIntelligence";
-import type { AthenaGenerationTriggerType } from "@/services/generationJobs/generationJobTypes";
 
 export type ProspectImportRow = ProspectCsvRow;
 export { parseProspectCsv };
@@ -199,110 +192,27 @@ export async function ensureProspectGenerationQueued(
 }
 
 /**
- * Worker pre-step before the canonical pipeline.
- *
- * Live website learning runs only for initial import triggers
- * (`discussion_import`) when usable stored intelligence is absent.
- * Refresh / Append / metadata regeneration reuse stored website_intelligence
- * and never crawl.
+ * Worker pre-step: homepage scrape + bridge body refresh before canonical pipeline.
+ * Isolated Prospect compatibility seam — keep out of Discussion-only paths.
  */
 export async function prepareProspectBridgeBeforeGeneration(
   discussionId: string,
   organizationId: string,
-  options?: {
-    triggerType?: AthenaGenerationTriggerType | string | null;
-  },
-): Promise<{ websiteLearningRan: boolean }> {
+): Promise<void> {
   const prospect = await getProspectByLinkedDiscussionId(
     discussionId,
     organizationId,
   );
-  if (!prospect) {
-    return { websiteLearningRan: false };
-  }
+  if (!prospect) return;
 
   let current = prospect;
-  const storedIntelligence = (current.website_intelligence as
-    | Record<string, unknown>
-    | null) ?? null;
-  const decision = resolveProspectWebsiteLearningDecision({
-    triggerType: options?.triggerType,
-    hasWebsite: Boolean(current.website),
-    websiteIntelligence: storedIntelligence,
-  });
 
-  if (decision.shouldCrawl && current.website) {
+  if (current.website) {
     await updateProspect(current.id, organizationId, {
       status: "Learning from Website",
     });
 
-    logProspectGenerationEvent("website_discovery_started", {
-      prospectId: current.id,
-      discussionId,
-      organizationId,
-      triggerType: options?.triggerType ?? null,
-    });
-
-    const scraped = await scrapeHomepageIntelligence(current.website);
-    const prior = current.website_intelligence as
-      | HomepageIntelligence
-      | Record<string, unknown>
-      | null;
-    const scrapedUsable = websiteIntelligenceHasUsableContent(
-      scraped as Record<string, unknown>,
-    );
-    const priorUsable = websiteIntelligenceHasUsableContent(
-      (prior as Record<string, unknown> | null) ?? null,
-    );
-
-    let intelligence: HomepageIntelligence | Record<string, unknown> = scraped;
-    if (!scrapedUsable && priorUsable && prior) {
-      // Never erase previously good website intelligence with an empty crawl.
-      intelligence = {
-        ...prior,
-        crawl_partial: true,
-        crawl_timeout: Boolean(
-          (scraped as HomepageIntelligence).crawl_timeout,
-        ),
-        error:
-          scraped.error ??
-          "Website crawl returned empty results; prior website intelligence preserved.",
-      };
-      logProspectGenerationEvent("prior_website_intelligence_preserved", {
-        prospectId: current.id,
-        discussionId,
-        organizationId,
-        triggerType: options?.triggerType ?? null,
-        pagesAnalyzed:
-          typeof (prior as HomepageIntelligence).pages_analyzed === "number"
-            ? (prior as HomepageIntelligence).pages_analyzed
-            : null,
-        errorMessage: scraped.error ?? null,
-      });
-    }
-
-    logProspectGenerationEvent("website_learning_completed", {
-      prospectId: current.id,
-      discussionId,
-      organizationId,
-      triggerType: options?.triggerType ?? null,
-      pagesAnalyzed:
-        typeof (intelligence as HomepageIntelligence).pages_analyzed ===
-        "number"
-          ? (intelligence as HomepageIntelligence).pages_analyzed
-          : null,
-      pagesSelected:
-        Array.isArray((intelligence as HomepageIntelligence).pages)
-          ? (intelligence as HomepageIntelligence).pages?.length
-          : null,
-      crawlPartial: Boolean(
-        (intelligence as HomepageIntelligence).crawl_partial,
-      ),
-      crawlTimeout: Boolean(
-        (intelligence as HomepageIntelligence).crawl_timeout,
-      ),
-    });
-
+    const intelligence = await scrapeHomepageIntelligence(current.website);
     current =
       (await updateProspect(current.id, organizationId, {
         website_intelligence: intelligence,
@@ -310,30 +220,6 @@ export async function prepareProspectBridgeBeforeGeneration(
         last_activity: new Date().toISOString(),
       })) ?? current;
   } else {
-    if (websiteIntelligenceHasUsableContent(storedIntelligence)) {
-      logProspectGenerationEvent("stored_website_intelligence_loaded", {
-        prospectId: current.id,
-        discussionId,
-        organizationId,
-        triggerType: options?.triggerType ?? null,
-        pagesAnalyzed:
-          typeof storedIntelligence?.pages_analyzed === "number"
-            ? storedIntelligence.pages_analyzed
-            : null,
-      });
-    }
-
-    if (decision.reason !== "no_website") {
-      logProspectGenerationEvent("website_learning_skipped", {
-        prospectId: current.id,
-        discussionId,
-        organizationId,
-        triggerType: options?.triggerType ?? null,
-        skipReason: decision.reason,
-      });
-    }
-
-    // Never mutate website_intelligence on refresh / non-import paths.
     current =
       (await updateProspect(current.id, organizationId, {
         status: "Generating Executive Intelligence",
@@ -341,9 +227,7 @@ export async function prepareProspectBridgeBeforeGeneration(
       })) ?? current;
   }
 
-  if (!current.linked_discussion_id) {
-    return { websiteLearningRan: decision.shouldCrawl };
-  }
+  if (!current.linked_discussion_id) return;
 
   await updateDiscussion(current.linked_discussion_id, organizationId, {
     title: current.business_name,
@@ -351,8 +235,6 @@ export async function prepareProspectBridgeBeforeGeneration(
     url: current.website,
     body: buildProspectAnalysisBody(current),
   });
-
-  return { websiteLearningRan: decision.shouldCrawl };
 }
 
 export async function markProspectGenerationReady(

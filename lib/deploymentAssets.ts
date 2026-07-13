@@ -7,7 +7,6 @@ import {
   PROSPECT_DEPLOYMENT_ASSET_META,
 } from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
 import { canonicalDeploymentAssetType } from "@/services/assetInteractions/assetInteractionKeys";
-import { canonicalizeDeploymentAssetLabels } from "@/services/prospects/prospectDeploymentAssetContract";
 
 function isNonEmpty(value?: string | null): value is string {
   return Boolean(value?.trim());
@@ -90,8 +89,7 @@ function parseLabeledAssets(value?: string | null): DeploymentAsset[] {
     return [];
   }
 
-  const normalized = canonicalizeDeploymentAssetLabels(value);
-  const matches = [...normalized.matchAll(LABELED_ASSET_PATTERN)];
+  const matches = [...value.matchAll(LABELED_ASSET_PATTERN)];
 
   if (matches.length === 0) {
     return [];
@@ -104,8 +102,8 @@ function parseLabeledAssets(value?: string | null): DeploymentAsset[] {
     const label = match[1];
     const start = (match.index ?? 0) + match[0].length;
     const next = matches[index + 1];
-    const end = next?.index ?? normalized.length;
-    const content = normalized.slice(start, end).trim();
+    const end = next?.index ?? value.length;
+    const content = value.slice(start, end).trim();
 
     if (!content) {
       continue;
