@@ -235,7 +235,7 @@ describe("Client Brand Identity — no intelligence consumption", () => {
       for (const file of listTsFiles(root)) {
         const source = read(file);
         if (
-          /brand_primary_color|brand_logo_storage_path|brand_font|updateOrganizationBrandIdentity|OrganizationBrandIdentity/.test(
+          /brand_primary_color|brand_logo_storage_path|brand_profile_picture_storage_path|brand_font|updateOrganizationBrandIdentity|OrganizationBrandIdentity/.test(
             source,
           )
         ) {
@@ -266,5 +266,7 @@ describe("Client Brand Identity — UI", () => {
     assert.match(section, /brand_primary_color/);
     assert.match(section, /brand_font/);
     assert.match(section, /Upload logo|Replace logo/);
+    assert.match(section, /Profile Picture/);
+    assert.match(section, /Upload picture|Replace picture/);
   });
 });

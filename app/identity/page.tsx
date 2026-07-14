@@ -8,6 +8,7 @@ import {
   getOrganizationBrandIdentity,
   OrganizationBrandNotFoundError,
   resolveOrganizationBrandLogoPreviewUrl,
+  resolveOrganizationBrandProfilePicturePreviewUrl,
   updateOrganizationBrandIdentity,
 } from "@/services/identity/brandIdentityService";
 import {
@@ -108,6 +109,11 @@ export default async function IdentityPage({
     organizationBrand,
     organizationId,
   );
+  const profilePicturePreviewUrl =
+    await resolveOrganizationBrandProfilePicturePreviewUrl(
+      organizationBrand,
+      organizationId,
+    );
 
   const hasVoice = Boolean(identity?.about_you?.trim());
   const hasExpertise = Boolean(identity?.expertise?.trim());
@@ -262,6 +268,7 @@ export default async function IdentityPage({
         key={[
           organizationId,
           organizationBrand?.brand_logo_storage_path ?? "",
+          organizationBrand?.brand_profile_picture_storage_path ?? "",
           organizationBrand?.brand_primary_color ?? "",
           organizationBrand?.brand_secondary_color ?? "",
           organizationBrand?.brand_accent_color ?? "",
@@ -276,6 +283,7 @@ export default async function IdentityPage({
         }
         initialFont={organizationBrand?.brand_font ?? ""}
         initialLogoPreviewUrl={logoPreviewUrl}
+        initialProfilePicturePreviewUrl={profilePicturePreviewUrl}
         saveBrandIdentity={saveBrandIdentity}
         brandError={brandError}
       />

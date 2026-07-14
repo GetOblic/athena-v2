@@ -20,6 +20,7 @@ type BrandIdentitySectionProps = {
   initialBackgroundColor: string;
   initialFont: string;
   initialLogoPreviewUrl: string | null;
+  initialProfilePicturePreviewUrl: string | null;
   saveBrandIdentity: (formData: FormData) => Promise<void>;
   brandError?: string | null;
 };
@@ -82,6 +83,7 @@ export function BrandIdentitySection({
   initialBackgroundColor,
   initialFont,
   initialLogoPreviewUrl,
+  initialProfilePicturePreviewUrl,
   saveBrandIdentity,
   brandError = null,
 }: BrandIdentitySectionProps) {
@@ -97,6 +99,13 @@ export function BrandIdentitySection({
   const [logoPreviewUrl, setLogoPreviewUrl] = useState(initialLogoPreviewUrl);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [logoBusy, setLogoBusy] = useState(false);
+  const [profilePicturePreviewUrl, setProfilePicturePreviewUrl] = useState(
+    initialProfilePicturePreviewUrl,
+  );
+  const [profilePictureError, setProfilePictureError] = useState<string | null>(
+    null,
+  );
+  const [profilePictureBusy, setProfilePictureBusy] = useState(false);
 
   async function handleLogoUpload(file: File | null) {
     if (!file) return;
@@ -173,6 +182,85 @@ export function BrandIdentitySection({
     }
   }
 
+  async function handleProfilePictureUpload(file: File | null) {
+    if (!file) return;
+    setProfilePictureError(null);
+
+    if (
+      !BRAND_LOGO_ALLOWED_MIME_TYPES.includes(
+        file.type as (typeof BRAND_LOGO_ALLOWED_MIME_TYPES)[number],
+      )
+    ) {
+      setProfilePictureError("Use a PNG, JPEG, or WebP image.");
+      return;
+    }
+    if (file.size > BRAND_LOGO_MAX_BYTES) {
+      setProfilePictureError("Profile picture must be 2 MB or smaller.");
+      return;
+    }
+
+    setProfilePictureBusy(true);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      const response = await fetch("/api/identity/profile-picture", {
+        method: "POST",
+        body,
+      });
+      const payload = await parseJsonResponse<{
+        ok?: boolean;
+        previewUrl?: string | null;
+        error?: { message?: string };
+      }>(response);
+
+      if (!response.ok || !payload.ok) {
+        setProfilePictureError(
+          payload.error?.message ?? "Could not upload profile picture.",
+        );
+        return;
+      }
+
+      setProfilePicturePreviewUrl(payload.previewUrl ?? null);
+      router.refresh();
+    } catch {
+      setProfilePictureError("Could not upload profile picture.");
+    } finally {
+      setProfilePictureBusy(false);
+    }
+  }
+
+  async function handleProfilePictureRemove() {
+    if (!profilePicturePreviewUrl) return;
+    const confirmed = window.confirm("Remove the profile picture?");
+    if (!confirmed) return;
+
+    setProfilePictureError(null);
+    setProfilePictureBusy(true);
+    try {
+      const response = await fetch("/api/identity/profile-picture", {
+        method: "DELETE",
+      });
+      const payload = await parseJsonResponse<{
+        ok?: boolean;
+        error?: { message?: string };
+      }>(response);
+
+      if (!response.ok || !payload.ok) {
+        setProfilePictureError(
+          payload.error?.message ?? "Could not remove profile picture.",
+        );
+        return;
+      }
+
+      setProfilePicturePreviewUrl(null);
+      router.refresh();
+    } catch {
+      setProfilePictureError("Could not remove profile picture.");
+    } finally {
+      setProfilePictureBusy(false);
+    }
+  }
+
   return (
     <section className="mt-8 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
@@ -241,6 +329,64 @@ export function BrandIdentitySection({
           {logoError ? (
             <p className="text-sm text-rose-300/90" role="alert">
               {logoError}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="grid gap-4">
+          <h3 className="text-xl font-semibold text-white">Profile Picture</h3>
+          <p className="text-sm text-white/45">
+            PNG, JPEG, or WebP. Maximum 2 MB.
+          </p>
+          {profilePicturePreviewUrl ? (
+            <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-black/30">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={profilePicturePreviewUrl}
+                alt="Client profile picture preview"
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="flex h-28 w-28 items-center justify-center rounded-full border border-dashed border-white/15 bg-black/20 text-xs text-white/35">
+              No picture
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex cursor-pointer items-center rounded-xl border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-4 py-2 text-sm font-medium text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/20">
+              <span>
+                {profilePictureBusy
+                  ? "Uploading…"
+                  : profilePicturePreviewUrl
+                    ? "Replace picture"
+                    : "Upload picture"}
+              </span>
+              <input
+                type="file"
+                accept={BRAND_LOGO_ALLOWED_MIME_TYPES.join(",")}
+                className="sr-only"
+                disabled={profilePictureBusy}
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  event.target.value = "";
+                  void handleProfilePictureUpload(file);
+                }}
+              />
+            </label>
+            {profilePicturePreviewUrl ? (
+              <button
+                type="button"
+                disabled={profilePictureBusy}
+                onClick={() => void handleProfilePictureRemove()}
+                className="rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-white/70 transition hover:bg-white/[0.08] disabled:opacity-50"
+              >
+                Remove picture
+              </button>
+            ) : null}
+          </div>
+          {profilePictureError ? (
+            <p className="text-sm text-rose-300/90" role="alert">
+              {profilePictureError}
             </p>
           ) : null}
         </div>

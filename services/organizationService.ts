@@ -7,6 +7,7 @@ export type Organization = {
   slug: string;
   /** Client Brand Identity — organization-level metadata only. */
   brand_logo_storage_path?: string | null;
+  brand_profile_picture_storage_path?: string | null;
   brand_primary_color?: string | null;
   brand_secondary_color?: string | null;
   brand_accent_color?: string | null;

@@ -6,6 +6,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   assertBrandLogoPathForOrganization,
+  assertBrandProfilePicturePathForOrganization,
   normalizeBrandFont,
   parseOptionalBrandHexColor,
   type OrganizationBrandIdentity,
@@ -19,6 +20,11 @@ import {
   removeBrandLogoObject,
   uploadBrandLogo,
 } from "@/services/identity/brandLogoStorage";
+import {
+  createBrandProfilePictureSignedUrl,
+  removeBrandProfilePictureObject,
+  uploadBrandProfilePicture,
+} from "@/services/identity/brandProfilePictureStorage";
 import {
   getOrganizationById,
   type Organization,
@@ -46,6 +52,8 @@ function toOrganizationBrand(
   return {
     organization_id: organization.id,
     brand_logo_storage_path: organization.brand_logo_storage_path ?? null,
+    brand_profile_picture_storage_path:
+      organization.brand_profile_picture_storage_path ?? null,
     brand_primary_color: organization.brand_primary_color ?? null,
     brand_secondary_color: organization.brand_secondary_color ?? null,
     brand_accent_color: organization.brand_accent_color ?? null,
@@ -247,4 +255,144 @@ export async function resolveOrganizationBrandLogoPreviewUrl(
   const path = brand?.brand_logo_storage_path?.trim();
   if (!path) return null;
   return createBrandLogoSignedUrl(path, organizationId);
+}
+
+async function setOrganizationBrandProfilePicturePath(input: {
+  organizationId: string;
+  storagePath: string | null;
+}): Promise<OrganizationBrandIdentity> {
+  const organizationId = input.organizationId.trim();
+  const existing = await getOrganizationById(organizationId);
+  if (!existing) {
+    throw new OrganizationBrandNotFoundError();
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("organizations")
+    .update({
+      brand_profile_picture_storage_path: input.storagePath,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", organizationId)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    console.error(
+      "[BRAND_IDENTITY] profile_picture_path_update_failed",
+      error,
+    );
+    throw new Error("Could not save profile picture reference.");
+  }
+
+  return toOrganizationBrand(data as Organization);
+}
+
+export async function replaceOrganizationBrandProfilePicture(input: {
+  organizationId: string;
+  file: File;
+}): Promise<{ brand: OrganizationBrandIdentity; previewUrl: string | null }> {
+  const existing = await getOrganizationBrandIdentity(input.organizationId);
+  if (!existing) {
+    throw new OrganizationBrandNotFoundError();
+  }
+
+  const previousPath = existing.brand_profile_picture_storage_path ?? null;
+  if (previousPath) {
+    assertBrandProfilePicturePathForOrganization(
+      previousPath,
+      input.organizationId,
+    );
+  }
+
+  const holder: { brand: OrganizationBrandIdentity | null } = { brand: null };
+
+  const newPath = await executeBrandLogoReplacement(
+    {
+      uploadNewObject: async () => {
+        const uploaded = await uploadBrandProfilePicture({
+          organizationId: input.organizationId,
+          file: input.file,
+        });
+        return uploaded.storagePath;
+      },
+      updateIdentityPath: async (storagePath) => {
+        holder.brand = await setOrganizationBrandProfilePicturePath({
+          organizationId: input.organizationId,
+          storagePath,
+        });
+      },
+      deleteObject: (storagePath) =>
+        removeBrandProfilePictureObject(storagePath, input.organizationId),
+      logCleanupFailure: logBrandCleanupFailure,
+    },
+    previousPath,
+  );
+
+  const brand =
+    holder.brand ??
+    (await getOrganizationBrandIdentity(input.organizationId));
+
+  if (!brand) {
+    throw new Error("Could not save profile picture reference.");
+  }
+
+  const previewUrl = await createBrandProfilePictureSignedUrl(
+    newPath,
+    input.organizationId,
+  );
+  return { brand, previewUrl };
+}
+
+export async function clearOrganizationBrandProfilePicture(input: {
+  organizationId: string;
+}): Promise<OrganizationBrandIdentity> {
+  const existing = await getOrganizationBrandIdentity(input.organizationId);
+  if (!existing) {
+    throw new OrganizationBrandNotFoundError();
+  }
+
+  const previousPath = existing.brand_profile_picture_storage_path ?? null;
+  if (previousPath) {
+    assertBrandProfilePicturePathForOrganization(
+      previousPath,
+      input.organizationId,
+    );
+  }
+
+  const holder: { brand: OrganizationBrandIdentity | null } = { brand: null };
+
+  await executeBrandLogoRemoval(
+    {
+      clearIdentityPath: async () => {
+        holder.brand = await setOrganizationBrandProfilePicturePath({
+          organizationId: input.organizationId,
+          storagePath: null,
+        });
+      },
+      deleteObject: (storagePath) =>
+        removeBrandProfilePictureObject(storagePath, input.organizationId),
+      logCleanupFailure: logBrandCleanupFailure,
+    },
+    previousPath,
+  );
+
+  const brand =
+    holder.brand ??
+    (await getOrganizationBrandIdentity(input.organizationId));
+
+  if (!brand) {
+    throw new Error("Could not remove profile picture reference.");
+  }
+
+  return brand;
+}
+
+export async function resolveOrganizationBrandProfilePicturePreviewUrl(
+  brand: OrganizationBrandIdentity | null,
+  organizationId: string,
+): Promise<string | null> {
+  const path = brand?.brand_profile_picture_storage_path?.trim();
+  if (!path) return null;
+  return createBrandProfilePictureSignedUrl(path, organizationId);
 }
