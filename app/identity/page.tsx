@@ -1,8 +1,15 @@
 import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { redirect } from "next/navigation";
+import { BrandIdentitySection } from "@/components/identity/BrandIdentitySection";
 import { TrainAthenaSubmitButton } from "@/components/identity/TrainAthenaSubmitButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  getOrganizationBrandIdentity,
+  OrganizationBrandNotFoundError,
+  resolveOrganizationBrandLogoPreviewUrl,
+  updateOrganizationBrandIdentity,
+} from "@/services/identity/brandIdentityService";
 import {
   getAthenaIdentityByUserId,
   upsertAthenaIdentity,
@@ -38,10 +45,50 @@ async function saveIdentity(formData: FormData) {
   redirect("/identity?saved=true");
 }
 
+async function saveBrandIdentity(formData: FormData) {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { organizationId } = await requireCurrentOrganizationContext();
+
+  try {
+    await updateOrganizationBrandIdentity({
+      organizationId,
+      primaryColor: String(formData.get("brand_primary_color") ?? ""),
+      secondaryColor: String(formData.get("brand_secondary_color") ?? ""),
+      accentColor: String(formData.get("brand_accent_color") ?? ""),
+      backgroundColor: String(formData.get("brand_background_color") ?? ""),
+      font: String(formData.get("brand_font") ?? ""),
+    });
+  } catch (error) {
+    const message =
+      error instanceof OrganizationBrandNotFoundError
+        ? "Organization not found."
+        : error instanceof Error
+          ? error.message
+          : "Could not save brand identity.";
+    redirect(`/identity?brandError=${encodeURIComponent(message)}`);
+  }
+
+  redirect("/identity?brandSaved=true");
+}
+
 export default async function IdentityPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{
+    saved?: string;
+    brandSaved?: string;
+    brandError?: string;
+  }>;
 }) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -55,11 +102,20 @@ export default async function IdentityPage({
   const params = await searchParams;
   const { organizationId, userId } = await requireCurrentOrganizationContext();
   const identity = await getAthenaIdentityByUserId(userId, organizationId);
+  const organizationBrand =
+    await getOrganizationBrandIdentity(organizationId);
+  const logoPreviewUrl = await resolveOrganizationBrandLogoPreviewUrl(
+    organizationBrand,
+    organizationId,
+  );
 
   const hasVoice = Boolean(identity?.about_you?.trim());
   const hasExpertise = Boolean(identity?.expertise?.trim());
   const hasWebsite = Boolean(identity?.website?.trim());
   const hasMasterProfile = Boolean(identity?.master_profile);
+  const brandError = params.brandError?.trim()
+    ? decodeURIComponent(params.brandError)
+    : null;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
@@ -88,6 +144,12 @@ export default async function IdentityPage({
       {params.saved === "true" && (
         <div className="mb-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
           Athena Brain trained successfully.
+        </div>
+      )}
+
+      {params.brandSaved === "true" && (
+        <div className="mb-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
+          Brand Identity saved successfully.
         </div>
       )}
 
@@ -195,6 +257,28 @@ export default async function IdentityPage({
           </div>
         </aside>
       </div>
+
+      <BrandIdentitySection
+        key={[
+          organizationId,
+          organizationBrand?.brand_logo_storage_path ?? "",
+          organizationBrand?.brand_primary_color ?? "",
+          organizationBrand?.brand_secondary_color ?? "",
+          organizationBrand?.brand_accent_color ?? "",
+          organizationBrand?.brand_background_color ?? "",
+          organizationBrand?.brand_font ?? "",
+        ].join("|")}
+        initialPrimaryColor={organizationBrand?.brand_primary_color ?? ""}
+        initialSecondaryColor={organizationBrand?.brand_secondary_color ?? ""}
+        initialAccentColor={organizationBrand?.brand_accent_color ?? ""}
+        initialBackgroundColor={
+          organizationBrand?.brand_background_color ?? ""
+        }
+        initialFont={organizationBrand?.brand_font ?? ""}
+        initialLogoPreviewUrl={logoPreviewUrl}
+        saveBrandIdentity={saveBrandIdentity}
+        brandError={brandError}
+      />
     </main>
   );
 }

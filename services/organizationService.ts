@@ -5,6 +5,13 @@ export type Organization = {
   id: string;
   name: string;
   slug: string;
+  /** Client Brand Identity — organization-level metadata only. */
+  brand_logo_storage_path?: string | null;
+  brand_primary_color?: string | null;
+  brand_secondary_color?: string | null;
+  brand_accent_color?: string | null;
+  brand_background_color?: string | null;
+  brand_font?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -202,4 +209,27 @@ export function belongsToOrganization<T extends { organization_id?: string | nul
   organizationId: string,
 ): record is T & { organization_id: string } {
   return Boolean(record && record.organization_id === organizationId);
+}
+
+/** Load a single organization by id. Returns null when missing. */
+export async function getOrganizationById(
+  organizationId: string,
+): Promise<Organization | null> {
+  const id = organizationId.trim();
+  if (!id) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("organizations")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching organization:", error);
+    return null;
+  }
+
+  return data as Organization | null;
 }
