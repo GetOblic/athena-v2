@@ -6,6 +6,8 @@
   --athena-card: #13131a;
   --athena-border: #24242c;
   --athena-orange: #ff6600;
+  --athena-card-outline: rgba(255, 102, 0, 0.18);
+  --athena-card-outline-hover: rgba(255, 102, 0, 0.35);
   --athena-success: #00d084;
   --athena-warning: #f4b400;
   --athena-danger: #ff4d4f;

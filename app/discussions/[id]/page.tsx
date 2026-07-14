@@ -12,6 +12,7 @@ import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLif
 import { DiscussionStatusControl } from "@/components/discussions/DiscussionStatusControl";
 import { DiscussionWorkflowStrip } from "@/components/discussions/DiscussionWorkflowStrip";
 import { ExecutiveIntelligenceWorkspace } from "@/components/discussions/ExecutiveIntelligenceWorkspace";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import {
   getOriginalDiscussionBody,
   getThreadUpdatesForDisplay,
@@ -290,7 +291,9 @@ function HeaderMetric({
     highlight === "orange" ? "text-[var(--athena-orange)]" : "text-white";
 
   return (
-    <div className="rounded-[20px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-5">
+    <div
+      className={`rounded-[20px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5`}
+    >
       <div className="text-xs uppercase tracking-[0.2em] text-white/35">{label}</div>
       <div className={`mt-3 text-lg font-semibold ${children ? "" : color}`}>
         {children ?? value}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { REGENERATION_LONG_RUNNING_MS } from "@/lib/discussionRegenerationStatus";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type GenerationPhase = {
   id: string;
@@ -78,7 +79,9 @@ export function ExecutiveGenerationPanel({
     elapsedMs >= REGENERATION_LONG_RUNNING_MS || stillRunningAfterTimeout;
 
   return (
-    <div className="rounded-[24px] border border-[var(--athena-orange)]/20 bg-[var(--athena-orange)]/[0.06] p-6 sm:p-7">
+    <div
+      className={`rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-orange)]/[0.06] p-6 sm:p-7`}
+    >
       <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
         Executive Generation
       </div>

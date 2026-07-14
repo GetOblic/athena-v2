@@ -9,6 +9,7 @@ import {
   type ProspectLifecycleStatus,
 } from "@/services/prospects/prospectLifecycle";
 import type { Prospect } from "@/services/prospects/prospectService";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type ProspectLifecycleStatusControlProps = {
   prospect: Prospect;
@@ -69,7 +70,9 @@ export function ProspectLifecycleStatusControl({
   }
 
   return (
-    <div className="rounded-[20px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-5">
+    <div
+      className={`rounded-[20px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5`}
+    >
       <div className="text-xs uppercase tracking-[0.2em] text-white/35">
         Prospect Status
       </div>

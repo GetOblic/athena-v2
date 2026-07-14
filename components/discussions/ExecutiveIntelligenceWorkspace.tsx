@@ -9,6 +9,7 @@ import { RegenerationMetadata } from "@/components/discussions/RegenerationMetad
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import type {
@@ -323,7 +324,9 @@ export function ExecutiveIntelligenceWorkspace({
   if (!intelligence) {
     return (
       <>
-        <div className="mt-8 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+        <div
+          className={`mt-8 rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
+        >
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
             Executive Intelligence
           </div>

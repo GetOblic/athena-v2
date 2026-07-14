@@ -1,4 +1,5 @@
 import type { DiscussionWorkflowStep } from "@/lib/discussionWorkflow";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type DiscussionWorkflowStripProps = {
   steps: DiscussionWorkflowStep[];
@@ -8,7 +9,9 @@ export function DiscussionWorkflowStrip({
   steps,
 }: DiscussionWorkflowStripProps) {
   return (
-    <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6">
+    <div
+      className={`mt-8 rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-6`}
+    >
       <div className="mb-4 text-xs font-semibold uppercase tracking-[0.3em] text-white/35">
         Workflow Progress
       </div>

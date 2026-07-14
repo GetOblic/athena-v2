@@ -13,6 +13,7 @@ import { AppendProspectInformationForm } from "@/components/prospects/AppendPros
 import { ProspectHomepageIntelligence } from "@/components/prospects/ProspectHomepageIntelligence";
 import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectLifecycleStatusControl";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import {
   formatProspectOpportunityScoreWithRecommendation,
   resolveProspectDisplayStatus,
@@ -313,7 +314,9 @@ function HeaderMetric({
   const color =
     highlight === "orange" ? "text-[var(--athena-orange)]" : "text-white";
   return (
-    <div className="rounded-[22px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-5">
+    <div
+      className={`rounded-[22px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5`}
+    >
       <div className="text-xs uppercase tracking-[0.22em] text-white/35">
         {label}
       </div>

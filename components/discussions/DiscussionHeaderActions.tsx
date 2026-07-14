@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type IntelligenceDomainOption = {
   id: string;
@@ -167,7 +168,7 @@ export function DiscussionHeaderActions({
       {isEditing && (
         <form
           onSubmit={handleSave}
-          className="w-full max-w-3xl rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6 lg:ml-auto"
+          className={`w-full max-w-3xl rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-6 lg:ml-auto`}
         >
           <h2 className="text-lg font-semibold">Edit Discussion</h2>
 

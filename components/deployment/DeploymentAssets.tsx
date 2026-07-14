@@ -1,6 +1,7 @@
 "use client";
 
 import { CopyButton, type AssetCopyTrackingContext } from "@/components/deployment/CopyButton";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 export type DeploymentAsset = {
   /** Canonical interaction key when available. */
@@ -28,7 +29,9 @@ export function DeploymentAssets({
   }
 
   return (
-    <section className="rounded-[28px] border border-[var(--athena-orange)]/25 bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 shadow-[0_0_40px_rgba(255,102,0,0.06)] lg:p-10">
+    <section
+      className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 shadow-[0_0_40px_rgba(255,102,0,0.06)] lg:p-10`}
+    >
       <h2 className="text-3xl font-semibold tracking-tight text-[var(--athena-orange)]">
         Deployment Assets
       </h2>

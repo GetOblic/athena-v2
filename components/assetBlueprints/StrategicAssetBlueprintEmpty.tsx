@@ -1,3 +1,5 @@
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+
 type StrategicAssetBlueprintEmptyProps = {
   message?: string;
 };
@@ -6,7 +8,9 @@ export function StrategicAssetBlueprintEmpty({
   message = "No Strategic Asset Blueprint has been generated for this briefing yet.",
 }: StrategicAssetBlueprintEmptyProps) {
   return (
-    <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:p-10">
+    <section
+      className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8 lg:p-10`}
+    >
       <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
         Strategic Output
       </div>

@@ -5,6 +5,7 @@ import type { AssetCopyTrackingContext } from "@/components/deployment/CopyButto
 import { formatBlueprintReadiness } from "@/lib/blueprintReadiness";
 import { BLUEPRINT_ASSET_TYPES } from "@/services/assetInteractions/assetInteractionKeys";
 import type { AthenaAssetBlueprint } from "@/services/assetBlueprints/assetBlueprintService";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type StrategicAssetBlueprintProps = {
   blueprint: AthenaAssetBlueprint;
@@ -20,7 +21,9 @@ export function StrategicAssetBlueprint({
   const readinessBadges = formatBlueprintReadiness(blueprint);
 
   return (
-    <section className="rounded-[28px] border border-[var(--athena-orange)]/25 bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 shadow-[0_0_40px_rgba(255,102,0,0.06)] lg:p-10">
+    <section
+      className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 shadow-[0_0_40px_rgba(255,102,0,0.06)] lg:p-10`}
+    >
       <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
         Strategic Output
       </div>

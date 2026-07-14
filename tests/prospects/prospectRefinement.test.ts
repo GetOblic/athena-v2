@@ -228,6 +228,44 @@ describe("page structure contracts", () => {
     assert.match(collapsible, /useState\(defaultOpen\)/);
     assert.match(collapsible, /onClick=\{\(\) => setOpen/);
     assert.match(collapsible, /aria-expanded=\{open\}/);
+    assert.match(collapsible, /ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS/);
+  });
+
+  it("executive cards share a subtle orange outline with hover reinforcement", () => {
+    const outline = readFileSync(
+      join(ROOT, "components/ui/athenaExecutiveCard.ts"),
+      "utf8",
+    );
+    assert.match(outline, /rgba\(255,102,0,0\.18\)/);
+    assert.match(outline, /hover:border-\[rgba\(255,102,0,0\.35\)\]/);
+
+    const globals = readFileSync(join(ROOT, "app/globals.css"), "utf8");
+    assert.match(globals, /--athena-card-outline:\s*rgba\(255,\s*102,\s*0,\s*0\.18\)/);
+    assert.match(
+      globals,
+      /--athena-card-outline-hover:\s*rgba\(255,\s*102,\s*0,\s*0\.35\)/,
+    );
+
+    const surfaces = [
+      "components/ui/AthenaCollapsibleSection.tsx",
+      "components/discussions/ExecutiveIntelligenceCard.tsx",
+      "components/discussions/DiscussionWorkflowStrip.tsx",
+      "components/discussions/DiscussionStatusControl.tsx",
+      "components/prospects/ProspectLifecycleStatusControl.tsx",
+      "components/deployment/DeploymentAssets.tsx",
+      "components/assetBlueprints/StrategicAssetBlueprint.tsx",
+      "app/discussions/[id]/page.tsx",
+      "app/prospects/[id]/page.tsx",
+    ];
+
+    for (const relative of surfaces) {
+      const source = readFileSync(join(ROOT, relative), "utf8");
+      assert.match(
+        source,
+        /ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS/,
+        `${relative} should use the shared executive card outline`,
+      );
+    }
   });
 
   it("Prospect library displays Category and lifecycle Status", () => {

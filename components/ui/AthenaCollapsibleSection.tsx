@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type AthenaCollapsibleSectionProps = {
   title: string;
@@ -32,7 +33,7 @@ export function AthenaCollapsibleSection({
 
   return (
     <section
-      className={`rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] ${className}`}
+      className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] ${className}`}
     >
       <div className="flex items-start justify-between gap-4 px-6 py-5 sm:px-8">
         <button

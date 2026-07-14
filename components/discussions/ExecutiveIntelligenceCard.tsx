@@ -5,6 +5,7 @@ import {
   formatConfidencePercent,
 } from "@/lib/confidenceDisplay";
 import { WhyAthenaMatters } from "@/components/discussions/WhyAthenaMatters";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type ExecutiveIntelligenceCardProps = {
   analysis: DiscussionAnalysis;
@@ -22,7 +23,9 @@ export function ExecutiveIntelligenceCard({
   const isProspect = sourceKind === "prospect";
 
   return (
-    <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:p-10">
+    <section
+      className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8 lg:p-10`}
+    >
       <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
         Executive Intelligence
       </div>

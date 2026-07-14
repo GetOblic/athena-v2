@@ -8,6 +8,7 @@ import {
   getDiscussionLifecycle,
 } from "@/lib/discussionStatus";
 import type { Discussion } from "@/services/discussionService";
+import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type DiscussionStatusControlProps = {
   discussion: Discussion;
@@ -60,7 +61,9 @@ export function DiscussionStatusControl({
   }
 
   return (
-    <div className="rounded-[20px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-5">
+    <div
+      className={`rounded-[20px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5`}
+    >
       <div className="text-xs uppercase tracking-[0.2em] text-white/35">
         Discussion Status
       </div>
