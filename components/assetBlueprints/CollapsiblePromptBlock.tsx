@@ -9,6 +9,8 @@ import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags"
 
 type CollapsiblePromptBlockProps = {
   label: string;
+  /** Optional supporting line shown in the collapsed header (e.g. Deployment objective). */
+  description?: string | null;
   text?: string | null;
   fullWidth?: boolean;
   defaultOpen?: boolean;
@@ -20,6 +22,7 @@ type CollapsiblePromptBlockProps = {
 
 export function CollapsiblePromptBlock({
   label,
+  description,
   text,
   fullWidth,
   defaultOpen = false,
@@ -31,6 +34,7 @@ export function CollapsiblePromptBlock({
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const content = text?.trim();
   const hasContent = Boolean(content);
+  const descriptionText = description?.trim();
 
   return (
     <article
@@ -45,8 +49,19 @@ export function CollapsiblePromptBlock({
           className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
           aria-expanded={isOpen}
         >
-          <span className="text-sm font-medium text-white/55">{label}</span>
-          <span className="text-xs text-white/30">{isOpen ? "▲" : "▼"}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium text-white/55">
+              {label}
+            </span>
+            {descriptionText ? (
+              <span className="mt-1 block text-sm leading-6 text-white/45">
+                {descriptionText}
+              </span>
+            ) : null}
+          </span>
+          <span className="shrink-0 text-xs text-white/30">
+            {isOpen ? "▲" : "▼"}
+          </span>
         </button>
         {hasContent && content && isOpen && (
           <CopyButton

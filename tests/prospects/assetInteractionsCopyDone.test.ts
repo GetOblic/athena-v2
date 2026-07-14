@@ -81,8 +81,10 @@ describe("Copy / Copied / Done UI and API contracts", () => {
 
   it("3. multiple CopyButtons keep independent React state", () => {
     const assets = read("components/deployment/DeploymentAssets.tsx");
-    assert.match(assets, /<CopyButton/);
+    assert.match(assets, /CollapsiblePromptBlock/);
     assert.match(assets, /initiallyDone=\{Boolean\(doneByAssetType\[assetType\]\)\}/);
+    const block = read("components/assetBlueprints/CollapsiblePromptBlock.tsx");
+    assert.match(block, /<CopyButton/);
   });
 
   it("4/5/6. Done loads per source and selected Executive Version", () => {
