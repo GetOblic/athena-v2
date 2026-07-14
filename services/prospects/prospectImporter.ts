@@ -40,9 +40,16 @@ import {
   resolveProspectBusinessName,
   resolveProspectDecisionMaker,
 } from "@/services/prospects/prospectUtils";
-import { resolveProspectWebsiteLearningDecision } from "@/services/prospects/prospectWebsiteLearningPolicy";
+import {
+  resolveProspectWebsiteLearningDecision,
+  websiteIntelligenceHasUsableContent,
+} from "@/services/prospects/prospectWebsiteLearningPolicy";
 import { scrapeHomepageIntelligence } from "@/services/prospects/prospectWebsiteIntelligence";
 import type { AthenaGenerationTriggerType } from "@/services/generationJobs/generationJobTypes";
+import {
+  logWebsiteLearning,
+  toProspectWebsiteLearningLogReason,
+} from "@/services/websiteLearning/websiteLearningObservability";
 
 export type ProspectImportRow = ProspectCsvRow;
 export { parseProspectCsv };
@@ -223,6 +230,17 @@ export async function prepareProspectBridgeBeforeGeneration(
     hasWebsite: Boolean(current.website),
     websiteIntelligence: storedIntelligence,
   });
+  const hasStoredIntelligence =
+    websiteIntelligenceHasUsableContent(storedIntelligence);
+
+  logWebsiteLearning({
+    source: "prospect",
+    prospectId: current.id,
+    triggerType: options?.triggerType ?? null,
+    decision: decision.shouldCrawl ? "scrape" : "reuse",
+    reason: toProspectWebsiteLearningLogReason(decision.reason),
+    hasStoredIntelligence,
+  });
 
   if (decision.shouldCrawl && current.website) {
     await updateProspect(current.id, organizationId, {
@@ -236,6 +254,13 @@ export async function prepareProspectBridgeBeforeGeneration(
         status: "Generating Executive Intelligence",
         last_activity: new Date().toISOString(),
       })) ?? current;
+
+    logWebsiteLearning({
+      source: "prospect",
+      prospectId: current.id,
+      event: "scrape_completed",
+      stored: Boolean(current.website_intelligence),
+    });
   } else {
     // Never mutate website_intelligence on refresh / non-import / reuse paths.
     current =

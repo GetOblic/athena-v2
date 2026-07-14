@@ -2,6 +2,7 @@ import { generateReview } from "@/services/aiService";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { assertTenantRecord, createTenantScope } from "@/lib/tenantDatabase";
 import {
+  hasUsableStoredHomepageLearning,
   readStoredHomepageLearning,
   resolveIdentityWebsiteHomepageText,
 } from "@/services/identity/identityHomepageLearning";
@@ -9,6 +10,7 @@ import {
   buildMasterIdentityProfilePrompt,
   MASTER_IDENTITY_PROFILE_PROMPT_VERSION,
 } from "@/services/identity/prompts/masterIdentityProfilePrompt";
+import { logWebsiteLearning } from "@/services/websiteLearning/websiteLearningObservability";
 
 export {
   hasUsableStoredHomepageLearning,
@@ -133,6 +135,19 @@ export async function compileMasterIdentityProfile(
     return identity;
   }
 
+  const hasStoredHomepageLearning = hasUsableStoredHomepageLearning(
+    identity.master_profile,
+  );
+  logWebsiteLearning({
+    source: "identity",
+    organizationId,
+    decision: hasStoredHomepageLearning ? "reuse" : "scrape",
+    reason: hasStoredHomepageLearning
+      ? "stored_homepage_learning_present"
+      : "missing_homepage_learning",
+    hasStoredHomepageLearning,
+  });
+
   const resolvedHomepage = await resolveIdentityWebsiteHomepageText({
     masterProfile: identity.master_profile,
     website: identity.website,
@@ -142,6 +157,16 @@ export async function compileMasterIdentityProfile(
   const storedHomepageLearning = readStoredHomepageLearning(
     identity.master_profile,
   );
+
+  if (resolvedHomepage.scraped) {
+    const scrapedStored = Boolean(websiteHomepageText?.trim());
+    logWebsiteLearning({
+      source: "identity",
+      organizationId,
+      event: "scrape_completed",
+      stored: scrapedStored,
+    });
+  }
 
   const prompt = buildMasterIdentityProfilePrompt({
     aboutYou: identity.about_you,
