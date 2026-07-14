@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
+import { AthenaIntelligenceListRow } from "@/components/ui/AthenaIntelligenceListRow";
 import { getBriefingListSummary } from "@/lib/briefingDisplay";
 import { getBriefingQueues } from "@/services/queueService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -84,9 +85,11 @@ export default async function BriefingsPage() {
                 />
 
                 {section.items.map((briefing) => (
-                  <div
+                  <AthenaIntelligenceListRow
                     key={briefing.id}
-                    className={`${listGridClass} border-b border-white/5 px-6 py-5 text-sm last:border-b-0`}
+                    href={`/briefings/${briefing.id}`}
+                    ariaLabel={`Open briefing ${getBriefingListSummary(briefing)}`}
+                    className={`${listGridClass} px-6 py-5 text-sm transition hover:bg-white/[0.03]`}
                   >
                     <div className="line-clamp-2 pr-4 font-medium leading-6 text-white">
                       {getBriefingListSummary(briefing)}
@@ -108,7 +111,7 @@ export default async function BriefingsPage() {
                         Open Briefing
                       </Link>
                     </div>
-                  </div>
+                  </AthenaIntelligenceListRow>
                 ))}
               </div>
             );

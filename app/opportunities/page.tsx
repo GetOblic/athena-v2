@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { OpportunityStatusBadge } from "@/components/queues/OpportunityStatusBadge";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
+import { AthenaIntelligenceListRow } from "@/components/ui/AthenaIntelligenceListRow";
 import { getOpportunityWorkQueues } from "@/services/queueService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
@@ -85,16 +86,15 @@ export default async function OpportunitiesPage() {
                 </div>
 
                 {section.items.map((opportunity) => (
-                  <div
+                  <AthenaIntelligenceListRow
                     key={opportunity.id}
-                    className={`${listGridClass} border-b border-white/5 px-6 py-5 text-sm last:border-b-0`}
+                    href={`/opportunities/${opportunity.id}`}
+                    ariaLabel={`Open opportunity ${opportunity.title}`}
+                    className={`${listGridClass} px-6 py-5 text-sm transition hover:bg-white/[0.03]`}
                   >
-                    <Link
-                      href={`/opportunities/${opportunity.id}`}
-                      className="font-medium text-white transition hover:text-[var(--athena-orange)]"
-                    >
+                    <div className="font-medium text-white">
                       {opportunity.title}
-                    </Link>
+                    </div>
 
                     <div>
                       <OpportunityStatusBadge status={opportunity.status} />
@@ -116,7 +116,7 @@ export default async function OpportunitiesPage() {
                         Open
                       </Link>
                     </div>
-                  </div>
+                  </AthenaIntelligenceListRow>
                 ))}
               </div>
             );

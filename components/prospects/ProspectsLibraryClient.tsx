@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS } from "@/components/ui/athenaIntelligenceRow";
 import { PROSPECT_LIFECYCLE_STATUSES } from "@/services/prospects/prospectLifecycle";
 import type { ProspectLibraryRow } from "@/services/prospects/prospectLibraryEnrichment";
 
@@ -178,7 +179,7 @@ export function ProspectsLibraryClient({
             <Link
               key={prospect.id}
               href={`/prospects/${prospect.id}`}
-              className="grid min-w-[1100px] grid-cols-[1.4fr_1.2fr_1fr_1fr_160px_120px_110px_110px] gap-4 border-b border-white/5 px-6 py-5 text-sm transition hover:bg-white/[0.03]"
+              className={`grid min-w-[1100px] grid-cols-[1.4fr_1.2fr_1fr_1fr_160px_120px_110px_110px] gap-4 px-6 py-5 text-sm transition hover:bg-white/[0.03] ${ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS}`}
             >
               <div className="font-medium text-white">
                 {prospect.business_name}

@@ -5,6 +5,7 @@ import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { DiscussionAgeBadge } from "@/components/discussions/DiscussionAgeBadge";
 import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
+import { AthenaIntelligenceListRow } from "@/components/ui/AthenaIntelligenceListRow";
 import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
 import { getCommunities } from "@/services/communityService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -109,9 +110,11 @@ export default async function DiscussionsPage() {
                   const hasAnalysis = analyzedDiscussionIds.has(discussion.id);
 
                   return (
-                    <div
+                    <AthenaIntelligenceListRow
                       key={discussion.id}
-                      className={`${listGridClass} border-b border-white/5 px-6 py-5 text-sm last:border-b-0`}
+                      href={`/discussions/${discussion.id}`}
+                      ariaLabel={`Open discussion ${discussion.title}`}
+                      className={`${listGridClass} px-6 py-5 text-sm transition hover:bg-white/[0.03]`}
                     >
                       <div className="text-white/50">
                         {domain?.group_name ?? "—"}
@@ -146,7 +149,7 @@ export default async function DiscussionsPage() {
                       >
                         {getDiscussionActionLabel(section.key)}
                       </Link>
-                    </div>
+                    </AthenaIntelligenceListRow>
                   );
                 })}
               </div>
