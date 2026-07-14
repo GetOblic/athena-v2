@@ -13,6 +13,7 @@ type ExecutiveGenerationPanelProps = {
   startedAtMs: number;
   resumed?: boolean;
   duplicateNotice?: string | null;
+  stillRunningAfterTimeout?: boolean;
 };
 
 function buildPhases(elapsedMs: number): GenerationPhase[] {
@@ -59,6 +60,7 @@ export function ExecutiveGenerationPanel({
   startedAtMs,
   resumed = false,
   duplicateNotice = null,
+  stillRunningAfterTimeout = false,
 }: ExecutiveGenerationPanelProps) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -72,7 +74,8 @@ export function ExecutiveGenerationPanel({
 
   const elapsedMs = Math.max(0, nowMs - startedAtMs);
   const phases = buildPhases(elapsedMs);
-  const isLongRunning = elapsedMs >= REGENERATION_LONG_RUNNING_MS;
+  const isLongRunning =
+    elapsedMs >= REGENERATION_LONG_RUNNING_MS || stillRunningAfterTimeout;
 
   return (
     <div className="rounded-[24px] border border-[var(--athena-orange)]/20 bg-[var(--athena-orange)]/[0.06] p-6 sm:p-7">
@@ -120,7 +123,17 @@ export function ExecutiveGenerationPanel({
       </ul>
 
       <div className="mt-6 border-t border-white/10 pt-5 text-sm leading-6 text-white/55">
-        {isLongRunning ? (
+        {stillRunningAfterTimeout ? (
+          <>
+            <p className="font-medium text-white/75">
+              Generation is still running.
+            </p>
+            <p className="mt-2">
+              Athena is waiting for the durable job to finish publishing the
+              Current Version. This page will update automatically when ready.
+            </p>
+          </>
+        ) : isLongRunning ? (
           <>
             <p className="font-medium text-white/75">
               Athena is still generating a new executive analysis.

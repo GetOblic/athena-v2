@@ -38,12 +38,38 @@ const RETRYABLE_PATTERNS = [
 export function classifyGenerationError(
   error: unknown,
 ): { classification: GenerationErrorClass; code: string; message: string } {
+  if (
+    error instanceof Error &&
+    (error.name === "IncompleteProspectDeploymentAssetsError" ||
+      error.name === "IncompleteProspectPublicationError")
+  ) {
+    return {
+      classification: "retryable",
+      code: error.name,
+      message: error.message.slice(0, 1000),
+    };
+  }
+
   const message =
     error instanceof Error
       ? error.message
       : typeof error === "string"
         ? error
         : "Unknown generation failure";
+
+  // Stage failures that should retry within max_attempts.
+  if (
+    /deployment assets/i.test(message) ||
+    /strategic blueprint/i.test(message) ||
+    /publication failed/i.test(message) ||
+    /incomplete prospect/i.test(message)
+  ) {
+    return {
+      classification: "retryable",
+      code: "RETRYABLE_GENERATION_ERROR",
+      message: message.slice(0, 1000),
+    };
+  }
 
   for (const pattern of TERMINAL_PATTERNS) {
     if (pattern.test(message)) {

@@ -4,6 +4,7 @@ import {
   getDisplayAssetBlueprintByDiscussionId,
 } from "@/services/assetBlueprints/assetBlueprintService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
+import { getDiscussionById } from "@/services/discussionService";
 import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 import { buildExecutiveVersionGenerationMetadata } from "@/services/executiveVersions/executiveVersionMetadata";
@@ -17,6 +18,45 @@ import {
   type ExecutiveIntelligenceVersion,
   type ExecutiveVersionSummary,
 } from "@/services/executiveVersions/executiveVersionTypes";
+import {
+  logProspectDeploymentAssetStability,
+  validateProspectDeploymentAssetPayload,
+  IncompleteProspectPublicationError,
+} from "@/lib/prospectDeploymentAssetContract";
+import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
+
+function assertProspectPublicationCandidate(input: {
+  intelligence: ExecutiveIntelligencePayload;
+  blueprintId?: string | null;
+  discussionId: string;
+  organizationId: string;
+  regenerationRunId?: string | null;
+}): void {
+  const blueprintId =
+    input.blueprintId ?? input.intelligence.blueprint?.id ?? null;
+  if (!blueprintId) {
+    throw new IncompleteProspectPublicationError(
+      "Prospect publication needs a linked Strategic Blueprint.",
+    );
+  }
+
+  const validation = validateProspectDeploymentAssetPayload(
+    input.intelligence.analysis.suggested_cta,
+  );
+  if (!validation.isComplete) {
+    logProspectDeploymentAssetStability("publication_rejected_incomplete_cta", {
+      discussionId: input.discussionId,
+      organizationId: input.organizationId,
+      regenerationRunId: input.regenerationRunId ?? null,
+      parsedAssetCount: validation.parsedKeys.length,
+      missingCanonicalKeys: validation.missingKeys,
+      failureReason: validation.failureReason,
+    });
+    throw new IncompleteProspectPublicationError(
+      "Prospect publication needs a complete Deployment Asset set.",
+    );
+  }
+}
 
 function mapVersionRow(row: Record<string, unknown>): ExecutiveIntelligenceVersion {
   return {
@@ -229,6 +269,7 @@ export async function publishExecutiveIntelligenceVersion(input: {
   opportunityId?: string | null;
   reviewId?: string | null;
   blueprintId?: string | null;
+  requireProspectCompleteness?: boolean;
 }): Promise<ExecutiveIntelligenceVersion | null> {
   const intelligence = await loadLiveExecutiveIntelligence(
     input.discussionId,
@@ -237,6 +278,16 @@ export async function publishExecutiveIntelligenceVersion(input: {
 
   if (!intelligence) {
     return null;
+  }
+
+  if (input.requireProspectCompleteness) {
+    assertProspectPublicationCandidate({
+      intelligence,
+      blueprintId: input.blueprintId,
+      discussionId: input.discussionId,
+      organizationId: input.organizationId,
+      regenerationRunId: input.regenerationRunId,
+    });
   }
 
   // Avoid duplicate Current when the live analysis was already published
@@ -253,7 +304,13 @@ export async function publishExecutiveIntelligenceVersion(input: {
     // Mid-pipeline ensure can publish an incomplete snapshot (analysis before
     // deployment assets / blueprint). Patch that incomplete Current in place
     // so the immutable row matches the finished live intelligence.
-    if (shouldPatchIncompleteCurrentVersion({ current, live: intelligence })) {
+    if (
+      shouldPatchIncompleteCurrentVersion({
+        current,
+        live: intelligence,
+        regenerationRunId: input.regenerationRunId,
+      })
+    ) {
       return patchIncompleteCurrentExecutiveVersion({
         current,
         intelligence,
@@ -262,6 +319,19 @@ export async function publishExecutiveIntelligenceVersion(input: {
         generationDurationMs: input.generationDurationMs,
       });
     }
+
+    // Same analysis already Current and not an upgrade — refuse to leave
+    // incomplete Prospect Current when completeness is required.
+    if (input.requireProspectCompleteness) {
+      assertProspectPublicationCandidate({
+        intelligence: current.intelligence,
+        blueprintId: current.blueprint_id,
+        discussionId: input.discussionId,
+        organizationId: input.organizationId,
+        regenerationRunId: input.regenerationRunId,
+      });
+    }
+
     return current;
   }
 
@@ -417,8 +487,12 @@ export async function getExecutiveVersionsForDiscussionPage(
   versions: ExecutiveIntelligenceVersion[];
   current: ExecutiveIntelligenceVersion | null;
 }> {
-  // Lazy backfill: discussions with live intelligence but no versions yet.
-  await ensureCurrentLiveIntelligenceIsVersioned(discussionId, organizationId);
+  // Lazy backfill for genuine Discussions only. Prospect page loads are
+  // read-only — publication is owned exclusively by the generation worker.
+  const discussion = await getDiscussionById(discussionId, organizationId);
+  if (!isProspectIntelligenceBridge(discussion)) {
+    await ensureCurrentLiveIntelligenceIsVersioned(discussionId, organizationId);
+  }
 
   const versions = await listExecutiveVersions(discussionId, organizationId);
   const liveIntelligence = await loadLiveExecutiveIntelligence(

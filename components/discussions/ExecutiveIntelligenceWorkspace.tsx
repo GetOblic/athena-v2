@@ -298,6 +298,7 @@ export function ExecutiveIntelligenceWorkspace({
 
   const deploymentAssets = buildDiscussionDeploymentAssets(
     intelligence.analysis,
+    { prospectMode: isProspect },
   );
 
   function toggleExpanded(versionId: string) {

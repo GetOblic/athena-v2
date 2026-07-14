@@ -4,7 +4,10 @@ import { DISCUSSION_STATUS_OPTIONS } from "@/lib/discussionStatus";
 import { getDiscussionById, updateDiscussion } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
-import { getActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
+import {
+  getActiveGenerationJobForDiscussion,
+  getLatestGenerationJobForDiscussion,
+} from "@/services/generationJobs/generationJobService";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -43,10 +46,10 @@ export async function GET(_request: Request, context: RouteContext) {
       );
     }
 
-    const activeJob = await getActiveGenerationJobForDiscussion(
-      id,
-      organizationId,
-    );
+    const [activeJob, latestJob] = await Promise.all([
+      getActiveGenerationJobForDiscussion(id, organizationId),
+      getLatestGenerationJobForDiscussion(id, organizationId),
+    ]);
 
     const analysis = await getLatestDiscussionAnalysis(id, organizationId);
     const blueprint = await getDisplayAssetBlueprintByDiscussionId(
@@ -61,6 +64,15 @@ export async function GET(_request: Request, context: RouteContext) {
           activeJob.status === "retryable"),
     );
 
+    const observedJob = activeJob ?? latestJob;
+    const publishedVersionId =
+      observedJob?.published_version_id ??
+      observedJob?.executive_version_id ??
+      null;
+    const generationPublished = Boolean(
+      latestJob?.status === "completed" && publishedVersionId,
+    );
+
     return noStoreJson({
       success: true,
       discussionId: id,
@@ -70,17 +82,15 @@ export async function GET(_request: Request, context: RouteContext) {
       latestAnalysisUpdatedAt: analysis?.updated_at ?? null,
       blueprintUpdatedAt: blueprint?.updated_at ?? null,
       status: discussion.status,
-      jobId: activeJob?.id ?? null,
-      jobStatus: activeJob?.status ?? null,
-      jobTriggerType: activeJob?.trigger_type ?? null,
-      jobStage: activeJob?.current_stage ?? null,
-      jobAttemptCount: activeJob?.attempt_count ?? null,
-      jobErrorCode: activeJob?.error_code ?? null,
-      jobErrorMessage: activeJob?.error_message ?? null,
-      publishedVersionId:
-        activeJob?.published_version_id ??
-        activeJob?.executive_version_id ??
-        null,
+      jobId: observedJob?.id ?? null,
+      jobStatus: observedJob?.status ?? null,
+      jobTriggerType: observedJob?.trigger_type ?? null,
+      jobStage: observedJob?.current_stage ?? null,
+      jobAttemptCount: observedJob?.attempt_count ?? null,
+      jobErrorCode: observedJob?.error_code ?? null,
+      jobErrorMessage: observedJob?.error_message ?? null,
+      publishedVersionId,
+      generationPublished,
     });
   } catch (error) {
     if (error instanceof OrganizationAccessError) {

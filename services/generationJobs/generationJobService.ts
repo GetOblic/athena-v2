@@ -87,6 +87,32 @@ export async function getActiveGenerationJobForDiscussion(
   return data ? mapGenerationJobRow(data) : null;
 }
 
+/** Latest job for a discussion regardless of status (read-only observability). */
+export async function getLatestGenerationJobForDiscussion(
+  discussionId: string,
+  organizationId: string,
+): Promise<AthenaGenerationJob | null> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_generation_jobs")
+    .select("*")
+    .eq("discussion_id", discussionId)
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[ATHENA_JOB] Failed to load latest job:", {
+      discussionId,
+      organizationId,
+      error: error.message,
+    });
+    return null;
+  }
+
+  return data ? mapGenerationJobRow(data) : null;
+}
+
 export async function getGenerationJobById(
   jobId: string,
   organizationId?: string,

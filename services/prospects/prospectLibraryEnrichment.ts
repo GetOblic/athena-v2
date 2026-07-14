@@ -1,10 +1,17 @@
 /**
- * Read-time Prospect library enrichment: status from durable job + Current Version,
- * Opportunity Score from canonical opportunity when available.
+ * Read-time Prospect library enrichment: status from durable job + validated
+ * Current Version completeness, Opportunity Score from canonical opportunity.
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { getActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
+import {
+  isCompleteProspectDeploymentAssetSet,
+  extractProspectDeploymentAssetKeys,
+} from "@/lib/prospectDeploymentAssetContract";
+import {
+  getActiveGenerationJobForDiscussion,
+  getLatestGenerationJobForDiscussion,
+} from "@/services/generationJobs/generationJobService";
 import {
   formatProspectOpportunityScore,
   resolveProspectDisplayStatus,
@@ -26,6 +33,22 @@ export type ProspectLibraryRow = Prospect & {
   display_opportunity_score_label: string;
 };
 
+function isCompleteCurrentVersionRow(row: {
+  blueprint_id?: string | null;
+  intelligence?: {
+    analysis?: { suggested_cta?: string | null } | null;
+    blueprint?: { id?: string | null } | null;
+  } | null;
+}): boolean {
+  const blueprintId =
+    row.blueprint_id ?? row.intelligence?.blueprint?.id ?? null;
+  if (!blueprintId) return false;
+  const cta = row.intelligence?.analysis?.suggested_cta ?? "";
+  return isCompleteProspectDeploymentAssetSet(
+    extractProspectDeploymentAssetKeys(cta),
+  );
+}
+
 export async function enrichProspectsForLibrary(
   prospects: Prospect[],
   organizationId: string,
@@ -38,6 +61,7 @@ export async function enrichProspectsForLibrary(
 
   const opportunityScoreByDiscussion = new Map<string, number>();
   const hasCurrentVersionByDiscussion = new Map<string, boolean>();
+  const hasCompleteCurrentVersionByDiscussion = new Map<string, boolean>();
 
   if (discussionIds.length > 0) {
     const [{ data: opportunities }, { data: versions }] = await Promise.all([
@@ -48,7 +72,7 @@ export async function enrichProspectsForLibrary(
         .in("discussion_id", discussionIds),
       supabaseAdmin
         .from("athena_executive_intelligence_versions")
-        .select("discussion_id, is_current")
+        .select("discussion_id, is_current, blueprint_id, intelligence")
         .eq("organization_id", organizationId)
         .in("discussion_id", discussionIds)
         .eq("is_current", true),
@@ -66,28 +90,45 @@ export async function enrichProspectsForLibrary(
     }
 
     for (const row of versions ?? []) {
-      if (row.discussion_id && row.is_current) {
-        hasCurrentVersionByDiscussion.set(row.discussion_id, true);
-      }
+      if (!row.discussion_id || !row.is_current) continue;
+      hasCurrentVersionByDiscussion.set(row.discussion_id, true);
+      hasCompleteCurrentVersionByDiscussion.set(
+        row.discussion_id,
+        isCompleteCurrentVersionRow(row),
+      );
     }
   }
 
   const enriched = await Promise.all(
     prospects.map(async (prospect) => {
       const discussionId = prospect.linked_discussion_id;
-      const activeJob = discussionId
-        ? await getActiveGenerationJobForDiscussion(discussionId, organizationId)
-        : null;
+      const [activeJob, latestJob] = discussionId
+        ? await Promise.all([
+            getActiveGenerationJobForDiscussion(discussionId, organizationId),
+            getLatestGenerationJobForDiscussion(discussionId, organizationId),
+          ])
+        : [null, null];
 
       const hasCurrentVersion = discussionId
         ? Boolean(hasCurrentVersionByDiscussion.get(discussionId))
         : false;
+      const hasCompleteCurrentVersion = discussionId
+        ? Boolean(hasCompleteCurrentVersionByDiscussion.get(discussionId))
+        : false;
+
+      const hasTerminalJobFailure = Boolean(
+        !activeJob &&
+          latestJob?.status === "failed" &&
+          !hasCompleteCurrentVersion,
+      );
 
       const display_status = resolveProspectDisplayStatus({
         prospectStatus: prospect.status,
         jobStatus: activeJob?.status ?? null,
         jobStage: activeJob?.current_stage ?? null,
         hasCurrentVersion,
+        hasCompleteCurrentVersion,
+        hasTerminalJobFailure,
       });
 
       const display_opportunity_score = resolveProspectOpportunityScore({

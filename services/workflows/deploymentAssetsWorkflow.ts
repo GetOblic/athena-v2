@@ -15,6 +15,13 @@ import {
   hashContent,
   logPersistedRegenerationOutput,
 } from "@/lib/regenerationDiagnostics";
+import {
+  logProspectDeploymentAssetStability,
+  toProspectDeploymentAssetDiagnostics,
+  unwrapProspectDeploymentAssetResponse,
+  IncompleteProspectDeploymentAssetsError,
+} from "@/lib/prospectDeploymentAssetContract";
+import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 
 export type GeneratedDeploymentAssets = {
   suggested_cta: string;
@@ -30,6 +37,10 @@ function stripJsonFence(rawText: string): string {
     .trim();
 }
 
+/**
+ * Discussion-compatible parser. For Prospect Intelligence, prefer
+ * unwrapProspectDeploymentAssetResponse + completeness validation.
+ */
 export function parseDeploymentAssetsResponse(
   rawText: string,
 ): GeneratedDeploymentAssets {
@@ -121,6 +132,39 @@ export async function generateDeploymentAssets(input: {
     discussionId: input.discussionId,
     explicitRegeneration: input.explicitRegeneration,
   });
+
+  const isProspect = isProspectIntelligenceBridge(input.discussion);
+
+  if (isProspect) {
+    const unwrapped = unwrapProspectDeploymentAssetResponse(rawResponse);
+    const diagnostics = toProspectDeploymentAssetDiagnostics(unwrapped);
+
+    logProspectDeploymentAssetStability("deployment_assets_unwrapped", {
+      discussionId: input.discussionId,
+      organizationId: input.organizationId,
+      regenerationRunId: input.regenerationRunId ?? null,
+      ...diagnostics,
+    });
+
+    if (!unwrapped.isComplete) {
+      throw new IncompleteProspectDeploymentAssetsError(
+        unwrapped.failureReason === "incomplete_canonical_set"
+          ? "Prospect Deployment Assets incomplete."
+          : "Prospect Deployment Assets invalid or malformed.",
+        diagnostics,
+      );
+    }
+
+    return {
+      assets: {
+        suggested_cta: unwrapped.suggestedCta,
+        recommended_response: unwrapped.recommendedResponse,
+        cta: unwrapped.cta,
+      },
+      rawResponse,
+      model: resolveModelForStage("deployment_assets").model,
+    };
+  }
 
   return {
     assets: parseDeploymentAssetsResponse(rawResponse),

@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
-import { getActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
+import {
+  getActiveGenerationJobForDiscussion,
+  getLatestGenerationJobForDiscussion,
+} from "@/services/generationJobs/generationJobService";
 import { toPublicProspect } from "@/services/prospects/prospectPublic";
-import { mapJobStatusToProspectDisplayStatus } from "@/services/prospects/prospectStatus";
+import { resolveProspectDisplayStatus } from "@/services/prospects/prospectDisplay";
 import { getProspectById } from "@/services/prospects/prospectService";
+import { getCurrentExecutiveVersion } from "@/services/executiveVersions/executiveVersionService";
+import {
+  extractProspectDeploymentAssetKeys,
+  isCompleteProspectDeploymentAssetSet,
+} from "@/lib/prospectDeploymentAssetContract";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -42,12 +50,14 @@ export async function GET(
       );
     }
 
-    const activeJob = prospect.linked_discussion_id
-      ? await getActiveGenerationJobForDiscussion(
-          prospect.linked_discussion_id,
-          organizationId,
-        )
-      : null;
+    const discussionId = prospect.linked_discussion_id;
+    const [activeJob, latestJob, currentVersion] = discussionId
+      ? await Promise.all([
+          getActiveGenerationJobForDiscussion(discussionId, organizationId),
+          getLatestGenerationJobForDiscussion(discussionId, organizationId),
+          getCurrentExecutiveVersion(discussionId, organizationId),
+        ])
+      : [null, null, null];
 
     const regenerationInFlight = Boolean(
       activeJob &&
@@ -56,11 +66,36 @@ export async function GET(
           activeJob.status === "retryable"),
     );
 
-    const displayStatus = mapJobStatusToProspectDisplayStatus({
+    const hasCurrentVersion = Boolean(currentVersion);
+    const hasCompleteCurrentVersion = Boolean(
+      currentVersion?.blueprint_id &&
+        isCompleteProspectDeploymentAssetSet(
+          extractProspectDeploymentAssetKeys(
+            currentVersion.intelligence?.analysis?.suggested_cta,
+          ),
+        ),
+    );
+    const hasTerminalJobFailure = Boolean(
+      !activeJob &&
+        latestJob?.status === "failed" &&
+        !hasCompleteCurrentVersion,
+    );
+
+    const displayStatus = resolveProspectDisplayStatus({
       prospectStatus: prospect.status,
       jobStatus: activeJob?.status ?? null,
       jobStage: activeJob?.current_stage ?? null,
+      hasCurrentVersion,
+      hasCompleteCurrentVersion,
+      hasTerminalJobFailure,
     });
+
+    const observedJob = activeJob ?? latestJob;
+    const publishedVersionId =
+      observedJob?.published_version_id ??
+      observedJob?.executive_version_id ??
+      currentVersion?.id ??
+      null;
 
     return json({
       ok: true,
@@ -68,12 +103,14 @@ export async function GET(
       prospectId: prospect.id,
       status: displayStatus,
       regenerationInFlight,
-      jobId: activeJob?.id ?? null,
+      jobId: observedJob?.id ?? null,
+      jobStatus: observedJob?.status ?? null,
+      generationPublished: Boolean(
+        latestJob?.status === "completed" && publishedVersionId,
+      ),
+      hasCompleteCurrentVersion,
       prospect: toPublicProspect(prospect, activeJob),
-      publishedVersionId:
-        activeJob?.published_version_id ??
-        activeJob?.executive_version_id ??
-        null,
+      publishedVersionId,
     });
   } catch (error) {
     if (error instanceof OrganizationAccessError) {

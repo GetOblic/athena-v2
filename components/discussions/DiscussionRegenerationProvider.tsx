@@ -19,6 +19,7 @@ import {
   readRegenerationSession,
   REGENERATION_POLL_INTERVAL_MS,
   REGENERATION_POLL_TIMEOUT_MS,
+  REGENERATION_SLOW_POLL_INTERVAL_MS,
   REGENERATION_SUCCESS_BUTTON_MS,
   type RegenerationStatusSnapshot,
   writeRegenerationSession,
@@ -42,6 +43,7 @@ type DiscussionRegenerationContextValue = {
   error: string | null;
   startedAtMs: number | null;
   resumed: boolean;
+  stillRunningAfterTimeout: boolean;
   startRegeneration: () => Promise<void>;
   /** Track an already-queued durable job using the same polling UX as Refresh. */
   trackQueuedGeneration: (
@@ -87,6 +89,8 @@ export function DiscussionRegenerationProvider({
   const [error, setError] = useState<string | null>(null);
   const [showToast, setShowToast] = useState(false);
   const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
+  const [stillRunningAfterTimeout, setStillRunningAfterTimeout] =
+    useState(false);
 
   const pollCleanupRef = useRef<(() => void) | null>(null);
   const completionToastShownRef = useRef(false);
@@ -108,6 +112,7 @@ export function DiscussionRegenerationProvider({
     stopPolling();
     clearRegenerationSession(discussionId);
     setIsGenerating(false);
+    setStillRunningAfterTimeout(false);
     setIsCompleted(true);
     setDuplicateNotice(null);
     setResumed(false);
@@ -143,6 +148,7 @@ export function DiscussionRegenerationProvider({
 
       let cancelled = false;
       let pollTimerId: number | null = null;
+      let slowMode = false;
 
       const finish = () => {
         cancelled = true;
@@ -156,16 +162,26 @@ export function DiscussionRegenerationProvider({
           return;
         }
 
-        if (Date.now() - queuedAtMs >= REGENERATION_POLL_TIMEOUT_MS) {
-          finish();
-          setIsGenerating(false);
-          clearRegenerationSession(discussionId);
-          return;
+        const elapsed = Date.now() - queuedAtMs;
+        if (!slowMode && elapsed >= REGENERATION_POLL_TIMEOUT_MS) {
+          // Stop aggressive polling — do NOT mark success. Keep monitoring slowly.
+          slowMode = true;
+          setStillRunningAfterTimeout(true);
         }
 
         const current = await fetchRegenerationStatus(discussionId);
 
         if (cancelled) {
+          return;
+        }
+
+        if (current?.jobStatus === "failed") {
+          finish();
+          clearRegenerationSession(discussionId);
+          setIsGenerating(false);
+          setStillRunningAfterTimeout(false);
+          setError("Generation failed. Athena could not complete this run.");
+          router.refresh();
           return;
         }
 
@@ -178,9 +194,13 @@ export function DiscussionRegenerationProvider({
           return;
         }
 
+        const interval = slowMode
+          ? REGENERATION_SLOW_POLL_INTERVAL_MS
+          : REGENERATION_POLL_INTERVAL_MS;
+
         pollTimerId = window.setTimeout(() => {
           void pollOnce();
-        }, REGENERATION_POLL_INTERVAL_MS);
+        }, interval);
       };
 
       pollTimerId = window.setTimeout(() => {
@@ -189,7 +209,7 @@ export function DiscussionRegenerationProvider({
 
       pollCleanupRef.current = finish;
     },
-    [discussionId, markCompleted, stopPolling],
+    [discussionId, markCompleted, router, stopPolling],
   );
 
   const beginGeneration = useCallback(
@@ -207,6 +227,7 @@ export function DiscussionRegenerationProvider({
       setShowToast(false);
       setIsCompleted(false);
       setIsGenerating(true);
+      setStillRunningAfterTimeout(false);
       setResumed(Boolean(options?.resumed));
       setDuplicateNotice(options?.duplicateNotice ?? null);
       setStartedAtMs(queuedAtMs);
@@ -360,6 +381,7 @@ export function DiscussionRegenerationProvider({
         error,
         startedAtMs,
         resumed,
+        stillRunningAfterTimeout,
         startRegeneration,
         trackQueuedGeneration,
         scrollToUpdatedAnalysis,
@@ -377,8 +399,13 @@ export function DiscussionRegenerationProvider({
 }
 
 export function DiscussionRegenerationProgress() {
-  const { isGenerating, startedAtMs, resumed, duplicateNotice } =
-    useDiscussionRegeneration();
+  const {
+    isGenerating,
+    startedAtMs,
+    resumed,
+    duplicateNotice,
+    stillRunningAfterTimeout,
+  } = useDiscussionRegeneration();
 
   if (!isGenerating || startedAtMs === null) {
     return null;
@@ -389,6 +416,7 @@ export function DiscussionRegenerationProgress() {
       startedAtMs={startedAtMs}
       resumed={resumed}
       duplicateNotice={duplicateNotice}
+      stillRunningAfterTimeout={stillRunningAfterTimeout}
     />
   );
 }

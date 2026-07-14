@@ -52,6 +52,10 @@ import {
   ensureCurrentLiveIntelligenceIsVersioned,
   publishExecutiveIntelligenceVersion,
 } from "@/services/executiveVersions/executiveVersionService";
+import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
+import {
+  logProspectDeploymentAssetStability,
+} from "@/lib/prospectDeploymentAssetContract";
 
 export type RegenerationRunContext = {
   regenerationRunId: string;
@@ -71,6 +75,7 @@ export type DiscussionEndToEndResult = {
   blueprintGenerated: boolean;
   blueprintError?: string;
   status?: string;
+  publishedVersionId?: string | null;
 };
 
 function stripAnalysisDeploymentFields(
@@ -151,6 +156,7 @@ function workflowSuccess(input: {
   blueprintOutcome: BlueprintGenerationOutcome;
   status: string;
   explicitRegeneration?: boolean;
+  requireCompleteBlueprint?: boolean;
 }): DiscussionEndToEndResult {
   if (
     input.explicitRegeneration &&
@@ -167,7 +173,7 @@ function workflowSuccess(input: {
   const blueprintGenerated = input.blueprintOutcome.blueprintGenerated;
   const partial = !blueprintGenerated;
 
-  if (partial && input.explicitRegeneration) {
+  if (partial && (input.explicitRegeneration || input.requireCompleteBlueprint)) {
     return workflowFailure(
       input.discussionId,
       input.blueprintOutcome.blueprintError ??
@@ -452,6 +458,7 @@ export async function processDiscussionEndToEnd(
   try {
     // Persist previous live intelligence as an immutable version before
     // the pipeline publishes new Current intelligence (no-op if already versioned).
+    // For Prospects, skip when no prior version — publication at end of run is atomic.
     try {
       await ensureCurrentLiveIntelligenceIsVersioned(
         discussionId,
@@ -470,29 +477,74 @@ export async function processDiscussionEndToEnd(
       runContext,
     );
 
-    // Generation pipeline is unchanged. After a successful run, publish a
-    // brand-new Executive Intelligence Version and mark it Current.
-    if (result.success && result.analysisId) {
-      try {
-        await publishExecutiveIntelligenceVersion({
+    if (!result.success || !result.analysisId) {
+      return result;
+    }
+
+    const discussion = await getDiscussionById(discussionId, organizationId);
+    const isProspect = isProspectIntelligenceBridge(discussion);
+
+    if (isProspect && !result.blueprintId) {
+      logProspectDeploymentAssetStability("publication_blocked_missing_blueprint", {
+        discussionId,
+        organizationId,
+        regenerationRunId: runContext?.regenerationRunId ?? null,
+      });
+      return workflowFailure(
+        discussionId,
+        "Strategic Blueprint missing before Prospect publication.",
+      );
+    }
+
+    try {
+      const published = await publishExecutiveIntelligenceVersion({
+        discussionId,
+        organizationId,
+        regenerationRunId: runContext?.regenerationRunId ?? null,
+        generationDurationMs: Date.now() - generationStartedAt,
+        analysisId: result.analysisId,
+        opportunityId: result.opportunityId ?? null,
+        reviewId: result.reviewId ?? null,
+        blueprintId: result.blueprintId ?? null,
+        requireProspectCompleteness: isProspect,
+      });
+
+      if (isProspect && !published) {
+        return workflowFailure(
+          discussionId,
+          "Executive Version publication failed for incomplete Prospect candidate.",
+        );
+      }
+
+      if (published) {
+        logProspectDeploymentAssetStability("executive_version_published", {
           discussionId,
           organizationId,
           regenerationRunId: runContext?.regenerationRunId ?? null,
-          generationDurationMs: Date.now() - generationStartedAt,
-          analysisId: result.analysisId,
-          opportunityId: result.opportunityId ?? null,
-          reviewId: result.reviewId ?? null,
-          blueprintId: result.blueprintId ?? null,
+          executiveVersionId: published.id,
+          blueprintId: published.blueprint_id,
         });
-      } catch (error) {
-        console.error(
-          "Failed to publish executive intelligence version:",
-          error,
+      }
+
+      return {
+        ...result,
+        publishedVersionId: published?.id ?? null,
+      };
+    } catch (error) {
+      console.error(
+        "Failed to publish executive intelligence version:",
+        error,
+      );
+      if (isProspect) {
+        return workflowFailure(
+          discussionId,
+          error instanceof Error
+            ? error.message
+            : "Executive Version publication failed.",
         );
       }
+      return result;
     }
-
-    return result;
   } catch (error) {
     console.error("processDiscussionEndToEnd failed:", error);
     return workflowFailure(
@@ -543,6 +595,9 @@ async function processDiscussionEndToEndInternal(
   if (!discussion) {
     return workflowFailure(discussionId, "Discussion not found");
   }
+
+  const isProspect = isProspectIntelligenceBridge(discussion);
+  const requireCompleteBlueprint = isProspect;
 
   const { bundle: analysisBundle, legacyBrainPrompt } =
     await resolveDiscussionAnalysisGeneration(
@@ -737,7 +792,15 @@ async function processDiscussionEndToEndInternal(
       }
     } catch (error) {
       console.error("Deployment assets generation failed:", error);
-      if (explicitRegeneration) {
+      if (explicitRegeneration || isProspect) {
+        logProspectDeploymentAssetStability("deployment_assets_failed", {
+          discussionId,
+          organizationId,
+          regenerationRunId: regenerationRunId ?? null,
+          retryOrTerminal: "retryable_stage_failure",
+          failureReason:
+            error instanceof Error ? error.name : "deployment_assets_failed",
+        });
         return workflowFailure(
           discussionId,
           "Deployment assets generation failed.",
@@ -768,6 +831,7 @@ async function processDiscussionEndToEndInternal(
       blueprintOutcome,
       status: "analysis_completed_no_opportunity",
       explicitRegeneration,
+      requireCompleteBlueprint,
     });
   }
 
@@ -978,7 +1042,15 @@ async function processDiscussionEndToEndInternal(
     }
   } catch (error) {
     console.error("Deployment assets generation failed:", error);
-    if (explicitRegeneration) {
+    if (explicitRegeneration || isProspect) {
+      logProspectDeploymentAssetStability("deployment_assets_failed", {
+        discussionId,
+        organizationId,
+        regenerationRunId: regenerationRunId ?? null,
+        retryOrTerminal: "retryable_stage_failure",
+        failureReason:
+          error instanceof Error ? error.name : "deployment_assets_failed",
+      });
       return workflowFailure(
         discussionId,
         "Deployment assets generation failed.",
@@ -1050,5 +1122,6 @@ async function processDiscussionEndToEndInternal(
     blueprintOutcome,
     status: "review_ready",
     explicitRegeneration,
+    requireCompleteBlueprint,
   });
 }

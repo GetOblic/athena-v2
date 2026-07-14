@@ -18,6 +18,11 @@ import type {
   ExecutiveIntelligencePayload,
   ExecutiveIntelligenceVersion,
 } from "@/services/executiveVersions/executiveVersionTypes";
+import {
+  extractProspectDeploymentAssetKeys,
+  isCompleteProspectDeploymentAssetSet,
+  isStrictlyMoreCompleteProspectCta,
+} from "@/lib/prospectDeploymentAssetContract";
 
 function hasSuggestedCta(analysis: DiscussionAnalysis | null | undefined): boolean {
   return Boolean(analysis?.suggested_cta?.trim());
@@ -354,6 +359,7 @@ export function withResolvedVersionIntelligence(
 export function shouldPatchIncompleteCurrentVersion(input: {
   current: ExecutiveIntelligenceVersion;
   live: ExecutiveIntelligencePayload;
+  regenerationRunId?: string | null;
 }): boolean {
   const { current, live } = input;
   if (!current.is_current) return false;
@@ -361,19 +367,51 @@ export function shouldPatchIncompleteCurrentVersion(input: {
     return false;
   }
 
+  // Never patch Historical / Original (non-current) — guarded above.
+  // Same-run upgrade only when regeneration ids match or current has none.
+  if (
+    input.regenerationRunId &&
+    current.regeneration_run_id &&
+    current.regeneration_run_id !== input.regenerationRunId
+  ) {
+    return false;
+  }
+
   const snapshotMissingBlueprint = !hasBlueprint(current.intelligence.blueprint);
   const liveHasBlueprint = hasBlueprint(live.blueprint);
-  const snapshotMissingCta = !hasSuggestedCta(current.intelligence.analysis);
-  const liveHasCta = Boolean(
+
+  const snapshotCta =
+    current.intelligence.analysis?.suggested_cta ??
     resolveDeploymentAssetsSuggestedCta({
-      analysis: live.analysis,
-      briefing: live.briefing,
+      analysis: current.intelligence.analysis,
+      briefing: current.intelligence.briefing,
       isCurrent: true,
-    }),
-  );
+    });
+  const liveCta = resolveDeploymentAssetsSuggestedCta({
+    analysis: live.analysis,
+    briefing: live.briefing,
+    isCurrent: true,
+  });
+
+  const snapshotKeys = extractProspectDeploymentAssetKeys(snapshotCta);
+  const liveKeys = extractProspectDeploymentAssetKeys(liveCta);
+  const snapshotComplete = isCompleteProspectDeploymentAssetSet(snapshotKeys);
+  const liveComplete = isCompleteProspectDeploymentAssetSet(liveKeys);
+
+  // Never replace a complete Prospect snapshot with a smaller set.
+  if (snapshotComplete && liveKeys.length < snapshotKeys.length) {
+    return false;
+  }
+
+  const snapshotMissingCta = !hasSuggestedCta(current.intelligence.analysis);
+  const liveHasAnyCta = Boolean(liveCta?.trim());
+
+  const ctaUpgrade =
+    (snapshotMissingCta && liveHasAnyCta) ||
+    isStrictlyMoreCompleteProspectCta(snapshotCta, liveCta) ||
+    (!snapshotComplete && liveComplete);
 
   return (
-    (snapshotMissingBlueprint && liveHasBlueprint) ||
-    (snapshotMissingCta && liveHasCta)
+    (snapshotMissingBlueprint && liveHasBlueprint) || ctaUpgrade
   );
 }

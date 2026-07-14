@@ -1,6 +1,6 @@
 /**
  * Pure Prospect status + Opportunity Score display resolution.
- * Prefer durable job + Current Version over contradictory manual state.
+ * Prefer durable job + validated Current Version over contradictory manual state.
  */
 
 import {
@@ -20,6 +20,9 @@ export function resolveProspectDisplayStatus(input: {
   jobStatus?: string | null;
   jobStage?: string | null;
   hasCurrentVersion?: boolean;
+  /** Current Version has complete Prospect Deployment Assets + Blueprint. */
+  hasCompleteCurrentVersion?: boolean;
+  hasTerminalJobFailure?: boolean;
 }): ProspectDisplayStatus {
   const job = input.jobStatus?.toLowerCase() ?? null;
   const stage = (input.jobStage ?? "").toLowerCase();
@@ -35,7 +38,22 @@ export function resolveProspectDisplayStatus(input: {
     return "Generating Executive Intelligence";
   }
 
-  // No active job — prefer Ready when a Current Version exists.
+  // No active job — Ready only when Current Version is complete.
+  if (input.hasCompleteCurrentVersion) {
+    return "Ready";
+  }
+
+  if (input.hasTerminalJobFailure) {
+    return "Processing Failed";
+  }
+
+  // Incomplete Current Version must not appear Ready.
+  if (input.hasCurrentVersion && input.hasCompleteCurrentVersion === false) {
+    const current = String(input.prospectStatus ?? "").trim();
+    if (/fail/i.test(current)) return "Processing Failed";
+    return "Generating Executive Intelligence";
+  }
+
   if (input.hasCurrentVersion) {
     return "Ready";
   }

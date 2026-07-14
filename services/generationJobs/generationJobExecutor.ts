@@ -265,14 +265,32 @@ export async function executeClaimedGenerationJob(
       return "claim_lost";
     }
 
+    const discussionForPlatform = discussion;
     // After a successful pipeline run, prefer the version tied to this regeneration run.
-    let published = await resolvePublishedVersionForJob({
-      discussionId: job.discussion_id,
-      organizationId: job.organization_id,
-      regenerationRunId: job.regeneration_run_id,
-      publishedVersionId: null,
-      executiveVersionId: null,
-    });
+    let published = null as Awaited<
+      ReturnType<typeof resolvePublishedVersionForJob>
+    >;
+
+    if (result.publishedVersionId) {
+      const { getExecutiveVersionById } = await import(
+        "@/services/executiveVersions/executiveVersionService"
+      );
+      published = await getExecutiveVersionById(
+        result.publishedVersionId,
+        job.discussion_id,
+        job.organization_id,
+      );
+    }
+
+    if (!published) {
+      published = await resolvePublishedVersionForJob({
+        discussionId: job.discussion_id,
+        organizationId: job.organization_id,
+        regenerationRunId: job.regeneration_run_id,
+        publishedVersionId: null,
+        executiveVersionId: null,
+      });
+    }
 
     if (!published) {
       const { getCurrentExecutiveVersion } = await import(
@@ -282,6 +300,30 @@ export async function executeClaimedGenerationJob(
         job.discussion_id,
         job.organization_id,
       );
+    }
+
+    const isProspect =
+      discussionForPlatform?.platform === PROSPECT_INTELLIGENCE_PLATFORM;
+
+    if (isProspect && !published?.id) {
+      const failed = await failGenerationJobWithClaim({
+        jobId: job.id,
+        claimToken,
+        errorCode: "PUBLICATION_INCOMPLETE",
+        errorMessage:
+          "Prospect generation did not publish a complete Current Version.",
+        retryable: true,
+        attemptCount: job.attempt_count,
+        failedStage: "executive_version",
+      });
+      if (failed?.status === "failed") {
+        await markProspectGenerationFailed(
+          job.discussion_id,
+          job.organization_id,
+        );
+        await maybeEnqueueFollowUp(job);
+      }
+      return failed?.status === "retryable" ? "retryable" : "failed";
     }
 
     const completed = await completeGenerationJobWithClaim({

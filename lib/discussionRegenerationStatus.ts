@@ -8,6 +8,9 @@ export type RegenerationStatusSnapshot = {
   jobStatus?: string | null;
   jobTriggerType?: string | null;
   jobStage?: string | null;
+  publishedVersionId?: string | null;
+  generationPublished?: boolean;
+  stillRunningAfterTimeout?: boolean;
 };
 
 export type RegenerationStatusResponse = {
@@ -22,11 +25,14 @@ export type RegenerationStatusResponse = {
   jobStatus?: string | null;
   jobTriggerType?: string | null;
   jobStage?: string | null;
+  publishedVersionId?: string | null;
+  generationPublished?: boolean;
   error?: string;
 };
 
 export const REGENERATION_POLL_INTERVAL_MS = 5_000;
 export const REGENERATION_POLL_TIMEOUT_MS = 150_000;
+export const REGENERATION_SLOW_POLL_INTERVAL_MS = 15_000;
 export const REGENERATION_SUCCESS_BUTTON_MS = 5_000;
 export const REGENERATION_LONG_RUNNING_MS = 60_000;
 
@@ -40,6 +46,11 @@ export function emptyRegenerationSnapshot(): RegenerationStatusSnapshot {
   };
 }
 
+/**
+ * Completion requires the durable job to leave the active set and, when the
+ * status API reports publication fields, a published Executive Version.
+ * Analysis/blueprint fingerprint is a legacy Discussion fallback only.
+ */
 export function isFullPipelineRegenerationComplete(
   baseline: Pick<
     RegenerationStatusSnapshot,
@@ -50,6 +61,26 @@ export function isFullPipelineRegenerationComplete(
   queuedAtMs: number,
 ): boolean {
   if (current.regenerationInFlight) {
+    return false;
+  }
+
+  if (current.jobStatus === "failed") {
+    return false;
+  }
+
+  if (
+    current.generationPublished === true ||
+    (current.jobStatus === "completed" && Boolean(current.publishedVersionId))
+  ) {
+    return true;
+  }
+
+  // Explicit non-publication from API — do not fall back to analysis-only.
+  if (
+    current.jobStatus === "completed" &&
+    current.publishedVersionId === null &&
+    current.generationPublished === false
+  ) {
     return false;
   }
 
@@ -64,9 +95,17 @@ export function isFullPipelineRegenerationComplete(
     if (
       !Number.isNaN(updatedMs) &&
       updatedMs >= queueFloorMs &&
-      updatedMs > (Number.isNaN(baselineMs) ? 0 : baselineMs)
+      updatedMs > (Number.isNaN(baselineMs) ? 0 : baselineMs) &&
+      current.jobStatus !== "queued" &&
+      current.jobStatus !== "processing" &&
+      current.jobStatus !== "retryable"
     ) {
-      return true;
+      if (current.publishedVersionId || current.generationPublished) {
+        return true;
+      }
+      if (current.generationPublished === undefined) {
+        return true;
+      }
     }
   }
 
@@ -81,7 +120,8 @@ export function isFullPipelineRegenerationComplete(
       updatedMs >= queueFloorMs &&
       updatedMs > (Number.isNaN(baselineMs) ? 0 : baselineMs) &&
       !baseline.blueprintUpdatedAt &&
-      !current.blueprintUpdatedAt
+      !current.blueprintUpdatedAt &&
+      current.generationPublished === undefined
     ) {
       return true;
     }
@@ -113,6 +153,8 @@ export async function fetchRegenerationStatus(
       jobStatus: data.jobStatus ?? null,
       jobTriggerType: data.jobTriggerType ?? null,
       jobStage: data.jobStage ?? null,
+      publishedVersionId: data.publishedVersionId ?? null,
+      generationPublished: data.generationPublished,
     };
   } catch {
     return null;
@@ -158,11 +200,6 @@ export function readRegenerationSession(
         "latestAnalysisUpdatedAt",
       )
     ) {
-      window.sessionStorage.removeItem(sessionStorageKey(discussionId));
-      return null;
-    }
-
-    if (Date.now() - parsed.startedAtMs > REGENERATION_POLL_TIMEOUT_MS) {
       window.sessionStorage.removeItem(sessionStorageKey(discussionId));
       return null;
     }

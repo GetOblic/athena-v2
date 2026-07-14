@@ -122,6 +122,7 @@ function parseLabeledAssets(value?: string | null): DeploymentAsset[] {
 
 export function buildDiscussionDeploymentAssets(
   analysis: DiscussionAnalysis | null,
+  options?: { platform?: string | null; prospectMode?: boolean },
 ): DeploymentAsset[] {
   if (!analysis) {
     return [];
@@ -130,6 +131,15 @@ export function buildDiscussionDeploymentAssets(
   const structuredAssets = parseLabeledAssets(analysis.suggested_cta);
   if (structuredAssets.length > 0) {
     return dedupeAssets(structuredAssets);
+  }
+
+  const isProspect =
+    options?.prospectMode === true ||
+    options?.platform === "prospect_intelligence";
+
+  // Prospect Intelligence must never collapse malformed output into Primary Reply.
+  if (isProspect) {
+    return [];
   }
 
   const assets: DeploymentAsset[] = [];
