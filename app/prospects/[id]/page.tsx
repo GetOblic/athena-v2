@@ -183,6 +183,10 @@ export default async function ProspectDetailsPage({
           <HeaderMetric label="Job Title" value={prospect.job_title || "—"} />
           <HeaderMetric label="Email" value={prospect.email || "—"} />
           <HeaderMetric label="Phone" value={prospect.phone || "—"} />
+          <HeaderMetric
+            label="WhatsApp Number"
+            value={prospect.whatsapp_number || "—"}
+          />
           <HeaderMetric label="Prospect Status" value={lifecycleStatus} />
           <HeaderMetric
             label="Intelligence"
