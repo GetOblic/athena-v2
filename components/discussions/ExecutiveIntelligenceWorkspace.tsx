@@ -10,6 +10,7 @@ import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
+import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import type {
   ExecutiveIntelligencePayload,
   ExecutiveIntelligenceVersion,
@@ -83,6 +84,8 @@ function clearPendingAutoSelect(discussionId: string): void {
 
 type ExecutiveIntelligenceWorkspaceProps = {
   discussionId: string;
+  /** When sourceKind is prospect, this is the Prospect id for copy Done scope. */
+  prospectId?: string | null;
   versions: ExecutiveIntelligenceVersion[];
   /** Fallback when no versions exist yet (should be rare after lazy backfill). */
   fallbackIntelligence: ExecutiveIntelligencePayload | null;
@@ -131,6 +134,7 @@ function versionTitle(
 
 export function ExecutiveIntelligenceWorkspace({
   discussionId,
+  prospectId = null,
   versions,
   fallbackIntelligence,
   originalDiscussionSection,
@@ -143,6 +147,9 @@ export function ExecutiveIntelligenceWorkspace({
   const sourceContextTitle = isProspect
     ? "Source Context"
     : "Original Discussion";
+  const copySourceType = isProspect ? "prospect" : "discussion";
+  const copySourceId =
+    isProspect && prospectId?.trim() ? prospectId.trim() : discussionId;
 
   const sortedVersions = useMemo(
     () =>
@@ -253,6 +260,62 @@ export function ExecutiveIntelligenceWorkspace({
   const selectedVersion =
     sortedVersions.find((version) => version.id === selectedVersionId) ??
     currentVersion;
+
+  const executiveVersionIdForCopy = selectedVersion?.id ?? null;
+  const [doneByAssetType, setDoneByAssetType] = useState<
+    Record<string, boolean>
+  >({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDoneState() {
+      setDoneByAssetType({});
+      const params = new URLSearchParams({
+        sourceType: copySourceType,
+        sourceId: copySourceId,
+      });
+      if (executiveVersionIdForCopy) {
+        params.set("executiveVersionId", executiveVersionIdForCopy);
+      }
+
+      try {
+        const response = await fetch(`/api/asset-interactions?${params}`);
+        const payload = await parseJsonResponse<{
+          interactions?: Record<string, { done?: boolean }>;
+        }>(response);
+        if (cancelled || !response.ok) {
+          return;
+        }
+
+        const next: Record<string, boolean> = {};
+        for (const [assetType, interaction] of Object.entries(
+          payload.interactions ?? {},
+        )) {
+          if (interaction?.done) {
+            next[assetType] = true;
+          }
+        }
+        setDoneByAssetType(next);
+      } catch (error) {
+        console.error("[ASSET_COPY] load_done_state_failed", error);
+      }
+    }
+
+    void loadDoneState();
+    return () => {
+      cancelled = true;
+    };
+  }, [copySourceType, copySourceId, executiveVersionIdForCopy]);
+
+  const copyContext = useMemo(
+    () => ({
+      sourceType: copySourceType as "discussion" | "prospect",
+      sourceId: copySourceId,
+      executiveVersionId: executiveVersionIdForCopy,
+    }),
+    [copySourceType, copySourceId, executiveVersionIdForCopy],
+  );
 
   const intelligence: ExecutiveIntelligencePayload | null =
     selectedVersion?.intelligence ?? fallbackIntelligence;
@@ -456,7 +519,11 @@ export function ExecutiveIntelligenceWorkspace({
           defaultOpen={true}
           className="mt-8"
         >
-          <DeploymentAssets assets={deploymentAssets} />
+          <DeploymentAssets
+            assets={deploymentAssets}
+            copyContext={copyContext}
+            doneByAssetType={doneByAssetType}
+          />
         </AthenaCollapsibleSection>
       )}
 
@@ -466,7 +533,11 @@ export function ExecutiveIntelligenceWorkspace({
           defaultOpen={true}
           className="mt-8"
         >
-          <StrategicAssetBlueprint blueprint={intelligence.blueprint} />
+          <StrategicAssetBlueprint
+            blueprint={intelligence.blueprint}
+            copyContext={copyContext}
+            doneByAssetType={doneByAssetType}
+          />
         </AthenaCollapsibleSection>
       )}
 

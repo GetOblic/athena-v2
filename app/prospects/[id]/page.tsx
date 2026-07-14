@@ -238,6 +238,7 @@ export default async function ProspectDetailsPage({
             </div>
             <ExecutiveIntelligenceWorkspace
               discussionId={discussion.id}
+              prospectId={prospect.id}
               sourceKind="prospect"
               versions={versionState.versions}
               fallbackIntelligence={
