@@ -19,6 +19,7 @@ import type {
   ExecutiveIntelligenceVersion,
   ExecutiveVersionSummary,
 } from "@/services/executiveVersions/executiveVersionTypes";
+import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 
 /**
  * Persists across navigation so a regeneration that finishes after leaving
@@ -100,6 +101,8 @@ type ExecutiveIntelligenceWorkspaceProps = {
   afterDetailedReasoning?: ReactNode;
   /** Isolated source wording. Defaults to discussion labels. */
   sourceKind?: "discussion" | "prospect";
+  /** Current organization brand for Image/PDF prompt display/copy overlay. */
+  brandDirection?: BlueprintBrandDirectionInput | null;
 };
 
 function formatVersionGeneratedAt(value: string, includeTime: boolean): string {
@@ -144,6 +147,7 @@ export function ExecutiveIntelligenceWorkspace({
   afterBlueprint,
   afterDetailedReasoning,
   sourceKind = "discussion",
+  brandDirection = null,
 }: ExecutiveIntelligenceWorkspaceProps) {
   const { isGenerating, isCompleted } = useDiscussionRegeneration();
   const isProspect = sourceKind === "prospect";
@@ -557,6 +561,7 @@ export function ExecutiveIntelligenceWorkspace({
             copyContext={copyContext}
             doneByAssetType={doneByAssetType}
             tagsByAssetType={tagsByAssetType}
+            brandDirection={brandDirection}
           />
         </AthenaCollapsibleSection>
       )}

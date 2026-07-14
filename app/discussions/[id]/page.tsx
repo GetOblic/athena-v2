@@ -24,6 +24,10 @@ import { getDiscussionById } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
+import {
+  getOrganizationBrandIdentity,
+} from "@/services/identity/brandIdentityService";
+import { toBlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getDiscussionUpdatesByDiscussionId } from "@/services/discussionUpdateService";
 import {
@@ -68,6 +72,7 @@ export default async function DiscussionDetailsPage({
     domains,
     versionState,
     liveIntelligence,
+    organizationBrand,
   ] = await Promise.all([
     discussion.community_id
       ? getCommunityById(discussion.community_id, organizationId)
@@ -79,7 +84,13 @@ export default async function DiscussionDetailsPage({
     getIntelligenceDomains(organizationId),
     getExecutiveVersionsForDiscussionPage(id, organizationId),
     loadLiveExecutiveIntelligence(id, organizationId),
+    getOrganizationBrandIdentity(organizationId).catch((error) => {
+      console.error("[BRAND_DIRECTION] discussion_load_failed", error);
+      return null;
+    }),
   ]);
+
+  const brandDirection = toBlueprintBrandDirectionInput(organizationBrand);
 
   const briefing = opportunity
     ? await getLatestReviewByOpportunityId(opportunity.id, organizationId)
@@ -201,6 +212,7 @@ export default async function DiscussionDetailsPage({
         fallbackIntelligence={
           versionState.current?.intelligence ?? liveIntelligence
         }
+        brandDirection={brandDirection}
         afterBlueprint={null}
         afterDetailedReasoning={
           <div className="mt-8">

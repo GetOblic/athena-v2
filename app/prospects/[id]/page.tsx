@@ -31,6 +31,10 @@ import {
   loadLiveExecutiveIntelligence,
 } from "@/services/executiveVersions/executiveVersionService";
 import { getOpportunityByDiscussionId } from "@/services/opportunityService";
+import {
+  getOrganizationBrandIdentity,
+} from "@/services/identity/brandIdentityService";
+import { toBlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getProspectById } from "@/services/prospects/prospectService";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
@@ -68,6 +72,7 @@ export default async function ProspectDetailsPage({
     opportunity,
     versionState,
     liveIntelligence,
+    organizationBrand,
   ] = discussion
     ? await Promise.all([
         getLatestDiscussionAnalysis(discussion.id, organizationId),
@@ -75,8 +80,24 @@ export default async function ProspectDetailsPage({
         getOpportunityByDiscussionId(discussion.id, organizationId),
         getExecutiveVersionsForDiscussionPage(discussion.id, organizationId),
         loadLiveExecutiveIntelligence(discussion.id, organizationId),
+        getOrganizationBrandIdentity(organizationId).catch((error) => {
+          console.error("[BRAND_DIRECTION] prospect_load_failed", error);
+          return null;
+        }),
       ])
-    : [null, null, null, { versions: [], current: null }, null];
+    : await Promise.all([
+        Promise.resolve(null),
+        Promise.resolve(null),
+        Promise.resolve(null),
+        Promise.resolve({ versions: [], current: null }),
+        Promise.resolve(null),
+        getOrganizationBrandIdentity(organizationId).catch((error) => {
+          console.error("[BRAND_DIRECTION] prospect_load_failed", error);
+          return null;
+        }),
+      ]);
+
+  const brandDirection = toBlueprintBrandDirectionInput(organizationBrand);
 
   const briefing = opportunity
     ? await getLatestReviewByOpportunityId(opportunity.id, organizationId)
@@ -250,6 +271,7 @@ export default async function ProspectDetailsPage({
               fallbackIntelligence={
                 versionState.current?.intelligence ?? liveIntelligence
               }
+              brandDirection={brandDirection}
               afterBlueprint={null}
               afterDetailedReasoning={
                 <div className="mt-8">

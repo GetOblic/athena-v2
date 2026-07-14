@@ -6,6 +6,10 @@ import { formatBlueprintReadiness } from "@/lib/blueprintReadiness";
 import { BLUEPRINT_ASSET_TYPES } from "@/services/assetInteractions/assetInteractionKeys";
 import type { AthenaAssetBlueprint } from "@/services/assetBlueprints/assetBlueprintService";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
+import {
+  composeBlueprintPromptWithBrandDirection,
+  type BlueprintBrandDirectionInput,
+} from "@/services/identity/blueprintBrandDirection";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type StrategicAssetBlueprintProps = {
@@ -13,6 +17,8 @@ type StrategicAssetBlueprintProps = {
   copyContext?: Omit<AssetCopyTrackingContext, "assetType"> | null;
   doneByAssetType?: Record<string, boolean>;
   tagsByAssetType?: Record<string, AssetUsageTag[]>;
+  /** Current organization brand — display/copy overlay only; never persisted. */
+  brandDirection?: BlueprintBrandDirectionInput | null;
 };
 
 export function StrategicAssetBlueprint({
@@ -20,8 +26,17 @@ export function StrategicAssetBlueprint({
   copyContext = null,
   doneByAssetType = {},
   tagsByAssetType = {},
+  brandDirection = null,
 }: StrategicAssetBlueprintProps) {
   const readinessBadges = formatBlueprintReadiness(blueprint);
+  const imagePromptText = composeBlueprintPromptWithBrandDirection(
+    blueprint.image_prompt,
+    brandDirection,
+  );
+  const pdfPromptText = composeBlueprintPromptWithBrandDirection(
+    blueprint.pdf_prompt,
+    brandDirection,
+  );
 
   return (
     <section
@@ -87,7 +102,7 @@ export function StrategicAssetBlueprint({
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <CollapsiblePromptBlock
           label="Image Prompt"
-          text={blueprint.image_prompt}
+          text={imagePromptText}
           assetType={BLUEPRINT_ASSET_TYPES.image_prompt}
           copyContext={copyContext}
           initiallyDone={Boolean(
@@ -99,7 +114,7 @@ export function StrategicAssetBlueprint({
         />
         <CollapsiblePromptBlock
           label="PDF Prompt"
-          text={blueprint.pdf_prompt}
+          text={pdfPromptText}
           assetType={BLUEPRINT_ASSET_TYPES.pdf_prompt}
           copyContext={copyContext}
           initiallyDone={Boolean(
