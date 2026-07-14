@@ -5,10 +5,14 @@ import {
   DEPLOYMENT_ASSETS_BRIEFING_QUALITY_INSTRUCTIONS,
   DEPLOYMENT_ASSETS_QUALITY_INSTRUCTIONS,
 } from "@/services/ai/prompts/deploymentAssetsInstructions";
+import { KNOWLEDGE_BASE_ENHANCEMENT_GENERATION_RULES } from "@/services/ai/prompts/knowledgeBaseEnhancementConstraints";
 import {
   PROSPECT_DEPLOYMENT_CHANNEL_GUIDE,
   PROSPECT_DEPLOYMENT_SECTION_LABELS,
 } from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
+import { REDDIT_POST_GENERATION_RULES } from "@/services/ai/prompts/redditPostConstraints";
+import { SUBSTACK_POST_GENERATION_RULES } from "@/services/ai/prompts/substackPostConstraints";
+import { WHATSAPP_OUTREACH_GENERATION_RULES } from "@/services/ai/prompts/whatsappOutreachConstraints";
 import {
   SHARED_ANTI_GENERIC_RULES,
   SHARED_OUTPUT_DIVERSITY_RULES,
@@ -119,7 +123,22 @@ ${PROSPECT_DEPLOYMENT_CHANNEL_GUIDE}
 Use exact section labels:
 ${PROSPECT_DEPLOYMENT_SECTION_LABELS}
 
+${WHATSAPP_OUTREACH_GENERATION_RULES}
+
+${KNOWLEDGE_BASE_ENHANCEMENT_GENERATION_RULES}
+
+${SUBSTACK_POST_GENERATION_RULES}
+
+${REDDIT_POST_GENERATION_RULES}
+
+Channel isolation is mandatory:
+- Email must read like email; WhatsApp must read like WhatsApp; LinkedIn must read like LinkedIn.
+- Substack must be publication-ready long-form editorial content — not SEO or sales copy.
+- Reddit must be transparent and community-native.
+- Knowledge Base Enhancement must be factual operational knowledge — never invent facts; omit unknowns.
+Do not let one asset format leak into another.
 Newsletter Idea and Blog Post Idea are for the Athena client's audience, using prospect/homepage/ads as market evidence — not outreach emails.
+Substack Post and Reddit Post must be materially different from each other and from Newsletter/Blog Idea.
 
 ${SHARED_OUTPUT_DIVERSITY_RULES}
 `.trim()

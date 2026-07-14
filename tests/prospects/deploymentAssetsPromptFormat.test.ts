@@ -10,7 +10,10 @@ import {
 } from "../../lib/prospectDeploymentAssetContract";
 import { PROSPECT_DEPLOYMENT_SECTION_LABELS } from "../../services/ai/prompts/prospectDeploymentAssetsConstraints";
 import { DEPLOYMENT_SECTION_LABELS } from "../../services/ai/prompts/sharedPromptConstraints";
-import { buildDeploymentAssetsRequiredOutputInstructions } from "../../services/brain/generationContracts/deploymentAssetsRequiredOutput";
+import {
+  buildDeploymentAssetsRequiredOutputInstructions,
+  getProspectDeploymentGenerationHeadings,
+} from "../../services/brain/generationContracts/deploymentAssetsRequiredOutput";
 
 const ROOT = join(process.cwd());
 const ASSEMBLY_PATH = join(
@@ -32,6 +35,7 @@ describe("Deployment Assets prompt — Gemini plain-text canonical format", () =
       assert.match(block, new RegExp(`(?:^|\\n)${key}:(?:\\n|$)`));
     }
     assert.equal(REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS.length, 14);
+    assert.equal(getProspectDeploymentGenerationHeadings().length, 18);
   });
 
   it("requires each canonical heading exactly once", () => {
@@ -39,7 +43,7 @@ describe("Deployment Assets prompt — Gemini plain-text canonical format", () =
       isProspectSource: true,
     });
 
-    for (const key of REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS) {
+    for (const key of getProspectDeploymentGenerationHeadings()) {
       const matches = block.match(new RegExp(`${key}:`, "g")) ?? [];
       assert.equal(matches.length, 1, `${key} must appear exactly once`);
     }
