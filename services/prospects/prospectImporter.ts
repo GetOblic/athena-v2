@@ -5,7 +5,8 @@
  * Temporary compatibility bridge:
  * each Prospect links to a Discussion with platform = prospect_intelligence.
  * That Discussion feeds Generation Jobs → Athena Worker → Executive Pipeline → Versions.
- * Homepage scrape runs inside the worker before the pipeline (not in CSV HTTP).
+ * Homepage scrape runs inside the worker before the pipeline (not in CSV HTTP),
+ * and only for discussion_import when usable website_intelligence is absent.
  */
 
 import { randomUUID } from "crypto";
@@ -39,7 +40,9 @@ import {
   resolveProspectBusinessName,
   resolveProspectDecisionMaker,
 } from "@/services/prospects/prospectUtils";
+import { resolveProspectWebsiteLearningDecision } from "@/services/prospects/prospectWebsiteLearningPolicy";
 import { scrapeHomepageIntelligence } from "@/services/prospects/prospectWebsiteIntelligence";
+import type { AthenaGenerationTriggerType } from "@/services/generationJobs/generationJobTypes";
 
 export type ProspectImportRow = ProspectCsvRow;
 export { parseProspectCsv };
@@ -192,12 +195,19 @@ export async function ensureProspectGenerationQueued(
 }
 
 /**
- * Worker pre-step: homepage scrape + bridge body refresh before canonical pipeline.
- * Isolated Prospect compatibility seam — keep out of Discussion-only paths.
+ * Worker pre-step before the canonical pipeline.
+ *
+ * Live website learning runs only for initial import triggers
+ * (`discussion_import`) when usable stored intelligence is absent.
+ * Refresh / Append / metadata regeneration reuse stored website_intelligence
+ * and never crawl.
  */
 export async function prepareProspectBridgeBeforeGeneration(
   discussionId: string,
   organizationId: string,
+  options?: {
+    triggerType?: AthenaGenerationTriggerType | string | null;
+  },
 ): Promise<void> {
   const prospect = await getProspectByLinkedDiscussionId(
     discussionId,
@@ -206,8 +216,15 @@ export async function prepareProspectBridgeBeforeGeneration(
   if (!prospect) return;
 
   let current = prospect;
+  const storedIntelligence =
+    (current.website_intelligence as Record<string, unknown> | null) ?? null;
+  const decision = resolveProspectWebsiteLearningDecision({
+    triggerType: options?.triggerType,
+    hasWebsite: Boolean(current.website),
+    websiteIntelligence: storedIntelligence,
+  });
 
-  if (current.website) {
+  if (decision.shouldCrawl && current.website) {
     await updateProspect(current.id, organizationId, {
       status: "Learning from Website",
     });
@@ -220,6 +237,7 @@ export async function prepareProspectBridgeBeforeGeneration(
         last_activity: new Date().toISOString(),
       })) ?? current;
   } else {
+    // Never mutate website_intelligence on refresh / non-import / reuse paths.
     current =
       (await updateProspect(current.id, organizationId, {
         status: "Generating Executive Intelligence",

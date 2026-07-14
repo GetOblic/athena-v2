@@ -204,6 +204,7 @@ export async function executeClaimedGenerationJob(
       await prepareProspectBridgeBeforeGeneration(
         job.discussion_id,
         job.organization_id,
+        { triggerType: job.trigger_type },
       );
       await renewLease("discussion_analysis");
       if (claimLost) {

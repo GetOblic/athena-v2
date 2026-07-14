@@ -2,9 +2,19 @@ import { generateReview } from "@/services/aiService";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { assertTenantRecord, createTenantScope } from "@/lib/tenantDatabase";
 import {
+  readStoredHomepageLearning,
+  resolveIdentityWebsiteHomepageText,
+} from "@/services/identity/identityHomepageLearning";
+import {
   buildMasterIdentityProfilePrompt,
   MASTER_IDENTITY_PROFILE_PROMPT_VERSION,
 } from "@/services/identity/prompts/masterIdentityProfilePrompt";
+
+export {
+  hasUsableStoredHomepageLearning,
+  readStoredHomepageLearning,
+  resolveIdentityWebsiteHomepageText,
+} from "@/services/identity/identityHomepageLearning";
 
 export type AthenaIdentity = {
   id: string;
@@ -123,7 +133,15 @@ export async function compileMasterIdentityProfile(
     return identity;
   }
 
-  const websiteHomepageText = await fetchWebsiteHomepageText(identity.website);
+  const resolvedHomepage = await resolveIdentityWebsiteHomepageText({
+    masterProfile: identity.master_profile,
+    website: identity.website,
+    fetchHomepageText: fetchWebsiteHomepageText,
+  });
+  const websiteHomepageText = resolvedHomepage.text;
+  const storedHomepageLearning = readStoredHomepageLearning(
+    identity.master_profile,
+  );
 
   const prompt = buildMasterIdentityProfilePrompt({
     aboutYou: identity.about_you,
@@ -139,7 +157,10 @@ export async function compileMasterIdentityProfile(
   });
   const masterProfile = parseJsonResponse(rawProfile);
 
-  if (websiteHomepageText?.trim()) {
+  if (storedHomepageLearning) {
+    // Preserve exact stored homepage learning across identity updates.
+    masterProfile.homepage_learning = storedHomepageLearning;
+  } else if (websiteHomepageText?.trim()) {
     masterProfile.homepage_learning = websiteHomepageText.trim().slice(0, 4000);
   }
 

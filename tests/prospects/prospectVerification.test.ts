@@ -43,6 +43,8 @@ describe("prospect scrape execution location", () => {
     );
     assert.match(prepFn, /scrapeHomepageIntelligence/);
     assert.match(prepFn, /Learning from Website/);
+    assert.match(prepFn, /resolveProspectWebsiteLearningDecision/);
+    assert.match(prepFn, /triggerType/);
   });
 });
 
