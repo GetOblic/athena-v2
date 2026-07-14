@@ -81,6 +81,9 @@ export default async function ProspectDetailsPage({
     ? await getLatestReviewByOpportunityId(opportunity.id, organizationId)
     : null;
 
+  const lifecycleStatus = normalizeProspectLifecycleStatus(
+    prospect.lifecycle_status,
+  );
   const workflowSteps = buildDiscussionWorkflowSteps({
     analysis: versionState.current?.intelligence.analysis ?? latestAnalysis,
     opportunity:
@@ -88,6 +91,7 @@ export default async function ProspectDetailsPage({
     briefing: versionState.current?.intelligence.briefing ?? briefing,
     assetBlueprint:
       versionState.current?.intelligence.blueprint ?? assetBlueprint,
+    clientStatusLabel: lifecycleStatus,
   });
 
   const initialRegenerationSnapshot = {
@@ -109,9 +113,6 @@ export default async function ProspectDetailsPage({
     jobStage: activeJob?.current_stage ?? null,
     hasCurrentVersion,
   });
-  const lifecycleStatus = normalizeProspectLifecycleStatus(
-    prospect.lifecycle_status,
-  );
   const currentVersionScore = resolveProspectOpportunityScore({
     canonicalScore:
       versionState.current?.intelligence.opportunity?.score ??
