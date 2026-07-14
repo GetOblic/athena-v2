@@ -95,12 +95,21 @@ for (const stage of [...CORE_STAGES, ...ANALYSIS_EXTENDED_STAGES]) {
   }
 }
 
-for (const stage of ["deployment_assets", "strategic_blueprint"] as const) {
-  const route = resolveModelForStage(stage);
-  if (!isClaudeModel(route.model)) {
-    fail(`${stage} premium role must default to Claude`);
+{
+  const route = resolveModelForStage("deployment_assets");
+  if (route.role !== "analysis" || isClaudeModel(route.model)) {
+    fail("deployment_assets must use analysis role (Gemini)");
   } else {
-    pass(`${stage} premium role defaults to Claude`);
+    pass(`deployment_assets analysis role defaults to Gemini (${route.model})`);
+  }
+}
+
+{
+  const route = resolveModelForStage("strategic_blueprint");
+  if (route.role !== "premiumStrategicOutput" || !isClaudeModel(route.model)) {
+    fail("strategic_blueprint premium role must default to Claude");
+  } else {
+    pass("strategic_blueprint premium role defaults to Claude");
   }
 }
 

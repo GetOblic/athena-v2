@@ -66,7 +66,7 @@ export function getLLMStageRoutes(): Record<
     discussion_analysis: roles.analysis,
     opportunity_generation: roles.analysis,
     executive_briefing: roles.analysis,
-    deployment_assets: roles.premiumStrategicOutput,
+    deployment_assets: roles.analysis,
     strategic_blueprint: roles.premiumStrategicOutput,
   };
 }
@@ -75,7 +75,7 @@ const STAGE_TO_ROLE: Record<AthenaLLMStage, AthenaLLMRole> = {
   discussion_analysis: "analysis",
   opportunity_generation: "analysis",
   executive_briefing: "analysis",
-  deployment_assets: "premiumStrategicOutput",
+  deployment_assets: "analysis",
   strategic_blueprint: "premiumStrategicOutput",
 };
 
