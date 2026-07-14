@@ -11,17 +11,19 @@ import {
 } from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
 import {
   SHARED_ANTI_GENERIC_RULES,
-  SHARED_JSON_OUTPUT_RULES,
   SHARED_OUTPUT_DIVERSITY_RULES,
 } from "@/services/ai/prompts/sharedPromptConstraints";
 import { formatStructuredBusinessContext } from "@/services/brain/generationContracts/businessContextBlock";
 import { assembleExecutiveGenerationContextBlock } from "@/services/brain/generationContracts/contractPromptFormatting";
+import { buildDeploymentAssetsRequiredOutputInstructions } from "@/services/brain/generationContracts/deploymentAssetsRequiredOutput";
 import {
   formatReasoningPipelineCompactForPrompt,
 } from "@/services/brain/reasoningPipeline/reasoningPipelinePromptFormatting";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 import { formatRegenerationRunStamp } from "@/lib/regenerationDiagnostics";
 import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
+
+export { buildDeploymentAssetsRequiredOutputInstructions } from "@/services/brain/generationContracts/deploymentAssetsRequiredOutput";
 
 type PromptAssemblyOptions = {
   regenerationRunId?: string;
@@ -103,33 +105,9 @@ export function assembleDeploymentAssetsPrompt(input: {
   const isProspectSource =
     input.discussion.platform === PROSPECT_INTELLIGENCE_PLATFORM;
 
-  const requiredOutput = isProspectSource
-    ? `
-${SHARED_JSON_OUTPUT_RULES}
-
-{
-  "suggested_cta": "PERSONALIZED_OUTREACH_EMAIL:\\n...\\n\\nFOLLOW_UP_EMAIL:\\n...\\n\\nLINKEDIN_CONNECTION:\\n...\\n\\nLINKEDIN_FOLLOW_UP:\\n...\\n\\nCOLD_CALL_OPENING:\\n...\\n\\nDISCOVERY_QUESTIONS:\\n...\\n\\nPERSONALIZED_VALUE_PROPOSITION:\\n...\\n\\nOBJECTION_ANTICIPATION:\\n...\\n\\nMEETING_PREPARATION:\\n...\\n\\nRECOMMENDED_CTA:\\n...\\n\\nFOLLOW_UP_SEQUENCE:\\n...\\n\\nPERSONALIZED_VIDEO_SCRIPT:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...",
-  "recommended_response": "PERSONALIZED_OUTREACH_EMAIL:\\n...\\n\\nFOLLOW_UP_EMAIL:\\n...\\n\\nLINKEDIN_CONNECTION:\\n...\\n\\nLINKEDIN_FOLLOW_UP:\\n...\\n\\nCOLD_CALL_OPENING:\\n...\\n\\nDISCOVERY_QUESTIONS:\\n...\\n\\nPERSONALIZED_VALUE_PROPOSITION:\\n...\\n\\nOBJECTION_ANTICIPATION:\\n...\\n\\nMEETING_PREPARATION:\\n...\\n\\nRECOMMENDED_CTA:\\n...\\n\\nFOLLOW_UP_SEQUENCE:\\n...\\n\\nPERSONALIZED_VIDEO_SCRIPT:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...",
-  "cta": "Exact paste-ready CTA sentence."
-}
-`.trim()
-    : input.opportunity
-      ? `
-${SHARED_JSON_OUTPUT_RULES}
-
-{
-  "suggested_cta": "COMMUNITY_REPLY:\\n...\\n\\nPRIVATE_MESSAGE:\\n...\\n\\nSOCIAL_POST:\\n...\\n\\nFOLLOW_UP:\\n...\\n\\nCALL_TO_ACTION:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...",
-  "recommended_response": "COMMUNITY_REPLY:\\n...\\n\\nPRIVATE_MESSAGE:\\n...\\n\\nSOCIAL_POST:\\n...\\n\\nFOLLOW_UP:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n...",
-  "cta": "Exact paste-ready CTA sentence."
-}
-`.trim()
-      : `
-${SHARED_JSON_OUTPUT_RULES}
-
-{
-  "suggested_cta": "COMMUNITY_REPLY:\\n...\\n\\nPRIVATE_MESSAGE:\\n...\\n\\nSOCIAL_POST:\\n...\\n\\nFOLLOW_UP:\\n...\\n\\nCALL_TO_ACTION:\\n...\\n\\nNEWSLETTER_IDEA:\\n...\\n\\nBLOG_POST_IDEA:\\n..."
-}
-`.trim();
+  const requiredOutput = buildDeploymentAssetsRequiredOutputInstructions({
+    isProspectSource,
+  });
 
   const qualityStandard = isProspectSource
     ? `

@@ -30,6 +30,19 @@ export const SHARED_JSON_OUTPUT_RULES = `
 Return ONLY valid JSON. No markdown. No code fences. No text outside the JSON object.
 `.trim();
 
+/** Shared Deployment Assets wire format — plain labeled sections, never JSON. */
+export const SHARED_PLAIN_TEXT_DEPLOYMENT_OUTPUT_RULES = `
+Return ONLY plain text deployment assets.
+Do not return JSON.
+Do not wrap the response in Markdown code fences.
+Do not add introductory or concluding prose.
+Every required heading must appear exactly once.
+Preserve the exact capitalization and underscore format of each heading.
+Place the generated content immediately below each heading.
+Do not rename, number, translate, bold, or decorate headings.
+Do not omit any section.
+`.trim();
+
 export const DEPLOYMENT_SECTION_LABELS = `
 COMMUNITY_REPLY:
 PRIVATE_MESSAGE:
