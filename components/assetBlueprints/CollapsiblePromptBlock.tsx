@@ -5,6 +5,7 @@ import {
   CopyButton,
   type AssetCopyTrackingContext,
 } from "@/components/deployment/CopyButton";
+import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 
 type CollapsiblePromptBlockProps = {
   label: string;
@@ -14,6 +15,7 @@ type CollapsiblePromptBlockProps = {
   assetType?: string;
   copyContext?: Omit<AssetCopyTrackingContext, "assetType"> | null;
   initiallyDone?: boolean;
+  initiallyTags?: AssetUsageTag[];
 };
 
 export function CollapsiblePromptBlock({
@@ -24,6 +26,7 @@ export function CollapsiblePromptBlock({
   assetType,
   copyContext = null,
   initiallyDone = false,
+  initiallyTags = [],
 }: CollapsiblePromptBlockProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const content = text?.trim();
@@ -49,6 +52,7 @@ export function CollapsiblePromptBlock({
           <CopyButton
             text={content}
             initiallyDone={initiallyDone}
+            initiallyTags={initiallyTags}
             tracking={
               copyContext && assetType
                 ? { ...copyContext, assetType }

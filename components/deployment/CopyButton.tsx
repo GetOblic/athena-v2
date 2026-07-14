@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AssetUsageTagControls } from "@/components/deployment/AssetUsageTagControls";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 
 export type AssetCopyTrackingContext = {
   sourceType: "discussion" | "prospect";
@@ -16,7 +18,10 @@ type CopyButtonProps = {
   tracking?: AssetCopyTrackingContext | null;
   /** Initial Done state from server/load. */
   initiallyDone?: boolean;
+  /** Initial usage tags from server/load (tracking metadata only). */
+  initiallyTags?: AssetUsageTag[];
   onDoneChange?: (done: boolean) => void;
+  onTagsChange?: (tags: AssetUsageTag[]) => void;
 };
 
 const ACK_MS = 2000;
@@ -64,7 +69,9 @@ export function CopyButton({
   text,
   tracking = null,
   initiallyDone = false,
+  initiallyTags = [],
   onDoneChange,
+  onTagsChange,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
   const [done, setDone] = useState(initiallyDone);
@@ -166,6 +173,13 @@ export function CopyButton({
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
+      {tracking ? (
+        <AssetUsageTagControls
+          tracking={tracking}
+          initiallyTags={initiallyTags}
+          onTagsChange={onTagsChange}
+        />
+      ) : null}
       {copyError ? (
         <span className="text-xs text-rose-300/80">{copyError}</span>
       ) : null}

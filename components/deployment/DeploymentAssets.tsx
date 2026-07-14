@@ -2,6 +2,7 @@
 
 import { CopyButton, type AssetCopyTrackingContext } from "@/components/deployment/CopyButton";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 
 export type DeploymentAsset = {
   /** Canonical interaction key when available. */
@@ -15,12 +16,14 @@ type DeploymentAssetsProps = {
   assets: DeploymentAsset[];
   copyContext?: Omit<AssetCopyTrackingContext, "assetType"> | null;
   doneByAssetType?: Record<string, boolean>;
+  tagsByAssetType?: Record<string, AssetUsageTag[]>;
 };
 
 export function DeploymentAssets({
   assets,
   copyContext = null,
   doneByAssetType = {},
+  tagsByAssetType = {},
 }: DeploymentAssetsProps) {
   const visibleAssets = assets.filter((asset) => asset.content.trim());
 
@@ -65,6 +68,7 @@ export function DeploymentAssets({
                 <CopyButton
                   text={asset.content}
                   initiallyDone={Boolean(doneByAssetType[assetType])}
+                  initiallyTags={tagsByAssetType[assetType] ?? []}
                   tracking={
                     copyContext
                       ? {

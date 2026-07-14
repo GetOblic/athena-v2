@@ -5,18 +5,21 @@ import type { AssetCopyTrackingContext } from "@/components/deployment/CopyButto
 import { formatBlueprintReadiness } from "@/lib/blueprintReadiness";
 import { BLUEPRINT_ASSET_TYPES } from "@/services/assetInteractions/assetInteractionKeys";
 import type { AthenaAssetBlueprint } from "@/services/assetBlueprints/assetBlueprintService";
+import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type StrategicAssetBlueprintProps = {
   blueprint: AthenaAssetBlueprint;
   copyContext?: Omit<AssetCopyTrackingContext, "assetType"> | null;
   doneByAssetType?: Record<string, boolean>;
+  tagsByAssetType?: Record<string, AssetUsageTag[]>;
 };
 
 export function StrategicAssetBlueprint({
   blueprint,
   copyContext = null,
   doneByAssetType = {},
+  tagsByAssetType = {},
 }: StrategicAssetBlueprintProps) {
   const readinessBadges = formatBlueprintReadiness(blueprint);
 
@@ -90,6 +93,9 @@ export function StrategicAssetBlueprint({
           initiallyDone={Boolean(
             doneByAssetType[BLUEPRINT_ASSET_TYPES.image_prompt],
           )}
+          initiallyTags={
+            tagsByAssetType[BLUEPRINT_ASSET_TYPES.image_prompt] ?? []
+          }
         />
         <CollapsiblePromptBlock
           label="PDF Prompt"
@@ -99,6 +105,9 @@ export function StrategicAssetBlueprint({
           initiallyDone={Boolean(
             doneByAssetType[BLUEPRINT_ASSET_TYPES.pdf_prompt],
           )}
+          initiallyTags={
+            tagsByAssetType[BLUEPRINT_ASSET_TYPES.pdf_prompt] ?? []
+          }
         />
         <CollapsiblePromptBlock
           label="Social Prompt"
@@ -108,6 +117,9 @@ export function StrategicAssetBlueprint({
           initiallyDone={Boolean(
             doneByAssetType[BLUEPRINT_ASSET_TYPES.social_prompt],
           )}
+          initiallyTags={
+            tagsByAssetType[BLUEPRINT_ASSET_TYPES.social_prompt] ?? []
+          }
         />
         <CollapsiblePromptBlock
           label="Notes"
@@ -116,6 +128,7 @@ export function StrategicAssetBlueprint({
           assetType={BLUEPRINT_ASSET_TYPES.notes}
           copyContext={copyContext}
           initiallyDone={Boolean(doneByAssetType[BLUEPRINT_ASSET_TYPES.notes])}
+          initiallyTags={tagsByAssetType[BLUEPRINT_ASSET_TYPES.notes] ?? []}
         />
       </div>
     </section>

@@ -12,6 +12,8 @@ import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSecti
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
+import { isAssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 import type {
   ExecutiveIntelligencePayload,
   ExecutiveIntelligenceVersion,
@@ -266,12 +268,16 @@ export function ExecutiveIntelligenceWorkspace({
   const [doneByAssetType, setDoneByAssetType] = useState<
     Record<string, boolean>
   >({});
+  const [tagsByAssetType, setTagsByAssetType] = useState<
+    Record<string, AssetUsageTag[]>
+  >({});
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadDoneState() {
+    async function loadInteractionState() {
       setDoneByAssetType({});
+      setTagsByAssetType({});
       const params = new URLSearchParams({
         sourceType: copySourceType,
         sourceId: copySourceId,
@@ -283,27 +289,36 @@ export function ExecutiveIntelligenceWorkspace({
       try {
         const response = await fetch(`/api/asset-interactions?${params}`);
         const payload = await parseJsonResponse<{
-          interactions?: Record<string, { done?: boolean }>;
+          interactions?: Record<
+            string,
+            { done?: boolean; tags?: string[] }
+          >;
         }>(response);
         if (cancelled || !response.ok) {
           return;
         }
 
-        const next: Record<string, boolean> = {};
+        const nextDone: Record<string, boolean> = {};
+        const nextTags: Record<string, AssetUsageTag[]> = {};
         for (const [assetType, interaction] of Object.entries(
           payload.interactions ?? {},
         )) {
           if (interaction?.done) {
-            next[assetType] = true;
+            nextDone[assetType] = true;
+          }
+          const tags = (interaction?.tags ?? []).filter(isAssetUsageTag);
+          if (tags.length > 0) {
+            nextTags[assetType] = tags;
           }
         }
-        setDoneByAssetType(next);
+        setDoneByAssetType(nextDone);
+        setTagsByAssetType(nextTags);
       } catch (error) {
         console.error("[ASSET_COPY] load_done_state_failed", error);
       }
     }
 
-    void loadDoneState();
+    void loadInteractionState();
     return () => {
       cancelled = true;
     };
@@ -526,6 +541,7 @@ export function ExecutiveIntelligenceWorkspace({
             assets={deploymentAssets}
             copyContext={copyContext}
             doneByAssetType={doneByAssetType}
+            tagsByAssetType={tagsByAssetType}
           />
         </AthenaCollapsibleSection>
       )}
@@ -540,6 +556,7 @@ export function ExecutiveIntelligenceWorkspace({
             blueprint={intelligence.blueprint}
             copyContext={copyContext}
             doneByAssetType={doneByAssetType}
+            tagsByAssetType={tagsByAssetType}
           />
         </AthenaCollapsibleSection>
       )}

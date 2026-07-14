@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import {
-  listAssetCopyInteractions,
+  addAssetUsageTag,
+  listAssetInteractions,
   recordAssetCopyInteraction,
+  removeAssetUsageTag,
 } from "@/services/assetInteractions/assetInteractionService";
 import {
   isSupportedAssetInteractionType,
   LIVE_EXECUTIVE_VERSION_SENTINEL,
   type AssetInteractionSourceType,
 } from "@/services/assetInteractions/assetInteractionKeys";
+import { parseAssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 import { getDiscussionById } from "@/services/discussionService";
 import { getExecutiveVersionById } from "@/services/executiveVersions/executiveVersionService";
 import { getProspectById } from "@/services/prospects/prospectService";
@@ -92,7 +95,7 @@ async function assertExecutiveVersionAccess(input: {
   return Boolean(version);
 }
 
-/** List Done / copy interaction state for a workspace version. */
+/** List Done + usage tags for a workspace version. */
 export async function GET(request: Request) {
   try {
     const { organizationId, userId } =
@@ -164,7 +167,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const interactions = await listAssetCopyInteractions({
+    const interactions = await listAssetInteractions({
       organizationId,
       userId,
       sourceType,
@@ -203,7 +206,10 @@ export async function GET(request: Request) {
   }
 }
 
-/** Record a successful clipboard copy for one asset. */
+/**
+ * Record clipboard copy (default), or add/remove one usage tag.
+ * POST without usageTag preserves existing copied behavior.
+ */
 export async function POST(request: Request) {
   try {
     const { organizationId, userId } =
@@ -228,6 +234,11 @@ export async function POST(request: Request) {
       body.executiveVersionId.trim()
         ? body.executiveVersionId.trim()
         : null;
+    const usageTag = parseAssetUsageTag(body.usageTag);
+    const actionRaw = String(body.action ?? "add")
+      .trim()
+      .toLowerCase();
+    const action = actionRaw === "remove" ? "remove" : "add";
 
     if (!sourceType || !sourceId || !assetType) {
       return json(
@@ -251,6 +262,20 @@ export async function POST(request: Request) {
           error: {
             code: "VALIDATION_ERROR",
             message: "Unsupported asset type.",
+          },
+        },
+        400,
+      );
+    }
+
+    if (body.usageTag != null && body.usageTag !== "" && !usageTag) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Unsupported usage tag.",
           },
         },
         400,
@@ -293,6 +318,39 @@ export async function POST(request: Request) {
       );
     }
 
+    // Usage-tag path — never creates/toggles copied.
+    if (usageTag) {
+      const state =
+        action === "remove"
+          ? await removeAssetUsageTag({
+              organizationId,
+              userId,
+              sourceType,
+              sourceId,
+              executiveVersionId,
+              assetType,
+              usageTag,
+            })
+          : await addAssetUsageTag({
+              organizationId,
+              userId,
+              sourceType,
+              sourceId,
+              executiveVersionId,
+              assetType,
+              usageTag,
+            });
+
+      return json({
+        ok: true,
+        success: true,
+        interaction: state,
+        done: state.done,
+        tags: state.tags,
+      });
+    }
+
+    // Default: record copied (existing Copy/Done contract).
     const interaction = await recordAssetCopyInteraction({
       organizationId,
       userId,
@@ -305,7 +363,10 @@ export async function POST(request: Request) {
     return json({
       ok: true,
       success: true,
-      interaction,
+      interaction: {
+        ...interaction,
+        tags: [],
+      },
       done: true,
     });
   } catch (error) {
@@ -326,7 +387,7 @@ export async function POST(request: Request) {
         success: false,
         error: {
           code: "RECORD_FAILED",
-          message: "Could not record asset copy.",
+          message: "Could not record asset interaction.",
         },
       },
       500,
