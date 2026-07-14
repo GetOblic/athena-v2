@@ -34,6 +34,7 @@ export const DEPLOYMENT_ASSET_TYPE_BY_LABEL: Record<string, string> = {
   KNOWLEDGE_BASE_ENHANCEMENT: "knowledge_base_enhancement",
   SUBSTACK_POST: "substack_post",
   REDDIT_POST: "reddit_post",
+  SOCIAL_VOICE_POST: "social_voice_post",
   PRIMARY_REPLY: "primary_reply",
 };
 

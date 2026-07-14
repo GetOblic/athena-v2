@@ -80,7 +80,11 @@ export function canonicalizeDeploymentAssetHeadings(text: string): string {
       "$1KNOWLEDGE_BASE_ENHANCEMENT:",
     )
     .replace(/(^|\n)\s*SUBSTACK[\s_-]*POST\s*:/gi, "$1SUBSTACK_POST:")
-    .replace(/(^|\n)\s*REDDIT[\s_-]*POST\s*:/gi, "$1REDDIT_POST:");
+    .replace(/(^|\n)\s*REDDIT[\s_-]*POST\s*:/gi, "$1REDDIT_POST:")
+    .replace(
+      /(^|\n)\s*SOCIAL[\s_-]*VOICE[\s_-]*POST\s*:/gi,
+      "$1SOCIAL_VOICE_POST:",
+    );
 }
 
 // Longer labels first so FOLLOW_UP_EMAIL / FOLLOW_UP_SEQUENCE win over FOLLOW_UP.

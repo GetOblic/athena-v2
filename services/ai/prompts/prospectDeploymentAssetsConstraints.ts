@@ -13,6 +13,7 @@ export const OPTIONAL_PROSPECT_DEPLOYMENT_ASSET_KEYS = [
   "KNOWLEDGE_BASE_ENHANCEMENT",
   "SUBSTACK_POST",
   "REDDIT_POST",
+  "SOCIAL_VOICE_POST",
 ] as const;
 
 export const PROSPECT_DEPLOYMENT_SECTION_LABELS = `
@@ -34,6 +35,7 @@ WHATSAPP_OUTREACH:
 KNOWLEDGE_BASE_ENHANCEMENT:
 SUBSTACK_POST:
 REDDIT_POST:
+SOCIAL_VOICE_POST:
 `.trim();
 
 export const PROSPECT_DEPLOYMENT_CHANNEL_GUIDE = `
@@ -55,6 +57,7 @@ WHATSAPP_OUTREACH — native WhatsApp outreach (not email). Include INITIAL MESS
 KNOWLEDGE_BASE_ENHANCEMENT — structured factual operational knowledge for Voice AI / listings / support. Verified facts only; omit unknowns; no marketing copy.
 SUBSTACK_POST — publication-ready long-form editorial Substack article (TITLE, SUBTITLE, POST, CLOSING CTA). Not SEO or sales copy.
 REDDIT_POST — authentic Reddit discussion starter (SUGGESTED TITLE, POST, optional DISCUSSION QUESTION). Transparent and community-native.
+SOCIAL_VOICE_POST — first-person social post in the Athena client's Voice, speaking to the Prospect market signal as lived observation (not a sales template).
 `.trim();
 
 export const PROSPECT_DEPLOYMENT_ASSET_KEYS = [
@@ -76,6 +79,7 @@ export const PROSPECT_DEPLOYMENT_ASSET_KEYS = [
   "KNOWLEDGE_BASE_ENHANCEMENT",
   "SUBSTACK_POST",
   "REDDIT_POST",
+  "SOCIAL_VOICE_POST",
   // Backward-compatible aliases still parsed if older drafts exist.
   "COLD_EMAIL",
   "OBJECTION_HANDLING",
@@ -165,6 +169,11 @@ export const PROSPECT_DEPLOYMENT_ASSET_META: Record<
     title: "Reddit Post",
     objective:
       "Transparent, community-native discussion content for Reddit.",
+  },
+  SOCIAL_VOICE_POST: {
+    title: "Social Voice Post",
+    objective:
+      "First-person social post in the client's Voice addressing the Prospect market signal.",
   },
   COLD_EMAIL: {
     title: "Personalized Outreach Email",

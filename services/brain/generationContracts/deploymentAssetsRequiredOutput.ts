@@ -9,7 +9,7 @@ function formatRequiredHeadingBlock(keys: readonly string[]): string {
   return keys.map((key) => `${key}:`).join("\n");
 }
 
-/** All Prospect Deployment Asset headings requested on every generation run (14 Ready + 4 always-generate). */
+/** All Prospect Deployment Asset headings requested on every generation run (14 Ready + always-generate extras). */
 export function getProspectDeploymentGenerationHeadings(): string[] {
   return [
     ...REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS,
@@ -19,7 +19,7 @@ export function getProspectDeploymentGenerationHeadings(): string[] {
 
 /**
  * Required-output instructions for Deployment Assets (Prospect + Discussion).
- * Prospects: always request all 18 headings; Ready still evaluates only the 14 core keys.
+ * Prospects: always request all generation headings; Ready still evaluates only the 14 core keys.
  * Discussion: Discussion channel labels only.
  */
 export function buildDeploymentAssetsRequiredOutputInstructions(input: {

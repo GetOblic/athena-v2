@@ -20,6 +20,7 @@ import {
   PROSPECT_DEPLOYMENT_ASSET_META,
 } from "../../services/ai/prompts/prospectDeploymentAssetsConstraints";
 import { REDDIT_POST_GENERATION_RULES } from "../../services/ai/prompts/redditPostConstraints";
+import { SOCIAL_VOICE_POST_GENERATION_RULES } from "../../services/ai/prompts/socialVoicePostConstraints";
 import { DEPLOYMENT_SECTION_LABELS } from "../../services/ai/prompts/sharedPromptConstraints";
 import { SUBSTACK_POST_GENERATION_RULES } from "../../services/ai/prompts/substackPostConstraints";
 import { WHATSAPP_OUTREACH_GENERATION_RULES } from "../../services/ai/prompts/whatsappOutreachConstraints";
@@ -35,11 +36,12 @@ import { composeSuggestedCtaFromRawAssetObject } from "../../services/executiveV
 
 const ROOT = join(process.cwd());
 
-const FOUR = [
+const OPTIONAL = [
   "WHATSAPP_OUTREACH",
   "KNOWLEDGE_BASE_ENHANCEMENT",
   "SUBSTACK_POST",
   "REDDIT_POST",
+  "SOCIAL_VOICE_POST",
 ] as const;
 
 function labeledRequiredBlock(
@@ -64,9 +66,9 @@ function stubAnalysis(suggestedCta: string) {
 }
 
 describe("Prospect optional content assets — registry and prompt", () => {
-  it("registers all four Prospect optional assets", () => {
-    assert.deepEqual([...OPTIONAL_PROSPECT_DEPLOYMENT_ASSET_KEYS], [...FOUR]);
-    for (const key of FOUR) {
+  it("registers all Prospect optional assets including Social Voice Post", () => {
+    assert.deepEqual([...OPTIONAL_PROSPECT_DEPLOYMENT_ASSET_KEYS], [...OPTIONAL]);
+    for (const key of OPTIONAL) {
       assert.ok(PROSPECT_DEPLOYMENT_ASSET_KEYS.includes(key));
     }
     assert.equal(
@@ -80,6 +82,10 @@ describe("Prospect optional content assets — registry and prompt", () => {
     assert.equal(canonicalDeploymentAssetType("SUBSTACK_POST"), "substack_post");
     assert.equal(canonicalDeploymentAssetType("REDDIT_POST"), "reddit_post");
     assert.equal(
+      canonicalDeploymentAssetType("SOCIAL_VOICE_POST"),
+      "social_voice_post",
+    );
+    assert.equal(
       PROSPECT_DEPLOYMENT_ASSET_META.WHATSAPP_OUTREACH.title,
       "WhatsApp Outreach",
     );
@@ -89,13 +95,17 @@ describe("Prospect optional content assets — registry and prompt", () => {
     );
     assert.equal(PROSPECT_DEPLOYMENT_ASSET_META.SUBSTACK_POST.title, "Substack Post");
     assert.equal(PROSPECT_DEPLOYMENT_ASSET_META.REDDIT_POST.title, "Reddit Post");
+    assert.equal(
+      PROSPECT_DEPLOYMENT_ASSET_META.SOCIAL_VOICE_POST.title,
+      "Social Voice Post",
+    );
   });
 
-  it("Prospect required-output requests all four always-generate assets", () => {
+  it("Prospect required-output requests all always-generate assets", () => {
     const block = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: true,
     });
-    for (const key of FOUR) {
+    for (const key of OPTIONAL) {
       assert.match(block, new RegExp(`(?:^|\\n)${key}:(?:\\n|$)`));
     }
     assert.match(block, /Generate all of these Prospect headings on every Prospect run/);
@@ -104,11 +114,11 @@ describe("Prospect optional content assets — registry and prompt", () => {
     assert.doesNotMatch(block, /Return ONLY valid JSON/);
   });
 
-  it("Discussion prompts exclude the four Prospect-only assets", () => {
+  it("Discussion prompts exclude the Prospect-only assets", () => {
     const discussionBlock = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: false,
     });
-    for (const key of FOUR) {
+    for (const key of OPTIONAL) {
       assert.doesNotMatch(discussionBlock, new RegExp(key));
     }
     assert.match(discussionBlock, /COMMUNITY_REPLY:/);
@@ -120,6 +130,7 @@ describe("Prospect optional content assets — registry and prompt", () => {
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /KNOWLEDGE_BASE_ENHANCEMENT/);
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /SUBSTACK_POST/);
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /REDDIT_POST/);
+    assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /SOCIAL_VOICE_POST/);
 
     const assembly = readFileSync(
       join(
@@ -132,6 +143,7 @@ describe("Prospect optional content assets — registry and prompt", () => {
     assert.match(assembly, /KNOWLEDGE_BASE_ENHANCEMENT_GENERATION_RULES/);
     assert.match(assembly, /SUBSTACK_POST_GENERATION_RULES/);
     assert.match(assembly, /REDDIT_POST_GENERATION_RULES/);
+    assert.match(assembly, /SOCIAL_VOICE_POST_GENERATION_RULES/);
     assert.match(assembly, /isProspectSource/);
   });
 
@@ -148,17 +160,22 @@ describe("Prospect optional content assets — registry and prompt", () => {
     assert.match(SUBSTACK_POST_GENERATION_RULES, /CLOSING CTA/);
     assert.match(REDDIT_POST_GENERATION_RULES, /astroturfing/i);
     assert.match(REDDIT_POST_GENERATION_RULES, /SUGGESTED TITLE/);
+    assert.match(SOCIAL_VOICE_POST_GENERATION_RULES, /first person singular/i);
+    assert.match(SOCIAL_VOICE_POST_GENERATION_RULES, /Athena Brain Voice/i);
+    assert.match(SOCIAL_VOICE_POST_GENERATION_RULES, /Prospect analysis/i);
+    assert.match(SOCIAL_VOICE_POST_GENERATION_RULES, /150–350|150-350/);
   });
 });
 
 describe("Prospect optional content assets — parser, EV, Copy/Done, completeness", () => {
-  it("parser displays all four Prospect assets", () => {
+  it("parser displays all Prospect optional assets including Social Voice Post", () => {
     const text = [
       labeledRequiredBlock(),
       "WHATSAPP_OUTREACH:\nINITIAL MESSAGE\nHi\n\nFOLLOW-UP\nPing",
       "KNOWLEDGE_BASE_ENHANCEMENT:\n## Business Overview\n- Clinic",
       "SUBSTACK_POST:\nTITLE\nArticle\n\nSUBTITLE\nSub\n\nPOST\nBody\n\nCLOSING CTA\nNext",
       "REDDIT_POST:\nSUGGESTED TITLE\nAsk\n\nPOST\nCommunity note",
+      "SOCIAL_VOICE_POST:\nAs a CEO, I talk every day with operators facing the same bottleneck.",
     ].join("\n\n");
 
     const assets = buildDiscussionDeploymentAssets(stubAnalysis(text), {
@@ -169,7 +186,12 @@ describe("Prospect optional content assets — parser, EV, Copy/Done, completene
     assert.ok(keys.includes("knowledge_base_enhancement"));
     assert.ok(keys.includes("substack_post"));
     assert.ok(keys.includes("reddit_post"));
+    assert.ok(keys.includes("social_voice_post"));
     assert.ok(keys.includes("email_outreach"));
+    assert.equal(
+      assets.find((asset) => asset.assetKey === "social_voice_post")?.title,
+      "Social Voice Post",
+    );
   });
 
   it("canonical heading variants normalize correctly", () => {
@@ -184,10 +206,14 @@ Post
 Reddit Post:
 SUGGESTED TITLE
 Ask
+
+Social Voice Post:
+As an operator, I see this pattern weekly.
 `);
     assert.match(text, /KNOWLEDGE_BASE_ENHANCEMENT:/);
     assert.match(text, /SUBSTACK_POST:/);
     assert.match(text, /REDDIT_POST:/);
+    assert.match(text, /SOCIAL_VOICE_POST:/);
 
     const assets = parseLabeledDeploymentAssets(text);
     assert.deepEqual(
@@ -195,34 +221,38 @@ Ask
       [
         "knowledge_base_enhancement",
         "reddit_post",
+        "social_voice_post",
         "substack_post",
       ].sort(),
     );
   });
 
-  it("Copy / Done accepts all four keys", () => {
+  it("Copy / Done accepts all optional keys including social_voice_post", () => {
     for (const key of [
       "whatsapp_outreach",
       "knowledge_base_enhancement",
       "substack_post",
       "reddit_post",
+      "social_voice_post",
     ]) {
       assert.equal(isSupportedAssetInteractionType(key), true);
     }
   });
 
-  it("Executive Version raw JSON recovery includes all four", () => {
+  it("Executive Version raw JSON recovery includes all optional assets", () => {
     const composed = composeSuggestedCtaFromRawAssetObject({
       PERSONALIZED_OUTREACH_EMAIL: "Hello",
       WHATSAPP_OUTREACH: "INITIAL MESSAGE\nHi",
       KNOWLEDGE_BASE_ENHANCEMENT: "## Business Overview\n- Clinic",
       SUBSTACK_POST: "TITLE\nArticle",
       REDDIT_POST: "SUGGESTED TITLE\nPost",
+      SOCIAL_VOICE_POST: "As a CEO, I see this every week.",
     });
     assert.match(composed ?? "", /WHATSAPP_OUTREACH:/);
     assert.match(composed ?? "", /KNOWLEDGE_BASE_ENHANCEMENT:/);
     assert.match(composed ?? "", /SUBSTACK_POST:/);
     assert.match(composed ?? "", /REDDIT_POST:/);
+    assert.match(composed ?? "", /SOCIAL_VOICE_POST:/);
   });
 
   it("missing optional assets do not affect the 14-asset completeness contract", () => {
@@ -316,20 +346,20 @@ describe("Prospect always-generate assets — every creation and refresh path", 
     assert.match(deploymentWorkflow, /assembleDeploymentAssetsPrompt/);
   });
 
-  it("Prospect initial manual generation requests all four", () => {
+  it("Prospect initial manual generation requests all optional assets", () => {
     const block = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: true,
     });
     assert.match(block, /every Prospect run/);
-    for (const key of FOUR) {
+    for (const key of OPTIONAL) {
       assert.match(block, new RegExp(`(?:^|\\n)${key}:(?:\\n|$)`));
     }
   });
 
-  it("Prospect CSV/batch generation requests all four via the shared 18-heading prompt", () => {
+  it("Prospect CSV/batch generation requests all optional assets via the shared 19-heading prompt", () => {
     const headings = getProspectDeploymentGenerationHeadings();
-    assert.equal(headings.length, 18);
-    for (const key of FOUR) {
+    assert.equal(headings.length, 19);
+    for (const key of OPTIONAL) {
       assert.ok(headings.includes(key));
     }
     const block = buildDeploymentAssetsRequiredOutputInstructions({
@@ -340,28 +370,33 @@ describe("Prospect always-generate assets — every creation and refresh path", 
     }
   });
 
-  it("Prospect refresh requests all four via the same shared prompt", () => {
+  it("Prospect refresh and append request Social Voice Post via the same shared prompt", () => {
     const refreshRoute = readFileSync(
       join(ROOT, "app/api/prospects/[id]/refresh/route.ts"),
       "utf8",
     );
+    const updatesRoute = readFileSync(
+      join(ROOT, "app/api/prospects/[id]/updates/route.ts"),
+      "utf8",
+    );
     assert.match(refreshRoute, /manual_refresh/);
+    assert.match(updatesRoute, /discussion_update/);
     const block = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: true,
     });
-    assert.equal(getProspectDeploymentGenerationHeadings().length, 18);
-    for (const key of FOUR) {
+    assert.equal(getProspectDeploymentGenerationHeadings().length, 19);
+    for (const key of OPTIONAL) {
       assert.match(block, new RegExp(`(?:^|\\n)${key}:(?:\\n|$)`));
     }
   });
 
-  it("every new Prospect generation run uses the same 18-heading prompt", () => {
+  it("every new Prospect generation run uses the same 19-heading prompt", () => {
     const headings = getProspectDeploymentGenerationHeadings();
     assert.deepEqual(headings, [
       ...REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS,
       ...OPTIONAL_PROSPECT_DEPLOYMENT_ASSET_KEYS,
     ]);
-    assert.equal(headings.length, 18);
+    assert.equal(headings.length, 19);
 
     const block = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: true,
@@ -372,7 +407,7 @@ describe("Prospect always-generate assets — every creation and refresh path", 
     }
   });
 
-  it("the four assets persist into the generated Executive Version when returned", () => {
+  it("optional assets including Social Voice Post persist into the Executive Version when returned", () => {
     const workflow = readFileSync(
       join(ROOT, "services/workflows/deploymentAssetsWorkflow.ts"),
       "utf8",
@@ -386,6 +421,7 @@ describe("Prospect always-generate assets — every creation and refresh path", 
       "KNOWLEDGE_BASE_ENHANCEMENT:\n## Business Overview\n- Clinic",
       "SUBSTACK_POST:\nTITLE\nArticle",
       "REDDIT_POST:\nSUGGESTED TITLE\nAsk",
+      "SOCIAL_VOICE_POST:\nAs a CEO, I talk every day with clients facing the same problem.",
     ].join("\n\n");
 
     const assets = buildDiscussionDeploymentAssets(stubAnalysis(returned), {
@@ -396,36 +432,79 @@ describe("Prospect always-generate assets — every creation and refresh path", 
     assert.ok(keys.has("knowledge_base_enhancement"));
     assert.ok(keys.has("substack_post"));
     assert.ok(keys.has("reddit_post"));
+    assert.ok(keys.has("social_voice_post"));
 
     const composed = composeSuggestedCtaFromRawAssetObject({
       WHATSAPP_OUTREACH: "INITIAL MESSAGE\nHi",
       KNOWLEDGE_BASE_ENHANCEMENT: "## Business Overview\n- Clinic",
       SUBSTACK_POST: "TITLE\nArticle",
       REDDIT_POST: "SUGGESTED TITLE\nAsk",
+      SOCIAL_VOICE_POST: "As a CEO, I talk every day with clients facing the same problem.",
     });
     assert.match(composed ?? "", /WHATSAPP_OUTREACH:/);
     assert.match(composed ?? "", /KNOWLEDGE_BASE_ENHANCEMENT:/);
     assert.match(composed ?? "", /SUBSTACK_POST:/);
     assert.match(composed ?? "", /REDDIT_POST:/);
+    assert.match(composed ?? "", /SOCIAL_VOICE_POST:/);
   });
 
   it("Discussion generation does not request them", () => {
     const block = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: false,
     });
-    for (const key of FOUR) {
+    for (const key of OPTIONAL) {
       assert.doesNotMatch(block, new RegExp(key));
     }
   });
 
   it("REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS remains exactly 14", () => {
     assert.equal(REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS.length, 14);
-    for (const key of FOUR) {
+    for (const key of OPTIONAL) {
       assert.ok(
         !(REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS as readonly string[]).includes(
           key,
         ),
       );
     }
+  });
+});
+
+describe("Social Voice Post — voice and Prospect-signal contracts", () => {
+  it("prompt requires first-person content guided by Athena Brain Voice", () => {
+    assert.match(SOCIAL_VOICE_POST_GENERATION_RULES, /first person singular/i);
+    assert.match(SOCIAL_VOICE_POST_GENERATION_RULES, /Athena Brain Voice/i);
+    assert.match(SOCIAL_VOICE_POST_GENERATION_RULES, /communication style/i);
+    assert.match(SOCIAL_VOICE_POST_GENERATION_RULES, /Do not invent facts/i);
+
+    const assembly = readFileSync(
+      join(
+        ROOT,
+        "services/brain/generationContracts/deploymentAssetsPromptAssembly.ts",
+      ),
+      "utf8",
+    );
+    assert.match(assembly, /SOCIAL_VOICE_POST_GENERATION_RULES/);
+    assert.match(assembly, /Athena Brain Voice/);
+  });
+
+  it("prompt requires direct engagement with the Prospect signal", () => {
+    assert.match(SOCIAL_VOICE_POST_GENERATION_RULES, /Prospect analysis/i);
+    assert.match(
+      SOCIAL_VOICE_POST_GENERATION_RULES,
+      /signal, pain point, or opportunity/i,
+    );
+    assert.match(
+      SOCIAL_VOICE_POST_GENERATION_RULES,
+      /website intelligence/i,
+    );
+    assert.match(SOCIAL_VOICE_POST_GENERATION_RULES, /notes/i);
+  });
+
+  it("Gemini routing remains unchanged", () => {
+    const routing = readFileSync(join(ROOT, "lib/llm/modelRouting.ts"), "utf8");
+    assert.match(routing, /deployment_assets: roles\.analysis/);
+    assert.match(routing, /strategic_blueprint: roles\.premiumStrategicOutput/);
+    assert.doesNotMatch(routing, /prospect_deployment_assets/);
+    assert.doesNotMatch(routing, /social_voice_post/);
   });
 });
