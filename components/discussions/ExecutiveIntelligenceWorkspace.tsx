@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 import { AthenaRecommendationRibbon } from "@/components/discussions/AthenaRecommendationRibbon";
 import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
 import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveIntelligenceCard";
@@ -370,9 +369,8 @@ export function ExecutiveIntelligenceWorkspace({
             <div className="space-y-7">
               <div className="text-white/50">
                 No generated Athena analysis has been saved for this discussion
-                yet.
+                yet. Use Refresh Intelligence in the page header to generate.
               </div>
-              <AnalyzeDiscussionButton discussionId={discussionId} />
             </div>
           </AthenaCollapsibleSection>
         </div>
@@ -653,9 +651,6 @@ export function ExecutiveIntelligenceWorkspace({
               label="Confidence"
               value={`${intelligence.analysis.confidence}%`}
             />
-            {!isProspect && (
-              <AnalyzeDiscussionButton discussionId={discussionId} />
-            )}
           </div>
         </AthenaCollapsibleSection>
       </div>

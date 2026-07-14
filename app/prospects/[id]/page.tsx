@@ -13,6 +13,7 @@ import { AppendProspectInformationForm } from "@/components/prospects/AppendPros
 import { ProspectHomepageIntelligence } from "@/components/prospects/ProspectHomepageIntelligence";
 import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectLifecycleStatusControl";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
+import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import {
   formatProspectOpportunityScoreWithRecommendation,
@@ -170,16 +171,27 @@ export default async function ProspectDetailsPage({
           ← Prospects
         </Link>
 
-        <div className="mt-10">
-          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Prospect Intelligence
+        <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
+              Prospect Intelligence
+            </div>
+            <h1 className="mt-4 max-w-5xl text-5xl font-semibold tracking-tight">
+              {prospect.business_name}
+            </h1>
+            <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
+              Executive-grade intelligence for this prospect relationship.
+            </p>
           </div>
-          <h1 className="mt-4 max-w-5xl text-5xl font-semibold tracking-tight">
-            {prospect.business_name}
-          </h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-            Executive-grade intelligence for this prospect relationship.
-          </p>
+
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <ProspectRefreshIntelligenceButton
+              prospectId={prospect.id}
+              discussionId={
+                discussion?.id ?? prospect.linked_discussion_id ?? null
+              }
+            />
+          </div>
         </div>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -307,7 +319,7 @@ export default async function ProspectDetailsPage({
         ) : (
           <div className="mt-8 rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-10 text-white/50">
             Prospect Intelligence has not been queued yet. Use Refresh
-            Intelligence in Prospect Details to start asynchronous generation.
+            Intelligence in the page header to start asynchronous generation.
           </div>
         )}
 

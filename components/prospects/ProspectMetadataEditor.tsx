@@ -183,12 +183,11 @@ export function ProspectMetadataEditor({
   discussionId,
 }: ProspectMetadataEditorProps) {
   const router = useRouter();
-  const { trackQueuedGeneration, isGenerating } = useDiscussionRegeneration();
+  const { trackQueuedGeneration } = useDiscussionRegeneration();
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState(() => formFromProspect(prospect));
   const [savedForm, setSavedForm] = useState(() => formFromProspect(prospect));
   const [saving, setSaving] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -259,58 +258,6 @@ export function ProspectMetadataEditor({
     }
   }
 
-  async function refreshIntelligence() {
-    if (refreshing || isGenerating) return;
-
-    setRefreshing(true);
-    setMessage(null);
-    setError(null);
-
-    try {
-      const statusDiscussionId = discussionId ?? prospect.linked_discussion_id;
-      const baseline = statusDiscussionId
-        ? ((await fetchRegenerationStatus(statusDiscussionId)) ??
-          emptyRegenerationSnapshot())
-        : emptyRegenerationSnapshot();
-
-      const response = await fetch(`/api/prospects/${prospect.id}/refresh`, {
-        method: "POST",
-      });
-      const payload = await parseJsonResponse<{
-        ok?: boolean;
-        success?: boolean;
-        accepted?: boolean;
-        queued?: boolean;
-        message?: string;
-        error?: string | { message?: string };
-      }>(response);
-      const errorMessage =
-        typeof payload.error === "string"
-          ? payload.error
-          : payload.error?.message;
-
-      if (!response.ok || !payload.ok) {
-        setError(errorMessage || "Refresh failed.");
-        return;
-      }
-
-      trackQueuedGeneration(baseline);
-      setMessage(
-        payload.message ||
-          "Prospect intelligence refresh queued. Athena is regenerating in the background.",
-      );
-      router.refresh();
-    } catch (refreshError) {
-      setError(
-        refreshError instanceof Error
-          ? refreshError.message
-          : "Refresh failed.",
-      );
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
   async function handleDelete() {
     setIsDeleting(true);
     setError(null);
@@ -359,7 +306,7 @@ export function ProspectMetadataEditor({
           <p className="max-w-2xl text-sm text-white/40">
             {isEditing
               ? "Save meaningful source changes to queue asynchronous regeneration. Historical Executive Versions remain immutable."
-              : "Review prospect fields in read-only mode. Edit to update source data, or Refresh Intelligence to regenerate."}
+              : "Review prospect fields in read-only mode. Edit to update source data. Use Refresh Intelligence in the page header to regenerate."}
           </p>
         </div>
 
@@ -403,17 +350,6 @@ export function ProspectMetadataEditor({
               className="rounded-full border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-300 transition hover:border-red-400/50 hover:text-red-200"
             >
               Delete
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void refreshIntelligence()}
-              disabled={refreshing || isGenerating}
-              className="rounded-full bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {refreshing || isGenerating
-                ? "Queuing…"
-                : "Refresh Intelligence"}
             </button>
           </div>
 

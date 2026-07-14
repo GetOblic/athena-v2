@@ -132,8 +132,19 @@ describe("prospect details read-only / edit UX contracts", () => {
     assert.match(source, />\s*Delete\s*</);
     assert.match(source, /Confirm Delete/);
     assert.match(source, /trackQueuedGeneration/);
-    assert.match(source, /\/api\/prospects\/\$\{prospect\.id\}\/refresh/);
+    assert.doesNotMatch(
+      source,
+      /\/api\/prospects\/\$\{prospect\.id\}\/refresh/,
+    );
     assert.match(source, /noopener noreferrer/);
+    const refreshButton = readFileSync(
+      join(ROOT, "components/prospects/ProspectRefreshIntelligenceButton.tsx"),
+      "utf8",
+    );
+    assert.match(
+      refreshButton,
+      /\/api\/prospects\/\$\{prospectId\}\/refresh/,
+    );
     assert.match(source, /normalizeWebsiteUrl/);
     assert.match(source, /isEditing/);
   });
