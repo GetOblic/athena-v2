@@ -199,7 +199,7 @@ describe("page structure contracts", () => {
     assert.match(page, /AppendDiscussionUpdateForm/);
   });
 
-  it("workspace expands assets and blueprint by default", () => {
+  it("workspace collapses assets by default; Prospect blueprint collapsed", () => {
     const source = readFileSync(
       join(ROOT, "components/discussions/ExecutiveIntelligenceWorkspace.tsx"),
       "utf8",
@@ -207,8 +207,23 @@ describe("page structure contracts", () => {
     assert.match(source, /AthenaCollapsibleSection/);
     assert.match(source, /Deployment Assets/);
     assert.match(source, /Strategic Asset Blueprint/);
-    assert.match(source, /defaultOpen=\{true\}/);
+    assert.match(
+      source,
+      /title="Deployment Assets"\s*defaultOpen=\{false\}/,
+    );
+    assert.match(
+      source,
+      /title="Strategic Asset Blueprint"\s*defaultOpen=\{!isProspect\}/,
+    );
     assert.match(source, /Detailed Athena Reasoning/);
+
+    const collapsible = readFileSync(
+      join(ROOT, "components/ui/AthenaCollapsibleSection.tsx"),
+      "utf8",
+    );
+    assert.match(collapsible, /useState\(defaultOpen\)/);
+    assert.match(collapsible, /onClick=\{\(\) => setOpen/);
+    assert.match(collapsible, /aria-expanded=\{open\}/);
   });
 
   it("Prospect library displays Category and lifecycle Status", () => {

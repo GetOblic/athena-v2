@@ -516,7 +516,7 @@ export function ExecutiveIntelligenceWorkspace({
       {deploymentAssets.length > 0 && (
         <AthenaCollapsibleSection
           title="Deployment Assets"
-          defaultOpen={true}
+          defaultOpen={false}
           className="mt-8"
         >
           <DeploymentAssets
@@ -530,7 +530,7 @@ export function ExecutiveIntelligenceWorkspace({
       {intelligence.blueprint && (
         <AthenaCollapsibleSection
           title="Strategic Asset Blueprint"
-          defaultOpen={true}
+          defaultOpen={!isProspect}
           className="mt-8"
         >
           <StrategicAssetBlueprint
