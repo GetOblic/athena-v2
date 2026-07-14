@@ -199,7 +199,7 @@ describe("page structure contracts", () => {
     assert.match(page, /AppendDiscussionUpdateForm/);
   });
 
-  it("workspace collapses assets by default; Prospect blueprint collapsed", () => {
+  it("workspace collapses assets and blueprint by default", () => {
     const source = readFileSync(
       join(ROOT, "components/discussions/ExecutiveIntelligenceWorkspace.tsx"),
       "utf8",
@@ -212,6 +212,10 @@ describe("page structure contracts", () => {
       /title="Deployment Assets"\s*defaultOpen=\{false\}/,
     );
     assert.match(
+      source,
+      /title="Strategic Asset Blueprint"\s*defaultOpen=\{false\}/,
+    );
+    assert.doesNotMatch(
       source,
       /title="Strategic Asset Blueprint"\s*defaultOpen=\{!isProspect\}/,
     );

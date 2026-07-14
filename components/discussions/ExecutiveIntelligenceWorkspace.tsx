@@ -530,7 +530,7 @@ export function ExecutiveIntelligenceWorkspace({
       {intelligence.blueprint && (
         <AthenaCollapsibleSection
           title="Strategic Asset Blueprint"
-          defaultOpen={!isProspect}
+          defaultOpen={false}
           className="mt-8"
         >
           <StrategicAssetBlueprint
