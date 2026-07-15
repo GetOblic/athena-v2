@@ -169,26 +169,19 @@ describe("Prospect initial-only website scraping", () => {
   });
 
   it("Prospect refresh does not scrape", () => {
-    for (const triggerType of [
-      "manual_refresh",
-      "deployment_assets_refresh",
-      "strategic_assets_refresh",
-    ] as const) {
-      const decision = resolveProspectWebsiteLearningDecision({
-        triggerType,
-        hasWebsite: true,
-        websiteIntelligence: usableIntel,
-      });
-      assert.equal(decision.shouldCrawl, false);
-      assert.equal(decision.reason, "intelligence_refresh");
-    }
+    const decision = resolveProspectWebsiteLearningDecision({
+      triggerType: "manual_refresh",
+      hasWebsite: true,
+      websiteIntelligence: usableIntel,
+    });
+    assert.equal(decision.shouldCrawl, false);
+    assert.equal(decision.reason, "intelligence_refresh");
 
     const refreshRoute = readFileSync(
       path.join(ROOT, "app/api/prospects/[id]/refresh/route.ts"),
       "utf8",
     );
-    assert.match(refreshRoute, /queuePartialAssetRefreshForDiscussion/);
-    assert.doesNotMatch(refreshRoute, /triggerType:\s*"manual_refresh"/);
+    assert.match(refreshRoute, /triggerType:\s*"manual_refresh"/);
   });
 
   it("Prospect append does not scrape", () => {

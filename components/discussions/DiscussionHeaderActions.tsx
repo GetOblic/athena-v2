@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { PartialRefreshActions } from "@/components/discussions/PartialRefreshActions";
+import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type IntelligenceDomainOption = {
@@ -116,7 +116,11 @@ export function DiscussionHeaderActions({
   return (
     <div className="flex flex-col items-stretch gap-3 lg:items-end">
       <div className="flex flex-wrap items-center justify-end gap-3">
-        <PartialRefreshActions discussionId={discussion.id} />
+        <AnalyzeDiscussionButton
+          discussionId={discussion.id}
+          label="Refresh Intelligence"
+          compact
+        />
 
         <button
           type="button"

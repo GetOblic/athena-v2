@@ -18,17 +18,9 @@ import {
 import {
   logProspectDeploymentAssetStability,
   toProspectDeploymentAssetDiagnostics,
+  unwrapProspectDeploymentAssetResponse,
   IncompleteProspectDeploymentAssetsError,
 } from "@/lib/prospectDeploymentAssetContract";
-import {
-  finalizeProspectDeploymentAssetsWithLinkedInRepair,
-  ProspectLinkedInLengthContractError,
-  repairedLinkedInAssetsAreNonEmpty,
-} from "@/lib/prospectLinkedInAssetRepair";
-import {
-  logDeploymentAssetPromptSanitization,
-  sanitizeDeploymentAssetGenerationInput,
-} from "@/lib/sanitizeDeploymentAssetGenerationInput";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 
 export type GeneratedDeploymentAssets = {
@@ -105,32 +97,11 @@ export async function generateDeploymentAssets(input: {
   discussionId: string;
   organizationId: string;
   explicitRegeneration?: boolean;
-  /** Optional durable-job trigger for sanitization diagnostics. */
-  triggerType?: string | null;
 }): Promise<{
   assets: GeneratedDeploymentAssets;
   rawResponse: string;
   model: string;
 }> {
-  const isProspect = isProspectIntelligenceBridge(input.discussion);
-
-  // Always sanitize prompt inputs so prior generated copy cannot contaminate
-  // Deployment Assets regeneration (partial refresh or full pipeline).
-  const sanitized = sanitizeDeploymentAssetGenerationInput({
-    analysis: input.analysis as Record<string, unknown>,
-    opportunity: (input.opportunity ?? null) as Record<string, unknown> | null,
-    briefing: (input.briefing ?? null) as Record<string, unknown> | null,
-  });
-
-  logDeploymentAssetPromptSanitization({
-    sourceType: isProspect ? "prospect" : "discussion",
-    discussionId: input.discussionId,
-    organizationId: input.organizationId,
-    triggerType: input.triggerType ?? null,
-    regenerationRunId: input.regenerationRunId ?? null,
-    removedFields: sanitized.removedFields,
-  });
-
   const bundle = await resolveDeploymentAssetsGenerationBundle({
     organizationId: input.organizationId,
     discussionId: input.discussionId,
@@ -145,9 +116,9 @@ export async function generateDeploymentAssets(input: {
   const prompt = assembleDeploymentAssetsPrompt({
     bundle,
     discussion: input.discussion,
-    analysis: sanitized.analysis,
-    opportunity: sanitized.opportunity ?? undefined,
-    briefing: sanitized.briefing ?? undefined,
+    analysis: input.analysis as Record<string, unknown>,
+    opportunity: input.opportunity ?? undefined,
+    briefing: input.briefing ?? undefined,
     regenerationRunId: input.regenerationRunId,
   });
 
@@ -162,15 +133,10 @@ export async function generateDeploymentAssets(input: {
     explicitRegeneration: input.explicitRegeneration,
   });
 
+  const isProspect = isProspectIntelligenceBridge(input.discussion);
+
   if (isProspect) {
-    // Parse → structure validate → LinkedIn ≤200 repair → revalidate.
-    const unwrapped = finalizeProspectDeploymentAssetsWithLinkedInRepair({
-      rawText: rawResponse,
-      discussionId: input.discussionId,
-      organizationId: input.organizationId,
-      regenerationRunId: input.regenerationRunId,
-      sourceType: "prospect",
-    });
+    const unwrapped = unwrapProspectDeploymentAssetResponse(rawResponse);
     const diagnostics = toProspectDeploymentAssetDiagnostics(unwrapped);
 
     logProspectDeploymentAssetStability("deployment_assets_unwrapped", {
@@ -181,24 +147,14 @@ export async function generateDeploymentAssets(input: {
     });
 
     if (!unwrapped.isComplete) {
-      if (
-        unwrapped.failureReason === "linkedin_asset_exceeds_200_characters"
-      ) {
-        throw new ProspectLinkedInLengthContractError(
-          "Prospect LinkedIn Deployment Assets exceed the 200-character limit after repair.",
-        );
-      }
       throw new IncompleteProspectDeploymentAssetsError(
         unwrapped.failureReason === "incomplete_canonical_set"
           ? "Prospect Deployment Assets incomplete."
-          : "Prospect Deployment Assets invalid or malformed.",
+          : unwrapped.failureReason ===
+              "linkedin_asset_exceeds_200_characters"
+            ? "Prospect LinkedIn Deployment Assets exceed the 200-character limit."
+            : "Prospect Deployment Assets invalid or malformed.",
         diagnostics,
-      );
-    }
-
-    if (!repairedLinkedInAssetsAreNonEmpty(unwrapped.suggestedCta)) {
-      throw new ProspectLinkedInLengthContractError(
-        "Prospect LinkedIn Deployment Assets are empty after length repair.",
       );
     }
 

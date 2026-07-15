@@ -79,15 +79,13 @@ describe("prospect edit meaningfulness", () => {
 });
 
 describe("prospect refresh and delete route contracts", () => {
-  it("refresh route queues scoped partial asset refresh", () => {
+  it("refresh route uses manual_refresh trigger type", () => {
     const source = readFileSync(
       join(ROOT, "app/api/prospects/[id]/refresh/route.ts"),
       "utf8",
     );
-    assert.match(source, /parsePartialRefreshScope/);
-    assert.match(source, /queuePartialAssetRefreshForDiscussion/);
-    assert.doesNotMatch(source, /triggerType:\s*"manual_refresh"/);
-    assert.doesNotMatch(source, /scrape|processDiscussionEndToEnd/);
+    assert.match(source, /triggerType:\s*"manual_refresh"/);
+    assert.doesNotMatch(source, /scrape|fetch\(|processDiscussionEndToEnd/);
   });
 
   it("importer supports explicit manual_refresh while defaulting import", () => {
@@ -139,13 +137,14 @@ describe("prospect details read-only / edit UX contracts", () => {
       /\/api\/prospects\/\$\{prospect\.id\}\/refresh/,
     );
     assert.match(source, /noopener noreferrer/);
-    const refreshActions = readFileSync(
-      join(ROOT, "components/discussions/PartialRefreshActions.tsx"),
+    const refreshButton = readFileSync(
+      join(ROOT, "components/prospects/ProspectRefreshIntelligenceButton.tsx"),
       "utf8",
     );
-    assert.match(refreshActions, /startPartialRefresh/);
-    assert.match(refreshActions, /Refresh Deployment Assets/);
-    assert.match(refreshActions, /Refresh Strategic Assets/);
+    assert.match(
+      refreshButton,
+      /\/api\/prospects\/\$\{prospectId\}\/refresh/,
+    );
     assert.match(source, /normalizeWebsiteUrl/);
     assert.match(source, /isEditing/);
   });

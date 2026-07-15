@@ -16,9 +16,7 @@ import {
 import { classifyGenerationError } from "@/services/generationJobs/generationJobErrors";
 import { resolvePublishedVersionForJob } from "@/services/generationJobs/generationJobVersionIdempotency";
 import {
-  isPartialRefreshTriggerType,
   type AthenaGenerationJob,
-  type AthenaPartialRefreshTriggerType,
 } from "@/services/generationJobs/generationJobTypes";
 import { getAthenaWorkerConfig } from "@/services/generationJobs/generationJobWorkerConfig";
 import { createWorkerIdentity } from "@/services/generationJobs/generationJobWorkerIdentity";
@@ -31,7 +29,6 @@ import {
 } from "@/services/prospects/prospectImporter";
 import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
-import { processPartialAssetRefresh } from "@/services/workflows/partialRefreshWorkflow";
 
 export { createWorkerIdentity };
 
@@ -199,12 +196,7 @@ export async function executeClaimedGenerationJob(
       job.discussion_id,
       job.organization_id,
     );
-    const isPartialRefresh = isPartialRefreshTriggerType(job.trigger_type);
-
-    if (
-      !isPartialRefresh &&
-      discussion?.platform === PROSPECT_INTELLIGENCE_PLATFORM
-    ) {
+    if (discussion?.platform === PROSPECT_INTELLIGENCE_PLATFORM) {
       await renewLease("website_intelligence");
       if (claimLost) {
         return "claim_lost";
@@ -220,35 +212,15 @@ export async function executeClaimedGenerationJob(
       }
     }
 
-    const regenerationRunId =
-      job.regeneration_run_id ?? createRegenerationRunId();
-
-    if (isPartialRefresh) {
-      await renewLease(
-        job.trigger_type === "deployment_assets_refresh"
-          ? "deployment_assets"
-          : "strategic_blueprint",
-      );
-      if (claimLost) {
-        return "claim_lost";
-      }
-    }
-
-    const result = isPartialRefresh
-      ? await processPartialAssetRefresh({
-          discussionId: job.discussion_id,
-          organizationId: job.organization_id,
-          triggerType: job.trigger_type as AthenaPartialRefreshTriggerType,
-          regenerationRunId,
-        })
-      : await processDiscussionEndToEnd(
-          job.discussion_id,
-          job.organization_id,
-          {
-            regenerationRunId,
-            explicitRegeneration: job.trigger_type === "manual_refresh",
-          },
-        );
+    const result = await processDiscussionEndToEnd(
+      job.discussion_id,
+      job.organization_id,
+      {
+        regenerationRunId:
+          job.regeneration_run_id ?? createRegenerationRunId(),
+        explicitRegeneration: job.trigger_type === "manual_refresh",
+      },
+    );
 
     if (claimLost || options?.shouldStop?.()) {
       return "claim_lost";
@@ -283,9 +255,7 @@ export async function executeClaimedGenerationJob(
           job.discussion_id,
           job.organization_id,
         );
-        if (!isPartialRefreshTriggerType(job.trigger_type)) {
-          await maybeEnqueueFollowUp(job);
-        }
+        await maybeEnqueueFollowUp(job);
       }
 
       return failed?.status === "retryable" ? "retryable" : "failed";
@@ -392,10 +362,7 @@ export async function executeClaimedGenerationJob(
       opportunityScore,
     );
 
-    // Partial refreshes never coalesce into discussion_update / full follow-ups.
-    if (!isPartialRefreshTriggerType(job.trigger_type)) {
-      await maybeEnqueueFollowUp(job);
-    }
+    await maybeEnqueueFollowUp(job);
 
     console.log("[ATHENA_WORKER] job_completed", {
       workerId,
@@ -437,9 +404,7 @@ export async function executeClaimedGenerationJob(
         job.discussion_id,
         job.organization_id,
       );
-      if (!isPartialRefreshTriggerType(job.trigger_type)) {
-        await maybeEnqueueFollowUp(job);
-      }
+      await maybeEnqueueFollowUp(job);
     }
 
     return failed?.status === "retryable" ? "retryable" : "failed";

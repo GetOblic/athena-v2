@@ -9,7 +9,6 @@ import {
   unwrapProspectDeploymentAssetResponse,
   validateProspectDeploymentAssetPayload,
 } from "../../lib/prospectDeploymentAssetContract";
-import { finalizeProspectDeploymentAssetsWithLinkedInRepair } from "../../lib/prospectLinkedInAssetRepair";
 import { LINKEDIN_PROSPECT_ASSET_GENERATION_RULES } from "../../services/ai/prompts/linkedinProspectAssetConstraints";
 
 const ROOT = process.cwd();
@@ -44,7 +43,7 @@ describe("V6 Sprint 2 — Prospect LinkedIn 200-character limit", () => {
     assert.deepEqual(findProspectLinkedInLengthViolations(payload), []);
   });
 
-  it("201 characters is detected as a LinkedIn length violation before repair", () => {
+  it("201 characters is rejected for LINKEDIN_CONNECTION and LINKEDIN_FOLLOW_UP", () => {
     const over = "A".repeat(PROSPECT_LINKEDIN_ASSET_MAX_CHARS + 1);
     assert.equal(over.length, 201);
 
@@ -54,6 +53,7 @@ describe("V6 Sprint 2 — Prospect LinkedIn 200-character limit", () => {
     const connectionResult =
       unwrapProspectDeploymentAssetResponse(connectionOver);
     assert.equal(connectionResult.isComplete, false);
+    assert.equal(connectionResult.isValid, false);
     assert.equal(
       connectionResult.failureReason,
       "linkedin_asset_exceeds_200_characters",
@@ -71,22 +71,9 @@ describe("V6 Sprint 2 — Prospect LinkedIn 200-character limit", () => {
       followUpResult.failureReason,
       "linkedin_asset_exceeds_200_characters",
     );
-  });
-
-  it("201 characters is repaired to a complete valid payload in finalization", () => {
-    const over = "A".repeat(PROSPECT_LINKEDIN_ASSET_MAX_CHARS + 1);
-    const payload = labeledBlockWithBodies({
-      LINKEDIN_CONNECTION: over,
-      LINKEDIN_FOLLOW_UP: over,
-    });
-    const finalized = finalizeProspectDeploymentAssetsWithLinkedInRepair({
-      rawText: payload,
-    });
-    assert.equal(finalized.isComplete, true);
-    assert.deepEqual(
-      findProspectLinkedInLengthViolations(finalized.suggestedCta),
-      [],
-    );
+    assert.deepEqual(findProspectLinkedInLengthViolations(followUpOver), [
+      { key: "LINKEDIN_FOLLOW_UP", length: 201 },
+    ]);
   });
 
   it("unrelated deployment assets remain unaffected by the LinkedIn limit", () => {
@@ -102,27 +89,48 @@ describe("V6 Sprint 2 — Prospect LinkedIn 200-character limit", () => {
     assert.deepEqual(findProspectLinkedInLengthViolations(payload), []);
   });
 
-  it("generation instructions target approximately 200 characters", () => {
+  it("generation instructions contain the 200-character requirement", () => {
     assert.match(
       LINKEDIN_PROSPECT_ASSET_GENERATION_RULES,
-      /Target approximately 200 characters/i,
-    );
-    assert.match(
-      LINKEDIN_PROSPECT_ASSET_GENERATION_RULES,
-      /Preferably remain under 200 characters/i,
+      /no more than 200 characters/i,
     );
     assert.match(
       LINKEDIN_PROSPECT_ASSET_GENERATION_RULES,
       /including spaces and punctuation/i,
+    );
+    assert.match(
+      LINKEDIN_PROSPECT_ASSET_GENERATION_RULES,
+      /LINKEDIN_CONNECTION/,
+    );
+    assert.match(
+      LINKEDIN_PROSPECT_ASSET_GENERATION_RULES,
+      /LINKEDIN_FOLLOW_UP/,
+    );
+
+    const channelGuide = read(
+      "services/ai/prompts/prospectDeploymentAssetsConstraints.ts",
+    );
+    assert.match(
+      channelGuide,
+      /LINKEDIN_CONNECTION[\s\S]*hard maximum 200 characters/,
+    );
+    assert.match(
+      channelGuide,
+      /LINKEDIN_FOLLOW_UP[\s\S]*hard maximum 200 characters/,
     );
 
     const assembly = read(
       "services/brain/generationContracts/deploymentAssetsPromptAssembly.ts",
     );
     assert.match(assembly, /LINKEDIN_PROSPECT_ASSET_GENERATION_RULES/);
+    const prospectBranch = assembly.slice(
+      assembly.indexOf("const qualityStandard = isProspectSource"),
+      assembly.indexOf("? DEPLOYMENT_ASSETS_BRIEFING_QUALITY_INSTRUCTIONS"),
+    );
+    assert.match(prospectBranch, /LINKEDIN_PROSPECT_ASSET_GENERATION_RULES/);
   });
 
-  it("unrepaired over-limit LinkedIn assets cannot be published as complete", () => {
+  it("over-limit LinkedIn assets cannot be published as complete", () => {
     const over = "B".repeat(201);
     const payload = labeledBlockWithBodies({
       LINKEDIN_CONNECTION: over,
@@ -138,9 +146,12 @@ describe("V6 Sprint 2 — Prospect LinkedIn 200-character limit", () => {
     const workflow = read("services/workflows/deploymentAssetsWorkflow.ts");
     assert.match(
       workflow,
-      /finalizeProspectDeploymentAssetsWithLinkedInRepair/,
+      /linkedin_asset_exceeds_200_characters/,
     );
-    assert.match(workflow, /ProspectLinkedInLengthContractError/);
+    assert.match(
+      workflow,
+      /IncompleteProspectDeploymentAssetsError/,
+    );
 
     const publication = read(
       "services/executiveVersions/executiveVersionService.ts",

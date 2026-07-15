@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  parsePartialRefreshScope,
-  queuePartialAssetRefreshForDiscussion,
-} from "@/services/generationJobs/partialRefreshApi";
+import { ensureProspectGenerationQueued } from "@/services/prospects/prospectImporter";
 import { toPublicProspect } from "@/services/prospects/prospectPublic";
 import { getProspectById } from "@/services/prospects/prospectService";
 import {
@@ -20,9 +17,8 @@ function json(data: unknown, status = 200) {
   });
 }
 
-/** Partial Deployment / Strategic refresh for Prospects. */
 export async function POST(
-  request: Request,
+  _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -42,57 +38,26 @@ export async function POST(
       );
     }
 
-    if (!prospect.linked_discussion_id) {
-      return json(
-        {
-          ok: false,
-          success: false,
-          error: {
-            code: "NO_LINKED_DISCUSSION",
-            message: "Prospect has no linked discussion for refresh.",
-          },
-        },
-        409,
-      );
-    }
-
-    let body: Record<string, unknown> = {};
-    try {
-      body = (await request.json()) as Record<string, unknown>;
-    } catch {
-      body = {};
-    }
-
-    const scope = parsePartialRefreshScope(body.scope);
-    if (!scope) {
-      return json(
-        {
-          ok: false,
-          success: false,
-          error: {
-            code: "VALIDATION_ERROR",
-            message:
-              'scope must be "deployment_assets" or "strategic_assets".',
-          },
-        },
-        400,
-      );
-    }
-
-    const result = await queuePartialAssetRefreshForDiscussion({
-      discussionId: prospect.linked_discussion_id,
-      organizationId,
-      userId,
-      scope,
+    const result = await ensureProspectGenerationQueued(prospect, {
+      requestedBy: userId,
+      triggerType: "manual_refresh",
     });
 
     return json(
       {
-        ...result.body,
-        prospect: toPublicProspect(prospect),
-        prospectId: prospect.id,
+        ok: true,
+        success: true,
+        accepted: result.queued,
+        queued: result.queued,
+        prospect: toPublicProspect(result.prospect),
+        prospectId: result.prospect.id,
+        jobId: result.jobId ?? null,
+        status: result.prospect.status,
+        message: result.queued
+          ? "Prospect intelligence refresh queued."
+          : "Prospect refresh could not be queued.",
       },
-      result.status,
+      202,
     );
   } catch (error) {
     if (error instanceof OrganizationAccessError) {
@@ -106,7 +71,6 @@ export async function POST(
       );
     }
 
-    console.error("[PROSPECT_PARTIAL_REFRESH] failed", error);
     return json(
       {
         ok: false,

@@ -13,7 +13,7 @@ import { AppendProspectInformationForm } from "@/components/prospects/AppendPros
 import { ProspectHomepageIntelligence } from "@/components/prospects/ProspectHomepageIntelligence";
 import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectLifecycleStatusControl";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
-import { PartialRefreshActions } from "@/components/discussions/PartialRefreshActions";
+import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import {
   formatProspectOpportunityScoreWithRecommendation,
@@ -185,11 +185,11 @@ export default async function ProspectDetailsPage({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-3">
-            <PartialRefreshActions
-              discussionId={
-                discussion?.id ?? prospect.linked_discussion_id ?? ""
-              }
+            <ProspectRefreshIntelligenceButton
               prospectId={prospect.id}
+              discussionId={
+                discussion?.id ?? prospect.linked_discussion_id ?? null
+              }
             />
           </div>
         </div>
