@@ -13,6 +13,7 @@ import {
 import { REDDIT_POST_GENERATION_RULES } from "@/services/ai/prompts/redditPostConstraints";
 import { SOCIAL_VOICE_POST_GENERATION_RULES } from "@/services/ai/prompts/socialVoicePostConstraints";
 import { SUBSTACK_POST_GENERATION_RULES } from "@/services/ai/prompts/substackPostConstraints";
+import { LINKEDIN_PROSPECT_ASSET_GENERATION_RULES } from "@/services/ai/prompts/linkedinProspectAssetConstraints";
 import { WHATSAPP_OUTREACH_GENERATION_RULES } from "@/services/ai/prompts/whatsappOutreachConstraints";
 import {
   SHARED_ANTI_GENERIC_RULES,
@@ -123,6 +124,8 @@ ${PROSPECT_DEPLOYMENT_CHANNEL_GUIDE}
 
 Use exact section labels:
 ${PROSPECT_DEPLOYMENT_SECTION_LABELS}
+
+${LINKEDIN_PROSPECT_ASSET_GENERATION_RULES}
 
 ${WHATSAPP_OUTREACH_GENERATION_RULES}
 

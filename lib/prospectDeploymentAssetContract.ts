@@ -6,9 +6,18 @@
  */
 
 import {
-  PROSPECT_DEPLOYMENT_ASSET_KEYS,
+  PROSPECT_LINKEDIN_ASSET_MAX_CHARS,
+  PROSPECT_LINKEDIN_LENGTH_LIMITED_KEYS,
+  type ProspectLinkedInLengthLimitedKey,
+} from "@/services/ai/prompts/linkedinProspectAssetConstraints";
+import {
   PROSPECT_DEPLOYMENT_ASSET_META,
 } from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
+
+export {
+  PROSPECT_LINKEDIN_ASSET_MAX_CHARS,
+  PROSPECT_LINKEDIN_LENGTH_LIMITED_KEYS,
+} from "@/services/ai/prompts/linkedinProspectAssetConstraints";
 
 /** Required MVP keys (excludes backward-compatible aliases). */
 export const REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS = [
@@ -112,13 +121,18 @@ function canonicalizeKey(
   return ALIAS_TO_CANONICAL[label] ?? null;
 }
 
+export type ProspectDeploymentAssetSection = {
+  key: RequiredProspectDeploymentAssetKey;
+  content: string;
+};
+
 /**
- * Extract canonical keys from actual section headings only (anchored).
+ * Extract canonical sections from actual section headings only (anchored).
  * Order-independent; duplicates collapse to first occurrence with content.
  */
-export function extractProspectDeploymentAssetKeys(
+export function extractProspectDeploymentAssetSections(
   value?: string | null,
-): RequiredProspectDeploymentAssetKey[] {
+): ProspectDeploymentAssetSection[] {
   if (!value?.trim()) {
     return [];
   }
@@ -126,7 +140,7 @@ export function extractProspectDeploymentAssetKeys(
   SECTION_HEADING_PATTERN.lastIndex = 0;
   const matches = [...value.matchAll(SECTION_HEADING_PATTERN)];
   const seen = new Set<RequiredProspectDeploymentAssetKey>();
-  const keys: RequiredProspectDeploymentAssetKey[] = [];
+  const sections: ProspectDeploymentAssetSection[] = [];
 
   for (let index = 0; index < matches.length; index += 1) {
     const match = matches[index];
@@ -145,10 +159,44 @@ export function extractProspectDeploymentAssetKeys(
     }
 
     seen.add(canonical);
-    keys.push(canonical);
+    sections.push({ key: canonical, content });
   }
 
-  return keys;
+  return sections;
+}
+
+/**
+ * Extract canonical keys from actual section headings only (anchored).
+ * Order-independent; duplicates collapse to first occurrence with content.
+ */
+export function extractProspectDeploymentAssetKeys(
+  value?: string | null,
+): RequiredProspectDeploymentAssetKey[] {
+  return extractProspectDeploymentAssetSections(value).map(
+    (section) => section.key,
+  );
+}
+
+/** LinkedIn Prospect assets whose body must be ≤ 200 characters. */
+export function findProspectLinkedInLengthViolations(
+  value?: string | null,
+): Array<{ key: ProspectLinkedInLengthLimitedKey; length: number }> {
+  const limited = new Set<string>(PROSPECT_LINKEDIN_LENGTH_LIMITED_KEYS);
+  const violations: Array<{
+    key: ProspectLinkedInLengthLimitedKey;
+    length: number;
+  }> = [];
+
+  for (const section of extractProspectDeploymentAssetSections(value)) {
+    if (!limited.has(section.key)) continue;
+    if (section.content.length <= PROSPECT_LINKEDIN_ASSET_MAX_CHARS) continue;
+    violations.push({
+      key: section.key as ProspectLinkedInLengthLimitedKey,
+      length: section.content.length,
+    });
+  }
+
+  return violations;
 }
 
 export function missingProspectDeploymentAssetKeys(
@@ -332,13 +380,17 @@ function finalizeParseResult(
 ): ProspectDeploymentAssetParseResult {
   const parsedKeys = extractProspectDeploymentAssetKeys(suggestedCta);
   const missingKeys = missingProspectDeploymentAssetKeys(parsedKeys);
-  const isComplete = missingKeys.length === 0;
+  const lengthViolations = findProspectLinkedInLengthViolations(suggestedCta);
+  const isComplete =
+    missingKeys.length === 0 && lengthViolations.length === 0;
 
   let failureReason: string | null = null;
   if (parsedKeys.length === 0) {
     failureReason = "zero_canonical_headings";
-  } else if (!isComplete) {
+  } else if (missingKeys.length > 0) {
     failureReason = "incomplete_canonical_set";
+  } else if (lengthViolations.length > 0) {
+    failureReason = "linkedin_asset_exceeds_200_characters";
   }
 
   return {

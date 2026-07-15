@@ -41,8 +41,8 @@ SOCIAL_VOICE_POST:
 export const PROSPECT_DEPLOYMENT_CHANNEL_GUIDE = `
 PERSONALIZED_OUTREACH_EMAIL — concise outbound email tailored to this prospect; specific hook from homepage/fields. Must read like email.
 FOLLOW_UP_EMAIL — short second-touch email referencing prior outreach angle.
-LINKEDIN_CONNECTION — connection request note under character limits; personalized LinkedIn tone.
-LINKEDIN_FOLLOW_UP — post-accept LinkedIn message with one clear ask.
+LINKEDIN_CONNECTION — connection request note; personalized LinkedIn tone; hard maximum 200 characters including spaces and punctuation.
+LINKEDIN_FOLLOW_UP — post-accept LinkedIn message with one clear ask; hard maximum 200 characters including spaces and punctuation.
 COLD_CALL_OPENING — first 15–20 seconds of a cold call; natural, not scripted-sounding.
 DISCOVERY_QUESTIONS — 5–8 sharp discovery questions for a first conversation.
 PERSONALIZED_VALUE_PROPOSITION — one crisp value prop unique to this prospect.

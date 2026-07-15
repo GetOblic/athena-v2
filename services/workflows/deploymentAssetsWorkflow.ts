@@ -150,7 +150,10 @@ export async function generateDeploymentAssets(input: {
       throw new IncompleteProspectDeploymentAssetsError(
         unwrapped.failureReason === "incomplete_canonical_set"
           ? "Prospect Deployment Assets incomplete."
-          : "Prospect Deployment Assets invalid or malformed.",
+          : unwrapped.failureReason ===
+              "linkedin_asset_exceeds_200_characters"
+            ? "Prospect LinkedIn Deployment Assets exceed the 200-character limit."
+            : "Prospect Deployment Assets invalid or malformed.",
         diagnostics,
       );
     }
