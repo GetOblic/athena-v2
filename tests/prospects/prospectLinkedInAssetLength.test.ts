@@ -102,10 +102,14 @@ describe("V6 Sprint 2 — Prospect LinkedIn 200-character limit", () => {
     assert.deepEqual(findProspectLinkedInLengthViolations(payload), []);
   });
 
-  it("generation instructions contain the 200-character requirement", () => {
+  it("generation instructions target approximately 200 characters", () => {
     assert.match(
       LINKEDIN_PROSPECT_ASSET_GENERATION_RULES,
-      /no more than 200 characters/i,
+      /Target approximately 200 characters/i,
+    );
+    assert.match(
+      LINKEDIN_PROSPECT_ASSET_GENERATION_RULES,
+      /Preferably remain under 200 characters/i,
     );
     assert.match(
       LINKEDIN_PROSPECT_ASSET_GENERATION_RULES,

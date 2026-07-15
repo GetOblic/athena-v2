@@ -168,16 +168,14 @@ async function runDeploymentPartialRefresh(input: {
   try {
     const { assets, rawResponse, model } = await generateDeploymentAssets({
       discussion: input.discussion,
-      analysis: {
-        ...promptAnalysis,
-        suggested_cta: "",
-      },
+      analysis: promptAnalysis,
       opportunity: liveOpportunity ?? undefined,
       briefing: liveBriefing ?? undefined,
       regenerationRunId: input.regenerationRunId,
       discussionId: input.discussionId,
       organizationId: input.organizationId,
       explicitRegeneration: true,
+      triggerType: "deployment_assets_refresh",
     });
 
     const persisted = await persistDeploymentAssets({
