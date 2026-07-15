@@ -4,6 +4,7 @@
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { normalizeOptionalProspectGetOblicType } from "@/services/prospects/prospectGetOblicType";
 import { normalizeProspectLifecycleStatus } from "@/services/prospects/prospectLifecycle";
 import {
   buildProspectAnalysisBody,
@@ -55,6 +56,7 @@ export type Prospect = {
   email: string | null;
   phone: string | null;
   whatsapp_number: string | null;
+  getoblic_type: string | null;
   google_business_url: string | null;
   notes: string | null;
   additional_context: string | null;
@@ -99,6 +101,7 @@ export type CreateProspectInput = {
   email?: string | null;
   phone?: string | null;
   whatsapp_number?: string | null;
+  getoblic_type?: string | null;
   google_business_url?: string | null;
   notes?: string | null;
   additional_context?: string | null;
@@ -141,6 +144,7 @@ function mapProspectRow(data: Prospect): Prospect {
     external_contact_id: data.external_contact_id ?? null,
     timezone: data.timezone ?? null,
     whatsapp_number: data.whatsapp_number ?? null,
+    getoblic_type: data.getoblic_type ?? null,
   };
 }
 
@@ -295,6 +299,7 @@ export async function createProspect(
       email: normalizeOptional(input.email),
       phone: normalizeOptional(input.phone),
       whatsapp_number: normalizeOptional(input.whatsapp_number),
+      getoblic_type: normalizeOptionalProspectGetOblicType(input.getoblic_type),
       google_business_url: normalizeOptional(input.google_business_url),
       notes: normalizeOptional(input.notes),
       additional_context: normalizeOptional(input.additional_context),
@@ -405,6 +410,11 @@ export async function updateProspect(
   }
   if (input.whatsapp_number !== undefined) {
     payload.whatsapp_number = normalizeOptional(input.whatsapp_number);
+  }
+  if (input.getoblic_type !== undefined) {
+    payload.getoblic_type = normalizeOptionalProspectGetOblicType(
+      input.getoblic_type,
+    );
   }
   if (input.google_business_url !== undefined) {
     payload.google_business_url = normalizeOptional(input.google_business_url);

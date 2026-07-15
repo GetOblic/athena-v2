@@ -9,6 +9,7 @@ import {
 } from "@/lib/discussionRegenerationStatus";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import { PROSPECT_GETOBLIC_TYPES } from "@/services/prospects/prospectGetOblicType";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 import { buildWhatsAppMeUrl } from "@/services/prospects/prospectWhatsApp";
 import type { Prospect } from "@/services/prospects/prospectService";
@@ -82,6 +83,7 @@ type FormState = {
   email: string;
   phone: string;
   whatsapp_number: string;
+  getoblic_type: string;
   linkedin: string;
   facebook: string;
   instagram: string;
@@ -123,6 +125,7 @@ function formFromProspect(prospect: Prospect): FormState {
     email: prospect.email ?? "",
     phone: prospect.phone ?? "",
     whatsapp_number: prospect.whatsapp_number ?? "",
+    getoblic_type: prospect.getoblic_type ?? "",
     linkedin: prospect.linkedin ?? "",
     facebook: prospect.facebook ?? "",
     instagram: prospect.instagram ?? "",
@@ -399,6 +402,26 @@ export function ProspectMetadataEditor({
                 />
               </label>
             ))}
+            <label className="block text-sm text-white/45">
+              GetOblic Type
+              <select
+                value={form.getoblic_type}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    getoblic_type: event.target.value,
+                  }))
+                }
+                className={`mt-2 ${fieldClassName}`}
+              >
+                <option value="">Not set</option>
+                {PROSPECT_GETOBLIC_TYPES.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <label className="mt-4 block text-sm text-white/45">
@@ -469,6 +492,12 @@ export function ProspectMetadataEditor({
                 </div>
               </div>
             ))}
+            <div>
+              <div className="text-sm text-white/40">GetOblic Type</div>
+              <div className="mt-2 text-sm text-white/75">
+                {display.getoblic_type || "—"}
+              </div>
+            </div>
           </div>
 
           <div className="mt-6">
