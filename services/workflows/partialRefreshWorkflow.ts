@@ -30,6 +30,7 @@ import {
   logProspectDeploymentAssetStability,
   validateProspectDeploymentAssetPayload,
 } from "@/lib/prospectDeploymentAssetContract";
+import { ProspectLinkedInLengthContractError } from "@/lib/prospectLinkedInAssetRepair";
 
 function failure(
   discussionId: string,
@@ -195,10 +196,15 @@ async function runDeploymentPartialRefresh(input: {
       persisted.analysis.suggested_cta,
     );
     if (input.isProspect && !validation.isComplete) {
-      throw new IncompleteProspectDeploymentAssetsError(
+      if (
         validation.failureReason === "linkedin_asset_exceeds_200_characters"
-          ? "Prospect LinkedIn Deployment Assets exceed the 200-character limit."
-          : "Prospect Deployment Assets incomplete.",
+      ) {
+        throw new ProspectLinkedInLengthContractError(
+          "Prospect LinkedIn Deployment Assets exceed the 200-character limit after repair.",
+        );
+      }
+      throw new IncompleteProspectDeploymentAssetsError(
+        "Prospect Deployment Assets incomplete.",
         {
           rawCharacterCount: validation.rawCharacterCount,
           unwrappedCharacterCount: validation.unwrappedCharacterCount,
@@ -289,7 +295,10 @@ async function runDeploymentPartialRefresh(input: {
     };
   } catch (error) {
     console.error("[PARTIAL_REFRESH] deployment_assets_refresh failed", error);
-    if (error instanceof IncompleteProspectDeploymentAssetsError) {
+    if (
+      error instanceof IncompleteProspectDeploymentAssetsError ||
+      error instanceof ProspectLinkedInLengthContractError
+    ) {
       return failure(input.discussionId, error.message);
     }
     return failure(

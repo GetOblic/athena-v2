@@ -29,6 +29,21 @@ describe("generation job error classification", () => {
     const rate = classifyGenerationError(new Error("rate limit 429"));
     assert.equal(rate.classification, "retryable");
   });
+
+  it("marks Prospect LinkedIn length contract failures as terminal", () => {
+    const linkedIn = classifyGenerationError(
+      "Prospect LinkedIn Deployment Assets exceed the 200-character limit.",
+    );
+    assert.equal(linkedIn.classification, "terminal");
+    assert.equal(linkedIn.code, "LINKEDIN_LENGTH_CONTRACT");
+
+    const named = classifyGenerationError(
+      Object.assign(new Error("after repair"), {
+        name: "ProspectLinkedInLengthContractError",
+      }),
+    );
+    assert.equal(named.classification, "terminal");
+  });
 });
 
 describe("worker configuration defaults", () => {

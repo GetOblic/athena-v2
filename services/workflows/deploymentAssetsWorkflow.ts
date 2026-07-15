@@ -18,9 +18,13 @@ import {
 import {
   logProspectDeploymentAssetStability,
   toProspectDeploymentAssetDiagnostics,
-  unwrapProspectDeploymentAssetResponse,
   IncompleteProspectDeploymentAssetsError,
 } from "@/lib/prospectDeploymentAssetContract";
+import {
+  finalizeProspectDeploymentAssetsWithLinkedInRepair,
+  ProspectLinkedInLengthContractError,
+  repairedLinkedInAssetsAreNonEmpty,
+} from "@/lib/prospectLinkedInAssetRepair";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 
 export type GeneratedDeploymentAssets = {
@@ -136,7 +140,14 @@ export async function generateDeploymentAssets(input: {
   const isProspect = isProspectIntelligenceBridge(input.discussion);
 
   if (isProspect) {
-    const unwrapped = unwrapProspectDeploymentAssetResponse(rawResponse);
+    // Parse → structure validate → LinkedIn ≤200 repair → revalidate.
+    const unwrapped = finalizeProspectDeploymentAssetsWithLinkedInRepair({
+      rawText: rawResponse,
+      discussionId: input.discussionId,
+      organizationId: input.organizationId,
+      regenerationRunId: input.regenerationRunId,
+      sourceType: "prospect",
+    });
     const diagnostics = toProspectDeploymentAssetDiagnostics(unwrapped);
 
     logProspectDeploymentAssetStability("deployment_assets_unwrapped", {
@@ -147,14 +158,24 @@ export async function generateDeploymentAssets(input: {
     });
 
     if (!unwrapped.isComplete) {
+      if (
+        unwrapped.failureReason === "linkedin_asset_exceeds_200_characters"
+      ) {
+        throw new ProspectLinkedInLengthContractError(
+          "Prospect LinkedIn Deployment Assets exceed the 200-character limit after repair.",
+        );
+      }
       throw new IncompleteProspectDeploymentAssetsError(
         unwrapped.failureReason === "incomplete_canonical_set"
           ? "Prospect Deployment Assets incomplete."
-          : unwrapped.failureReason ===
-              "linkedin_asset_exceeds_200_characters"
-            ? "Prospect LinkedIn Deployment Assets exceed the 200-character limit."
-            : "Prospect Deployment Assets invalid or malformed.",
+          : "Prospect Deployment Assets invalid or malformed.",
         diagnostics,
+      );
+    }
+
+    if (!repairedLinkedInAssetsAreNonEmpty(unwrapped.suggestedCta)) {
+      throw new ProspectLinkedInLengthContractError(
+        "Prospect LinkedIn Deployment Assets are empty after length repair.",
       );
     }
 

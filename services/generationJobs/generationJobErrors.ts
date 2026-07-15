@@ -40,6 +40,17 @@ export function classifyGenerationError(
 ): { classification: GenerationErrorClass; code: string; message: string } {
   if (
     error instanceof Error &&
+    error.name === "ProspectLinkedInLengthContractError"
+  ) {
+    return {
+      classification: "terminal",
+      code: "LINKEDIN_LENGTH_CONTRACT",
+      message: error.message.slice(0, 1000),
+    };
+  }
+
+  if (
+    error instanceof Error &&
     (error.name === "IncompleteProspectDeploymentAssetsError" ||
       error.name === "IncompleteProspectPublicationError")
   ) {
@@ -56,6 +67,18 @@ export function classifyGenerationError(
       : typeof error === "string"
         ? error
         : "Unknown generation failure";
+
+  // Deterministic LinkedIn length contract — never burn full Gemini retries.
+  if (
+    /linkedin.*200-character limit/i.test(message) ||
+    /linkedin_asset_exceeds_200_characters/i.test(message)
+  ) {
+    return {
+      classification: "terminal",
+      code: "LINKEDIN_LENGTH_CONTRACT",
+      message: message.slice(0, 1000),
+    };
+  }
 
   // Stage failures that should retry within max_attempts.
   if (
