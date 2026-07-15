@@ -51,7 +51,10 @@ import {
   toProspectWebsiteLearningLogReason,
 } from "@/services/websiteLearning/websiteLearningObservability";
 
-export type ProspectImportRow = ProspectCsvRow;
+/** Manual import may include GetOblic Type; CSV parsing does not populate it. */
+export type ProspectImportRow = ProspectCsvRow & {
+  getoblic_type?: string | null;
+};
 export { parseProspectCsv };
 
 export type ProspectImportInvalidRow = {
@@ -109,6 +112,7 @@ function mapRowToInput(
     email: row.email,
     phone: row.phone,
     whatsapp_number: row.whatsapp_number,
+    getoblic_type: row.getoblic_type,
     google_business_url: row.google_business_url,
     notes: row.notes,
     additional_context: row.additional_context,

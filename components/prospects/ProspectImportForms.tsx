@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ProspectCsvImport } from "@/components/prospects/ProspectCsvImport";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { PROSPECT_GETOBLIC_TYPES } from "@/services/prospects/prospectGetOblicType";
 
 const fieldClassName =
   "rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25";
@@ -51,6 +52,7 @@ export function ProspectImportForms() {
   const [manual, setManual] = useState<Record<string, string>>(
     Object.fromEntries([
       ...MANUAL_FIELDS.map(([key]) => [key, ""]),
+      ["getoblic_type", ""],
       ["notes", ""],
       ["additional_context", ""],
       ["ads_content", ""],
@@ -128,6 +130,27 @@ export function ProspectImportForms() {
               />
             </label>
           ))}
+
+          <label className="block text-sm text-white/50">
+            GetOblic Type
+            <select
+              value={manual.getoblic_type ?? ""}
+              onChange={(event) =>
+                setManual((previous) => ({
+                  ...previous,
+                  getoblic_type: event.target.value,
+                }))
+              }
+              className={`mt-2 w-full ${fieldClassName}`}
+            >
+              <option value="">Not set</option>
+              {PROSPECT_GETOBLIC_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <label className="block text-sm text-white/50">
             Notes

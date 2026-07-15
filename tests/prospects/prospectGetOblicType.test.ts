@@ -78,7 +78,16 @@ describe("V6 Sprint 1 — Prospect GetOblic Type", () => {
     assert.match(editor, /Not set/);
   });
 
-  it("retrieval and update paths include getoblic_type with validation", () => {
+  it("Manual Import form renders GetOblic Type dropdown and submits it", () => {
+    const importForms = read("components/prospects/ProspectImportForms.tsx");
+    assert.match(importForms, /GetOblic Type/);
+    assert.match(importForms, /PROSPECT_GETOBLIC_TYPES/);
+    assert.match(importForms, /getoblic_type/);
+    assert.match(importForms, /Not set/);
+    assert.match(importForms, /JSON\.stringify\(manual\)/);
+  });
+
+  it("retrieval, update, and manual create paths include getoblic_type with validation", () => {
     const service = read("services/prospects/prospectService.ts");
     assert.match(service, /getoblic_type/);
     assert.match(service, /normalizeOptionalProspectGetOblicType/);
@@ -86,9 +95,23 @@ describe("V6 Sprint 1 — Prospect GetOblic Type", () => {
       service,
       /payload\.getoblic_type = normalizeOptionalProspectGetOblicType/,
     );
+    assert.match(
+      service,
+      /getoblic_type: normalizeOptionalProspectGetOblicType\(input\.getoblic_type\)/,
+    );
 
     const patchRoute = read("app/api/prospects/[id]/route.ts");
     assert.match(patchRoute, /getoblic_type:\s*optionalString/);
+
+    const createRoute = read("app/api/prospects/route.ts");
+    assert.match(createRoute, /getoblic_type:/);
+
+    const importer = read("services/prospects/prospectImporter.ts");
+    assert.match(importer, /getoblic_type: row\.getoblic_type/);
+    assert.doesNotMatch(
+      read("services/prospects/prospectCsv.ts"),
+      /getoblic_type/,
+    );
   });
 
   it("does not enqueue intelligence regeneration or alter worker/EV paths", () => {
