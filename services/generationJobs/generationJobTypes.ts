@@ -2,10 +2,29 @@ export const ATHENA_GENERATION_TRIGGER_TYPES = [
   "manual_refresh",
   "discussion_import",
   "discussion_update",
+  "deployment_assets_refresh",
+  "strategic_assets_refresh",
 ] as const;
 
 export type AthenaGenerationTriggerType =
   (typeof ATHENA_GENERATION_TRIGGER_TYPES)[number];
+
+/** Partial asset-family refresh triggers (UI Refresh Deployment / Strategic). */
+export const ATHENA_PARTIAL_REFRESH_TRIGGER_TYPES = [
+  "deployment_assets_refresh",
+  "strategic_assets_refresh",
+] as const;
+
+export type AthenaPartialRefreshTriggerType =
+  (typeof ATHENA_PARTIAL_REFRESH_TRIGGER_TYPES)[number];
+
+export function isPartialRefreshTriggerType(
+  value: string | null | undefined,
+): value is AthenaPartialRefreshTriggerType {
+  return (ATHENA_PARTIAL_REFRESH_TRIGGER_TYPES as readonly string[]).includes(
+    String(value ?? ""),
+  );
+}
 
 export const ATHENA_GENERATION_JOB_STATUSES = [
   "queued",

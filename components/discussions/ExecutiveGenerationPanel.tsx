@@ -15,9 +15,33 @@ type ExecutiveGenerationPanelProps = {
   resumed?: boolean;
   duplicateNotice?: string | null;
   stillRunningAfterTimeout?: boolean;
+  activeTriggerType?: string | null;
 };
 
-function buildPhases(elapsedMs: number): GenerationPhase[] {
+function buildPhases(
+  elapsedMs: number,
+  activeTriggerType?: string | null,
+): GenerationPhase[] {
+  if (activeTriggerType === "deployment_assets_refresh") {
+    return [
+      {
+        id: "deployment",
+        label: "Refreshing Deployment Assets",
+        state: "active",
+      },
+    ];
+  }
+
+  if (activeTriggerType === "strategic_assets_refresh") {
+    return [
+      {
+        id: "strategic",
+        label: "Refreshing Strategic Assets",
+        state: "active",
+      },
+    ];
+  }
+
   const phaseIndex =
     elapsedMs >= 45_000 ? 3 : elapsedMs >= 20_000 ? 2 : elapsedMs >= 8_000 ? 1 : 0;
 
@@ -62,6 +86,7 @@ export function ExecutiveGenerationPanel({
   resumed = false,
   duplicateNotice = null,
   stillRunningAfterTimeout = false,
+  activeTriggerType = null,
 }: ExecutiveGenerationPanelProps) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -74,9 +99,24 @@ export function ExecutiveGenerationPanel({
   }, []);
 
   const elapsedMs = Math.max(0, nowMs - startedAtMs);
-  const phases = buildPhases(elapsedMs);
+  const phases = buildPhases(elapsedMs, activeTriggerType);
+  const isPartial =
+    activeTriggerType === "deployment_assets_refresh" ||
+    activeTriggerType === "strategic_assets_refresh";
   const isLongRunning =
     elapsedMs >= REGENERATION_LONG_RUNNING_MS || stillRunningAfterTimeout;
+
+  const title = isPartial
+    ? activeTriggerType === "deployment_assets_refresh"
+      ? resumed
+        ? "Deployment Assets are currently being refreshed."
+        : "Deployment Assets are being refreshed."
+      : resumed
+        ? "Strategic Assets are currently being refreshed."
+        : "Strategic Assets are being refreshed."
+    : resumed
+      ? "Executive Intelligence is currently being regenerated."
+      : "Executive Intelligence is being regenerated.";
 
   return (
     <div
@@ -86,11 +126,7 @@ export function ExecutiveGenerationPanel({
         Executive Generation
       </div>
 
-      <h3 className="mt-3 text-lg font-semibold text-white">
-        {resumed
-          ? "Executive Intelligence is currently being regenerated."
-          : "Executive Intelligence is being regenerated."}
-      </h3>
+      <h3 className="mt-3 text-lg font-semibold text-white">{title}</h3>
 
       {resumed && (
         <p className="mt-2 text-sm leading-6 text-white/55">

@@ -75,7 +75,11 @@ export function resolveProspectWebsiteLearningDecision(input: {
   const trigger = String(input.triggerType ?? "").trim();
 
   if (trigger !== "discussion_import") {
-    if (trigger === "manual_refresh") {
+    if (
+      trigger === "manual_refresh" ||
+      trigger === "deployment_assets_refresh" ||
+      trigger === "strategic_assets_refresh"
+    ) {
       return { shouldCrawl: false, reason: "intelligence_refresh" };
     }
     return { shouldCrawl: false, reason: "non_import_trigger" };

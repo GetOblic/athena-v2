@@ -15,7 +15,7 @@ import { RegenerationCompleteToast } from "@/components/discussions/Regeneration
 import {
   clearRegenerationSession,
   fetchRegenerationStatus,
-  isFullPipelineRegenerationComplete,
+  isRegenerationComplete,
   readRegenerationSession,
   REGENERATION_POLL_INTERVAL_MS,
   REGENERATION_POLL_TIMEOUT_MS,
@@ -24,16 +24,18 @@ import {
   type RegenerationStatusSnapshot,
   writeRegenerationSession,
 } from "@/lib/discussionRegenerationStatus";
+import type { PartialRefreshScope } from "@/services/generationJobs/partialRefreshApi";
 
 type AnalyzeResponse = {
   success?: boolean;
+  ok?: boolean;
   accepted?: boolean;
   queued?: boolean;
-  partial?: boolean;
-  warning?: string;
   message?: string;
   error?: string | { code?: string; message?: string };
   jobId?: string;
+  triggerType?: string;
+  scope?: string;
 };
 
 type DiscussionRegenerationContextValue = {
@@ -44,13 +46,19 @@ type DiscussionRegenerationContextValue = {
   startedAtMs: number | null;
   resumed: boolean;
   stillRunningAfterTimeout: boolean;
+  activeTriggerType: string | null;
   startRegeneration: () => Promise<void>;
+  startPartialRefresh: (
+    scope: PartialRefreshScope,
+    options?: { discussionId?: string; prospectId?: string | null },
+  ) => Promise<void>;
   /** Track an already-queued durable job using the same polling UX as Refresh. */
   trackQueuedGeneration: (
     baseline: Pick<
       RegenerationStatusSnapshot,
-      "latestAnalysisUpdatedAt" | "blueprintUpdatedAt"
+      "latestAnalysisUpdatedAt" | "blueprintUpdatedAt" | "publishedVersionId"
     >,
+    options?: { activeTriggerType?: string | null },
   ) => void;
   scrollToUpdatedAnalysis: () => void;
 };
@@ -91,6 +99,9 @@ export function DiscussionRegenerationProvider({
   const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
   const [stillRunningAfterTimeout, setStillRunningAfterTimeout] =
     useState(false);
+  const [activeTriggerType, setActiveTriggerType] = useState<string | null>(
+    null,
+  );
 
   const pollCleanupRef = useRef<(() => void) | null>(null);
   const completionToastShownRef = useRef(false);
@@ -117,6 +128,7 @@ export function DiscussionRegenerationProvider({
     setDuplicateNotice(null);
     setResumed(false);
     setStartedAtMs(null);
+    setActiveTriggerType(null);
 
     if (!completionToastShownRef.current) {
       completionToastShownRef.current = true;
@@ -141,6 +153,7 @@ export function DiscussionRegenerationProvider({
         RegenerationStatusSnapshot,
         | "latestAnalysisUpdatedAt"
         | "blueprintUpdatedAt"
+        | "publishedVersionId"
       >,
       queuedAtMs: number,
     ) => {
@@ -164,7 +177,6 @@ export function DiscussionRegenerationProvider({
 
         const elapsed = Date.now() - queuedAtMs;
         if (!slowMode && elapsed >= REGENERATION_POLL_TIMEOUT_MS) {
-          // Stop aggressive polling — do NOT mark success. Keep monitoring slowly.
           slowMode = true;
           setStillRunningAfterTimeout(true);
         }
@@ -175,19 +187,31 @@ export function DiscussionRegenerationProvider({
           return;
         }
 
+        if (current?.jobTriggerType) {
+          setActiveTriggerType(current.jobTriggerType);
+        }
+
         if (current?.jobStatus === "failed") {
           finish();
           clearRegenerationSession(discussionId);
           setIsGenerating(false);
           setStillRunningAfterTimeout(false);
-          setError("Generation failed. Athena could not complete this run.");
+          const trigger = String(current.jobTriggerType ?? "");
+          setError(
+            trigger === "deployment_assets_refresh"
+              ? "Deployment Assets refresh failed."
+              : trigger === "strategic_assets_refresh"
+                ? "Strategic Assets refresh failed."
+                : "Generation failed. Athena could not complete this run.",
+          );
+          setActiveTriggerType(null);
           router.refresh();
           return;
         }
 
         if (
           current &&
-          isFullPipelineRegenerationComplete(baseline, current, queuedAtMs)
+          isRegenerationComplete(baseline, current, queuedAtMs)
         ) {
           finish();
           markCompleted();
@@ -218,9 +242,14 @@ export function DiscussionRegenerationProvider({
         RegenerationStatusSnapshot,
         | "latestAnalysisUpdatedAt"
         | "blueprintUpdatedAt"
+        | "publishedVersionId"
       >,
       queuedAtMs: number,
-      options?: { resumed?: boolean; duplicateNotice?: string | null },
+      options?: {
+        resumed?: boolean;
+        duplicateNotice?: string | null;
+        activeTriggerType?: string | null;
+      },
     ) => {
       completionToastShownRef.current = false;
       setError(null);
@@ -231,11 +260,13 @@ export function DiscussionRegenerationProvider({
       setResumed(Boolean(options?.resumed));
       setDuplicateNotice(options?.duplicateNotice ?? null);
       setStartedAtMs(queuedAtMs);
+      setActiveTriggerType(options?.activeTriggerType ?? null);
 
       writeRegenerationSession({
         discussionId,
         startedAtMs: queuedAtMs,
         baseline,
+        activeTriggerType: options?.activeTriggerType ?? null,
       });
 
       startPolling(baseline, queuedAtMs);
@@ -250,7 +281,7 @@ export function DiscussionRegenerationProvider({
     if (session) {
       if (
         status &&
-        isFullPipelineRegenerationComplete(
+        isRegenerationComplete(
           session.baseline,
           status,
           session.startedAtMs,
@@ -260,7 +291,11 @@ export function DiscussionRegenerationProvider({
         return;
       }
 
-      beginGeneration(session.baseline, session.startedAtMs, { resumed: true });
+      beginGeneration(session.baseline, session.startedAtMs, {
+        resumed: true,
+        activeTriggerType:
+          session.activeTriggerType ?? status?.jobTriggerType ?? null,
+      });
       return;
     }
 
@@ -269,9 +304,13 @@ export function DiscussionRegenerationProvider({
         {
           latestAnalysisUpdatedAt: status.latestAnalysisUpdatedAt,
           blueprintUpdatedAt: status.blueprintUpdatedAt,
+          publishedVersionId: status.publishedVersionId ?? null,
         },
         Date.now(),
-        { resumed: true },
+        {
+          resumed: true,
+          activeTriggerType: status.jobTriggerType ?? null,
+        },
       );
     }
   }, [beginGeneration, discussionId]);
@@ -348,26 +387,105 @@ export function DiscussionRegenerationProvider({
           {
             duplicateNotice: "Generation already in progress.",
             resumed: true,
+            activeTriggerType: current?.jobTriggerType ?? "manual_refresh",
           },
         );
         return;
       }
 
-      beginGeneration(baseline, queuedAtMs);
+      beginGeneration(baseline, queuedAtMs, {
+        activeTriggerType: "manual_refresh",
+      });
     } catch (err) {
       setIsGenerating(false);
       setError(err instanceof Error ? err.message : "Unknown error");
     }
   }, [beginGeneration, discussionId, isGenerating, stopPolling]);
 
+  const startPartialRefresh = useCallback(
+    async (
+      scope: PartialRefreshScope,
+      options?: { discussionId?: string; prospectId?: string | null },
+    ) => {
+      if (isGenerating) {
+        setDuplicateNotice("Generation already in progress.");
+        return;
+      }
+
+      stopPolling();
+      setError(null);
+      setDuplicateNotice(null);
+      setIsCompleted(false);
+      setShowToast(false);
+      setIsGenerating(true);
+      completionToastShownRef.current = false;
+
+      const triggerType =
+        scope === "deployment_assets"
+          ? "deployment_assets_refresh"
+          : "strategic_assets_refresh";
+
+      try {
+        const statusDiscussionId = options?.discussionId ?? discussionId;
+        const baseline =
+          (await fetchRegenerationStatus(statusDiscussionId)) ??
+          baselineRef.current;
+
+        const endpoint = options?.prospectId
+          ? `/api/prospects/${options.prospectId}/refresh`
+          : `/api/discussions/${statusDiscussionId}/refresh`;
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scope }),
+        });
+
+        const data = (await response.json()) as AnalyzeResponse;
+        if (!response.ok || !(data.ok || data.success)) {
+          const message =
+            typeof data.error === "string"
+              ? data.error
+              : data.error?.message ||
+                (scope === "deployment_assets"
+                  ? "Deployment Assets refresh failed."
+                  : "Strategic Assets refresh failed.");
+          throw new Error(message);
+        }
+
+        const queuedAtMs = Date.now();
+        const alreadyInProgress = data.accepted === false;
+
+        beginGeneration(baseline, queuedAtMs, {
+          duplicateNotice: alreadyInProgress
+            ? scope === "deployment_assets"
+              ? "Deployment Assets refresh already in progress."
+              : "Strategic Assets refresh already in progress."
+            : null,
+          resumed: alreadyInProgress,
+          activeTriggerType: data.triggerType ?? triggerType,
+        });
+        router.refresh();
+      } catch (err) {
+        setIsGenerating(false);
+        setActiveTriggerType(null);
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
+    },
+    [beginGeneration, discussionId, isGenerating, router, stopPolling],
+  );
+
   const trackQueuedGeneration = useCallback(
     (
       baseline: Pick<
         RegenerationStatusSnapshot,
-        "latestAnalysisUpdatedAt" | "blueprintUpdatedAt"
+        "latestAnalysisUpdatedAt" | "blueprintUpdatedAt" | "publishedVersionId"
       >,
+      options?: { activeTriggerType?: string | null },
     ) => {
-      beginGeneration(baseline, Date.now());
+      beginGeneration(baseline, Date.now(), {
+        activeTriggerType: options?.activeTriggerType ?? null,
+      });
     },
     [beginGeneration],
   );
@@ -382,7 +500,9 @@ export function DiscussionRegenerationProvider({
         startedAtMs,
         resumed,
         stillRunningAfterTimeout,
+        activeTriggerType,
         startRegeneration,
+        startPartialRefresh,
         trackQueuedGeneration,
         scrollToUpdatedAnalysis,
       }}
@@ -405,6 +525,7 @@ export function DiscussionRegenerationProgress() {
     resumed,
     duplicateNotice,
     stillRunningAfterTimeout,
+    activeTriggerType,
   } = useDiscussionRegeneration();
 
   if (!isGenerating || startedAtMs === null) {
@@ -417,6 +538,7 @@ export function DiscussionRegenerationProgress() {
       resumed={resumed}
       duplicateNotice={duplicateNotice}
       stillRunningAfterTimeout={stillRunningAfterTimeout}
+      activeTriggerType={activeTriggerType}
     />
   );
 }

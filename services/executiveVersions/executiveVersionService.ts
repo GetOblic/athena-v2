@@ -257,6 +257,89 @@ export async function ensureCurrentLiveIntelligenceIsVersioned(
 }
 
 /**
+ * Typed options for partial asset-family refresh publication only.
+ * Not usable by full-generation workflows (distinct function + branded options).
+ */
+export type PartialRefreshPublicationOptions = {
+  readonly __partialRefreshPublication: true;
+  sourceExecutiveVersion: ExecutiveIntelligenceVersion;
+  assembledIntelligence: ExecutiveIntelligencePayload;
+  discussionId: string;
+  organizationId: string;
+  regenerationRunId?: string | null;
+  generationDurationMs?: number | null;
+  requireProspectCompleteness?: boolean;
+};
+
+export function createPartialRefreshPublicationOptions(input: {
+  sourceExecutiveVersion: ExecutiveIntelligenceVersion;
+  assembledIntelligence: ExecutiveIntelligencePayload;
+  discussionId: string;
+  organizationId: string;
+  regenerationRunId?: string | null;
+  generationDurationMs?: number | null;
+  requireProspectCompleteness?: boolean;
+}): PartialRefreshPublicationOptions {
+  return {
+    __partialRefreshPublication: true,
+    ...input,
+  };
+}
+
+/**
+ * Publish a new Executive Version for deployment_assets_refresh /
+ * strategic_assets_refresh only. Allows same analysis_id when carrying forward
+ * from a source EV. Does not weaken the global same-analysis_id gate used by
+ * publishExecutiveIntelligenceVersion.
+ */
+export async function publishPartialRefreshExecutiveVersion(
+  options: PartialRefreshPublicationOptions,
+): Promise<ExecutiveIntelligenceVersion> {
+  if (options.__partialRefreshPublication !== true) {
+    throw new Error("Invalid partial refresh publication options.");
+  }
+
+  const source = options.sourceExecutiveVersion;
+  if (
+    source.discussion_id !== options.discussionId ||
+    source.organization_id !== options.organizationId
+  ) {
+    throw new Error("Source Executive Version does not match discussion.");
+  }
+
+  const intelligence = options.assembledIntelligence;
+  if (!intelligence?.analysis?.id) {
+    throw new IncompleteProspectPublicationError(
+      "Partial refresh publication requires assembled analysis.",
+    );
+  }
+
+  if (options.requireProspectCompleteness) {
+    assertProspectPublicationCandidate({
+      intelligence,
+      blueprintId: intelligence.blueprint?.id ?? null,
+      discussionId: options.discussionId,
+      organizationId: options.organizationId,
+      regenerationRunId: options.regenerationRunId,
+    });
+  }
+
+  return insertExecutiveVersion({
+    discussionId: options.discussionId,
+    organizationId: options.organizationId,
+    userId: intelligence.analysis.user_id,
+    intelligence,
+    markCurrent: true,
+    regenerationRunId: options.regenerationRunId,
+    generationDurationMs: options.generationDurationMs,
+    analysisId: intelligence.analysis.id,
+    opportunityId: intelligence.opportunity?.id ?? null,
+    reviewId: intelligence.briefing?.id ?? null,
+    blueprintId: intelligence.blueprint?.id ?? null,
+  });
+}
+
+/**
  * Publish a brand-new immutable Executive Intelligence Version from live records
  * after a successful regeneration. Marks it Current; previous versions stay archived.
  */

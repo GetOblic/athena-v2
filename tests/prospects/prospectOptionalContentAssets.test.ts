@@ -340,7 +340,8 @@ describe("Prospect always-generate assets — every creation and refresh path", 
     assert.match(importer, /importProspectManual/);
     assert.match(importer, /importProspectsFromRows/);
     assert.match(importer, /enqueueDiscussionGenerationJob/);
-    assert.match(refreshRoute, /manual_refresh/);
+    assert.match(refreshRoute, /queuePartialAssetRefreshForDiscussion/);
+    assert.match(refreshRoute, /parsePartialRefreshScope/);
     assert.match(executor, /processDiscussionEndToEnd/);
     assert.match(discussionWorkflow, /generateDeploymentAssets/);
     assert.match(deploymentWorkflow, /assembleDeploymentAssetsPrompt/);
@@ -379,7 +380,12 @@ describe("Prospect always-generate assets — every creation and refresh path", 
       join(ROOT, "app/api/prospects/[id]/updates/route.ts"),
       "utf8",
     );
-    assert.match(refreshRoute, /manual_refresh/);
+    const partialWorkflow = readFileSync(
+      join(ROOT, "services/workflows/partialRefreshWorkflow.ts"),
+      "utf8",
+    );
+    assert.match(refreshRoute, /queuePartialAssetRefreshForDiscussion/);
+    assert.match(partialWorkflow, /generateDeploymentAssets/);
     assert.match(updatesRoute, /discussion_update/);
     const block = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: true,

@@ -3,58 +3,30 @@ import {
   parsePartialRefreshScope,
   queuePartialAssetRefreshForDiscussion,
 } from "@/services/generationJobs/partialRefreshApi";
-import { toPublicProspect } from "@/services/prospects/prospectPublic";
-import { getProspectById } from "@/services/prospects/prospectService";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
 } from "@/services/organizationService";
 
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function json(data: unknown, status = 200) {
-  return NextResponse.json(data, {
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return NextResponse.json(body, {
     status,
     headers: { "Cache-Control": "no-store" },
   });
 }
 
-/** Partial Deployment / Strategic refresh for Prospects. */
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
+/** Partial Deployment / Strategic refresh for Discussions. */
+export async function POST(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
-
-    const prospect = await getProspectById(id, organizationId);
-    if (!prospect) {
-      return json(
-        {
-          ok: false,
-          success: false,
-          error: { code: "NOT_FOUND", message: "Prospect not found." },
-        },
-        404,
-      );
-    }
-
-    if (!prospect.linked_discussion_id) {
-      return json(
-        {
-          ok: false,
-          success: false,
-          error: {
-            code: "NO_LINKED_DISCUSSION",
-            message: "Prospect has no linked discussion for refresh.",
-          },
-        },
-        409,
-      );
-    }
 
     let body: Record<string, unknown> = {};
     try {
@@ -65,7 +37,7 @@ export async function POST(
 
     const scope = parsePartialRefreshScope(body.scope);
     if (!scope) {
-      return json(
+      return jsonResponse(
         {
           ok: false,
           success: false,
@@ -80,23 +52,16 @@ export async function POST(
     }
 
     const result = await queuePartialAssetRefreshForDiscussion({
-      discussionId: prospect.linked_discussion_id,
+      discussionId: id,
       organizationId,
       userId,
       scope,
     });
 
-    return json(
-      {
-        ...result.body,
-        prospect: toPublicProspect(prospect),
-        prospectId: prospect.id,
-      },
-      result.status,
-    );
+    return jsonResponse(result.body, result.status);
   } catch (error) {
     if (error instanceof OrganizationAccessError) {
-      return json(
+      return jsonResponse(
         {
           ok: false,
           success: false,
@@ -106,17 +71,14 @@ export async function POST(
       );
     }
 
-    console.error("[PROSPECT_PARTIAL_REFRESH] failed", error);
-    return json(
+    console.error("[DISCUSSION_PARTIAL_REFRESH] failed", error);
+    return jsonResponse(
       {
         ok: false,
         success: false,
         error: {
           code: "REFRESH_FAILED",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Failed to queue prospect refresh.",
+          message: "Could not queue partial refresh.",
         },
       },
       500,

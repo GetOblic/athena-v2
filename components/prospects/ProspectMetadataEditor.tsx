@@ -309,7 +309,7 @@ export function ProspectMetadataEditor({
           <p className="max-w-2xl text-sm text-white/40">
             {isEditing
               ? "Save meaningful source changes to queue asynchronous regeneration. Historical Executive Versions remain immutable."
-              : "Review prospect fields in read-only mode. Edit to update source data. Use Refresh Intelligence in the page header to regenerate."}
+              : "Review prospect fields in read-only mode. Edit to update source data. Use Refresh Deployment Assets or Refresh Strategic Assets in the page header to regenerate."}
           </p>
         </div>
 

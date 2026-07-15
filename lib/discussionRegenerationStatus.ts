@@ -168,8 +168,50 @@ export type PersistedRegenerationSession = {
     RegenerationStatusSnapshot,
     | "latestAnalysisUpdatedAt"
     | "blueprintUpdatedAt"
+    | "publishedVersionId"
   >;
+  /** Active partial/full refresh trigger for UI messaging. */
+  activeTriggerType?: string | null;
 };
+
+/** Completion for partial refreshes: newly published Executive Version ID. */
+export function isPartialRefreshComplete(
+  baseline: Pick<RegenerationStatusSnapshot, "publishedVersionId">,
+  current: RegenerationStatusSnapshot,
+): boolean {
+  if (current.regenerationInFlight) {
+    return false;
+  }
+  if (current.jobStatus === "failed") {
+    return false;
+  }
+  if (current.jobStatus !== "completed") {
+    return false;
+  }
+  const publishedId = current.publishedVersionId ?? null;
+  if (!publishedId) {
+    return false;
+  }
+  return publishedId !== (baseline.publishedVersionId ?? null);
+}
+
+export function isRegenerationComplete(
+  baseline: Pick<
+    RegenerationStatusSnapshot,
+    "latestAnalysisUpdatedAt" | "blueprintUpdatedAt" | "publishedVersionId"
+  >,
+  current: RegenerationStatusSnapshot,
+  queuedAtMs: number,
+): boolean {
+  const trigger = String(current.jobTriggerType ?? "");
+  if (
+    trigger === "deployment_assets_refresh" ||
+    trigger === "strategic_assets_refresh"
+  ) {
+    return isPartialRefreshComplete(baseline, current);
+  }
+  return isFullPipelineRegenerationComplete(baseline, current, queuedAtMs);
+}
 
 function sessionStorageKey(discussionId: string): string {
   return `athena-regeneration:${discussionId}`;
