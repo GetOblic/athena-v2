@@ -219,7 +219,8 @@ describe("Deep scrape discovery fallback and usefulness", () => {
     assert.match(observability, /crawlee_job_started/);
     assert.match(adapter, /homepage_only_crawl_selected/);
     assert.match(adapter, /sitemap_fallback_to_homepage/);
-    assert.match(adapter, /ensureHomepageCandidate/);
+    assert.match(adapter, /buildRankedCrawlPlan/);
+    assert.match(adapter, /deep_scrape_homepage_discovery_started/);
     assert.doesNotMatch(adapter, /console\.log\([^\)]*readableText/);
   });
 
@@ -275,7 +276,9 @@ describe("Deep scrape discovery fallback and usefulness", () => {
       "utf8",
     );
     // Discovery must not throw INSUFFICIENT_USEFUL_CONTENT before crawl.
-    assert.match(adapter, /ensureHomepageCandidate/);
+    // Empty sitemap still proceeds via homepage-first ranked plan.
+    assert.match(adapter, /buildRankedCrawlPlan/);
+    assert.match(adapter, /sitemap_fallback_to_homepage/);
     assert.match(adapter, /homepage_only_crawl_selected/);
     assert.match(adapter, /evaluateCorpusUsefulness/);
     assert.match(adapter, /throw new Error\(corpus\.code\)/);

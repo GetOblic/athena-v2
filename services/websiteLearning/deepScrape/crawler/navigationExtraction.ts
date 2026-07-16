@@ -167,7 +167,7 @@ export function extractDiscoveryLinks(input: {
 
   const links = [...byUrl.values()].slice(
     0,
-    DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveredUrls,
+    DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveryInventory,
   );
   return {
     links,

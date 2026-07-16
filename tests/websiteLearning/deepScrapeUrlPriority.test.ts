@@ -174,8 +174,8 @@ describe("Deep scrape site-structure-aware prioritization", () => {
       ),
       "utf8",
     );
-    assert.match(adapter, /rankCrawlCandidates/);
-    assert.match(adapter, /maxDiscoveredUrls/);
+    assert.match(adapter, /buildRankedCrawlPlan/);
+    assert.match(adapter, /maxRankedCandidates/);
     assert.doesNotMatch(relevance, /sourceType\s*===\s*["']brain["']/);
     assert.doesNotMatch(relevance, /sourceType\s*===\s*["']prospect["']/);
     assert.doesNotMatch(adapter, /sourceType\s*===\s*["']brain["']/);
@@ -191,7 +191,8 @@ describe("Deep scrape site-structure-aware prioritization", () => {
     );
     assert.match(adapter, /provenance: entry\.provenance/);
     assert.match(adapter, /totalScore: entry\.totalScore/);
-    assert.match(adapter, /forefront: crawleeForefrontForScore/);
+    // Ranked Playwright enqueue is score-sorted FIFO (no forefront reordering).
+    assert.match(adapter, /forefront: false/);
   });
 
   it("navigation extraction classifies nav/footer/content links", () => {
@@ -295,12 +296,14 @@ describe("Deep scrape site-structure-aware prioritization", () => {
       "deep_scrape_navigation_extracted",
       "deep_scrape_priority_queue_finalized",
       "deep_scrape_page_cap_candidate_skipped",
+      "deep_scrape_ranked_plan_finalized",
+      "deep_scrape_homepage_discovery_started",
     ]) {
       assert.match(observability, new RegExp(`"${event}"`));
     }
   });
 
-  it("adapter applies page cap after priority ordering, not before scoring", () => {
+  it("adapter finalizes ranked plan after homepage discovery, before secondary fetch", () => {
     const adapter = readFileSync(
       path.join(
         ROOT,
@@ -308,9 +311,10 @@ describe("Deep scrape site-structure-aware prioritization", () => {
       ),
       "utf8",
     );
-    assert.match(adapter, /rankCrawlCandidates/);
-    assert.match(adapter, /maxQueue: DEEP_SCRAPE_CRAWL_POLICY\.maxDiscoveredUrls/);
+    assert.match(adapter, /buildRankedCrawlPlan/);
+    assert.match(adapter, /maxRankedCandidates: DEEP_SCRAPE_CRAWL_POLICY\.maxRankedCandidates/);
     assert.match(adapter, /maxAccepted: DEEP_SCRAPE_CRAWL_POLICY\.maxMeaningfulPages/);
     assert.match(adapter, /maxFetchAttempts/);
+    assert.match(adapter, /deep_scrape_homepage_discovery_started/);
   });
 });

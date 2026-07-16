@@ -9,13 +9,26 @@ import {
 } from "@/services/websiteLearning/deepScrape/crawler/urlRelevance";
 
 export const DEEP_SCRAPE_CRAWL_POLICY = {
-  maxDiscoveredUrls: 200,
+  /**
+   * Max normalized candidates retained for scoring (inventory), not fetch queue.
+   * Includes homepage, navigation, sitemap, and contextual internal links.
+   */
+  maxDiscoveryInventory: 500,
+  /**
+   * @deprecated Alias of maxDiscoveryInventory (discovery inventory, not fetch queue).
+   */
+  maxDiscoveredUrls: 500,
+  /**
+   * Max URLs in the final ranked fetch plan (homepage + up to 49 secondaries).
+   */
+  maxRankedCandidates: 50,
+  /** Max substantive pages accepted into the synthesis corpus. */
   maxMeaningfulPages: 25,
   /**
-   * Soft fetch budget after priority ordering.
-   * Allows some rejects/404s without burning the full discovery queue.
+   * Max candidate pages fetched (Cheerio request budget for the ranked plan).
+   * Homepage counts toward this total.
    */
-  maxFetchAttempts: 25 + 40,
+  maxFetchAttempts: 50,
   maxConcurrentRequests: 2,
   perPageTimeoutMs: 15_000,
   phaseAWallClockMs: 12 * 60_000,

@@ -307,7 +307,9 @@ describe("Deep scrape Crawlee engine — extraction and acceptance", () => {
 
   it("19-21. caps and Playwright concurrency remain conservative", () => {
     assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 25);
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveredUrls, 200);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveryInventory, 500);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates, 50);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxFetchAttempts, 50);
     assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxConcurrentRequests, 2);
     const playwright = readFileSync(
       path.join(

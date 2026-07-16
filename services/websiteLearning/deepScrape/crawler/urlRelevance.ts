@@ -423,9 +423,16 @@ export function compareRankedCandidates(
   left: RankedUrlCandidate,
   right: RankedUrlCandidate,
 ): number {
+  // Deterministic: score ↓, provenance strength ↓, path depth ↑, URL ↑.
   if (right.totalScore !== left.totalScore) {
     return right.totalScore - left.totalScore;
   }
+  const provenanceDelta =
+    provenanceStrength(right.provenance) - provenanceStrength(left.provenance);
+  if (provenanceDelta !== 0) return provenanceDelta;
+  const depthDelta =
+    left.arborescence.pathDepth - right.arborescence.pathDepth;
+  if (depthDelta !== 0) return depthDelta;
   return left.normalizedUrl.localeCompare(right.normalizedUrl);
 }
 

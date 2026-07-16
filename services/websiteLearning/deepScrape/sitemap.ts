@@ -142,7 +142,7 @@ export async function collectUrlsFromSitemaps(input: {
         continue;
       }
       pageUrls.add(canonical);
-      if (pageUrls.size >= DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveredUrls) {
+      if (pageUrls.size >= DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveryInventory) {
         return {
           urls: [...pageUrls],
           sitemapsParsed,
