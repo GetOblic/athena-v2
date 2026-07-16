@@ -2,6 +2,7 @@ export const ATHENA_GENERATION_TRIGGER_TYPES = [
   "manual_refresh",
   "discussion_import",
   "discussion_update",
+  "prospect_deep_scrape",
 ] as const;
 
 export type AthenaGenerationTriggerType =

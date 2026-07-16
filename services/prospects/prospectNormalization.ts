@@ -122,7 +122,7 @@ export function normalizeProspectExecutiveInput(
 export function formatNormalizedProspectInputForPipeline(
   input: NormalizedExecutiveSourceInput,
 ): string {
-  const homepage = input.homepageIntelligence ?? {};
+  const homepage = (input.homepageIntelligence ?? {}) as Record<string, unknown>;
   const lines = [
     "EXECUTIVE INTELLIGENCE SOURCE: PROSPECT",
     `Business Name: ${input.identity.name}`,
@@ -168,7 +168,12 @@ export function formatNormalizedProspectInputForPipeline(
     input.technologies ? `Technologies:\n${input.technologies}` : null,
     input.painPoints ? `Pain Points:\n${input.painPoints}` : null,
     "",
-    "NORMALIZED HOMEPAGE INTELLIGENCE",
+    typeof homepage.provider === "string" && homepage.provider === "deep_v1"
+      ? "NORMALIZED DEEP WEBSITE INTELLIGENCE"
+      : "NORMALIZED HOMEPAGE INTELLIGENCE",
+    typeof homepage.pages_analyzed === "number" && homepage.pages_analyzed > 0
+      ? `Pages Analyzed: ${homepage.pages_analyzed}`
+      : null,
     typeof homepage.positioning === "string" && homepage.positioning
       ? `Positioning:\n${homepage.positioning}`
       : null,
@@ -213,6 +218,33 @@ export function formatNormalizedProspectInputForPipeline(
     typeof homepage.paragraphs === "string" && homepage.paragraphs
       ? `Key Content:\n${homepage.paragraphs}`
       : null,
+    ...(homepage.business_knowledge &&
+    typeof homepage.business_knowledge === "object"
+      ? Object.entries(homepage.business_knowledge as Record<string, unknown>)
+          .filter(
+            ([key, value]) =>
+              typeof value === "string" &&
+              value.trim() &&
+              ![
+                "positioning",
+                "products",
+                "services",
+                "about",
+                "target_audience",
+                "messaging",
+                "value_proposition",
+                "cta",
+                "differentiators",
+                "trust_signals",
+                "contact_information",
+                "brand_tone",
+              ].includes(key),
+          )
+          .map(
+            ([key, value]) =>
+              `${key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}:\n${String(value).trim()}`,
+          )
+      : []),
   ].filter(Boolean);
 
   return lines.join("\n");

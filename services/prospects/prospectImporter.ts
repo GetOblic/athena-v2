@@ -136,7 +136,11 @@ export async function ensureProspectGenerationQueued(
      * Explicit Refresh Intelligence must use manual_refresh so the worker
      * runs with explicitRegeneration and publishes a new Current Version.
      */
-    triggerType?: "discussion_import" | "manual_refresh" | "discussion_update";
+    triggerType?:
+      | "discussion_import"
+      | "manual_refresh"
+      | "discussion_update"
+      | "prospect_deep_scrape";
   },
 ): Promise<{ prospect: Prospect; queued: boolean; jobId?: string }> {
   let current = prospect;

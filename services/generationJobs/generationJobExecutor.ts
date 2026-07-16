@@ -218,7 +218,9 @@ export async function executeClaimedGenerationJob(
       {
         regenerationRunId:
           job.regeneration_run_id ?? createRegenerationRunId(),
-        explicitRegeneration: job.trigger_type === "manual_refresh",
+        explicitRegeneration:
+          job.trigger_type === "manual_refresh" ||
+          job.trigger_type === "prospect_deep_scrape",
       },
     );
 

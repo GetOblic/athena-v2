@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { redirect } from "next/navigation";
 import { BrandIdentitySection } from "@/components/identity/BrandIdentitySection";
+import { DeepScrapeWebsiteButton } from "@/components/identity/DeepScrapeWebsiteButton";
 import { TrainAthenaSubmitButton } from "@/components/identity/TrainAthenaSubmitButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -221,8 +222,8 @@ export default async function IdentityPage({
             <label className="grid gap-3">
               <span className="text-xl font-semibold">Business Website</span>
               <span className="max-w-3xl text-sm leading-6 text-white/45">
-                Athena will study your homepage and use it to understand your
-                business. V2 will support sitemap crawling and selected pages.
+                Athena studies your homepage during Train Athena. After training,
+                use Deep Scrape Website for autonomous multi-page learning.
               </span>
               <input
                 name="website"
@@ -261,6 +262,18 @@ export default async function IdentityPage({
                 : "Not yet trained"}
             </div>
           </div>
+
+          <DeepScrapeWebsiteButton
+            initiallyAvailable={
+              identity?.brain_status === "ready" && hasWebsite
+            }
+            initialLastDeepScrapeAt={identity?.last_deep_scrape_at ?? null}
+            initialLastDeepScrapePages={
+              typeof identity?.last_deep_scrape_pages === "number"
+                ? identity.last_deep_scrape_pages
+                : null
+            }
+          />
         </aside>
       </div>
 

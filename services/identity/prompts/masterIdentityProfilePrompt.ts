@@ -6,11 +6,16 @@ export function buildMasterIdentityProfilePrompt(input: {
   expertise: string | null;
   website: string | null;
   websiteHomepageText?: string | null;
+  usesDeepWebsiteIntelligence?: boolean;
 }) {
+  const websiteSectionLabel = input.usesDeepWebsiteIntelligence
+    ? "DEEP WEBSITE INTELLIGENCE"
+    : "WEBSITE HOMEPAGE CONTENT";
+
   return `
 You are Athena's identity compiler.
 
-Transform the user's free-form profile, expertise, website URL, and website homepage content into a structured Master Identity Profile.
+Transform the user's free-form profile, expertise, website URL, and website content into a structured Master Identity Profile.
 
 This profile will be used by specialist AI agents to generate community replies, private messages, follow-ups, social posts, CTAs, briefings, and strategic recommendations in the user's voice and expertise.
 
@@ -74,7 +79,7 @@ ${input.expertise || ""}
 WEBSITE:
 ${input.website || ""}
 
-WEBSITE HOMEPAGE CONTENT:
+${websiteSectionLabel}:
 ${input.websiteHomepageText || ""}
 `.trim();
 }
