@@ -133,6 +133,10 @@ export function formatDeepScrapeErrorMessage(
       return "Athena could not find any readable business pages on this website.";
     case "EMPTY_OR_UNUSABLE_CORPUS":
       return "Athena could not extract usable business content from this website.";
+    case "EXTRACTION_COLLAPSED_TO_SHARED_TEMPLATE":
+      return "Athena could not separate unique page content from repeated website template text.";
+    case "MALFORMED_ANALYSIS_CONTRACT":
+      return "Athena could not produce a valid executive analysis for this website.";
     case "EMPTY_OR_THIN_HOMEPAGE":
     case "INSUFFICIENT_USEFUL_CONTENT":
       return "Athena could not extract enough readable business content from this website.";

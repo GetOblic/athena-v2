@@ -37,6 +37,8 @@ function fixtureDoc(
     headings: ["Services"],
     readableText:
       "We offer scalp micropigmentation and hairline design consultations in London.",
+    meaningfulText:
+      "We offer scalp micropigmentation and hairline design consultations in London.",
     htmlLanguage: "en",
     pageType: "homepage",
     statusCode: 200,
@@ -65,6 +67,7 @@ function fixtureDoc(
     fetchedAt: new Date().toISOString(),
     responseBytes: 1200,
     redirectCount: 0,
+    selfCanonical: true,
     ...overrides,
   };
 }
@@ -131,6 +134,7 @@ describe("Deep scrape Crawlee engine — extraction and acceptance", () => {
     const classification = classifyNormalizedPage({
       document: fixtureDoc({
         readableText: extracted.readableText || "Home",
+        meaningfulText: extracted.meaningfulText || "",
         title: "App",
         headings: [],
         description: null,
@@ -268,27 +272,37 @@ describe("Deep scrape Crawlee engine — extraction and acceptance", () => {
   });
 
   it("17/18. duplicate canonical URL and content hash are rejected", () => {
-    const seenCanonicalUrls = new Set(["https://example.com/about"]);
-    const seenContentHashes = new Set(["samehash"]);
+    const seenFinalUrls = new Map([
+      ["https://example.com/about", "https://example.com/about"],
+    ]);
+    const seenContentHashes = new Map([
+      ["samehash", "https://example.com/services"],
+    ]);
     const dupUrl = classifyNormalizedPage({
       document: fixtureDoc({
         canonicalUrl: "https://example.com/about",
         finalUrl: "https://example.com/about",
         contentHash: "other",
+        selfCanonical: true,
       }),
-      seenCanonicalUrls,
+      seenFinalUrls,
     });
     assert.equal(dupUrl.rejectionCode, "PAGE_DUPLICATE");
+    assert.equal(dupUrl.duplicateBasis, "final_url");
 
     const dupHash = classifyNormalizedPage({
       document: fixtureDoc({
-        canonicalUrl: "https://example.com/services",
-        finalUrl: "https://example.com/services",
+        canonicalUrl: "https://example.com/services-b",
+        finalUrl: "https://example.com/services-b",
         contentHash: "samehash",
+        selfCanonical: true,
       }),
+      seenFinalUrls: new Map(),
       seenContentHashes,
+      alreadyRenderedWithBrowser: true,
     });
     assert.equal(dupHash.rejectionCode, "PAGE_DUPLICATE");
+    assert.equal(dupHash.duplicateBasis, "meaningful_content_hash");
   });
 
   it("19-21. caps and Playwright concurrency remain conservative", () => {
@@ -349,6 +363,7 @@ describe("Deep scrape Crawlee engine — extraction and acceptance", () => {
         title: "Services",
         pageType: "services",
         readableText: "Density treatments",
+        meaningfulText: "Density treatments",
       }),
     ]);
     assert.deepEqual(pages, [

@@ -1,6 +1,5 @@
 /**
- * Deterministic page acceptance for Crawlee-normalized documents.
- * Concise legitimate business pages are accepted; shells/errors are rejected.
+ * Deterministic page acceptance with template-suspicion → Playwright fallback.
  */
 
 import {
@@ -10,6 +9,7 @@ import {
 } from "@/services/websiteLearning/deepScrape/crawlPolicy";
 import {
   hasStructuredBusinessSignal,
+  htmlSuggestsUniqueContent,
   looksLikeJsShell,
 } from "@/services/websiteLearning/deepScrape/crawler/readabilityExtractor";
 import type {
@@ -17,23 +17,62 @@ import type {
   PageClassificationResult,
 } from "@/services/websiteLearning/deepScrape/crawler/crawlerTypes";
 
+export type DuplicateBasis =
+  | "canonical_url"
+  | "final_url"
+  | "meaningful_content_hash"
+  | "near_duplicate"
+  | null;
+
+export type ExtendedPageClassification = PageClassificationResult & {
+  duplicateBasis: DuplicateBasis;
+  duplicateOfPath: string | null;
+  rejectionDetailCode: string | null;
+  preBoilerplateChars: number;
+  postBoilerplateChars: number;
+};
+
 export function needsPlaywrightFallback(input: {
   html: string;
   readableText: string;
+  meaningfulText?: string;
   statusCode: number;
   contentType: string;
   structuredHasSignal: boolean;
   cheerioRejectedAsNoUsableText: boolean;
+  suspectedTemplateDuplicate: boolean;
+  titleSuggestsUnique: boolean;
 }): boolean {
   if (input.statusCode < 200 || input.statusCode >= 400) return false;
   if (!/html/i.test(input.contentType)) return false;
+  if (input.suspectedTemplateDuplicate) return true;
   if (looksLikeJsShell(input.html, input.readableText)) return true;
-  const text = input.readableText.replace(/\s+/g, " ").trim();
+  const text = (input.meaningfulText ?? input.readableText)
+    .replace(/\s+/g, " ")
+    .trim();
   if (text.length < 24 && !input.structuredHasSignal) return true;
   if (input.cheerioRejectedAsNoUsableText && input.statusCode === 200) {
     return true;
   }
+  if (
+    input.titleSuggestsUnique &&
+    text.length < 120 &&
+    htmlSuggestsUniqueContent(input.html)
+  ) {
+    return true;
+  }
+  if (text.length < 120 && htmlSuggestsUniqueContent(input.html)) {
+    return true;
+  }
   return false;
+}
+
+function pathOf(url: string): string {
+  try {
+    return new URL(url).pathname || "/";
+  } catch {
+    return "/";
+  }
 }
 
 export function classifyNormalizedPage(input: {
@@ -48,46 +87,88 @@ export function classifyNormalizedPage(input: {
     | "contentHash"
     | "canonicalUrl"
     | "finalUrl"
-  >;
+  > & {
+    meaningfulText?: string;
+    selfCanonical?: boolean;
+    preBoilerplateChars?: number;
+    postBoilerplateChars?: number;
+  };
   htmlForShellCheck?: string;
-  seenContentHashes?: Set<string>;
-  seenCanonicalUrls?: Set<string>;
+  seenContentHashes?: Map<string, string>;
+  seenCanonicalUrls?: Map<string, string>;
+  seenFinalUrls?: Map<string, string>;
   seenFingerprints?: Set<string>;
-}): PageClassificationResult {
+  alreadyRenderedWithBrowser?: boolean;
+}): ExtendedPageClassification {
   const doc = input.document;
   const structuredTypes = doc.structuredBusinessData.types;
   const structuredSignal = hasStructuredBusinessSignal(doc.structuredBusinessData);
+  const meaningful = (doc.meaningfulText ?? doc.readableText).trim();
+  const preBoilerplateChars =
+    doc.preBoilerplateChars ?? meaningful.length;
+  const postBoilerplateChars =
+    doc.postBoilerplateChars ?? meaningful.length;
 
-  if (
-    input.seenCanonicalUrls?.has(doc.canonicalUrl) ||
-    input.seenCanonicalUrls?.has(doc.finalUrl)
-  ) {
+  const base = {
+    extractedCharacterCount: meaningful.length || doc.readableText.length,
+    extractedWordCount: countWords(meaningful || doc.readableText),
+    businessSignals: [] as string[],
+    structuredDataTypes: structuredTypes,
+    blockedPattern: null as string | null,
+    duplicateFingerprint: fingerprintExtractedText(meaningful || doc.readableText),
+    pageType: doc.pageType,
+    preBoilerplateChars,
+    postBoilerplateChars,
+  };
+
+  if (input.seenFinalUrls?.has(doc.finalUrl)) {
     return {
+      ...base,
       accepted: false,
       rejectionCode: "PAGE_DUPLICATE",
+      rejectionDetailCode: null,
       needsPlaywrightFallback: false,
-      extractedCharacterCount: doc.readableText.length,
-      extractedWordCount: countWords(doc.readableText),
-      businessSignals: [],
-      structuredDataTypes: structuredTypes,
-      blockedPattern: null,
-      duplicateFingerprint: fingerprintExtractedText(doc.readableText),
-      pageType: doc.pageType,
+      duplicateBasis: "final_url",
+      duplicateOfPath: pathOf(input.seenFinalUrls.get(doc.finalUrl) ?? doc.finalUrl),
     };
   }
 
-  if (input.seenContentHashes?.has(doc.contentHash)) {
+  // Only treat canonical as identity when it is a self-canonical for this page.
+  if (
+    doc.selfCanonical !== false &&
+    input.seenCanonicalUrls?.has(doc.canonicalUrl) &&
+    doc.canonicalUrl === doc.finalUrl
+  ) {
     return {
+      ...base,
       accepted: false,
       rejectionCode: "PAGE_DUPLICATE",
+      rejectionDetailCode: null,
       needsPlaywrightFallback: false,
-      extractedCharacterCount: doc.readableText.length,
-      extractedWordCount: countWords(doc.readableText),
-      businessSignals: [],
-      structuredDataTypes: structuredTypes,
-      blockedPattern: null,
-      duplicateFingerprint: fingerprintExtractedText(doc.readableText),
-      pageType: doc.pageType,
+      duplicateBasis: "canonical_url",
+      duplicateOfPath: pathOf(
+        input.seenCanonicalUrls.get(doc.canonicalUrl) ?? doc.canonicalUrl,
+      ),
+    };
+  }
+
+  const priorHashPath = input.seenContentHashes?.get(doc.contentHash);
+  if (priorHashPath) {
+    const suspectedTemplate =
+      pathOf(priorHashPath) !== pathOf(doc.finalUrl) &&
+      !input.alreadyRenderedWithBrowser;
+    return {
+      ...base,
+      accepted: false,
+      rejectionCode: suspectedTemplate
+        ? "CHEERIO_SUSPECTED_TEMPLATE_EXTRACTION"
+        : "PAGE_DUPLICATE",
+      rejectionDetailCode: suspectedTemplate
+        ? "CHEERIO_SUSPECTED_TEMPLATE_EXTRACTION"
+        : null,
+      needsPlaywrightFallback: suspectedTemplate,
+      duplicateBasis: "meaningful_content_hash",
+      duplicateOfPath: pathOf(priorHashPath),
     };
   }
 
@@ -95,37 +176,37 @@ export function classifyNormalizedPage(input: {
     title: doc.title,
     headings: doc.headings,
     metaDescription: doc.description,
-    text: doc.readableText,
+    text: meaningful || doc.readableText,
     pageType: doc.pageType,
     seenFingerprints: input.seenFingerprints,
   });
 
-  // Structured business data can accept concise contact/service pages.
   if (
     !usefulness.accepted &&
     usefulness.rejectionCode === "PAGE_NO_USABLE_TEXT" &&
     structuredSignal
   ) {
     return {
+      ...base,
       accepted: true,
       rejectionCode: null,
+      rejectionDetailCode: null,
       needsPlaywrightFallback: false,
-      extractedCharacterCount: Math.max(
-        usefulness.extractedCharacterCount,
-        doc.readableText.length,
-      ),
-      extractedWordCount: Math.max(
-        usefulness.extractedWordCount,
-        countWords(doc.readableText),
-      ),
       businessSignals: [
         ...usefulness.businessSignals,
         ...structuredTypes.map((type) => `schema:${type}`),
       ],
-      structuredDataTypes: structuredTypes,
-      blockedPattern: null,
+      duplicateBasis: null,
+      duplicateOfPath: null,
+      extractedCharacterCount: Math.max(
+        usefulness.extractedCharacterCount,
+        meaningful.length,
+      ),
+      extractedWordCount: Math.max(
+        usefulness.extractedWordCount,
+        countWords(meaningful),
+      ),
       duplicateFingerprint: usefulness.duplicateFingerprint,
-      pageType: doc.pageType,
     };
   }
 
@@ -135,25 +216,34 @@ export function classifyNormalizedPage(input: {
       usefulness.rejectionCode === "PAGE_EMPTY" ||
       usefulness.rejectionCode === "PAGE_NAVIGATION_ONLY");
 
+  const titleSuggestsUnique = Boolean(
+    (doc.title && doc.title.length > 8) ||
+      (doc.headings && doc.headings.length > 0),
+  );
+
   const fallback = needsPlaywrightFallback({
     html: input.htmlForShellCheck ?? "",
     readableText: doc.readableText,
+    meaningfulText: meaningful,
     statusCode: 200,
     contentType: "text/html",
     structuredHasSignal: structuredSignal,
     cheerioRejectedAsNoUsableText,
+    suspectedTemplateDuplicate: false,
+    titleSuggestsUnique,
   });
 
   return {
+    ...base,
     accepted: usefulness.accepted,
     rejectionCode: usefulness.rejectionCode,
-    needsPlaywrightFallback: !usefulness.accepted && fallback,
-    extractedCharacterCount: usefulness.extractedCharacterCount,
-    extractedWordCount: usefulness.extractedWordCount,
+    rejectionDetailCode: null,
+    needsPlaywrightFallback:
+      !input.alreadyRenderedWithBrowser && !usefulness.accepted && fallback,
     businessSignals: usefulness.businessSignals,
-    structuredDataTypes: structuredTypes,
     blockedPattern: usefulness.blockedPattern,
     duplicateFingerprint: usefulness.duplicateFingerprint,
-    pageType: doc.pageType,
+    duplicateBasis: null,
+    duplicateOfPath: null,
   };
 }

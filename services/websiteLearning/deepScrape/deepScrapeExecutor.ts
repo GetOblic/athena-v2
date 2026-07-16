@@ -60,6 +60,7 @@ function classifyDeepScrapeError(error: unknown): {
     "ROOT_FETCH_FAILED",
     "UNSUPPORTED_CONTENT_TYPE",
     "SYNTHESIS_PARSE_FAILED",
+    "EXTRACTION_COLLAPSED_TO_SHARED_TEMPLATE",
   ]);
 
   const retryableCodes = new Set([
@@ -71,6 +72,8 @@ function classifyDeepScrapeError(error: unknown): {
     "HTTP_502",
     "HTTP_503",
     "HTTP_504",
+    "MALFORMED_ANALYSIS_CONTRACT",
+    "PLAYWRIGHT_CHROMIUM_UNAVAILABLE",
   ]);
 
   if (terminal.has(code)) {

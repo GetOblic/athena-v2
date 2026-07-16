@@ -31,6 +31,7 @@ export type NormalizedPageDocument = {
   description: string | null;
   headings: string[];
   readableText: string;
+  meaningfulText: string;
   htmlLanguage: string | null;
   pageType: string;
   statusCode: number;
@@ -43,6 +44,10 @@ export type NormalizedPageDocument = {
   fetchedAt: string;
   responseBytes: number;
   redirectCount: number;
+  selfCanonical: boolean;
+  extractionMethodSelected?: string;
+  preBoilerplateChars?: number;
+  postBoilerplateChars?: number;
 };
 
 export type PageClassificationResult = {

@@ -6,11 +6,17 @@
 import { RequestQueue } from "crawlee";
 import {
   buildCrawlSummary,
+  countWords,
   DEEP_SCRAPE_CRAWL_POLICY,
   ensureHomepageCandidate,
   evaluateCorpusUsefulness,
   selectMeaningfulUrls,
 } from "@/services/websiteLearning/deepScrape/crawlPolicy";
+import {
+  buildBoilerplateFingerprintSet,
+  hashMeaningfulContent,
+  stripBoilerplateBlocks,
+} from "@/services/websiteLearning/deepScrape/crawler/boilerplate";
 import {
   enqueueCheerioUrl,
   runCheerioCrawlPhase,
@@ -60,7 +66,7 @@ export function toSynthesisPages(
     url: page.finalUrl || page.url,
     title: page.title,
     pageType: page.pageType,
-    text: page.readableText,
+    text: page.meaningfulText || page.readableText,
   }));
 }
 
@@ -88,8 +94,9 @@ export async function runCrawleeWebsiteCrawl(
   const storage = await createJobCrawleeStorage(input.jobId);
   const acceptedPages: NormalizedPageDocument[] = [];
   const playwrightFallbackUrls: string[] = [];
-  const seenCanonicalUrls = new Set<string>();
-  const seenContentHashes = new Set<string>();
+  const seenCanonicalUrls = new Map<string, string>();
+  const seenFinalUrls = new Map<string, string>();
+  const seenContentHashes = new Map<string, string>();
   const seenFingerprints = new Set<string>();
   const enqueuedUrls = new Set<string>();
   const rejectedByReason: Record<string, number> = {};
@@ -197,6 +204,7 @@ export async function runCrawleeWebsiteCrawl(
       acceptedPages,
       playwrightFallbackUrls,
       seenCanonicalUrls,
+      seenFinalUrls,
       seenContentHashes,
       seenFingerprints,
       enqueuedUrls,
@@ -264,6 +272,7 @@ export async function runCrawleeWebsiteCrawl(
           requestQueue: playwrightQueue,
           acceptedPages,
           seenCanonicalUrls,
+          seenFinalUrls,
           seenContentHashes,
           seenFingerprints,
           rejectedByReason,
@@ -312,9 +321,73 @@ export async function runCrawleeWebsiteCrawl(
       // ignore
     }
 
+    // Cross-page boilerplate removal before hashing/corpus assembly.
+    const boilerplateSet = buildBoilerplateFingerprintSet(
+      acceptedPages.map(
+        (page) => page.meaningfulText || page.readableText,
+      ),
+    );
+    if (boilerplateSet.size > 0) {
+      logDeepScrapeEvent("shared_template_detected", {
+        organizationId: input.organizationId,
+        jobId: input.jobId,
+        sourceType: input.sourceType,
+        domain: root.registrableDomain,
+        diagnostic: {
+          sharedBlockCount: boilerplateSet.size,
+          pagesSampled: acceptedPages.length,
+        },
+      });
+    }
+
+    const dedupedByHash = new Map<string, NormalizedPageDocument>();
+    for (const page of acceptedPages) {
+      const source = page.meaningfulText || page.readableText;
+      const stripped = stripBoilerplateBlocks(source, boilerplateSet);
+      if (stripped.removedBlocks > 0) {
+        logDeepScrapeEvent("boilerplate_removed", {
+          organizationId: input.organizationId,
+          jobId: input.jobId,
+          sourceType: input.sourceType,
+          domain: root.registrableDomain,
+          diagnostic: {
+            path: (() => {
+              try {
+                return new URL(page.finalUrl).pathname;
+              } catch {
+                return "/";
+              }
+            })(),
+            preBoilerplateChars: stripped.preChars,
+            postBoilerplateChars: stripped.postChars,
+            removedBlocks: stripped.removedBlocks,
+          },
+        });
+      }
+      const meaningfulText = stripped.text;
+      const contentHash = hashMeaningfulContent(meaningfulText);
+      const next: NormalizedPageDocument = {
+        ...page,
+        meaningfulText,
+        readableText: meaningfulText || page.readableText,
+        contentHash,
+        preBoilerplateChars: stripped.preChars,
+        postBoilerplateChars: stripped.postChars,
+      };
+      // Prefer longer unique content when hashes collide after stripping.
+      const prior = dedupedByHash.get(contentHash);
+      if (
+        !prior ||
+        (next.meaningfulText?.length ?? 0) > (prior.meaningfulText?.length ?? 0)
+      ) {
+        dedupedByHash.set(contentHash, next);
+      }
+    }
+
+    const uniquePages = [...dedupedByHash.values()];
     const boundedPages: NormalizedPageDocument[] = [];
     let combinedChars = 0;
-    for (const page of acceptedPages) {
+    for (const page of uniquePages) {
       if (boundedPages.length >= DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages) {
         break;
       }
@@ -323,14 +396,85 @@ export async function runCrawleeWebsiteCrawl(
       }
       const remaining =
         DEEP_SCRAPE_CRAWL_POLICY.maxCombinedSourceChars - combinedChars;
-      const text = page.readableText.slice(0, remaining);
+      const text = (page.meaningfulText || page.readableText).slice(
+        0,
+        remaining,
+      );
       combinedChars += text.length;
-      boundedPages.push({ ...page, readableText: text });
+      boundedPages.push({
+        ...page,
+        readableText: text,
+        meaningfulText: text,
+      });
+    }
+
+    const uniqueChars = boundedPages.reduce(
+      (sum, page) => sum + (page.meaningfulText || page.readableText).length,
+      0,
+    );
+    const uniqueWords = countWords(
+      boundedPages
+        .map((page) => page.meaningfulText || page.readableText)
+        .join(" "),
+    );
+    const duplicateRejects =
+      (rejectedByReason.PAGE_DUPLICATE ?? 0) +
+      (rejectedByReason.CHEERIO_SUSPECTED_TEMPLATE_EXTRACTION ?? 0);
+    const attempted = cheerioProcessed + playwrightProcessed;
+    const collapsedToTemplate =
+      attempted >= 5 &&
+      boundedPages.length <= 1 &&
+      uniqueChars < 800 &&
+      duplicateRejects >= Math.max(3, Math.floor(attempted * 0.5)) &&
+      playwrightProcessed === 0;
+
+    if (collapsedToTemplate) {
+      logDeepScrapeEvent("corpus_quality_failed", {
+        organizationId: input.organizationId,
+        jobId: input.jobId,
+        sourceType: input.sourceType,
+        domain: root.registrableDomain,
+        failureCode: "EXTRACTION_COLLAPSED_TO_SHARED_TEMPLATE",
+        diagnostic: {
+          fetchesAttempted: attempted,
+          pagesAccepted: boundedPages.length,
+          uniqueChars,
+          uniqueWords,
+          duplicateRejects,
+          browserFallbackUsed: false,
+        },
+      });
+      throw new Error("EXTRACTION_COLLAPSED_TO_SHARED_TEMPLATE");
+    }
+
+    // If many pages collapsed but Playwright already ran and corpus is still tiny.
+    if (
+      attempted >= 5 &&
+      boundedPages.length <= 1 &&
+      uniqueChars < 500 &&
+      duplicateRejects >= Math.max(3, Math.floor(attempted * 0.5))
+    ) {
+      logDeepScrapeEvent("corpus_quality_failed", {
+        organizationId: input.organizationId,
+        jobId: input.jobId,
+        sourceType: input.sourceType,
+        domain: root.registrableDomain,
+        failureCode: "EXTRACTION_COLLAPSED_TO_SHARED_TEMPLATE",
+        diagnostic: {
+          fetchesAttempted: attempted,
+          pagesAccepted: boundedPages.length,
+          uniqueChars,
+          uniqueWords,
+          duplicateRejects,
+          browserFallbackUsed: playwrightProcessed > 0,
+        },
+      });
+      throw new Error("EXTRACTION_COLLAPSED_TO_SHARED_TEMPLATE");
     }
 
     const corpus = evaluateCorpusUsefulness(
       boundedPages.map((page) => ({
-        text: page.readableText,
+        text: page.meaningfulText || page.readableText,
         title: page.title,
         pageType: page.pageType,
       })),

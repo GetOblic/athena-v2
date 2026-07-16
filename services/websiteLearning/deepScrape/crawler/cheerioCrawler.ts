@@ -34,8 +34,10 @@ export type CheerioPhaseContext = {
   requestQueue: RequestQueue;
   acceptedPages: NormalizedPageDocument[];
   playwrightFallbackUrls: string[];
-  seenCanonicalUrls: Set<string>;
-  seenContentHashes: Set<string>;
+  /** map: identity url/hash -> first seen page path */
+  seenCanonicalUrls: Map<string, string>;
+  seenFinalUrls: Map<string, string>;
+  seenContentHashes: Map<string, string>;
   seenFingerprints: Set<string>;
   enqueuedUrls: Set<string>;
   rejectedByReason: Record<string, number>;
@@ -206,10 +208,26 @@ export async function runCheerioCrawlPhase(
         }
 
         const html = htmlBuffer.toString("utf8");
+        const finalUrl = request.loadedUrl ?? request.url;
         const extracted = extractWithReadability({
           html,
-          url: request.loadedUrl ?? request.url,
+          url: finalUrl,
           registrableDomain: ctx.registrableDomain,
+        });
+
+        logDeepScrapeEvent("extraction_method_selected", {
+          organizationId: ctx.organizationId,
+          jobId: ctx.jobId,
+          sourceType: ctx.sourceType,
+          domain: ctx.registrableDomain,
+          diagnostic: {
+            path: safePath(request.url),
+            extractionMethod: extracted.extractionMethodSelected,
+            browserFallbackUsed: false,
+            responseBytes: htmlBuffer.byteLength,
+            preBoilerplateChars: extracted.preBoilerplateChars,
+            titleLength: extracted.title?.length ?? 0,
+          },
         });
 
         logDeepScrapeEvent("readability_extraction_completed", {
@@ -220,13 +238,14 @@ export async function runCheerioCrawlPhase(
           diagnostic: {
             path: safePath(request.url),
             extractionMethod: "cheerio_readability",
-            extractedChars: extracted.readableText.length,
+            extractedChars: extracted.meaningfulText.length,
             structuredDataTypes: extracted.structuredBusinessData.types,
+            selfCanonical: extracted.selfCanonical,
           },
         });
 
-        const finalUrl = request.loadedUrl ?? request.url;
-        const canonicalUrl = extracted.canonicalUrl ?? canonicalizePageUrl(finalUrl) ?? finalUrl;
+        const canonicalUrl =
+          extracted.canonicalUrl ?? canonicalizePageUrl(finalUrl) ?? finalUrl;
         const pageDocument: NormalizedPageDocument = {
           url: request.url,
           canonicalUrl,
@@ -235,6 +254,7 @@ export async function runCheerioCrawlPhase(
           description: extracted.description,
           headings: extracted.headings,
           readableText: extracted.readableText,
+          meaningfulText: extracted.meaningfulText,
           htmlLanguage: extracted.htmlLanguage,
           pageType,
           statusCode,
@@ -247,12 +267,17 @@ export async function runCheerioCrawlPhase(
           fetchedAt: new Date().toISOString(),
           responseBytes: htmlBuffer.byteLength,
           redirectCount: 0,
+          selfCanonical: extracted.selfCanonical,
+          extractionMethodSelected: extracted.extractionMethodSelected,
+          preBoilerplateChars: extracted.preBoilerplateChars,
+          postBoilerplateChars: extracted.preBoilerplateChars,
         };
 
         const classification = classifyNormalizedPage({
           document: pageDocument,
           htmlForShellCheck: html,
           seenCanonicalUrls: ctx.seenCanonicalUrls,
+          seenFinalUrls: ctx.seenFinalUrls,
           seenContentHashes: ctx.seenContentHashes,
           seenFingerprints: ctx.seenFingerprints,
         });
@@ -271,8 +296,12 @@ export async function runCheerioCrawlPhase(
             contentType: ctype,
             responseBytes: htmlBuffer.byteLength,
             extractedChars: classification.extractedCharacterCount,
+            preBoilerplateChars: classification.preBoilerplateChars,
+            postBoilerplateChars: classification.postBoilerplateChars,
             structuredDataTypes: classification.structuredDataTypes,
             rejectionCode: classification.rejectionCode,
+            duplicateBasis: classification.duplicateBasis,
+            duplicateOfPath: classification.duplicateOfPath,
           },
         });
 
@@ -280,15 +309,33 @@ export async function runCheerioCrawlPhase(
           classification.needsPlaywrightFallback &&
           ctx.acceptedPages.length < ctx.maxAccepted
         ) {
-          if (!ctx.playwrightFallbackUrls.includes(canonicalUrl)) {
-            ctx.playwrightFallbackUrls.push(canonicalUrl);
+          const fallbackUrl = finalUrl;
+          if (!ctx.playwrightFallbackUrls.includes(fallbackUrl)) {
+            ctx.playwrightFallbackUrls.push(fallbackUrl);
+            if (
+              classification.rejectionCode ===
+              "CHEERIO_SUSPECTED_TEMPLATE_EXTRACTION"
+            ) {
+              logDeepScrapeEvent("cheerio_extraction_suspect", {
+                organizationId: ctx.organizationId,
+                jobId: ctx.jobId,
+                sourceType: ctx.sourceType,
+                domain: ctx.registrableDomain,
+                diagnostic: {
+                  path: safePath(fallbackUrl),
+                  duplicateBasis: classification.duplicateBasis,
+                  duplicateOfPath: classification.duplicateOfPath,
+                  extractedChars: classification.extractedCharacterCount,
+                },
+              });
+            }
             logDeepScrapeEvent("playwright_fallback_started", {
               organizationId: ctx.organizationId,
               jobId: ctx.jobId,
               sourceType: ctx.sourceType,
               domain: ctx.registrableDomain,
               diagnostic: {
-                path: safePath(canonicalUrl),
+                path: safePath(fallbackUrl),
                 extractionMethod: "cheerio_readability",
                 browserFallbackUsed: true,
                 rejectionCode: classification.rejectionCode,
@@ -317,8 +364,24 @@ export async function runCheerioCrawlPhase(
               extractedChars: classification.extractedCharacterCount,
               structuredDataTypes: classification.structuredDataTypes,
               rejectionCode: classification.rejectionCode,
+              duplicateBasis: classification.duplicateBasis,
+              duplicateOfPath: classification.duplicateOfPath,
             },
           });
+          if (classification.rejectionCode === "PAGE_DUPLICATE") {
+            logDeepScrapeEvent("duplicate_detected", {
+              organizationId: ctx.organizationId,
+              jobId: ctx.jobId,
+              sourceType: ctx.sourceType,
+              domain: ctx.registrableDomain,
+              diagnostic: {
+                path: safePath(request.url),
+                duplicateBasis: classification.duplicateBasis,
+                duplicateOfPath: classification.duplicateOfPath,
+                browserFallbackUsed: false,
+              },
+            });
+          }
           await ctx.onPageProcessed?.();
           return;
         }
@@ -328,9 +391,11 @@ export async function runCheerioCrawlPhase(
           return;
         }
 
-        ctx.seenCanonicalUrls.add(canonicalUrl);
-        ctx.seenCanonicalUrls.add(finalUrl);
-        ctx.seenContentHashes.add(pageDocument.contentHash);
+        ctx.seenFinalUrls.set(finalUrl, finalUrl);
+        if (pageDocument.selfCanonical) {
+          ctx.seenCanonicalUrls.set(canonicalUrl, finalUrl);
+        }
+        ctx.seenContentHashes.set(pageDocument.contentHash, finalUrl);
         if (classification.duplicateFingerprint) {
           ctx.seenFingerprints.add(classification.duplicateFingerprint);
         }

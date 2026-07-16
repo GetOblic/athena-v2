@@ -6,6 +6,7 @@ import {
 } from "@/lib/confidenceDisplay";
 import { WhyAthenaMatters } from "@/components/discussions/WhyAthenaMatters";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import { normalizeAnalysisForDisplay } from "@/services/executiveVersions/analysisNormalization";
 
 type ExecutiveIntelligenceCardProps = {
   analysis: DiscussionAnalysis;
@@ -17,9 +18,13 @@ export function ExecutiveIntelligenceCard({
   analysis,
   sourceKind = "discussion",
 }: ExecutiveIntelligenceCardProps) {
-  const confidence = Math.max(0, Math.min(100, analysis.confidence ?? 0));
+  const display = normalizeAnalysisForDisplay(analysis);
+  const confidence = Math.max(0, Math.min(100, display.confidence ?? 0));
   const confidenceLabel = formatConfidenceLabel(confidence);
-  const whyBullets = buildWhyAthenaBullets(analysis);
+  const whyBullets = buildWhyAthenaBullets({
+    ...analysis,
+    ...display,
+  });
   const isProspect = sourceKind === "prospect";
 
   return (
@@ -38,18 +43,18 @@ export function ExecutiveIntelligenceCard({
         <div className="space-y-7">
           <IntelBlock
             label={isProspect ? "Prospect Assessment" : "Executive Insight"}
-            value={analysis.summary}
+            value={display.summary}
             prominent
           />
           <IntelBlock
             label={
               isProspect ? "Primary Business Concern" : "Primary Buyer Concern"
             }
-            value={analysis.pain_points}
+            value={display.pain_points}
           />
           <IntelBlock
             label={isProspect ? "Outreach Strategy" : "Recommended Strategy"}
-            value={analysis.recommended_action}
+            value={display.recommended_action}
           />
         </div>
 
@@ -74,9 +79,9 @@ export function ExecutiveIntelligenceCard({
             </div>
           </div>
 
-          <StatPill label="Buyer Stage" value={analysis.buyer_stage} />
-          <StatPill label="Intent" value={analysis.intent} />
-          <StatPill label="Risk" value={analysis.risk_level} />
+          <StatPill label="Buyer Stage" value={display.buyer_stage} />
+          <StatPill label="Intent" value={display.intent} />
+          <StatPill label="Risk" value={display.risk_level} />
         </div>
       </div>
 

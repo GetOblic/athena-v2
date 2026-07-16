@@ -32,8 +32,9 @@ export type PlaywrightPhaseContext = {
   config: Configuration;
   requestQueue: RequestQueue;
   acceptedPages: NormalizedPageDocument[];
-  seenCanonicalUrls: Set<string>;
-  seenContentHashes: Set<string>;
+  seenCanonicalUrls: Map<string, string>;
+  seenFinalUrls: Map<string, string>;
+  seenContentHashes: Map<string, string>;
   seenFingerprints: Set<string>;
   rejectedByReason: Record<string, number>;
   maxAccepted: number;
@@ -156,7 +157,7 @@ export async function runPlaywrightCrawlPhase(
             path: safePath(finalUrl),
             extractionMethod: "playwright_readability",
             browserFallbackUsed: true,
-            extractedChars: extracted.readableText.length,
+            extractedChars: extracted.meaningfulText.length,
             structuredDataTypes: extracted.structuredBusinessData.types,
           },
         });
@@ -174,6 +175,7 @@ export async function runPlaywrightCrawlPhase(
           description: extracted.description,
           headings: extracted.headings,
           readableText: extracted.readableText,
+          meaningfulText: extracted.meaningfulText,
           htmlLanguage: extracted.htmlLanguage,
           pageType,
           statusCode,
@@ -188,14 +190,20 @@ export async function runPlaywrightCrawlPhase(
           fetchedAt: new Date().toISOString(),
           responseBytes,
           redirectCount: 0,
+          selfCanonical: extracted.selfCanonical,
+          extractionMethodSelected: extracted.extractionMethodSelected,
+          preBoilerplateChars: extracted.preBoilerplateChars,
+          postBoilerplateChars: extracted.preBoilerplateChars,
         };
 
         const classification = classifyNormalizedPage({
           document: pageDocument,
           htmlForShellCheck: html,
           seenCanonicalUrls: ctx.seenCanonicalUrls,
+          seenFinalUrls: ctx.seenFinalUrls,
           seenContentHashes: ctx.seenContentHashes,
           seenFingerprints: ctx.seenFingerprints,
+          alreadyRenderedWithBrowser: true,
         });
 
         logDeepScrapeEvent("playwright_page_processed", {
@@ -214,6 +222,7 @@ export async function runPlaywrightCrawlPhase(
             extractedChars: classification.extractedCharacterCount,
             structuredDataTypes: classification.structuredDataTypes,
             rejectionCode: classification.rejectionCode,
+            duplicateBasis: classification.duplicateBasis,
           },
         });
 
@@ -234,19 +243,37 @@ export async function runPlaywrightCrawlPhase(
               extractionMethod: "playwright_readability",
               browserFallbackUsed: true,
               rejectionCode: classification.rejectionCode,
+              duplicateBasis: classification.duplicateBasis,
+              duplicateOfPath: classification.duplicateOfPath,
             },
           });
           await ctx.onPageProcessed?.();
           return;
         }
 
-        ctx.seenCanonicalUrls.add(canonicalUrl);
-        ctx.seenCanonicalUrls.add(finalUrl);
-        ctx.seenContentHashes.add(pageDocument.contentHash);
+        ctx.seenFinalUrls.set(finalUrl, finalUrl);
+        if (pageDocument.selfCanonical) {
+          ctx.seenCanonicalUrls.set(canonicalUrl, finalUrl);
+        }
+        ctx.seenContentHashes.set(pageDocument.contentHash, finalUrl);
         if (classification.duplicateFingerprint) {
           ctx.seenFingerprints.add(classification.duplicateFingerprint);
         }
         ctx.acceptedPages.push(pageDocument);
+
+        logDeepScrapeEvent("playwright_extraction_recovered", {
+          organizationId: ctx.organizationId,
+          jobId: ctx.jobId,
+          sourceType: ctx.sourceType,
+          domain: ctx.registrableDomain,
+          pageType,
+          diagnostic: {
+            path: safePath(finalUrl),
+            extractionMethod: "playwright_readability",
+            browserFallbackUsed: true,
+            extractedChars: classification.extractedCharacterCount,
+          },
+        });
 
         logDeepScrapeEvent("page_accepted", {
           organizationId: ctx.organizationId,

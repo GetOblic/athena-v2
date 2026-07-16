@@ -23,6 +23,8 @@ import {
 } from "@/lib/prospectDeploymentAssetContract";
 import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
+import { getProspectByLinkedDiscussionId } from "@/services/prospects/prospectService";
+import { logDeepScrapeEvent } from "@/services/websiteLearning/deepScrape/observability";
 
 export type GeneratedDeploymentAssets = {
   suggested_cta: string;
@@ -118,6 +120,31 @@ export async function generateDeploymentAssets(input: {
     input.organizationId,
   ).catch(() => null);
 
+  let websiteIntelligence: Record<string, unknown> | null = null;
+  if (isProspectIntelligenceBridge(input.discussion)) {
+    const prospect = await getProspectByLinkedDiscussionId(
+      input.discussionId,
+      input.organizationId,
+    ).catch(() => null);
+    websiteIntelligence =
+      (prospect?.website_intelligence as Record<string, unknown> | null) ??
+      null;
+    if (
+      websiteIntelligence &&
+      websiteIntelligence.provider === "deep_v1"
+    ) {
+      logDeepScrapeEvent("knowledge_base_deep_context_used", {
+        organizationId: input.organizationId,
+        discussionId: input.discussionId,
+        prospectId: prospect?.id ?? null,
+        diagnostic: {
+          pagesAnalyzed: websiteIntelligence.pages_analyzed ?? null,
+          provider: "deep_v1",
+        },
+      });
+    }
+  }
+
   const prompt = assembleDeploymentAssetsPrompt({
     bundle,
     discussion: input.discussion,
@@ -126,6 +153,7 @@ export async function generateDeploymentAssets(input: {
     briefing: input.briefing ?? undefined,
     regenerationRunId: input.regenerationRunId,
     brandIdentity,
+    websiteIntelligence,
   });
 
   const rawResponse = await generateReview(prompt, {

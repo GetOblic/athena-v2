@@ -56,6 +56,11 @@ import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridg
 import {
   logProspectDeploymentAssetStability,
 } from "@/lib/prospectDeploymentAssetContract";
+import {
+  assertAnalysisPublicationContract,
+  normalizeAnalysisFields,
+} from "@/services/executiveVersions/analysisNormalization";
+import { logDeepScrapeEvent } from "@/services/websiteLearning/deepScrape/observability";
 
 export type RegenerationRunContext = {
   regenerationRunId: string;
@@ -264,32 +269,59 @@ function stripJsonFence(rawText: string) {
     .trim();
 }
 
-function parseAnalysis(rawText: string): GeneratedDiscussionAnalysis {
+function parseAnalysis(rawText: string): GeneratedDiscussionAnalysis & {
+  isParserFallback?: boolean;
+  repairedFields?: string[];
+} {
   try {
-    const parsed = JSON.parse(stripJsonFence(rawText));
-
+    const parsed = JSON.parse(stripJsonFence(rawText)) as Record<
+      string,
+      unknown
+    >;
+    const normalized = normalizeAnalysisFields({
+      ...parsed,
+      isParserFallback: false,
+    });
+    if (normalized.repairedFields.length > 0) {
+      logDeepScrapeEvent("analysis_contract_normalized", {
+        diagnostic: {
+          repairedFields: normalized.repairedFields,
+        },
+      });
+    }
     return {
-      summary: String(parsed.summary ?? ""),
-      sentiment: String(parsed.sentiment ?? "neutral"),
-      intent: String(parsed.intent ?? "none"),
-      buyer_stage: String(parsed.buyer_stage ?? "unaware"),
-      pain_points: String(parsed.pain_points ?? ""),
-      opportunity_detected: Boolean(parsed.opportunity_detected ?? false),
-      opportunity_title: String(parsed.opportunity_title ?? ""),
-      opportunity_reason: String(parsed.opportunity_reason ?? ""),
-      recommended_action: String(parsed.recommended_action ?? ""),
-      suggested_cta: String(parsed.suggested_cta ?? ""),
-      risk_level: String(parsed.risk_level ?? "low"),
-      confidence: Number(parsed.confidence ?? 0),
+      summary: normalized.summary,
+      sentiment: normalized.sentiment,
+      intent: normalized.intent,
+      buyer_stage: normalized.buyer_stage,
+      pain_points: normalized.pain_points,
+      opportunity_detected: normalized.opportunity_detected,
+      opportunity_title: normalized.opportunity_title,
+      opportunity_reason: normalized.opportunity_reason,
+      recommended_action: normalized.recommended_action,
+      suggested_cta: normalized.suggested_cta,
+      risk_level: normalized.risk_level,
+      confidence: normalized.confidence,
+      isParserFallback: false,
+      repairedFields: normalized.repairedFields,
     };
   } catch (error) {
     console.error("Discussion analysis JSON parse failed:", error);
+    const normalized = normalizeAnalysisFields({
+      summary: "",
+      isParserFallback: true,
+      confidence: 0,
+    });
+    logDeepScrapeEvent("analysis_contract_rejected", {
+      failureCode: "MALFORMED_ANALYSIS_CONTRACT",
+      diagnostic: { reason: "json_parse_failed" },
+    });
     return {
-      summary: rawText.slice(0, 2000),
-      sentiment: "neutral",
-      intent: "none",
-      buyer_stage: "unaware",
-      pain_points: "",
+      summary: normalized.summary,
+      sentiment: normalized.sentiment,
+      intent: normalized.intent,
+      buyer_stage: normalized.buyer_stage,
+      pain_points: normalized.pain_points,
       opportunity_detected: false,
       opportunity_title: "",
       opportunity_reason: "",
@@ -297,6 +329,8 @@ function parseAnalysis(rawText: string): GeneratedDiscussionAnalysis {
       suggested_cta: "",
       risk_level: "low",
       confidence: 0,
+      isParserFallback: true,
+      repairedFields: ["summary"],
     };
   }
 }
@@ -711,6 +745,26 @@ async function processDiscussionEndToEndInternal(
   }
 
   parsedAnalysis = stripAnalysisDeploymentFields(parsedAnalysis);
+
+  const analysisContract = assertAnalysisPublicationContract(
+    normalizeAnalysisFields({
+      ...parsedAnalysis,
+      isParserFallback: Boolean(
+        (parsedAnalysis as { isParserFallback?: boolean }).isParserFallback,
+      ),
+    }),
+  );
+  if (!analysisContract.ok) {
+    logDeepScrapeEvent("analysis_contract_rejected", {
+      discussionId: discussion.id,
+      failureCode: analysisContract.code,
+      diagnostic: { reason: analysisContract.reason },
+    });
+    return workflowFailure(
+      discussionId,
+      "MALFORMED_ANALYSIS_CONTRACT",
+    );
+  }
 
   let analysis;
   try {

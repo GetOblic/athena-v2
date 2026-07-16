@@ -18,6 +18,7 @@ import type {
   ExecutiveIntelligenceVersion,
   ExecutiveVersionSummary,
 } from "@/services/executiveVersions/executiveVersionTypes";
+import { normalizeAnalysisForDisplay } from "@/services/executiveVersions/analysisNormalization";
 import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 
 /**
@@ -379,8 +380,13 @@ export function ExecutiveIntelligenceWorkspace({
     );
   }
 
+  const analysisDisplay = normalizeAnalysisForDisplay(intelligence.analysis);
+
   const deploymentAssets = buildDiscussionDeploymentAssets(
-    intelligence.analysis,
+    {
+      ...intelligence.analysis,
+      ...analysisDisplay,
+    },
     { prospectMode: isProspect },
   );
 
@@ -589,20 +595,20 @@ export function ExecutiveIntelligenceWorkspace({
           <div className="space-y-7">
             <DetailField
               label={isProspect ? "Prospect Assessment" : "Summary"}
-              value={intelligence.analysis.summary}
+              value={analysisDisplay.summary}
             />
             <DetailField
               label="Sentiment"
-              value={intelligence.analysis.sentiment}
+              value={analysisDisplay.sentiment}
             />
-            <DetailField label="Intent" value={intelligence.analysis.intent} />
+            <DetailField label="Intent" value={analysisDisplay.intent} />
             <DetailField
               label="Buyer Stage"
-              value={intelligence.analysis.buyer_stage}
+              value={analysisDisplay.buyer_stage}
             />
             <DetailField
               label="Pain Points"
-              value={intelligence.analysis.pain_points}
+              value={analysisDisplay.pain_points}
             />
             <DetailField
               label={isProspect ? "Prospect Opportunity" : "Opportunity"}
@@ -625,7 +631,7 @@ export function ExecutiveIntelligenceWorkspace({
               label={
                 isProspect ? "Prospect Opportunity Title" : "Opportunity Title"
               }
-              value={intelligence.analysis.opportunity_title}
+              value={analysisDisplay.opportunity_title}
             />
             <DetailField
               label={
@@ -633,23 +639,23 @@ export function ExecutiveIntelligenceWorkspace({
                   ? "Prospect Opportunity Reason"
                   : "Opportunity Reason"
               }
-              value={intelligence.analysis.opportunity_reason}
+              value={analysisDisplay.opportunity_reason}
             />
             <DetailField
               label={
                 isProspect ? "Outreach Strategy" : "Strategic Recommendation"
               }
               sublabel="Recommended Action"
-              value={intelligence.analysis.recommended_action}
+              value={analysisDisplay.recommended_action}
               helper="Guidance for internal decision-making."
             />
             <DetailField
               label="Risk Level"
-              value={intelligence.analysis.risk_level}
+              value={analysisDisplay.risk_level}
             />
             <DetailField
               label="Confidence"
-              value={`${intelligence.analysis.confidence}%`}
+              value={`${analysisDisplay.confidence}%`}
             />
           </div>
         </AthenaCollapsibleSection>

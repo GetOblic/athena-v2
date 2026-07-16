@@ -5,7 +5,11 @@ import {
   DEPLOYMENT_ASSETS_BRIEFING_QUALITY_INSTRUCTIONS,
   DEPLOYMENT_ASSETS_QUALITY_INSTRUCTIONS,
 } from "@/services/ai/prompts/deploymentAssetsInstructions";
-import { KNOWLEDGE_BASE_ENHANCEMENT_GENERATION_RULES } from "@/services/ai/prompts/knowledgeBaseEnhancementConstraints";
+import {
+  isDeepV1WebsiteIntelligenceProvider,
+  KNOWLEDGE_BASE_DEEP_SCRAPE_GENERATION_RULES,
+  KNOWLEDGE_BASE_ENHANCEMENT_GENERATION_RULES,
+} from "@/services/ai/prompts/knowledgeBaseEnhancementConstraints";
 import {
   PROSPECT_DEPLOYMENT_CHANNEL_GUIDE,
   PROSPECT_DEPLOYMENT_SECTION_LABELS,
@@ -89,6 +93,7 @@ export function assembleDeploymentAssetsPrompt(input: {
   briefing?: AthenaReview | Record<string, unknown>;
   regenerationRunId?: string;
   brandIdentity?: OrganizationBrandIdentity | null;
+  websiteIntelligence?: Record<string, unknown> | null;
 }): string {
   const executiveContextBlock = buildDeploymentExecutiveContext(input.bundle, {
     regenerationRunId: input.regenerationRunId,
@@ -96,6 +101,12 @@ export function assembleDeploymentAssetsPrompt(input: {
     analysis: input.analysis,
     opportunity: input.opportunity as Record<string, unknown> | undefined,
   });
+
+  const deepWebsiteIntelligence = isDeepV1WebsiteIntelligenceProvider(
+    input.websiteIntelligence,
+  )
+    ? input.websiteIntelligence
+    : null;
 
   const sourceIntelligence = JSON.stringify(
     {
@@ -113,6 +124,25 @@ export function assembleDeploymentAssetsPrompt(input: {
             buyer_stage: (input.briefing as AthenaReview).buyer_stage,
           }
         : null,
+      website_intelligence: deepWebsiteIntelligence
+        ? {
+            provider: deepWebsiteIntelligence.provider,
+            url: deepWebsiteIntelligence.url,
+            pages_analyzed: deepWebsiteIntelligence.pages_analyzed,
+            crawl_summary: deepWebsiteIntelligence.crawl_summary,
+            business_knowledge: deepWebsiteIntelligence.business_knowledge,
+            pages: Array.isArray(deepWebsiteIntelligence.pages)
+              ? deepWebsiteIntelligence.pages.slice(0, 25)
+              : [],
+          }
+        : input.websiteIntelligence
+          ? {
+              provider:
+                (input.websiteIntelligence as Record<string, unknown>).provider ??
+                null,
+              url: (input.websiteIntelligence as Record<string, unknown>).url ?? null,
+            }
+          : null,
     },
     null,
     2,
@@ -120,6 +150,10 @@ export function assembleDeploymentAssetsPrompt(input: {
 
   const isProspectSource =
     input.discussion.platform === PROSPECT_INTELLIGENCE_PLATFORM;
+
+  const knowledgeBaseRules = deepWebsiteIntelligence
+    ? KNOWLEDGE_BASE_DEEP_SCRAPE_GENERATION_RULES
+    : KNOWLEDGE_BASE_ENHANCEMENT_GENERATION_RULES;
 
   const requiredOutput = buildDeploymentAssetsRequiredOutputInstructions({
     isProspectSource,
@@ -153,7 +187,7 @@ ${LINKEDIN_PROSPECT_ASSET_GENERATION_RULES}
 
 ${WHATSAPP_OUTREACH_GENERATION_RULES}
 
-${KNOWLEDGE_BASE_ENHANCEMENT_GENERATION_RULES}
+${knowledgeBaseRules}
 
 ${SUBSTACK_POST_GENERATION_RULES}
 
