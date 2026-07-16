@@ -92,6 +92,40 @@ export async function runDeepWebsiteCrawl(input: {
     pagesRejected: crawl.stats.pagesRejected,
   });
 
+  const synthesisPages = toSynthesisPages(crawl.pages);
+  const pageUrls = synthesisPages.map((page) => page.url);
+
+  if (input.sourceType === "brain") {
+    logDeepScrapeEvent("brain_deep_scrape_pages_collected", {
+      organizationId: input.organizationId,
+      jobId: input.jobId,
+      sourceType: "brain",
+      domain: root.registrableDomain,
+      rootUrl: rootCanonical,
+      pagesDiscovered: crawl.stats.candidatesDiscovered,
+      pagesCrawled: crawl.stats.pagesAccepted,
+      diagnostic: {
+        acceptedPageCount: crawl.pages.length,
+        synthesisInputPageCount: synthesisPages.length,
+        normalizedUrls: pageUrls,
+        pagesRejectedByReason: crawl.stats.rejectedByReason,
+      },
+    });
+    logDeepScrapeEvent("brain_deep_scrape_synthesis_input_prepared", {
+      organizationId: input.organizationId,
+      jobId: input.jobId,
+      sourceType: "brain",
+      domain: root.registrableDomain,
+      rootUrl: rootCanonical,
+      pagesCrawled: synthesisPages.length,
+      diagnostic: {
+        acceptedPageCount: crawl.pages.length,
+        synthesisInputPageCount: synthesisPages.length,
+        normalizedUrls: pageUrls,
+      },
+    });
+  }
+
   logDeepScrapeEvent("deep_scrape_synthesis_started", {
     organizationId: input.organizationId,
     jobId: input.jobId,
@@ -105,7 +139,7 @@ export async function runDeepWebsiteCrawl(input: {
   const crawlSummary = buildSummaryFromNormalizedPages(crawl.pages);
   const intelligence = await synthesizeDeepWebsiteIntelligence({
     rootUrl: root.url,
-    pages: toSynthesisPages(crawl.pages),
+    pages: synthesisPages,
     crawlSummary,
   });
 

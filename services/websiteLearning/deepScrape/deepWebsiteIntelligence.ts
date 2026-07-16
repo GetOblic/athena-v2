@@ -121,6 +121,9 @@ export function formatDeepIntelligenceForBrainPrompt(
   intelligence: DeepWebsiteIntelligence,
 ): string {
   const k = intelligence.business_knowledge;
+  const pageCount = Array.isArray(intelligence.pages)
+    ? intelligence.pages.length
+    : intelligence.pages_analyzed;
   const sections = [
     ["Positioning", k.positioning],
     ["About", k.about],
@@ -145,12 +148,38 @@ export function formatDeepIntelligenceForBrainPrompt(
     .filter(([, text]) => typeof text === "string" && text.trim())
     .map(([label, text]) => `${label}:\n${String(text).trim()}`);
 
+  const pageInventory = Array.isArray(intelligence.pages)
+    ? intelligence.pages
+        .map((page, index) => {
+          const title = page.title?.trim() || "(untitled)";
+          const excerpt = page.excerpt?.trim().slice(0, 220) || "";
+          return [
+            `PAGE ${index + 1}`,
+            `URL: ${page.url}`,
+            `TYPE: ${page.page_type}`,
+            `TITLE: ${title}`,
+            excerpt ? `EXCERPT: ${excerpt}` : null,
+          ]
+            .filter(Boolean)
+            .join("\n");
+        })
+        .join("\n\n")
+    : "";
+
   const header = [
-    `DEEP WEBSITE INTELLIGENCE (${intelligence.pages_analyzed} pages analyzed)`,
+    `DEEP WEBSITE INTELLIGENCE (${pageCount} pages analyzed)`,
     `Root URL: ${intelligence.url}`,
   ].join("\n");
 
-  return `${header}\n\n${sections.join("\n\n")}`.slice(0, 48_000);
+  const body = [
+    header,
+    pageInventory ? `CRAWLED PAGES:\n\n${pageInventory}` : null,
+    sections.join("\n\n"),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  return body.slice(0, 48_000);
 }
 
 export function flattenDeepIntelligenceForCompat(

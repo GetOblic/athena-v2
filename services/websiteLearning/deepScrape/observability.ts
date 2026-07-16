@@ -50,7 +50,13 @@ export type DeepScrapeEventName =
   | "deep_scrape_synthesis_completed"
   | "deep_scrape_follow_on_reused"
   | "deep_scrape_job_completed"
-  | "deep_scrape_job_failed";
+  | "deep_scrape_job_failed"
+  | "brain_deep_scrape_pages_collected"
+  | "brain_deep_scrape_synthesis_input_prepared"
+  | "brain_deep_scrape_crawl_result_persisted"
+  | "brain_deep_scrape_identity_promoted"
+  | "brain_deep_scrape_page_parity_verified"
+  | "brain_deep_scrape_page_parity_failed";
 
 export type DeepScrapeEventMeta = {
   organizationId?: string | null;

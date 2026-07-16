@@ -19,9 +19,19 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { runDeepWebsiteCrawl } from "@/services/websiteLearning/deepScrape/crawlEngine";
 import {
   deepIntelligenceHasUsableContent,
+  isDeepWebsiteIntelligence,
   type DeepWebsiteIntelligence,
 } from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
 import { DeepScrapeHeartbeatController } from "@/services/websiteLearning/deepScrape/deepScrapeHeartbeat";
+import {
+  assertDeepScrapePageParity,
+  BRAIN_DEEP_SCRAPE_PAGE_PARITY_FAILED,
+  buildPromotableDeepWebsiteIntelligence,
+  countDeepPages,
+  DeepScrapePageParityError,
+  listValidDeepPages,
+  readDeepIntelligencePageCount,
+} from "@/services/websiteLearning/deepScrape/deepScrapePageContract";
 import {
   completeDeepScrapeJobWithClaim,
   failDeepScrapeJobWithClaim,
@@ -54,6 +64,13 @@ function classifyDeepScrapeError(error: unknown): {
       retryable: false,
     };
   }
+  if (error instanceof DeepScrapePageParityError) {
+    return {
+      code: error.code,
+      message: error.message,
+      retryable: false,
+    };
+  }
 
   const message =
     error instanceof Error ? error.message : "Deep scrape failed";
@@ -79,6 +96,7 @@ function classifyDeepScrapeError(error: unknown): {
     "SYNTHESIS_PARSE_FAILED",
     "EXTRACTION_COLLAPSED_TO_SHARED_TEMPLATE",
     "DEEP_SCRAPE_STATE_TRANSITION_INVALID",
+    BRAIN_DEEP_SCRAPE_PAGE_PARITY_FAILED,
   ]);
 
   const retryableCodes = new Set([
@@ -106,36 +124,150 @@ function classifyDeepScrapeError(error: unknown): {
 async function promoteBrainIntelligence(input: {
   identityId: string;
   organizationId: string;
+  jobId: string;
+  rootUrl: string;
   intelligence: DeepWebsiteIntelligence;
-}): Promise<void> {
-  const { error } = await supabaseAdmin
+  acceptedPageCount: number;
+}): Promise<DeepWebsiteIntelligence> {
+  const payload = buildPromotableDeepWebsiteIntelligence(input.intelligence);
+  const promotedPageCount = countDeepPages(payload.pages);
+
+  try {
+    assertDeepScrapePageParity({
+      acceptedPageCount: input.acceptedPageCount,
+      synthesisInputPageCount: input.acceptedPageCount,
+      crawlResultPageCount: countDeepPages(input.intelligence.pages),
+      promotedPageCount,
+      promotedPages: payload.pages,
+    });
+  } catch (error) {
+    if (error instanceof DeepScrapePageParityError) {
+      logDeepScrapeEvent("brain_deep_scrape_page_parity_failed", {
+        organizationId: input.organizationId,
+        jobId: input.jobId,
+        sourceType: "brain",
+        identityId: input.identityId,
+        rootUrl: input.rootUrl,
+        failureCode: error.code,
+        diagnostic: {
+          ...error.diagnostic,
+          acceptedPageCount: input.acceptedPageCount,
+          promotedPageCount,
+          normalizedUrls: listValidDeepPages(payload.pages).map((page) => page.url),
+        },
+      });
+    }
+    throw error;
+  }
+
+  const { data, error } = await supabaseAdmin
     .from("athena_identity")
     .update({
-      website_intelligence: input.intelligence,
+      website_intelligence: payload,
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.identityId)
-    .eq("organization_id", input.organizationId);
+    .eq("organization_id", input.organizationId)
+    .select("website_intelligence")
+    .maybeSingle();
 
   if (error) {
     throw new Error(`PERSISTENCE_FAILED: ${error.message}`);
   }
+  if (!data) {
+    throw new DeepScrapePageParityError(
+      "Brain identity update matched zero rows while promoting deep website intelligence",
+      {
+        identityId: input.identityId,
+        organizationId: input.organizationId,
+      },
+    );
+  }
+
+  const storedPages = countDeepPages(
+    (data as { website_intelligence?: unknown }).website_intelligence &&
+      typeof (data as { website_intelligence?: unknown }).website_intelligence ===
+        "object"
+      ? (
+          (data as { website_intelligence: Record<string, unknown> })
+            .website_intelligence as { pages?: unknown }
+        ).pages
+      : null,
+  );
+
+  try {
+    assertDeepScrapePageParity({
+      acceptedPageCount: input.acceptedPageCount,
+      synthesisInputPageCount: input.acceptedPageCount,
+      crawlResultPageCount: countDeepPages(input.intelligence.pages),
+      promotedPageCount: storedPages,
+      promotedPages: (
+        (data as { website_intelligence: DeepWebsiteIntelligence })
+          .website_intelligence
+      ).pages,
+    });
+  } catch (error) {
+    if (error instanceof DeepScrapePageParityError) {
+      logDeepScrapeEvent("brain_deep_scrape_page_parity_failed", {
+        organizationId: input.organizationId,
+        jobId: input.jobId,
+        sourceType: "brain",
+        identityId: input.identityId,
+        rootUrl: input.rootUrl,
+        failureCode: error.code,
+        diagnostic: {
+          ...error.diagnostic,
+          phase: "identity_readback",
+        },
+      });
+    }
+    throw error;
+  }
+
+  logDeepScrapeEvent("brain_deep_scrape_identity_promoted", {
+    organizationId: input.organizationId,
+    jobId: input.jobId,
+    sourceType: "brain",
+    identityId: input.identityId,
+    rootUrl: input.rootUrl,
+    pagesAnalyzed: storedPages,
+    diagnostic: {
+      acceptedPageCount: input.acceptedPageCount,
+      promotedPageCount: storedPages,
+      normalizedUrls: listValidDeepPages(payload.pages).map((page) => page.url),
+    },
+  });
+  logDeepScrapeEvent("brain_deep_scrape_page_parity_verified", {
+    organizationId: input.organizationId,
+    jobId: input.jobId,
+    sourceType: "brain",
+    identityId: input.identityId,
+    rootUrl: input.rootUrl,
+    pagesAnalyzed: storedPages,
+    diagnostic: {
+      acceptedPageCount: input.acceptedPageCount,
+      synthesisInputPageCount: input.acceptedPageCount,
+      crawlResultPageCount: countDeepPages(input.intelligence.pages),
+      promotedPageCount: storedPages,
+    },
+  });
+
+  return payload;
 }
 
 async function promoteProspectIntelligence(input: {
   prospectId: string;
   organizationId: string;
   intelligence: DeepWebsiteIntelligence;
-}): Promise<void> {
+}): Promise<DeepWebsiteIntelligence> {
+  const payload = buildPromotableDeepWebsiteIntelligence(input.intelligence);
   const updated = await updateProspect(input.prospectId, input.organizationId, {
-    website_intelligence: input.intelligence as unknown as Record<
-      string,
-      unknown
-    >,
+    website_intelligence: payload as unknown as Record<string, unknown>,
   });
   if (!updated) {
     throw new Error("PERSISTENCE_FAILED");
   }
+  return payload;
 }
 
 function checkpointIntelligence(
@@ -143,7 +275,23 @@ function checkpointIntelligence(
 ): DeepWebsiteIntelligence | null {
   if (!job.crawl_result) return null;
   if (!deepIntelligenceHasUsableContent(job.crawl_result)) return null;
-  return job.crawl_result as unknown as DeepWebsiteIntelligence;
+  const intel = job.crawl_result as unknown as DeepWebsiteIntelligence;
+  const pageCount = countDeepPages(intel.pages);
+  if (pageCount <= 0) return null;
+  // Stale/collapsed checkpoint: progress saw more accepted pages than persisted.
+  const progressAccepted =
+    typeof job.progress?.pagesAccepted === "number"
+      ? job.progress.pagesAccepted
+      : typeof job.progress?.pagesCrawled === "number"
+        ? job.progress.pagesCrawled
+        : job.pages_crawled;
+  if (progressAccepted > 1 && pageCount <= 1) {
+    return null;
+  }
+  if (intel.pages_analyzed !== pageCount) {
+    intel.pages_analyzed = pageCount;
+  }
+  return intel;
 }
 
 async function persistSynthesisCheckpoint(input: {
@@ -286,9 +434,29 @@ export async function executeClaimedDeepScrapeJob(
           crawlSkipped: true,
         },
       });
-      intelligence = reused;
-      pagesAnalyzed = reused.pages_analyzed;
-      crawlSummary = reused.crawl_summary;
+      intelligence = buildPromotableDeepWebsiteIntelligence(reused);
+      pagesAnalyzed = countDeepPages(intelligence.pages);
+      pagesCrawled = Math.max(pagesCrawled, pagesAnalyzed);
+      crawlSummary = intelligence.crawl_summary;
+      if (job.source_type === "brain") {
+        logDeepScrapeEvent("brain_deep_scrape_pages_collected", {
+          organizationId: job.organization_id,
+          jobId: job.id,
+          sourceType: "brain",
+          identityId: job.identity_id,
+          rootUrl: job.root_url,
+          pagesAnalyzed,
+          diagnostic: {
+            checkpointReused: true,
+            acceptedPageCount: pagesAnalyzed,
+            synthesisInputPageCount: pagesAnalyzed,
+            crawlResultPageCount: pagesAnalyzed,
+            normalizedUrls: listValidDeepPages(intelligence.pages).map(
+              (page) => page.url,
+            ),
+          },
+        });
+      }
       await renewLease("persisting", {
         pagesDiscovered,
         pagesCrawled,
@@ -362,14 +530,44 @@ export async function executeClaimedDeepScrapeJob(
     if (options?.shouldStop?.()) return "claim_lost";
     if (heartbeat.validationError) throw heartbeat.validationError;
 
+    const acceptedPageCount = countDeepPages(intelligence.pages);
+    if (acceptedPageCount <= 0) {
+      throw new DeepScrapePageParityError(
+        "Synthesized deep intelligence contained no valid pages",
+        { jobId: job.id, sourceType: job.source_type },
+      );
+    }
+    // Prefer the durable page array length over any stale counter.
+    pagesAnalyzed = acceptedPageCount;
+    intelligence = buildPromotableDeepWebsiteIntelligence(intelligence);
+
     if (job.source_type === "brain" && job.identity_id) {
-      await promoteBrainIntelligence({
+      logDeepScrapeEvent("brain_deep_scrape_crawl_result_persisted", {
+        organizationId: job.organization_id,
+        jobId: job.id,
+        sourceType: "brain",
+        identityId: job.identity_id,
+        rootUrl: job.root_url,
+        pagesAnalyzed: acceptedPageCount,
+        diagnostic: {
+          crawlResultPageCount: acceptedPageCount,
+          pagesCrawled,
+          pagesDiscovered,
+          normalizedUrls: listValidDeepPages(intelligence.pages).map(
+            (page) => page.url,
+          ),
+        },
+      });
+      intelligence = await promoteBrainIntelligence({
         identityId: job.identity_id,
         organizationId: job.organization_id,
+        jobId: job.id,
+        rootUrl: job.root_url,
         intelligence,
+        acceptedPageCount,
       });
     } else if (job.source_type === "prospect" && job.prospect_id) {
-      await promoteProspectIntelligence({
+      intelligence = await promoteProspectIntelligence({
         prospectId: job.prospect_id,
         organizationId: job.organization_id,
         intelligence,
@@ -378,6 +576,8 @@ export async function executeClaimedDeepScrapeJob(
       throw new Error("INVALID_SOURCE");
     }
 
+    pagesAnalyzed = countDeepPages(intelligence.pages);
+
     const promotedAt = new Date().toISOString();
     await updateDeepScrapeJobFields({
       jobId: job.id,
@@ -385,7 +585,11 @@ export async function executeClaimedDeepScrapeJob(
       patch: {
         promoted_at: promotedAt,
         pages_analyzed: pagesAnalyzed,
-        crawl_summary: crawlSummary,
+        crawl_result: intelligence,
+        crawl_summary: {
+          ...(crawlSummary as Record<string, unknown>),
+          pages_analyzed: pagesAnalyzed,
+        },
       },
     });
 
@@ -401,7 +605,11 @@ export async function executeClaimedDeepScrapeJob(
 
     job.promoted_at = promotedAt;
     job.pages_analyzed = pagesAnalyzed;
-    job.crawl_summary = crawlSummary as unknown as Record<string, unknown>;
+    job.crawl_result = intelligence as unknown as Record<string, unknown>;
+    job.crawl_summary = {
+      ...(crawlSummary as Record<string, unknown>),
+      pages_analyzed: pagesAnalyzed,
+    };
 
     if (job.source_type === "brain") {
       const result = await runBrainPhaseB(
@@ -458,7 +666,8 @@ export async function executeClaimedDeepScrapeJob(
     // Keep promoted deep intelligence; Phase B failures are always retryable
     // unless the failure is a non-retryable lifecycle/schema error.
     const retryable =
-      classified.code === "DEEP_SCRAPE_STATE_TRANSITION_INVALID"
+      classified.code === "DEEP_SCRAPE_STATE_TRANSITION_INVALID" ||
+      classified.code === BRAIN_DEEP_SCRAPE_PAGE_PARITY_FAILED
         ? false
         : job.promoted_at
           ? true
@@ -534,17 +743,32 @@ async function runBrainPhaseB(
     throw new Error("IDENTITY_NOT_FOUND");
   }
 
+  const promotedPageCount = readDeepIntelligencePageCount(
+    identity.website_intelligence,
+  );
+  if (promotedPageCount <= 0) {
+    throw new DeepScrapePageParityError(
+      "Brain retraining refused: promoted website_intelligence has no pages",
+      {
+        jobId: job.id,
+        identityId: job.identity_id,
+        jobPagesAnalyzed: job.pages_analyzed,
+      },
+    );
+  }
+
   const compiled = await compileMasterIdentityProfile(
     identity,
     job.organization_id,
   );
 
   const trainedAt = new Date().toISOString();
+  // Last Deep Scrape counters come from promoted pages, never a stale job counter.
   await supabaseAdmin
     .from("athena_identity")
     .update({
       last_deep_scrape_at: trainedAt,
-      last_deep_scrape_pages: job.pages_analyzed,
+      last_deep_scrape_pages: promotedPageCount,
       updated_at: trainedAt,
     })
     .eq("id", job.identity_id)
@@ -554,11 +778,22 @@ async function runBrainPhaseB(
     throw new Error("BRAIN_RETRAINING_FAILED");
   }
 
+  assertDeepScrapePageParity({
+    acceptedPageCount: promotedPageCount,
+    synthesisInputPageCount: promotedPageCount,
+    crawlResultPageCount: promotedPageCount,
+    promotedPageCount,
+    lastDeepScrapePages: promotedPageCount,
+    promotedPages: isDeepWebsiteIntelligence(identity.website_intelligence)
+      ? identity.website_intelligence.pages
+      : [],
+  });
+
   const completed = await completeDeepScrapeJobWithClaim({
     jobId: job.id,
     claimToken,
     organizationId: job.organization_id,
-    pagesAnalyzed: job.pages_analyzed,
+    pagesAnalyzed: promotedPageCount,
     brainRetrainedAt: trainedAt,
     crawlSummary: job.crawl_summary,
   });
