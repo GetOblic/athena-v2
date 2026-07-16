@@ -21,7 +21,153 @@ export const DEEP_SCRAPE_CRAWL_POLICY = {
     "text/html",
     "application/xhtml+xml",
   ] as readonly string[],
+  /**
+   * Homepage / page usefulness thresholds.
+   * Allow brochure / single-page sites; reject empty shells and denial pages.
+   */
+  minUsefulReadableChars: 120,
+  minUsefulWordCount: 20,
+  minUsefulSignalChars: 40,
 } as const;
+
+const USELESS_CONTENT_PATTERNS: RegExp[] = [
+  /access\s*denied/i,
+  /403\s*forbidden/i,
+  /401\s*unauthorized/i,
+  /just\s*a\s*moment/i,
+  /enable\s*javascript/i,
+  /you\s*need\s*to\s*enable\s*javascript/i,
+  /this\s*site\s*requires\s*javascript/i,
+  /attention\s*required/i,
+  /cloudflare/i,
+  /checking\s*your\s*browser/i,
+  /verify\s*you\s*are\s*human/i,
+  /cookie\s*(consent|policy|settings|notice)/i,
+  /we\s*use\s*cookies/i,
+  /accept\s*(all\s*)?cookies/i,
+  /parked\s*(domain|page)/i,
+  /domain\s*is\s*for\s*sale/i,
+  /buy\s*this\s*domain/i,
+  /coming\s*soon/i,
+  /under\s*construction/i,
+  /please\s*log\s*in/i,
+  /sign\s*in\s*to\s*continue/i,
+];
+
+const BUSINESS_SIGNAL_PATTERNS: RegExp[] = [
+  /\b(about|services?|products?|solutions?|pricing|training|courses?|contact|team|clients?|customers?|mission|company|business|offer|consult|book|schedule)\b/i,
+];
+
+export type PageUsefulnessResult = {
+  useful: boolean;
+  reason:
+    | "useful"
+    | "empty_text"
+    | "too_thin"
+    | "low_word_count"
+    | "denied_or_shell"
+    | "no_business_signal";
+  charCount: number;
+  wordCount: number;
+  hasTitleOrHeading: boolean;
+};
+
+export function countWords(text: string): number {
+  return text
+    .trim()
+    .split(/\s+/)
+    .filter((part) => part.length > 0).length;
+}
+
+/**
+ * Conservative usefulness check for a single extracted page.
+ * Does not require multiple pages. Rejects denial/cookie/JS shells.
+ */
+export function evaluatePageUsefulness(input: {
+  title?: string | null;
+  headings?: string[];
+  text: string;
+}): PageUsefulnessResult {
+  const text = (input.text ?? "").replace(/\s+/g, " ").trim();
+  const charCount = text.length;
+  const wordCount = countWords(text);
+  const title = (input.title ?? "").trim();
+  const headings = (input.headings ?? []).map((value) => value.trim()).filter(Boolean);
+  const hasTitleOrHeading = Boolean(title) || headings.length > 0;
+  const haystack = [title, ...headings, text].join("\n");
+
+  if (!text) {
+    return {
+      useful: false,
+      reason: "empty_text",
+      charCount,
+      wordCount,
+      hasTitleOrHeading,
+    };
+  }
+
+  if (USELESS_CONTENT_PATTERNS.some((pattern) => pattern.test(haystack))) {
+    // Allow pages that mention cookies incidentally if they still have substantial body.
+    const looksLikeWallOnly =
+      charCount < DEEP_SCRAPE_CRAWL_POLICY.minUsefulReadableChars * 2 ||
+      /accept\s*(all\s*)?cookies|enable\s*javascript|access\s*denied|parked\s*(domain|page)/i.test(
+        haystack,
+      );
+    if (looksLikeWallOnly) {
+      return {
+        useful: false,
+        reason: "denied_or_shell",
+        charCount,
+        wordCount,
+        hasTitleOrHeading,
+      };
+    }
+  }
+
+  if (charCount < DEEP_SCRAPE_CRAWL_POLICY.minUsefulReadableChars) {
+    return {
+      useful: false,
+      reason: "too_thin",
+      charCount,
+      wordCount,
+      hasTitleOrHeading,
+    };
+  }
+
+  if (wordCount < DEEP_SCRAPE_CRAWL_POLICY.minUsefulWordCount) {
+    return {
+      useful: false,
+      reason: "low_word_count",
+      charCount,
+      wordCount,
+      hasTitleOrHeading,
+    };
+  }
+
+  const signalText = haystack.slice(0, 4_000);
+  const hasBusinessSignal =
+    BUSINESS_SIGNAL_PATTERNS.some((pattern) => pattern.test(signalText)) ||
+    (hasTitleOrHeading &&
+      charCount >= DEEP_SCRAPE_CRAWL_POLICY.minUsefulSignalChars * 3);
+
+  if (!hasBusinessSignal && charCount < DEEP_SCRAPE_CRAWL_POLICY.minUsefulReadableChars * 3) {
+    return {
+      useful: false,
+      reason: "no_business_signal",
+      charCount,
+      wordCount,
+      hasTitleOrHeading,
+    };
+  }
+
+  return {
+    useful: true,
+    reason: "useful",
+    charCount,
+    wordCount,
+    hasTitleOrHeading,
+  };
+}
 
 const PRIORITY_PATTERNS: Array<{ type: string; pattern: RegExp; score: number }> =
   [
@@ -100,16 +246,17 @@ export function selectMeaningfulUrls(
   maxPages = DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
 ): ScoredUrl[] {
   const scored = urls
-    .filter((url) => !isExcludedUrl(url))
+    .filter((url) => !isExcludedUrl(url) || scoreUrl(url).pageType === "homepage")
     .map(scoreUrl)
-    .filter((entry) => entry.score > 0)
+    .filter((entry) => entry.score > 0 || entry.pageType === "homepage")
     .sort((a, b) => b.score - a.score || a.url.localeCompare(b.url));
 
   const selected: ScoredUrl[] = [];
-  const seenTypes = new Set<string>();
+  const seen = new Set<string>();
 
   for (const entry of scored) {
     if (selected.length >= maxPages) break;
+    if (seen.has(entry.url)) continue;
     // Keep homepage + high-priority types; allow limited "other"/"evergreen".
     if (
       entry.pageType === "other" &&
@@ -118,11 +265,23 @@ export function selectMeaningfulUrls(
       continue;
     }
     selected.push(entry);
-    seenTypes.add(entry.pageType);
+    seen.add(entry.url);
   }
 
-  void seenTypes;
   return selected;
+}
+
+/** Guarantee the normalized homepage remains a crawl candidate. */
+export function ensureHomepageCandidate(
+  urls: Iterable<string>,
+  homepageUrl: string,
+): string[] {
+  const out = new Set<string>();
+  for (const url of urls) {
+    if (url) out.add(url);
+  }
+  out.add(homepageUrl);
+  return [...out];
 }
 
 export function buildCrawlSummary(pages: Array<{ pageType: string }>): {

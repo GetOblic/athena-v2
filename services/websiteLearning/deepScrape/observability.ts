@@ -5,6 +5,9 @@
 export type DeepScrapeEventName =
   | "deep_scrape_started"
   | "sitemap_found"
+  | "sitemap_fallback_to_homepage"
+  | "homepage_only_crawl_selected"
+  | "deep_scrape_discovery_diagnostic"
   | "page_crawled"
   | "page_failed"
   | "crawl_completed"
@@ -23,6 +26,7 @@ export type DeepScrapeEventMeta = {
   prospectId?: string | null;
   discussionId?: string | null;
   domain?: string | null;
+  rootUrl?: string | null;
   pagesDiscovered?: number;
   pagesCrawled?: number;
   pagesAnalyzed?: number;
@@ -32,6 +36,8 @@ export type DeepScrapeEventMeta = {
   followOnJobId?: string | null;
   pageType?: string | null;
   stage?: string | null;
+  /** Structured diagnostic metadata only — never HTML/text bodies. */
+  diagnostic?: Record<string, unknown> | null;
 };
 
 export function logDeepScrapeEvent(
@@ -47,6 +53,7 @@ export function logDeepScrapeEvent(
     prospectId: meta.prospectId ?? null,
     discussionId: meta.discussionId ?? null,
     domain: meta.domain ?? null,
+    rootUrl: meta.rootUrl ?? null,
     pagesDiscovered: meta.pagesDiscovered ?? null,
     pagesCrawled: meta.pagesCrawled ?? null,
     pagesAnalyzed: meta.pagesAnalyzed ?? null,
@@ -56,5 +63,6 @@ export function logDeepScrapeEvent(
     followOnJobId: meta.followOnJobId ?? null,
     pageType: meta.pageType ?? null,
     stage: meta.stage ?? null,
+    diagnostic: meta.diagnostic ?? null,
   });
 }

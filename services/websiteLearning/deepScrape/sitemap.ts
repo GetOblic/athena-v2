@@ -8,7 +8,6 @@ import {
   canonicalizePageUrl,
   isSameRegistrableDomain,
 } from "@/services/websiteLearning/deepScrape/urlSafety";
-import { fetchRobotsRules } from "@/services/websiteLearning/deepScrape/robots";
 
 function extractXmlTags(xml: string, tag: string): string[] {
   const values: string[] = [];
@@ -33,6 +32,13 @@ function collectSitemapCandidates(rootUrl: string): string[] {
   ];
 }
 
+export type SitemapAttempt = {
+  url: string;
+  ok: boolean;
+  status: number;
+  errorCode?: string;
+};
+
 export async function discoverSitemapUrls(input: {
   rootUrl: string;
   registrableDomain: string;
@@ -40,9 +46,6 @@ export async function discoverSitemapUrls(input: {
   const found = new Set<string>();
   let fromRobots = false;
 
-  const robots = await fetchRobotsRules(input);
-  // robots.txt may include Sitemap: lines — re-fetch robots body via known path already done;
-  // parse Sitemap directives by re-reading robots if present.
   try {
     const robotsUrl = new URL("/robots.txt", `${input.rootUrl}/`).toString();
     const robotsFetch = await safeFetchHtml({
@@ -66,7 +69,6 @@ export async function discoverSitemapUrls(input: {
   } catch {
     // ignore
   }
-  void robots;
 
   for (const candidate of collectSitemapCandidates(input.rootUrl)) {
     found.add(candidate);
@@ -79,13 +81,19 @@ export async function collectUrlsFromSitemaps(input: {
   rootUrl: string;
   registrableDomain: string;
   onSitemapFound?: (url: string) => void;
-}): Promise<{ urls: string[]; sitemapsParsed: number }> {
+}): Promise<{
+  urls: string[];
+  sitemapsParsed: number;
+  locationsAttempted: string[];
+  attempts: SitemapAttempt[];
+}> {
   const { sitemapUrls } = await discoverSitemapUrls(input);
   const pageUrls = new Set<string>();
   const queue: Array<{ url: string; depth: number }> = sitemapUrls.map(
     (url) => ({ url, depth: 0 }),
   );
   const seenSitemaps = new Set<string>();
+  const attempts: SitemapAttempt[] = [];
   let sitemapsParsed = 0;
 
   while (queue.length > 0) {
@@ -101,6 +109,14 @@ export async function collectUrlsFromSitemaps(input: {
       acceptXml: true,
       timeoutMs: 10_000,
     });
+
+    attempts.push({
+      url: next.url,
+      ok: fetched.ok,
+      status: fetched.status,
+      errorCode: fetched.errorCode,
+    });
+
     if (!fetched.ok || !fetched.bodyText) continue;
 
     sitemapsParsed += 1;
@@ -127,10 +143,20 @@ export async function collectUrlsFromSitemaps(input: {
       }
       pageUrls.add(canonical);
       if (pageUrls.size >= DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveredUrls) {
-        return { urls: [...pageUrls], sitemapsParsed };
+        return {
+          urls: [...pageUrls],
+          sitemapsParsed,
+          locationsAttempted: [...seenSitemaps],
+          attempts,
+        };
       }
     }
   }
 
-  return { urls: [...pageUrls], sitemapsParsed };
+  return {
+    urls: [...pageUrls],
+    sitemapsParsed,
+    locationsAttempted: [...seenSitemaps],
+    attempts,
+  };
 }
