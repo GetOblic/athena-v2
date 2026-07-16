@@ -19,6 +19,8 @@ function decodeEntities(value: string): string {
 
 export function stripHtmlToText(html: string, maxChars?: number): string {
   const limit = maxChars ?? DEEP_SCRAPE_CRAWL_POLICY.maxExtractedCharsPerPage;
+  // Keep footer text — contact/address often lives there on brochure sites.
+  // Strip scripts/styles/nav chrome that rarely carry unique business copy.
   return decodeEntities(
     html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -26,7 +28,6 @@ export function stripHtmlToText(html: string, maxChars?: number): string {
       .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
       .replace(/<!--[\s\S]*?-->/g, " ")
       .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
-      .replace(/<footer[\s\S]*?<\/footer>/gi, " ")
       .replace(/<[^>]+>/g, " "),
   ).slice(0, limit);
 }
@@ -81,12 +82,24 @@ export function extractPageContent(
   html: string,
   pageUrl: string,
 ): ExtractedPageContent {
+  const title = extractTitle(html);
+  const metaDescription = extractMetaDescription(html);
+  const headings = extractHeadings(html);
+  const body = stripHtmlToText(html);
+  // Include title/meta/headings so concise brochure pages retain usable signals.
+  const text = [title, metaDescription, headings.join(" "), body]
+    .filter((part) => typeof part === "string" && part.trim())
+    .join("\n")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, DEEP_SCRAPE_CRAWL_POLICY.maxExtractedCharsPerPage);
+
   return {
     url: pageUrl,
-    title: extractTitle(html),
-    metaDescription: extractMetaDescription(html),
-    headings: extractHeadings(html),
-    text: stripHtmlToText(html),
+    title,
+    metaDescription,
+    headings,
+    text,
     discoveredLinks: extractSameDomainLinks(html, pageUrl),
   };
 }

@@ -9,6 +9,7 @@ import {
   assertPublicHostname,
   canonicalizePageUrl,
   isSameRegistrableDomain,
+  type HostnameSafetyContext,
 } from "@/services/websiteLearning/deepScrape/urlSafety";
 
 export type SafeFetchResult = {
@@ -18,6 +19,7 @@ export type SafeFetchResult = {
   contentType: string;
   bodyText: string | null;
   errorCode?: string;
+  redirectCount?: number;
 };
 
 async function readBodyWithLimit(
@@ -79,6 +81,7 @@ export async function safeFetchHtml(input: {
   timeoutMs?: number;
   maxRedirects?: number;
   acceptXml?: boolean;
+  safetyContext?: HostnameSafetyContext;
 }): Promise<SafeFetchResult> {
   const timeoutMs =
     input.timeoutMs ?? DEEP_SCRAPE_CRAWL_POLICY.perPageTimeoutMs;
@@ -86,6 +89,7 @@ export async function safeFetchHtml(input: {
     input.maxRedirects ?? DEEP_SCRAPE_CRAWL_POLICY.maxRedirectDepth;
 
   let currentUrl = canonicalizePageUrl(input.url) ?? input.url;
+  let redirectCount = 0;
 
   for (let hop = 0; hop <= maxRedirects; hop += 1) {
     if (!isSameRegistrableDomain(currentUrl, input.registrableDomain)) {
@@ -96,6 +100,7 @@ export async function safeFetchHtml(input: {
         contentType: "",
         bodyText: null,
         errorCode: "CROSS_DOMAIN_REJECTED",
+        redirectCount,
       };
     }
 
@@ -110,11 +115,15 @@ export async function safeFetchHtml(input: {
         contentType: "",
         bodyText: null,
         errorCode: "INVALID_URL",
+        redirectCount,
       };
     }
 
     try {
-      await assertPublicHostname(hostname);
+      await assertPublicHostname(hostname, {
+        ...input.safetyContext,
+        redirectDepth: hop,
+      });
     } catch (error) {
       return {
         ok: false,
@@ -124,6 +133,7 @@ export async function safeFetchHtml(input: {
         bodyText: null,
         errorCode:
           error instanceof Error ? error.message : "DNS_LOOKUP_FAILED",
+        redirectCount,
       };
     }
 
@@ -153,9 +163,11 @@ export async function safeFetchHtml(input: {
             contentType: "",
             bodyText: null,
             errorCode: "REDIRECT_MISSING_LOCATION",
+            redirectCount,
           };
         }
         currentUrl = new URL(location, currentUrl).toString();
+        redirectCount += 1;
         continue;
       }
 
@@ -206,6 +218,7 @@ export async function safeFetchHtml(input: {
         status: response.status,
         contentType,
         bodyText: body.text,
+        redirectCount,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -217,6 +230,7 @@ export async function safeFetchHtml(input: {
         contentType: "",
         bodyText: null,
         errorCode,
+        redirectCount,
       };
     } finally {
       clearTimeout(timer);
@@ -230,5 +244,6 @@ export async function safeFetchHtml(input: {
     contentType: "",
     bodyText: null,
     errorCode: "REDIRECT_DEPTH_EXCEEDED",
+    redirectCount,
   };
 }

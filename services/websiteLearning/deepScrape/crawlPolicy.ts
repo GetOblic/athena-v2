@@ -22,55 +22,97 @@ export const DEEP_SCRAPE_CRAWL_POLICY = {
     "application/xhtml+xml",
   ] as readonly string[],
   /**
-   * Homepage / page usefulness thresholds.
-   * Allow brochure / single-page sites; reject empty shells and denial pages.
+   * Page acceptance: usable extracted content for synthesis (not index richness).
+   * Concise legitimate business pages must pass when readable content exists.
    */
-  minUsefulReadableChars: 120,
-  minUsefulWordCount: 20,
-  minUsefulSignalChars: 40,
+  minPageReadableChars: 40,
+  minPageWordCount: 6,
+  minPageCharsWithSignal: 20,
+  /** Combined corpus must clear a modest floor before Gemini Flash. */
+  minCorpusReadableChars: 60,
+  minCorpusWordCount: 10,
 } as const;
 
-const USELESS_CONTENT_PATTERNS: RegExp[] = [
-  /access\s*denied/i,
-  /403\s*forbidden/i,
-  /401\s*unauthorized/i,
-  /just\s*a\s*moment/i,
-  /enable\s*javascript/i,
-  /you\s*need\s*to\s*enable\s*javascript/i,
-  /this\s*site\s*requires\s*javascript/i,
-  /attention\s*required/i,
-  /cloudflare/i,
-  /checking\s*your\s*browser/i,
-  /verify\s*you\s*are\s*human/i,
-  /cookie\s*(consent|policy|settings|notice)/i,
-  /we\s*use\s*cookies/i,
-  /accept\s*(all\s*)?cookies/i,
-  /parked\s*(domain|page)/i,
-  /domain\s*is\s*for\s*sale/i,
-  /buy\s*this\s*domain/i,
-  /coming\s*soon/i,
-  /under\s*construction/i,
-  /please\s*log\s*in/i,
-  /sign\s*in\s*to\s*continue/i,
+type ShellPattern = { code: string; pattern: RegExp };
+
+const SHELL_OR_ERROR_PATTERNS: ShellPattern[] = [
+  { code: "PAGE_ACCESS_DENIED", pattern: /\b(access\s*denied|403\s*forbidden|401\s*unauthorized|forbidden)\b/i },
+  { code: "PAGE_SERVER_ERROR", pattern: /\b(500\s*internal\s*server\s*error|502\s*bad\s*gateway|503\s*service\s*unavailable|internal\s*server\s*error|bad\s*gateway)\b/i },
+  { code: "PAGE_LOGIN_GATE", pattern: /\b(please\s*log\s*in|sign\s*in\s*to\s*continue|create\s*an\s*account\s*to\s*continue|member\s*login)\b/i },
+  { code: "PAGE_COOKIE_WALL_ONLY", pattern: /\b(accept\s*(all\s*)?cookies|cookie\s*consent|we\s*use\s*cookies\s*to\s*(improve|enhance|provide))\b/i },
+  { code: "PAGE_PARKED_DOMAIN", pattern: /\b(parked\s*(domain|page)|this\s*domain\s*is\s*parked)\b/i },
+  { code: "PAGE_DOMAIN_FOR_SALE", pattern: /\b(domain\s*is\s*for\s*sale|buy\s*this\s*domain|this\s*domain\s*may\s*be\s*for\s*sale)\b/i },
+  { code: "PAGE_JS_SHELL", pattern: /\b(enable\s*javascript|you\s*need\s*to\s*enable\s*javascript|this\s*site\s*requires\s*javascript)\b/i },
+  { code: "PAGE_CAPTCHA", pattern: /\b(verify\s*you\s*are\s*human|attention\s*required|checking\s*your\s*browser|just\s*a\s*moment|captcha)\b/i },
+  { code: "PAGE_COMING_SOON", pattern: /\b(coming\s*soon|under\s*construction)\b/i },
 ];
 
-const BUSINESS_SIGNAL_PATTERNS: RegExp[] = [
-  /\b(about|services?|products?|solutions?|pricing|training|courses?|contact|team|clients?|customers?|mission|company|business|offer|consult|book|schedule)\b/i,
+const BUSINESS_SIGNAL_DEFS: Array<{ type: string; pattern: RegExp }> = [
+  {
+    type: "service_terminology",
+    pattern:
+      /\b(about|services?|products?|solutions?|pricing|training|courses?|clinic|treatment|therapy|consult|offer)\b/i,
+  },
+  {
+    type: "contact_heading",
+    pattern: /\b(contact|get\s*in\s*touch|book|schedule|team|staff|faq|testimonial|review|hours|opening)\b/i,
+  },
+  {
+    type: "phone",
+    pattern: /\b\+?\d[\d\s().-]{7,}\d\b/,
+  },
+  {
+    type: "email",
+    pattern: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+  },
+  {
+    type: "address",
+    pattern:
+      /\b(\d{1,5}\s+[A-Za-z0-9.\-'\s]+(?:street|st|road|rd|avenue|ave|boulevard|blvd|lane|ln|drive|dr|suite|ste|floor)\b|[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2})\b/i,
+  },
 ];
 
-export type PageUsefulnessResult = {
+const NAV_ONLY_TOKENS = new Set([
+  "home",
+  "about",
+  "services",
+  "contact",
+  "menu",
+  "login",
+  "search",
+  "privacy",
+  "terms",
+  "skip",
+  "content",
+  "main",
+  "navigation",
+  "nav",
+  "cart",
+  "account",
+  "blog",
+  "faq",
+]);
+
+export type ExtractedPageAcceptance = {
+  accepted: boolean;
+  rejectionCode: string | null;
+  extractedCharacterCount: number;
+  extractedWordCount: number;
+  businessSignals: string[];
+  businessSignalCount: number;
+  blockedPattern: string | null;
+  shellOrErrorPattern: string | null;
+  duplicateFingerprint: string | null;
+  pageType: string | null;
   useful: boolean;
-  reason:
-    | "useful"
-    | "empty_text"
-    | "too_thin"
-    | "low_word_count"
-    | "denied_or_shell"
-    | "no_business_signal";
+  reason: string;
   charCount: number;
   wordCount: number;
   hasTitleOrHeading: boolean;
 };
+
+/** @deprecated Use ExtractedPageAcceptance via evaluateExtractedPageUsefulness */
+export type PageUsefulnessResult = ExtractedPageAcceptance;
 
 export function countWords(text: string): number {
   return text
@@ -79,93 +121,224 @@ export function countWords(text: string): number {
     .filter((part) => part.length > 0).length;
 }
 
+export function fingerprintExtractedText(text: string): string {
+  const normalized = text.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 500);
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(i)) >>> 0;
+  }
+  return `fp_${hash.toString(16)}`;
+}
+
+function detectBusinessSignals(text: string): string[] {
+  const found = new Set<string>();
+  for (const entry of BUSINESS_SIGNAL_DEFS) {
+    if (entry.pattern.test(text)) {
+      found.add(entry.type);
+    }
+  }
+  return [...found];
+}
+
+function isNavigationOnly(text: string, wordCount: number): boolean {
+  if (wordCount === 0 || wordCount > 18) return false;
+  const tokens = text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  if (tokens.length === 0) return false;
+  const navCount = tokens.filter((token) => NAV_ONLY_TOKENS.has(token)).length;
+  return navCount / tokens.length >= 0.7;
+}
+
+function detectShellOrError(haystack: string, charCount: number): string | null {
+  for (const entry of SHELL_OR_ERROR_PATTERNS) {
+    if (!entry.pattern.test(haystack)) continue;
+    // Cookie/coming-soon mentions on otherwise substantial pages are allowed.
+    if (
+      (entry.code === "PAGE_COOKIE_WALL_ONLY" ||
+        entry.code === "PAGE_COMING_SOON") &&
+      charCount >= DEEP_SCRAPE_CRAWL_POLICY.minPageReadableChars * 3
+    ) {
+      continue;
+    }
+    return entry.code;
+  }
+  return null;
+}
+
 /**
- * Conservative usefulness check for a single extracted page.
- * Does not require multiple pages. Rejects denial/cookie/JS shells.
+ * Page-level gate: accept usable human-readable business content for synthesis.
+ * Concise legitimate pages are accepted; shells/errors/parking are rejected.
  */
+export function evaluateExtractedPageUsefulness(input: {
+  title?: string | null;
+  headings?: string[];
+  metaDescription?: string | null;
+  text: string;
+  pageType?: string | null;
+  seenFingerprints?: Set<string>;
+}): ExtractedPageAcceptance {
+  const title = (input.title ?? "").trim();
+  const headings = (input.headings ?? []).map((value) => value.trim()).filter(Boolean);
+  const metaDescription = (input.metaDescription ?? "").trim();
+  const body = (input.text ?? "").replace(/\s+/g, " ").trim();
+  const combined = [title, metaDescription, ...headings, body]
+    .filter(Boolean)
+    .join("\n")
+    .replace(/\s+/g, " ")
+    .trim();
+  const charCount = combined.length;
+  const wordCount = countWords(combined);
+  const hasTitleOrHeading = Boolean(title) || headings.length > 0;
+  const businessSignals = detectBusinessSignals(combined);
+  const businessSignalCount = businessSignals.length;
+  const fingerprint = charCount > 0 ? fingerprintExtractedText(combined) : null;
+  const shellOrErrorPattern = detectShellOrError(combined, charCount);
+
+  const base = {
+    extractedCharacterCount: charCount,
+    extractedWordCount: wordCount,
+    businessSignals,
+    businessSignalCount,
+    blockedPattern: shellOrErrorPattern,
+    shellOrErrorPattern,
+    duplicateFingerprint: fingerprint,
+    pageType: input.pageType ?? null,
+    charCount,
+    wordCount,
+    hasTitleOrHeading,
+  };
+
+  if (!combined) {
+    return {
+      ...base,
+      accepted: false,
+      useful: false,
+      rejectionCode: "PAGE_EMPTY",
+      reason: "PAGE_EMPTY",
+    };
+  }
+
+  if (
+    fingerprint &&
+    input.seenFingerprints?.has(fingerprint) &&
+    input.pageType !== "homepage"
+  ) {
+    return {
+      ...base,
+      accepted: false,
+      useful: false,
+      rejectionCode: "PAGE_DUPLICATE",
+      reason: "PAGE_DUPLICATE",
+    };
+  }
+
+  if (shellOrErrorPattern) {
+    return {
+      ...base,
+      accepted: false,
+      useful: false,
+      rejectionCode: shellOrErrorPattern,
+      reason: shellOrErrorPattern,
+    };
+  }
+
+  if (isNavigationOnly(combined, wordCount)) {
+    return {
+      ...base,
+      accepted: false,
+      useful: false,
+      rejectionCode: "PAGE_NAVIGATION_ONLY",
+      reason: "PAGE_NAVIGATION_ONLY",
+      blockedPattern: "PAGE_NAVIGATION_ONLY",
+    };
+  }
+
+  const meetsFloor =
+    charCount >= DEEP_SCRAPE_CRAWL_POLICY.minPageReadableChars ||
+    wordCount >= DEEP_SCRAPE_CRAWL_POLICY.minPageWordCount;
+  const meetsSignalFloor =
+    businessSignalCount > 0 &&
+    charCount >= DEEP_SCRAPE_CRAWL_POLICY.minPageCharsWithSignal;
+
+  if (!meetsFloor && !meetsSignalFloor) {
+    return {
+      ...base,
+      accepted: false,
+      useful: false,
+      rejectionCode: "PAGE_NO_USABLE_TEXT",
+      reason: "PAGE_NO_USABLE_TEXT",
+    };
+  }
+
+  return {
+    ...base,
+    accepted: true,
+    useful: true,
+    rejectionCode: null,
+    reason: "accepted",
+  };
+}
+
+/** Compatibility wrapper used by existing call sites. */
 export function evaluatePageUsefulness(input: {
   title?: string | null;
   headings?: string[];
+  metaDescription?: string | null;
   text: string;
-}): PageUsefulnessResult {
-  const text = (input.text ?? "").replace(/\s+/g, " ").trim();
-  const charCount = text.length;
-  const wordCount = countWords(text);
-  const title = (input.title ?? "").trim();
-  const headings = (input.headings ?? []).map((value) => value.trim()).filter(Boolean);
-  const hasTitleOrHeading = Boolean(title) || headings.length > 0;
-  const haystack = [title, ...headings, text].join("\n");
+  pageType?: string | null;
+  seenFingerprints?: Set<string>;
+}): ExtractedPageAcceptance {
+  return evaluateExtractedPageUsefulness(input);
+}
 
-  if (!text) {
+export function evaluateCorpusUsefulness(
+  pages: Array<{ text: string; title?: string | null; pageType?: string }>,
+): {
+  useful: boolean;
+  code: "OK" | "NO_USABLE_PAGES" | "EMPTY_OR_UNUSABLE_CORPUS";
+  combinedChars: number;
+  combinedWords: number;
+  acceptedPageCount: number;
+} {
+  if (pages.length === 0) {
     return {
       useful: false,
-      reason: "empty_text",
-      charCount,
-      wordCount,
-      hasTitleOrHeading,
+      code: "NO_USABLE_PAGES",
+      combinedChars: 0,
+      combinedWords: 0,
+      acceptedPageCount: 0,
     };
   }
 
-  if (USELESS_CONTENT_PATTERNS.some((pattern) => pattern.test(haystack))) {
-    // Allow pages that mention cookies incidentally if they still have substantial body.
-    const looksLikeWallOnly =
-      charCount < DEEP_SCRAPE_CRAWL_POLICY.minUsefulReadableChars * 2 ||
-      /accept\s*(all\s*)?cookies|enable\s*javascript|access\s*denied|parked\s*(domain|page)/i.test(
-        haystack,
-      );
-    if (looksLikeWallOnly) {
-      return {
-        useful: false,
-        reason: "denied_or_shell",
-        charCount,
-        wordCount,
-        hasTitleOrHeading,
-      };
-    }
-  }
+  const combined = pages
+    .map((page) => [page.title ?? "", page.text].filter(Boolean).join(" "))
+    .join("\n")
+    .replace(/\s+/g, " ")
+    .trim();
+  const combinedChars = combined.length;
+  const combinedWords = countWords(combined);
 
-  if (charCount < DEEP_SCRAPE_CRAWL_POLICY.minUsefulReadableChars) {
+  if (
+    combinedChars < DEEP_SCRAPE_CRAWL_POLICY.minCorpusReadableChars &&
+    combinedWords < DEEP_SCRAPE_CRAWL_POLICY.minCorpusWordCount
+  ) {
     return {
       useful: false,
-      reason: "too_thin",
-      charCount,
-      wordCount,
-      hasTitleOrHeading,
-    };
-  }
-
-  if (wordCount < DEEP_SCRAPE_CRAWL_POLICY.minUsefulWordCount) {
-    return {
-      useful: false,
-      reason: "low_word_count",
-      charCount,
-      wordCount,
-      hasTitleOrHeading,
-    };
-  }
-
-  const signalText = haystack.slice(0, 4_000);
-  const hasBusinessSignal =
-    BUSINESS_SIGNAL_PATTERNS.some((pattern) => pattern.test(signalText)) ||
-    (hasTitleOrHeading &&
-      charCount >= DEEP_SCRAPE_CRAWL_POLICY.minUsefulSignalChars * 3);
-
-  if (!hasBusinessSignal && charCount < DEEP_SCRAPE_CRAWL_POLICY.minUsefulReadableChars * 3) {
-    return {
-      useful: false,
-      reason: "no_business_signal",
-      charCount,
-      wordCount,
-      hasTitleOrHeading,
+      code: "EMPTY_OR_UNUSABLE_CORPUS",
+      combinedChars,
+      combinedWords,
+      acceptedPageCount: pages.length,
     };
   }
 
   return {
     useful: true,
-    reason: "useful",
-    charCount,
-    wordCount,
-    hasTitleOrHeading,
+    code: "OK",
+    combinedChars,
+    combinedWords,
+    acceptedPageCount: pages.length,
   };
 }
 

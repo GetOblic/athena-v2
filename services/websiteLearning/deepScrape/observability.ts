@@ -8,6 +8,7 @@ export type DeepScrapeEventName =
   | "sitemap_fallback_to_homepage"
   | "homepage_only_crawl_selected"
   | "deep_scrape_discovery_diagnostic"
+  | "deep_scrape_url_safety_diagnostic"
   | "page_crawled"
   | "page_failed"
   | "crawl_completed"

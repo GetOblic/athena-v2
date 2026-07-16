@@ -110,6 +110,41 @@ export function mapDeepScrapeJobRow(
   };
 }
 
+export function formatDeepScrapeErrorMessage(
+  errorCode: string | null | undefined,
+  fallback?: string | null,
+): string {
+  switch (String(errorCode ?? "").toUpperCase()) {
+    case "PRIVATE_IP_REJECTED":
+      return "The website resolved to a protected network address and could not be crawled safely.";
+    case "IP_LITERAL_REJECTED":
+      return "IP-address website targets are not allowed for deep scrape.";
+    case "ROBOTS_DENIED":
+      return "This website does not permit automated crawling.";
+    case "ROOT_FETCH_FAILED":
+    case "DNS_LOOKUP_FAILED":
+    case "FETCH_FAILED":
+      return "Athena could not reach the website homepage.";
+    case "UNSUPPORTED_CONTENT_TYPE":
+    case "PAGE_UNSUPPORTED_CONTENT":
+      return "The website did not return readable HTML content.";
+    case "NO_USABLE_PAGES":
+      return "Athena could not find any readable business pages on this website.";
+    case "EMPTY_OR_UNUSABLE_CORPUS":
+      return "Athena could not extract usable business content from this website.";
+    case "EMPTY_OR_THIN_HOMEPAGE":
+    case "INSUFFICIENT_USEFUL_CONTENT":
+      return "Athena could not extract enough readable business content from this website.";
+    case "NO_PERMISSIBLE_CRAWL_TARGETS":
+      return "No permissible pages were available to crawl on this website.";
+    default:
+      return (
+        fallback?.trim() ||
+        "Deep website scrape failed. Please try again later."
+      );
+  }
+}
+
 export function formatDeepScrapeStatusLabel(job: {
   status: string;
   current_stage: string;

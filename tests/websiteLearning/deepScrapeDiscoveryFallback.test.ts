@@ -78,8 +78,9 @@ describe("Deep scrape discovery fallback and usefulness", () => {
       text: brochureHomepageText(),
     });
     assert.equal(result.useful, true);
-    assert.ok(result.charCount >= DEEP_SCRAPE_CRAWL_POLICY.minUsefulReadableChars);
-    assert.ok(result.wordCount >= DEEP_SCRAPE_CRAWL_POLICY.minUsefulWordCount);
+    assert.equal(result.accepted, true);
+    assert.ok(result.charCount >= DEEP_SCRAPE_CRAWL_POLICY.minPageReadableChars);
+    assert.ok(result.wordCount >= DEEP_SCRAPE_CRAWL_POLICY.minPageWordCount);
   });
 
   it("7/8. homepage-only deep_v1 shape supports pages_analyzed = 1", () => {
@@ -160,8 +161,8 @@ describe("Deep scrape discovery fallback and usefulness", () => {
         title: "App",
         headings: [],
         text: "Please enable JavaScript to continue using this application shell.",
-      }).reason,
-      "denied_or_shell",
+      }).rejectionCode,
+      "PAGE_JS_SHELL",
     );
     assert.equal(
       evaluatePageUsefulness({
@@ -274,7 +275,7 @@ describe("Deep scrape discovery fallback and usefulness", () => {
     // Discovery must not throw INSUFFICIENT_USEFUL_CONTENT before crawl.
     assert.match(engine, /ensureHomepageCandidate/);
     assert.match(engine, /homepage_only_crawl_selected/);
-    assert.match(engine, /EMPTY_OR_THIN_HOMEPAGE/);
+    assert.match(engine, /NO_USABLE_PAGES/);
     assert.match(engine, /ROOT_FETCH_FAILED/);
     assert.doesNotMatch(
       engine,

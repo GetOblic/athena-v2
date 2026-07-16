@@ -9,7 +9,8 @@ import {
   buildCrawlSummary,
   DEEP_SCRAPE_CRAWL_POLICY,
   ensureHomepageCandidate,
-  evaluatePageUsefulness,
+  evaluateCorpusUsefulness,
+  evaluateExtractedPageUsefulness,
   selectMeaningfulUrls,
   type ScoredUrl,
 } from "@/services/websiteLearning/deepScrape/crawlPolicy";
@@ -69,6 +70,15 @@ type DiscoveryDiagnostic = {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function safeUrlPath(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname || "/";
+  } catch {
+    return "/";
+  }
 }
 
 async function mapPool<T, R>(
@@ -278,6 +288,12 @@ export async function runDeepWebsiteCrawl(input: {
     const homepageFetch = await safeFetchHtml({
       url: rootCanonical,
       registrableDomain: root.registrableDomain,
+      safetyContext: {
+        jobId: input.jobId,
+        organizationId: input.organizationId,
+        sourceType: input.sourceType,
+        fetchPurpose: "homepage",
+      },
     });
 
     diagnostic.homepageFetchOk = homepageFetch.ok;
@@ -309,13 +325,15 @@ export async function runDeepWebsiteCrawl(input: {
         homepageFetch.bodyText,
         homepageFetch.finalUrl,
       );
-      const usefulness = evaluatePageUsefulness({
+      const usefulness = evaluateExtractedPageUsefulness({
         title: extracted.title,
         headings: extracted.headings,
+        metaDescription: extracted.metaDescription,
         text: extracted.text,
+        pageType: "homepage",
       });
-      diagnostic.homepageExtractedCharCount = usefulness.charCount;
-      diagnostic.homepageExtractedWordCount = usefulness.wordCount;
+      diagnostic.homepageExtractedCharCount = usefulness.extractedCharacterCount;
+      diagnostic.homepageExtractedWordCount = usefulness.extractedWordCount;
       diagnostic.homepageDiscoveredLinkCount = extracted.discoveredLinks.length;
 
       for (const link of extracted.discoveredLinks) {
@@ -409,6 +427,15 @@ export async function runDeepWebsiteCrawl(input: {
   let rootFetchError: string | null = null;
   let sawUnsupportedContentType = false;
   let lastUsefulnessFailure: string | null = null;
+  const seenFingerprints = new Set<string>();
+  const rejectedByReason: Record<string, number> = {};
+  let fetchesAttempted = 0;
+
+  const safetyBase = {
+    jobId: input.jobId,
+    organizationId: input.organizationId,
+    sourceType: input.sourceType,
+  } as const;
 
   const crawlResults = await mapPool(
     meaningful,
@@ -421,14 +448,21 @@ export async function runDeepWebsiteCrawl(input: {
       await sleep(DEEP_SCRAPE_CRAWL_POLICY.interRequestDelayMs);
 
       let lastError: string | undefined;
+      let lastDiagnostic: Record<string, unknown> | null = null;
       for (
         let attempt = 0;
         attempt <= DEEP_SCRAPE_CRAWL_POLICY.pageRetryCount;
         attempt += 1
       ) {
+        fetchesAttempted += 1;
         const fetched = await safeFetchHtml({
           url: candidate.url,
           registrableDomain: root.registrableDomain,
+          safetyContext: {
+            ...safetyBase,
+            fetchPurpose:
+              candidate.pageType === "homepage" ? "homepage" : "page",
+          },
         });
 
         if (candidate.pageType === "homepage") {
@@ -439,51 +473,76 @@ export async function runDeepWebsiteCrawl(input: {
         }
 
         if (!fetched.ok || !fetched.bodyText) {
-          lastError = fetched.errorCode ?? "PAGE_FETCH_FAILED";
+          lastError =
+            fetched.errorCode === "UNSUPPORTED_CONTENT_TYPE"
+              ? "PAGE_UNSUPPORTED_CONTENT"
+              : (fetched.errorCode ?? "PAGE_FETCH_FAILED");
           if (candidate.pageType === "homepage") {
-            rootFetchError = lastError;
+            rootFetchError = fetched.errorCode ?? "ROOT_FETCH_FAILED";
           }
-          if (lastError === "UNSUPPORTED_CONTENT_TYPE") {
+          if (fetched.errorCode === "UNSUPPORTED_CONTENT_TYPE") {
             sawUnsupportedContentType = true;
           }
+          lastDiagnostic = {
+            path: safeUrlPath(candidate.url),
+            httpStatus: fetched.status,
+            contentType: fetched.contentType || null,
+            responseBytes: null,
+            redirectCount: fetched.redirectCount ?? 0,
+            rejectionCode: lastError,
+          };
           continue;
         }
 
+        const responseBytes = Buffer.byteLength(fetched.bodyText, "utf8");
         if (candidate.pageType === "homepage") {
-          diagnostic.homepageResponseBytes = Buffer.byteLength(
-            fetched.bodyText,
-            "utf8",
-          );
+          diagnostic.homepageResponseBytes = responseBytes;
         }
 
         const extracted = extractPageContent(
           fetched.bodyText,
           fetched.finalUrl,
         );
-        const usefulness = evaluatePageUsefulness({
+        const usefulness = evaluateExtractedPageUsefulness({
           title: extracted.title,
           headings: extracted.headings,
+          metaDescription: extracted.metaDescription,
           text: extracted.text,
+          pageType: candidate.pageType,
+          seenFingerprints,
         });
 
         if (candidate.pageType === "homepage") {
-          diagnostic.homepageExtractedCharCount = usefulness.charCount;
-          diagnostic.homepageExtractedWordCount = usefulness.wordCount;
+          diagnostic.homepageExtractedCharCount =
+            usefulness.extractedCharacterCount;
+          diagnostic.homepageExtractedWordCount =
+            usefulness.extractedWordCount;
           diagnostic.homepageDiscoveredLinkCount =
             extracted.discoveredLinks.length;
         }
 
-        if (!usefulness.useful) {
-          lastError =
-            usefulness.reason === "denied_or_shell"
-              ? "EMPTY_OR_THIN_HOMEPAGE"
-              : usefulness.reason === "empty_text" ||
-                  usefulness.reason === "too_thin" ||
-                  usefulness.reason === "low_word_count"
-                ? "EMPTY_OR_THIN_HOMEPAGE"
-                : "INSUFFICIENT_USEFUL_CONTENT";
+        lastDiagnostic = {
+          path: safeUrlPath(candidate.url),
+          httpStatus: fetched.status,
+          contentType: fetched.contentType || null,
+          responseBytes,
+          extractedChars: usefulness.extractedCharacterCount,
+          extractedWords: usefulness.extractedWordCount,
+          businessSignals: usefulness.businessSignalCount,
+          businessSignalTypes: usefulness.businessSignals,
+          rejectionCode: usefulness.rejectionCode,
+          pageType: candidate.pageType,
+          redirectCount: fetched.redirectCount ?? 0,
+        };
+
+        if (!usefulness.accepted) {
+          lastError = usefulness.rejectionCode ?? "PAGE_NO_USABLE_TEXT";
           lastUsefulnessFailure = lastError;
           continue;
+        }
+
+        if (usefulness.duplicateFingerprint) {
+          seenFingerprints.add(usefulness.duplicateFingerprint);
         }
 
         logDeepScrapeEvent("page_crawled", {
@@ -494,6 +553,12 @@ export async function runDeepWebsiteCrawl(input: {
           pageType: candidate.pageType,
           pagesCrawled: pagesCrawled + 1,
           pagesDiscovered: Math.max(allowedDiscovered.length, 1),
+          diagnostic: {
+            path: safeUrlPath(candidate.url),
+            extractedChars: usefulness.extractedCharacterCount,
+            extractedWords: usefulness.extractedWordCount,
+            businessSignals: usefulness.businessSignalCount,
+          },
         });
 
         return {
@@ -504,6 +569,10 @@ export async function runDeepWebsiteCrawl(input: {
         };
       }
 
+      if (lastError) {
+        rejectedByReason[lastError] = (rejectedByReason[lastError] ?? 0) + 1;
+      }
+
       logDeepScrapeEvent("page_failed", {
         organizationId: input.organizationId,
         jobId: input.jobId,
@@ -511,6 +580,7 @@ export async function runDeepWebsiteCrawl(input: {
         domain: root.registrableDomain,
         pageType: candidate.pageType,
         failureCode: lastError ?? "PAGE_FETCH_FAILED",
+        diagnostic: lastDiagnostic,
       });
       return null;
     },
@@ -528,8 +598,8 @@ export async function runDeepWebsiteCrawl(input: {
     });
   }
 
-    if (crawledPages.length === 0) {
-    let terminal = "INSUFFICIENT_USEFUL_CONTENT";
+  if (crawledPages.length === 0) {
+    let terminal = "NO_USABLE_PAGES";
     if (sawUnsupportedContentType && meaningful.length === 1) {
       terminal = "UNSUPPORTED_CONTENT_TYPE";
     } else if (
@@ -537,7 +607,6 @@ export async function runDeepWebsiteCrawl(input: {
       (meaningful.length === 1 ||
         meaningful.every((entry) => entry.pageType === "homepage"))
     ) {
-      // Preserve precise transport/security codes for retry classification.
       if (
         rootFetchError === "UNSUPPORTED_CONTENT_TYPE" ||
         rootFetchError === "PAGE_TIMEOUT" ||
@@ -553,7 +622,7 @@ export async function runDeepWebsiteCrawl(input: {
         terminal = "ROOT_FETCH_FAILED";
       }
     } else if (lastUsefulnessFailure) {
-      terminal = lastUsefulnessFailure;
+      terminal = "NO_USABLE_PAGES";
     } else if (!homepageRobotsAllowed) {
       terminal = "ROBOTS_DENIED";
     } else {
@@ -570,6 +639,21 @@ export async function runDeepWebsiteCrawl(input: {
       rootUrl: rootCanonical,
       diagnostic,
     });
+    logDeepScrapeEvent("deep_scrape_failed", {
+      organizationId: input.organizationId,
+      jobId: input.jobId,
+      sourceType: input.sourceType,
+      domain: root.registrableDomain,
+      failureCode: terminal,
+      diagnostic: {
+        candidatesDiscovered: allowedDiscovered.length,
+        fetchesAttempted,
+        pagesAccepted: 0,
+        pagesRejectedByReason: rejectedByReason,
+        synthesisInvoked: false,
+        terminalReason: terminal,
+      },
+    });
     throw new Error(terminal);
   }
 
@@ -583,6 +667,37 @@ export async function runDeepWebsiteCrawl(input: {
     const text = page.text.slice(0, remaining);
     combined += text.length;
     boundedPages.push({ ...page, text });
+  }
+
+  const corpus = evaluateCorpusUsefulness(boundedPages);
+  if (!corpus.useful) {
+    diagnostic.terminalReason = corpus.code;
+    emitDiscoveryDiagnostic({
+      organizationId: input.organizationId,
+      jobId: input.jobId,
+      sourceType: input.sourceType,
+      domain: root.registrableDomain,
+      rootUrl: rootCanonical,
+      diagnostic,
+    });
+    logDeepScrapeEvent("deep_scrape_failed", {
+      organizationId: input.organizationId,
+      jobId: input.jobId,
+      sourceType: input.sourceType,
+      domain: root.registrableDomain,
+      failureCode: corpus.code,
+      diagnostic: {
+        candidatesDiscovered: allowedDiscovered.length,
+        fetchesAttempted,
+        pagesAccepted: boundedPages.length,
+        pagesRejectedByReason: rejectedByReason,
+        combinedExtractedChars: corpus.combinedChars,
+        combinedExtractedWords: corpus.combinedWords,
+        synthesisInvoked: false,
+        terminalReason: corpus.code,
+      },
+    });
+    throw new Error(corpus.code);
   }
 
   await input.onProgress?.({
@@ -611,6 +726,16 @@ export async function runDeepWebsiteCrawl(input: {
     pagesCrawled,
     pagesAnalyzed: intelligence.pages_analyzed,
     elapsedMs: Date.now() - startedAt,
+    diagnostic: {
+      candidatesDiscovered: allowedDiscovered.length,
+      fetchesAttempted,
+      pagesAccepted: boundedPages.length,
+      pagesRejectedByReason: rejectedByReason,
+      combinedExtractedChars: corpus.combinedChars,
+      combinedExtractedWords: corpus.combinedWords,
+      synthesisInvoked: true,
+      terminalReason: null,
+    },
   });
 
   return {

@@ -27,7 +27,10 @@ import {
   heartbeatDeepScrapeJob,
   updateDeepScrapeJobFields,
 } from "@/services/websiteLearning/deepScrape/deepScrapeJobService";
-import type { AthenaWebsiteDeepScrapeJob } from "@/services/websiteLearning/deepScrape/deepScrapeJobTypes";
+import {
+  formatDeepScrapeErrorMessage,
+  type AthenaWebsiteDeepScrapeJob,
+} from "@/services/websiteLearning/deepScrape/deepScrapeJobTypes";
 import { logDeepScrapeEvent } from "@/services/websiteLearning/deepScrape/observability";
 
 function classifyDeepScrapeError(error: unknown): {
@@ -50,6 +53,8 @@ function classifyDeepScrapeError(error: unknown): {
     "CROSS_DOMAIN_REJECTED",
     "INSUFFICIENT_USEFUL_CONTENT",
     "EMPTY_OR_THIN_HOMEPAGE",
+    "EMPTY_OR_UNUSABLE_CORPUS",
+    "NO_USABLE_PAGES",
     "NO_PERMISSIBLE_CRAWL_TARGETS",
     "ROBOTS_DENIED",
     "ROOT_FETCH_FAILED",
@@ -263,7 +268,10 @@ export async function executeClaimedDeepScrapeJob(
       jobId: job.id,
       claimToken,
       errorCode: classified.code,
-      errorMessage: classified.message,
+      errorMessage: formatDeepScrapeErrorMessage(
+        classified.code,
+        classified.message,
+      ),
       retryable,
       attemptCount: job.attempt_count,
       failedStage: job.promoted_at

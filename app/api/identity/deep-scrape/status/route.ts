@@ -8,7 +8,10 @@ import {
   getActiveDeepScrapeJobForBrain,
   getLatestDeepScrapeJobForBrain,
 } from "@/services/websiteLearning/deepScrape/deepScrapeJobService";
-import { formatDeepScrapeStatusLabel } from "@/services/websiteLearning/deepScrape/deepScrapeJobTypes";
+import {
+  formatDeepScrapeErrorMessage,
+  formatDeepScrapeStatusLabel,
+} from "@/services/websiteLearning/deepScrape/deepScrapeJobTypes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,7 +76,10 @@ export async function GET() {
             pagesCrawled: latest.pages_crawled,
             completedAt: latest.completed_at,
             errorCode: latest.error_code,
-            errorMessage: latest.error_message,
+            errorMessage: formatDeepScrapeErrorMessage(
+              latest.error_code,
+              latest.error_message,
+            ),
           }
         : null,
       lastDeepScrapeAt: identity.last_deep_scrape_at ?? latest?.completed_at ?? null,
