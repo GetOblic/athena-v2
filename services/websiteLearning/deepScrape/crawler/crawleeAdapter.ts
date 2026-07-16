@@ -18,6 +18,10 @@ import {
   stripBoilerplateBlocks,
 } from "@/services/websiteLearning/deepScrape/crawler/boilerplate";
 import {
+  CandidateAccountingError,
+  CandidateAccountingLedger,
+} from "@/services/websiteLearning/deepScrape/crawler/candidateAccounting";
+import {
   enqueueCheerioUrl,
   runCheerioCrawlPhase,
 } from "@/services/websiteLearning/deepScrape/crawler/cheerioCrawler";
@@ -100,6 +104,7 @@ export async function runCrawleeWebsiteCrawl(
   const seenFingerprints = new Set<string>();
   const enqueuedUrls = new Set<string>();
   const rejectedByReason: Record<string, number> = {};
+  const ledger = new CandidateAccountingLedger();
   let cheerioProcessed = 0;
   let playwrightProcessed = 0;
   let browserClosed = true;
@@ -108,18 +113,15 @@ export async function runCrawleeWebsiteCrawl(
   const emitProgress = async (
     stage: "discovering" | "crawling" | "rendering",
   ) => {
-    const pagesAttempted = cheerioProcessed + playwrightProcessed;
-    const pagesRejected = Object.values(rejectedByReason).reduce(
-      (sum, value) => sum + value,
-      0,
-    );
+    const snap = ledger.snapshot();
     await input.onProgress?.({
       stage,
-      pagesDiscovered: enqueuedUrls.size,
-      pagesAttempted,
+      pagesDiscovered: Math.max(enqueuedUrls.size, snap.candidatesDiscovered),
+      pagesAttempted: snap.networkRequestsAttempted,
       pagesAccepted: acceptedPages.length,
       pagesRendered: playwrightProcessed,
-      pagesRejected,
+      pagesRejected: snap.pagesRejected,
+      // Backward-compatible: UI "crawled" historically meant accepted count.
       pagesCrawled: acceptedPages.length,
       pagesTarget: Math.max(
         1,
@@ -209,6 +211,7 @@ export async function runCrawleeWebsiteCrawl(
       seenFingerprints,
       enqueuedUrls,
       rejectedByReason,
+      ledger,
       maxAccepted: DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
       maxQueueSize: DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveredUrls,
       onPageProcessed: async () => emitProgress("crawling"),
@@ -239,9 +242,16 @@ export async function runCrawleeWebsiteCrawl(
     const cheerioResult = await runCheerioCrawlPhase(cheerioCtx);
     cheerioProcessed = cheerioResult.processed;
 
+    const pendingPlaywright = [
+      ...new Set([
+        ...playwrightFallbackUrls,
+        ...ledger.listPendingPlaywrightUrls(),
+      ]),
+    ];
+
     if (
       Date.now() < deadline &&
-      playwrightFallbackUrls.length > 0 &&
+      pendingPlaywright.length > 0 &&
       acceptedPages.length < DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages
     ) {
       await emitProgress("rendering");
@@ -250,7 +260,7 @@ export async function runCrawleeWebsiteCrawl(
         { config: storage.config },
       );
 
-      const uniqueFallback = [...new Set(playwrightFallbackUrls)].slice(
+      const uniqueFallback = pendingPlaywright.slice(
         0,
         DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
       );
@@ -276,6 +286,7 @@ export async function runCrawleeWebsiteCrawl(
           seenContentHashes,
           seenFingerprints,
           rejectedByReason,
+          ledger,
           maxAccepted: DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
           onPageProcessed: async () => emitProgress("rendering"),
         });
@@ -290,6 +301,12 @@ export async function runCrawleeWebsiteCrawl(
           /PLAYWRIGHT_CHROMIUM_UNAVAILABLE/i.test(message) &&
           acceptedPages.length > 0
         ) {
+          const skipped = ledger.rejectAllPendingPlaywright(
+            "PLAYWRIGHT_CHROMIUM_UNAVAILABLE",
+            { pagesAcceptedWithoutBrowser: acceptedPages.length },
+          );
+          rejectedByReason.PLAYWRIGHT_CHROMIUM_UNAVAILABLE =
+            (rejectedByReason.PLAYWRIGHT_CHROMIUM_UNAVAILABLE ?? 0) + skipped;
           logDeepScrapeEvent("page_rejected", {
             organizationId: input.organizationId,
             jobId: input.jobId,
@@ -297,13 +314,18 @@ export async function runCrawleeWebsiteCrawl(
             domain: root.registrableDomain,
             failureCode: "PLAYWRIGHT_CHROMIUM_UNAVAILABLE",
             diagnostic: {
-              browserFallbackUsed: true,
+              browserFallbackUsed: false,
               pagesAcceptedWithoutBrowser: acceptedPages.length,
+              pendingRejected: skipped,
             },
           });
         } else if (/PLAYWRIGHT_CHROMIUM_UNAVAILABLE/i.test(message)) {
+          ledger.rejectAllPendingPlaywright("PLAYWRIGHT_CHROMIUM_UNAVAILABLE");
           throw error;
         } else {
+          ledger.rejectAllPendingPlaywright("PLAYWRIGHT_FALLBACK_FAILED", {
+            error: message,
+          });
           throw error;
         }
       } finally {
@@ -313,6 +335,28 @@ export async function runCrawleeWebsiteCrawl(
           // ignore
         }
       }
+    } else if (pendingPlaywright.length > 0) {
+      // Deadline / cap prevented Playwright — every pending URL must terminate.
+      const skipped = ledger.rejectAllPendingPlaywright(
+        "PLAYWRIGHT_FALLBACK_SKIPPED",
+        {
+          deadlineReached: Date.now() >= deadline,
+          acceptedPages: acceptedPages.length,
+        },
+      );
+      rejectedByReason.PLAYWRIGHT_FALLBACK_SKIPPED =
+        (rejectedByReason.PLAYWRIGHT_FALLBACK_SKIPPED ?? 0) + skipped;
+      logDeepScrapeEvent("deep_scrape_candidate_rejected", {
+        organizationId: input.organizationId,
+        jobId: input.jobId,
+        sourceType: input.sourceType,
+        domain: root.registrableDomain,
+        failureCode: "PLAYWRIGHT_FALLBACK_SKIPPED",
+        diagnostic: {
+          pendingRejected: skipped,
+          deadlineReached: Date.now() >= deadline,
+        },
+      });
     }
 
     try {
@@ -480,16 +524,53 @@ export async function runCrawleeWebsiteCrawl(
       })),
     );
 
+    let accounting;
+    try {
+      accounting = ledger.verifyOrThrow();
+      logDeepScrapeEvent("deep_scrape_candidate_accounting_verified", {
+        organizationId: input.organizationId,
+        jobId: input.jobId,
+        sourceType: input.sourceType,
+        domain: root.registrableDomain,
+        diagnostic: { ...accounting },
+      });
+    } catch (error) {
+      if (error instanceof CandidateAccountingError) {
+        logDeepScrapeEvent("deep_scrape_candidate_accounting_failed", {
+          organizationId: input.organizationId,
+          jobId: input.jobId,
+          sourceType: input.sourceType,
+          domain: root.registrableDomain,
+          failureCode: error.code,
+          diagnostic: error.diagnostic,
+        });
+      }
+      throw error;
+    }
+
+    // Prefer ledger rejection reasons; keep classifier codes as supplemental.
+    const mergedRejectedByReason = {
+      ...rejectedByReason,
+      ...accounting.pagesRejectedByReason,
+    };
+
     const stats = {
-      candidatesDiscovered: enqueuedUrls.size,
-      fetchesAttempted: cheerioProcessed + playwrightProcessed,
-      pagesAccepted: boundedPages.length,
-      pagesRejected: Object.values(rejectedByReason).reduce(
-        (sum, value) => sum + value,
-        0,
+      candidatesDiscovered: Math.max(
+        enqueuedUrls.size,
+        accounting.candidatesDiscovered,
       ),
+      fetchesAttempted: accounting.networkRequestsAttempted,
+      candidatesQueued: accounting.candidatesQueued,
+      candidatesDeduplicatedBeforeFetch:
+        accounting.candidatesDeduplicatedBeforeFetch,
+      networkRequestsAttempted: accounting.networkRequestsAttempted,
+      requestFailures: accounting.requestFailures,
+      pagesExtracted: accounting.pagesExtracted,
+      pagesAccepted: boundedPages.length,
+      pagesRejected: accounting.pagesRejected,
+      pagesCrawled: accounting.networkRequestsAttempted,
       pagesRendered: playwrightProcessed,
-      rejectedByReason,
+      rejectedByReason: mergedRejectedByReason,
       cheerioProcessed,
       playwrightProcessed,
       combinedExtractedChars: corpus.combinedChars,
@@ -523,19 +604,22 @@ export async function runCrawleeWebsiteCrawl(
       diagnostic: {
         ...stats,
         synthesisInvoked: false,
+        extractionEngine: "crawlee_cheerio_playwright_readability",
       },
     });
 
     return { pages: boundedPages, stats };
   } catch (error) {
     const code =
-      error instanceof Error
-        ? error.message
-            .replace(/\s+/g, "_")
-            .replace(/[^A-Z0-9_]/gi, "")
-            .slice(0, 80)
-            .toUpperCase() || "CRAWLEE_JOB_FAILED"
-        : "CRAWLEE_JOB_FAILED";
+      error instanceof CandidateAccountingError
+        ? error.code
+        : error instanceof Error
+          ? error.message
+              .replace(/\s+/g, "_")
+              .replace(/[^A-Z0-9_]/gi, "")
+              .slice(0, 80)
+              .toUpperCase() || "CRAWLEE_JOB_FAILED"
+          : "CRAWLEE_JOB_FAILED";
     logDeepScrapeEvent("crawlee_job_failed", {
       organizationId: input.organizationId,
       jobId: input.jobId,
@@ -543,6 +627,8 @@ export async function runCrawleeWebsiteCrawl(
       domain: root.registrableDomain,
       failureCode: code,
       elapsedMs: Date.now() - startedAt,
+      diagnostic:
+        error instanceof CandidateAccountingError ? error.diagnostic : null,
     });
     throw error instanceof Error ? error : new Error(code);
   } finally {

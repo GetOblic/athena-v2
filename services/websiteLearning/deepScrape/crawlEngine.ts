@@ -163,9 +163,17 @@ export async function runDeepWebsiteCrawl(input: {
     elapsedMs: Date.now() - startedAt,
     diagnostic: {
       candidatesDiscovered: crawl.stats.candidatesDiscovered,
+      candidatesQueued: crawl.stats.candidatesQueued,
+      candidatesDeduplicatedBeforeFetch:
+        crawl.stats.candidatesDeduplicatedBeforeFetch,
+      networkRequestsAttempted: crawl.stats.networkRequestsAttempted,
       fetchesAttempted: crawl.stats.fetchesAttempted,
+      requestFailures: crawl.stats.requestFailures,
+      pagesExtracted: crawl.stats.pagesExtracted,
       pagesAccepted: crawl.stats.pagesAccepted,
+      pagesRejected: crawl.stats.pagesRejected,
       pagesRejectedByReason: crawl.stats.rejectedByReason,
+      pagesCrawled: crawl.stats.pagesCrawled,
       pagesRendered: crawl.stats.pagesRendered,
       combinedExtractedChars: crawl.stats.combinedExtractedChars,
       combinedExtractedWords: crawl.stats.combinedExtractedWords,

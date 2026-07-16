@@ -18,6 +18,11 @@ import {
   isNavigationTargetAllowed,
 } from "@/services/websiteLearning/deepScrape/crawler/browserGuard";
 import { assertChromiumAvailable } from "@/services/websiteLearning/deepScrape/crawler/chromiumCheck";
+import {
+  CandidateAccountingLedger,
+  mapClassifierRejectionToReason,
+  mapDuplicateBasisToReason,
+} from "@/services/websiteLearning/deepScrape/crawler/candidateAccounting";
 import { classifyNormalizedPage } from "@/services/websiteLearning/deepScrape/crawler/pageClassifier";
 import { extractWithReadability } from "@/services/websiteLearning/deepScrape/crawler/readabilityExtractor";
 import type { NormalizedPageDocument } from "@/services/websiteLearning/deepScrape/crawler/crawlerTypes";
@@ -37,6 +42,7 @@ export type PlaywrightPhaseContext = {
   seenContentHashes: Map<string, string>;
   seenFingerprints: Set<string>;
   rejectedByReason: Record<string, number>;
+  ledger: CandidateAccountingLedger;
   maxAccepted: number;
   onPageProcessed?: () => void | Promise<void>;
 };
@@ -102,7 +108,34 @@ export async function runPlaywrightCrawlPhase(
       ],
       async requestHandler({ page, request, response }) {
         processed += 1;
+        const requestUrl = request.url;
+        ctx.ledger.markRequestStarted(requestUrl);
+        logDeepScrapeEvent("deep_scrape_candidate_request_started", {
+          organizationId: ctx.organizationId,
+          jobId: ctx.jobId,
+          sourceType: ctx.sourceType,
+          domain: ctx.registrableDomain,
+          diagnostic: {
+            path: safePath(requestUrl),
+            extractionMethod: "playwright_readability",
+            browserFallbackUsed: true,
+          },
+        });
+
         if (ctx.acceptedPages.length >= ctx.maxAccepted) {
+          recordRejection(ctx, "ACCEPTANCE_CAP_REACHED");
+          ctx.ledger.markRejected({
+            url: requestUrl,
+            reason: "ACCEPTANCE_CAP_REACHED",
+          });
+          logDeepScrapeEvent("deep_scrape_candidate_rejected", {
+            organizationId: ctx.organizationId,
+            jobId: ctx.jobId,
+            sourceType: ctx.sourceType,
+            domain: ctx.registrableDomain,
+            failureCode: "ACCEPTANCE_CAP_REACHED",
+            diagnostic: { path: safePath(requestUrl) },
+          });
           await ctx.onPageProcessed?.();
           return;
         }
@@ -138,6 +171,20 @@ export async function runPlaywrightCrawlPhase(
 
         if (responseBytes > DEEP_SCRAPE_CRAWL_POLICY.maxResponseBytes) {
           recordRejection(ctx, "RESPONSE_TOO_LARGE");
+          ctx.ledger.markRejected({
+            url: requestUrl,
+            finalUrl,
+            reason: "RESPONSE_TOO_LARGE",
+            diagnostic: { responseBytes },
+          });
+          logDeepScrapeEvent("deep_scrape_candidate_rejected", {
+            organizationId: ctx.organizationId,
+            jobId: ctx.jobId,
+            sourceType: ctx.sourceType,
+            domain: ctx.registrableDomain,
+            failureCode: "RESPONSE_TOO_LARGE",
+            diagnostic: { path: safePath(requestUrl), responseBytes },
+          });
           await ctx.onPageProcessed?.();
           return;
         }
@@ -147,6 +194,7 @@ export async function runPlaywrightCrawlPhase(
           url: finalUrl,
           registrableDomain: ctx.registrableDomain,
         });
+        ctx.ledger.markExtracted(requestUrl);
 
         logDeepScrapeEvent("readability_extraction_completed", {
           organizationId: ctx.organizationId,
@@ -227,10 +275,25 @@ export async function runPlaywrightCrawlPhase(
         });
 
         if (!classification.accepted) {
+          const reason =
+            classification.rejectionCode === "PAGE_DUPLICATE"
+              ? mapDuplicateBasisToReason(classification.duplicateBasis)
+              : classification.rejectionCode
+                ? mapClassifierRejectionToReason(classification.rejectionCode)
+                : "PLAYWRIGHT_FALLBACK_FAILED";
           recordRejection(
             ctx,
-            classification.rejectionCode ?? "PAGE_NO_USABLE_TEXT",
+            classification.rejectionCode ?? "PLAYWRIGHT_FALLBACK_FAILED",
           );
+          ctx.ledger.markRejected({
+            url: requestUrl,
+            finalUrl,
+            reason,
+            diagnostic: {
+              rejectionCode: classification.rejectionCode,
+              duplicateBasis: classification.duplicateBasis,
+            },
+          });
           logDeepScrapeEvent("page_rejected", {
             organizationId: ctx.organizationId,
             jobId: ctx.jobId,
@@ -247,6 +310,18 @@ export async function runPlaywrightCrawlPhase(
               duplicateOfPath: classification.duplicateOfPath,
             },
           });
+          logDeepScrapeEvent("deep_scrape_candidate_rejected", {
+            organizationId: ctx.organizationId,
+            jobId: ctx.jobId,
+            sourceType: ctx.sourceType,
+            domain: ctx.registrableDomain,
+            failureCode: reason,
+            diagnostic: {
+              path: safePath(requestUrl),
+              finalPath: safePath(finalUrl),
+              browserFallbackUsed: true,
+            },
+          });
           await ctx.onPageProcessed?.();
           return;
         }
@@ -260,6 +335,13 @@ export async function runPlaywrightCrawlPhase(
           ctx.seenFingerprints.add(classification.duplicateFingerprint);
         }
         ctx.acceptedPages.push(pageDocument);
+        ctx.ledger.markAccepted({
+          url: requestUrl,
+          finalUrl,
+          pageType,
+          extractionMethod: "playwright_readability",
+          contentChars: classification.extractedCharacterCount,
+        });
 
         logDeepScrapeEvent("playwright_extraction_recovered", {
           organizationId: ctx.organizationId,
@@ -290,6 +372,21 @@ export async function runPlaywrightCrawlPhase(
             structuredDataTypes: classification.structuredDataTypes,
           },
         });
+        logDeepScrapeEvent("deep_scrape_candidate_accepted", {
+          organizationId: ctx.organizationId,
+          jobId: ctx.jobId,
+          sourceType: ctx.sourceType,
+          domain: ctx.registrableDomain,
+          pageType,
+          diagnostic: {
+            path: safePath(requestUrl),
+            finalPath: safePath(finalUrl),
+            extractionMethod: "playwright_readability",
+            browserFallbackUsed: true,
+            extractedChars: classification.extractedCharacterCount,
+            contentHashPrefix: pageDocument.contentHash.slice(0, 12),
+          },
+        });
 
         await ctx.onPageProcessed?.();
       },
@@ -302,17 +399,36 @@ export async function runPlaywrightCrawlPhase(
                 .slice(0, 80)
                 .toUpperCase() || "PLAYWRIGHT_FAILED"
             : "PLAYWRIGHT_FAILED";
-        recordRejection(ctx, code);
+        recordRejection(ctx, "PLAYWRIGHT_FALLBACK_FAILED");
+        ctx.ledger.markRequestStarted(request.url);
+        ctx.ledger.markRejected({
+          url: request.url,
+          reason: "PLAYWRIGHT_FALLBACK_FAILED",
+          isRequestFailure: true,
+          diagnostic: { errorClass: code },
+        });
         logDeepScrapeEvent("page_rejected", {
           organizationId: ctx.organizationId,
           jobId: ctx.jobId,
           sourceType: ctx.sourceType,
           domain: ctx.registrableDomain,
-          failureCode: code,
+          failureCode: "PLAYWRIGHT_FALLBACK_FAILED",
           diagnostic: {
             path: safePath(request.url),
             extractionMethod: "playwright_readability",
             browserFallbackUsed: true,
+            errorClass: code,
+          },
+        });
+        logDeepScrapeEvent("deep_scrape_candidate_request_failed", {
+          organizationId: ctx.organizationId,
+          jobId: ctx.jobId,
+          sourceType: ctx.sourceType,
+          domain: ctx.registrableDomain,
+          failureCode: "PLAYWRIGHT_FALLBACK_FAILED",
+          diagnostic: {
+            path: safePath(request.url),
+            errorClass: code,
           },
         });
         await ctx.onPageProcessed?.();
