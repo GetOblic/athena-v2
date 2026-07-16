@@ -18,6 +18,7 @@ import {
   isNavigationTargetAllowed,
 } from "@/services/websiteLearning/deepScrape/crawler/browserGuard";
 import { assertChromiumAvailable } from "@/services/websiteLearning/deepScrape/crawler/chromiumCheck";
+import type { DeepScrapeFetchLifecycle } from "@/services/websiteLearning/deepScrape/crawler/fetchLifecycle";
 import { classifyNormalizedPage } from "@/services/websiteLearning/deepScrape/crawler/pageClassifier";
 import { extractWithReadability } from "@/services/websiteLearning/deepScrape/crawler/readabilityExtractor";
 import type { NormalizedPageDocument } from "@/services/websiteLearning/deepScrape/crawler/crawlerTypes";
@@ -38,6 +39,7 @@ export type PlaywrightPhaseContext = {
   seenFingerprints: Set<string>;
   rejectedByReason: Record<string, number>;
   maxAccepted: number;
+  fetchLifecycle?: DeepScrapeFetchLifecycle;
   onPageProcessed?: () => void | Promise<void>;
 };
 
@@ -102,10 +104,7 @@ export async function runPlaywrightCrawlPhase(
       ],
       async requestHandler({ page, request, response }) {
         processed += 1;
-        if (ctx.acceptedPages.length >= ctx.maxAccepted) {
-          await ctx.onPageProcessed?.();
-          return;
-        }
+        ctx.fetchLifecycle?.markPlaywrightStarted(request.url);
 
         const pageType =
           typeof request.userData?.pageType === "string"
@@ -119,6 +118,34 @@ export async function runPlaywrightCrawlPhase(
           typeof request.userData?.totalScore === "number"
             ? request.userData.totalScore
             : scoreUrl(request.url).score;
+
+        if (ctx.acceptedPages.length >= ctx.maxAccepted) {
+          recordRejection(ctx, "PAGE_CAP_LOWER_PRIORITY");
+          ctx.fetchLifecycle?.markRejected(
+            request.url,
+            "PAGE_CAP_LOWER_PRIORITY",
+            { browserFallbackUsed: true },
+          );
+          logDeepScrapeEvent("deep_scrape_page_cap_candidate_skipped", {
+            organizationId: ctx.organizationId,
+            jobId: ctx.jobId,
+            sourceType: ctx.sourceType,
+            domain: ctx.registrableDomain,
+            failureCode: "PAGE_CAP_LOWER_PRIORITY",
+            diagnostic: {
+              path: safePath(request.url),
+              candidateUrl: request.url,
+              candidateScore: totalScore,
+              candidateProvenance: provenance,
+              acceptedPageCount: ctx.acceptedPages.length,
+              maxMeaningfulPages: ctx.maxAccepted,
+              reason: "acceptance_cap_playwright",
+              browserFallbackUsed: true,
+            },
+          });
+          await ctx.onPageProcessed?.();
+          return;
+        }
 
         // Bounded wait for meaningful DOM text after DOMContentLoaded.
         try {
@@ -144,8 +171,29 @@ export async function runPlaywrightCrawlPhase(
         const html = await page.content();
         const responseBytes = Buffer.byteLength(html, "utf8");
 
+        ctx.fetchLifecycle?.markResponseReceived(
+          request.url,
+          statusCode,
+        );
+
         if (responseBytes > DEEP_SCRAPE_CRAWL_POLICY.maxResponseBytes) {
           recordRejection(ctx, "RESPONSE_TOO_LARGE");
+          ctx.fetchLifecycle?.markRejected(request.url, "RESPONSE_TOO_LARGE", {
+            statusCode,
+            browserFallbackUsed: true,
+          });
+          logDeepScrapeEvent("page_rejected", {
+            organizationId: ctx.organizationId,
+            jobId: ctx.jobId,
+            sourceType: ctx.sourceType,
+            domain: ctx.registrableDomain,
+            failureCode: "RESPONSE_TOO_LARGE",
+            diagnostic: {
+              path: safePath(finalUrl),
+              browserFallbackUsed: true,
+              responseBytes,
+            },
+          });
           await ctx.onPageProcessed?.();
           return;
         }
@@ -235,10 +283,13 @@ export async function runPlaywrightCrawlPhase(
         });
 
         if (!classification.accepted) {
-          recordRejection(
-            ctx,
-            classification.rejectionCode ?? "PAGE_NO_USABLE_TEXT",
-          );
+          const rejectCode =
+            classification.rejectionCode ?? "PAGE_NO_USABLE_TEXT";
+          recordRejection(ctx, rejectCode);
+          ctx.fetchLifecycle?.markRejected(request.url, rejectCode, {
+            statusCode,
+            browserFallbackUsed: true,
+          });
           logDeepScrapeEvent("page_rejected", {
             organizationId: ctx.organizationId,
             jobId: ctx.jobId,
@@ -268,6 +319,9 @@ export async function runPlaywrightCrawlPhase(
           ctx.seenFingerprints.add(classification.duplicateFingerprint);
         }
         ctx.acceptedPages.push(pageDocument);
+        ctx.fetchLifecycle?.markAccepted(request.url, {
+          browserFallbackUsed: true,
+        });
 
         logDeepScrapeEvent("playwright_extraction_recovered", {
           organizationId: ctx.organizationId,
@@ -304,6 +358,7 @@ export async function runPlaywrightCrawlPhase(
         await ctx.onPageProcessed?.();
       },
       async failedRequestHandler({ request }, error) {
+        processed += 1;
         const code =
           error instanceof Error
             ? error.message
@@ -312,7 +367,9 @@ export async function runPlaywrightCrawlPhase(
                 .slice(0, 80)
                 .toUpperCase() || "PLAYWRIGHT_FAILED"
             : "PLAYWRIGHT_FAILED";
+        ctx.fetchLifecycle?.markPlaywrightStarted(request.url);
         recordRejection(ctx, code);
+        ctx.fetchLifecycle?.markRequestFailed(request.url, code);
         logDeepScrapeEvent("page_rejected", {
           organizationId: ctx.organizationId,
           jobId: ctx.jobId,

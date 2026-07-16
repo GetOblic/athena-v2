@@ -21,6 +21,7 @@ import {
   runCheerioCrawlPhase,
   type CheerioPhaseContext,
 } from "@/services/websiteLearning/deepScrape/crawler/cheerioCrawler";
+import { DeepScrapeFetchLifecycle } from "@/services/websiteLearning/deepScrape/crawler/fetchLifecycle";
 import type { ExtractedDiscoveryLink } from "@/services/websiteLearning/deepScrape/crawler/navigationExtraction";
 import { buildRankedCrawlPlan } from "@/services/websiteLearning/deepScrape/crawler/rankedCrawlPlan";
 import type { DiscoveryProvenance } from "@/services/websiteLearning/deepScrape/crawler/urlRelevance";
@@ -106,11 +107,20 @@ export async function runCrawleeWebsiteCrawl(
   const candidateRegistry = new DeepScrapeCandidateRegistry();
   const acceptedByProvenance: Record<string, number> = {};
   const discoveredInventoryLinks: ExtractedDiscoveryLink[] = [];
+  const fetchLifecycle = new DeepScrapeFetchLifecycle({
+    organizationId: input.organizationId,
+    jobId: input.jobId,
+    sourceType: input.sourceType,
+    domain: root.registrableDomain,
+  });
   let cheerioProcessed = 0;
   let playwrightProcessed = 0;
   let browserClosed = true;
   let queueSizeBounded = false;
   let rankedPlanSelectedCount = 0;
+  let lifecycleSummary: ReturnType<
+    DeepScrapeFetchLifecycle["summary"]
+  > | null = null;
 
   const emitProgress = async (
     stage: "discovering" | "crawling" | "rendering",
@@ -193,6 +203,7 @@ export async function runCrawleeWebsiteCrawl(
       allowLiveLinkEnqueue: false,
       forefrontOnEnqueue: false,
       discoveredInventoryLinks,
+      fetchLifecycle,
       onPageProcessed: async () => emitProgress("crawling"),
     };
 
@@ -311,6 +322,14 @@ export async function runCrawleeWebsiteCrawl(
       maxRankedCandidates: DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates,
     });
     rankedPlanSelectedCount = rankedPlan.selected.length;
+    fetchLifecycle.setRankedSelected(rankedPlan.selected.length);
+    rankedPlan.selected.forEach((entry, index) => {
+      fetchLifecycle.markRanked(entry.normalizedUrl, {
+        rank: index,
+        score: entry.totalScore,
+        provenance: entry.provenance,
+      });
+    });
 
     logDeepScrapeEvent("deep_scrape_candidate_inventory_finalized", {
       organizationId: input.organizationId,
@@ -447,11 +466,12 @@ export async function runCrawleeWebsiteCrawl(
       },
     });
 
-    if (
+    const shouldRunPlaywright =
       Date.now() < deadline &&
       playwrightFallbackUrls.length > 0 &&
-      acceptedPages.length < DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages
-    ) {
+      acceptedPages.length < DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages;
+
+    if (shouldRunPlaywright) {
       await emitProgress("rendering");
       const playwrightQueue = await RequestQueue.open(
         `playwright-${input.jobId}`,
@@ -459,7 +479,7 @@ export async function runCrawleeWebsiteCrawl(
       );
 
       // Playwright only re-renders URLs already selected/fetched in the ranked plan.
-      const uniqueFallback = [...new Set(playwrightFallbackUrls)]
+      const uniqueFallbackAll = [...new Set(playwrightFallbackUrls)]
         .map((url) => {
           const meta = candidateRegistry.getEntry(url);
           return {
@@ -473,8 +493,41 @@ export async function runCrawleeWebsiteCrawl(
           (left, right) =>
             right.totalScore - left.totalScore ||
             left.url.localeCompare(right.url),
-        )
-        .slice(0, DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages);
+        );
+      const uniqueFallback = uniqueFallbackAll.slice(
+        0,
+        DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
+      );
+      const overflowFallback = uniqueFallbackAll.slice(
+        DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
+      );
+      for (const entry of overflowFallback) {
+        rejectedByReason.PLAYWRIGHT_BUDGET_EXCEEDED =
+          (rejectedByReason.PLAYWRIGHT_BUDGET_EXCEEDED ?? 0) + 1;
+        fetchLifecycle.markRejected(entry.url, "PLAYWRIGHT_BUDGET_EXCEEDED", {
+          browserFallbackUsed: true,
+        });
+        logDeepScrapeEvent("page_rejected", {
+          organizationId: input.organizationId,
+          jobId: input.jobId,
+          sourceType: input.sourceType,
+          domain: root.registrableDomain,
+          failureCode: "PLAYWRIGHT_BUDGET_EXCEEDED",
+          diagnostic: {
+            path: (() => {
+              try {
+                return new URL(entry.url).pathname;
+              } catch {
+                return "/";
+              }
+            })(),
+            browserFallbackUsed: true,
+            totalScore: entry.totalScore,
+            provenance: entry.provenance,
+          },
+        });
+      }
+
       for (const entry of uniqueFallback) {
         await playwrightQueue.addRequest(
           {
@@ -506,6 +559,7 @@ export async function runCrawleeWebsiteCrawl(
           seenFingerprints,
           rejectedByReason,
           maxAccepted: DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
+          fetchLifecycle,
           onPageProcessed: async () => emitProgress("rendering"),
         });
         playwrightProcessed = pwResult.processed;
@@ -519,6 +573,13 @@ export async function runCrawleeWebsiteCrawl(
           /PLAYWRIGHT_CHROMIUM_UNAVAILABLE/i.test(message) &&
           acceptedPages.length > 0
         ) {
+          const skipped = fetchLifecycle.finalizePlaywrightPending(
+            "PLAYWRIGHT_CHROMIUM_UNAVAILABLE",
+          );
+          if (skipped > 0) {
+            rejectedByReason.PLAYWRIGHT_CHROMIUM_UNAVAILABLE =
+              (rejectedByReason.PLAYWRIGHT_CHROMIUM_UNAVAILABLE ?? 0) + skipped;
+          }
           logDeepScrapeEvent("page_rejected", {
             organizationId: input.organizationId,
             jobId: input.jobId,
@@ -528,6 +589,7 @@ export async function runCrawleeWebsiteCrawl(
             diagnostic: {
               browserFallbackUsed: true,
               pagesAcceptedWithoutBrowser: acceptedPages.length,
+              pendingTerminalized: skipped,
             },
           });
         } else if (/PLAYWRIGHT_CHROMIUM_UNAVAILABLE/i.test(message)) {
@@ -542,6 +604,16 @@ export async function runCrawleeWebsiteCrawl(
           // ignore
         }
       }
+    } else if (playwrightFallbackUrls.length > 0) {
+      const skipReason =
+        acceptedPages.length >= DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages
+          ? "PAGE_CAP_LOWER_PRIORITY"
+          : "PLAYWRIGHT_FALLBACK_SKIPPED";
+      const skipped = fetchLifecycle.finalizePlaywrightPending(skipReason);
+      if (skipped > 0) {
+        rejectedByReason[skipReason] =
+          (rejectedByReason[skipReason] ?? 0) + skipped;
+      }
     }
 
     try {
@@ -549,6 +621,21 @@ export async function runCrawleeWebsiteCrawl(
     } catch {
       // ignore
     }
+
+    // Pre-synthesis: terminalize any leftover PW-pending, then enforce
+    // terminalHandlerCandidates === requestHandlersEntered and
+    // playwrightPending === 0. Ranked never-started → skipped_before_fetch
+    // (separate from the handler invariant).
+    {
+      const leftover = fetchLifecycle.finalizePlaywrightPending(
+        "PLAYWRIGHT_FALLBACK_SKIPPED",
+      );
+      if (leftover > 0) {
+        rejectedByReason.PLAYWRIGHT_FALLBACK_SKIPPED =
+          (rejectedByReason.PLAYWRIGHT_FALLBACK_SKIPPED ?? 0) + leftover;
+      }
+    }
+    lifecycleSummary = fetchLifecycle.assertCompleteOrThrow();
 
     // Cross-page boilerplate removal before hashing/corpus assembly.
     const boilerplateSet = buildBoilerplateFingerprintSet(
@@ -733,7 +820,10 @@ export async function runCrawleeWebsiteCrawl(
         rankedPlanSelectedCount,
         candidateRegistry.size,
       ),
-      fetchesAttempted: cheerioProcessed + playwrightProcessed,
+      // Compat: unique URLs with requestHandler/failedRequestHandler entry.
+      fetchesAttempted:
+        lifecycleSummary?.fetchesAttempted ??
+        cheerioProcessed + playwrightProcessed,
       pagesAccepted: boundedPages.length,
       pagesRejected: Object.values(rejectedByReason).reduce(
         (sum, value) => sum + value,
@@ -774,6 +864,8 @@ export async function runCrawleeWebsiteCrawl(
       diagnostic: {
         ...stats,
         synthesisInvoked: false,
+        // fetchesAttempted = requestHandlersEntered (unique handler URLs).
+        fetchLifecycle: lifecycleSummary,
       },
     });
 

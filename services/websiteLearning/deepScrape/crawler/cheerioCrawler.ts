@@ -14,6 +14,7 @@ import {
   scoreUrl,
 } from "@/services/websiteLearning/deepScrape/crawlPolicy";
 import { DeepScrapeCandidateRegistry } from "@/services/websiteLearning/deepScrape/crawler/candidateRegistry";
+import type { DeepScrapeFetchLifecycle } from "@/services/websiteLearning/deepScrape/crawler/fetchLifecycle";
 import type { ExtractedDiscoveryLink } from "@/services/websiteLearning/deepScrape/crawler/navigationExtraction";
 import { classifyNormalizedPage } from "@/services/websiteLearning/deepScrape/crawler/pageClassifier";
 import { extractWithReadability } from "@/services/websiteLearning/deepScrape/crawler/readabilityExtractor";
@@ -64,6 +65,8 @@ export type CheerioPhaseContext = {
   maxRequestsPerCrawlOverride?: number;
   /** Optional sink for homepage/navigation inventory links. */
   discoveredInventoryLinks?: ExtractedDiscoveryLink[];
+  /** Shared Prospect/Brain fetch lifecycle ledger. */
+  fetchLifecycle?: DeepScrapeFetchLifecycle;
   onPageProcessed?: () => void | Promise<void>;
 };
 
@@ -278,6 +281,10 @@ async function maybeEnqueue(
     options?.forefront ?? Boolean(ctx.forefrontOnEnqueue);
   ctx.enqueuedUrls.add(canonical);
   ctx.candidateRegistry.markEnqueued(canonical);
+  ctx.fetchLifecycle?.markQueued(canonical, {
+    score: observed.ranked.totalScore,
+    provenance: observed.ranked.provenance,
+  });
   await ctx.requestQueue.addRequest(
     {
       url: canonical,
@@ -342,6 +349,7 @@ export async function runCheerioCrawlPhase(
             sourceType: ctx.sourceType,
             fetchPurpose: "page",
           });
+          ctx.fetchLifecycle?.markNetworkStarted(url);
           gotOptions.followRedirect = false;
           gotOptions.timeout = {
             request: DEEP_SCRAPE_CRAWL_POLICY.perPageTimeoutMs,
@@ -369,9 +377,18 @@ export async function runCheerioCrawlPhase(
             ? request.userData.totalScore
             : registryEntry?.totalScore ?? scoreUrl(request.url).score;
 
+        ctx.fetchLifecycle?.markHandlerEntered(request.url, {
+          score: totalScore,
+          provenance: String(provenance),
+        });
+
         if (ctx.acceptedPages.length >= ctx.maxAccepted) {
           recordRejection(ctx, "PAGE_CAP_LOWER_PRIORITY");
           ctx.candidateRegistry.recordPageCapSkip();
+          ctx.fetchLifecycle?.markRejected(
+            request.url,
+            "PAGE_CAP_LOWER_PRIORITY",
+          );
           logDeepScrapeEvent("deep_scrape_page_cap_candidate_skipped", {
             organizationId: ctx.organizationId,
             jobId: ctx.jobId,
@@ -404,6 +421,8 @@ export async function runCheerioCrawlPhase(
               ? `${contentType.type}${contentType.encoding ? `; charset=${contentType.encoding}` : ""}`
               : response?.headers["content-type"] ?? "";
 
+        ctx.fetchLifecycle?.markResponseReceived(request.url, statusCode);
+
         // Manual redirect handling with SSRF re-check via enqueue.
         if ([301, 302, 303, 307, 308].includes(statusCode)) {
           const location = response?.headers?.location;
@@ -413,8 +432,25 @@ export async function runCheerioCrawlPhase(
               label: "redirect",
               provenance: "redirect_target",
             });
+            ctx.fetchLifecycle?.markRedirected(request.url, "REDIRECT");
           } else {
             recordRejection(ctx, "REDIRECT_MISSING_LOCATION");
+            ctx.fetchLifecycle?.markRejected(
+              request.url,
+              "REDIRECT_MISSING_LOCATION",
+              { statusCode },
+            );
+            logDeepScrapeEvent("page_rejected", {
+              organizationId: ctx.organizationId,
+              jobId: ctx.jobId,
+              sourceType: ctx.sourceType,
+              domain: ctx.registrableDomain,
+              failureCode: "REDIRECT_MISSING_LOCATION",
+              diagnostic: {
+                path: safePath(request.url),
+                status: statusCode,
+              },
+            });
           }
           await ctx.onPageProcessed?.();
           return;
@@ -422,6 +458,11 @@ export async function runCheerioCrawlPhase(
 
         if (statusCode < 200 || statusCode >= 400) {
           recordRejection(ctx, `HTTP_${statusCode || "0"}`);
+          ctx.fetchLifecycle?.markRejected(
+            request.url,
+            `HTTP_${statusCode || "0"}`,
+            { statusCode },
+          );
           logDeepScrapeEvent("page_rejected", {
             organizationId: ctx.organizationId,
             jobId: ctx.jobId,
@@ -442,6 +483,23 @@ export async function runCheerioCrawlPhase(
 
         if (!/html/i.test(ctype)) {
           recordRejection(ctx, "UNSUPPORTED_CONTENT_TYPE");
+          ctx.fetchLifecycle?.markRejected(
+            request.url,
+            "UNSUPPORTED_CONTENT_TYPE",
+            { statusCode },
+          );
+          logDeepScrapeEvent("page_rejected", {
+            organizationId: ctx.organizationId,
+            jobId: ctx.jobId,
+            sourceType: ctx.sourceType,
+            domain: ctx.registrableDomain,
+            failureCode: "UNSUPPORTED_CONTENT_TYPE",
+            diagnostic: {
+              path: safePath(request.url),
+              status: statusCode,
+              contentType: ctype,
+            },
+          });
           await ctx.onPageProcessed?.();
           return;
         }
@@ -451,6 +509,21 @@ export async function runCheerioCrawlPhase(
           : Buffer.from(String(body ?? ""), "utf8");
         if (htmlBuffer.byteLength > DEEP_SCRAPE_CRAWL_POLICY.maxResponseBytes) {
           recordRejection(ctx, "RESPONSE_TOO_LARGE");
+          ctx.fetchLifecycle?.markRejected(request.url, "RESPONSE_TOO_LARGE", {
+            statusCode,
+          });
+          logDeepScrapeEvent("page_rejected", {
+            organizationId: ctx.organizationId,
+            jobId: ctx.jobId,
+            sourceType: ctx.sourceType,
+            domain: ctx.registrableDomain,
+            failureCode: "RESPONSE_TOO_LARGE",
+            diagnostic: {
+              path: safePath(request.url),
+              status: statusCode,
+              responseBytes: htmlBuffer.byteLength,
+            },
+          });
           await ctx.onPageProcessed?.();
           return;
         }
@@ -462,6 +535,7 @@ export async function runCheerioCrawlPhase(
           url: finalUrl,
           registrableDomain: ctx.registrableDomain,
         });
+        ctx.fetchLifecycle?.markCheerioExtracted(request.url);
 
         logDeepScrapeEvent("extraction_method_selected", {
           organizationId: ctx.organizationId,
@@ -565,7 +639,11 @@ export async function runCheerioCrawlPhase(
           classification.needsPlaywrightFallback &&
           ctx.acceptedPages.length < ctx.maxAccepted
         ) {
-          const fallbackUrl = finalUrl;
+          // Keep lifecycle key aligned with the Cheerio request URL.
+          const fallbackUrl =
+            canonicalizePageUrl(request.url) ?? request.url;
+          const pendingReason =
+            classification.rejectionCode ?? "PAGE_NO_USABLE_TEXT";
           if (!ctx.playwrightFallbackUrls.includes(fallbackUrl)) {
             ctx.playwrightFallbackUrls.push(fallbackUrl);
             // Preserve priority metadata for Playwright fallback.
@@ -606,15 +684,19 @@ export async function runCheerioCrawlPhase(
               },
             });
           }
+          // Non-terminal until Playwright runs or is explicitly skipped.
+          ctx.fetchLifecycle?.markPlaywrightPending(fallbackUrl, pendingReason);
           await ctx.onPageProcessed?.();
           return;
         }
 
         if (!classification.accepted) {
-          recordRejection(
-            ctx,
-            classification.rejectionCode ?? "PAGE_NO_USABLE_TEXT",
-          );
+          const rejectCode =
+            classification.rejectionCode ?? "PAGE_NO_USABLE_TEXT";
+          recordRejection(ctx, rejectCode);
+          ctx.fetchLifecycle?.markRejected(request.url, rejectCode, {
+            statusCode,
+          });
           logDeepScrapeEvent("page_rejected", {
             organizationId: ctx.organizationId,
             jobId: ctx.jobId,
@@ -653,6 +735,11 @@ export async function runCheerioCrawlPhase(
         if (ctx.acceptedPages.length >= ctx.maxAccepted) {
           recordRejection(ctx, "PAGE_CAP_LOWER_PRIORITY");
           ctx.candidateRegistry.recordPageCapSkip();
+          ctx.fetchLifecycle?.markRejected(
+            request.url,
+            "PAGE_CAP_LOWER_PRIORITY",
+            { statusCode },
+          );
           logDeepScrapeEvent("deep_scrape_page_cap_candidate_skipped", {
             organizationId: ctx.organizationId,
             jobId: ctx.jobId,
@@ -684,6 +771,7 @@ export async function runCheerioCrawlPhase(
         ctx.acceptedPages.push(pageDocument);
         ctx.acceptedByProvenance[String(provenance)] =
           (ctx.acceptedByProvenance[String(provenance)] ?? 0) + 1;
+        ctx.fetchLifecycle?.markAccepted(request.url);
 
         logDeepScrapeEvent("page_accepted", {
           organizationId: ctx.organizationId,
@@ -737,6 +825,7 @@ export async function runCheerioCrawlPhase(
         await ctx.onPageProcessed?.();
       },
       async failedRequestHandler({ request }, error) {
+        processed += 1;
         const code =
           error instanceof Error
             ? error.message
@@ -745,7 +834,9 @@ export async function runCheerioCrawlPhase(
                 .slice(0, 80)
                 .toUpperCase() || "FETCH_FAILED"
             : "FETCH_FAILED";
+        ctx.fetchLifecycle?.markHandlerEntered(request.url);
         recordRejection(ctx, code);
+        ctx.fetchLifecycle?.markRequestFailed(request.url, code);
         logDeepScrapeEvent("page_rejected", {
           organizationId: ctx.organizationId,
           jobId: ctx.jobId,
