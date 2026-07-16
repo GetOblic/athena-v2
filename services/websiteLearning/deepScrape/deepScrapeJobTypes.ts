@@ -15,6 +15,7 @@ export const DEEP_SCRAPE_STAGES = [
   "queued",
   "discovering",
   "crawling",
+  "rendering",
   "synthesizing",
   "persisting",
   "retraining",
@@ -176,8 +177,17 @@ export function formatDeepScrapeStatusLabel(job: {
         : "Discovering";
     case "crawling":
       return target
-        ? `Crawling ${crawled} of ${target} Pages`
-        : `Crawling ${crawled} Pages`;
+        ? `Crawling ${crawled} of ${target} candidate pages`
+        : `Crawling ${crawled} candidate pages`;
+    case "rendering": {
+      const rendered =
+        typeof job.progress?.pagesRendered === "number"
+          ? job.progress.pagesRendered
+          : crawled;
+      return target
+        ? `Rendering JavaScript page ${rendered} of ${target}`
+        : `Rendering JavaScript page ${rendered}`;
+    }
     case "synthesizing":
       return job.source_type === "brain"
         ? "Synthesizing Website Intelligence"

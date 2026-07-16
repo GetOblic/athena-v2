@@ -11,6 +11,7 @@ import {
   getAthenaWorkerConfig,
   resetAthenaWorkerConfigCache,
 } from "@/services/generationJobs/generationJobWorkerConfig";
+import { logChromiumAvailabilityAtStartup } from "@/services/websiteLearning/deepScrape/crawler/chromiumCheck";
 import {
   claimAndExecuteNextDeepScrapeJob,
   reconcileAwaitingFollowOnJobs,
@@ -56,6 +57,9 @@ async function main(): Promise<void> {
     shutdownTimeoutMs: config.shutdownTimeoutMs,
     concurrency: config.concurrency,
   });
+
+  // Soft check — Cheerio path still works if Chromium is missing.
+  await logChromiumAvailabilityAtStartup();
 
   const beginShutdown = (signal: string) => {
     if (stopping) {

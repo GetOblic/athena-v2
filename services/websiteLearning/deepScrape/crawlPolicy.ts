@@ -345,7 +345,7 @@ export function evaluateCorpusUsefulness(
 const PRIORITY_PATTERNS: Array<{ type: string; pattern: RegExp; score: number }> =
   [
     { type: "about", pattern: /\/(about|our-story|who-we-are|company)(\/|$)/i, score: 100 },
-    { type: "services", pattern: /\/(services|service|what-we-do)(\/|$)/i, score: 95 },
+    { type: "services", pattern: /\/(services|service|what-we-do|treatments?)(\/|$)/i, score: 95 },
     { type: "products", pattern: /\/(products?|shop|offerings?)(\/|$)/i, score: 95 },
     { type: "solutions", pattern: /\/(solutions?|platforms?)(\/|$)/i, score: 90 },
     { type: "pricing", pattern: /\/(pricing|plans?|packages?)(\/|$)/i, score: 90 },
@@ -363,7 +363,7 @@ const EXCLUDE_PATTERNS: RegExp[] = [
   /\/(privacy|privacy-policy|terms|terms-of-(service|use)|legal|cookie|cookies|gdpr)(\/|$)/i,
   /\/(login|log-in|signin|sign-in|signup|sign-up|register|account|auth|sso)(\/|$)/i,
   /\/(cart|checkout|basket|payment|billing|order)(\/|$)/i,
-  /\/(feed|rss|atom|tag|tags|category\/page|author|archive|archives)(\/|$)/i,
+  /\/(feed|rss|atom|tag|tags|category\/page|author|archive|archives|search)(\/|$)/i,
   /\/page\/\d+(\/|$)/i,
   /\.(pdf|png|jpe?g|gif|webp|svg|mp4|mp3|zip|docx?|xlsx?|pptx?)(\?|$)/i,
   /^(mailto|tel|javascript):/i,

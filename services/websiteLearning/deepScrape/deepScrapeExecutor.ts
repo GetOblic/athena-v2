@@ -172,6 +172,10 @@ export async function executeClaimedDeepScrapeJob(
           pagesDiscovered: progress.pagesDiscovered,
           pagesCrawled: progress.pagesCrawled,
           pagesTarget: progress.pagesTarget,
+          pagesAttempted: progress.pagesAttempted ?? null,
+          pagesAccepted: progress.pagesAccepted ?? progress.pagesCrawled,
+          pagesRendered: progress.pagesRendered ?? 0,
+          pagesRejected: progress.pagesRejected ?? 0,
         });
       },
     });

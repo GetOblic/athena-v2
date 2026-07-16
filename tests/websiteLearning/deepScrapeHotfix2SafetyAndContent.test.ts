@@ -74,15 +74,24 @@ describe("Deep scrape hotfix 2 — URL safety classifications", () => {
     assert.ok(isPrivateOrLocalIp("203.0.113.10"));
   });
 
-  it("15/16. redirect and same-domain safety remain in safeFetch", () => {
+  it("15/16. redirect and same-domain safety remain in SSRF boundary", () => {
     const safeFetch = readFileSync(
       path.join(ROOT, "services/websiteLearning/deepScrape/safeFetch.ts"),
+      "utf8",
+    );
+    const cheerio = readFileSync(
+      path.join(
+        ROOT,
+        "services/websiteLearning/deepScrape/crawler/cheerioCrawler.ts",
+      ),
       "utf8",
     );
     assert.match(safeFetch, /assertPublicHostname/);
     assert.match(safeFetch, /isSameRegistrableDomain/);
     assert.match(safeFetch, /redirectDepth:\s*hop/);
     assert.match(safeFetch, /CROSS_DOMAIN_REJECTED/);
+    assert.match(cheerio, /assertPublicHostname/);
+    assert.match(cheerio, /followRedirect\s*=\s*false/);
   });
 
   it("19. URL-safety diagnostics contain classifications and no page content", () => {
@@ -266,7 +275,14 @@ describe("Deep scrape hotfix 2 — content acceptance policy", () => {
       path.join(ROOT, "services/websiteLearning/deepScrape/crawlEngine.ts"),
       "utf8",
     );
-    assert.match(engine, /evaluateCorpusUsefulness/);
+    const adapter = readFileSync(
+      path.join(
+        ROOT,
+        "services/websiteLearning/deepScrape/crawler/crawleeAdapter.ts",
+      ),
+      "utf8",
+    );
+    assert.match(adapter, /evaluateCorpusUsefulness/);
     assert.match(engine, /synthesizeDeepWebsiteIntelligence/);
     assert.match(engine, /synthesisInvoked:\s*true/);
   });
@@ -275,6 +291,13 @@ describe("Deep scrape hotfix 2 — content acceptance policy", () => {
     assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 25);
     const engine = readFileSync(
       path.join(ROOT, "services/websiteLearning/deepScrape/crawlEngine.ts"),
+      "utf8",
+    );
+    const adapter = readFileSync(
+      path.join(
+        ROOT,
+        "services/websiteLearning/deepScrape/crawler/crawleeAdapter.ts",
+      ),
       "utf8",
     );
     const synthesize = readFileSync(
@@ -302,7 +325,8 @@ describe("Deep scrape hotfix 2 — content acceptance policy", () => {
     assert.doesNotMatch(identity, /runDeepWebsiteCrawl/);
     assert.doesNotMatch(refresh, /runDeepWebsiteCrawl/);
     assert.doesNotMatch(engine, /PAGE_TOO_THIN/);
-    assert.match(engine, /rejectedByReason/);
+    assert.doesNotMatch(adapter, /PAGE_TOO_THIN/);
+    assert.match(adapter, /rejectedByReason/);
     assert.match(engine, /candidatesDiscovered/);
     assert.match(engine, /pagesAccepted/);
     assert.match(engine, /combinedExtractedChars/);

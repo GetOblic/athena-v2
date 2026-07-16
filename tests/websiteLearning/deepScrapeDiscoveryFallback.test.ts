@@ -207,21 +207,20 @@ describe("Deep scrape discovery fallback and usefulness", () => {
       path.join(ROOT, "services/websiteLearning/deepScrape/observability.ts"),
       "utf8",
     );
-    const engine = readFileSync(
-      path.join(ROOT, "services/websiteLearning/deepScrape/crawlEngine.ts"),
+    const adapter = readFileSync(
+      path.join(
+        ROOT,
+        "services/websiteLearning/deepScrape/crawler/crawleeAdapter.ts",
+      ),
       "utf8",
     );
-    assert.match(observability, /deep_scrape_discovery_diagnostic/);
     assert.match(observability, /sitemap_fallback_to_homepage/);
     assert.match(observability, /homepage_only_crawl_selected/);
-    assert.match(engine, /deep_scrape_discovery_diagnostic/);
-    assert.match(engine, /homepage_only_crawl_selected/);
-    assert.match(engine, /sitemap_fallback_to_homepage/);
-    assert.match(engine, /terminalReason/);
-    assert.match(engine, /homepageExtractedCharCount/);
-    assert.match(engine, /sitemapCandidateCount/);
-    assert.doesNotMatch(engine, /bodyText:\s*extracted/);
-    assert.doesNotMatch(engine, /console\.log\([^\)]*extracted\.text/);
+    assert.match(observability, /crawlee_job_started/);
+    assert.match(adapter, /homepage_only_crawl_selected/);
+    assert.match(adapter, /sitemap_fallback_to_homepage/);
+    assert.match(adapter, /ensureHomepageCandidate/);
+    assert.doesNotMatch(adapter, /console\.log\([^\)]*readableText/);
   });
 
   it("21/22. shared crawl engine serves Brain and Prospect without forks", () => {
@@ -268,17 +267,20 @@ describe("Deep scrape discovery fallback and usefulness", () => {
   });
 
   it("does not treat empty sitemap as terminal discovery failure", () => {
-    const engine = readFileSync(
-      path.join(ROOT, "services/websiteLearning/deepScrape/crawlEngine.ts"),
+    const adapter = readFileSync(
+      path.join(
+        ROOT,
+        "services/websiteLearning/deepScrape/crawler/crawleeAdapter.ts",
+      ),
       "utf8",
     );
     // Discovery must not throw INSUFFICIENT_USEFUL_CONTENT before crawl.
-    assert.match(engine, /ensureHomepageCandidate/);
-    assert.match(engine, /homepage_only_crawl_selected/);
-    assert.match(engine, /NO_USABLE_PAGES/);
-    assert.match(engine, /ROOT_FETCH_FAILED/);
+    assert.match(adapter, /ensureHomepageCandidate/);
+    assert.match(adapter, /homepage_only_crawl_selected/);
+    assert.match(adapter, /evaluateCorpusUsefulness/);
+    assert.match(adapter, /throw new Error\(corpus\.code\)/);
     assert.doesNotMatch(
-      engine,
+      adapter,
       /if \(meaningful\.length === 0\) \{\s*throw new Error\("INSUFFICIENT_USEFUL_CONTENT"\)/,
     );
   });
