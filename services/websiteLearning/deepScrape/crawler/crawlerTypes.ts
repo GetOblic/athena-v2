@@ -76,17 +76,9 @@ export type CrawlerProgress = {
 
 export type CrawlerRunStats = {
   candidatesDiscovered: number;
-  /** @deprecated Prefer networkRequestsAttempted — historically mixed meanings. */
   fetchesAttempted: number;
-  candidatesQueued: number;
-  candidatesDeduplicatedBeforeFetch: number;
-  networkRequestsAttempted: number;
-  requestFailures: number;
-  pagesExtracted: number;
   pagesAccepted: number;
   pagesRejected: number;
-  /** Pages that entered a request handler (accepted + rejected + pending resolved). */
-  pagesCrawled: number;
   pagesRendered: number;
   rejectedByReason: Record<string, number>;
   cheerioProcessed: number;

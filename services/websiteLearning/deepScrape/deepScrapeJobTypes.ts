@@ -141,8 +141,6 @@ export function formatDeepScrapeErrorMessage(
       return "Athena stopped this Deep Scrape because its background workflow lost a valid processing state. No further requests will be made until the scrape is restarted.";
     case "BRAIN_DEEP_SCRAPE_PAGE_PARITY_FAILED":
       return "Athena stopped this Deep Scrape because the multi-page website corpus could not be saved consistently to Athena Brain. No further requests will be made until the scrape is restarted.";
-    case "DEEP_SCRAPE_CANDIDATE_ACCOUNTING_MISMATCH":
-      return "Athena stopped this Deep Scrape because some website pages were processed without a clear accept or reject result. No further requests will be made until the scrape is restarted.";
     default:
       return (
         fallback?.trim() ||
