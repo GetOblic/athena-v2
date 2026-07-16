@@ -111,6 +111,14 @@ export async function runPlaywrightCrawlPhase(
           typeof request.userData?.pageType === "string"
             ? request.userData.pageType
             : scoreUrl(request.url).pageType;
+        const provenance =
+          typeof request.userData?.provenance === "string"
+            ? request.userData.provenance
+            : "unknown";
+        const totalScore =
+          typeof request.userData?.totalScore === "number"
+            ? request.userData.totalScore
+            : scoreUrl(request.url).score;
 
         // Bounded wait for meaningful DOM text after DOMContentLoaded.
         try {
@@ -288,6 +296,8 @@ export async function runPlaywrightCrawlPhase(
             browserFallbackUsed: true,
             extractedChars: classification.extractedCharacterCount,
             structuredDataTypes: classification.structuredDataTypes,
+            provenance,
+            totalScore,
           },
         });
 

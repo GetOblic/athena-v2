@@ -3,9 +3,19 @@
  * Reliability over exhaustive coverage. Max 25 meaningful pages.
  */
 
+import {
+  rankCrawlCandidates,
+  scoreDeepScrapeCandidate,
+} from "@/services/websiteLearning/deepScrape/crawler/urlRelevance";
+
 export const DEEP_SCRAPE_CRAWL_POLICY = {
   maxDiscoveredUrls: 200,
   maxMeaningfulPages: 25,
+  /**
+   * Soft fetch budget after priority ordering.
+   * Allows some rejects/404s without burning the full discovery queue.
+   */
+  maxFetchAttempts: 25 + 40,
   maxConcurrentRequests: 2,
   perPageTimeoutMs: 15_000,
   phaseAWallClockMs: 12 * 60_000,
@@ -342,31 +352,15 @@ export function evaluateCorpusUsefulness(
   };
 }
 
-const PRIORITY_PATTERNS: Array<{ type: string; pattern: RegExp; score: number }> =
-  [
-    { type: "about", pattern: /\/(about|our-story|who-we-are|company)(\/|$)/i, score: 100 },
-    { type: "services", pattern: /\/(services|service|what-we-do|treatments?)(\/|$)/i, score: 95 },
-    { type: "products", pattern: /\/(products?|shop|offerings?)(\/|$)/i, score: 95 },
-    { type: "solutions", pattern: /\/(solutions?|platforms?)(\/|$)/i, score: 90 },
-    { type: "pricing", pattern: /\/(pricing|plans?|packages?)(\/|$)/i, score: 90 },
-    { type: "training", pattern: /\/(training|courses?|academy|education|workshops?)(\/|$)/i, score: 88 },
-    { type: "faq", pattern: /\/(faq|faqs|questions?)(\/|$)/i, score: 85 },
-    { type: "team", pattern: /\/(team|people|leadership|staff|founders?)(\/|$)/i, score: 80 },
-    { type: "portfolio", pattern: /\/(portfolio|work|projects?)(\/|$)/i, score: 78 },
-    { type: "case_studies", pattern: /\/(case-stud(?:y|ies)|success-stor(?:y|ies)|clients?)(\/|$)/i, score: 78 },
-    { type: "testimonials", pattern: /\/(testimonials?|reviews?|social-proof)(\/|$)/i, score: 75 },
-    { type: "contact", pattern: /\/(contact|get-in-touch|book|schedule)(\/|$)/i, score: 70 },
-    { type: "commercial", pattern: /\/(landing|offer|demo|trial|consult)(\/|$)/i, score: 65 },
-  ];
-
 const EXCLUDE_PATTERNS: RegExp[] = [
   /\/(privacy|privacy-policy|terms|terms-of-(service|use)|legal|cookie|cookies|gdpr)(\/|$)/i,
   /\/(login|log-in|signin|sign-in|signup|sign-up|register|account|auth|sso)(\/|$)/i,
   /\/(cart|checkout|basket|payment|billing|order)(\/|$)/i,
   /\/(feed|rss|atom|tag|tags|category\/page|author|archive|archives|search)(\/|$)/i,
+  /\/(wp-content\/uploads|wp-includes|wp-json|graphql)(\/|$)/i,
   /\/page\/\d+(\/|$)/i,
   /\.(pdf|png|jpe?g|gif|webp|svg|mp4|mp3|zip|docx?|xlsx?|pptx?)(\?|$)/i,
-  /^(mailto|tel|javascript):/i,
+  /^(mailto|tel|javascript|data):/i,
 ];
 
 export type ScoredUrl = {
@@ -374,6 +368,15 @@ export type ScoredUrl = {
   score: number;
   pageType: string;
 };
+
+export {
+  rankCrawlCandidates,
+  scoreDeepScrapeCandidate,
+  compareRankedCandidates,
+  type DiscoveryProvenance,
+  type RankedUrlCandidate,
+  type ScoreFactor,
+} from "@/services/websiteLearning/deepScrape/crawler/urlRelevance";
 
 export function isExcludedUrl(url: string): boolean {
   const normalized = url.trim();
@@ -392,25 +395,20 @@ export function isExcludedUrl(url: string): boolean {
 }
 
 export function scoreUrl(url: string): ScoredUrl {
-  try {
-    const parsed = new URL(url);
-    const path = parsed.pathname.toLowerCase();
-    if (path === "/" || path === "") {
-      return { url, score: 110, pageType: "homepage" };
-    }
-    for (const entry of PRIORITY_PATTERNS) {
-      if (entry.pattern.test(path)) {
-        return { url, score: entry.score, pageType: entry.type };
-      }
-    }
-    // Mild boost for short evergreen paths without digits/pagination smell.
-    if (path.split("/").filter(Boolean).length <= 2 && !/\d{4}/.test(path)) {
-      return { url, score: 40, pageType: "evergreen" };
-    }
-    return { url, score: 20, pageType: "other" };
-  } catch {
+  // Compatibility wrapper over the shared structure-aware scorer.
+  const ranked = scoreDeepScrapeCandidate({
+    url,
+    rootUrl: url,
+    provenance: "unknown",
+  });
+  if (ranked.rejectedBeforeFetch || ranked.pageType === "invalid") {
     return { url, score: 0, pageType: "invalid" };
   }
+  return {
+    url: ranked.normalizedUrl,
+    score: ranked.totalScore,
+    pageType: ranked.pageType === "evergreen" ? "evergreen" : ranked.pageType,
+  };
 }
 
 /** Prefer meaningful commercial pages; drop excluded / zero-score URLs. */
@@ -418,27 +416,47 @@ export function selectMeaningfulUrls(
   urls: string[],
   maxPages = DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
 ): ScoredUrl[] {
-  const scored = urls
-    .filter((url) => !isExcludedUrl(url) || scoreUrl(url).pageType === "homepage")
-    .map(scoreUrl)
-    .filter((entry) => entry.score > 0 || entry.pageType === "homepage")
-    .sort((a, b) => b.score - a.score || a.url.localeCompare(b.url));
+  const rootUrl =
+    urls.find((url) => {
+      try {
+        const path = new URL(url).pathname;
+        return path === "/" || path === "";
+      } catch {
+        return false;
+      }
+    }) ?? urls[0] ?? "https://example.com/";
+
+  const ranked = rankCrawlCandidates({
+    urls: urls
+      .filter((url) => !isExcludedUrl(url) || scoreUrl(url).pageType === "homepage")
+      .map((url) => ({ url, provenance: "sitemap" as const })),
+    rootUrl,
+    maxQueue: Math.max(maxPages * 4, maxPages),
+  });
 
   const selected: ScoredUrl[] = [];
   const seen = new Set<string>();
+  let otherCount = 0;
 
-  for (const entry of scored) {
+  for (const entry of ranked) {
     if (selected.length >= maxPages) break;
-    if (seen.has(entry.url)) continue;
-    // Keep homepage + high-priority types; allow limited "other"/"evergreen".
-    if (
-      entry.pageType === "other" &&
-      selected.filter((s) => s.pageType === "other").length >= 3
-    ) {
-      continue;
+    if (seen.has(entry.normalizedUrl)) continue;
+    const pageType =
+      entry.pageType === "evergreen"
+        ? "evergreen"
+        : entry.pageType === "other"
+          ? "other"
+          : entry.pageType;
+    if (pageType === "other") {
+      if (otherCount >= 3) continue;
+      otherCount += 1;
     }
-    selected.push(entry);
-    seen.add(entry.url);
+    selected.push({
+      url: entry.normalizedUrl,
+      score: entry.totalScore,
+      pageType,
+    });
+    seen.add(entry.normalizedUrl);
   }
 
   return selected;

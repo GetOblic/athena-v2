@@ -10,17 +10,19 @@ import {
   DEEP_SCRAPE_CRAWL_POLICY,
   ensureHomepageCandidate,
   evaluateCorpusUsefulness,
-  selectMeaningfulUrls,
+  rankCrawlCandidates,
 } from "@/services/websiteLearning/deepScrape/crawlPolicy";
 import {
   buildBoilerplateFingerprintSet,
   hashMeaningfulContent,
   stripBoilerplateBlocks,
 } from "@/services/websiteLearning/deepScrape/crawler/boilerplate";
+import { DeepScrapeCandidateRegistry } from "@/services/websiteLearning/deepScrape/crawler/candidateRegistry";
 import {
   enqueueCheerioUrl,
   runCheerioCrawlPhase,
 } from "@/services/websiteLearning/deepScrape/crawler/cheerioCrawler";
+import { crawleeForefrontForScore } from "@/services/websiteLearning/deepScrape/crawler/urlRelevance";
 import {
   cleanupJobCrawleeStorage,
   createJobCrawleeStorage,
@@ -100,6 +102,8 @@ export async function runCrawleeWebsiteCrawl(
   const seenFingerprints = new Set<string>();
   const enqueuedUrls = new Set<string>();
   const rejectedByReason: Record<string, number> = {};
+  const candidateRegistry = new DeepScrapeCandidateRegistry();
+  const acceptedByProvenance: Record<string, number> = {};
   let cheerioProcessed = 0;
   let playwrightProcessed = 0;
   let browserClosed = true;
@@ -175,12 +179,24 @@ export async function runCrawleeWebsiteCrawl(
       sitemap.urls,
       rootCanonical,
     );
-    const meaningful = selectMeaningfulUrls(
-      candidatePool.filter((url) => pathAllowed(url, robots)),
-      DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
-    );
+    // Score/order the full discovery set before the acceptance page cap.
+    // Queue capacity (maxDiscoveredUrls) bounds enqueue; maxMeaningfulPages
+    // still gates accepted pages during processing.
+    const rankedSeeds = rankCrawlCandidates({
+      urls: candidatePool
+        .filter((url) => pathAllowed(url, robots))
+        .map((url) => ({
+          url,
+          provenance:
+            url === rootCanonical
+              ? ("unknown" as const)
+              : ("sitemap" as const),
+        })),
+      rootUrl: rootCanonical,
+      maxQueue: DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveredUrls,
+    });
 
-    if (meaningful.length === 0) {
+    if (rankedSeeds.length === 0) {
       throw new Error("NO_PERMISSIBLE_CRAWL_TARGETS");
     }
 
@@ -198,6 +214,7 @@ export async function runCrawleeWebsiteCrawl(
       jobId: input.jobId,
       sourceType: input.sourceType,
       registrableDomain: root.registrableDomain,
+      rootUrl: rootCanonical,
       robots,
       config: storage.config,
       requestQueue: cheerioQueue,
@@ -209,18 +226,39 @@ export async function runCrawleeWebsiteCrawl(
       seenFingerprints,
       enqueuedUrls,
       rejectedByReason,
+      candidateRegistry,
+      acceptedByProvenance,
       maxAccepted: DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
       maxQueueSize: DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveredUrls,
       onPageProcessed: async () => emitProgress("crawling"),
     };
 
-    for (const entry of meaningful) {
-      await enqueueCheerioUrl(cheerioCtx, entry.url, "seed");
+    // Homepage first, then remaining seeds by descending score (FIFO = high first).
+    await enqueueCheerioUrl(cheerioCtx, rootCanonical, {
+      label: "homepage",
+      provenance: "unknown",
+    });
+    for (const entry of rankedSeeds) {
+      if (entry.normalizedUrl === rootCanonical) continue;
+      await enqueueCheerioUrl(cheerioCtx, entry.normalizedUrl, {
+        label: "seed",
+        provenance: entry.provenance,
+      });
     }
 
-    if (enqueuedUrls.size === 0) {
-      await enqueueCheerioUrl(cheerioCtx, rootCanonical, "homepage");
-    }
+    logDeepScrapeEvent("deep_scrape_priority_queue_finalized", {
+      organizationId: input.organizationId,
+      jobId: input.jobId,
+      sourceType: input.sourceType,
+      domain: root.registrableDomain,
+      pagesDiscovered: enqueuedUrls.size,
+      diagnostic: {
+        ...candidateRegistry.summary(acceptedByProvenance),
+        seedCount: rankedSeeds.length,
+        pageCap: DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
+        fetchBudget: DEEP_SCRAPE_CRAWL_POLICY.maxFetchAttempts,
+      },
+    });
 
     if (enqueuedUrls.size === 1 && sitemap.urls.length === 0) {
       logDeepScrapeEvent("homepage_only_crawl_selected", {
@@ -250,16 +288,35 @@ export async function runCrawleeWebsiteCrawl(
         { config: storage.config },
       );
 
-      const uniqueFallback = [...new Set(playwrightFallbackUrls)].slice(
-        0,
-        DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
-      );
-      for (const url of uniqueFallback) {
-        await playwrightQueue.addRequest({
-          url,
-          uniqueKey: `pw:${url}`,
-          userData: { pageType: selectMeaningfulUrls([url])[0]?.pageType ?? "other" },
-        });
+      const uniqueFallback = [...new Set(playwrightFallbackUrls)]
+        .map((url) => {
+          const meta = candidateRegistry.getEntry(url);
+          return {
+            url,
+            pageType: meta?.pageType ?? "other",
+            provenance: meta?.provenance ?? "unknown",
+            totalScore: meta?.totalScore ?? 0,
+          };
+        })
+        .sort(
+          (left, right) =>
+            right.totalScore - left.totalScore ||
+            left.url.localeCompare(right.url),
+        )
+        .slice(0, DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages);
+      for (const entry of uniqueFallback) {
+        await playwrightQueue.addRequest(
+          {
+            url: entry.url,
+            uniqueKey: `pw:${entry.url}`,
+            userData: {
+              pageType: entry.pageType,
+              provenance: entry.provenance,
+              totalScore: entry.totalScore,
+            },
+          },
+          { forefront: crawleeForefrontForScore(entry.totalScore) },
+        );
       }
 
       try {
@@ -479,6 +536,24 @@ export async function runCrawleeWebsiteCrawl(
         pageType: page.pageType,
       })),
     );
+
+    const prioritySummary = candidateRegistry.summary(acceptedByProvenance);
+    logDeepScrapeEvent("deep_scrape_priority_queue_finalized", {
+      organizationId: input.organizationId,
+      jobId: input.jobId,
+      sourceType: input.sourceType,
+      domain: root.registrableDomain,
+      pagesDiscovered: prioritySummary.candidatesDiscovered,
+      pagesCrawled: boundedPages.length,
+      diagnostic: {
+        phase: "crawl_completed",
+        ...prioritySummary,
+        pageCapSkips:
+          prioritySummary.pageCapSkips +
+          (rejectedByReason.PAGE_CAP_LOWER_PRIORITY ?? 0),
+        rejectedByReason,
+      },
+    });
 
     const stats = {
       candidatesDiscovered: enqueuedUrls.size,

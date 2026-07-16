@@ -13,9 +13,15 @@ import {
   isExcludedUrl,
   scoreUrl,
 } from "@/services/websiteLearning/deepScrape/crawlPolicy";
+import { DeepScrapeCandidateRegistry } from "@/services/websiteLearning/deepScrape/crawler/candidateRegistry";
 import { classifyNormalizedPage } from "@/services/websiteLearning/deepScrape/crawler/pageClassifier";
 import { extractWithReadability } from "@/services/websiteLearning/deepScrape/crawler/readabilityExtractor";
 import type { NormalizedPageDocument } from "@/services/websiteLearning/deepScrape/crawler/crawlerTypes";
+import {
+  crawleeForefrontForScore,
+  scoreDeepScrapeCandidate,
+  type DiscoveryProvenance,
+} from "@/services/websiteLearning/deepScrape/crawler/urlRelevance";
 import { logDeepScrapeEvent } from "@/services/websiteLearning/deepScrape/observability";
 import {
   assertPublicHostname,
@@ -29,6 +35,7 @@ export type CheerioPhaseContext = {
   jobId: string;
   sourceType: "brain" | "prospect";
   registrableDomain: string;
+  rootUrl: string;
   robots: RobotsRules;
   config: Configuration;
   requestQueue: RequestQueue;
@@ -41,6 +48,8 @@ export type CheerioPhaseContext = {
   seenFingerprints: Set<string>;
   enqueuedUrls: Set<string>;
   rejectedByReason: Record<string, number>;
+  candidateRegistry: DeepScrapeCandidateRegistry;
+  acceptedByProvenance: Record<string, number>;
   maxAccepted: number;
   maxQueueSize: number;
   onPageProcessed?: () => void | Promise<void>;
@@ -64,32 +73,112 @@ function recordRejection(
 async function maybeEnqueue(
   ctx: CheerioPhaseContext,
   url: string,
-  label?: string,
+  options?: {
+    label?: string;
+    provenance?: DiscoveryProvenance;
+    anchorText?: string | null;
+  },
 ): Promise<void> {
   const canonical = canonicalizePageUrl(url);
   if (!canonical) return;
-  if (ctx.enqueuedUrls.size >= ctx.maxQueueSize) return;
-  if (ctx.enqueuedUrls.has(canonical)) return;
   if (!isSameRegistrableDomain(canonical, ctx.registrableDomain)) return;
-  if (isExcludedUrl(canonical) && scoreUrl(canonical).pageType !== "homepage") {
+
+  const provenance = options?.provenance ?? "unknown";
+  const observed = ctx.candidateRegistry.observe({
+    url: canonical,
+    rootUrl: ctx.rootUrl,
+    provenance,
+    anchorText: options?.anchorText ?? null,
+  });
+
+  logDeepScrapeEvent("deep_scrape_candidate_scored", {
+    organizationId: ctx.organizationId,
+    jobId: ctx.jobId,
+    sourceType: ctx.sourceType,
+    domain: ctx.registrableDomain,
+    diagnostic: {
+      path: safePath(canonical),
+      provenance: observed.ranked.provenance,
+      totalScore: observed.ranked.totalScore,
+      factors: observed.ranked.factors.slice(0, 8),
+      pageType: observed.ranked.pageType,
+      upgraded: observed.upgraded,
+    },
+  });
+
+  if (observed.upgraded) {
+    logDeepScrapeEvent("deep_scrape_candidate_priority_upgraded", {
+      organizationId: ctx.organizationId,
+      jobId: ctx.jobId,
+      sourceType: ctx.sourceType,
+      domain: ctx.registrableDomain,
+      diagnostic: {
+        path: safePath(canonical),
+        provenance: observed.ranked.provenance,
+        totalScore: observed.ranked.totalScore,
+      },
+    });
+  }
+
+  if (observed.ranked.rejectedBeforeFetch) {
+    recordRejection(ctx, observed.ranked.rejectionReason ?? "URL_POLICY_REJECTED");
+    return;
+  }
+  if (isExcludedUrl(canonical) && observed.ranked.pageType !== "homepage") {
+    recordRejection(ctx, "URL_POLICY_REJECTED");
     return;
   }
   try {
     const path = new URL(canonical).pathname || "/";
-    if (!isPathAllowedByRobots(path, ctx.robots)) return;
+    if (!isPathAllowedByRobots(path, ctx.robots)) {
+      recordRejection(ctx, "ROBOTS_OR_ACCESS_BLOCKED");
+      return;
+    }
   } catch {
     return;
   }
 
+  // Already queued: metadata may upgrade, but do not create a second fetch.
+  if (ctx.enqueuedUrls.has(canonical)) {
+    return;
+  }
+  if (ctx.enqueuedUrls.size >= ctx.maxQueueSize) {
+    recordRejection(ctx, "PAGE_CAP_LOWER_PRIORITY");
+    ctx.candidateRegistry.recordPageCapSkip();
+    logDeepScrapeEvent("deep_scrape_page_cap_candidate_skipped", {
+      organizationId: ctx.organizationId,
+      jobId: ctx.jobId,
+      sourceType: ctx.sourceType,
+      domain: ctx.registrableDomain,
+      failureCode: "PAGE_CAP_LOWER_PRIORITY",
+      diagnostic: {
+        path: safePath(canonical),
+        totalScore: observed.ranked.totalScore,
+        provenance: observed.ranked.provenance,
+        reason: "queue_capacity",
+      },
+    });
+    return;
+  }
+
+  const forefront = crawleeForefrontForScore(observed.ranked.totalScore);
   ctx.enqueuedUrls.add(canonical);
-  await ctx.requestQueue.addRequest({
-    url: canonical,
-    uniqueKey: canonical,
-    userData: {
-      pageType: scoreUrl(canonical).pageType,
-      label: label ?? "cheerio",
+  ctx.candidateRegistry.markEnqueued(canonical);
+  await ctx.requestQueue.addRequest(
+    {
+      url: canonical,
+      uniqueKey: canonical,
+      userData: {
+        pageType: observed.ranked.pageType,
+        label: options?.label ?? "cheerio",
+        provenance: observed.ranked.provenance,
+        totalScore: observed.ranked.totalScore,
+        scoreFactors: observed.ranked.factors.slice(0, 8),
+        pathDepth: observed.ranked.arborescence.pathDepth,
+      },
     },
-  });
+    { forefront },
+  );
   logDeepScrapeEvent("crawlee_request_enqueued", {
     organizationId: ctx.organizationId,
     jobId: ctx.jobId,
@@ -98,6 +187,9 @@ async function maybeEnqueue(
     diagnostic: {
       path: safePath(canonical),
       extractionMethod: "cheerio_readability",
+      provenance: observed.ranked.provenance,
+      totalScore: observed.ranked.totalScore,
+      forefront,
     },
   });
 }
@@ -118,7 +210,7 @@ export async function runCheerioCrawlPhase(
       requestHandlerTimeoutSecs: Math.ceil(
         DEEP_SCRAPE_CRAWL_POLICY.perPageTimeoutMs / 1000,
       ) + 10,
-      maxRequestsPerCrawl: ctx.maxQueueSize,
+      maxRequestsPerCrawl: DEEP_SCRAPE_CRAWL_POLICY.maxFetchAttempts,
       useSessionPool: false,
       additionalMimeTypes: ["application/xhtml+xml"],
       preNavigationHooks: [
@@ -145,12 +237,46 @@ export async function runCheerioCrawlPhase(
           };
         },
       ],
-      async requestHandler({ request, body, contentType, response }) {
+      async requestHandler({ request, body, contentType, response, crawler }) {
         processed += 1;
+        const registryEntry = ctx.candidateRegistry.getEntry(request.url);
         const pageType =
           typeof request.userData?.pageType === "string"
             ? request.userData.pageType
-            : scoreUrl(request.url).pageType;
+            : registryEntry?.pageType ?? scoreUrl(request.url).pageType;
+        const provenance =
+          typeof request.userData?.provenance === "string"
+            ? request.userData.provenance
+            : registryEntry?.provenance ?? "unknown";
+        const totalScore =
+          typeof request.userData?.totalScore === "number"
+            ? request.userData.totalScore
+            : registryEntry?.totalScore ?? scoreUrl(request.url).score;
+
+        if (ctx.acceptedPages.length >= ctx.maxAccepted) {
+          recordRejection(ctx, "PAGE_CAP_LOWER_PRIORITY");
+          ctx.candidateRegistry.recordPageCapSkip();
+          logDeepScrapeEvent("deep_scrape_page_cap_candidate_skipped", {
+            organizationId: ctx.organizationId,
+            jobId: ctx.jobId,
+            sourceType: ctx.sourceType,
+            domain: ctx.registrableDomain,
+            failureCode: "PAGE_CAP_LOWER_PRIORITY",
+            diagnostic: {
+              path: safePath(request.url),
+              totalScore,
+              provenance,
+              reason: "acceptance_cap",
+            },
+          });
+          try {
+            await crawler.autoscaledPool?.abort();
+          } catch {
+            // ignore abort races
+          }
+          await ctx.onPageProcessed?.();
+          return;
+        }
         const statusCode = response?.statusCode ?? 0;
         const ctype =
           typeof contentType === "string"
@@ -164,7 +290,10 @@ export async function runCheerioCrawlPhase(
           const location = response?.headers?.location;
           if (typeof location === "string" && location) {
             const nextUrl = new URL(location, request.url).toString();
-            await maybeEnqueue(ctx, nextUrl, "redirect");
+            await maybeEnqueue(ctx, nextUrl, {
+              label: "redirect",
+              provenance: "redirect_target",
+            });
           } else {
             recordRejection(ctx, "REDIRECT_MISSING_LOCATION");
           }
@@ -312,6 +441,12 @@ export async function runCheerioCrawlPhase(
           const fallbackUrl = finalUrl;
           if (!ctx.playwrightFallbackUrls.includes(fallbackUrl)) {
             ctx.playwrightFallbackUrls.push(fallbackUrl);
+            // Preserve priority metadata for Playwright fallback.
+            ctx.candidateRegistry.observe({
+              url: fallbackUrl,
+              rootUrl: ctx.rootUrl,
+              provenance: provenance as DiscoveryProvenance,
+            });
             if (
               classification.rejectionCode ===
               "CHEERIO_SUSPECTED_TEMPLATE_EXTRACTION"
@@ -339,6 +474,8 @@ export async function runCheerioCrawlPhase(
                 extractionMethod: "cheerio_readability",
                 browserFallbackUsed: true,
                 rejectionCode: classification.rejectionCode,
+                provenance,
+                totalScore,
               },
             });
           }
@@ -387,6 +524,21 @@ export async function runCheerioCrawlPhase(
         }
 
         if (ctx.acceptedPages.length >= ctx.maxAccepted) {
+          recordRejection(ctx, "PAGE_CAP_LOWER_PRIORITY");
+          ctx.candidateRegistry.recordPageCapSkip();
+          logDeepScrapeEvent("deep_scrape_page_cap_candidate_skipped", {
+            organizationId: ctx.organizationId,
+            jobId: ctx.jobId,
+            sourceType: ctx.sourceType,
+            domain: ctx.registrableDomain,
+            failureCode: "PAGE_CAP_LOWER_PRIORITY",
+            diagnostic: {
+              path: safePath(request.url),
+              totalScore,
+              provenance,
+              reason: "acceptance_cap_after_extract",
+            },
+          });
           await ctx.onPageProcessed?.();
           return;
         }
@@ -400,6 +552,8 @@ export async function runCheerioCrawlPhase(
           ctx.seenFingerprints.add(classification.duplicateFingerprint);
         }
         ctx.acceptedPages.push(pageDocument);
+        ctx.acceptedByProvenance[String(provenance)] =
+          (ctx.acceptedByProvenance[String(provenance)] ?? 0) + 1;
 
         logDeepScrapeEvent("page_accepted", {
           organizationId: ctx.organizationId,
@@ -414,13 +568,61 @@ export async function runCheerioCrawlPhase(
             browserFallbackUsed: false,
             extractedChars: classification.extractedCharacterCount,
             structuredDataTypes: classification.structuredDataTypes,
+            provenance,
+            totalScore,
           },
         });
 
-        // Discover same-domain links while under caps.
+        // Discover same-domain links with navigation provenance; high-score
+        // candidates are forefronted so they outrank remaining low-value seeds.
         if (ctx.acceptedPages.length < ctx.maxAccepted) {
-          for (const link of extracted.discoveredLinks) {
-            await maybeEnqueue(ctx, link, "link");
+          const navLinks = extracted.discoveredLinkRecords ?? [];
+          if (navLinks.length > 0) {
+            logDeepScrapeEvent("deep_scrape_navigation_extracted", {
+              organizationId: ctx.organizationId,
+              jobId: ctx.jobId,
+              sourceType: ctx.sourceType,
+              domain: ctx.registrableDomain,
+              diagnostic: {
+                path: safePath(request.url),
+                linkCount: navLinks.length,
+                primaryNavigationCount: navLinks.filter(
+                  (link) => link.provenance === "primary_navigation",
+                ).length,
+                secondaryNavigationCount: navLinks.filter(
+                  (link) => link.provenance === "secondary_navigation",
+                ).length,
+                footerNavigationCount: navLinks.filter(
+                  (link) => link.provenance === "footer_navigation",
+                ).length,
+                contentLinkCount: navLinks.filter(
+                  (link) => link.provenance === "content_link",
+                ).length,
+              },
+            });
+          }
+          // Enqueue higher-score discoveries first for deterministic equal handling.
+          const ordered = [...navLinks].sort((left, right) => {
+            const leftScore = scoreDeepScrapeCandidate({
+              url: left.url,
+              rootUrl: ctx.rootUrl,
+              provenance: left.provenance,
+              anchorText: left.anchorText,
+            }).totalScore;
+            const rightScore = scoreDeepScrapeCandidate({
+              url: right.url,
+              rootUrl: ctx.rootUrl,
+              provenance: right.provenance,
+              anchorText: right.anchorText,
+            }).totalScore;
+            return rightScore - leftScore || left.url.localeCompare(right.url);
+          });
+          for (const link of ordered) {
+            await maybeEnqueue(ctx, link.url, {
+              label: "link",
+              provenance: link.provenance,
+              anchorText: link.anchorText,
+            });
           }
         }
 

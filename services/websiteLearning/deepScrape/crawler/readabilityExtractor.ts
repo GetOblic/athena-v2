@@ -9,10 +9,13 @@ import * as cheerio from "cheerio";
 import { JSDOM } from "jsdom";
 import { hashMeaningfulContent } from "@/services/websiteLearning/deepScrape/crawler/boilerplate";
 import type { StructuredBusinessData } from "@/services/websiteLearning/deepScrape/crawler/crawlerTypes";
+import {
+  extractDiscoveryLinks,
+  type ExtractedDiscoveryLink,
+} from "@/services/websiteLearning/deepScrape/crawler/navigationExtraction";
 import { DEEP_SCRAPE_CRAWL_POLICY } from "@/services/websiteLearning/deepScrape/crawlPolicy";
 import {
   canonicalizePageUrl,
-  isSameRegistrableDomain,
   resolveAbsoluteUrl,
 } from "@/services/websiteLearning/deepScrape/urlSafety";
 
@@ -30,6 +33,8 @@ export type ReadabilityExtraction = {
   selfCanonical: boolean;
   htmlLanguage: string | null;
   discoveredLinks: string[];
+  /** Same-domain links with navigation/content provenance. */
+  discoveredLinkRecords: ExtractedDiscoveryLink[];
   structuredBusinessData: StructuredBusinessData;
   contentHash: string;
   readabilityUsed: boolean;
@@ -227,24 +232,6 @@ function extractHeadings($: cheerio.CheerioAPI): string[] {
   return headings.slice(0, 40);
 }
 
-function extractLinks(
-  $: cheerio.CheerioAPI,
-  baseUrl: string,
-  registrableDomain: string,
-): string[] {
-  const links = new Set<string>();
-  $("a[href]").each((_, el) => {
-    const href = $(el).attr("href");
-    if (!href) return;
-    const absolute = resolveAbsoluteUrl(href, baseUrl);
-    if (!absolute) return;
-    if (!isSameRegistrableDomain(absolute, registrableDomain)) return;
-    const canonical = canonicalizePageUrl(absolute);
-    if (canonical) links.add(canonical);
-  });
-  return [...links].slice(0, DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveredUrls);
-}
-
 function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -399,7 +386,13 @@ export function extractWithReadability(input: {
     ? resolvedCanonical
     : pageCanonical;
   const htmlLanguage = $meta("html").attr("lang")?.trim() || null;
-  const discoveredLinks = extractLinks($meta, input.url, input.registrableDomain);
+  const discovery = extractDiscoveryLinks({
+    html,
+    baseUrl: input.url,
+    registrableDomain: input.registrableDomain,
+  });
+  const discoveredLinkRecords = discovery.links;
+  const discoveredLinks = discoveredLinkRecords.map((link) => link.url);
 
   let title =
     $meta("title").first().text().replace(/\s+/g, " ").trim() || null;
@@ -509,6 +502,7 @@ export function extractWithReadability(input: {
     selfCanonical,
     htmlLanguage,
     discoveredLinks,
+    discoveredLinkRecords,
     structuredBusinessData,
     contentHash,
     readabilityUsed,
