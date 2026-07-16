@@ -21,6 +21,7 @@ import {
   unwrapProspectDeploymentAssetResponse,
   IncompleteProspectDeploymentAssetsError,
 } from "@/lib/prospectDeploymentAssetContract";
+import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 
 export type GeneratedDeploymentAssets = {
@@ -113,6 +114,10 @@ export async function generateDeploymentAssets(input: {
     throw new Error("Deployment assets generation bundle unavailable.");
   }
 
+  const brandIdentity = await getOrganizationBrandIdentity(
+    input.organizationId,
+  ).catch(() => null);
+
   const prompt = assembleDeploymentAssetsPrompt({
     bundle,
     discussion: input.discussion,
@@ -120,6 +125,7 @@ export async function generateDeploymentAssets(input: {
     opportunity: input.opportunity ?? undefined,
     briefing: input.briefing ?? undefined,
     regenerationRunId: input.regenerationRunId,
+    brandIdentity,
   });
 
   const rawResponse = await generateReview(prompt, {

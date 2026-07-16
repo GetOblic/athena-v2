@@ -14,6 +14,9 @@ export const OPTIONAL_PROSPECT_DEPLOYMENT_ASSET_KEYS = [
   "SUBSTACK_POST",
   "REDDIT_POST",
   "SOCIAL_VOICE_POST",
+  "SHORT_VIDEO_PROMPT",
+  "VISUAL_MESSAGE_PROMPT",
+  "LOCAL_OUTREACH_IMAGE_PROMPT",
 ] as const;
 
 export const PROSPECT_DEPLOYMENT_SECTION_LABELS = `
@@ -36,6 +39,9 @@ KNOWLEDGE_BASE_ENHANCEMENT:
 SUBSTACK_POST:
 REDDIT_POST:
 SOCIAL_VOICE_POST:
+SHORT_VIDEO_PROMPT:
+VISUAL_MESSAGE_PROMPT:
+LOCAL_OUTREACH_IMAGE_PROMPT:
 `.trim();
 
 export const PROSPECT_DEPLOYMENT_CHANNEL_GUIDE = `
@@ -58,6 +64,9 @@ KNOWLEDGE_BASE_ENHANCEMENT — structured factual operational knowledge for Voic
 SUBSTACK_POST — publication-ready long-form editorial Substack article (TITLE, SUBTITLE, POST, CLOSING CTA). Not SEO or sales copy.
 REDDIT_POST — authentic Reddit discussion starter (SUGGESTED TITLE, POST, optional DISCUSSION QUESTION). Transparent and community-native.
 SOCIAL_VOICE_POST — first-person social post in the Athena client's Voice, speaking to the Prospect market signal as lived observation (not a sales template).
+SHORT_VIDEO_PROMPT — paste-ready ~8s AI video generation prompt; cinematic; brand creative direction; prompt only.
+VISUAL_MESSAGE_PROMPT — paste-ready single-image AI generation prompt; one message/emotion; brand creative direction; prompt only.
+LOCAL_OUTREACH_IMAGE_PROMPT — paste-ready realistic local-community image prompt using Prospect location when available; prompt only.
 `.trim();
 
 export const PROSPECT_DEPLOYMENT_ASSET_KEYS = [
@@ -80,6 +89,9 @@ export const PROSPECT_DEPLOYMENT_ASSET_KEYS = [
   "SUBSTACK_POST",
   "REDDIT_POST",
   "SOCIAL_VOICE_POST",
+  "SHORT_VIDEO_PROMPT",
+  "VISUAL_MESSAGE_PROMPT",
+  "LOCAL_OUTREACH_IMAGE_PROMPT",
   // Backward-compatible aliases still parsed if older drafts exist.
   "COLD_EMAIL",
   "OBJECTION_HANDLING",
@@ -174,6 +186,21 @@ export const PROSPECT_DEPLOYMENT_ASSET_META: Record<
     title: "Social Voice Post",
     objective:
       "First-person social post in the client's Voice addressing the Prospect market signal.",
+  },
+  SHORT_VIDEO_PROMPT: {
+    title: "Short Video Prompt",
+    objective:
+      "Paste-ready AI video generation prompt (~8s, cinematic, social-friendly).",
+  },
+  VISUAL_MESSAGE_PROMPT: {
+    title: "Visual Message Prompt",
+    objective:
+      "Paste-ready single-image AI generation prompt — one message, one emotion.",
+  },
+  LOCAL_OUTREACH_IMAGE_PROMPT: {
+    title: "Local Outreach Image Prompt",
+    objective:
+      "Paste-ready realistic local-community image prompt for Prospect outreach.",
   },
   COLD_EMAIL: {
     title: "Personalized Outreach Email",

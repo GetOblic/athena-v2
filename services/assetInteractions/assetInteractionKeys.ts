@@ -35,6 +35,9 @@ export const DEPLOYMENT_ASSET_TYPE_BY_LABEL: Record<string, string> = {
   SUBSTACK_POST: "substack_post",
   REDDIT_POST: "reddit_post",
   SOCIAL_VOICE_POST: "social_voice_post",
+  SHORT_VIDEO_PROMPT: "short_video_prompt",
+  VISUAL_MESSAGE_PROMPT: "visual_message_prompt",
+  LOCAL_OUTREACH_IMAGE_PROMPT: "local_outreach_image_prompt",
   PRIMARY_REPLY: "primary_reply",
 };
 

@@ -42,6 +42,9 @@ const OPTIONAL = [
   "SUBSTACK_POST",
   "REDDIT_POST",
   "SOCIAL_VOICE_POST",
+  "SHORT_VIDEO_PROMPT",
+  "VISUAL_MESSAGE_PROMPT",
+  "LOCAL_OUTREACH_IMAGE_PROMPT",
 ] as const;
 
 function labeledRequiredBlock(
@@ -118,9 +121,20 @@ describe("Prospect optional content assets — registry and prompt", () => {
     const discussionBlock = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: false,
     });
-    for (const key of OPTIONAL) {
+    const prospectOnlyOptional = [
+      "WHATSAPP_OUTREACH",
+      "KNOWLEDGE_BASE_ENHANCEMENT",
+      "SUBSTACK_POST",
+      "REDDIT_POST",
+      "SOCIAL_VOICE_POST",
+      "LOCAL_OUTREACH_IMAGE_PROMPT",
+    ] as const;
+    for (const key of prospectOnlyOptional) {
       assert.doesNotMatch(discussionBlock, new RegExp(key));
     }
+    // Shared visual assets are requested for Discussions too.
+    assert.match(discussionBlock, /SHORT_VIDEO_PROMPT:/);
+    assert.match(discussionBlock, /VISUAL_MESSAGE_PROMPT:/);
     assert.match(discussionBlock, /COMMUNITY_REPLY:/);
     assert.equal(
       discussionBlock.includes(DEPLOYMENT_SECTION_LABELS.trim()),
@@ -131,6 +145,7 @@ describe("Prospect optional content assets — registry and prompt", () => {
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /SUBSTACK_POST/);
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /REDDIT_POST/);
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /SOCIAL_VOICE_POST/);
+    assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /LOCAL_OUTREACH_IMAGE_PROMPT/);
 
     const assembly = readFileSync(
       join(
@@ -356,9 +371,9 @@ describe("Prospect always-generate assets — every creation and refresh path", 
     }
   });
 
-  it("Prospect CSV/batch generation requests all optional assets via the shared 19-heading prompt", () => {
+  it("Prospect CSV/batch generation requests all optional assets via the shared 22-heading prompt", () => {
     const headings = getProspectDeploymentGenerationHeadings();
-    assert.equal(headings.length, 19);
+    assert.equal(headings.length, 22);
     for (const key of OPTIONAL) {
       assert.ok(headings.includes(key));
     }
@@ -384,19 +399,19 @@ describe("Prospect always-generate assets — every creation and refresh path", 
     const block = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: true,
     });
-    assert.equal(getProspectDeploymentGenerationHeadings().length, 19);
+    assert.equal(getProspectDeploymentGenerationHeadings().length, 22);
     for (const key of OPTIONAL) {
       assert.match(block, new RegExp(`(?:^|\\n)${key}:(?:\\n|$)`));
     }
   });
 
-  it("every new Prospect generation run uses the same 19-heading prompt", () => {
+  it("every new Prospect generation run uses the same 22-heading prompt", () => {
     const headings = getProspectDeploymentGenerationHeadings();
     assert.deepEqual(headings, [
       ...REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS,
       ...OPTIONAL_PROSPECT_DEPLOYMENT_ASSET_KEYS,
     ]);
-    assert.equal(headings.length, 19);
+    assert.equal(headings.length, 22);
 
     const block = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: true,
@@ -448,11 +463,18 @@ describe("Prospect always-generate assets — every creation and refresh path", 
     assert.match(composed ?? "", /SOCIAL_VOICE_POST:/);
   });
 
-  it("Discussion generation does not request them", () => {
+  it("Discussion generation does not request Prospect-only optional assets", () => {
     const block = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: false,
     });
-    for (const key of OPTIONAL) {
+    for (const key of [
+      "WHATSAPP_OUTREACH",
+      "KNOWLEDGE_BASE_ENHANCEMENT",
+      "SUBSTACK_POST",
+      "REDDIT_POST",
+      "SOCIAL_VOICE_POST",
+      "LOCAL_OUTREACH_IMAGE_PROMPT",
+    ] as const) {
       assert.doesNotMatch(block, new RegExp(key));
     }
   });

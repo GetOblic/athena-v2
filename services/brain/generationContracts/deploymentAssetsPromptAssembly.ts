@@ -14,6 +14,12 @@ import { REDDIT_POST_GENERATION_RULES } from "@/services/ai/prompts/redditPostCo
 import { SOCIAL_VOICE_POST_GENERATION_RULES } from "@/services/ai/prompts/socialVoicePostConstraints";
 import { SUBSTACK_POST_GENERATION_RULES } from "@/services/ai/prompts/substackPostConstraints";
 import { LINKEDIN_PROSPECT_ASSET_GENERATION_RULES } from "@/services/ai/prompts/linkedinProspectAssetConstraints";
+import {
+  LOCAL_OUTREACH_IMAGE_PROMPT_GENERATION_RULES,
+  SHORT_VIDEO_PROMPT_GENERATION_RULES,
+  VISUAL_DEPLOYMENT_ASSETS_SHARED_RULES,
+  VISUAL_MESSAGE_PROMPT_GENERATION_RULES,
+} from "@/services/ai/prompts/visualDeploymentAssetsConstraints";
 import { WHATSAPP_OUTREACH_GENERATION_RULES } from "@/services/ai/prompts/whatsappOutreachConstraints";
 import {
   SHARED_ANTI_GENERIC_RULES,
@@ -27,6 +33,8 @@ import {
 } from "@/services/brain/reasoningPipeline/reasoningPipelinePromptFormatting";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 import { formatRegenerationRunStamp } from "@/lib/regenerationDiagnostics";
+import type { OrganizationBrandIdentity } from "@/services/identity/brandIdentity";
+import { formatVisualBrandCreativeDirectionBlock } from "@/services/identity/visualBrandCreativeDirection";
 import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 
 export { buildDeploymentAssetsRequiredOutputInstructions } from "@/services/brain/generationContracts/deploymentAssetsRequiredOutput";
@@ -80,6 +88,7 @@ export function assembleDeploymentAssetsPrompt(input: {
   opportunity?: Opportunity | Record<string, unknown>;
   briefing?: AthenaReview | Record<string, unknown>;
   regenerationRunId?: string;
+  brandIdentity?: OrganizationBrandIdentity | null;
 }): string {
   const executiveContextBlock = buildDeploymentExecutiveContext(input.bundle, {
     regenerationRunId: input.regenerationRunId,
@@ -93,6 +102,7 @@ export function assembleDeploymentAssetsPrompt(input: {
       discussion: {
         id: input.discussion.id,
         title: input.discussion.title,
+        body: input.discussion.body ?? null,
       },
       analysis: input.analysis,
       opportunity: input.opportunity ?? null,
@@ -114,6 +124,20 @@ export function assembleDeploymentAssetsPrompt(input: {
   const requiredOutput = buildDeploymentAssetsRequiredOutputInstructions({
     isProspectSource,
   });
+
+  const visualBrandBlock = formatVisualBrandCreativeDirectionBlock(
+    input.brandIdentity,
+  );
+
+  const visualAssetsBlock = [
+    visualBrandBlock,
+    VISUAL_DEPLOYMENT_ASSETS_SHARED_RULES,
+    SHORT_VIDEO_PROMPT_GENERATION_RULES,
+    VISUAL_MESSAGE_PROMPT_GENERATION_RULES,
+    isProspectSource ? LOCAL_OUTREACH_IMAGE_PROMPT_GENERATION_RULES : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   const qualityStandard = isProspectSource
     ? `
@@ -137,21 +161,31 @@ ${REDDIT_POST_GENERATION_RULES}
 
 ${SOCIAL_VOICE_POST_GENERATION_RULES}
 
+${visualAssetsBlock}
+
 Channel isolation is mandatory:
 - Email must read like email; WhatsApp must read like WhatsApp; LinkedIn must read like LinkedIn.
 - Substack must be publication-ready long-form editorial content — not SEO or sales copy.
 - Reddit must be transparent and community-native.
 - Knowledge Base Enhancement must be factual operational knowledge — never invent facts; omit unknowns.
 - Social Voice Post must be first-person in the client's Athena Brain Voice — not outreach email, not Discussion SOCIAL_POST, not a sales template.
+- Short Video Prompt, Visual Message Prompt, and Local Outreach Image Prompt are generator prompts only — never scripts, strategies, or explanations.
 Do not let one asset format leak into another.
 Newsletter Idea and Blog Post Idea are for the Athena client's audience, using prospect/homepage/ads as market evidence — not outreach emails.
 Substack Post, Reddit Post, and Social Voice Post must be materially different from each other and from Newsletter/Blog Idea.
+Do not generate LOCAL_OUTREACH_IMAGE_PROMPT for non-Prospect sources.
 
 ${SHARED_OUTPUT_DIVERSITY_RULES}
 `.trim()
-    : input.opportunity
-      ? DEPLOYMENT_ASSETS_BRIEFING_QUALITY_INSTRUCTIONS
-      : DEPLOYMENT_ASSETS_QUALITY_INSTRUCTIONS;
+    : `
+${
+  input.opportunity
+    ? DEPLOYMENT_ASSETS_BRIEFING_QUALITY_INSTRUCTIONS
+    : DEPLOYMENT_ASSETS_QUALITY_INSTRUCTIONS
+}
+
+${visualAssetsBlock}
+`.trim();
 
   return [
     executiveContextBlock,
