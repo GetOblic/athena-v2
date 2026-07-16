@@ -67,7 +67,9 @@ export type DeepScrapeEventName =
   | "deep_scrape_discovery_inventory_candidate_skipped"
   | "deep_scrape_candidate_terminalized"
   | "deep_scrape_fetch_lifecycle_finalized"
-  | "deep_scrape_fetch_lifecycle_failed";
+  | "deep_scrape_fetch_lifecycle_failed"
+  | "deep_scrape_redirect_continuation_started"
+  | "deep_scrape_redirect_continuation_completed";
 
 export type DeepScrapeEventMeta = {
   organizationId?: string | null;

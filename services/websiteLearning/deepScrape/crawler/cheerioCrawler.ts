@@ -18,6 +18,7 @@ import type { DeepScrapeFetchLifecycle } from "@/services/websiteLearning/deepSc
 import type { ExtractedDiscoveryLink } from "@/services/websiteLearning/deepScrape/crawler/navigationExtraction";
 import { classifyNormalizedPage } from "@/services/websiteLearning/deepScrape/crawler/pageClassifier";
 import { extractWithReadability } from "@/services/websiteLearning/deepScrape/crawler/readabilityExtractor";
+import { continueSameOriginRedirectChain } from "@/services/websiteLearning/deepScrape/crawler/redirectContinuation";
 import type { NormalizedPageDocument } from "@/services/websiteLearning/deepScrape/crawler/crawlerTypes";
 import {
   scoreDeepScrapeCandidate,
@@ -413,27 +414,24 @@ export async function runCheerioCrawlPhase(
           await ctx.onPageProcessed?.();
           return;
         }
-        const statusCode = response?.statusCode ?? 0;
-        const ctype =
+        let statusCode = response?.statusCode ?? 0;
+        let ctype =
           typeof contentType === "string"
             ? contentType
             : contentType?.type
               ? `${contentType.type}${contentType.encoding ? `; charset=${contentType.encoding}` : ""}`
               : response?.headers["content-type"] ?? "";
+        let responseBody: Buffer | string | unknown = body;
+        let finalUrl = request.loadedUrl ?? request.url;
+        let redirectCount = 0;
 
         ctx.fetchLifecycle?.markResponseReceived(request.url, statusCode);
 
-        // Manual redirect handling with SSRF re-check via enqueue.
+        // Manual redirect handling: follow safe same-origin Locations as the
+        // same ranked candidate (do not enqueue a second plan slot / terminalize REDIRECT).
         if ([301, 302, 303, 307, 308].includes(statusCode)) {
           const location = response?.headers?.location;
-          if (typeof location === "string" && location) {
-            const nextUrl = new URL(location, request.url).toString();
-            await maybeEnqueue(ctx, nextUrl, {
-              label: "redirect",
-              provenance: "redirect_target",
-            });
-            ctx.fetchLifecycle?.markRedirected(request.url, "REDIRECT");
-          } else {
+          if (typeof location !== "string" || !location) {
             recordRejection(ctx, "REDIRECT_MISSING_LOCATION");
             ctx.fetchLifecycle?.markRejected(
               request.url,
@@ -451,9 +449,80 @@ export async function runCheerioCrawlPhase(
                 status: statusCode,
               },
             });
+            await ctx.onPageProcessed?.();
+            return;
           }
-          await ctx.onPageProcessed?.();
-          return;
+
+          logDeepScrapeEvent("deep_scrape_redirect_continuation_started", {
+            organizationId: ctx.organizationId,
+            jobId: ctx.jobId,
+            sourceType: ctx.sourceType,
+            domain: ctx.registrableDomain,
+            diagnostic: {
+              path: safePath(request.url),
+              location,
+              status: statusCode,
+              maxRedirectDepth: DEEP_SCRAPE_CRAWL_POLICY.maxRedirectDepth,
+            },
+          });
+
+          const continued = await continueSameOriginRedirectChain({
+            startUrl: request.url,
+            firstLocation: location,
+            registrableDomain: ctx.registrableDomain,
+            safetyContext: {
+              jobId: ctx.jobId,
+              organizationId: ctx.organizationId,
+              sourceType: ctx.sourceType,
+              fetchPurpose: "page",
+              redirectDepth: 1,
+            },
+            robotsRules: ctx.robots,
+            maxRedirects: DEEP_SCRAPE_CRAWL_POLICY.maxRedirectDepth,
+            timeoutMs: DEEP_SCRAPE_CRAWL_POLICY.perPageTimeoutMs,
+          });
+
+          if (!continued.ok) {
+            recordRejection(ctx, continued.errorCode);
+            ctx.fetchLifecycle?.markRejected(request.url, continued.errorCode, {
+              statusCode: continued.statusCode ?? statusCode,
+            });
+            logDeepScrapeEvent("page_rejected", {
+              organizationId: ctx.organizationId,
+              jobId: ctx.jobId,
+              sourceType: ctx.sourceType,
+              domain: ctx.registrableDomain,
+              failureCode: continued.errorCode,
+              diagnostic: {
+                path: safePath(request.url),
+                finalUrl: continued.finalUrl,
+                status: continued.statusCode ?? statusCode,
+                redirectCount: continued.redirectCount,
+              },
+            });
+            await ctx.onPageProcessed?.();
+            return;
+          }
+
+          statusCode = continued.statusCode;
+          ctype = continued.contentType ?? "";
+          responseBody = Buffer.from(continued.bodyText, "utf8");
+          finalUrl = continued.finalUrl;
+          redirectCount = continued.redirectCount;
+          ctx.fetchLifecycle?.markResponseReceived(request.url, statusCode);
+
+          logDeepScrapeEvent("deep_scrape_redirect_continuation_completed", {
+            organizationId: ctx.organizationId,
+            jobId: ctx.jobId,
+            sourceType: ctx.sourceType,
+            domain: ctx.registrableDomain,
+            diagnostic: {
+              path: safePath(request.url),
+              finalUrl,
+              status: statusCode,
+              redirectCount,
+            },
+          });
         }
 
         if (statusCode < 200 || statusCode >= 400) {
@@ -504,9 +573,9 @@ export async function runCheerioCrawlPhase(
           return;
         }
 
-        const htmlBuffer = Buffer.isBuffer(body)
-          ? body
-          : Buffer.from(String(body ?? ""), "utf8");
+        const htmlBuffer = Buffer.isBuffer(responseBody)
+          ? responseBody
+          : Buffer.from(String(responseBody ?? ""), "utf8");
         if (htmlBuffer.byteLength > DEEP_SCRAPE_CRAWL_POLICY.maxResponseBytes) {
           recordRejection(ctx, "RESPONSE_TOO_LARGE");
           ctx.fetchLifecycle?.markRejected(request.url, "RESPONSE_TOO_LARGE", {
@@ -529,7 +598,6 @@ export async function runCheerioCrawlPhase(
         }
 
         const html = htmlBuffer.toString("utf8");
-        const finalUrl = request.loadedUrl ?? request.url;
         const extracted = extractWithReadability({
           html,
           url: finalUrl,
@@ -588,7 +656,7 @@ export async function runCheerioCrawlPhase(
           contentHash: extracted.contentHash,
           fetchedAt: new Date().toISOString(),
           responseBytes: htmlBuffer.byteLength,
-          redirectCount: 0,
+          redirectCount,
           selfCanonical: extracted.selfCanonical,
           extractionMethodSelected: extracted.extractionMethodSelected,
           preBoilerplateChars: extracted.preBoilerplateChars,
@@ -791,8 +859,8 @@ export async function runCheerioCrawlPhase(
           },
         });
 
-        // Ranked-plan mode inventories links above; live enqueue is opt-in only
-        // (redirects still use maybeEnqueue). Default is inventory-only.
+        // Ranked-plan mode inventories links above; live enqueue is opt-in only.
+        // Same-origin redirects continue in-handler (no second plan slot).
         if (
           ctx.allowLiveLinkEnqueue &&
           ctx.acceptedPages.length < ctx.maxAccepted
