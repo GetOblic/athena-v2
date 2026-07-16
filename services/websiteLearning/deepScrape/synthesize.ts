@@ -5,13 +5,13 @@
 import { generateReview } from "@/services/aiService";
 import {
   type DeepBusinessKnowledge,
+  type DeepCrawledPage,
   type DeepCrawlSummary,
   type DeepWebsiteIntelligence,
   DEEP_WEBSITE_INTELLIGENCE_PROVIDER,
   emptyBusinessKnowledge,
   flattenDeepIntelligenceForCompat,
 } from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
-import { toCompactDeepCrawledPages } from "@/services/websiteLearning/deepScrape/deepScrapePageContract";
 
 function parseJsonObject(raw: string): Record<string, unknown> {
   const cleaned = raw
@@ -135,36 +135,23 @@ export async function synthesizeDeepWebsiteIntelligence(input: {
     throw new Error("INSUFFICIENT_USEFUL_CONTENT");
   }
 
-  const pageRecords = toCompactDeepCrawledPages(input.pages);
+  const pageRecords: DeepCrawledPage[] = input.pages.map((page) => ({
+    url: page.url,
+    title: page.title,
+    page_type: page.pageType,
+    excerpt: page.text.slice(0, 400),
+  }));
+
   const flat = flattenDeepIntelligenceForCompat(knowledge, pageRecords);
 
-  // Build payload without trailing spreads that could overwrite `pages`.
-  const intelligence: DeepWebsiteIntelligence = {
+  return {
     provider: DEEP_WEBSITE_INTELLIGENCE_PROVIDER,
     url: input.rootUrl,
     scraped_at: new Date().toISOString(),
-    pages_analyzed: pageRecords.length,
+    pages_analyzed: input.pages.length,
     pages: pageRecords,
     business_knowledge: knowledge,
-    crawl_summary: {
-      ...input.crawlSummary,
-      pages_analyzed: pageRecords.length,
-    },
-    positioning: flat.positioning,
-    products: flat.products,
-    services: flat.services,
-    about: flat.about,
-    target_audience: flat.target_audience,
-    messaging: flat.messaging,
-    value_proposition: flat.value_proposition,
-    cta: flat.cta,
-    differentiators: flat.differentiators,
-    trust_signals: flat.trust_signals,
-    contact_information: flat.contact_information,
-    brand_tone: flat.brand_tone,
-    headings: flat.headings,
-    paragraphs: flat.paragraphs,
+    crawl_summary: input.crawlSummary,
+    ...flat,
   };
-
-  return intelligence;
 }

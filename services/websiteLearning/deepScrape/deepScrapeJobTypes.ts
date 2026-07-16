@@ -139,8 +139,6 @@ export function formatDeepScrapeErrorMessage(
       return "No permissible pages were available to crawl on this website.";
     case "DEEP_SCRAPE_STATE_TRANSITION_INVALID":
       return "Athena stopped this Deep Scrape because its background workflow lost a valid processing state. No further requests will be made until the scrape is restarted.";
-    case "BRAIN_DEEP_SCRAPE_PAGE_PARITY_FAILED":
-      return "Athena stopped this Deep Scrape because the multi-page website corpus could not be saved consistently to Athena Brain. No further requests will be made until the scrape is restarted.";
     default:
       return (
         fallback?.trim() ||

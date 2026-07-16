@@ -225,10 +225,7 @@ describe("Deep Scrape lifecycle — source contracts", () => {
   it("13. heartbeat validation failure is non-retryable lifecycle error", () => {
     assert.match(serviceSrc, /DEEP_SCRAPE_STATE_TRANSITION_INVALID/);
     assert.match(executorSrc, /DEEP_SCRAPE_STATE_TRANSITION_INVALID/);
-    assert.match(
-      executorSrc,
-      /DEEP_SCRAPE_STATE_TRANSITION_INVALID[\s\S]{0,120}\? false/,
-    );
+    assert.match(executorSrc, /DEEP_SCRAPE_STATE_TRANSITION_INVALID\"\s*\n\s*\? false/);
   });
 
   it("15/16/35. synthesis checkpoint reuse skips Gemini on reclaim", () => {
