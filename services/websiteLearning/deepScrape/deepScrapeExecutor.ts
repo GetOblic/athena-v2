@@ -21,23 +21,40 @@ import {
   deepIntelligenceHasUsableContent,
   type DeepWebsiteIntelligence,
 } from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
+import { DeepScrapeHeartbeatController } from "@/services/websiteLearning/deepScrape/deepScrapeHeartbeat";
 import {
   completeDeepScrapeJobWithClaim,
   failDeepScrapeJobWithClaim,
-  heartbeatDeepScrapeJob,
   updateDeepScrapeJobFields,
 } from "@/services/websiteLearning/deepScrape/deepScrapeJobService";
 import {
   formatDeepScrapeErrorMessage,
   type AthenaWebsiteDeepScrapeJob,
 } from "@/services/websiteLearning/deepScrape/deepScrapeJobTypes";
+import {
+  DeepScrapeStateTransitionError,
+  isPersistedDeepScrapeStage,
+} from "@/services/websiteLearning/deepScrape/deepScrapeStages";
 import { logDeepScrapeEvent } from "@/services/websiteLearning/deepScrape/observability";
+
+type RenewLease = (
+  stage?: string | null,
+  progress?: Record<string, unknown> | null,
+) => Promise<void>;
 
 function classifyDeepScrapeError(error: unknown): {
   code: string;
   message: string;
   retryable: boolean;
 } {
+  if (error instanceof DeepScrapeStateTransitionError) {
+    return {
+      code: error.code,
+      message: error.message,
+      retryable: false,
+    };
+  }
+
   const message =
     error instanceof Error ? error.message : "Deep scrape failed";
   const code = message
@@ -61,6 +78,7 @@ function classifyDeepScrapeError(error: unknown): {
     "UNSUPPORTED_CONTENT_TYPE",
     "SYNTHESIS_PARSE_FAILED",
     "EXTRACTION_COLLAPSED_TO_SHARED_TEMPLATE",
+    "DEEP_SCRAPE_STATE_TRANSITION_INVALID",
   ]);
 
   const retryableCodes = new Set([
@@ -120,6 +138,44 @@ async function promoteProspectIntelligence(input: {
   }
 }
 
+function checkpointIntelligence(
+  job: AthenaWebsiteDeepScrapeJob,
+): DeepWebsiteIntelligence | null {
+  if (!job.crawl_result) return null;
+  if (!deepIntelligenceHasUsableContent(job.crawl_result)) return null;
+  return job.crawl_result as unknown as DeepWebsiteIntelligence;
+}
+
+async function persistSynthesisCheckpoint(input: {
+  job: AthenaWebsiteDeepScrapeJob;
+  intelligence: DeepWebsiteIntelligence;
+  crawlSummary: Record<string, unknown> | DeepWebsiteIntelligence["crawl_summary"];
+  pagesDiscovered: number;
+  pagesCrawled: number;
+  pagesAnalyzed: number;
+}): Promise<void> {
+  await updateDeepScrapeJobFields({
+    jobId: input.job.id,
+    organizationId: input.job.organization_id,
+    patch: {
+      crawl_result: input.intelligence,
+      crawl_summary: input.crawlSummary,
+      pages_discovered: input.pagesDiscovered,
+      pages_crawled: input.pagesCrawled,
+      pages_analyzed: input.pagesAnalyzed,
+      current_stage: "persisting",
+      progress: {
+        ...(input.job.progress ?? {}),
+        pagesDiscovered: input.pagesDiscovered,
+        pagesCrawled: input.pagesCrawled,
+        pagesAnalyzed: input.pagesAnalyzed,
+        synthesisCompleted: true,
+        phase: "persisting",
+      },
+    },
+  });
+}
+
 export async function executeClaimedDeepScrapeJob(
   workerId: string,
   claimed: { job: AthenaWebsiteDeepScrapeJob; claimToken: string },
@@ -127,98 +183,196 @@ export async function executeClaimedDeepScrapeJob(
 ): Promise<"completed" | "failed" | "retryable" | "claim_lost" | "awaiting_follow_on"> {
   const { job, claimToken } = claimed;
   const workerConfig = getAthenaWorkerConfig();
-  let claimLost = false;
+  let terminalWritten = false;
 
-  const renewLease = async (
-    stage?: string | null,
-    progress?: Record<string, unknown> | null,
-  ) => {
-    const renewed = await heartbeatDeepScrapeJob({
-      jobId: job.id,
-      claimToken,
-      leaseSeconds: workerConfig.leaseSeconds,
-      stage,
-      progress,
-    });
-    if (!renewed) {
-      claimLost = true;
-    }
+  const heartbeat = new DeepScrapeHeartbeatController({
+    jobId: job.id,
+    claimToken,
+    workerId,
+    organizationId: job.organization_id,
+    sourceType: job.source_type,
+    leaseSeconds: workerConfig.leaseSeconds,
+    intervalMs: workerConfig.heartbeatIntervalMs,
+    initialStage: isPersistedDeepScrapeStage(job.current_stage)
+      ? job.current_stage
+      : "discovering",
+  });
+
+  const renewLease: RenewLease = async (stage, progress) => {
+    await heartbeat.renew(stage, progress);
   };
 
-  const heartbeatTimer = setInterval(() => {
-    void renewLease();
-  }, workerConfig.heartbeatIntervalMs);
+  const isClaimLost = () =>
+    heartbeat.isClaimLost || Boolean(heartbeat.validationError);
+
+  heartbeat.start();
 
   try {
-    // Resume Phase B when intelligence was already promoted.
-    if (job.promoted_at && job.source_type === "brain") {
-      return await runBrainPhaseB(job, claimToken, renewLease, () => claimLost);
-    }
-    if (job.promoted_at && job.source_type === "prospect") {
-      return await parkProspectPhaseB(job, claimToken, renewLease, () => claimLost);
-    }
-
-    await renewLease("discovering", {
-      pagesDiscovered: 0,
-      pagesCrawled: 0,
-      pagesTarget: 25,
-    });
-    if (claimLost || options?.shouldStop?.()) return "claim_lost";
-
-    const crawl = await runDeepWebsiteCrawl({
-      websiteUrl: job.root_url,
+    logDeepScrapeEvent("deep_scrape_job_claimed", {
       organizationId: job.organization_id,
       jobId: job.id,
       sourceType: job.source_type,
-      onProgress: async (progress) => {
-        await renewLease(progress.stage, {
-          pagesDiscovered: progress.pagesDiscovered,
-          pagesCrawled: progress.pagesCrawled,
-          pagesTarget: progress.pagesTarget,
-          pagesAttempted: progress.pagesAttempted ?? null,
-          pagesAccepted: progress.pagesAccepted ?? progress.pagesCrawled,
-          pagesRendered: progress.pagesRendered ?? 0,
-          pagesRejected: progress.pagesRejected ?? 0,
-        });
+      identityId: job.identity_id,
+      prospectId: job.prospect_id,
+      domain: job.normalized_domain,
+      stage: job.current_stage,
+      diagnostic: {
+        workerId,
+        attemptCount: job.attempt_count,
+        leaseExpiry: job.claim_expires_at,
+        checkpointFlags: {
+          hasCrawlResult: Boolean(job.crawl_result),
+          promoted: Boolean(job.promoted_at),
+          hasFollowOn: Boolean(job.follow_on_generation_job_id),
+          hasExecutiveVersion: Boolean(job.result_executive_version_id),
+        },
       },
     });
 
-    if (claimLost || options?.shouldStop?.()) return "claim_lost";
-
-    if (!deepIntelligenceHasUsableContent(crawl.intelligence)) {
-      throw new Error("INSUFFICIENT_USEFUL_CONTENT");
+    // Resume Phase B when intelligence was already promoted.
+    if (job.promoted_at && job.source_type === "brain") {
+      const result = await runBrainPhaseB(
+        job,
+        claimToken,
+        renewLease,
+        isClaimLost,
+      );
+      if (result === "completed") {
+        terminalWritten = true;
+        logDeepScrapeEvent("deep_scrape_job_completed", {
+          organizationId: job.organization_id,
+          jobId: job.id,
+          sourceType: "brain",
+          identityId: job.identity_id,
+          domain: job.normalized_domain,
+          pagesAnalyzed: job.pages_analyzed,
+        });
+      }
+      return result;
+    }
+    if (job.promoted_at && job.source_type === "prospect") {
+      return await parkProspectPhaseB(
+        job,
+        claimToken,
+        renewLease,
+        isClaimLost,
+        () => heartbeat.stop(),
+      );
     }
 
-    await renewLease("persisting", {
-      pagesDiscovered: crawl.pagesDiscovered,
-      pagesCrawled: crawl.pagesCrawled,
-      pagesTarget: crawl.pagesAnalyzed,
-    });
+    // Resume Phase A promote when synthesis checkpoint already exists.
+    const reused = checkpointIntelligence(job);
+    let intelligence: DeepWebsiteIntelligence;
+    let pagesDiscovered = job.pages_discovered;
+    let pagesCrawled = job.pages_crawled;
+    let pagesAnalyzed = job.pages_analyzed;
+    let crawlSummary =
+      (job.crawl_summary as DeepWebsiteIntelligence["crawl_summary"] | null) ??
+      null;
 
-    await updateDeepScrapeJobFields({
-      jobId: job.id,
-      organizationId: job.organization_id,
-      patch: {
-        crawl_result: crawl.intelligence,
-        crawl_summary: crawl.crawlSummary,
-        pages_discovered: crawl.pagesDiscovered,
-        pages_crawled: crawl.pagesCrawled,
-        pages_analyzed: crawl.pagesAnalyzed,
-        current_stage: "persisting",
-      },
-    });
+    if (reused) {
+      logDeepScrapeEvent("deep_scrape_checkpoint_reused", {
+        organizationId: job.organization_id,
+        jobId: job.id,
+        sourceType: job.source_type,
+        identityId: job.identity_id,
+        prospectId: job.prospect_id,
+        domain: job.normalized_domain,
+        pagesAnalyzed: reused.pages_analyzed,
+        diagnostic: {
+          workerId,
+          checkpoint: "synthesis",
+          synthesisSkipped: true,
+          crawlSkipped: true,
+        },
+      });
+      intelligence = reused;
+      pagesAnalyzed = reused.pages_analyzed;
+      crawlSummary = reused.crawl_summary;
+      await renewLease("persisting", {
+        pagesDiscovered,
+        pagesCrawled,
+        pagesAnalyzed,
+        synthesisCompleted: true,
+        phase: "persisting",
+      });
+    } else {
+      await renewLease("discovering", {
+        pagesDiscovered: 0,
+        pagesCrawled: 0,
+        pagesTarget: 25,
+      });
+      if (options?.shouldStop?.()) return "claim_lost";
+      if (heartbeat.validationError) throw heartbeat.validationError;
+
+      const crawl = await runDeepWebsiteCrawl({
+        websiteUrl: job.root_url,
+        organizationId: job.organization_id,
+        jobId: job.id,
+        sourceType: job.source_type,
+        onProgress: async (progress) => {
+          await renewLease(progress.stage, {
+            pagesDiscovered: progress.pagesDiscovered,
+            pagesCrawled: progress.pagesCrawled,
+            pagesTarget: progress.pagesTarget,
+            pagesAttempted: progress.pagesAttempted ?? null,
+            pagesAccepted: progress.pagesAccepted ?? progress.pagesCrawled,
+            pagesRendered: progress.pagesRendered ?? 0,
+            pagesRejected: progress.pagesRejected ?? 0,
+            phase: progress.stage === "rendering" ? "rendering" : progress.stage,
+          });
+        },
+      });
+
+      if (heartbeat.validationError) throw heartbeat.validationError;
+
+      if (!deepIntelligenceHasUsableContent(crawl.intelligence)) {
+        throw new Error("INSUFFICIENT_USEFUL_CONTENT");
+      }
+
+      intelligence = crawl.intelligence;
+      pagesDiscovered = crawl.pagesDiscovered;
+      pagesCrawled = crawl.pagesCrawled;
+      pagesAnalyzed = crawl.pagesAnalyzed;
+      crawlSummary = crawl.crawlSummary;
+
+      // Durable synthesis checkpoint before promote — reclaim must not re-call Gemini.
+      await renewLease("persisting", {
+        pagesDiscovered,
+        pagesCrawled,
+        pagesAnalyzed,
+        synthesisCompleted: true,
+        phase: "persisting",
+      });
+      await persistSynthesisCheckpoint({
+        job,
+        intelligence,
+        crawlSummary,
+        pagesDiscovered,
+        pagesCrawled,
+        pagesAnalyzed,
+      });
+      job.crawl_result = intelligence as unknown as Record<string, unknown>;
+      job.crawl_summary = crawlSummary as unknown as Record<string, unknown>;
+      job.pages_discovered = pagesDiscovered;
+      job.pages_crawled = pagesCrawled;
+      job.pages_analyzed = pagesAnalyzed;
+    }
+
+    if (options?.shouldStop?.()) return "claim_lost";
+    if (heartbeat.validationError) throw heartbeat.validationError;
 
     if (job.source_type === "brain" && job.identity_id) {
       await promoteBrainIntelligence({
         identityId: job.identity_id,
         organizationId: job.organization_id,
-        intelligence: crawl.intelligence,
+        intelligence,
       });
     } else if (job.source_type === "prospect" && job.prospect_id) {
       await promoteProspectIntelligence({
         prospectId: job.prospect_id,
         organizationId: job.organization_id,
-        intelligence: crawl.intelligence,
+        intelligence,
       });
     } else {
       throw new Error("INVALID_SOURCE");
@@ -230,8 +384,8 @@ export async function executeClaimedDeepScrapeJob(
       organizationId: job.organization_id,
       patch: {
         promoted_at: promotedAt,
-        pages_analyzed: crawl.pagesAnalyzed,
-        crawl_summary: crawl.crawlSummary,
+        pages_analyzed: pagesAnalyzed,
+        crawl_summary: crawlSummary,
       },
     });
 
@@ -242,17 +396,40 @@ export async function executeClaimedDeepScrapeJob(
       identityId: job.identity_id,
       prospectId: job.prospect_id,
       domain: job.normalized_domain,
-      pagesAnalyzed: crawl.pagesAnalyzed,
+      pagesAnalyzed,
     });
 
     job.promoted_at = promotedAt;
-    job.pages_analyzed = crawl.pagesAnalyzed;
-    job.crawl_summary = crawl.crawlSummary as Record<string, unknown>;
+    job.pages_analyzed = pagesAnalyzed;
+    job.crawl_summary = crawlSummary as unknown as Record<string, unknown>;
 
     if (job.source_type === "brain") {
-      return await runBrainPhaseB(job, claimToken, renewLease, () => claimLost);
+      const result = await runBrainPhaseB(
+        job,
+        claimToken,
+        renewLease,
+        isClaimLost,
+      );
+      if (result === "completed") {
+        terminalWritten = true;
+        logDeepScrapeEvent("deep_scrape_job_completed", {
+          organizationId: job.organization_id,
+          jobId: job.id,
+          sourceType: "brain",
+          identityId: job.identity_id,
+          domain: job.normalized_domain,
+          pagesAnalyzed: job.pages_analyzed,
+        });
+      }
+      return result;
     }
-    return await parkProspectPhaseB(job, claimToken, renewLease, () => claimLost);
+    return await parkProspectPhaseB(
+      job,
+      claimToken,
+      renewLease,
+      isClaimLost,
+      () => heartbeat.stop(),
+    );
   } catch (error) {
     const classified = classifyDeepScrapeError(error);
     logDeepScrapeEvent("deep_scrape_failed", {
@@ -263,17 +440,44 @@ export async function executeClaimedDeepScrapeJob(
       prospectId: job.prospect_id,
       domain: job.normalized_domain,
       failureCode: classified.code,
-      stage: job.current_stage,
+      stage: heartbeat.stage ?? job.current_stage,
+    });
+    logDeepScrapeEvent("deep_scrape_job_failed", {
+      organizationId: job.organization_id,
+      jobId: job.id,
+      sourceType: job.source_type,
+      failureCode: classified.code,
+      stage: heartbeat.stage ?? job.current_stage,
+      diagnostic: {
+        workerId,
+        retryable: classified.retryable,
+        attemptCount: job.attempt_count,
+      },
     });
 
-    // Keep promoted deep intelligence; Phase B failures are always retryable.
-    const retryable = job.promoted_at
-      ? true
-      : classified.retryable;
+    // Keep promoted deep intelligence; Phase B failures are always retryable
+    // unless the failure is a non-retryable lifecycle/schema error.
+    const retryable =
+      classified.code === "DEEP_SCRAPE_STATE_TRANSITION_INVALID"
+        ? false
+        : job.promoted_at
+          ? true
+          : classified.retryable;
+
+    const failedStage = job.promoted_at
+      ? job.source_type === "brain"
+        ? "retraining"
+        : "regenerating"
+      : heartbeat.stage && isPersistedDeepScrapeStage(heartbeat.stage)
+        ? heartbeat.stage
+        : isPersistedDeepScrapeStage(job.current_stage)
+          ? job.current_stage
+          : "failed";
 
     const failed = await failDeepScrapeJobWithClaim({
       jobId: job.id,
       claimToken,
+      organizationId: job.organization_id,
       errorCode: classified.code,
       errorMessage: formatDeepScrapeErrorMessage(
         classified.code,
@@ -281,30 +485,25 @@ export async function executeClaimedDeepScrapeJob(
       ),
       retryable,
       attemptCount: job.attempt_count,
-      failedStage: job.promoted_at
-        ? job.source_type === "brain"
-          ? "retraining"
-          : "regenerating"
-        : job.current_stage,
+      failedStage,
       errorMetadata: {
         workerId,
         phase: job.promoted_at ? "B" : "A",
       },
     });
+    terminalWritten = true;
 
     return failed?.status === "retryable" ? "retryable" : "failed";
   } finally {
-    clearInterval(heartbeatTimer);
+    await heartbeat.stop();
+    void terminalWritten;
   }
 }
 
 async function runBrainPhaseB(
   job: AthenaWebsiteDeepScrapeJob,
   claimToken: string,
-  renewLease: (
-    stage?: string | null,
-    progress?: Record<string, unknown> | null,
-  ) => Promise<void>,
+  renewLease: RenewLease,
   isClaimLost: () => boolean,
 ): Promise<"completed" | "failed" | "retryable" | "claim_lost"> {
   if (!job.identity_id) {
@@ -358,6 +557,7 @@ async function runBrainPhaseB(
   const completed = await completeDeepScrapeJobWithClaim({
     jobId: job.id,
     claimToken,
+    organizationId: job.organization_id,
     pagesAnalyzed: job.pages_analyzed,
     brainRetrainedAt: trainedAt,
     crawlSummary: job.crawl_summary,
@@ -382,11 +582,9 @@ async function runBrainPhaseB(
 async function parkProspectPhaseB(
   job: AthenaWebsiteDeepScrapeJob,
   claimToken: string,
-  renewLease: (
-    stage?: string | null,
-    progress?: Record<string, unknown> | null,
-  ) => Promise<void>,
+  renewLease: RenewLease,
   isClaimLost: () => boolean,
+  stopHeartbeat?: () => Promise<void>,
 ): Promise<"awaiting_follow_on" | "failed" | "retryable" | "claim_lost"> {
   if (!job.prospect_id) {
     throw new Error("INVALID_SOURCE");
@@ -407,6 +605,7 @@ async function parkProspectPhaseB(
   }
 
   let followOnJobId = job.follow_on_generation_job_id;
+  let reusedFollowOn = false;
   if (followOnJobId) {
     const existing = await getGenerationJobById(
       followOnJobId,
@@ -419,7 +618,19 @@ async function parkProspectPhaseB(
         existing.status === "retryable" ||
         existing.status === "completed")
     ) {
-      // Reuse active/completed follow-on; completed will be finalized by reconcile.
+      reusedFollowOn = true;
+      logDeepScrapeEvent("deep_scrape_follow_on_reused", {
+        organizationId: job.organization_id,
+        jobId: job.id,
+        sourceType: "prospect",
+        prospectId: job.prospect_id,
+        followOnJobId,
+        executiveVersionId:
+          existing.published_version_id ?? existing.executive_version_id,
+        diagnostic: {
+          generationStatus: existing.status,
+        },
+      });
     } else {
       followOnJobId = null;
     }
@@ -444,7 +655,15 @@ async function parkProspectPhaseB(
       domain: job.normalized_domain,
       followOnJobId,
       pagesAnalyzed: job.pages_analyzed,
+      diagnostic: {
+        reusedFollowOn,
+      },
     });
+  }
+
+  // Stop heartbeat before releasing the claim so late ticks cannot write.
+  if (stopHeartbeat) {
+    await stopHeartbeat();
   }
 
   const parked = await updateDeepScrapeJobFields({
@@ -458,6 +677,11 @@ async function parkProspectPhaseB(
       claimed_by: null,
       claim_expires_at: null,
       discussion_id: prospect.linked_discussion_id,
+      progress: {
+        ...(job.progress ?? {}),
+        phase: "awaiting_follow_on",
+        followOnJobId,
+      },
     },
   });
 
@@ -530,7 +754,19 @@ export async function reconcileAwaitingFollowOnJobs(): Promise<boolean> {
         generationJob.published_version_id ??
         generationJob.executive_version_id ??
         null;
-      const completedAt = new Date().toISOString();
+
+      // Idempotent: already completed with the same EV.
+      if (
+        job.status === "completed" &&
+        job.result_executive_version_id === versionId
+      ) {
+        continue;
+      }
+
+      const completedAt =
+        typeof job.completed_at === "string" && job.completed_at
+          ? job.completed_at
+          : new Date().toISOString();
 
       await updateDeepScrapeJobFields({
         jobId,
@@ -551,6 +787,15 @@ export async function reconcileAwaitingFollowOnJobs(): Promise<boolean> {
         sourceType: "prospect",
         prospectId,
         discussionId: generationJob.discussion_id,
+        executiveVersionId: versionId,
+        followOnJobId: followOnId,
+        pagesAnalyzed: Number(job.pages_analyzed ?? 0),
+      });
+      logDeepScrapeEvent("deep_scrape_job_completed", {
+        organizationId,
+        jobId,
+        sourceType: "prospect",
+        prospectId,
         executiveVersionId: versionId,
         followOnJobId: followOnId,
         pagesAnalyzed: Number(job.pages_analyzed ?? 0),
@@ -597,8 +842,6 @@ export async function claimAndExecuteNextDeepScrapeJob(
     workerId,
     jobId: claimed.job.id,
     sourceType: claimed.job.source_type,
-    organizationId: claimed.job.organization_id,
-    attemptCount: claimed.job.attempt_count,
   });
 
   await executeClaimedDeepScrapeJob(workerId, claimed, options);

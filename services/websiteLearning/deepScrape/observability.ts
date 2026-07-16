@@ -37,7 +37,20 @@ export type DeepScrapeEventName =
   | "brain_retraining_completed"
   | "prospect_generation_started"
   | "executive_version_published"
-  | "deep_scrape_failed";
+  | "deep_scrape_failed"
+  | "deep_scrape_job_claimed"
+  | "deep_scrape_heartbeat_started"
+  | "deep_scrape_heartbeat_succeeded"
+  | "deep_scrape_heartbeat_failed"
+  | "deep_scrape_heartbeat_stopped"
+  | "deep_scrape_stage_transition"
+  | "deep_scrape_stage_transition_rejected"
+  | "deep_scrape_checkpoint_reused"
+  | "deep_scrape_synthesis_started"
+  | "deep_scrape_synthesis_completed"
+  | "deep_scrape_follow_on_reused"
+  | "deep_scrape_job_completed"
+  | "deep_scrape_job_failed";
 
 export type DeepScrapeEventMeta = {
   organizationId?: string | null;

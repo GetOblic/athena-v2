@@ -1,3 +1,8 @@
+import {
+  DEEP_SCRAPE_PERSISTED_STAGES,
+  type DeepScrapePersistedStage,
+} from "@/services/websiteLearning/deepScrape/deepScrapeStages";
+
 export const DEEP_SCRAPE_SOURCE_TYPES = ["brain", "prospect"] as const;
 export type DeepScrapeSourceType = (typeof DEEP_SCRAPE_SOURCE_TYPES)[number];
 
@@ -11,19 +16,9 @@ export const DEEP_SCRAPE_JOB_STATUSES = [
 ] as const;
 export type DeepScrapeJobStatus = (typeof DEEP_SCRAPE_JOB_STATUSES)[number];
 
-export const DEEP_SCRAPE_STAGES = [
-  "queued",
-  "discovering",
-  "crawling",
-  "rendering",
-  "synthesizing",
-  "persisting",
-  "retraining",
-  "regenerating",
-  "completed",
-  "failed",
-] as const;
-export type DeepScrapeStage = (typeof DEEP_SCRAPE_STAGES)[number];
+/** Alias of the authoritative persisted stage union (matches DB constraint). */
+export const DEEP_SCRAPE_STAGES = DEEP_SCRAPE_PERSISTED_STAGES;
+export type DeepScrapeStage = DeepScrapePersistedStage;
 
 export type AthenaWebsiteDeepScrapeJob = {
   id: string;
@@ -142,6 +137,8 @@ export function formatDeepScrapeErrorMessage(
       return "Athena could not extract enough readable business content from this website.";
     case "NO_PERMISSIBLE_CRAWL_TARGETS":
       return "No permissible pages were available to crawl on this website.";
+    case "DEEP_SCRAPE_STATE_TRANSITION_INVALID":
+      return "Athena stopped this Deep Scrape because its background workflow lost a valid processing state. No further requests will be made until the scrape is restarted.";
     default:
       return (
         fallback?.trim() ||
@@ -174,23 +171,28 @@ export function formatDeepScrapeStatusLabel(job: {
       ? job.progress.pagesTarget
       : null;
 
+  const progressPhase =
+    typeof job.progress?.phase === "string" ? job.progress.phase : null;
+  const isRenderingPhase = progressPhase === "rendering";
+
   switch (stage) {
     case "discovering":
       return job.source_type === "brain"
         ? "Discovering Website"
         : "Discovering";
-    case "crawling":
+    case "crawling": {
+      if (isRenderingPhase) {
+        const rendered =
+          typeof job.progress?.pagesRendered === "number"
+            ? job.progress.pagesRendered
+            : crawled;
+        return target
+          ? `Rendering JavaScript page ${rendered} of ${target}`
+          : `Rendering JavaScript page ${rendered}`;
+      }
       return target
         ? `Crawling ${crawled} of ${target} candidate pages`
         : `Crawling ${crawled} candidate pages`;
-    case "rendering": {
-      const rendered =
-        typeof job.progress?.pagesRendered === "number"
-          ? job.progress.pagesRendered
-          : crawled;
-      return target
-        ? `Rendering JavaScript page ${rendered} of ${target}`
-        : `Rendering JavaScript page ${rendered}`;
     }
     case "synthesizing":
       return job.source_type === "brain"
@@ -202,6 +204,10 @@ export function formatDeepScrapeStatusLabel(job: {
       return "Retraining Athena Brain";
     case "regenerating":
       return "Generating Executive Intelligence";
+    case "completed":
+      return "Completed";
+    case "failed":
+      return "Failed";
     default:
       return "Queued";
   }

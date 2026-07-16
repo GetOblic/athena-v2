@@ -9,7 +9,21 @@ import {
   type AthenaWebsiteDeepScrapeJob,
   mapDeepScrapeJobRow,
 } from "@/services/websiteLearning/deepScrape/deepScrapeJobTypes";
+import {
+  assertPersistedDeepScrapeStage,
+  DeepScrapeStateTransitionError,
+  isPersistedDeepScrapeStage,
+} from "@/services/websiteLearning/deepScrape/deepScrapeStages";
 import { normalizeRootWebsiteUrl } from "@/services/websiteLearning/deepScrape/urlSafety";
+
+export type HeartbeatDeepScrapeResult =
+  | { ok: true; job: AthenaWebsiteDeepScrapeJob }
+  | {
+      ok: false;
+      reason: "validation" | "claim_lost" | "transport";
+      code: string;
+      message: string;
+    };
 
 export class ActiveDeepScrapeJobConflictError extends Error {
   readonly existing: AthenaWebsiteDeepScrapeJob;
@@ -303,28 +317,78 @@ export async function heartbeatDeepScrapeJob(input: {
   leaseSeconds?: number;
   stage?: string | null;
   progress?: Record<string, unknown> | null;
-}): Promise<AthenaWebsiteDeepScrapeJob | null> {
+  /** When true (default), reject non-persisted stages before the RPC. */
+  allowStage?: boolean;
+}): Promise<HeartbeatDeepScrapeResult> {
+  let stage: string | null = null;
+  if (input.stage != null && input.stage !== "") {
+    if (input.allowStage === false) {
+      stage = null;
+    } else {
+      try {
+        stage = assertPersistedDeepScrapeStage(
+          input.stage,
+          "heartbeatDeepScrapeJob",
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Invalid heartbeat stage";
+        return {
+          ok: false,
+          reason: "validation",
+          code: "DEEP_SCRAPE_STATE_TRANSITION_INVALID",
+          message,
+        };
+      }
+    }
+  }
+
   const { data, error } = await supabaseAdmin.rpc(
     "heartbeat_athena_website_deep_scrape_job",
     {
       p_job_id: input.jobId,
       p_claim_token: input.claimToken,
       p_lease_seconds: input.leaseSeconds ?? getAthenaWorkerConfig().leaseSeconds,
-      p_stage: input.stage ?? null,
+      p_stage: stage,
       p_progress: input.progress ?? null,
     },
   );
 
   if (error) {
+    const message = error.message ?? "heartbeat_failed";
+    const isConstraint =
+      /current_stage_check|check constraint|violates check/i.test(message);
     console.error("[ATHENA_DEEP_SCRAPE] heartbeat_failed", {
       jobId: input.jobId,
-      error: error.message,
+      error: message,
+      stage,
     });
-    return null;
+    if (isConstraint) {
+      return {
+        ok: false,
+        reason: "validation",
+        code: "DEEP_SCRAPE_STATE_TRANSITION_INVALID",
+        message,
+      };
+    }
+    return {
+      ok: false,
+      reason: "transport",
+      code: "HEARTBEAT_TRANSPORT_FAILED",
+      message,
+    };
   }
 
   const row = unwrapRpcRow(data);
-  return row ? mapDeepScrapeJobRow(row) : null;
+  if (!row?.id) {
+    return {
+      ok: false,
+      reason: "claim_lost",
+      code: "CLAIM_LOST",
+      message: "Deep scrape claim is no longer valid.",
+    };
+  }
+  return { ok: true, job: mapDeepScrapeJobRow(row) };
 }
 
 export async function updateDeepScrapeJobFields(input: {
@@ -332,6 +396,17 @@ export async function updateDeepScrapeJobFields(input: {
   organizationId: string;
   patch: Record<string, unknown>;
 }): Promise<AthenaWebsiteDeepScrapeJob | null> {
+  if ("current_stage" in input.patch) {
+    const stage = input.patch.current_stage;
+    if (stage != null && !isPersistedDeepScrapeStage(stage)) {
+      throw new DeepScrapeStateTransitionError(
+        `updateDeepScrapeJobFields refused invalid current_stage "${String(stage)}"`,
+        null,
+        String(stage),
+      );
+    }
+  }
+
   const { data, error } = await supabaseAdmin
     .from("athena_website_deep_scrape_jobs")
     .update({
@@ -350,6 +425,7 @@ export async function updateDeepScrapeJobFields(input: {
 export async function completeDeepScrapeJobWithClaim(input: {
   jobId: string;
   claimToken: string;
+  organizationId?: string;
   pagesAnalyzed?: number | null;
   resultExecutiveVersionId?: string | null;
   brainRetrainedAt?: string | null;
@@ -376,12 +452,23 @@ export async function completeDeepScrapeJobWithClaim(input: {
   }
 
   const row = unwrapRpcRow(data);
-  return row ? mapDeepScrapeJobRow(row) : null;
+  if (row) return mapDeepScrapeJobRow(row);
+
+  // Idempotent: already completed (or claim released after terminal write).
+  if (input.organizationId) {
+    const existing = await getDeepScrapeJobById({
+      jobId: input.jobId,
+      organizationId: input.organizationId,
+    });
+    if (existing?.status === "completed") return existing;
+  }
+  return null;
 }
 
 export async function failDeepScrapeJobWithClaim(input: {
   jobId: string;
   claimToken: string;
+  organizationId?: string;
   errorCode: string;
   errorMessage: string;
   retryable: boolean;
@@ -389,6 +476,13 @@ export async function failDeepScrapeJobWithClaim(input: {
   errorMetadata?: Record<string, unknown> | null;
   attemptCount: number;
 }): Promise<AthenaWebsiteDeepScrapeJob | null> {
+  const failedStage =
+    input.failedStage != null && input.failedStage !== ""
+      ? isPersistedDeepScrapeStage(input.failedStage)
+        ? input.failedStage
+        : null
+      : null;
+
   const { data, error } = await supabaseAdmin.rpc(
     "fail_athena_website_deep_scrape_job",
     {
@@ -401,7 +495,7 @@ export async function failDeepScrapeJobWithClaim(input: {
         ? new Date(Date.now() + 30_000).toISOString()
         : null,
       p_error_metadata: input.errorMetadata ?? null,
-      p_failed_stage: input.failedStage ?? null,
+      p_failed_stage: failedStage,
     },
   );
 
@@ -414,5 +508,19 @@ export async function failDeepScrapeJobWithClaim(input: {
   }
 
   const row = unwrapRpcRow(data);
-  return row ? mapDeepScrapeJobRow(row) : null;
+  if (row) return mapDeepScrapeJobRow(row);
+
+  if (input.organizationId) {
+    const existing = await getDeepScrapeJobById({
+      jobId: input.jobId,
+      organizationId: input.organizationId,
+    });
+    if (
+      existing &&
+      (existing.status === "failed" || existing.status === "retryable")
+    ) {
+      return existing;
+    }
+  }
+  return null;
 }

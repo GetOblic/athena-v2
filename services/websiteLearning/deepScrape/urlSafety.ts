@@ -310,25 +310,31 @@ export async function assertPublicHostname(
     throw new Error("IP_LITERAL_REJECTED");
   }
 
+  const shouldLogSafetyDiagnostic = Boolean(
+    context.jobId || context.organizationId || context.sourceType,
+  );
+
   const literal = normalizeIpLiteral(hostname);
   if (literal || isIP(hostname)) {
     const classification = classifyIpAddress(hostname);
-    logDeepScrapeEvent("deep_scrape_url_safety_diagnostic", {
-      jobId: context.jobId,
-      organizationId: context.organizationId,
-      sourceType: context.sourceType,
-      diagnostic: {
-        hostname,
-        fetchPurpose: context.fetchPurpose ?? null,
-        redirectDepth: context.redirectDepth ?? 0,
-        dnsResultCount: 1,
-        addressFamily: isIP(literal ?? hostname) || null,
-        classifications: [classification],
-        rejected: true,
-        rejectionCode: "IP_LITERAL_REJECTED",
-      },
-      failureCode: "IP_LITERAL_REJECTED",
-    });
+    if (shouldLogSafetyDiagnostic) {
+      logDeepScrapeEvent("deep_scrape_url_safety_diagnostic", {
+        jobId: context.jobId,
+        organizationId: context.organizationId,
+        sourceType: context.sourceType,
+        diagnostic: {
+          hostname,
+          fetchPurpose: context.fetchPurpose ?? null,
+          redirectDepth: context.redirectDepth ?? 0,
+          dnsResultCount: 1,
+          addressFamily: isIP(literal ?? hostname) || null,
+          classifications: [classification],
+          rejected: true,
+          rejectionCode: "IP_LITERAL_REJECTED",
+        },
+        failureCode: "IP_LITERAL_REJECTED",
+      });
+    }
     throw new Error("IP_LITERAL_REJECTED");
   }
 
@@ -346,23 +352,25 @@ export async function assertPublicHostname(
   );
   const rejected = blockedIndex >= 0;
 
-  logDeepScrapeEvent("deep_scrape_url_safety_diagnostic", {
-    jobId: context.jobId,
-    organizationId: context.organizationId,
-    sourceType: context.sourceType,
-    diagnostic: {
-      hostname: stripWww(hostname),
-      fetchPurpose: context.fetchPurpose ?? null,
-      redirectDepth: context.redirectDepth ?? 0,
-      dnsResultCount: results.length,
-      addressFamily: results.map((entry) => entry.family),
-      classifications,
-      rejected,
-      rejectionCode: rejected ? "PRIVATE_IP_REJECTED" : null,
-      rejectionCategory: rejected ? classifications[blockedIndex] : null,
-    },
-    failureCode: rejected ? "PRIVATE_IP_REJECTED" : null,
-  });
+  if (shouldLogSafetyDiagnostic) {
+    logDeepScrapeEvent("deep_scrape_url_safety_diagnostic", {
+      jobId: context.jobId,
+      organizationId: context.organizationId,
+      sourceType: context.sourceType,
+      diagnostic: {
+        hostname: stripWww(hostname),
+        fetchPurpose: context.fetchPurpose ?? null,
+        redirectDepth: context.redirectDepth ?? 0,
+        dnsResultCount: results.length,
+        addressFamily: results.map((entry) => entry.family),
+        classifications,
+        rejected,
+        rejectionCode: rejected ? "PRIVATE_IP_REJECTED" : null,
+        rejectionCategory: rejected ? classifications[blockedIndex] : null,
+      },
+      failureCode: rejected ? "PRIVATE_IP_REJECTED" : null,
+    });
+  }
 
   if (rejected) {
     throw new Error("PRIVATE_IP_REJECTED");

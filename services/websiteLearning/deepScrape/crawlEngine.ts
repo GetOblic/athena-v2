@@ -92,11 +92,30 @@ export async function runDeepWebsiteCrawl(input: {
     pagesRejected: crawl.stats.pagesRejected,
   });
 
+  logDeepScrapeEvent("deep_scrape_synthesis_started", {
+    organizationId: input.organizationId,
+    jobId: input.jobId,
+    sourceType: input.sourceType,
+    domain: root.registrableDomain,
+    pagesDiscovered: crawl.stats.candidatesDiscovered,
+    pagesCrawled: crawl.stats.pagesAccepted,
+    stage: "synthesizing",
+  });
+
   const crawlSummary = buildSummaryFromNormalizedPages(crawl.pages);
   const intelligence = await synthesizeDeepWebsiteIntelligence({
     rootUrl: root.url,
     pages: toSynthesisPages(crawl.pages),
     crawlSummary,
+  });
+
+  logDeepScrapeEvent("deep_scrape_synthesis_completed", {
+    organizationId: input.organizationId,
+    jobId: input.jobId,
+    sourceType: input.sourceType,
+    domain: root.registrableDomain,
+    pagesAnalyzed: intelligence.pages_analyzed,
+    stage: "synthesizing",
   });
 
   logDeepScrapeEvent("crawl_completed", {
