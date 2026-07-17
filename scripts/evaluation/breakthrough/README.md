@@ -2,7 +2,11 @@
 
 **NON-PRODUCTION ONLY.**
 
-This harness evaluates the frozen Breakthrough Doctrine (Phase 2B **K**) against Standard prompts.
+This harness evaluates Breakthrough Doctrine against Standard prompts.
+
+Doctrine files:
+- `doctrine/breakthrough_doctrine.v1.txt` — original pilot doctrine (preserved)
+- `doctrine/breakthrough_doctrine.v2.txt` — evidence-revised doctrine for focused re-test
 
 It must never be imported by `app/`, `workers/`, or production services entrypoints.
 
@@ -31,7 +35,16 @@ node --import tsx scripts/evaluation/breakthrough/src/run.ts --smoke
 
 # Full: 8 prospects × generation
 node --import tsx scripts/evaluation/breakthrough/src/run.ts --full
+
+# Focused K v2 dry-run: pin/hash + 32-pair selection + Standard baseline load (no LLM)
+node --import tsx scripts/evaluation/breakthrough/src/run.ts --focused-v2-validate
+
+# Focused K v2 re-test: Breakthrough-only generation vs frozen Standard baselines
+# (do not run until authorized)
+node --import tsx scripts/evaluation/breakthrough/src/run.ts --focused-v2
 ```
+
+Focused mode reuses Standard outputs from `out/run_2026-07-17T20-53-15-237Z` and never regenerates Standard.
 
 Requires `.env.local` / env vars already used by Athena for OpenRouter when generating.
 

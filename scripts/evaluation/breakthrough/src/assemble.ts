@@ -6,7 +6,12 @@ import { assembleDeploymentAssetsPrompt } from "@/services/brain/generationContr
 import { assembleStrategicBlueprintPrompt } from "@/services/brain/generationContracts/generationPromptAssembly";
 import { resolveModelForStage } from "@/lib/llm/modelRouting";
 import type { AthenaLLMStage } from "@/lib/llm/modelRouting";
-import { appendBreakthroughDoctrine, doctrineHash, loadFrozenDoctrine } from "./doctrine";
+import type { DoctrineVersion } from "./constants";
+import {
+  appendBreakthroughDoctrine,
+  doctrineHash,
+  loadFrozenDoctrine,
+} from "./doctrine";
 import { sha256Text } from "./hash";
 import { verifyBreakthroughAppendIntegrity } from "./integrity";
 import type { AssembledFixtureContext } from "./syntheticContext";
@@ -18,6 +23,7 @@ export type StagePromptPair = {
   standardPromptSha256: string;
   breakthroughPromptSha256: string;
   doctrineHash: string;
+  doctrineVersion: DoctrineVersion;
   resolvedModel: string;
   llmRole: string;
   integrityOk: boolean;
@@ -26,6 +32,7 @@ export type StagePromptPair = {
 
 export function assembleDeploymentStagePrompts(
   context: AssembledFixtureContext,
+  doctrineVersion: DoctrineVersion = "v1",
 ): StagePromptPair {
   const standardPrompt = assembleDeploymentAssetsPrompt({
     bundle: context.bundle,
@@ -38,11 +45,12 @@ export function assembleDeploymentStagePrompts(
     websiteIntelligence: context.websiteIntelligence,
   });
 
-  return finalizePair("deployment_assets", standardPrompt);
+  return finalizePair("deployment_assets", standardPrompt, doctrineVersion);
 }
 
 export function assembleStrategicStagePrompts(
   context: AssembledFixtureContext,
+  doctrineVersion: DoctrineVersion = "v1",
 ): StagePromptPair {
   const standardPrompt = assembleStrategicBlueprintPrompt({
     bundle: context.bundle,
@@ -53,18 +61,20 @@ export function assembleStrategicStagePrompts(
     regenerationRunId: `breakthrough-eval-${context.discussion.id}`,
   });
 
-  return finalizePair("strategic_blueprint", standardPrompt);
+  return finalizePair("strategic_blueprint", standardPrompt, doctrineVersion);
 }
 
 function finalizePair(
   stage: AthenaLLMStage,
   standardPrompt: string,
+  doctrineVersion: DoctrineVersion,
 ): StagePromptPair {
-  const doctrineText = loadFrozenDoctrine();
-  const doctrineSha = doctrineHash();
+  const doctrineText = loadFrozenDoctrine(process.cwd(), doctrineVersion);
+  const doctrineSha = doctrineHash(process.cwd(), doctrineVersion);
   const breakthroughPrompt = appendBreakthroughDoctrine(
     standardPrompt,
     doctrineText,
+    doctrineVersion,
   );
   const integrity = verifyBreakthroughAppendIntegrity({
     standardPrompt,
@@ -81,6 +91,7 @@ function finalizePair(
     standardPromptSha256: sha256Text(standardPrompt),
     breakthroughPromptSha256: sha256Text(breakthroughPrompt),
     doctrineHash: doctrineSha,
+    doctrineVersion,
     resolvedModel: route.model,
     llmRole: route.role,
     integrityOk: integrity.ok,

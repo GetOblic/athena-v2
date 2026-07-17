@@ -3,7 +3,7 @@
  */
 
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, before } from "node:test";
 
@@ -20,13 +20,21 @@ describe("Breakthrough evaluation harness", () => {
   let appendBreakthroughDoctrine: typeof import("../../scripts/evaluation/breakthrough/src/doctrine").appendBreakthroughDoctrine;
   let loadFrozenDoctrine: typeof import("../../scripts/evaluation/breakthrough/src/doctrine").loadFrozenDoctrine;
   let resetDoctrineCacheForTests: typeof import("../../scripts/evaluation/breakthrough/src/doctrine").resetDoctrineCacheForTests;
+  let assertDoctrineFilePinned: typeof import("../../scripts/evaluation/breakthrough/src/doctrine").assertDoctrineFilePinned;
   let verifyBreakthroughAppendIntegrity: typeof import("../../scripts/evaluation/breakthrough/src/integrity").verifyBreakthroughAppendIntegrity;
   let loadProspectFixtures: typeof import("../../scripts/evaluation/breakthrough/src/fixtures").loadProspectFixtures;
   let assembleDeploymentStagePrompts: typeof import("../../scripts/evaluation/breakthrough/src/assemble").assembleDeploymentStagePrompts;
   let assembleStrategicStagePrompts: typeof import("../../scripts/evaluation/breakthrough/src/assemble").assembleStrategicStagePrompts;
   let buildSyntheticContextFromFixture: typeof import("../../scripts/evaluation/breakthrough/src/syntheticContext").buildSyntheticContextFromFixture;
   let PILOT_ASSET_KEYS: typeof import("../../scripts/evaluation/breakthrough/src/constants").PILOT_ASSET_KEYS;
+  let PINNED_DOCTRINE_V1_SHA256: typeof import("../../scripts/evaluation/breakthrough/src/constants").PINNED_DOCTRINE_V1_SHA256;
+  let PINNED_DOCTRINE_V2_SHA256: typeof import("../../scripts/evaluation/breakthrough/src/constants").PINNED_DOCTRINE_V2_SHA256;
+  let FOCUSED_BASELINE_RUN_ID: typeof import("../../scripts/evaluation/breakthrough/src/constants").FOCUSED_BASELINE_RUN_ID;
   let sha256Text: typeof import("../../scripts/evaluation/breakthrough/src/hash").sha256Text;
+  let sha256FileBytes: typeof import("../../scripts/evaluation/breakthrough/src/hash").sha256FileBytes;
+  let getFocusedV2Pairs: typeof import("../../scripts/evaluation/breakthrough/src/focusedPairs").getFocusedV2Pairs;
+  let FOCUSED_V2_PAIR_IDS: typeof import("../../scripts/evaluation/breakthrough/src/focusedPairs").FOCUSED_V2_PAIR_IDS;
+  let loadAllFocusedStandardBaselines: typeof import("../../scripts/evaluation/breakthrough/src/baselines").loadAllFocusedStandardBaselines;
 
   before(async () => {
     const doctrine = await import(
@@ -48,10 +56,17 @@ describe("Breakthrough evaluation harness", () => {
       "../../scripts/evaluation/breakthrough/src/constants"
     );
     const hash = await import("../../scripts/evaluation/breakthrough/src/hash");
+    const focused = await import(
+      "../../scripts/evaluation/breakthrough/src/focusedPairs"
+    );
+    const baselines = await import(
+      "../../scripts/evaluation/breakthrough/src/baselines"
+    );
 
     appendBreakthroughDoctrine = doctrine.appendBreakthroughDoctrine;
     loadFrozenDoctrine = doctrine.loadFrozenDoctrine;
     resetDoctrineCacheForTests = doctrine.resetDoctrineCacheForTests;
+    assertDoctrineFilePinned = doctrine.assertDoctrineFilePinned;
     verifyBreakthroughAppendIntegrity =
       integrity.verifyBreakthroughAppendIntegrity;
     loadProspectFixtures = fixtures.loadProspectFixtures;
@@ -60,7 +75,14 @@ describe("Breakthrough evaluation harness", () => {
     buildSyntheticContextFromFixture =
       synthetic.buildSyntheticContextFromFixture;
     PILOT_ASSET_KEYS = constants.PILOT_ASSET_KEYS;
+    PINNED_DOCTRINE_V1_SHA256 = constants.PINNED_DOCTRINE_V1_SHA256;
+    PINNED_DOCTRINE_V2_SHA256 = constants.PINNED_DOCTRINE_V2_SHA256;
+    FOCUSED_BASELINE_RUN_ID = constants.FOCUSED_BASELINE_RUN_ID;
     sha256Text = hash.sha256Text;
+    sha256FileBytes = hash.sha256FileBytes;
+    getFocusedV2Pairs = focused.getFocusedV2Pairs;
+    FOCUSED_V2_PAIR_IDS = focused.FOCUSED_V2_PAIR_IDS;
+    loadAllFocusedStandardBaselines = baselines.loadAllFocusedStandardBaselines;
   });
 
   it("loads 8 synthetic fixtures and 10 pilot assets", () => {
@@ -70,11 +92,34 @@ describe("Breakthrough evaluation harness", () => {
     assert.ok(fixtures.every((fixture) => fixture.notes.includes("Synthetic")));
   });
 
+  it("preserves K v1 and pins distinct non-empty K v2", () => {
+    const v1Path = join(
+      ROOT,
+      "scripts/evaluation/breakthrough/doctrine/breakthrough_doctrine.v1.txt",
+    );
+    const v2Path = join(
+      ROOT,
+      "scripts/evaluation/breakthrough/doctrine/breakthrough_doctrine.v2.txt",
+    );
+    assert.ok(existsSync(v1Path));
+    assert.ok(existsSync(v2Path));
+    assert.ok(statSync(v2Path).size > 0);
+
+    const v1Pinned = assertDoctrineFilePinned("v1");
+    const v2Pinned = assertDoctrineFilePinned("v2");
+    assert.equal(v1Pinned.sha256, PINNED_DOCTRINE_V1_SHA256);
+    assert.equal(v2Pinned.sha256, PINNED_DOCTRINE_V2_SHA256);
+    assert.equal(sha256FileBytes(v1Path), PINNED_DOCTRINE_V1_SHA256);
+    assert.equal(sha256FileBytes(v2Path), PINNED_DOCTRINE_V2_SHA256);
+    assert.notEqual(PINNED_DOCTRINE_V1_SHA256, PINNED_DOCTRINE_V2_SHA256);
+    assert.notEqual(readFileSync(v1Path, "utf8"), readFileSync(v2Path, "utf8"));
+  });
+
   it("appends doctrine once and keeps Standard clean", () => {
     resetDoctrineCacheForTests();
-    const doctrine = loadFrozenDoctrine();
+    const doctrine = loadFrozenDoctrine(ROOT, "v1");
     const standard = "STANDARD_PROMPT_BODY\n=== REQUIRED OUTPUT ===\n";
-    const breakthrough = appendBreakthroughDoctrine(standard, doctrine);
+    const breakthrough = appendBreakthroughDoctrine(standard, doctrine, "v1");
     const integrity = verifyBreakthroughAppendIntegrity({
       standardPrompt: standard,
       breakthroughPrompt: breakthrough,
@@ -86,6 +131,28 @@ describe("Breakthrough evaluation harness", () => {
     assert.match(breakthrough, /ATHENA BREAKTHROUGH DOCTRINE/);
     assert.equal(
       breakthrough.split("=== ATHENA BREAKTHROUGH DOCTRINE ===").length - 1,
+      1,
+    );
+  });
+
+  it("appends K v2 exactly once for Breakthrough and never to Standard", () => {
+    resetDoctrineCacheForTests();
+    const fixture = loadProspectFixtures()[0];
+    assert.ok(fixture);
+    const context = buildSyntheticContextFromFixture(fixture);
+    const deployment = assembleDeploymentStagePrompts(context, "v2");
+    assert.equal(deployment.doctrineVersion, "v2");
+    assert.equal(deployment.doctrineHash, PINNED_DOCTRINE_V2_SHA256);
+    assert.equal(deployment.integrityOk, true, deployment.integrityErrors.join("; "));
+    assert.doesNotMatch(
+      deployment.standardPrompt,
+      /ATHENA BREAKTHROUGH DOCTRINE/,
+    );
+    assert.match(deployment.breakthroughPrompt, /Premise Test/);
+    assert.match(deployment.breakthroughPrompt, /Zero-fabrication/);
+    assert.equal(
+      deployment.breakthroughPrompt.split("=== ATHENA BREAKTHROUGH DOCTRINE ===")
+        .length - 1,
       1,
     );
   });
@@ -120,9 +187,53 @@ describe("Breakthrough evaluation harness", () => {
 
   it("refuses double-append", () => {
     resetDoctrineCacheForTests();
-    const doctrine = loadFrozenDoctrine();
-    const once = appendBreakthroughDoctrine("BASE\n", doctrine);
-    assert.throws(() => appendBreakthroughDoctrine(once, doctrine));
+    const doctrine = loadFrozenDoctrine(ROOT, "v2");
+    const once = appendBreakthroughDoctrine("BASE\n", doctrine, "v2");
+    assert.throws(() => appendBreakthroughDoctrine(once, doctrine, "v2"));
+  });
+
+  it("focused selection is exactly 32 unique pairs with Standard baselines", () => {
+    assert.equal(FOCUSED_V2_PAIR_IDS.length, 32);
+    const pairs = getFocusedV2Pairs();
+    assert.equal(pairs.length, 32);
+    assert.equal(new Set(pairs.map((pair) => pair.pairId)).size, 32);
+
+    const baselineRoot = join(
+      ROOT,
+      "scripts/evaluation/breakthrough/out",
+      FOCUSED_BASELINE_RUN_ID,
+    );
+    assert.ok(
+      existsSync(baselineRoot),
+      `Frozen baseline run missing: ${FOCUSED_BASELINE_RUN_ID}`,
+    );
+
+    const baselines = loadAllFocusedStandardBaselines(pairs);
+    assert.equal(baselines.length, 32);
+    for (const baseline of baselines) {
+      assert.ok(baseline.standardText.trim().length > 0);
+      assert.equal(baseline.baselineRunId, FOCUSED_BASELINE_RUN_ID);
+      assert.ok(baseline.resolvedModel.length > 0);
+      assert.ok(baseline.standardPromptSha256.length === 64);
+      assert.equal(baseline.integrityOk, true);
+    }
+  });
+
+  it("focused mode source does not invoke Standard generation", () => {
+    const runSource = read("scripts/evaluation/breakthrough/src/run.ts");
+    assert.match(runSource, /--focused-v2/);
+    assert.match(runSource, /focused-v2-validate/);
+    assert.match(runSource, /standardRegenerated: false/);
+    // Within focused path, Standard generateStageOutput mode must not be requested.
+    const focusedFn = runSource.slice(
+      runSource.indexOf("async function runFocusedV2"),
+      runSource.indexOf("async function runClassic"),
+    );
+    assert.doesNotMatch(
+      focusedFn,
+      /generateStageOutput\(\{[\s\S]*mode:\s*"standard"/,
+    );
+    assert.match(focusedFn, /mode:\s*"breakthrough"/);
   });
 
   it("remains isolated from production entrypoints", () => {

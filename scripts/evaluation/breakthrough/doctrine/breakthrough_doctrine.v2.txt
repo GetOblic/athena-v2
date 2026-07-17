@@ -1,0 +1,37 @@
+ATHENA BREAKTHROUGH DOCTRINE
+(generationMode=breakthrough; append once per applicable model request/stage — never once per asset inside a multi-asset prompt. Standard mode: omit entirely.)
+
+Goal: different THINKING, not different wording. Challenge the obvious competent answer; deliver a more ownable, insightful, differentiated answer that remains deployable and contract-perfect.
+
+Silently before writing (do not print analysis, scores, or reasoning):
+1) Conventional Territory  2) Saturated Patterns for this category×channel×asset
+3) Hidden Tension in the evidence  4) Ownable Insight specific to THIS prospect/brand/audience/objective
+5) Premise Test — is this a materially different insight, framing, decision logic, or strategic tension than the competent conventional answer? If the premise is substantially the same, reconsider the CONCEPT (same response). Tone shifts, sharper hooks, shorter copy, vivid phrasing, new metaphors, reordered evidence, or polish alone fail this test.
+6) Creative Territory — distinctive yet immediately clear  7) Commercial Reality — deployable now
+8) Premium Test — senior strategy, not AI novelty  9) Memorability Test — distinctive after first impression
+10) Evidence & Contract Check — zero unsupported factual claims; sparse-evidence humility if thin; schema/format complete
+If a mandatory quality bar would fail, silently reconsider the concept within this same response, then output only the strongest contract-compliant direction. Do not request another call. Do not print deliberation.
+
+Originality: prioritize conceptual/strategic novelty. Execution novelty may help. Cosmetic novelty alone fails.
+Ownability: if unrelated businesses could reuse this with only the name changed, reject and regenerate the CONCEPT (same response). Prefer a different strategic premise over a restyled conventional premise.
+
+Zero-fabrication: never invent statistics, percentages, customer counts, conversion rates, financial values, benchmark numbers, research findings, causal claims, named patterns presented as observed fact, operational quantities, customer-behavior claims, performance outcomes, or case-study results unless explicitly present in the supplied evidence. “Plausible” is not evidence. If a number, result, pattern, or causal statement is not explicitly supported, omit it or frame it only as a hypothesis, question, or possible interpretation—never as fact.
+
+Sparse-evidence protocol: when evidence is thin, reduce claim density; avoid implied diagnosis, invented pain points, inferred customer psychology, and precise differentiation claims; use careful observational language; distinguish known facts from interpretation; prefer a narrower honest insight over a richer unsupported concept. Breakthrough must not compensate for weak evidence with creativity. Principle: the less evidence available, the lower the factual specificity and the higher the epistemic humility.
+
+Reject: generic; cliché-dependent; superficially contrarian; random/eccentric; overwritten; metaphor without strategy; decorative emptiness; unrealistic; fabricated facts/stats/quotes/psychology/competitor claims/results; merely louder/edgier than a standard answer; style-only variation of the same premise; any contract break.
+
+Clichés: dynamically avoid category×channel tropes. Suspect unless necessary AND transformed into an ownable execution: funnels, rockets, lightbulbs, puzzles, chess pieces, generic pathways, before/after splits, floating icons, circular process diagrams, generic dashboards, handshakes, growth arrows, generic inspirational hooks, “game-changer,” empty “AI-powered” claims.
+
+Package diversity (stage-aware):
+- Within this multi-asset batch: do not repeat the same central metaphor, hook, structure, visual territory, or CTA logic. Do not force every asset into the same emotional treatment/intensity when channel and purpose call for different execution. Keep brand voice coherent; vary expression, pacing, emphasis, and channel treatment.
+- Across stages: also avoid duplication with prior generated assets only if those assets (or compact summaries) are present in context. Do not claim awareness of assets not provided.
+
+Evidence: inventing facts is not originality. Infer only when tightly warranted by supplied evidence; do not fabricate. Preserve uncertainty when evidence is thin.
+Tone: originality is not a tone preset. Do not default to provocative, poetic, cinematic, luxurious, or aggressive. Follow brand voice + channel + asset purpose.
+
+Contract lock: never change required headings, labels, JSON fields/schemas, formats, limits, compliance, or grounding rules. Creativity operates inside the contract.
+Structured-output lock (when JSON or a fixed schema is required): emit valid parseable JSON; include every required field; use exact required keys; no renamed keys; no empty required values; no omitted assets; no truncated structures; no prose outside the schema; no markdown fences unless explicitly required; no commentary before or after the output. Silently before submitting a structured response, verify syntax, required keys, non-empty required values, and exact schema compliance. This is an in-response check only—not an orchestration retry.
+
+Axioms: Unexpected ≠ random. Original ≠ obscure. Premium ≠ verbose. Contrarian ≠ false. Creative ≠ impractical. Different wording ≠ different thinking. Plausible ≠ proven.
+Output only the required asset format for this request.

@@ -2,7 +2,22 @@
 
 export const HARNESS_VERSION = "breakthrough-eval-harness-v1";
 
-export const DOCTRINE_FILENAME = "breakthrough_doctrine.v1.txt";
+export type DoctrineVersion = "v1" | "v2";
+
+export const DOCTRINE_V1_FILENAME = "breakthrough_doctrine.v1.txt";
+export const DOCTRINE_V2_FILENAME = "breakthrough_doctrine.v2.txt";
+
+/** @deprecated Prefer DOCTRINE_V1_FILENAME / versioned loaders. */
+export const DOCTRINE_FILENAME = DOCTRINE_V1_FILENAME;
+
+/** Exact file-byte SHA256 pins (not normalized text). */
+export const PINNED_DOCTRINE_V1_SHA256 =
+  "33e812e3760e0d814e4f28872ac0c7f8b9836da28dff9dda49d0028bc1be0082";
+export const PINNED_DOCTRINE_V2_SHA256 =
+  "240d63a93368cb72c2d1c6d3eeb54f59200ec0ab0d84d24e646c23e74c72bf35";
+
+/** Frozen original full-pilot run used as Standard baseline for focused re-test. */
+export const FOCUSED_BASELINE_RUN_ID = "run_2026-07-17T20-53-15-237Z";
 
 /** Delimiter between Standard assembly and Breakthrough doctrine append. */
 export const DOCTRINE_APPEND_DELIMITER = "\n\n=== ATHENA BREAKTHROUGH DOCTRINE ===\n\n";

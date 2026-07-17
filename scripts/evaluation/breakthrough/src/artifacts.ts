@@ -41,6 +41,7 @@ export function writeStagePrompts(input: {
         standardPromptSha256: input.pair.standardPromptSha256,
         breakthroughPromptSha256: input.pair.breakthroughPromptSha256,
         doctrineHash: input.pair.doctrineHash,
+        doctrineVersion: input.pair.doctrineVersion,
         resolvedModel: input.pair.resolvedModel,
         llmRole: input.pair.llmRole,
         integrityOk: input.pair.integrityOk,
