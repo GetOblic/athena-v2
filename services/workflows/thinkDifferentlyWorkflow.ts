@@ -232,6 +232,7 @@ export async function processThinkDifferentlyWorkflow(input: {
       blueprintId: newBlueprint.id,
       requireProspectCompleteness: isProspectIntelligenceBridge(discussion),
       forceNewVersion: true,
+      generationMode: "think_differently",
     });
 
     if (!published) {

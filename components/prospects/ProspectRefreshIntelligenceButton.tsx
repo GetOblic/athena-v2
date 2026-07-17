@@ -137,9 +137,14 @@ export function ProspectRefreshIntelligenceButton({
           type="button"
           onClick={() => void queueAction("think_differently")}
           disabled={busy}
-          className="inline-flex items-center justify-center rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white/90 transition hover:border-[var(--athena-orange)]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center justify-center rounded-full border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-6 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {thinkingDifferently ? <ButtonSpinner /> : null}
+          {thinkingDifferently ? (
+            <span
+              className="mr-2 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--athena-success)]/30 border-t-[var(--athena-success)]"
+              aria-hidden="true"
+            />
+          ) : null}
           {thinkingDifferently ? "Thinking Differently…" : "Think Differently"}
         </button>
       </div>

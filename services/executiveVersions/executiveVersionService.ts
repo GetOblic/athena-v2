@@ -166,6 +166,8 @@ async function insertExecutiveVersion(input: {
   reviewId?: string | null;
   blueprintId?: string | null;
   generatedAt?: string;
+  /** Explicit Think Differently marker embedded in the intelligence snapshot. */
+  generationMode?: ExecutiveIntelligencePayload["generationMode"];
 }): Promise<ExecutiveIntelligenceVersion> {
   const metadata = buildExecutiveVersionGenerationMetadata();
   const versionNumber = await getNextVersionNumber(
@@ -175,6 +177,17 @@ async function insertExecutiveVersion(input: {
 
   if (input.markCurrent) {
     await clearCurrentFlag(input.discussionId, input.organizationId);
+  }
+
+  const intelligenceSnapshot: ExecutiveIntelligencePayload = {
+    ...input.intelligence,
+    ...(input.generationMode === "think_differently"
+      ? { generationMode: "think_differently" as const }
+      : {}),
+  };
+  // Standard publication must not carry a Think Differently marker.
+  if (input.generationMode !== "think_differently") {
+    delete intelligenceSnapshot.generationMode;
   }
 
   const { data, error } = await supabaseAdmin
@@ -203,7 +216,7 @@ async function insertExecutiveVersion(input: {
       review_id: input.reviewId ?? input.intelligence.briefing?.id ?? null,
       blueprint_id:
         input.blueprintId ?? input.intelligence.blueprint?.id ?? null,
-      intelligence: input.intelligence,
+      intelligence: intelligenceSnapshot,
     })
     .select("*")
     .single();
@@ -275,6 +288,8 @@ export async function publishExecutiveIntelligenceVersion(input: {
    * Required for Think Differently (same upstream analysis, new blueprint + assets).
    */
   forceNewVersion?: boolean;
+  /** Persisted on the version intelligence snapshot for Think Differently tagging. */
+  generationMode?: ExecutiveIntelligencePayload["generationMode"];
 }): Promise<ExecutiveIntelligenceVersion | null> {
   const intelligence = await loadLiveExecutiveIntelligence(
     input.discussionId,
@@ -353,6 +368,7 @@ export async function publishExecutiveIntelligenceVersion(input: {
     opportunityId: input.opportunityId ?? intelligence.opportunity?.id ?? null,
     reviewId: input.reviewId ?? intelligence.briefing?.id ?? null,
     blueprintId: input.blueprintId ?? intelligence.blueprint?.id ?? null,
+    generationMode: input.generationMode,
   });
 }
 

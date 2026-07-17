@@ -10,6 +10,9 @@ export const EXECUTIVE_INTELLIGENCE_PIPELINE_VERSION =
 /** Routing profile label shown in executive version metadata. */
 export const EXECUTIVE_ROUTING_PROFILE_PREMIUM_V2 = "Premium V2";
 
+/** Explicit Think Differently marker persisted on the version intelligence snapshot. */
+export type ExecutiveVersionGenerationMode = "think_differently";
+
 /**
  * Complete immutable executive intelligence captured at publish time.
  * Structured for future side-by-side comparison, diffs, and analytics.
@@ -19,6 +22,12 @@ export type ExecutiveIntelligencePayload = {
   opportunity: Opportunity | null;
   briefing: AthenaReview | null;
   blueprint: AthenaAssetBlueprint | null;
+  /**
+   * Present only for Think Differently publications.
+   * Absent / undefined means Standard Generate Intelligence.
+   * Persisted inside the existing intelligence JSONB snapshot (no migration).
+   */
+  generationMode?: ExecutiveVersionGenerationMode;
 };
 
 export type ExecutiveVersionReasoningEffort = Record<string, string>;
@@ -56,3 +65,10 @@ export type ExecutiveVersionSummary = {
   routing_profile: string | null;
   generation_duration_ms: number | null;
 };
+
+/** True when the version was published through Think Differently. */
+export function isThinkDifferentlyExecutiveVersion(
+  version: Pick<ExecutiveIntelligenceVersion, "intelligence">,
+): boolean {
+  return version.intelligence?.generationMode === "think_differently";
+}

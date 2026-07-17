@@ -349,6 +349,9 @@ export function resolveVersionIntelligenceForDisplay(
     opportunity: snapshot.opportunity,
     briefing,
     blueprint,
+    ...(snapshot.generationMode === "think_differently"
+      ? { generationMode: "think_differently" as const }
+      : {}),
   };
 }
 

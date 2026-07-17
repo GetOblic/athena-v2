@@ -39,7 +39,7 @@ describe("Think Differently Phase 2 — mode + instruction", () => {
       once.split(THINK_DIFFERENTLY_INSTRUCTION_MARKER).length - 1,
       1,
     );
-    assert.match(once, /materially different strategic direction/);
+    assert.match(once, /materially different strategic thesis/);
     assert.doesNotMatch(once, /be creative/i);
     assert.throws(() => appendThinkDifferentlyInstruction(once));
   });
@@ -179,6 +179,18 @@ describe("Think Differently Phase 2 — prompt + routing isolation", () => {
     assert.ok(THINK_DIFFERENTLY_INSTRUCTION.includes(THINK_DIFFERENTLY_INSTRUCTION_MARKER));
     assert.match(THINK_DIFFERENTLY_INSTRUCTION, /same approved intelligence/);
     assert.match(THINK_DIFFERENTLY_INSTRUCTION, /Retain the required output contract/);
+    assert.match(
+      THINK_DIFFERENTLY_INSTRUCTION,
+      /deliberately question the assumptions/,
+    );
+    assert.match(
+      THINK_DIFFERENTLY_INSTRUCTION,
+      /second-most-obvious variation/,
+    );
+    assert.match(
+      THINK_DIFFERENTLY_INSTRUCTION,
+      /Do not treat a change in wording, channel, content format, tactic/,
+    );
     assert.doesNotMatch(THINK_DIFFERENTLY_INSTRUCTION, /doctrine/i);
   });
 });
@@ -251,6 +263,8 @@ describe("Think Differently Phase 2 — UI", () => {
     assert.match(thinkButton, /Think Differently/);
     assert.match(thinkButton, /Thinking Differently/);
     assert.match(thinkButton, /startThinkDifferently/);
+    assert.match(thinkButton, /--athena-success/);
+    assert.doesNotMatch(thinkButton, /--athena-orange/);
 
     const header = read("components/discussions/DiscussionHeaderActions.tsx");
     assert.match(header, /AnalyzeDiscussionButton/);
@@ -275,6 +289,8 @@ describe("Think Differently Phase 2 — UI", () => {
       /\/api\/prospects\/\$\{prospectId\}\/think-differently/,
     );
     assert.match(prospectButton, /disabled=\{busy\}/);
+    assert.match(prospectButton, /--athena-success/);
+    assert.match(prospectButton, /--athena-orange/);
   });
 });
 

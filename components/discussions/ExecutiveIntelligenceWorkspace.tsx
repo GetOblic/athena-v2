@@ -18,6 +18,7 @@ import type {
   ExecutiveIntelligenceVersion,
   ExecutiveVersionSummary,
 } from "@/services/executiveVersions/executiveVersionTypes";
+import { isThinkDifferentlyExecutiveVersion } from "@/services/executiveVersions/executiveVersionTypes";
 import { normalizeAnalysisForDisplay } from "@/services/executiveVersions/analysisNormalization";
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
@@ -466,6 +467,11 @@ export function ExecutiveIntelligenceWorkspace({
                               Archived
                             </span>
                           )}
+                          {isThinkDifferentlyExecutiveVersion(version) ? (
+                            <span className="rounded-full border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--athena-success)]">
+                              Think Differently
+                            </span>
+                          ) : null}
                         </div>
 
                         <div className="mt-3 space-y-1 text-sm text-white/45">
