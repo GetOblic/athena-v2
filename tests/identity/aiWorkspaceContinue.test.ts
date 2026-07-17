@@ -187,6 +187,21 @@ describe("Asset Continue — UI wiring", () => {
     assert.match(copy, /Copied/);
   });
 
+  it("Continue uses Workflow Progress success green tokens; Copy stays orange", () => {
+    const continueBtn = read("components/deployment/ContinueButton.tsx");
+    const copy = read("components/deployment/CopyButton.tsx");
+    const workflow = read("components/discussions/DiscussionWorkflowStrip.tsx");
+    assert.match(
+      workflow,
+      /bg-\[var\(--athena-success\)\]\/15 text-\[var\(--athena-success\)\]/,
+    );
+    assert.match(continueBtn, /bg-\[var\(--athena-success\)\]\/15/);
+    assert.match(continueBtn, /text-\[var\(--athena-success\)\]/);
+    assert.match(continueBtn, /border-\[var\(--athena-success\)\]\/30/);
+    assert.match(copy, /text-\[var\(--athena-orange\)\]/);
+    assert.match(copy, /bg-\[var\(--athena-orange\)\]\/10/);
+  });
+
   it("Copy behavior remains on CopyButton writeClipboardText path", () => {
     const copy = read("components/deployment/CopyButton.tsx");
     assert.match(copy, /writeClipboardText/);

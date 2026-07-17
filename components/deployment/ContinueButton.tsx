@@ -55,7 +55,7 @@ export function ContinueButton({
         type="button"
         onClick={() => void handleContinue()}
         aria-label="Continue in external workspace"
-        className="rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/[0.08]"
+        className="rounded-xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-4 py-2 text-sm font-medium text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50"
         style={{ minWidth: "5.5rem" }}
       >
         Continue
