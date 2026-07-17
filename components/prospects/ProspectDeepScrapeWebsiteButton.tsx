@@ -37,12 +37,24 @@ export function ProspectDeepScrapeWebsiteButton(props: {
 }) {
   const router = useRouter();
   const [available, setAvailable] = useState(props.initiallyAvailable);
+  const [syncedInitiallyAvailable, setSyncedInitiallyAvailable] = useState(
+    props.initiallyAvailable,
+  );
   const [isActive, setIsActive] = useState(false);
   const [label, setLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [queuing, setQueuing] = useState(false);
   const [lastAt, setLastAt] = useState<string | null>(null);
   const [lastPages, setLastPages] = useState<number | null>(null);
+
+  // After generation, router.refresh() delivers initiallyAvailable=true without remounting.
+  // Promote only false → true during render so a stale prop cannot hide a visible button.
+  if (props.initiallyAvailable !== syncedInitiallyAvailable) {
+    setSyncedInitiallyAvailable(props.initiallyAvailable);
+    if (props.initiallyAvailable) {
+      setAvailable(true);
+    }
+  }
 
   const refreshStatus = useCallback(async () => {
     try {

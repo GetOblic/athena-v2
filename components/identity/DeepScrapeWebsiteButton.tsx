@@ -38,6 +38,9 @@ export function DeepScrapeWebsiteButton(props: {
 }) {
   const router = useRouter();
   const [available, setAvailable] = useState(props.initiallyAvailable);
+  const [syncedInitiallyAvailable, setSyncedInitiallyAvailable] = useState(
+    props.initiallyAvailable,
+  );
   const [isActive, setIsActive] = useState(false);
   const [label, setLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +51,14 @@ export function DeepScrapeWebsiteButton(props: {
   const [lastPages, setLastPages] = useState<number | null>(
     props.initialLastDeepScrapePages ?? null,
   );
+
+  // Soft refresh can flip initiallyAvailable without remounting. Promote only false → true.
+  if (props.initiallyAvailable !== syncedInitiallyAvailable) {
+    setSyncedInitiallyAvailable(props.initiallyAvailable);
+    if (props.initiallyAvailable) {
+      setAvailable(true);
+    }
+  }
 
   const refreshStatus = useCallback(async () => {
     try {
