@@ -222,7 +222,7 @@ describe("Client Brand Identity — logo storage isolation", () => {
 });
 
 describe("Client Brand Identity — no intelligence consumption", () => {
-  it("Brain/worker modules do not consume brand fields", () => {
+  it("Brain/worker modules do not consume brand fields outside visual Deployment Assets", () => {
     const forbiddenRoots = [
       "services/brain",
       "services/generationJobs",
@@ -230,9 +230,15 @@ describe("Client Brand Identity — no intelligence consumption", () => {
       "services/assetBlueprints",
       "workers",
     ];
+    // Visual Deployment Assets intentionally consume OrganizationBrandIdentity
+    // as creative direction (not Master Brain compile / EV persistence).
+    const allowlisted = new Set([
+      "services/brain/generationContracts/deploymentAssetsPromptAssembly.ts",
+    ]);
     const hits: string[] = [];
     for (const root of forbiddenRoots) {
       for (const file of listTsFiles(root)) {
+        if (allowlisted.has(file)) continue;
         const source = read(file);
         if (
           /brand_primary_color|brand_logo_storage_path|brand_profile_picture_storage_path|brand_font|updateOrganizationBrandIdentity|OrganizationBrandIdentity/.test(

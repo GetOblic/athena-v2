@@ -88,9 +88,16 @@ const RAW_JSON_ASSET_OBJECT_KEYS = [
   "BLOG_POST_IDEA",
   "WHATSAPP_OUTREACH",
   "KNOWLEDGE_BASE_ENHANCEMENT",
+  "HIDDEN_GEMS",
   "SUBSTACK_POST",
+  "SUBSTACK_NOTE",
   "REDDIT_POST",
+  "SKOOL_POST",
+  "SKOOL_COURSE_IDEA",
   "SOCIAL_VOICE_POST",
+  "SHORT_VIDEO_PROMPT",
+  "VISUAL_MESSAGE_PROMPT",
+  "LOCAL_OUTREACH_IMAGE_PROMPT",
   "COLD_EMAIL",
   "OBJECTION_HANDLING",
   "COMMUNITY_REPLY",
@@ -342,6 +349,9 @@ export function resolveVersionIntelligenceForDisplay(
     opportunity: snapshot.opportunity,
     briefing,
     blueprint,
+    ...(snapshot.generationMode === "think_differently"
+      ? { generationMode: "think_differently" as const }
+      : {}),
   };
 }
 

@@ -54,3 +54,75 @@ Rules for Knowledge Base Enhancement:
 - Omit navigation filler, social links, CTAs, forms, and promotional language.
 - If Prospect information is sparse, produce a shorter factual package — do not fabricate structure fillers.
 `.trim();
+
+/**
+ * Expanded Knowledge Base contract when Deep Website Intelligence (deep_v1) is available.
+ * Still factual-only; never invent. Bound length but materially richer than ordinary KB.
+ */
+export const KNOWLEDGE_BASE_DEEP_SCRAPE_GENERATION_RULES = `
+KNOWLEDGE BASE ENHANCEMENT formatting for Deep Website Intelligence prospects
+(always generate this heading; use Unknown or Unverified Information for gaps):
+KNOWLEDGE_BASE_ENHANCEMENT:
+## Business Overview
+- [verified facts from deep website intelligence + prospect metadata]
+
+## Leadership / Practitioners
+- [people, roles, credentials — unknown if not verified]
+
+## Services and Treatments
+- [offerings, modalities, packages — from deep intelligence / site pages]
+
+## Target Clients
+- [who they serve — only if evidenced]
+
+## Problems Addressed
+- [problems the business solves — only if evidenced]
+
+## Methodology / Process
+- [how delivery works — only if evidenced]
+
+## Differentiators
+- [explicit differentiators only]
+
+## Credibility and Evidence
+- [reviews, case studies, credentials, years — only if evidenced]
+
+## Location and Service Area
+- [locations, catchment, remote options]
+
+## Contact and Booking Details
+- [phone, email, booking path, hours]
+
+## Frequently Asked Questions
+- [FAQ content from deep intelligence]
+
+## Common Concerns / Objections
+- [only if evidenced in source material]
+
+## Key Messaging and Positioning
+- [positioning language grounded in deep intelligence]
+
+## Important Operational Details
+- [pricing signals, consult process, aftercare, restrictions]
+
+## Unknown or Unverified Information
+- [explicit list of missing facts — never invent fillers]
+
+## Source Coverage Summary
+- [pages_analyzed / crawl summary when available; note homepage-only if applicable]
+
+Deep Knowledge Base rules:
+- Derive ONLY from Prospect metadata, Discussion bridge content, homepage intelligence, and Deep Website Intelligence (provider deep_v1).
+- Do not invent claims. Label unknowns under Unknown or Unverified Information.
+- This asset may be materially longer than ordinary optional Knowledge Base output, but stay within a bounded practical ceiling suitable for AI receptionist / sales / content use.
+- Preserve concise bullet formatting; prefer coverage over marketing tone.
+- Do not force this expanded length for prospects without deep_v1 website intelligence.
+`.trim();
+
+export function isDeepV1WebsiteIntelligenceProvider(
+  value: unknown,
+): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const provider = (value as Record<string, unknown>).provider;
+  return provider === "deep_v1";
+}

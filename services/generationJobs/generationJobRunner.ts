@@ -30,13 +30,18 @@ async function coalesceIntoActiveJob(
   existing: AthenaGenerationJob,
   organizationId: string,
   discussionId: string,
+  progress?: Record<string, unknown> | null,
 ): Promise<EnqueueGenerationJobResult> {
   // Keep retryable/queued/processing as the single active intent.
-  // Any new executive action (Refresh / Append / Import) must set the
-  // durable follow-up marker so it is not silently lost.
+  // Any new executive action (Refresh / Append / Import / Think Differently)
+  // must set the durable follow-up marker so it is not silently lost.
   let followUpRequested = false;
   if (shouldRequestFollowUpWhenActiveJobExists()) {
-    await markDiscussionPendingGenerationFollowUp(discussionId, organizationId);
+    await markDiscussionPendingGenerationFollowUp(
+      discussionId,
+      organizationId,
+      progress ?? null,
+    );
     followUpRequested = true;
   }
 
@@ -65,6 +70,8 @@ export async function enqueueDiscussionGenerationJob(input: {
    * Kept for call-site compatibility.
    */
   requestFollowUpIfActive?: boolean;
+  /** Optional job progress intent (e.g. Think Differently pipeline). */
+  progress?: Record<string, unknown> | null;
 }): Promise<EnqueueGenerationJobResult> {
   const existing = await getActiveGenerationJobForDiscussion(
     input.discussionId,
@@ -80,6 +87,7 @@ export async function enqueueDiscussionGenerationJob(input: {
       existing,
       input.organizationId,
       input.discussionId,
+      input.progress,
     );
   }
 
@@ -93,6 +101,7 @@ export async function enqueueDiscussionGenerationJob(input: {
       triggerType: input.triggerType,
       requestedBy: input.requestedBy,
       regenerationRunId,
+      progress: input.progress ?? {},
     });
 
     return {
@@ -109,6 +118,7 @@ export async function enqueueDiscussionGenerationJob(input: {
         error.existingJob,
         input.organizationId,
         input.discussionId,
+        input.progress,
       );
     }
     throw error;
@@ -118,9 +128,4 @@ export async function enqueueDiscussionGenerationJob(input: {
 /** @deprecated Recovery must be performed by athena-worker, not the web app. */
 export async function ensureDiscussionGenerationJobRunning(): Promise<null> {
   return null;
-}
-
-/** @deprecated after() scheduling removed — athena-worker claims jobs. */
-export function scheduleGenerationJobExecution(): void {
-  // no-op retained for compile safety during migration
 }

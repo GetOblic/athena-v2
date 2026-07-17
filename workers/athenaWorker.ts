@@ -11,6 +11,11 @@ import {
   getAthenaWorkerConfig,
   resetAthenaWorkerConfigCache,
 } from "@/services/generationJobs/generationJobWorkerConfig";
+import { logChromiumAvailabilityAtStartup } from "@/services/websiteLearning/deepScrape/crawler/chromiumCheck";
+import {
+  claimAndExecuteNextDeepScrapeJob,
+  reconcileAwaitingFollowOnJobs,
+} from "@/services/websiteLearning/deepScrape/deepScrapeExecutor";
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -53,6 +58,9 @@ async function main(): Promise<void> {
     concurrency: config.concurrency,
   });
 
+  // Soft check — Cheerio path still works if Chromium is missing.
+  await logChromiumAvailabilityAtStartup();
+
   const beginShutdown = (signal: string) => {
     if (stopping) {
       return;
@@ -66,6 +74,10 @@ async function main(): Promise<void> {
 
   while (!stopping) {
     try {
+      // Finalize Prospect deep-scrape jobs waiting on generation (non-blocking).
+      await reconcileAwaitingFollowOnJobs();
+
+      // Process generation jobs first so Prospect deep-scrape follow-ons are not starved.
       const work = claimAndExecuteNextJob(workerId, {
         shouldStop: () => stopping,
       });
@@ -73,7 +85,18 @@ async function main(): Promise<void> {
       const didWork = await work;
       currentWork = null;
 
-      if (!didWork) {
+      if (didWork) {
+        continue;
+      }
+
+      const deepWork = claimAndExecuteNextDeepScrapeJob(workerId, {
+        shouldStop: () => stopping,
+      });
+      currentWork = deepWork;
+      const didDeepWork = await deepWork;
+      currentWork = null;
+
+      if (!didDeepWork) {
         await sleep(config.pollIntervalMs);
       }
     } catch (error) {

@@ -9,7 +9,7 @@ function formatRequiredHeadingBlock(keys: readonly string[]): string {
   return keys.map((key) => `${key}:`).join("\n");
 }
 
-/** All Prospect Deployment Asset headings requested on every generation run (14 Ready + always-generate extras). */
+/** All Prospect Deployment Asset headings requested on every generation run (14 Ready + always-generate extras including visual prompts). */
 export function getProspectDeploymentGenerationHeadings(): string[] {
   return [
     ...REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS,

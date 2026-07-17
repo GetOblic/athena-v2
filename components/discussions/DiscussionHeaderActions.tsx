@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
+import { ThinkDifferentlyButton } from "@/components/discussions/ThinkDifferentlyButton";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type IntelligenceDomainOption = {
@@ -118,9 +119,11 @@ export function DiscussionHeaderActions({
       <div className="flex flex-wrap items-center justify-end gap-3">
         <AnalyzeDiscussionButton
           discussionId={discussion.id}
-          label="Refresh Intelligence"
+          label="Generate Intelligence"
           compact
         />
+
+        <ThinkDifferentlyButton compact />
 
         <button
           type="button"

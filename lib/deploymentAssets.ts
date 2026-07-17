@@ -62,6 +62,16 @@ const DISCUSSION_LABELS: Record<string, { title: string; objective: string }> = 
     objective:
       "Concept for the Athena client's audience blog — not a full article or prospect outreach.",
   },
+  SHORT_VIDEO_PROMPT: {
+    title: "Short Video Prompt",
+    objective:
+      "Paste-ready AI video generation prompt (~8s, cinematic, social-friendly).",
+  },
+  VISUAL_MESSAGE_PROMPT: {
+    title: "Visual Message Prompt",
+    objective:
+      "Paste-ready single-image AI generation prompt — one message, one emotion.",
+  },
 };
 
 const LABELS: Record<string, { title: string; objective: string }> = {
@@ -79,11 +89,31 @@ export function canonicalizeDeploymentAssetHeadings(text: string): string {
       /(^|\n)\s*KNOWLEDGE[\s_-]*BASE[\s_-]*ENHANCEMENT\s*:/gi,
       "$1KNOWLEDGE_BASE_ENHANCEMENT:",
     )
+    .replace(/(^|\n)\s*HIDDEN[\s_-]*GEMS\s*:/gi, "$1HIDDEN_GEMS:")
+    // Longer Substack / Skool variants before shorter POST forms.
+    .replace(/(^|\n)\s*SUBSTACK[\s_-]*NOTE\s*:/gi, "$1SUBSTACK_NOTE:")
     .replace(/(^|\n)\s*SUBSTACK[\s_-]*POST\s*:/gi, "$1SUBSTACK_POST:")
     .replace(/(^|\n)\s*REDDIT[\s_-]*POST\s*:/gi, "$1REDDIT_POST:")
     .replace(
+      /(^|\n)\s*SKOOL[\s_-]*COURSE[\s_-]*IDEA\s*:/gi,
+      "$1SKOOL_COURSE_IDEA:",
+    )
+    .replace(/(^|\n)\s*SKOOL[\s_-]*POST\s*:/gi, "$1SKOOL_POST:")
+    .replace(
       /(^|\n)\s*SOCIAL[\s_-]*VOICE[\s_-]*POST\s*:/gi,
       "$1SOCIAL_VOICE_POST:",
+    )
+    .replace(
+      /(^|\n)\s*SHORT[\s_-]*VIDEO[\s_-]*PROMPT\s*:/gi,
+      "$1SHORT_VIDEO_PROMPT:",
+    )
+    .replace(
+      /(^|\n)\s*VISUAL[\s_-]*MESSAGE[\s_-]*PROMPT\s*:/gi,
+      "$1VISUAL_MESSAGE_PROMPT:",
+    )
+    .replace(
+      /(^|\n)\s*LOCAL[\s_-]*OUTREACH[\s_-]*IMAGE[\s_-]*PROMPT\s*:/gi,
+      "$1LOCAL_OUTREACH_IMAGE_PROMPT:",
     );
 }
 
@@ -97,6 +127,9 @@ const LABELED_ASSET_PATTERN = new RegExp(
     "CALL_TO_ACTION",
     "NEWSLETTER_IDEA",
     "BLOG_POST_IDEA",
+    "SHORT_VIDEO_PROMPT",
+    "VISUAL_MESSAGE_PROMPT",
+    "LOCAL_OUTREACH_IMAGE_PROMPT",
     "FOLLOW_UP",
   ].join("|")}):\\s*`,
   "g",

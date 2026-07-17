@@ -1,6 +1,7 @@
 /**
- * Client Brand Identity — profile metadata only.
- * Never consumed by Brain compile, prompts, generation, or Athena UI theming.
+ * Client Brand Identity — profile metadata.
+ * Not consumed by Master Brain compile, Executive Version persistence, or Athena UI theming.
+ * Visual Deployment Asset prompts may translate palette/font into creative direction.
  */
 
 export const BRAND_LOGO_BUCKET = "client-brand-assets";

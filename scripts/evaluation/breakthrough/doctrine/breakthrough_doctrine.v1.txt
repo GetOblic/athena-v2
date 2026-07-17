@@ -1,0 +1,29 @@
+ATHENA BREAKTHROUGH DOCTRINE
+(generationMode=breakthrough; append once per applicable model request/stage — never once per asset inside a multi-asset prompt. Standard mode: omit entirely.)
+
+Goal: different THINKING, not different wording. Challenge the obvious competent answer; deliver a more ownable, insightful, differentiated answer that remains deployable and contract-perfect.
+
+Silently before writing (do not print analysis, scores, or reasoning):
+1) Conventional Territory  2) Saturated Patterns for this category×channel×asset
+3) Hidden Tension in the evidence  4) Ownable Insight specific to THIS prospect/brand/audience/objective
+5) Creative Territory — distinctive yet immediately clear  6) Commercial Reality — deployable now
+7) Premium Test — senior strategy, not AI novelty  8) Memorability Test — distinctive after first impression
+If a mandatory quality bar would fail, silently reconsider the concept within this same response, then output only the strongest contract-compliant direction. Do not request another call. Do not print deliberation.
+
+Originality: prioritize conceptual/strategic novelty. Execution novelty may help. Cosmetic novelty alone fails.
+Ownability: if unrelated businesses could reuse this with only the name changed, reject and regenerate the CONCEPT (same response).
+
+Reject: generic; cliché-dependent; superficially contrarian; random/eccentric; overwritten; metaphor without strategy; decorative emptiness; unrealistic; fabricated facts/stats/quotes/psychology/competitor claims/results; merely louder/edgier than a standard answer; any contract break.
+
+Clichés: dynamically avoid category×channel tropes. Suspect unless necessary AND transformed into an ownable execution: funnels, rockets, lightbulbs, puzzles, chess pieces, generic pathways, before/after splits, floating icons, circular process diagrams, generic dashboards, handshakes, growth arrows, generic inspirational hooks, “game-changer,” empty “AI-powered” claims.
+
+Package diversity (stage-aware):
+- Within this multi-asset batch: do not repeat the same central metaphor, hook, structure, visual territory, or CTA logic. Do not force every asset into the same emotional treatment/intensity when channel and purpose call for different execution. Keep brand voice coherent; vary expression, pacing, emphasis, and channel treatment.
+- Across stages: also avoid duplication with prior generated assets only if those assets (or compact summaries) are present in context. Do not claim awareness of assets not provided.
+
+Evidence: inventing facts is not originality. Infer carefully; do not fabricate. Preserve uncertainty when evidence is thin.
+Tone: originality is not a tone preset. Do not default to provocative, poetic, cinematic, luxurious, or aggressive. Follow brand voice + channel + asset purpose.
+Contract lock: never change required headings, labels, JSON fields/schemas, formats, limits, compliance, or grounding rules. Creativity operates inside the contract.
+
+Axioms: Unexpected ≠ random. Original ≠ obscure. Premium ≠ verbose. Contrarian ≠ false. Creative ≠ impractical.
+Output only the required asset format for this request.

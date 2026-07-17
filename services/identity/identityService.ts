@@ -6,17 +6,28 @@ import {
   readStoredHomepageLearning,
   resolveIdentityWebsiteHomepageText,
 } from "@/services/identity/identityHomepageLearning";
+import { attachIdentityExecutiveIntelligence } from "@/services/identity/identityExecutiveIntelligence";
 import {
   buildMasterIdentityProfilePrompt,
   MASTER_IDENTITY_PROFILE_PROMPT_VERSION,
 } from "@/services/identity/prompts/masterIdentityProfilePrompt";
 import { logWebsiteLearning } from "@/services/websiteLearning/websiteLearningObservability";
+import {
+  deepIntelligenceHasUsableContent,
+  formatDeepIntelligenceForBrainPrompt,
+  isDeepWebsiteIntelligence,
+} from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
 
 export {
   hasUsableStoredHomepageLearning,
   readStoredHomepageLearning,
   resolveIdentityWebsiteHomepageText,
 } from "@/services/identity/identityHomepageLearning";
+export {
+  readIdentityExecutiveIntelligence,
+  buildIdentityWebsiteCoverageView,
+  formatIdentityConfidenceLabel,
+} from "@/services/identity/identityExecutiveIntelligence";
 
 export type AthenaIdentity = {
   id: string;
@@ -31,6 +42,9 @@ export type AthenaIdentity = {
   master_profile: Record<string, unknown> | null;
   master_profile_version: string | null;
   master_profile_generated_at: string | null;
+  website_intelligence?: Record<string, unknown> | null;
+  last_deep_scrape_at?: string | null;
+  last_deep_scrape_pages?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -127,6 +141,25 @@ export async function getAthenaIdentityByUserId(
   return data;
 }
 
+export async function getAthenaIdentityById(
+  identityId: string,
+  organizationId: string,
+): Promise<AthenaIdentity | null> {
+  const tenant = createTenantScope(organizationId);
+  const { data, error } = await tenant
+    .from("athena_identity")
+    .select("*")
+    .eq("id", identityId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching Athena identity by id:", error);
+    return null;
+  }
+
+  return data;
+}
+
 export async function compileMasterIdentityProfile(
   identity: AthenaIdentity,
   organizationId: string,
@@ -135,30 +168,49 @@ export async function compileMasterIdentityProfile(
     return identity;
   }
 
+  const deepIntelligence = isDeepWebsiteIntelligence(identity.website_intelligence)
+    ? identity.website_intelligence
+    : null;
+  const hasDeepIntelligence = deepIntelligenceHasUsableContent(deepIntelligence);
+
   const hasStoredHomepageLearning = hasUsableStoredHomepageLearning(
     identity.master_profile,
   );
   logWebsiteLearning({
     source: "identity",
     organizationId,
-    decision: hasStoredHomepageLearning ? "reuse" : "scrape",
-    reason: hasStoredHomepageLearning
-      ? "stored_homepage_learning_present"
-      : "missing_homepage_learning",
+    decision: hasDeepIntelligence
+      ? "reuse"
+      : hasStoredHomepageLearning
+        ? "reuse"
+        : "scrape",
+    reason: hasDeepIntelligence
+      ? "stored_deep_website_intelligence_present"
+      : hasStoredHomepageLearning
+        ? "stored_homepage_learning_present"
+        : "missing_homepage_learning",
     hasStoredHomepageLearning,
   });
 
-  const resolvedHomepage = await resolveIdentityWebsiteHomepageText({
-    masterProfile: identity.master_profile,
-    website: identity.website,
-    fetchHomepageText: fetchWebsiteHomepageText,
-  });
-  const websiteHomepageText = resolvedHomepage.text;
+  let websiteHomepageText: string | null = null;
+  let scraped = false;
   const storedHomepageLearning = readStoredHomepageLearning(
     identity.master_profile,
   );
 
-  if (resolvedHomepage.scraped) {
+  if (hasDeepIntelligence && deepIntelligence) {
+    websiteHomepageText = formatDeepIntelligenceForBrainPrompt(deepIntelligence);
+  } else {
+    const resolvedHomepage = await resolveIdentityWebsiteHomepageText({
+      masterProfile: identity.master_profile,
+      website: identity.website,
+      fetchHomepageText: fetchWebsiteHomepageText,
+    });
+    websiteHomepageText = resolvedHomepage.text;
+    scraped = resolvedHomepage.scraped;
+  }
+
+  if (scraped) {
     const scrapedStored = Boolean(websiteHomepageText?.trim());
     logWebsiteLearning({
       source: "identity",
@@ -173,14 +225,27 @@ export async function compileMasterIdentityProfile(
     expertise: identity.expertise,
     website: identity.website,
     websiteHomepageText,
+    usesDeepWebsiteIntelligence: hasDeepIntelligence,
   });
 
-  const rawProfile = await generateReview(prompt, {
-    stage: "identity.master_profile",
-    promptSource: "services/identity/identityService.ts",
-    generationKind: "identity_profile",
-  });
-  const masterProfile = parseJsonResponse(rawProfile);
+  const previousMasterProfile =
+    identity.master_profile && typeof identity.master_profile === "object"
+      ? identity.master_profile
+      : null;
+
+  let masterProfile: Record<string, unknown>;
+  try {
+    const rawProfile = await generateReview(prompt, {
+      stage: "identity.master_profile",
+      promptSource: "services/identity/identityService.ts",
+      generationKind: "identity_profile",
+    });
+    masterProfile = parseJsonResponse(rawProfile);
+  } catch (error) {
+    // Preserve the last successful master_profile (including Executive Intelligence).
+    console.error("Error compiling master identity profile:", error);
+    return identity;
+  }
 
   if (storedHomepageLearning) {
     // Preserve exact stored homepage learning across identity updates.
@@ -188,6 +253,12 @@ export async function compileMasterIdentityProfile(
   } else if (websiteHomepageText?.trim()) {
     masterProfile.homepage_learning = websiteHomepageText.trim().slice(0, 4000);
   }
+
+  const attached = attachIdentityExecutiveIntelligence({
+    masterProfile,
+    previousMasterProfile,
+  });
+  masterProfile = attached.masterProfile;
 
   const tenant = createTenantScope(organizationId);
   const { data, error } = await tenant

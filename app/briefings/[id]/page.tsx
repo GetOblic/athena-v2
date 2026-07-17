@@ -10,6 +10,7 @@ import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { EntityNavigationCard } from "@/components/navigation/EntityNavigationCard";
 import { buildBriefingDeploymentAssets } from "@/lib/deploymentAssets";
 import { getDisplayAssetBlueprintForBriefing } from "@/services/assetBlueprints/assetBlueprintService";
+import { getOrganizationAiWorkspacePreferences } from "@/services/identity/aiWorkspacePreferences";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getReviewById } from "@/services/reviewService";
 
@@ -30,11 +31,14 @@ export default async function BriefingPage({ params }: Props) {
   }
 
   const deploymentAssets = buildBriefingDeploymentAssets(review);
-  const assetBlueprint = await getDisplayAssetBlueprintForBriefing({
-    briefingId: id,
-    organizationId,
-    discussionId: review.discussion_id,
-  });
+  const [assetBlueprint, continuationPreferences] = await Promise.all([
+    getDisplayAssetBlueprintForBriefing({
+      briefingId: id,
+      organizationId,
+      discussionId: review.discussion_id,
+    }),
+    getOrganizationAiWorkspacePreferences(organizationId),
+  ]);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">
@@ -88,7 +92,10 @@ export default async function BriefingPage({ params }: Props) {
 
       {deploymentAssets.length > 0 && (
         <div className="mt-8">
-          <DeploymentAssets assets={deploymentAssets} />
+          <DeploymentAssets
+            assets={deploymentAssets}
+            continuationPreferences={continuationPreferences}
+          />
         </div>
       )}
 
@@ -107,7 +114,10 @@ export default async function BriefingPage({ params }: Props) {
 
       <div className="mt-8">
         {assetBlueprint ? (
-          <StrategicAssetBlueprint blueprint={assetBlueprint} />
+          <StrategicAssetBlueprint
+            blueprint={assetBlueprint}
+            continuationPreferences={continuationPreferences}
+          />
         ) : (
           <StrategicAssetBlueprintEmpty />
         )}

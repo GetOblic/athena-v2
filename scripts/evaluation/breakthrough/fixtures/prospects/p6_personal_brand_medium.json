@@ -1,0 +1,32 @@
+{
+  "id": "p6_personal_brand_medium",
+  "slot": "P6",
+  "businessType": "personal_brand_expert",
+  "evidenceRichness": "medium",
+  "notes": "Synthetic fixture only. Not a real customer.",
+  "context": {
+    "organizationName": "Northbridge Operator Co",
+    "greetingName": "Alex",
+    "aboutYou": "I ghost-advise experts. First-person voice must stay authentic and restrained.",
+    "expertise": "Expert positioning, keynote narrative, newsletter systems.",
+    "website": "https://fixture-expert.example.test",
+    "businessName": "Jordan Vale Advisory",
+    "industry": "Thought leadership",
+    "category": "Independent expert",
+    "city": null,
+    "summary": "Independent operator advising founders on decision hygiene; newsletter-led trust building.",
+    "painPoints": [
+      "Audience knows tips but not decision frameworks",
+      "Booking calls without context",
+      "Voice dilution across channels"
+    ],
+    "buyerStage": "awareness",
+    "websiteSummary": "Personal site with essay archive on decision hygiene. Sparse offer page.",
+    "businessKnowledge": [
+      "Decision hygiene essays",
+      "Office hours format",
+      "Newsletter-first funnel"
+    ],
+    "sourceBody": "Expert site publishes essays on decision hygiene and offers limited office hours."
+  }
+}

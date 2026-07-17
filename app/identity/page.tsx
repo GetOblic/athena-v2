@@ -1,9 +1,24 @@
 import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { redirect } from "next/navigation";
+import { AiWorkspacePreferencesSection } from "@/components/identity/AiWorkspacePreferencesSection";
 import { BrandIdentitySection } from "@/components/identity/BrandIdentitySection";
-import { TrainAthenaSubmitButton } from "@/components/identity/TrainAthenaSubmitButton";
+import { DeepScrapeWebsiteButton } from "@/components/identity/DeepScrapeWebsiteButton";
+import { IdentityExecutiveIntelligence } from "@/components/identity/IdentityExecutiveIntelligence";
+import {
+  TrainAthenaForm,
+  TrainAthenaSubmitButton,
+} from "@/components/identity/TrainAthenaSubmitButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  isAiWorkspaceId,
+  isImageGeneratorId,
+} from "@/services/assetContinuation/destinationRegistry";
+import {
+  AiWorkspacePreferencesNotFoundError,
+  getOrganizationAiWorkspacePreferences,
+  updateOrganizationAiWorkspacePreferences,
+} from "@/services/identity/aiWorkspacePreferences";
 import {
   getOrganizationBrandIdentity,
   OrganizationBrandNotFoundError,
@@ -82,6 +97,54 @@ async function saveBrandIdentity(formData: FormData) {
   redirect("/identity?brandSaved=true");
 }
 
+async function saveAiWorkspacePreferences(formData: FormData) {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { organizationId } = await requireCurrentOrganizationContext();
+  const preferredAiWorkspace = String(
+    formData.get("preferred_ai_workspace") ?? "",
+  );
+  const preferredImageGenerator = String(
+    formData.get("preferred_image_generator") ?? "",
+  );
+
+  if (
+    !isAiWorkspaceId(preferredAiWorkspace) ||
+    !isImageGeneratorId(preferredImageGenerator)
+  ) {
+    redirect(
+      `/identity?workspaceError=${encodeURIComponent("Invalid AI workspace preferences.")}`,
+    );
+  }
+
+  try {
+    await updateOrganizationAiWorkspacePreferences({
+      organizationId,
+      preferredAiWorkspace,
+      preferredImageGenerator,
+    });
+  } catch (error) {
+    const message =
+      error instanceof AiWorkspacePreferencesNotFoundError
+        ? "Organization not found."
+        : error instanceof Error
+          ? error.message
+          : "Could not save AI workspace preferences.";
+    redirect(`/identity?workspaceError=${encodeURIComponent(message)}`);
+  }
+
+  redirect("/identity?workspaceSaved=true");
+}
+
 export default async function IdentityPage({
   searchParams,
 }: {
@@ -89,6 +152,8 @@ export default async function IdentityPage({
     saved?: string;
     brandSaved?: string;
     brandError?: string;
+    workspaceSaved?: string;
+    workspaceError?: string;
   }>;
 }) {
   const supabase = await createSupabaseServerClient();
@@ -105,6 +170,8 @@ export default async function IdentityPage({
   const identity = await getAthenaIdentityByUserId(userId, organizationId);
   const organizationBrand =
     await getOrganizationBrandIdentity(organizationId);
+  const aiWorkspacePreferences =
+    await getOrganizationAiWorkspacePreferences(organizationId);
   const logoPreviewUrl = await resolveOrganizationBrandLogoPreviewUrl(
     organizationBrand,
     organizationId,
@@ -121,6 +188,9 @@ export default async function IdentityPage({
   const hasMasterProfile = Boolean(identity?.master_profile);
   const brandError = params.brandError?.trim()
     ? decodeURIComponent(params.brandError)
+    : null;
+  const workspaceError = params.workspaceError?.trim()
+    ? decodeURIComponent(params.workspaceError)
     : null;
 
   return (
@@ -160,9 +230,8 @@ export default async function IdentityPage({
       )}
 
       <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-        <form
+        <TrainAthenaForm
           action={saveIdentity}
-          method="post"
           className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8"
         >
           <div className="grid gap-8">
@@ -221,8 +290,8 @@ export default async function IdentityPage({
             <label className="grid gap-3">
               <span className="text-xl font-semibold">Business Website</span>
               <span className="max-w-3xl text-sm leading-6 text-white/45">
-                Athena will study your homepage and use it to understand your
-                business. V2 will support sitemap crawling and selected pages.
+                Athena studies your homepage during Train Athena. After training,
+                use Deep Scrape Website for autonomous multi-page learning.
               </span>
               <input
                 name="website"
@@ -234,7 +303,7 @@ export default async function IdentityPage({
 
             <TrainAthenaSubmitButton />
           </div>
-        </form>
+        </TrainAthenaForm>
 
         <aside className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
           <h2 className="text-xl font-semibold">Brain Status</h2>
@@ -261,6 +330,18 @@ export default async function IdentityPage({
                 : "Not yet trained"}
             </div>
           </div>
+
+          <DeepScrapeWebsiteButton
+            initiallyAvailable={
+              identity?.brain_status === "ready" && hasWebsite
+            }
+            initialLastDeepScrapeAt={identity?.last_deep_scrape_at ?? null}
+            initialLastDeepScrapePages={
+              typeof identity?.last_deep_scrape_pages === "number"
+                ? identity.last_deep_scrape_pages
+                : null
+            }
+          />
         </aside>
       </div>
 
@@ -287,6 +368,20 @@ export default async function IdentityPage({
         saveBrandIdentity={saveBrandIdentity}
         brandError={brandError}
       />
+
+      <AiWorkspacePreferencesSection
+        initialPreferredAiWorkspace={
+          aiWorkspacePreferences.preferredAiWorkspace
+        }
+        initialPreferredImageGenerator={
+          aiWorkspacePreferences.preferredImageGenerator
+        }
+        saveAiWorkspacePreferences={saveAiWorkspacePreferences}
+        saved={params.workspaceSaved === "true"}
+        error={workspaceError}
+      />
+
+      <IdentityExecutiveIntelligence identity={identity} />
     </main>
   );
 }

@@ -1,0 +1,32 @@
+{
+  "id": "p5_software_medium",
+  "slot": "P5",
+  "businessType": "digital_software",
+  "evidenceRichness": "medium",
+  "notes": "Synthetic fixture only. Not a real customer.",
+  "context": {
+    "organizationName": "Northbridge Operator Co",
+    "greetingName": "Alex",
+    "aboutYou": "I advise SaaS founders. Clear product language, anti-hype.",
+    "expertise": "Onboarding activation, product-led growth diagnostics.",
+    "website": "https://fixture-saas.example.test",
+    "businessName": "Ledgerloop",
+    "industry": "Software",
+    "category": "B2B SaaS",
+    "city": null,
+    "summary": "SaaS tool for invoice follow-ups; activation drops after workspace invite.",
+    "painPoints": [
+      "Invite-to-activation drop",
+      "Feature confusion in week one",
+      "Generic competitor comparison"
+    ],
+    "buyerStage": "evaluation",
+    "websiteSummary": "Product pages emphasize automated follow-ups. Docs mention workspace invites and reminder rules.",
+    "businessKnowledge": [
+      "Workspace invites",
+      "Reminder rules",
+      "CSV import"
+    ],
+    "sourceBody": "SaaS homepage markets invoice follow-up automation. Docs show invite flow and reminder configuration."
+  }
+}

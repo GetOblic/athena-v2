@@ -18,6 +18,9 @@ import type {
   ExecutiveIntelligenceVersion,
   ExecutiveVersionSummary,
 } from "@/services/executiveVersions/executiveVersionTypes";
+import { isThinkDifferentlyExecutiveVersion } from "@/services/executiveVersions/executiveVersionTypes";
+import { normalizeAnalysisForDisplay } from "@/services/executiveVersions/analysisNormalization";
+import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 
 /**
@@ -102,6 +105,8 @@ type ExecutiveIntelligenceWorkspaceProps = {
   sourceKind?: "discussion" | "prospect";
   /** Current organization brand for Image/PDF prompt display/copy overlay. */
   brandDirection?: BlueprintBrandDirectionInput | null;
+  /** Org Continue destinations for Deployment Assets / Blueprint cards. */
+  continuationPreferences?: AiWorkspacePreferences | null;
 };
 
 function formatVersionGeneratedAt(value: string, includeTime: boolean): string {
@@ -147,6 +152,7 @@ export function ExecutiveIntelligenceWorkspace({
   afterDetailedReasoning,
   sourceKind = "discussion",
   brandDirection = null,
+  continuationPreferences = null,
 }: ExecutiveIntelligenceWorkspaceProps) {
   const { isGenerating, isCompleted } = useDiscussionRegeneration();
   const isProspect = sourceKind === "prospect";
@@ -369,7 +375,7 @@ export function ExecutiveIntelligenceWorkspace({
             <div className="space-y-7">
               <div className="text-white/50">
                 No generated Athena analysis has been saved for this discussion
-                yet. Use Refresh Intelligence in the page header to generate.
+                yet. Use Generate Intelligence in the page header to generate.
               </div>
             </div>
           </AthenaCollapsibleSection>
@@ -379,8 +385,13 @@ export function ExecutiveIntelligenceWorkspace({
     );
   }
 
+  const analysisDisplay = normalizeAnalysisForDisplay(intelligence.analysis);
+
   const deploymentAssets = buildDiscussionDeploymentAssets(
-    intelligence.analysis,
+    {
+      ...intelligence.analysis,
+      ...analysisDisplay,
+    },
     { prospectMode: isProspect },
   );
 
@@ -456,6 +467,11 @@ export function ExecutiveIntelligenceWorkspace({
                               Archived
                             </span>
                           )}
+                          {isThinkDifferentlyExecutiveVersion(version) ? (
+                            <span className="rounded-full border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--athena-success)]">
+                              Think Differently
+                            </span>
+                          ) : null}
                         </div>
 
                         <div className="mt-3 space-y-1 text-sm text-white/45">
@@ -544,6 +560,7 @@ export function ExecutiveIntelligenceWorkspace({
             copyContext={copyContext}
             doneByAssetType={doneByAssetType}
             tagsByAssetType={tagsByAssetType}
+            continuationPreferences={continuationPreferences}
           />
         </AthenaCollapsibleSection>
       )}
@@ -560,6 +577,7 @@ export function ExecutiveIntelligenceWorkspace({
             doneByAssetType={doneByAssetType}
             tagsByAssetType={tagsByAssetType}
             brandDirection={brandDirection}
+            continuationPreferences={continuationPreferences}
           />
         </AthenaCollapsibleSection>
       )}
@@ -589,20 +607,20 @@ export function ExecutiveIntelligenceWorkspace({
           <div className="space-y-7">
             <DetailField
               label={isProspect ? "Prospect Assessment" : "Summary"}
-              value={intelligence.analysis.summary}
+              value={analysisDisplay.summary}
             />
             <DetailField
               label="Sentiment"
-              value={intelligence.analysis.sentiment}
+              value={analysisDisplay.sentiment}
             />
-            <DetailField label="Intent" value={intelligence.analysis.intent} />
+            <DetailField label="Intent" value={analysisDisplay.intent} />
             <DetailField
               label="Buyer Stage"
-              value={intelligence.analysis.buyer_stage}
+              value={analysisDisplay.buyer_stage}
             />
             <DetailField
               label="Pain Points"
-              value={intelligence.analysis.pain_points}
+              value={analysisDisplay.pain_points}
             />
             <DetailField
               label={isProspect ? "Prospect Opportunity" : "Opportunity"}
@@ -625,7 +643,7 @@ export function ExecutiveIntelligenceWorkspace({
               label={
                 isProspect ? "Prospect Opportunity Title" : "Opportunity Title"
               }
-              value={intelligence.analysis.opportunity_title}
+              value={analysisDisplay.opportunity_title}
             />
             <DetailField
               label={
@@ -633,23 +651,23 @@ export function ExecutiveIntelligenceWorkspace({
                   ? "Prospect Opportunity Reason"
                   : "Opportunity Reason"
               }
-              value={intelligence.analysis.opportunity_reason}
+              value={analysisDisplay.opportunity_reason}
             />
             <DetailField
               label={
                 isProspect ? "Outreach Strategy" : "Strategic Recommendation"
               }
               sublabel="Recommended Action"
-              value={intelligence.analysis.recommended_action}
+              value={analysisDisplay.recommended_action}
               helper="Guidance for internal decision-making."
             />
             <DetailField
               label="Risk Level"
-              value={intelligence.analysis.risk_level}
+              value={analysisDisplay.risk_level}
             />
             <DetailField
               label="Confidence"
-              value={`${intelligence.analysis.confidence}%`}
+              value={`${analysisDisplay.confidence}%`}
             />
           </div>
         </AthenaCollapsibleSection>

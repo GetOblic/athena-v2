@@ -1,0 +1,32 @@
+{
+  "id": "p4_b2b_service_medium",
+  "slot": "P4",
+  "businessType": "b2b_service",
+  "evidenceRichness": "medium",
+  "notes": "Synthetic fixture only. Not a real customer.",
+  "context": {
+    "organizationName": "Northbridge Operator Co",
+    "greetingName": "Alex",
+    "aboutYou": "B2B advisor. Precise, boardroom-clear, no buzzwords.",
+    "expertise": "Revenue operations diagnostics for mid-market teams.",
+    "website": "https://fixture-b2b.example.test",
+    "businessName": "Keyline Ops Advisory",
+    "industry": "B2B consulting",
+    "category": "Revenue operations",
+    "city": null,
+    "summary": "Ops advisory helping mid-market teams fix handoff gaps between sales and delivery.",
+    "painPoints": [
+      "Handoff leakage",
+      "Forecast distrust",
+      "Tool sprawl without process"
+    ],
+    "buyerStage": "problem_aware",
+    "websiteSummary": "Positions around operating rhythm audits. Case-style vignettes without named clients.",
+    "businessKnowledge": [
+      "Operating rhythm audits",
+      "Sales-to-delivery handoff maps",
+      "90-day implementation sprints"
+    ],
+    "sourceBody": "B2B advisory site focuses on sales-to-delivery handoffs and forecast hygiene for mid-market teams."
+  }
+}

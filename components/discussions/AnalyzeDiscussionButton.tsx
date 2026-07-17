@@ -19,21 +19,27 @@ function ButtonSpinner() {
 
 export function AnalyzeDiscussionButton({
   discussionId: _discussionId,
-  label = "Generate Fresh Intelligence",
+  label = "Generate Intelligence",
   compact = false,
 }: AnalyzeDiscussionButtonProps) {
   const {
     isGenerating,
     isCompleted,
+    activeGenerationKind,
     duplicateNotice,
     error,
     startRegeneration,
   } = useDiscussionRegeneration();
 
-  const buttonLabel = isCompleted
-    ? "✓ Fresh Intelligence Generated"
-    : isGenerating
-      ? "Generating Executive Intelligence..."
+  const generatingThis =
+    isGenerating && activeGenerationKind !== "think_differently";
+  const completedThis =
+    isCompleted && activeGenerationKind !== "think_differently";
+
+  const buttonLabel = completedThis
+    ? "✓ Intelligence Generated"
+    : generatingThis
+      ? "Generating Intelligence…"
       : label;
 
   return (
@@ -52,10 +58,10 @@ export function AnalyzeDiscussionButton({
         className={
           compact
             ? "inline-flex items-center justify-center rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            : "inline-flex w-full items-center justify-center rounded-full bg-[var(--athena-orange)] px-6 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            : "inline-flex w-full items-center justify-center rounded-full bg-[var(--athena-orange)] px-6 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         }
       >
-        {isGenerating && !isCompleted ? <ButtonSpinner /> : null}
+        {generatingThis && !completedThis ? <ButtonSpinner /> : null}
         {buttonLabel}
       </button>
 

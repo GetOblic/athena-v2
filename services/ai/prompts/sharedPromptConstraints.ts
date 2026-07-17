@@ -51,6 +51,8 @@ FOLLOW_UP:
 CALL_TO_ACTION:
 NEWSLETTER_IDEA:
 BLOG_POST_IDEA:
+SHORT_VIDEO_PROMPT:
+VISUAL_MESSAGE_PROMPT:
 `.trim();
 
 export const DEPLOYMENT_CHANNEL_GUIDE = `
@@ -61,6 +63,8 @@ SOCIAL_POST — market insight or belief shift; platform-ready; not educational 
 CALL_TO_ACTION — one paste-ready sentence tied to the insight; low-friction.
 NEWSLETTER_IDEA — concept for the Athena client's audience newsletter (not outreach to a prospect): subject/title, central angle, why relevant now, key points/sections, suggested CTA, optional opening hook.
 BLOG_POST_IDEA — concept for the Athena client's audience blog (not a full article): proposed title, search/reader intent, central thesis, recommended outline, key expert insights, suggested CTA, optional differentiation angle.
+SHORT_VIDEO_PROMPT — paste-ready ~8s AI video generation prompt (Veo/Runway/Kling/Pika); cinematic, vertical/social; prompt only.
+VISUAL_MESSAGE_PROMPT — paste-ready single-image AI generation prompt (GPT Image/Midjourney/Imagen/Flux); one message, one emotion; prompt only.
 `.trim();
 
 export const SHARED_DEPLOYMENT_QUALITY = `

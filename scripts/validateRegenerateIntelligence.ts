@@ -89,13 +89,13 @@ if (providerSource.includes("readRegenerationSession")) {
   fail("Regeneration provider missing session persistence");
 }
 
-if (buttonSource.includes("Generating Executive Intelligence")) {
+if (buttonSource.includes("Generating Intelligence")) {
   pass("Button shows generating label");
 } else {
   fail("Button missing generating label");
 }
 
-if (buttonSource.includes("Fresh Intelligence Generated")) {
+if (buttonSource.includes("Intelligence Generated")) {
   pass("Button shows completion confirmation label");
 } else {
   fail("Button missing completion confirmation label");

@@ -1,0 +1,30 @@
+{
+  "id": "p8_thin_site_sparse",
+  "slot": "P8",
+  "businessType": "sparse_evidence",
+  "evidenceRichness": "sparse",
+  "notes": "Synthetic fixture only. Not a real customer. Sparse evidence stress test for grounding.",
+  "context": {
+    "organizationName": "Northbridge Operator Co",
+    "greetingName": "Alex",
+    "aboutYou": "Practical advisor. When evidence is thin, stay humble and specific.",
+    "expertise": "Early-stage local service positioning.",
+    "website": "https://fixture-sparse.example.test",
+    "businessName": "Oak & Rivet Co",
+    "industry": "Specialty retail services",
+    "category": "Custom fabrication",
+    "city": "Boise",
+    "summary": "Thin one-page site for a custom fabrication shop with limited public detail.",
+    "painPoints": [
+      "Unclear service boundaries",
+      "Few public proof points"
+    ],
+    "buyerStage": "unknown",
+    "websiteSummary": "Single landing page: custom fabrication for local businesses. Contact form only.",
+    "businessKnowledge": [
+      "Custom fabrication",
+      "Boise-based"
+    ],
+    "sourceBody": "One-page fixture site: custom fabrication for local businesses. Almost no process or pricing detail."
+  }
+}

@@ -125,13 +125,17 @@ describe("Prospect Deployment Asset contract — unwrap & validate", () => {
   });
 
   it("12. accepts large but valid output", () => {
-    const large = labeledBlock(
-      REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS,
-      "A".repeat(4_000),
-    );
+    const large = REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS.map((key) => {
+      const body =
+        key === "LINKEDIN_CONNECTION" || key === "LINKEDIN_FOLLOW_UP"
+          ? "A".repeat(200)
+          : "A".repeat(4_000);
+      return `${key}:\n${body}`;
+    }).join("\n\n");
     const result = unwrapProspectDeploymentAssetResponse(large);
     assert.equal(result.isComplete, true);
-    assert.ok(result.unwrappedCharacterCount > 50_000);
+    // 12 non-LinkedIn assets at 4k each remain large; LinkedIn capped at 200.
+    assert.ok(result.unwrappedCharacterCount > 40_000);
   });
 
   it("object-key JSON shape composes labeled CTA", () => {

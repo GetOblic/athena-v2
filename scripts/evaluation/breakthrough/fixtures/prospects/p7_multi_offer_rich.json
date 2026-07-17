@@ -1,0 +1,33 @@
+{
+  "id": "p7_multi_offer_rich",
+  "slot": "P7",
+  "businessType": "multi_offer_services",
+  "evidenceRichness": "rich",
+  "notes": "Synthetic fixture only. Not a real customer. Evidence-rich stress test.",
+  "context": {
+    "organizationName": "Northbridge Operator Co",
+    "greetingName": "Alex",
+    "aboutYou": "Operator coach. Structured, practical, allergic to vague branding.",
+    "expertise": "Offer architecture, packaging, delivery SOPs.",
+    "website": "https://fixture-multioffer.example.test",
+    "businessName": "Brightfield Studio Collective",
+    "industry": "Creative services",
+    "category": "Agency collective",
+    "city": "Denver",
+    "summary": "Collective sells brand systems, retainers, and workshops; buyers confuse which offer fits.",
+    "painPoints": [
+      "Offer confusion",
+      "Retainer vs project mismatch",
+      "Workshop leads that never convert"
+    ],
+    "buyerStage": "consideration",
+    "websiteSummary": "Three offer tracks with detailed scopes, timelines, and sample deliverables. Strong FAQ.",
+    "businessKnowledge": [
+      "Brand system package",
+      "Monthly retainer SOP",
+      "Workshop curriculum outline",
+      "Denver + remote delivery"
+    ],
+    "sourceBody": "Collective site documents three offer tracks with scopes and FAQs about retainer fit versus project work."
+  }
+}

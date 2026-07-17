@@ -5,6 +5,7 @@ import type { AssetCopyTrackingContext } from "@/components/deployment/CopyButto
 import { formatBlueprintReadiness } from "@/lib/blueprintReadiness";
 import { BLUEPRINT_ASSET_TYPES } from "@/services/assetInteractions/assetInteractionKeys";
 import type { AthenaAssetBlueprint } from "@/services/assetBlueprints/assetBlueprintService";
+import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 import {
   composeBlueprintPromptWithBrandDirection,
@@ -19,6 +20,7 @@ type StrategicAssetBlueprintProps = {
   tagsByAssetType?: Record<string, AssetUsageTag[]>;
   /** Current organization brand — display/copy overlay only; never persisted. */
   brandDirection?: BlueprintBrandDirectionInput | null;
+  continuationPreferences?: AiWorkspacePreferences | null;
 };
 
 export function StrategicAssetBlueprint({
@@ -27,6 +29,7 @@ export function StrategicAssetBlueprint({
   doneByAssetType = {},
   tagsByAssetType = {},
   brandDirection = null,
+  continuationPreferences = null,
 }: StrategicAssetBlueprintProps) {
   const readinessBadges = formatBlueprintReadiness(blueprint);
   const imagePromptText = composeBlueprintPromptWithBrandDirection(
@@ -111,6 +114,7 @@ export function StrategicAssetBlueprint({
           initiallyTags={
             tagsByAssetType[BLUEPRINT_ASSET_TYPES.image_prompt] ?? []
           }
+          continuationPreferences={continuationPreferences}
         />
         <CollapsiblePromptBlock
           label="PDF Prompt"
@@ -123,6 +127,7 @@ export function StrategicAssetBlueprint({
           initiallyTags={
             tagsByAssetType[BLUEPRINT_ASSET_TYPES.pdf_prompt] ?? []
           }
+          continuationPreferences={continuationPreferences}
         />
         <CollapsiblePromptBlock
           label="Social Prompt"
@@ -135,6 +140,7 @@ export function StrategicAssetBlueprint({
           initiallyTags={
             tagsByAssetType[BLUEPRINT_ASSET_TYPES.social_prompt] ?? []
           }
+          continuationPreferences={continuationPreferences}
         />
         <CollapsiblePromptBlock
           label="Notes"
@@ -144,6 +150,7 @@ export function StrategicAssetBlueprint({
           copyContext={copyContext}
           initiallyDone={Boolean(doneByAssetType[BLUEPRINT_ASSET_TYPES.notes])}
           initiallyTags={tagsByAssetType[BLUEPRINT_ASSET_TYPES.notes] ?? []}
+          continuationPreferences={continuationPreferences}
         />
       </div>
     </section>

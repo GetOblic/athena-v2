@@ -21,7 +21,13 @@ import {
   unwrapProspectDeploymentAssetResponse,
   IncompleteProspectDeploymentAssetsError,
 } from "@/lib/prospectDeploymentAssetContract";
+import type { ExecutiveGenerationMode } from "@/services/brain/generationContracts/executiveGenerationMode";
+import { normalizeExecutiveGenerationMode } from "@/services/brain/generationContracts/executiveGenerationMode";
+import { appendThinkDifferentlyInstruction } from "@/services/brain/generationContracts/thinkDifferentlyInstruction";
+import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
+import { getProspectByLinkedDiscussionId } from "@/services/prospects/prospectService";
+import { logDeepScrapeEvent } from "@/services/websiteLearning/deepScrape/observability";
 
 export type GeneratedDeploymentAssets = {
   suggested_cta: string;
@@ -97,11 +103,15 @@ export async function generateDeploymentAssets(input: {
   discussionId: string;
   organizationId: string;
   explicitRegeneration?: boolean;
+  generationMode?: ExecutiveGenerationMode;
+  /** Newly generated Strategic Blueprint — required for think_differently coherence. */
+  strategicBlueprint?: Record<string, unknown> | null;
 }): Promise<{
   assets: GeneratedDeploymentAssets;
   rawResponse: string;
   model: string;
 }> {
+  const generationMode = normalizeExecutiveGenerationMode(input.generationMode);
   const bundle = await resolveDeploymentAssetsGenerationBundle({
     organizationId: input.organizationId,
     discussionId: input.discussionId,
@@ -113,14 +123,54 @@ export async function generateDeploymentAssets(input: {
     throw new Error("Deployment assets generation bundle unavailable.");
   }
 
-  const prompt = assembleDeploymentAssetsPrompt({
+  const brandIdentity = await getOrganizationBrandIdentity(
+    input.organizationId,
+  ).catch(() => null);
+
+  let websiteIntelligence: Record<string, unknown> | null = null;
+  if (isProspectIntelligenceBridge(input.discussion)) {
+    const prospect = await getProspectByLinkedDiscussionId(
+      input.discussionId,
+      input.organizationId,
+    ).catch(() => null);
+    websiteIntelligence =
+      (prospect?.website_intelligence as Record<string, unknown> | null) ??
+      null;
+    if (
+      websiteIntelligence &&
+      websiteIntelligence.provider === "deep_v1"
+    ) {
+      logDeepScrapeEvent("knowledge_base_deep_context_used", {
+        organizationId: input.organizationId,
+        discussionId: input.discussionId,
+        prospectId: prospect?.id ?? null,
+        diagnostic: {
+          pagesAnalyzed: websiteIntelligence.pages_analyzed ?? null,
+          provider: "deep_v1",
+        },
+      });
+    }
+  }
+
+  const standardPrompt = assembleDeploymentAssetsPrompt({
     bundle,
     discussion: input.discussion,
     analysis: input.analysis as Record<string, unknown>,
     opportunity: input.opportunity ?? undefined,
     briefing: input.briefing ?? undefined,
     regenerationRunId: input.regenerationRunId,
+    brandIdentity,
+    websiteIntelligence,
+    strategicBlueprint:
+      generationMode === "think_differently"
+        ? (input.strategicBlueprint ?? null)
+        : null,
   });
+
+  const prompt =
+    generationMode === "think_differently"
+      ? appendThinkDifferentlyInstruction(standardPrompt)
+      : standardPrompt;
 
   const rawResponse = await generateReview(prompt, {
     stage: "deployment_assets.generation",
@@ -150,7 +200,10 @@ export async function generateDeploymentAssets(input: {
       throw new IncompleteProspectDeploymentAssetsError(
         unwrapped.failureReason === "incomplete_canonical_set"
           ? "Prospect Deployment Assets incomplete."
-          : "Prospect Deployment Assets invalid or malformed.",
+          : unwrapped.failureReason ===
+              "linkedin_asset_exceeds_200_characters"
+            ? "Prospect LinkedIn Deployment Assets exceed the 200-character limit."
+            : "Prospect Deployment Assets invalid or malformed.",
         diagnostics,
       );
     }
@@ -183,11 +236,13 @@ export async function persistDeploymentAssets(input: {
   rawResponse: string;
   model: string;
   regenerationRunId?: string;
+  generationMode?: ExecutiveGenerationMode;
 }): Promise<{
   analysis: DiscussionAnalysis;
   opportunity?: Opportunity | null;
   review?: AthenaReview | null;
 }> {
+  const generationMode = normalizeExecutiveGenerationMode(input.generationMode);
   const analysisRawJson = {
     ...(input.analysis.raw_json ?? {}),
     deployment_assets: {
@@ -195,6 +250,7 @@ export async function persistDeploymentAssets(input: {
       raw_ai_response: input.rawResponse,
       regeneration_run_id: input.regenerationRunId ?? null,
       generated_at: new Date().toISOString(),
+      generationMode,
     },
   };
 
@@ -274,6 +330,7 @@ export async function persistDeploymentAssets(input: {
             raw_ai_response: input.rawResponse,
             regeneration_run_id: input.regenerationRunId ?? null,
             generated_at: new Date().toISOString(),
+            generationMode,
           },
         },
       },

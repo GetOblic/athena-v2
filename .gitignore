@@ -41,6 +41,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Breakthrough non-production evaluation artifacts
+scripts/evaluation/breakthrough/out/**
+!scripts/evaluation/breakthrough/out/.gitkeep
+scripts/evaluation/breakthrough/reports/**
+!scripts/evaluation/breakthrough/reports/.gitkeep
+
 # Cursor / VS Code
 .cursor/
 .cursorignore

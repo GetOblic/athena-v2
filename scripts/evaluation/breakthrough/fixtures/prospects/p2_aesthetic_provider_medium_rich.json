@@ -1,0 +1,32 @@
+{
+  "id": "p2_aesthetic_provider_medium_rich",
+  "slot": "P2",
+  "businessType": "medical_aesthetic",
+  "evidenceRichness": "medium-rich",
+  "notes": "Synthetic fixture only. Not a real customer. No clinical claims beyond fixture text.",
+  "context": {
+    "organizationName": "Northbridge Operator Co",
+    "greetingName": "Alex",
+    "aboutYou": "I advise aesthetic clinic owners with a reassuring professional tone.",
+    "expertise": "Clinic consultation systems, retention, ethical marketing.",
+    "website": "https://fixture-aesthetic.example.test",
+    "businessName": "Lumina Skin Studio",
+    "industry": "Aesthetic medicine",
+    "category": "Clinic",
+    "city": "Austin",
+    "summary": "Clinic wants better consult show-rates without aggressive promotional language.",
+    "painPoints": [
+      "No-shows after inquiry",
+      "Price shopping",
+      "Trust lag before first visit"
+    ],
+    "buyerStage": "evaluation",
+    "websiteSummary": "Lists consultative skin treatments. Strong before-care education pages. Sparse outcomes language by design.",
+    "businessKnowledge": [
+      "Consultation-first intake",
+      "Provider bios published",
+      "Education pages for aftercare"
+    ],
+    "sourceBody": "Fixture clinic markets consultative aesthetic treatments and stresses preparation education before booking."
+  }
+}
