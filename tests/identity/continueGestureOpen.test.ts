@@ -232,7 +232,7 @@ describe("Continue — preserve user-gesture window opening", () => {
     );
     assert.equal(
       resolveAssetContinuationDestination({
-        assetType: "personalized_outreach_email",
+        assetType: "email_outreach",
         preferences: {
           preferredAiWorkspace: "claude",
           preferredImageGenerator: "flux",

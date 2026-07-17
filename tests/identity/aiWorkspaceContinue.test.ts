@@ -59,9 +59,10 @@ describe("Asset Continue — destination registry", () => {
   });
 
   it("routes communication assets to native execution platforms", () => {
+    // Pipeline emits email_outreach via canonicalDeploymentAssetType(PERSONALIZED_OUTREACH_EMAIL).
     assert.deepEqual(
       resolveAssetContinuationDestination({
-        assetType: "personalized_outreach_email",
+        assetType: "email_outreach",
       }),
       {
         destinationId: "gmail",
@@ -69,6 +70,19 @@ describe("Asset Continue — destination registry", () => {
         url: "https://mail.google.com/mail/u/0/#inbox?compose=new",
         kind: "platform",
       },
+    );
+    // Title-slug / label fallback aliases still route to Gmail.
+    assert.equal(
+      resolveAssetContinuationDestination({
+        assetType: "personalized_outreach_email",
+      }).destinationId,
+      "gmail",
+    );
+    assert.equal(
+      resolveAssetContinuationDestination({
+        assetType: "PERSONALIZED_OUTREACH_EMAIL",
+      }).destinationId,
+      "gmail",
     );
     assert.equal(
       resolveAssetContinuationDestination({ assetType: "follow_up_email" }).url,
@@ -98,13 +112,27 @@ describe("Asset Continue — destination registry", () => {
     const registry = read("services/assetContinuation/destinationRegistry.ts");
     assert.doesNotMatch(registry, /encodeURIComponent|body=|text=|message=/);
     const withBody = resolveAssetContinuationDestination({
-      assetType: "personalized_outreach_email",
+      assetType: "email_outreach",
     });
     assert.equal(
       withBody.url,
       "https://mail.google.com/mail/u/0/#inbox?compose=new",
     );
     assert.doesNotMatch(withBody.url, /Hello|subject|to=/i);
+  });
+
+  it("Personalized Outreach Email emitted key matches Gmail routing", () => {
+    const keys = read("services/assetInteractions/assetInteractionKeys.ts");
+    assert.match(
+      keys,
+      /PERSONALIZED_OUTREACH_EMAIL:\s*"email_outreach"/,
+    );
+    assert.match(keys, /COLD_EMAIL:\s*"email_outreach"/);
+    assert.equal(
+      resolveAssetContinuationDestination({ assetType: "email_outreach" })
+        .label,
+      "Gmail",
+    );
   });
 
   it("routes image/video prompts to preferred image generator", () => {

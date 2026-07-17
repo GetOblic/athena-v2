@@ -86,7 +86,12 @@ const PLATFORM_ASSET_DESTINATIONS: Record<string, PlatformDestinationId> = {
   reddit_post: "reddit",
   skool_post: "skool",
   skool_course_idea: "skool_course",
+  // PERSONALIZED_OUTREACH_EMAIL / COLD_EMAIL canonicalize to email_outreach.
+  email_outreach: "gmail",
+  // Title-slug fallback when assetKey is absent ("Personalized Outreach Email").
   personalized_outreach_email: "gmail",
+  // Legacy label if passed without canonicalization.
+  cold_email: "gmail",
   follow_up_email: "gmail",
   linkedin_connection: "linkedin",
   linkedin_follow_up: "linkedin",
