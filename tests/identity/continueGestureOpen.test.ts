@@ -203,6 +203,14 @@ describe("Continue — preserve user-gesture window opening", () => {
       "https://substack.com/home",
     );
     assert.equal(
+      resolveAssetContinuationDestination({ assetType: "reddit_post" }).url,
+      "https://www.reddit.com/submit",
+    );
+    assert.equal(
+      resolveAssetContinuationDestination({ assetType: "skool_post" }).url,
+      "https://www.skool.com/",
+    );
+    assert.equal(
       resolveAssetContinuationDestination({
         assetType: "blueprint_image_prompt",
         preferences: {
@@ -221,6 +229,16 @@ describe("Continue — preserve user-gesture window opening", () => {
         },
       }).url,
       "https://gemini.google.com/app",
+    );
+    assert.equal(
+      resolveAssetContinuationDestination({
+        assetType: "personalized_outreach_email",
+        preferences: {
+          preferredAiWorkspace: "claude",
+          preferredImageGenerator: "flux",
+        },
+      }).url,
+      "https://mail.google.com/mail/u/0/#inbox?compose=new",
     );
   });
 });

@@ -58,6 +58,55 @@ describe("Asset Continue — destination registry", () => {
     );
   });
 
+  it("routes communication assets to native execution platforms", () => {
+    assert.deepEqual(
+      resolveAssetContinuationDestination({
+        assetType: "personalized_outreach_email",
+      }),
+      {
+        destinationId: "gmail",
+        label: "Gmail",
+        url: "https://mail.google.com/mail/u/0/#inbox?compose=new",
+        kind: "platform",
+      },
+    );
+    assert.equal(
+      resolveAssetContinuationDestination({ assetType: "follow_up_email" }).url,
+      "https://mail.google.com/mail/u/0/#inbox?compose=new",
+    );
+    assert.equal(
+      resolveAssetContinuationDestination({
+        assetType: "linkedin_connection",
+      }).url,
+      "https://www.linkedin.com/messaging/",
+    );
+    assert.equal(
+      resolveAssetContinuationDestination({
+        assetType: "linkedin_follow_up",
+      }).label,
+      "LinkedIn",
+    );
+    assert.equal(
+      resolveAssetContinuationDestination({
+        assetType: "whatsapp_outreach",
+      }).url,
+      "https://web.whatsapp.com/",
+    );
+  });
+
+  it("does not inject asset content into destination URLs", () => {
+    const registry = read("services/assetContinuation/destinationRegistry.ts");
+    assert.doesNotMatch(registry, /encodeURIComponent|body=|text=|message=/);
+    const withBody = resolveAssetContinuationDestination({
+      assetType: "personalized_outreach_email",
+    });
+    assert.equal(
+      withBody.url,
+      "https://mail.google.com/mail/u/0/#inbox?compose=new",
+    );
+    assert.doesNotMatch(withBody.url, /Hello|subject|to=/i);
+  });
+
   it("routes image/video prompts to preferred image generator", () => {
     const resolved = resolveAssetContinuationDestination({
       assetType: "blueprint_image_prompt",

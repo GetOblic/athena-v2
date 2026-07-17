@@ -18,7 +18,14 @@ export type ImageGeneratorId =
   | "flux"
   | "imagen";
 
-export type PlatformDestinationId = "substack" | "reddit" | "skool" | "skool_course";
+export type PlatformDestinationId =
+  | "substack"
+  | "reddit"
+  | "skool"
+  | "skool_course"
+  | "gmail"
+  | "linkedin"
+  | "whatsapp";
 
 export type DestinationId = AiWorkspaceId | ImageGeneratorId | PlatformDestinationId;
 
@@ -68,6 +75,9 @@ const DESTINATION_URLS: Record<DestinationId, string> = {
   reddit: "https://www.reddit.com/submit",
   skool: "https://www.skool.com/",
   skool_course: "https://www.skool.com/",
+  gmail: "https://mail.google.com/mail/u/0/#inbox?compose=new",
+  linkedin: "https://www.linkedin.com/messaging/",
+  whatsapp: "https://web.whatsapp.com/",
 };
 
 const PLATFORM_ASSET_DESTINATIONS: Record<string, PlatformDestinationId> = {
@@ -76,6 +86,11 @@ const PLATFORM_ASSET_DESTINATIONS: Record<string, PlatformDestinationId> = {
   reddit_post: "reddit",
   skool_post: "skool",
   skool_course_idea: "skool_course",
+  personalized_outreach_email: "gmail",
+  follow_up_email: "gmail",
+  linkedin_connection: "linkedin",
+  linkedin_follow_up: "linkedin",
+  whatsapp_outreach: "whatsapp",
 };
 
 const IMAGE_GENERATOR_ASSET_TYPES = new Set<string>([
@@ -140,6 +155,9 @@ export function getDestinationDefinition(
     reddit: "Reddit",
     skool: "Skool",
     skool_course: "Skool",
+    gmail: "Gmail",
+    linkedin: "LinkedIn",
+    whatsapp: "WhatsApp",
   };
 
   const label =
