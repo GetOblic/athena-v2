@@ -35,7 +35,7 @@ describe("Deployment Assets prompt — Gemini plain-text canonical format", () =
       assert.match(block, new RegExp(`(?:^|\\n)${key}:(?:\\n|$)`));
     }
     assert.equal(REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS.length, 14);
-    assert.equal(getProspectDeploymentGenerationHeadings().length, 22);
+    assert.equal(getProspectDeploymentGenerationHeadings().length, 26);
   });
 
   it("requires each canonical heading exactly once", () => {

@@ -39,8 +39,12 @@ const ROOT = join(process.cwd());
 const OPTIONAL = [
   "WHATSAPP_OUTREACH",
   "KNOWLEDGE_BASE_ENHANCEMENT",
+  "HIDDEN_GEMS",
   "SUBSTACK_POST",
+  "SUBSTACK_NOTE",
   "REDDIT_POST",
+  "SKOOL_POST",
+  "SKOOL_COURSE_IDEA",
   "SOCIAL_VOICE_POST",
   "SHORT_VIDEO_PROMPT",
   "VISUAL_MESSAGE_PROMPT",
@@ -83,7 +87,14 @@ describe("Prospect optional content assets — registry and prompt", () => {
       "knowledge_base_enhancement",
     );
     assert.equal(canonicalDeploymentAssetType("SUBSTACK_POST"), "substack_post");
+    assert.equal(canonicalDeploymentAssetType("SUBSTACK_NOTE"), "substack_note");
+    assert.equal(canonicalDeploymentAssetType("HIDDEN_GEMS"), "hidden_gems");
     assert.equal(canonicalDeploymentAssetType("REDDIT_POST"), "reddit_post");
+    assert.equal(canonicalDeploymentAssetType("SKOOL_POST"), "skool_post");
+    assert.equal(
+      canonicalDeploymentAssetType("SKOOL_COURSE_IDEA"),
+      "skool_course_idea",
+    );
     assert.equal(
       canonicalDeploymentAssetType("SOCIAL_VOICE_POST"),
       "social_voice_post",
@@ -96,8 +107,15 @@ describe("Prospect optional content assets — registry and prompt", () => {
       PROSPECT_DEPLOYMENT_ASSET_META.KNOWLEDGE_BASE_ENHANCEMENT.title,
       "Knowledge Base Enhancement",
     );
+    assert.equal(PROSPECT_DEPLOYMENT_ASSET_META.HIDDEN_GEMS.title, "Hidden Gems");
     assert.equal(PROSPECT_DEPLOYMENT_ASSET_META.SUBSTACK_POST.title, "Substack Post");
+    assert.equal(PROSPECT_DEPLOYMENT_ASSET_META.SUBSTACK_NOTE.title, "Substack Note");
     assert.equal(PROSPECT_DEPLOYMENT_ASSET_META.REDDIT_POST.title, "Reddit Post");
+    assert.equal(PROSPECT_DEPLOYMENT_ASSET_META.SKOOL_POST.title, "Skool Post");
+    assert.equal(
+      PROSPECT_DEPLOYMENT_ASSET_META.SKOOL_COURSE_IDEA.title,
+      "Skool Course Idea",
+    );
     assert.equal(
       PROSPECT_DEPLOYMENT_ASSET_META.SOCIAL_VOICE_POST.title,
       "Social Voice Post",
@@ -124,8 +142,12 @@ describe("Prospect optional content assets — registry and prompt", () => {
     const prospectOnlyOptional = [
       "WHATSAPP_OUTREACH",
       "KNOWLEDGE_BASE_ENHANCEMENT",
+      "HIDDEN_GEMS",
       "SUBSTACK_POST",
+      "SUBSTACK_NOTE",
       "REDDIT_POST",
+      "SKOOL_POST",
+      "SKOOL_COURSE_IDEA",
       "SOCIAL_VOICE_POST",
       "LOCAL_OUTREACH_IMAGE_PROMPT",
     ] as const;
@@ -142,8 +164,12 @@ describe("Prospect optional content assets — registry and prompt", () => {
     );
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /WHATSAPP_OUTREACH/);
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /KNOWLEDGE_BASE_ENHANCEMENT/);
+    assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /HIDDEN_GEMS/);
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /SUBSTACK_POST/);
+    assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /SUBSTACK_NOTE/);
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /REDDIT_POST/);
+    assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /SKOOL_POST/);
+    assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /SKOOL_COURSE_IDEA/);
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /SOCIAL_VOICE_POST/);
     assert.doesNotMatch(DEPLOYMENT_SECTION_LABELS, /LOCAL_OUTREACH_IMAGE_PROMPT/);
 
@@ -156,8 +182,12 @@ describe("Prospect optional content assets — registry and prompt", () => {
     );
     assert.match(assembly, /WHATSAPP_OUTREACH_GENERATION_RULES/);
     assert.match(assembly, /KNOWLEDGE_BASE_ENHANCEMENT_GENERATION_RULES/);
+    assert.match(assembly, /HIDDEN_GEMS_GENERATION_RULES/);
     assert.match(assembly, /SUBSTACK_POST_GENERATION_RULES/);
+    assert.match(assembly, /SUBSTACK_NOTE_GENERATION_RULES/);
     assert.match(assembly, /REDDIT_POST_GENERATION_RULES/);
+    assert.match(assembly, /SKOOL_POST_GENERATION_RULES/);
+    assert.match(assembly, /SKOOL_COURSE_IDEA_GENERATION_RULES/);
     assert.match(assembly, /SOCIAL_VOICE_POST_GENERATION_RULES/);
     assert.match(assembly, /isProspectSource/);
   });
@@ -371,9 +401,9 @@ describe("Prospect always-generate assets — every creation and refresh path", 
     }
   });
 
-  it("Prospect CSV/batch generation requests all optional assets via the shared 22-heading prompt", () => {
+  it("Prospect CSV/batch generation requests all optional assets via the shared 26-heading prompt", () => {
     const headings = getProspectDeploymentGenerationHeadings();
-    assert.equal(headings.length, 22);
+    assert.equal(headings.length, 26);
     for (const key of OPTIONAL) {
       assert.ok(headings.includes(key));
     }
@@ -399,19 +429,19 @@ describe("Prospect always-generate assets — every creation and refresh path", 
     const block = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: true,
     });
-    assert.equal(getProspectDeploymentGenerationHeadings().length, 22);
+    assert.equal(getProspectDeploymentGenerationHeadings().length, 26);
     for (const key of OPTIONAL) {
       assert.match(block, new RegExp(`(?:^|\\n)${key}:(?:\\n|$)`));
     }
   });
 
-  it("every new Prospect generation run uses the same 22-heading prompt", () => {
+  it("every new Prospect generation run uses the same 26-heading prompt", () => {
     const headings = getProspectDeploymentGenerationHeadings();
     assert.deepEqual(headings, [
       ...REQUIRED_PROSPECT_DEPLOYMENT_ASSET_KEYS,
       ...OPTIONAL_PROSPECT_DEPLOYMENT_ASSET_KEYS,
     ]);
-    assert.equal(headings.length, 22);
+    assert.equal(headings.length, 26);
 
     const block = buildDeploymentAssetsRequiredOutputInstructions({
       isProspectSource: true,
@@ -470,8 +500,12 @@ describe("Prospect always-generate assets — every creation and refresh path", 
     for (const key of [
       "WHATSAPP_OUTREACH",
       "KNOWLEDGE_BASE_ENHANCEMENT",
+      "HIDDEN_GEMS",
       "SUBSTACK_POST",
+      "SUBSTACK_NOTE",
       "REDDIT_POST",
+      "SKOOL_POST",
+      "SKOOL_COURSE_IDEA",
       "SOCIAL_VOICE_POST",
       "LOCAL_OUTREACH_IMAGE_PROMPT",
     ] as const) {

@@ -11,8 +11,12 @@
 export const OPTIONAL_PROSPECT_DEPLOYMENT_ASSET_KEYS = [
   "WHATSAPP_OUTREACH",
   "KNOWLEDGE_BASE_ENHANCEMENT",
+  "HIDDEN_GEMS",
   "SUBSTACK_POST",
+  "SUBSTACK_NOTE",
   "REDDIT_POST",
+  "SKOOL_POST",
+  "SKOOL_COURSE_IDEA",
   "SOCIAL_VOICE_POST",
   "SHORT_VIDEO_PROMPT",
   "VISUAL_MESSAGE_PROMPT",
@@ -36,8 +40,12 @@ NEWSLETTER_IDEA:
 BLOG_POST_IDEA:
 WHATSAPP_OUTREACH:
 KNOWLEDGE_BASE_ENHANCEMENT:
+HIDDEN_GEMS:
 SUBSTACK_POST:
+SUBSTACK_NOTE:
 REDDIT_POST:
+SKOOL_POST:
+SKOOL_COURSE_IDEA:
 SOCIAL_VOICE_POST:
 SHORT_VIDEO_PROMPT:
 VISUAL_MESSAGE_PROMPT:
@@ -61,8 +69,12 @@ NEWSLETTER_IDEA — concept for the Athena client's audience newsletter (not out
 BLOG_POST_IDEA — concept for the Athena client's audience blog (not a full article): proposed title, search/reader intent, central thesis, recommended outline, key expert insights, suggested CTA, optional differentiation angle.
 WHATSAPP_OUTREACH — native WhatsApp outreach (not email). Include INITIAL MESSAGE and FOLLOW-UP sublabels. Conversational, concise, one grounded observation, one low-friction question. No subject line, no signature block, no formal salutation.
 KNOWLEDGE_BASE_ENHANCEMENT — structured factual operational knowledge for Voice AI / listings / support. Verified facts only; omit unknowns; no marketing copy.
+HIDDEN_GEMS — non-obvious analyst findings from the complete learned website corpus (Finding / Why it matters / Opportunity). Not a website summary.
 SUBSTACK_POST — publication-ready long-form editorial Substack article (TITLE, SUBTITLE, POST, CLOSING CTA). Not SEO or sales copy.
+SUBSTACK_NOTE — concise insight-led Substack Note ready for the feed; not a full newsletter or advertisement.
 REDDIT_POST — authentic Reddit discussion starter (SUGGESTED TITLE, POST, optional DISCUSSION QUESTION). Transparent and community-native.
+SKOOL_POST — ready-to-publish Skool general-discussion post (Title / Post). Discussion-oriented, not promotional.
+SKOOL_COURSE_IDEA — prospect-specific Skool course concept (Course Name, Short Description, Course Concept, Recommended Modules, Practical Outcome).
 SOCIAL_VOICE_POST — first-person social post in the Athena client's Voice, speaking to the Prospect market signal as lived observation (not a sales template).
 SHORT_VIDEO_PROMPT — paste-ready ~8s AI video generation prompt; cinematic; brand creative direction; prompt only.
 VISUAL_MESSAGE_PROMPT — paste-ready single-image AI generation prompt; one message/emotion; brand creative direction; prompt only.
@@ -86,8 +98,12 @@ export const PROSPECT_DEPLOYMENT_ASSET_KEYS = [
   "BLOG_POST_IDEA",
   "WHATSAPP_OUTREACH",
   "KNOWLEDGE_BASE_ENHANCEMENT",
+  "HIDDEN_GEMS",
   "SUBSTACK_POST",
+  "SUBSTACK_NOTE",
   "REDDIT_POST",
+  "SKOOL_POST",
+  "SKOOL_COURSE_IDEA",
   "SOCIAL_VOICE_POST",
   "SHORT_VIDEO_PROMPT",
   "VISUAL_MESSAGE_PROMPT",
@@ -172,15 +188,35 @@ export const PROSPECT_DEPLOYMENT_ASSET_META: Record<
     objective:
       "Structured factual business knowledge for listings, support, and voice AI.",
   },
+  HIDDEN_GEMS: {
+    title: "Hidden Gems",
+    objective:
+      "Non-obvious business intelligence from the complete learned website corpus.",
+  },
   SUBSTACK_POST: {
     title: "Substack Post",
     objective:
       "Publication-ready long-form thought leadership for Substack.",
   },
+  SUBSTACK_NOTE: {
+    title: "Substack Note",
+    objective:
+      "Concise insight-led Substack Note ready to publish in the feed.",
+  },
   REDDIT_POST: {
     title: "Reddit Post",
     objective:
       "Transparent, community-native discussion content for Reddit.",
+  },
+  SKOOL_POST: {
+    title: "Skool Post",
+    objective:
+      "Ready-to-publish Skool community discussion post.",
+  },
+  SKOOL_COURSE_IDEA: {
+    title: "Skool Course Idea",
+    objective:
+      "Prospect-specific Skool course concept grounded in demonstrated expertise.",
   },
   SOCIAL_VOICE_POST: {
     title: "Social Voice Post",

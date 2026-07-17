@@ -14,8 +14,12 @@ import {
   PROSPECT_DEPLOYMENT_CHANNEL_GUIDE,
   PROSPECT_DEPLOYMENT_SECTION_LABELS,
 } from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
+import { HIDDEN_GEMS_GENERATION_RULES } from "@/services/ai/prompts/hiddenGemsConstraints";
 import { REDDIT_POST_GENERATION_RULES } from "@/services/ai/prompts/redditPostConstraints";
+import { SKOOL_COURSE_IDEA_GENERATION_RULES } from "@/services/ai/prompts/skoolCourseIdeaConstraints";
+import { SKOOL_POST_GENERATION_RULES } from "@/services/ai/prompts/skoolPostConstraints";
 import { SOCIAL_VOICE_POST_GENERATION_RULES } from "@/services/ai/prompts/socialVoicePostConstraints";
+import { SUBSTACK_NOTE_GENERATION_RULES } from "@/services/ai/prompts/substackNoteConstraints";
 import { SUBSTACK_POST_GENERATION_RULES } from "@/services/ai/prompts/substackPostConstraints";
 import { LINKEDIN_PROSPECT_ASSET_GENERATION_RULES } from "@/services/ai/prompts/linkedinProspectAssetConstraints";
 import {
@@ -189,9 +193,17 @@ ${WHATSAPP_OUTREACH_GENERATION_RULES}
 
 ${knowledgeBaseRules}
 
+${HIDDEN_GEMS_GENERATION_RULES}
+
 ${SUBSTACK_POST_GENERATION_RULES}
 
+${SUBSTACK_NOTE_GENERATION_RULES}
+
 ${REDDIT_POST_GENERATION_RULES}
+
+${SKOOL_POST_GENERATION_RULES}
+
+${SKOOL_COURSE_IDEA_GENERATION_RULES}
 
 ${SOCIAL_VOICE_POST_GENERATION_RULES}
 
@@ -199,14 +211,18 @@ ${visualAssetsBlock}
 
 Channel isolation is mandatory:
 - Email must read like email; WhatsApp must read like WhatsApp; LinkedIn must read like LinkedIn.
-- Substack must be publication-ready long-form editorial content — not SEO or sales copy.
+- Substack Post must be publication-ready long-form editorial content — not SEO or sales copy.
+- Substack Note must be a concise feed-native note — not a full newsletter or Substack Post.
 - Reddit must be transparent and community-native.
+- Skool Post must be discussion-oriented community content — not a cold sales post.
+- Skool Course Idea must be prospect-specific and teachable — not a generic category course.
+- Hidden Gems must be non-obvious analyst findings from the complete learned website corpus — not a website summary and not Knowledge Base Enhancement.
 - Knowledge Base Enhancement must be factual operational knowledge — never invent facts; omit unknowns.
 - Social Voice Post must be first-person in the client's Athena Brain Voice — not outreach email, not Discussion SOCIAL_POST, not a sales template.
 - Short Video Prompt, Visual Message Prompt, and Local Outreach Image Prompt are generator prompts only — never scripts, strategies, or explanations.
 Do not let one asset format leak into another.
 Newsletter Idea and Blog Post Idea are for the Athena client's audience, using prospect/homepage/ads as market evidence — not outreach emails.
-Substack Post, Reddit Post, and Social Voice Post must be materially different from each other and from Newsletter/Blog Idea.
+Substack Post, Substack Note, Reddit Post, Skool Post, and Social Voice Post must be materially different from each other and from Newsletter/Blog Idea.
 Do not generate LOCAL_OUTREACH_IMAGE_PROMPT for non-Prospect sources.
 
 ${SHARED_OUTPUT_DIVERSITY_RULES}

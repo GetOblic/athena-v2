@@ -61,7 +61,7 @@ describe("V6 — Visual Deployment Assets", () => {
     );
 
     const headings = getProspectDeploymentGenerationHeadings();
-    assert.equal(headings.length, 22);
+    assert.equal(headings.length, 26);
     assert.ok(headings.includes("SHORT_VIDEO_PROMPT"));
     assert.ok(headings.includes("VISUAL_MESSAGE_PROMPT"));
     assert.ok(headings.includes("LOCAL_OUTREACH_IMAGE_PROMPT"));

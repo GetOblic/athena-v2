@@ -89,8 +89,16 @@ export function canonicalizeDeploymentAssetHeadings(text: string): string {
       /(^|\n)\s*KNOWLEDGE[\s_-]*BASE[\s_-]*ENHANCEMENT\s*:/gi,
       "$1KNOWLEDGE_BASE_ENHANCEMENT:",
     )
+    .replace(/(^|\n)\s*HIDDEN[\s_-]*GEMS\s*:/gi, "$1HIDDEN_GEMS:")
+    // Longer Substack / Skool variants before shorter POST forms.
+    .replace(/(^|\n)\s*SUBSTACK[\s_-]*NOTE\s*:/gi, "$1SUBSTACK_NOTE:")
     .replace(/(^|\n)\s*SUBSTACK[\s_-]*POST\s*:/gi, "$1SUBSTACK_POST:")
     .replace(/(^|\n)\s*REDDIT[\s_-]*POST\s*:/gi, "$1REDDIT_POST:")
+    .replace(
+      /(^|\n)\s*SKOOL[\s_-]*COURSE[\s_-]*IDEA\s*:/gi,
+      "$1SKOOL_COURSE_IDEA:",
+    )
+    .replace(/(^|\n)\s*SKOOL[\s_-]*POST\s*:/gi, "$1SKOOL_POST:")
     .replace(
       /(^|\n)\s*SOCIAL[\s_-]*VOICE[\s_-]*POST\s*:/gi,
       "$1SOCIAL_VOICE_POST:",
