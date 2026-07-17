@@ -34,6 +34,9 @@ import {
   getAssetBlueprintOutputSchemaForDebug,
 } from "@/services/assetBlueprints/prompts/assetBlueprintPrompt";
 import { assembleStrategicBlueprintPrompt } from "@/services/brain/generationContractService";
+import type { ExecutiveGenerationMode } from "@/services/brain/generationContracts/executiveGenerationMode";
+import { normalizeExecutiveGenerationMode } from "@/services/brain/generationContracts/executiveGenerationMode";
+import { appendThinkDifferentlyInstruction } from "@/services/brain/generationContracts/thinkDifferentlyInstruction";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 import type { ExecutiveMarketingStrategy } from "@/services/brain/executiveCoherence/executiveCoherenceTypes";
 import { applyMarketingStrategyRefresh } from "@/services/brain/executiveCoherence/executiveMarketingStrategyBuilder";
@@ -41,6 +44,16 @@ import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import type { Discussion } from "@/services/discussionService";
 import type { Opportunity } from "@/services/opportunityService";
 import type { AthenaReview } from "@/services/reviewService";
+
+function applyBlueprintGenerationMode(
+  standardPrompt: string,
+  generationMode: ExecutiveGenerationMode,
+): string {
+  if (generationMode !== "think_differently") {
+    return standardPrompt;
+  }
+  return appendThinkDifferentlyInstruction(standardPrompt);
+}
 
 export type { StrategicBlueprintArtifact } from "@/services/assetBlueprints/strategicBlueprintArtifactContract";
 
@@ -786,6 +799,12 @@ async function persistBlueprintOrPreserve(input: {
   blueprintError?: string;
   explicitRegeneration?: boolean;
   regenerationRunId?: string;
+  /**
+   * Think Differently inserts a new blueprint row so a partial failure cannot
+   * overwrite the blueprint still referenced by the previous Current version.
+   * Standard callers keep the existing upsert behavior (forceInsert false).
+   */
+  forceInsert?: boolean;
 }): Promise<BlueprintGenerationOutcome> {
   if (input.explicitRegeneration && (input.parseFailed || !input.parsed || !input.rawBlueprint)) {
     logRegenerationEvent("BLUEPRINT_REGENERATION_FAILED", {
@@ -867,7 +886,7 @@ async function persistBlueprintOrPreserve(input: {
     rawBlueprint: input.rawBlueprint,
     source: input.source,
     executiveMarketingStrategy: input.executiveMarketingStrategy,
-    forceInsert: false,
+    forceInsert: Boolean(input.forceInsert),
     regenerationRunId: input.regenerationRunId,
   });
 
@@ -946,8 +965,10 @@ export async function createAssetBlueprintForBriefing(input: {
   generationBundle?: GenerationBundle;
   regenerationRunId?: string;
   explicitRegeneration?: boolean;
+  generationMode?: ExecutiveGenerationMode;
 }): Promise<BlueprintGenerationOutcome> {
   try {
+    const generationMode = normalizeExecutiveGenerationMode(input.generationMode);
     const organizationId = input.discussion.organization_id ?? "";
     const effectiveBundle = await resolveBlueprintGenerationBundle({
       generationBundle: input.generationBundle,
@@ -971,14 +992,17 @@ export async function createAssetBlueprintForBriefing(input: {
         discussionId: input.discussion.id,
         explicitRegeneration: input.explicitRegeneration,
         buildPrompt: (refinementSuffix) =>
-          assembleStrategicBlueprintPrompt({
-            bundle: effectiveBundle,
-            discussion: input.discussion as unknown as Record<string, unknown>,
-            opportunity: input.opportunity as unknown as Record<string, unknown>,
-            briefing: input.briefing as unknown as Record<string, unknown>,
-            qualityRefinementSuffix: refinementSuffix,
-            regenerationRunId: input.regenerationRunId,
-          }),
+          applyBlueprintGenerationMode(
+            assembleStrategicBlueprintPrompt({
+              bundle: effectiveBundle,
+              discussion: input.discussion as unknown as Record<string, unknown>,
+              opportunity: input.opportunity as unknown as Record<string, unknown>,
+              briefing: input.briefing as unknown as Record<string, unknown>,
+              qualityRefinementSuffix: refinementSuffix,
+              regenerationRunId: input.regenerationRunId,
+            }),
+            generationMode,
+          ),
       });
 
       if (gated.ok) {
@@ -993,13 +1017,16 @@ export async function createAssetBlueprintForBriefing(input: {
           regenerationRunId: input.regenerationRunId,
           explicitRegeneration: input.explicitRegeneration,
           buildPrompt: () =>
-            assembleStrategicBlueprintPrompt({
-              bundle: effectiveBundle,
-              discussion: input.discussion as unknown as Record<string, unknown>,
-              opportunity: input.opportunity as unknown as Record<string, unknown>,
-              briefing: input.briefing as unknown as Record<string, unknown>,
-              regenerationRunId: input.regenerationRunId,
-            }),
+            applyBlueprintGenerationMode(
+              assembleStrategicBlueprintPrompt({
+                bundle: effectiveBundle,
+                discussion: input.discussion as unknown as Record<string, unknown>,
+                opportunity: input.opportunity as unknown as Record<string, unknown>,
+                briefing: input.briefing as unknown as Record<string, unknown>,
+                regenerationRunId: input.regenerationRunId,
+              }),
+              generationMode,
+            ),
         });
         if (!recovered.ok) {
           parseFailed = true;
@@ -1012,13 +1039,16 @@ export async function createAssetBlueprintForBriefing(input: {
       }
     } else {
       try {
-        const prompt = buildAssetBlueprintPrompt({
-          executiveContextPrompt: input.brainContextPrompt ?? "",
-          productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-          discussion: input.discussion as unknown as Record<string, unknown>,
-          opportunity: input.opportunity as unknown as Record<string, unknown>,
-          briefing: input.briefing as unknown as Record<string, unknown>,
-        });
+        const prompt = applyBlueprintGenerationMode(
+          buildAssetBlueprintPrompt({
+            executiveContextPrompt: input.brainContextPrompt ?? "",
+            productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
+            discussion: input.discussion as unknown as Record<string, unknown>,
+            opportunity: input.opportunity as unknown as Record<string, unknown>,
+            briefing: input.briefing as unknown as Record<string, unknown>,
+          }),
+          generationMode,
+        );
         rawBlueprint = await generateBlueprintReview({
           stage: "strategic_blueprint.briefing.legacy",
           userPrompt: prompt,
@@ -1058,6 +1088,7 @@ export async function createAssetBlueprintForBriefing(input: {
       blueprintError,
       explicitRegeneration: input.explicitRegeneration,
       regenerationRunId: input.regenerationRunId,
+      forceInsert: generationMode === "think_differently",
     });
   } catch (error) {
     console.error("createAssetBlueprintForBriefing failed:", error);
@@ -1101,8 +1132,10 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   generationBundle?: GenerationBundle;
   regenerationRunId?: string;
   explicitRegeneration?: boolean;
+  generationMode?: ExecutiveGenerationMode;
 }): Promise<BlueprintGenerationOutcome> {
   try {
+    const generationMode = normalizeExecutiveGenerationMode(input.generationMode);
     const organizationId = input.discussion.organization_id ?? "";
     const effectiveBundle = await resolveBlueprintGenerationBundle({
       generationBundle: input.generationBundle,
@@ -1124,13 +1157,16 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
         discussionId: input.discussion.id,
         explicitRegeneration: input.explicitRegeneration,
         buildPrompt: (refinementSuffix) =>
-          assembleStrategicBlueprintPrompt({
-            bundle: effectiveBundle,
-            discussion: input.discussion as unknown as Record<string, unknown>,
-            analysis: input.analysis as unknown as Record<string, unknown>,
-            qualityRefinementSuffix: refinementSuffix,
-            regenerationRunId: input.regenerationRunId,
-          }),
+          applyBlueprintGenerationMode(
+            assembleStrategicBlueprintPrompt({
+              bundle: effectiveBundle,
+              discussion: input.discussion as unknown as Record<string, unknown>,
+              analysis: input.analysis as unknown as Record<string, unknown>,
+              qualityRefinementSuffix: refinementSuffix,
+              regenerationRunId: input.regenerationRunId,
+            }),
+            generationMode,
+          ),
       });
 
       if (gated.ok) {
@@ -1145,12 +1181,15 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
           regenerationRunId: input.regenerationRunId,
           explicitRegeneration: input.explicitRegeneration,
           buildPrompt: () =>
-            assembleStrategicBlueprintPrompt({
-              bundle: effectiveBundle,
-              discussion: input.discussion as unknown as Record<string, unknown>,
-              analysis: input.analysis as unknown as Record<string, unknown>,
-              regenerationRunId: input.regenerationRunId,
-            }),
+            applyBlueprintGenerationMode(
+              assembleStrategicBlueprintPrompt({
+                bundle: effectiveBundle,
+                discussion: input.discussion as unknown as Record<string, unknown>,
+                analysis: input.analysis as unknown as Record<string, unknown>,
+                regenerationRunId: input.regenerationRunId,
+              }),
+              generationMode,
+            ),
         });
         if (!recovered.ok) {
           parseFailed = true;
@@ -1163,12 +1202,15 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
       }
     } else {
       try {
-        const prompt = buildAssetBlueprintFromAnalysisPrompt({
-          executiveContextPrompt: input.brainContextPrompt ?? "",
-          productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-          discussion: input.discussion as unknown as Record<string, unknown>,
-          analysis: input.analysis as unknown as Record<string, unknown>,
-        });
+        const prompt = applyBlueprintGenerationMode(
+          buildAssetBlueprintFromAnalysisPrompt({
+            executiveContextPrompt: input.brainContextPrompt ?? "",
+            productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
+            discussion: input.discussion as unknown as Record<string, unknown>,
+            analysis: input.analysis as unknown as Record<string, unknown>,
+          }),
+          generationMode,
+        );
         rawBlueprint = await generateBlueprintReview({
           stage: "strategic_blueprint.analysis.legacy",
           userPrompt: prompt,
@@ -1206,6 +1248,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
       blueprintError,
       explicitRegeneration: input.explicitRegeneration,
       regenerationRunId: input.regenerationRunId,
+      forceInsert: generationMode === "think_differently",
     });
   } catch (error) {
     console.error("createAssetBlueprintForDiscussionAnalysis failed:", error);

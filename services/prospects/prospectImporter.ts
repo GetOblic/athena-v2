@@ -133,7 +133,7 @@ export async function ensureProspectGenerationQueued(
     requestedBy?: string | null;
     /**
      * Import/append keep discussion_import / discussion_update semantics.
-     * Explicit Refresh Intelligence must use manual_refresh so the worker
+     * Explicit Generate Intelligence must use manual_refresh so the worker
      * runs with explicitRegeneration and publishes a new Current Version.
      */
     triggerType?:
@@ -141,6 +141,8 @@ export async function ensureProspectGenerationQueued(
       | "manual_refresh"
       | "discussion_update"
       | "prospect_deep_scrape";
+    /** Optional job progress intent (e.g. Think Differently). */
+    progress?: Record<string, unknown> | null;
   },
 ): Promise<{ prospect: Prospect; queued: boolean; jobId?: string }> {
   let current = prospect;
@@ -193,6 +195,7 @@ export async function ensureProspectGenerationQueued(
     requestedBy: options?.requestedBy ?? current.user_id,
     allowExisting: true,
     requestFollowUpIfActive: true,
+    progress: options?.progress ?? null,
   });
 
   const queued = Boolean(enqueue.accepted || enqueue.alreadyActive);

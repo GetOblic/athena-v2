@@ -27,8 +27,10 @@ import {
   markProspectGenerationReady,
   prepareProspectBridgeBeforeGeneration,
 } from "@/services/prospects/prospectImporter";
+import { isThinkDifferentlyJobProgress } from "@/services/brain/generationContracts/executiveGenerationMode";
 import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
+import { processThinkDifferentlyWorkflow } from "@/services/workflows/thinkDifferentlyWorkflow";
 
 export { createWorkerIdentity };
 
@@ -212,17 +214,26 @@ export async function executeClaimedGenerationJob(
       }
     }
 
-    const result = await processDiscussionEndToEnd(
-      job.discussion_id,
-      job.organization_id,
-      {
-        regenerationRunId:
-          job.regeneration_run_id ?? createRegenerationRunId(),
-        explicitRegeneration:
-          job.trigger_type === "manual_refresh" ||
-          job.trigger_type === "prospect_deep_scrape",
-      },
-    );
+    const thinkDifferently = isThinkDifferentlyJobProgress(job.progress);
+
+    const result = thinkDifferently
+      ? await processThinkDifferentlyWorkflow({
+          discussionId: job.discussion_id,
+          organizationId: job.organization_id,
+          regenerationRunId:
+            job.regeneration_run_id ?? createRegenerationRunId(),
+        })
+      : await processDiscussionEndToEnd(
+          job.discussion_id,
+          job.organization_id,
+          {
+            regenerationRunId:
+              job.regeneration_run_id ?? createRegenerationRunId(),
+            explicitRegeneration:
+              job.trigger_type === "manual_refresh" ||
+              job.trigger_type === "prospect_deep_scrape",
+          },
+        );
 
     if (claimLost || options?.shouldStop?.()) {
       return "claim_lost";
@@ -237,10 +248,15 @@ export async function executeClaimedGenerationJob(
         errorMessage: classified.message,
         retryable: classified.classification === "retryable",
         attemptCount: job.attempt_count,
-        failedStage: job.current_stage,
+        failedStage: thinkDifferently
+          ? "strategic_blueprint"
+          : job.current_stage,
         errorMetadata: {
           status: result.status ?? null,
-          partial: result.partial ?? false,
+          partial: "partial" in result ? Boolean(result.partial) : false,
+          pipeline: thinkDifferently
+            ? "strategic_blueprint_and_deployment_assets"
+            : "full",
         },
       });
 
@@ -421,17 +437,18 @@ async function maybeEnqueueFollowUp(job: AthenaGenerationJob): Promise<void> {
     job.organization_id,
   );
 
-  if (!pending) {
+  if (!pending.pending) {
     return;
   }
 
   // Parent should be terminal. If it is somehow still active, restore the
-  // durable marker so Refresh/Append intent is not lost.
+  // durable marker so Refresh/Append/Think Differently intent is not lost.
   const fresh = await getGenerationJobById(job.id, job.organization_id);
   if (fresh && isActiveGenerationJobStatus(fresh.status)) {
     await markDiscussionPendingGenerationFollowUp(
       job.discussion_id,
       job.organization_id,
+      pending.progress,
     );
     return;
   }
@@ -443,12 +460,14 @@ async function maybeEnqueueFollowUp(job: AthenaGenerationJob): Promise<void> {
       triggerType: "discussion_update",
       requestedBy: job.requested_by,
       regenerationRunId: createRegenerationRunId(),
+      progress: pending.progress ?? {},
     });
 
     console.log("[ATHENA_WORKER] follow_up_queued", {
       parentJobId: job.id,
       followUpJobId: followUp.id,
       discussionId: job.discussion_id,
+      thinkDifferently: isThinkDifferentlyJobProgress(pending.progress),
     });
   } catch (error) {
     // If unique active constraint races, restore the follow-up marker.
@@ -460,6 +479,7 @@ async function maybeEnqueueFollowUp(job: AthenaGenerationJob): Promise<void> {
     await markDiscussionPendingGenerationFollowUp(
       job.discussion_id,
       job.organization_id,
+      pending.progress,
     );
   }
 }

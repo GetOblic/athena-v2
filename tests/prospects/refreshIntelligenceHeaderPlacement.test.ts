@@ -9,11 +9,12 @@ function read(relativePath: string): string {
   return readFileSync(join(ROOT, relativePath), "utf8");
 }
 
-describe("Refresh Intelligence header placement", () => {
-  it("1. Discussion header renders Refresh Intelligence", () => {
+describe("Generate Intelligence header placement", () => {
+  it("1. Discussion header renders Generate Intelligence + Think Differently", () => {
     const header = read("components/discussions/DiscussionHeaderActions.tsx");
     assert.match(header, /AnalyzeDiscussionButton/);
-    assert.match(header, /label="Refresh Intelligence"/);
+    assert.match(header, /ThinkDifferentlyButton/);
+    assert.match(header, /label="Generate Intelligence"/);
     assert.match(header, /compact/);
 
     const page = read("app/discussions/[id]/page.tsx");
@@ -21,7 +22,7 @@ describe("Refresh Intelligence header placement", () => {
     assert.match(page, /lg:flex-row lg:items-start lg:justify-between/);
   });
 
-  it("2. Discussion Detailed Athena Reasoning no longer renders Refresh Intelligence", () => {
+  it("2. Discussion Detailed Athena Reasoning no longer renders Generate Intelligence", () => {
     const workspace = read(
       "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
     );
@@ -29,27 +30,34 @@ describe("Refresh Intelligence header placement", () => {
     assert.match(workspace, /Detailed Athena Reasoning/);
     assert.match(
       workspace,
-      /Use Refresh Intelligence in the page header to generate/,
+      /Use Generate Intelligence in the page header to generate/,
     );
   });
 
-  it("3. Prospect header renders Refresh Intelligence", () => {
+  it("3. Prospect header renders Generate Intelligence + Think Differently", () => {
     const page = read("app/prospects/[id]/page.tsx");
     assert.match(page, /ProspectRefreshIntelligenceButton/);
     assert.match(page, /lg:flex-row lg:items-start lg:justify-between/);
     assert.match(page, /prospectId=\{prospect\.id\}/);
+
+    const prospectButton = read(
+      "components/prospects/ProspectRefreshIntelligenceButton.tsx",
+    );
+    assert.match(prospectButton, /Generate Intelligence/);
+    assert.match(prospectButton, /Think Differently/);
   });
 
-  it("4. Prospect Details no longer renders Refresh Intelligence", () => {
+  it("4. Prospect Details no longer renders Generate Intelligence", () => {
     const editor = read("components/prospects/ProspectMetadataEditor.tsx");
     assert.doesNotMatch(editor, /refreshIntelligence/);
     assert.doesNotMatch(editor, /\/api\/prospects\/\$\{prospect\.id\}\/refresh/);
+    assert.doesNotMatch(editor, />\s*Generate Intelligence\s*</);
     assert.doesNotMatch(editor, />\s*Refresh Intelligence\s*</);
     assert.match(editor, /Edit/);
     assert.match(editor, /Delete/);
   });
 
-  it("5/6. exactly one Refresh Intelligence action mounts per page", () => {
+  it("5/6. exactly one Generate Intelligence action mounts per page", () => {
     const discussionPage = read("app/discussions/[id]/page.tsx");
     const discussionHeader = read(
       "components/discussions/DiscussionHeaderActions.tsx",
@@ -59,6 +67,10 @@ describe("Refresh Intelligence header placement", () => {
     );
     assert.equal(
       (discussionHeader.match(/<AnalyzeDiscussionButton/g) ?? []).length,
+      1,
+    );
+    assert.equal(
+      (discussionHeader.match(/<ThinkDifferentlyButton/g) ?? []).length,
       1,
     );
     assert.doesNotMatch(discussionPage, /AnalyzeDiscussionButton/);
@@ -76,7 +88,7 @@ describe("Refresh Intelligence header placement", () => {
     assert.doesNotMatch(prospectPage, /AnalyzeDiscussionButton/);
   });
 
-  it("7-10. existing refresh handlers and endpoints remain unchanged", () => {
+  it("7-10. existing generate handlers and endpoints remain unchanged", () => {
     const analyzeButton = read(
       "components/discussions/AnalyzeDiscussionButton.tsx",
     );
@@ -95,7 +107,6 @@ describe("Refresh Intelligence header placement", () => {
       /\/api\/prospects\/\$\{prospectId\}\/refresh/,
     );
     assert.match(prospectRefreshButton, /trackQueuedGeneration/);
-    assert.match(prospectRefreshButton, /Queuing…/);
     assert.match(
       prospectRefreshButton,
       /Prospect intelligence refresh queued\. Athena is regenerating in the background\./,
@@ -108,24 +119,27 @@ describe("Refresh Intelligence header placement", () => {
     assert.match(prospectRefreshRoute, /triggerType:\s*"manual_refresh"/);
   });
 
-  it("11-17. refresh status UX remains intact without duplicate job wiring", () => {
+  it("11-17. generate status UX remains intact without duplicate job wiring", () => {
     const analyzeButton = read(
       "components/discussions/AnalyzeDiscussionButton.tsx",
     );
     assert.match(analyzeButton, /isGenerating/);
     assert.match(analyzeButton, /isCompleted/);
     assert.match(analyzeButton, /disabled=\{isGenerating\}/);
-    assert.match(analyzeButton, /Fresh Intelligence Generated/);
-    assert.match(analyzeButton, /Generating Executive Intelligence/);
+    assert.match(analyzeButton, /Intelligence Generated/);
+    assert.match(analyzeButton, /Generating Intelligence/);
     assert.match(analyzeButton, /duplicateNotice/);
     assert.match(analyzeButton, /error/);
 
     const prospectRefreshButton = read(
       "components/prospects/ProspectRefreshIntelligenceButton.tsx",
     );
-    assert.match(prospectRefreshButton, /refreshing \|\| isGenerating/);
+    assert.match(prospectRefreshButton, /queueingKind \|\| isGenerating/);
     assert.match(prospectRefreshButton, /disabled=\{busy\}/);
-    assert.match(prospectRefreshButton, /if \(refreshing \|\| isGenerating\) return/);
+    assert.match(
+      prospectRefreshButton,
+      /if \(queueingKind \|\| isGenerating\) return/,
+    );
   });
 
   it("18/19. Discussion Edit and Delete remain in the header action group", () => {
@@ -135,9 +149,11 @@ describe("Refresh Intelligence header placement", () => {
     assert.match(header, /method: "PATCH"/);
     assert.match(header, /method: "DELETE"/);
     const refreshIndex = header.indexOf("<AnalyzeDiscussionButton");
+    const thinkIndex = header.indexOf("<ThinkDifferentlyButton");
     const editIndex = header.indexOf("Edit Discussion");
     const deleteIndex = header.indexOf("\n          Delete\n");
-    assert.ok(refreshIndex > 0 && editIndex > refreshIndex);
+    assert.ok(refreshIndex > 0 && thinkIndex > refreshIndex);
+    assert.ok(editIndex > thinkIndex);
     assert.ok(deleteIndex > editIndex);
   });
 
@@ -172,7 +188,7 @@ describe("Refresh Intelligence header placement", () => {
     assert.match(prospectPage, /flex flex-wrap items-center justify-end/);
   });
 
-  it("24-26. no migration, worker, or generation contract changes in this sprint", () => {
+  it("24-26. no migration, worker, or client-side queue wiring in UI", () => {
     const prospectRefreshButton = read(
       "components/prospects/ProspectRefreshIntelligenceButton.tsx",
     );

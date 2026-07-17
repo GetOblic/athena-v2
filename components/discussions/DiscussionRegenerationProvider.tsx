@@ -37,21 +37,28 @@ type AnalyzeResponse = {
   jobId?: string;
 };
 
+export type ActiveGenerationKind =
+  | "generate_intelligence"
+  | "think_differently";
+
 type DiscussionRegenerationContextValue = {
   isGenerating: boolean;
   isCompleted: boolean;
+  activeGenerationKind: ActiveGenerationKind | null;
   duplicateNotice: string | null;
   error: string | null;
   startedAtMs: number | null;
   resumed: boolean;
   stillRunningAfterTimeout: boolean;
   startRegeneration: () => Promise<void>;
-  /** Track an already-queued durable job using the same polling UX as Refresh. */
+  startThinkDifferently: () => Promise<void>;
+  /** Track an already-queued durable job using the same polling UX as Generate Intelligence. */
   trackQueuedGeneration: (
     baseline: Pick<
       RegenerationStatusSnapshot,
       "latestAnalysisUpdatedAt" | "blueprintUpdatedAt"
     >,
+    kind?: ActiveGenerationKind,
   ) => void;
   scrollToUpdatedAnalysis: () => void;
 };
@@ -85,6 +92,8 @@ export function DiscussionRegenerationProvider({
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [activeGenerationKind, setActiveGenerationKind] =
+    useState<ActiveGenerationKind | null>(null);
   const [resumed, setResumed] = useState(false);
   const [duplicateNotice, setDuplicateNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +106,7 @@ export function DiscussionRegenerationProvider({
   const completionToastShownRef = useRef(false);
   const successButtonTimerRef = useRef<number | null>(null);
   const baselineRef = useRef(initialSnapshot);
+  const activeKindRef = useRef<ActiveGenerationKind | null>(null);
   const completionSound = useBackgroundActionCompletionSound();
 
   const stopPolling = useCallback(() => {
@@ -136,6 +146,8 @@ export function DiscussionRegenerationProvider({
 
     successButtonTimerRef.current = window.setTimeout(() => {
       setIsCompleted(false);
+      setActiveGenerationKind(null);
+      activeKindRef.current = null;
       successButtonTimerRef.current = null;
     }, REGENERATION_SUCCESS_BUTTON_MS);
   }, [completionSound, discussionId, router, stopPolling]);
@@ -185,6 +197,8 @@ export function DiscussionRegenerationProvider({
           clearRegenerationSession(discussionId);
           setIsGenerating(false);
           setStillRunningAfterTimeout(false);
+          setActiveGenerationKind(null);
+          activeKindRef.current = null;
           setError("Generation failed. Athena could not complete this run.");
           completionSound.observe("failed");
           router.refresh();
@@ -226,13 +240,20 @@ export function DiscussionRegenerationProvider({
         | "blueprintUpdatedAt"
       >,
       queuedAtMs: number,
-      options?: { resumed?: boolean; duplicateNotice?: string | null },
+      options?: {
+        resumed?: boolean;
+        duplicateNotice?: string | null;
+        kind?: ActiveGenerationKind;
+      },
     ) => {
+      const kind = options?.kind ?? "generate_intelligence";
       completionToastShownRef.current = false;
       setError(null);
       setShowToast(false);
       setIsCompleted(false);
       setIsGenerating(true);
+      setActiveGenerationKind(kind);
+      activeKindRef.current = kind;
       setStillRunningAfterTimeout(false);
       setResumed(Boolean(options?.resumed));
       setDuplicateNotice(options?.duplicateNotice ?? null);
@@ -298,74 +319,96 @@ export function DiscussionRegenerationProvider({
     };
   }, [resumeIfNeeded, stopPolling]);
 
-  const startRegeneration = useCallback(async () => {
-    if (isGenerating) {
-      setDuplicateNotice("Generation already in progress.");
-      return;
-    }
-
-    stopPolling();
-    setError(null);
-    setDuplicateNotice(null);
-    setIsCompleted(false);
-    setShowToast(false);
-    setIsGenerating(true);
-    completionToastShownRef.current = false;
-
-    try {
-      const baseline =
-        (await fetchRegenerationStatus(discussionId)) ?? baselineRef.current;
-
-      const response = await fetch(`/api/discussions/${discussionId}/analyze`, {
-        method: "POST",
-      });
-
-      const text = await response.text();
-      let data: AnalyzeResponse;
-
-      try {
-        data = JSON.parse(text) as AnalyzeResponse;
-      } catch {
-        throw new Error(
-          "Athena received an unexpected server response while queuing regeneration.",
-        );
-      }
-
-      if (!data.success) {
-        const message =
-          typeof data.error === "string"
-            ? data.error
-            : data.error?.message || "Regeneration failed. Please check logs.";
-        throw new Error(message);
-      }
-
-      const queuedAtMs = Date.now();
-      const alreadyInProgress = Boolean(
-        data.message?.toLowerCase().includes("already in progress") ||
-          data.accepted === false,
-      );
-
-      if (alreadyInProgress) {
-        const session = readRegenerationSession(discussionId);
-        const current = await fetchRegenerationStatus(discussionId);
-
-        beginGeneration(
-          session?.baseline ?? current ?? baseline,
-          session?.startedAtMs ?? queuedAtMs,
-          {
-            duplicateNotice: "Generation already in progress.",
-            resumed: true,
-          },
-        );
+  const queueGeneration = useCallback(
+    async (endpoint: string, kind: ActiveGenerationKind) => {
+      if (isGenerating) {
+        setDuplicateNotice("Generation already in progress.");
         return;
       }
 
-      beginGeneration(baseline, queuedAtMs);
-    } catch (err) {
-      setIsGenerating(false);
-      setError(err instanceof Error ? err.message : "Unknown error");
-    }
-  }, [beginGeneration, discussionId, isGenerating, stopPolling]);
+      stopPolling();
+      setError(null);
+      setDuplicateNotice(null);
+      setIsCompleted(false);
+      setShowToast(false);
+      setIsGenerating(true);
+      setActiveGenerationKind(kind);
+      activeKindRef.current = kind;
+      completionToastShownRef.current = false;
+
+      try {
+        const baseline =
+          (await fetchRegenerationStatus(discussionId)) ?? baselineRef.current;
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+        });
+
+        const text = await response.text();
+        let data: AnalyzeResponse;
+
+        try {
+          data = JSON.parse(text) as AnalyzeResponse;
+        } catch {
+          throw new Error(
+            "Athena received an unexpected server response while queuing generation.",
+          );
+        }
+
+        if (!data.success) {
+          const message =
+            typeof data.error === "string"
+              ? data.error
+              : data.error?.message || "Generation failed. Please check logs.";
+          throw new Error(message);
+        }
+
+        const queuedAtMs = Date.now();
+        const alreadyInProgress = Boolean(
+          data.message?.toLowerCase().includes("already in progress") ||
+            data.accepted === false,
+        );
+
+        if (alreadyInProgress) {
+          const session = readRegenerationSession(discussionId);
+          const current = await fetchRegenerationStatus(discussionId);
+
+          beginGeneration(
+            session?.baseline ?? current ?? baseline,
+            session?.startedAtMs ?? queuedAtMs,
+            {
+              duplicateNotice: "Generation already in progress.",
+              resumed: true,
+              kind,
+            },
+          );
+          return;
+        }
+
+        beginGeneration(baseline, queuedAtMs, { kind });
+      } catch (err) {
+        setIsGenerating(false);
+        setActiveGenerationKind(null);
+        activeKindRef.current = null;
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
+    },
+    [beginGeneration, discussionId, isGenerating, stopPolling],
+  );
+
+  const startRegeneration = useCallback(async () => {
+    await queueGeneration(
+      `/api/discussions/${discussionId}/analyze`,
+      "generate_intelligence",
+    );
+  }, [discussionId, queueGeneration]);
+
+  const startThinkDifferently = useCallback(async () => {
+    await queueGeneration(
+      `/api/discussions/${discussionId}/think-differently`,
+      "think_differently",
+    );
+  }, [discussionId, queueGeneration]);
 
   const trackQueuedGeneration = useCallback(
     (
@@ -373,8 +416,9 @@ export function DiscussionRegenerationProvider({
         RegenerationStatusSnapshot,
         "latestAnalysisUpdatedAt" | "blueprintUpdatedAt"
       >,
+      kind: ActiveGenerationKind = "generate_intelligence",
     ) => {
-      beginGeneration(baseline, Date.now());
+      beginGeneration(baseline, Date.now(), { kind });
     },
     [beginGeneration],
   );
@@ -384,12 +428,14 @@ export function DiscussionRegenerationProvider({
       value={{
         isGenerating,
         isCompleted,
+        activeGenerationKind,
         duplicateNotice,
         error,
         startedAtMs,
         resumed,
         stillRunningAfterTimeout,
         startRegeneration,
+        startThinkDifferently,
         trackQueuedGeneration,
         scrollToUpdatedAnalysis,
       }}

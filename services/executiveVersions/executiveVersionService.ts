@@ -270,6 +270,11 @@ export async function publishExecutiveIntelligenceVersion(input: {
   reviewId?: string | null;
   blueprintId?: string | null;
   requireProspectCompleteness?: boolean;
+  /**
+   * When true, always insert a new Current version even if analysis_id matches.
+   * Required for Think Differently (same upstream analysis, new blueprint + assets).
+   */
+  forceNewVersion?: boolean;
 }): Promise<ExecutiveIntelligenceVersion | null> {
   const intelligence = await loadLiveExecutiveIntelligence(
     input.discussionId,
@@ -297,6 +302,7 @@ export async function publishExecutiveIntelligenceVersion(input: {
     input.organizationId,
   );
   if (
+    !input.forceNewVersion &&
     current &&
     current.analysis_id &&
     current.analysis_id === intelligence.analysis.id

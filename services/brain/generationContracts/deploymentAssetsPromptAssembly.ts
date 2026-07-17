@@ -98,6 +98,13 @@ export function assembleDeploymentAssetsPrompt(input: {
   regenerationRunId?: string;
   brandIdentity?: OrganizationBrandIdentity | null;
   websiteIntelligence?: Record<string, unknown> | null;
+  /**
+   * Optional authoritative Strategic Blueprint for this generation.
+   * Omitted by Standard callers — prompt remains unchanged.
+   * Think Differently passes the newly generated blueprint so Deployment Assets
+   * stay coherent with that direction (not a prior Standard blueprint).
+   */
+  strategicBlueprint?: Record<string, unknown> | null;
 }): string {
   const executiveContextBlock = buildDeploymentExecutiveContext(input.bundle, {
     regenerationRunId: input.regenerationRunId,
@@ -147,6 +154,9 @@ export function assembleDeploymentAssetsPrompt(input: {
               url: (input.websiteIntelligence as Record<string, unknown>).url ?? null,
             }
           : null,
+      ...(input.strategicBlueprint
+        ? { strategic_blueprint: input.strategicBlueprint }
+        : {}),
     },
     null,
     2,
@@ -237,6 +247,14 @@ ${
 ${visualAssetsBlock}
 `.trim();
 
+  const blueprintAuthorityBlock = input.strategicBlueprint
+    ? `
+=== STRATEGIC BLUEPRINT (AUTHORITATIVE FOR THIS GENERATION) ===
+Deployment Assets must follow this Strategic Blueprint direction. Do not revert to a prior blueprint or invent a conflicting strategy.
+${JSON.stringify(input.strategicBlueprint, null, 2)}
+`.trim()
+    : "";
+
   return [
     executiveContextBlock,
     `
@@ -246,7 +264,7 @@ ${isProspectSource ? "Source type: Prospect Intelligence. Prefer prospect outrea
 
 === SOURCE INTELLIGENCE ===
 ${sourceIntelligence}
-
+${blueprintAuthorityBlock ? `\n${blueprintAuthorityBlock}\n` : ""}
 === REQUIRED OUTPUT ===
 ${requiredOutput}
 

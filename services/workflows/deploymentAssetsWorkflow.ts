@@ -21,6 +21,9 @@ import {
   unwrapProspectDeploymentAssetResponse,
   IncompleteProspectDeploymentAssetsError,
 } from "@/lib/prospectDeploymentAssetContract";
+import type { ExecutiveGenerationMode } from "@/services/brain/generationContracts/executiveGenerationMode";
+import { normalizeExecutiveGenerationMode } from "@/services/brain/generationContracts/executiveGenerationMode";
+import { appendThinkDifferentlyInstruction } from "@/services/brain/generationContracts/thinkDifferentlyInstruction";
 import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 import { getProspectByLinkedDiscussionId } from "@/services/prospects/prospectService";
@@ -100,11 +103,15 @@ export async function generateDeploymentAssets(input: {
   discussionId: string;
   organizationId: string;
   explicitRegeneration?: boolean;
+  generationMode?: ExecutiveGenerationMode;
+  /** Newly generated Strategic Blueprint — required for think_differently coherence. */
+  strategicBlueprint?: Record<string, unknown> | null;
 }): Promise<{
   assets: GeneratedDeploymentAssets;
   rawResponse: string;
   model: string;
 }> {
+  const generationMode = normalizeExecutiveGenerationMode(input.generationMode);
   const bundle = await resolveDeploymentAssetsGenerationBundle({
     organizationId: input.organizationId,
     discussionId: input.discussionId,
@@ -145,7 +152,7 @@ export async function generateDeploymentAssets(input: {
     }
   }
 
-  const prompt = assembleDeploymentAssetsPrompt({
+  const standardPrompt = assembleDeploymentAssetsPrompt({
     bundle,
     discussion: input.discussion,
     analysis: input.analysis as Record<string, unknown>,
@@ -154,7 +161,16 @@ export async function generateDeploymentAssets(input: {
     regenerationRunId: input.regenerationRunId,
     brandIdentity,
     websiteIntelligence,
+    strategicBlueprint:
+      generationMode === "think_differently"
+        ? (input.strategicBlueprint ?? null)
+        : null,
   });
+
+  const prompt =
+    generationMode === "think_differently"
+      ? appendThinkDifferentlyInstruction(standardPrompt)
+      : standardPrompt;
 
   const rawResponse = await generateReview(prompt, {
     stage: "deployment_assets.generation",
@@ -220,11 +236,13 @@ export async function persistDeploymentAssets(input: {
   rawResponse: string;
   model: string;
   regenerationRunId?: string;
+  generationMode?: ExecutiveGenerationMode;
 }): Promise<{
   analysis: DiscussionAnalysis;
   opportunity?: Opportunity | null;
   review?: AthenaReview | null;
 }> {
+  const generationMode = normalizeExecutiveGenerationMode(input.generationMode);
   const analysisRawJson = {
     ...(input.analysis.raw_json ?? {}),
     deployment_assets: {
@@ -232,6 +250,7 @@ export async function persistDeploymentAssets(input: {
       raw_ai_response: input.rawResponse,
       regeneration_run_id: input.regenerationRunId ?? null,
       generated_at: new Date().toISOString(),
+      generationMode,
     },
   };
 
@@ -311,6 +330,7 @@ export async function persistDeploymentAssets(input: {
             raw_ai_response: input.rawResponse,
             regeneration_run_id: input.regenerationRunId ?? null,
             generated_at: new Date().toISOString(),
+            generationMode,
           },
         },
       },

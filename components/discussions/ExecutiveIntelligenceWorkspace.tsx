@@ -374,7 +374,7 @@ export function ExecutiveIntelligenceWorkspace({
             <div className="space-y-7">
               <div className="text-white/50">
                 No generated Athena analysis has been saved for this discussion
-                yet. Use Refresh Intelligence in the page header to generate.
+                yet. Use Generate Intelligence in the page header to generate.
               </div>
             </div>
           </AthenaCollapsibleSection>
