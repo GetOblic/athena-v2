@@ -2,15 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
 
 export function GenerateReviewButton({ opportunityId }: { opportunityId: string }) {
   const router = useRouter();
+  const completionSound = useBackgroundActionCompletionSound();
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleGenerate() {
     setIsGenerating(true);
     setError(null);
+    completionSound.observe("generating");
 
     try {
       const response = await fetch(`/api/opportunities/${opportunityId}/review`, {
@@ -23,8 +26,10 @@ export function GenerateReviewButton({ opportunityId }: { opportunityId: string 
         throw new Error(data.error || "Failed to generate review");
       }
 
+      completionSound.observe("completed");
       router.refresh();
     } catch (err) {
+      completionSound.observe("failed");
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setIsGenerating(false);

@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { ExecutiveGenerationPanel } from "@/components/discussions/ExecutiveGenerationPanel";
 import { RegenerationCompleteToast } from "@/components/discussions/RegenerationCompleteToast";
+import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
 import {
   clearRegenerationSession,
   fetchRegenerationStatus,
@@ -96,6 +97,7 @@ export function DiscussionRegenerationProvider({
   const completionToastShownRef = useRef(false);
   const successButtonTimerRef = useRef<number | null>(null);
   const baselineRef = useRef(initialSnapshot);
+  const completionSound = useBackgroundActionCompletionSound();
 
   const stopPolling = useCallback(() => {
     pollCleanupRef.current?.();
@@ -118,6 +120,9 @@ export function DiscussionRegenerationProvider({
     setResumed(false);
     setStartedAtMs(null);
 
+    // Active→success chime (observer ignores repeats / idle→completed).
+    completionSound.observe("completed");
+
     if (!completionToastShownRef.current) {
       completionToastShownRef.current = true;
       setShowToast(true);
@@ -133,7 +138,7 @@ export function DiscussionRegenerationProvider({
       setIsCompleted(false);
       successButtonTimerRef.current = null;
     }, REGENERATION_SUCCESS_BUTTON_MS);
-  }, [discussionId, router, stopPolling]);
+  }, [completionSound, discussionId, router, stopPolling]);
 
   const startPolling = useCallback(
     (
@@ -181,6 +186,7 @@ export function DiscussionRegenerationProvider({
           setIsGenerating(false);
           setStillRunningAfterTimeout(false);
           setError("Generation failed. Athena could not complete this run.");
+          completionSound.observe("failed");
           router.refresh();
           return;
         }
@@ -209,7 +215,7 @@ export function DiscussionRegenerationProvider({
 
       pollCleanupRef.current = finish;
     },
-    [discussionId, markCompleted, router, stopPolling],
+    [completionSound, discussionId, markCompleted, router, stopPolling],
   );
 
   const beginGeneration = useCallback(
@@ -231,6 +237,7 @@ export function DiscussionRegenerationProvider({
       setResumed(Boolean(options?.resumed));
       setDuplicateNotice(options?.duplicateNotice ?? null);
       setStartedAtMs(queuedAtMs);
+      completionSound.observe("processing");
 
       writeRegenerationSession({
         discussionId,
@@ -240,7 +247,7 @@ export function DiscussionRegenerationProvider({
 
       startPolling(baseline, queuedAtMs);
     },
-    [discussionId, startPolling],
+    [completionSound, discussionId, startPolling],
   );
 
   const resumeIfNeeded = useCallback(async () => {

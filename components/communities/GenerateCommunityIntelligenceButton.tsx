@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
 
 export function GenerateCommunityIntelligenceButton({
   communityId,
@@ -9,12 +10,14 @@ export function GenerateCommunityIntelligenceButton({
   communityId: string;
 }) {
   const router = useRouter();
+  const completionSound = useBackgroundActionCompletionSound();
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleGenerate() {
     setIsGenerating(true);
     setError(null);
+    completionSound.observe("generating");
 
     try {
       const response = await fetch(`/api/communities/${communityId}/intelligence`, {
@@ -27,8 +30,10 @@ export function GenerateCommunityIntelligenceButton({
         throw new Error(data.error || "Failed to generate community intelligence");
       }
 
+      completionSound.observe("completed");
       router.refresh();
     } catch (err) {
+      completionSound.observe("failed");
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setIsGenerating(false);

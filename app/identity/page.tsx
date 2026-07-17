@@ -5,7 +5,10 @@ import { AiWorkspacePreferencesSection } from "@/components/identity/AiWorkspace
 import { BrandIdentitySection } from "@/components/identity/BrandIdentitySection";
 import { DeepScrapeWebsiteButton } from "@/components/identity/DeepScrapeWebsiteButton";
 import { IdentityExecutiveIntelligence } from "@/components/identity/IdentityExecutiveIntelligence";
-import { TrainAthenaSubmitButton } from "@/components/identity/TrainAthenaSubmitButton";
+import {
+  TrainAthenaForm,
+  TrainAthenaSubmitButton,
+} from "@/components/identity/TrainAthenaSubmitButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   isAiWorkspaceId,
@@ -227,9 +230,8 @@ export default async function IdentityPage({
       )}
 
       <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-        <form
+        <TrainAthenaForm
           action={saveIdentity}
-          method="post"
           className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8"
         >
           <div className="grid gap-8">
@@ -301,7 +303,7 @@ export default async function IdentityPage({
 
             <TrainAthenaSubmitButton />
           </div>
-        </form>
+        </TrainAthenaForm>
 
         <aside className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
           <h2 className="text-xl font-semibold">Brain Status</h2>

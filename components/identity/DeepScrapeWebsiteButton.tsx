@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type DeepScrapeStatusPayload = {
@@ -37,6 +38,7 @@ export function DeepScrapeWebsiteButton(props: {
   initialLastDeepScrapePages?: number | null;
 }) {
   const router = useRouter();
+  const completionSound = useBackgroundActionCompletionSound();
   const [available, setAvailable] = useState(props.initiallyAvailable);
   const [syncedInitiallyAvailable, setSyncedInitiallyAvailable] = useState(
     props.initiallyAvailable,
@@ -79,6 +81,9 @@ export function DeepScrapeWebsiteButton(props: {
           ? payload.lastDeepScrapePages
           : null,
       );
+      if (payload.job?.status) {
+        completionSound.observe(payload.job.status);
+      }
       if (payload.job?.status === "failed" && payload.job.errorMessage) {
         setError(payload.job.errorMessage);
       } else if (payload.job?.status === "completed") {
@@ -88,7 +93,7 @@ export function DeepScrapeWebsiteButton(props: {
     } catch {
       // ignore transient poll errors
     }
-  }, [router]);
+  }, [completionSound, router]);
 
   useEffect(() => {
     if (!available) return;
