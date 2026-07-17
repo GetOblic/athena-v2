@@ -6,6 +6,7 @@ import {
   readStoredHomepageLearning,
   resolveIdentityWebsiteHomepageText,
 } from "@/services/identity/identityHomepageLearning";
+import { attachIdentityExecutiveIntelligence } from "@/services/identity/identityExecutiveIntelligence";
 import {
   buildMasterIdentityProfilePrompt,
   MASTER_IDENTITY_PROFILE_PROMPT_VERSION,
@@ -22,6 +23,11 @@ export {
   readStoredHomepageLearning,
   resolveIdentityWebsiteHomepageText,
 } from "@/services/identity/identityHomepageLearning";
+export {
+  readIdentityExecutiveIntelligence,
+  buildIdentityWebsiteCoverageView,
+  formatIdentityConfidenceLabel,
+} from "@/services/identity/identityExecutiveIntelligence";
 
 export type AthenaIdentity = {
   id: string;
@@ -222,12 +228,24 @@ export async function compileMasterIdentityProfile(
     usesDeepWebsiteIntelligence: hasDeepIntelligence,
   });
 
-  const rawProfile = await generateReview(prompt, {
-    stage: "identity.master_profile",
-    promptSource: "services/identity/identityService.ts",
-    generationKind: "identity_profile",
-  });
-  const masterProfile = parseJsonResponse(rawProfile);
+  const previousMasterProfile =
+    identity.master_profile && typeof identity.master_profile === "object"
+      ? identity.master_profile
+      : null;
+
+  let masterProfile: Record<string, unknown>;
+  try {
+    const rawProfile = await generateReview(prompt, {
+      stage: "identity.master_profile",
+      promptSource: "services/identity/identityService.ts",
+      generationKind: "identity_profile",
+    });
+    masterProfile = parseJsonResponse(rawProfile);
+  } catch (error) {
+    // Preserve the last successful master_profile (including Executive Intelligence).
+    console.error("Error compiling master identity profile:", error);
+    return identity;
+  }
 
   if (storedHomepageLearning) {
     // Preserve exact stored homepage learning across identity updates.
@@ -235,6 +253,12 @@ export async function compileMasterIdentityProfile(
   } else if (websiteHomepageText?.trim()) {
     masterProfile.homepage_learning = websiteHomepageText.trim().slice(0, 4000);
   }
+
+  const attached = attachIdentityExecutiveIntelligence({
+    masterProfile,
+    previousMasterProfile,
+  });
+  masterProfile = attached.masterProfile;
 
   const tenant = createTenantScope(organizationId);
   const { data, error } = await tenant

@@ -3,6 +3,7 @@ import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { redirect } from "next/navigation";
 import { BrandIdentitySection } from "@/components/identity/BrandIdentitySection";
 import { DeepScrapeWebsiteButton } from "@/components/identity/DeepScrapeWebsiteButton";
+import { IdentityExecutiveIntelligence } from "@/components/identity/IdentityExecutiveIntelligence";
 import { TrainAthenaSubmitButton } from "@/components/identity/TrainAthenaSubmitButton";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -300,6 +301,8 @@ export default async function IdentityPage({
         saveBrandIdentity={saveBrandIdentity}
         brandError={brandError}
       />
+
+      <IdentityExecutiveIntelligence identity={identity} />
     </main>
   );
 }
