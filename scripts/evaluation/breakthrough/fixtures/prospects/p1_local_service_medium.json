@@ -1,0 +1,32 @@
+{
+  "id": "p1_local_service_medium",
+  "slot": "P1",
+  "businessType": "local_service",
+  "evidenceRichness": "medium",
+  "notes": "Synthetic fixture only. Not a real customer.",
+  "context": {
+    "organizationName": "Northbridge Operator Co",
+    "greetingName": "Alex",
+    "aboutYou": "I coach local service owners with a calm, practical voice. Education before selling.",
+    "expertise": "Local service operations, scheduling discipline, review recovery.",
+    "website": "https://fixture-local-service.example.test",
+    "businessName": "Harbor Lane Home Care",
+    "industry": "Home services",
+    "category": "Residential maintenance",
+    "city": "Portland",
+    "summary": "Local maintenance company struggling to convert website visitors into booked estimates.",
+    "painPoints": [
+      "Inconsistent estimate follow-up",
+      "Seasonal demand swings",
+      "Generic outreach ignored"
+    ],
+    "buyerStage": "consideration",
+    "websiteSummary": "Offers plumbing and maintenance packages. Emphasizes same-week visits. Thin proof section.",
+    "businessKnowledge": [
+      "Same-week estimate promise",
+      "Two-technician crews",
+      "Serves Portland metro"
+    ],
+    "sourceBody": "Prospect homepage describes same-week estimates for home maintenance. Reviews mention punctuality but slow quote follow-up."
+  }
+}

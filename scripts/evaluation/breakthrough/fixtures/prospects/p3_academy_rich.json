@@ -1,0 +1,33 @@
+{
+  "id": "p3_academy_rich",
+  "slot": "P3",
+  "businessType": "educator_academy",
+  "evidenceRichness": "rich",
+  "notes": "Synthetic fixture only. Not a real customer.",
+  "context": {
+    "organizationName": "Northbridge Operator Co",
+    "greetingName": "Alex",
+    "aboutYou": "I train educators. Warm, structured, anti-hype.",
+    "expertise": "Curriculum design, supervised practice, launch readiness.",
+    "website": "https://fixture-academy.example.test",
+    "businessName": "Crestline Practice Academy",
+    "industry": "Professional education",
+    "category": "Skills academy",
+    "city": null,
+    "summary": "Academy sells cohort training; buyers fear they will not be ready to operate after graduation.",
+    "painPoints": [
+      "Post-training business readiness fear",
+      "Comparison shopping across academies",
+      "Need for supervised practice proof"
+    ],
+    "buyerStage": "consideration",
+    "websiteSummary": "Five-step methodology: consult, theory, hands-on, supervised work, launch. Detailed syllabus pages.",
+    "businessKnowledge": [
+      "Five-step methodology",
+      "Supervised clinic hours",
+      "Launch checklist included",
+      "Cohort schedule published"
+    ],
+    "sourceBody": "Academy site details a five-step training path ending in launch readiness. Alumni FAQ focuses on first-client confidence."
+  }
+}
