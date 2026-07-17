@@ -13,6 +13,8 @@ export type Organization = {
   brand_accent_color?: string | null;
   brand_background_color?: string | null;
   brand_font?: string | null;
+  /** Navigational Continue destinations — does not affect generation routing. */
+  ai_workspace_preferences?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };

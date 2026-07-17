@@ -3,6 +3,7 @@
 import { CollapsiblePromptBlock } from "@/components/assetBlueprints/CollapsiblePromptBlock";
 import type { AssetCopyTrackingContext } from "@/components/deployment/CopyButton";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 
 export type DeploymentAsset = {
@@ -18,6 +19,7 @@ type DeploymentAssetsProps = {
   copyContext?: Omit<AssetCopyTrackingContext, "assetType"> | null;
   doneByAssetType?: Record<string, boolean>;
   tagsByAssetType?: Record<string, AssetUsageTag[]>;
+  continuationPreferences?: AiWorkspacePreferences | null;
 };
 
 export function DeploymentAssets({
@@ -25,6 +27,7 @@ export function DeploymentAssets({
   copyContext = null,
   doneByAssetType = {},
   tagsByAssetType = {},
+  continuationPreferences = null,
 }: DeploymentAssetsProps) {
   const visibleAssets = assets.filter((asset) => asset.content.trim());
 
@@ -60,6 +63,7 @@ export function DeploymentAssets({
               copyContext={copyContext}
               initiallyDone={Boolean(doneByAssetType[assetType])}
               initiallyTags={tagsByAssetType[assetType] ?? []}
+              continuationPreferences={continuationPreferences}
             />
           );
         })}

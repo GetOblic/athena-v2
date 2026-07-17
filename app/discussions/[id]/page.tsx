@@ -24,6 +24,7 @@ import { getDiscussionById } from "@/services/discussionService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
+import { getOrganizationAiWorkspacePreferences } from "@/services/identity/aiWorkspacePreferences";
 import {
   getOrganizationBrandIdentity,
 } from "@/services/identity/brandIdentityService";
@@ -73,6 +74,7 @@ export default async function DiscussionDetailsPage({
     versionState,
     liveIntelligence,
     organizationBrand,
+    continuationPreferences,
   ] = await Promise.all([
     discussion.community_id
       ? getCommunityById(discussion.community_id, organizationId)
@@ -88,6 +90,7 @@ export default async function DiscussionDetailsPage({
       console.error("[BRAND_DIRECTION] discussion_load_failed", error);
       return null;
     }),
+    getOrganizationAiWorkspacePreferences(organizationId),
   ]);
 
   const brandDirection = toBlueprintBrandDirectionInput(organizationBrand);
@@ -213,6 +216,7 @@ export default async function DiscussionDetailsPage({
           versionState.current?.intelligence ?? liveIntelligence
         }
         brandDirection={brandDirection}
+        continuationPreferences={continuationPreferences}
         afterBlueprint={null}
         afterDetailedReasoning={
           <div className="mt-8">

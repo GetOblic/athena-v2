@@ -14,6 +14,7 @@ import { DeploymentReadinessBadge } from "@/components/queues/DeploymentReadines
 import { buildOpportunityDeploymentAssets } from "@/lib/deploymentAssets";
 import { buildWhyNowSummary } from "@/lib/opportunityPriority";
 import { getDisplayAssetBlueprintForBriefing } from "@/services/assetBlueprints/assetBlueprintService";
+import { getOrganizationAiWorkspacePreferences } from "@/services/identity/aiWorkspacePreferences";
 import { getOpportunityById } from "@/services/opportunityService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -34,7 +35,10 @@ export default async function OpportunityPage({ params }: Props) {
     notFound();
   }
 
-  const briefing = await getLatestReviewByOpportunityId(id, organizationId);
+  const [briefing, continuationPreferences] = await Promise.all([
+    getLatestReviewByOpportunityId(id, organizationId),
+    getOrganizationAiWorkspacePreferences(organizationId),
+  ]);
   const deploymentAssets = buildOpportunityDeploymentAssets(
     opportunity,
     briefing,
@@ -163,7 +167,10 @@ export default async function OpportunityPage({ params }: Props) {
 
       {deploymentAssets.length > 0 && (
         <div className="mt-8">
-          <DeploymentAssets assets={deploymentAssets} />
+          <DeploymentAssets
+            assets={deploymentAssets}
+            continuationPreferences={continuationPreferences}
+          />
         </div>
       )}
 
@@ -203,7 +210,10 @@ export default async function OpportunityPage({ params }: Props) {
 
       <div className="mt-8">
         {assetBlueprint ? (
-          <StrategicAssetBlueprint blueprint={assetBlueprint} />
+          <StrategicAssetBlueprint
+            blueprint={assetBlueprint}
+            continuationPreferences={continuationPreferences}
+          />
         ) : (
           <StrategicAssetBlueprintEmpty />
         )}

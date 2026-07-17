@@ -5,6 +5,7 @@ import {
   CopyButton,
   type AssetCopyTrackingContext,
 } from "@/components/deployment/CopyButton";
+import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 
 type CollapsiblePromptBlockProps = {
@@ -18,6 +19,8 @@ type CollapsiblePromptBlockProps = {
   copyContext?: Omit<AssetCopyTrackingContext, "assetType"> | null;
   initiallyDone?: boolean;
   initiallyTags?: AssetUsageTag[];
+  /** Org Continue destination preferences (defaults apply when omitted). */
+  continuationPreferences?: AiWorkspacePreferences | null;
 };
 
 export function CollapsiblePromptBlock({
@@ -30,6 +33,7 @@ export function CollapsiblePromptBlock({
   copyContext = null,
   initiallyDone = false,
   initiallyTags = [],
+  continuationPreferences = null,
 }: CollapsiblePromptBlockProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const content = text?.trim();
@@ -73,6 +77,9 @@ export function CollapsiblePromptBlock({
                 ? { ...copyContext, assetType }
                 : null
             }
+            showContinue
+            assetType={assetType}
+            continuationPreferences={continuationPreferences}
           />
         )}
       </div>

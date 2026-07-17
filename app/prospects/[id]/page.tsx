@@ -33,6 +33,7 @@ import {
   loadLiveExecutiveIntelligence,
 } from "@/services/executiveVersions/executiveVersionService";
 import { getOpportunityByDiscussionId } from "@/services/opportunityService";
+import { getOrganizationAiWorkspacePreferences } from "@/services/identity/aiWorkspacePreferences";
 import {
   getOrganizationBrandIdentity,
 } from "@/services/identity/brandIdentityService";
@@ -75,6 +76,7 @@ export default async function ProspectDetailsPage({
     versionState,
     liveIntelligence,
     organizationBrand,
+    continuationPreferences,
   ] = discussion
     ? await Promise.all([
         getLatestDiscussionAnalysis(discussion.id, organizationId),
@@ -86,6 +88,7 @@ export default async function ProspectDetailsPage({
           console.error("[BRAND_DIRECTION] prospect_load_failed", error);
           return null;
         }),
+        getOrganizationAiWorkspacePreferences(organizationId),
       ])
     : await Promise.all([
         Promise.resolve(null),
@@ -97,6 +100,7 @@ export default async function ProspectDetailsPage({
           console.error("[BRAND_DIRECTION] prospect_load_failed", error);
           return null;
         }),
+        getOrganizationAiWorkspacePreferences(organizationId),
       ]);
 
   const brandDirection = toBlueprintBrandDirectionInput(organizationBrand);
@@ -289,6 +293,7 @@ export default async function ProspectDetailsPage({
                 versionState.current?.intelligence ?? liveIntelligence
               }
               brandDirection={brandDirection}
+              continuationPreferences={continuationPreferences}
               afterBlueprint={null}
               afterDetailedReasoning={
                 <div className="mt-8">

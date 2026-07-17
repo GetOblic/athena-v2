@@ -19,6 +19,7 @@ import type {
   ExecutiveVersionSummary,
 } from "@/services/executiveVersions/executiveVersionTypes";
 import { normalizeAnalysisForDisplay } from "@/services/executiveVersions/analysisNormalization";
+import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 
 /**
@@ -103,6 +104,8 @@ type ExecutiveIntelligenceWorkspaceProps = {
   sourceKind?: "discussion" | "prospect";
   /** Current organization brand for Image/PDF prompt display/copy overlay. */
   brandDirection?: BlueprintBrandDirectionInput | null;
+  /** Org Continue destinations for Deployment Assets / Blueprint cards. */
+  continuationPreferences?: AiWorkspacePreferences | null;
 };
 
 function formatVersionGeneratedAt(value: string, includeTime: boolean): string {
@@ -148,6 +151,7 @@ export function ExecutiveIntelligenceWorkspace({
   afterDetailedReasoning,
   sourceKind = "discussion",
   brandDirection = null,
+  continuationPreferences = null,
 }: ExecutiveIntelligenceWorkspaceProps) {
   const { isGenerating, isCompleted } = useDiscussionRegeneration();
   const isProspect = sourceKind === "prospect";
@@ -550,6 +554,7 @@ export function ExecutiveIntelligenceWorkspace({
             copyContext={copyContext}
             doneByAssetType={doneByAssetType}
             tagsByAssetType={tagsByAssetType}
+            continuationPreferences={continuationPreferences}
           />
         </AthenaCollapsibleSection>
       )}
@@ -566,6 +571,7 @@ export function ExecutiveIntelligenceWorkspace({
             doneByAssetType={doneByAssetType}
             tagsByAssetType={tagsByAssetType}
             brandDirection={brandDirection}
+            continuationPreferences={continuationPreferences}
           />
         </AthenaCollapsibleSection>
       )}
