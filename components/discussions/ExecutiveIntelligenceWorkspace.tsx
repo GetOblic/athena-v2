@@ -9,7 +9,6 @@ import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
-import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 import { isAssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
@@ -21,8 +20,12 @@ import type {
 import { isThinkDifferentlyExecutiveVersion } from "@/services/executiveVersions/executiveVersionTypes";
 import { normalizeAnalysisForDisplay } from "@/services/executiveVersions/analysisNormalization";
 import {
+  archivedVersionExpandedCopy,
   buildExecutiveVersionCacheKey,
-  resolveWorkspaceVersionSelection,
+  buildSelectedExecutiveVersionViewModel,
+  currentVersionExpandedCopy,
+  resolveExecutiveVersionDisplayTimestamp,
+  resolvePendingCurrentAutoSelect,
 } from "@/services/executiveVersions/executiveVersionSelection";
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
@@ -242,40 +245,39 @@ export function ExecutiveIntelligenceWorkspace({
   // Do not depend on the versions array identity — that re-fired on refresh and
   // could reset an intentional historical selection when pending was stale.
   useEffect(() => {
-    if (isGenerating) {
-      return;
-    }
-
     const pending = readPendingAutoSelect(discussionId);
-    if (!pending?.completed) {
+    const nextCurrentId = resolvePendingCurrentAutoSelect({
+      isGenerating,
+      pending,
+      currentVersionId: currentVersion?.id ?? null,
+    });
+    if (!nextCurrentId) {
       return;
     }
 
-    if (!currentVersion) {
-      return;
-    }
-
-    if (currentVersion.id === pending.baselineCurrentVersionId) {
-      // Completion signaled, but refreshed Current Version has not arrived yet.
-      return;
-    }
-
-    setSelectedVersionId(currentVersion.id);
+    setSelectedVersionId(nextCurrentId);
     setExpandedVersionIds((previous) => {
       const next = new Set(previous);
-      next.add(currentVersion.id);
+      next.add(nextCurrentId);
       return next;
     });
     clearPendingAutoSelect(discussionId);
   }, [isGenerating, isCompleted, currentVersion, discussionId]);
 
-  const selection = resolveWorkspaceVersionSelection({
-    versions: sortedVersions,
-    selectedVersionId,
-    fallbackIntelligence,
-  });
-  const selectedVersion = selection.selectedVersion;
-  const executiveVersionIdForCopy = selectedVersion?.id ?? null;
+  // Single shared view model: selector, metadata, Blueprint, and Deployment Assets.
+  const viewModel = useMemo(
+    () =>
+      buildSelectedExecutiveVersionViewModel({
+        versions: sortedVersions,
+        selectedVersionId,
+        fallbackIntelligence,
+        sourceKind,
+      }),
+    [sortedVersions, selectedVersionId, fallbackIntelligence, sourceKind],
+  );
+
+  const selectedVersion = viewModel.version;
+  const executiveVersionIdForCopy = viewModel.executiveVersionId;
   const versionCacheKey = buildExecutiveVersionCacheKey({
     sourceType: copySourceType,
     sourceId: copySourceId,
@@ -349,11 +351,9 @@ export function ExecutiveIntelligenceWorkspace({
     [copySourceType, copySourceId, executiveVersionIdForCopy],
   );
 
-  // Never substitute Current/live when a version is selected (or selection is missing).
-  const intelligence: ExecutiveIntelligencePayload | null =
-    selection.intelligence;
+  const intelligence = viewModel.intelligence;
 
-  if (!intelligence) {
+  if (!intelligence || !viewModel.analysis) {
     return (
       <>
         <div
@@ -363,9 +363,11 @@ export function ExecutiveIntelligenceWorkspace({
             Executive Intelligence
           </div>
           <p className="mt-4 text-white/50">
-            {selection.selectionMissing
+            {viewModel.selectionMissing
               ? "The selected Executive Version is unavailable. Choose Current Version or another archived version."
-              : "Run Athena analysis to unlock executive intelligence for this discussion."}
+              : isProspect
+                ? "Run Athena analysis to unlock executive intelligence for this prospect."
+                : "Run Athena analysis to unlock executive intelligence for this discussion."}
           </p>
         </div>
         {afterBlueprint}
@@ -383,9 +385,11 @@ export function ExecutiveIntelligenceWorkspace({
           >
             <div className="space-y-7">
               <div className="text-white/50">
-                {selection.selectionMissing
+                {viewModel.selectionMissing
                   ? "Historical snapshot content is unavailable for this selection."
-                  : "No generated Athena analysis has been saved for this discussion yet. Use Generate Intelligence in the page header to generate."}
+                  : isProspect
+                    ? "No generated Athena analysis has been saved for this prospect yet. Use Generate Intelligence in the page header to generate."
+                    : "No generated Athena analysis has been saved for this discussion yet. Use Generate Intelligence in the page header to generate."}
               </div>
             </div>
           </AthenaCollapsibleSection>
@@ -395,15 +399,8 @@ export function ExecutiveIntelligenceWorkspace({
     );
   }
 
-  const analysisDisplay = normalizeAnalysisForDisplay(intelligence.analysis);
-
-  const deploymentAssets = buildDiscussionDeploymentAssets(
-    {
-      ...intelligence.analysis,
-      ...analysisDisplay,
-    },
-    { prospectMode: isProspect },
-  );
+  const analysisDisplay = normalizeAnalysisForDisplay(viewModel.analysis);
+  const deploymentAssets = viewModel.deploymentAssets;
 
   function toggleExpanded(versionId: string) {
     setExpandedVersionIds((previous) => {
@@ -491,8 +488,8 @@ export function ExecutiveIntelligenceWorkspace({
                             <span className="text-white/30">Generated </span>
                             <span className="text-white/65">
                               {formatVersionGeneratedAt(
-                                version.generated_at,
-                                version.is_current,
+                                resolveExecutiveVersionDisplayTimestamp(version),
+                                true,
                               )}
                             </span>
                           </div>
@@ -529,8 +526,8 @@ export function ExecutiveIntelligenceWorkspace({
                     {expanded && (
                       <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/50">
                         {version.is_current
-                          ? "This is Athena's current executive intelligence for this discussion."
-                          : "Previous intelligence — preserved permanently. Viewing does not change Current or trigger learning."}
+                          ? currentVersionExpandedCopy(sourceKind)
+                          : archivedVersionExpandedCopy()}
                       </div>
                     )}
                   </div>
@@ -541,86 +538,75 @@ export function ExecutiveIntelligenceWorkspace({
         </AthenaCollapsibleSection>
       )}
 
-      {!selectedVersion?.is_current && selectedVersion && (
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
-          Viewing archived executive intelligence from{" "}
-          {formatVersionGeneratedAt(selectedVersion.generated_at, true)}.
-          Athena&apos;s Current Version is unchanged.
-        </div>
-      )}
-
       <div
-        key={`version-meta-${selectedVersion?.id ?? "none"}`}
-        className="mt-8"
+        key={`selected-executive-version-${viewModel.executiveVersionId ?? "none"}`}
       >
-        <AthenaRecommendationRibbon analysis={intelligence.analysis} />
-        <RegenerationMetadata
-          analysis={intelligence.analysis}
-          generatedAt={selectedVersion?.generated_at ?? null}
-        />
-      </div>
+        {viewModel.isHistorical && viewModel.displayGeneratedAt && (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
+            Viewing archived executive intelligence from{" "}
+            {formatVersionGeneratedAt(viewModel.displayGeneratedAt, true)}.
+            Athena&apos;s Current Version is unchanged.
+          </div>
+        )}
 
-      <div
-        id="executive-intelligence"
-        key={`version-card-${selectedVersion?.id ?? "none"}`}
-        className="mt-6 scroll-mt-24"
-      >
-        <ExecutiveIntelligenceCard
-          analysis={intelligence.analysis}
-          sourceKind={sourceKind}
-        />
-      </div>
-
-      {deploymentAssets.length > 0 ? (
-        <AthenaCollapsibleSection
-          key={`deployment-assets-${selectedVersion?.id ?? "none"}`}
-          title="Deployment Assets"
-          defaultOpen={false}
-          className="mt-8"
-        >
-          <DeploymentAssets
-            assets={deploymentAssets}
-            copyContext={copyContext}
-            doneByAssetType={doneByAssetType}
-            tagsByAssetType={tagsByAssetType}
-            continuationPreferences={continuationPreferences}
+        <div className="mt-8">
+          <AthenaRecommendationRibbon analysis={viewModel.analysis} />
+          <RegenerationMetadata
+            analysis={viewModel.analysis}
+            generatedAt={viewModel.displayGeneratedAt}
           />
-        </AthenaCollapsibleSection>
-      ) : selectedVersion && !selectedVersion.is_current ? (
-        <div
-          key={`deployment-assets-unavailable-${selectedVersion.id}`}
-          className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55"
-        >
-          Deployment Assets are unavailable in this archived Executive Version
-          snapshot.
         </div>
-      ) : null}
 
-      {intelligence.blueprint ? (
-        <AthenaCollapsibleSection
-          key={`strategic-blueprint-${selectedVersion?.id ?? "none"}`}
-          title="Strategic Asset Blueprint"
-          defaultOpen={false}
-          className="mt-8"
-        >
-          <StrategicAssetBlueprint
-            blueprint={intelligence.blueprint}
-            copyContext={copyContext}
-            doneByAssetType={doneByAssetType}
-            tagsByAssetType={tagsByAssetType}
-            brandDirection={brandDirection}
-            continuationPreferences={continuationPreferences}
+        <div id="executive-intelligence" className="mt-6 scroll-mt-24">
+          <ExecutiveIntelligenceCard
+            analysis={viewModel.analysis}
+            sourceKind={sourceKind}
           />
-        </AthenaCollapsibleSection>
-      ) : selectedVersion && !selectedVersion.is_current ? (
-        <div
-          key={`strategic-blueprint-unavailable-${selectedVersion.id}`}
-          className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55"
-        >
-          Strategic Asset Blueprint is unavailable in this archived Executive
-          Version snapshot.
         </div>
-      ) : null}
+
+        {deploymentAssets.length > 0 ? (
+          <AthenaCollapsibleSection
+            title="Deployment Assets"
+            defaultOpen={false}
+            className="mt-8"
+          >
+            <DeploymentAssets
+              assets={deploymentAssets}
+              copyContext={copyContext}
+              doneByAssetType={doneByAssetType}
+              tagsByAssetType={tagsByAssetType}
+              continuationPreferences={continuationPreferences}
+            />
+          </AthenaCollapsibleSection>
+        ) : viewModel.isHistorical ? (
+          <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
+            Deployment Assets are unavailable in this archived Executive Version
+            snapshot.
+          </div>
+        ) : null}
+
+        {viewModel.blueprint ? (
+          <AthenaCollapsibleSection
+            title="Strategic Asset Blueprint"
+            defaultOpen={false}
+            className="mt-8"
+          >
+            <StrategicAssetBlueprint
+              blueprint={viewModel.blueprint}
+              copyContext={copyContext}
+              doneByAssetType={doneByAssetType}
+              tagsByAssetType={tagsByAssetType}
+              brandDirection={brandDirection}
+              continuationPreferences={continuationPreferences}
+            />
+          </AthenaCollapsibleSection>
+        ) : viewModel.isHistorical ? (
+          <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
+            Strategic Asset Blueprint is unavailable in this archived Executive
+            Version snapshot.
+          </div>
+        ) : null}
+      </div>
 
       {afterBlueprint}
 

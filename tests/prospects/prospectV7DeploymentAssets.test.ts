@@ -258,7 +258,14 @@ describe("V7 Prospect Deployment Assets — UI contracts (copy, tags, reload)", 
       join(ROOT, "components/discussions/ExecutiveIntelligenceWorkspace.tsx"),
       "utf8",
     );
-    assert.match(workspace, /buildDiscussionDeploymentAssets/);
+    const viewModel = readFileSync(
+      join(ROOT, "services/executiveVersions/executiveVersionSelection.ts"),
+      "utf8",
+    );
+    // Workspace renders Deployment Assets from the selected-version view model only.
+    assert.match(workspace, /buildSelectedExecutiveVersionViewModel/);
+    assert.match(workspace, /viewModel\.deploymentAssets/);
+    assert.match(viewModel, /buildDiscussionDeploymentAssets/);
     assert.doesNotThrow(() =>
       buildDiscussionDeploymentAssets(
         stubAnalysis(`${labeledRequiredBlock()}\n\nSUBSTACK_NOTE:\nHello`),
