@@ -326,6 +326,9 @@ export function DiscussionRegenerationProvider({
         return;
       }
 
+      // Unlock audio during the initiating click, before any await.
+      completionSound.unlock();
+
       stopPolling();
       setError(null);
       setDuplicateNotice(null);
@@ -393,7 +396,7 @@ export function DiscussionRegenerationProvider({
         setError(err instanceof Error ? err.message : "Unknown error");
       }
     },
-    [beginGeneration, discussionId, isGenerating, stopPolling],
+    [beginGeneration, completionSound, discussionId, isGenerating, stopPolling],
   );
 
   const startRegeneration = useCallback(async () => {

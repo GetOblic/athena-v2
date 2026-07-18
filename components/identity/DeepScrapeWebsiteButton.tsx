@@ -120,6 +120,7 @@ export function DeepScrapeWebsiteButton(props: {
 
   async function startDeepScrape() {
     if (queuing || isActive || !available) return;
+    completionSound.unlock();
     setQueuing(true);
     setError(null);
     try {

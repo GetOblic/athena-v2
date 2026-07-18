@@ -10,7 +10,10 @@ import {
   createBackgroundActionCompletionObserver,
   shouldPlayCompletionSound,
 } from "../../lib/completionSound/backgroundActionCompletion";
-import { playCompletionSound } from "../../lib/completionSound/playCompletionSound";
+import {
+  playCompletionSound,
+  unlockCompletionSound,
+} from "../../lib/completionSound/playCompletionSound";
 
 const ROOT = join(process.cwd());
 
@@ -155,21 +158,43 @@ describe("Background action completion sound — call sites", () => {
       "components/communities/GenerateCommunityIntelligenceButton.tsx",
     );
     const review = read("components/opportunities/GenerateReviewButton.tsx");
+    const prospectRefresh = read(
+      "components/prospects/ProspectRefreshIntelligenceButton.tsx",
+    );
+    const appendDiscussion = read(
+      "components/discussions/AppendDiscussionUpdateForm.tsx",
+    );
+    const trainForm = read("components/identity/TrainAthenaSubmitButton.tsx");
 
     assert.match(provider, /useBackgroundActionCompletionSound/);
+    assert.match(provider, /completionSound\.unlock\(\)/);
     assert.match(provider, /completionSound\.observe\("processing"\)/);
     assert.match(provider, /completionSound\.observe\("completed"\)/);
     assert.match(provider, /completionSound\.observe\("failed"\)/);
+    // Toast and chime remain sibling effects of markCompleted.
+    assert.match(provider, /setShowToast\(true\)/);
+    const markCompleted = provider.slice(
+      provider.indexOf("const markCompleted"),
+      provider.indexOf("const startPolling"),
+    );
+    assert.match(markCompleted, /completionSound\.observe\("completed"\)/);
+    assert.match(markCompleted, /setShowToast\(true\)/);
 
-    assert.match(identityDeep, /useBackgroundActionCompletionSound/);
+    assert.match(identityDeep, /completionSound\.unlock\(\)/);
     assert.match(identityDeep, /completionSound\.observe\(payload\.job\.status\)/);
-    assert.match(prospectDeep, /useBackgroundActionCompletionSound/);
+    assert.match(prospectDeep, /completionSound\.unlock\(\)/);
     assert.match(prospectDeep, /completionSound\.observe\(payload\.job\.status\)/);
 
+    assert.match(community, /completionSound\.unlock\(\)/);
     assert.match(community, /observe\("generating"\)/);
     assert.match(community, /observe\("completed"\)/);
+    assert.match(review, /completionSound\.unlock\(\)/);
     assert.match(review, /observe\("generating"\)/);
     assert.match(review, /observe\("completed"\)/);
+
+    assert.match(prospectRefresh, /unlockCompletionSound\(\)/);
+    assert.match(appendDiscussion, /unlockCompletionSound\(\)/);
+    assert.match(trainForm, /unlockCompletionSound\(\)/);
   });
 
   it("10. no worker or server-side dependency is introduced", () => {
@@ -180,8 +205,46 @@ describe("Background action completion sound — call sites", () => {
     const worker = read("scripts/buildAthenaWorker.mjs");
 
     assert.match(play, /AudioContext/);
+    assert.match(play, /export function unlockCompletionSound/);
     assert.doesNotMatch(play, /supabaseAdmin|openrouter|generationJob/i);
     assert.doesNotMatch(observer, /supabaseAdmin|openrouter|from\("jobs"\)/i);
     assert.doesNotMatch(worker, /completionSound|playCompletionSound/);
+  });
+
+  it("11. unlock does not play; only active→success plays once", () => {
+    let plays = 0;
+    let unlocks = 0;
+    const observer = createBackgroundActionCompletionObserver({
+      play: () => {
+        plays += 1;
+      },
+      unlockAudio: () => {
+        unlocks += 1;
+      },
+    });
+
+    observer.unlock();
+    observer.unlock();
+    assert.equal(unlocks, 2);
+    assert.equal(plays, 0);
+
+    observer.observe("processing");
+    assert.equal(plays, 0);
+    assert.equal(observer.observe("completed"), true);
+    assert.equal(plays, 1);
+    assert.equal(observer.observe("completed"), false);
+    assert.equal(plays, 1);
+  });
+
+  it("12. unlockCompletionSound is safe without a browser AudioContext", () => {
+    assert.doesNotThrow(() => {
+      unlockCompletionSound();
+    });
+  });
+
+  it("13. playCompletionSound rejected resume does not throw", async () => {
+    await assert.doesNotReject(async () => {
+      await playCompletionSound();
+    });
   });
 });

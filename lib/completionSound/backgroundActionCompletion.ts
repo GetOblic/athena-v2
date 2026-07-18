@@ -3,7 +3,10 @@
  * Plays only on observed active → success transitions in the current session.
  */
 
-import { playCompletionSound } from "@/lib/completionSound/playCompletionSound";
+import {
+  playCompletionSound,
+  unlockCompletionSound,
+} from "@/lib/completionSound/playCompletionSound";
 
 export const BACKGROUND_ACTION_ACTIVE_STATUSES = new Set([
   "queued",
@@ -65,17 +68,31 @@ export type BackgroundActionCompletionObserver = {
    * active→success transition. Never throws.
    */
   observe: (status: string | null | undefined) => boolean;
+  /**
+   * Unlock the shared AudioContext during the user's initiating gesture.
+   * Must be called synchronously from click/submit before awaits. Never plays.
+   */
+  unlock: () => void;
   reset: () => void;
 };
 
 export function createBackgroundActionCompletionObserver(options?: {
   play?: () => void | Promise<void>;
+  unlockAudio?: () => void;
 }): BackgroundActionCompletionObserver {
   let previousStatus: string | null = null;
   const play = options?.play ?? playCompletionSound;
+  const unlockAudio = options?.unlockAudio ?? unlockCompletionSound;
 
   return {
     getPreviousStatus: () => previousStatus,
+    unlock() {
+      try {
+        unlockAudio();
+      } catch {
+        // Ignore unlock failure.
+      }
+    },
     observe(status: string | null | undefined): boolean {
       try {
         const current = normalizeBackgroundActionStatus(status);

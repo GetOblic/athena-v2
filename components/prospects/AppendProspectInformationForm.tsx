@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
+import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import {
   emptyRegenerationSnapshot,
@@ -51,6 +52,7 @@ export function AppendProspectInformationForm({
     event.preventDefault();
     if (isSubmitting || isGenerating || !body.trim()) return;
 
+    unlockCompletionSound();
     setIsSubmitting(true);
     setResult(null);
 

@@ -1,6 +1,10 @@
 /**
  * Subtle client-only completion chime via Web Audio API.
  * No files, no packages. Failures never throw into UI.
+ *
+ * Browser autoplay policy: AudioContext created outside a user gesture starts
+ * suspended. Call unlockCompletionSound() synchronously during the click /
+ * submit that starts a background task; play only on confirmed completion.
  */
 
 const MASTER_GAIN = 0.07;
@@ -56,6 +60,27 @@ function scheduleTone(
   envelope.connect(destination);
   oscillator.start(startAt);
   oscillator.stop(startAt + durationSec + 0.03);
+}
+
+/**
+ * Prime / resume the shared AudioContext during a user gesture.
+ * Does not play the chime. Safe to call repeatedly. Never throws.
+ */
+export function unlockCompletionSound(): void {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) {
+      return;
+    }
+
+    if (ctx.state === "suspended") {
+      void ctx.resume().catch(() => {
+        // Gesture may have expired; completion play will best-effort resume.
+      });
+    }
+  } catch {
+    // Unsupported / blocked — ignore.
+  }
 }
 
 /**

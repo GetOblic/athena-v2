@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
+import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import {
   emptyRegenerationSnapshot,
   fetchRegenerationStatus,
@@ -212,6 +213,8 @@ export function ProspectMetadataEditor({
   }
 
   async function save() {
+    // Unlock in case this save queues regeneration; chime is owned by provider.
+    unlockCompletionSound();
     setSaving(true);
     setMessage(null);
     setError(null);

@@ -2,7 +2,10 @@
 
 import type { ReactNode } from "react";
 import { useFormStatus } from "react-dom";
-import { playCompletionSound } from "@/lib/completionSound/playCompletionSound";
+import {
+  playCompletionSound,
+  unlockCompletionSound,
+} from "@/lib/completionSound/playCompletionSound";
 
 /** Confirmed Train Athena success redirect from saveIdentity. */
 export const TRAIN_ATHENA_SUCCESS_REDIRECT_PATH = "/identity";
@@ -93,6 +96,8 @@ export function TrainAthenaForm({
   className,
 }: TrainAthenaFormProps) {
   async function clientAction(formData: FormData) {
+    // Unlock audio during submit gesture; play only after confirmed success redirect.
+    unlockCompletionSound();
     await handleTrainAthenaServerActionResult(() => action(formData));
   }
 

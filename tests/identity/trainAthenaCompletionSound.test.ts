@@ -153,6 +153,7 @@ describe("Train Athena completion sound", () => {
       /localStorage|sessionStorage|setInterval|setTimeout|createBackgroundActionCompletionObserver|useBackgroundActionCompletionSound/,
     );
     assert.match(button, /playCompletionSound/);
+    assert.match(button, /unlockCompletionSound/);
     assert.match(
       read("app/identity/page.tsx"),
       /redirect\("\/identity\?saved=true"\)/,
