@@ -140,7 +140,11 @@ export function ProspectRefreshIntelligenceButton({
         </button>
         <button
           type="button"
-          onClick={() => void queueAction("think_differently")}
+          onClick={() => {
+            // Unlock inside the click stack before any async work.
+            unlockCompletionSound();
+            void queueAction("think_differently");
+          }}
           disabled={busy}
           className="inline-flex items-center justify-center rounded-full border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-6 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40"
         >

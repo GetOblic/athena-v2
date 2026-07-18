@@ -171,14 +171,23 @@ describe("Background action completion sound — call sites", () => {
     assert.match(provider, /completionSound\.observe\("processing"\)/);
     assert.match(provider, /completionSound\.observe\("completed"\)/);
     assert.match(provider, /completionSound\.observe\("failed"\)/);
-    // Toast and chime remain sibling effects of markCompleted.
+    // Toast and chime remain sibling effects of markCompleted (same gate).
     assert.match(provider, /setShowToast\(true\)/);
     const markCompleted = provider.slice(
       provider.indexOf("const markCompleted"),
       provider.indexOf("const startPolling"),
     );
+    assert.match(markCompleted, /completionToastShownRef\.current/);
     assert.match(markCompleted, /completionSound\.observe\("completed"\)/);
     assert.match(markCompleted, /setShowToast\(true\)/);
+    assert.match(markCompleted, /BACKGROUND_ACTION_ACTIVE_STATUSES/);
+    // Chime observe is inside the toast gate — not a separate unguarded call.
+    const completedIdx = markCompleted.indexOf(
+      'completionSound.observe("completed")',
+    );
+    const toastIdx = markCompleted.indexOf("setShowToast(true)");
+    const gateIdx = markCompleted.indexOf("!completionToastShownRef.current");
+    assert.ok(gateIdx >= 0 && completedIdx > gateIdx && toastIdx > gateIdx);
 
     assert.match(identityDeep, /completionSound\.unlock\(\)/);
     assert.match(identityDeep, /completionSound\.observe\(payload\.job\.status\)/);

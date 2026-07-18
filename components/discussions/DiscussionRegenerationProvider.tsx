@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { ExecutiveGenerationPanel } from "@/components/discussions/ExecutiveGenerationPanel";
 import { RegenerationCompleteToast } from "@/components/discussions/RegenerationCompleteToast";
+import { BACKGROUND_ACTION_ACTIVE_STATUSES } from "@/lib/completionSound/backgroundActionCompletion";
 import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
 import {
   clearRegenerationSession,
@@ -130,11 +131,19 @@ export function DiscussionRegenerationProvider({
     setResumed(false);
     setStartedAtMs(null);
 
-    // Active→success chime (observer ignores repeats / idle→completed).
-    completionSound.observe("completed");
-
+    // Toast + chime are sibling effects of this confirmed-success event only.
+    // Re-arm active status if the observer lost it (e.g. provider remount after
+    // enqueue refresh) so the chime cannot be skipped while the toast still shows.
     if (!completionToastShownRef.current) {
       completionToastShownRef.current = true;
+      const previous = completionSound.getPreviousStatus();
+      if (
+        !previous ||
+        !BACKGROUND_ACTION_ACTIVE_STATUSES.has(previous)
+      ) {
+        completionSound.observe("processing");
+      }
+      completionSound.observe("completed");
       setShowToast(true);
     }
 

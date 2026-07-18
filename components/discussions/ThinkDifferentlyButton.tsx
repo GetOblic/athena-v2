@@ -1,6 +1,7 @@
 "use client";
 
 import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
+import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 
 type ThinkDifferentlyButtonProps = {
   compact?: boolean;
@@ -42,7 +43,11 @@ export function ThinkDifferentlyButton({
   return (
     <button
       type="button"
-      onClick={() => void startThinkDifferently()}
+      onClick={() => {
+        // Unlock inside the click stack before any async work.
+        unlockCompletionSound();
+        void startThinkDifferently();
+      }}
       disabled={isGenerating}
       className={`${THINK_DIFFERENTLY_BUTTON_CLASS} ${compact ? "px-6 py-3" : "w-full px-6 py-4"}`}
     >

@@ -64,7 +64,10 @@ function scheduleTone(
 
 /**
  * Prime / resume the shared AudioContext during a user gesture.
- * Does not play the chime. Safe to call repeatedly. Never throws.
+ * Does not play the audible chime. Safe to call repeatedly. Never throws.
+ *
+ * Creates the context, resumes if suspended, and starts a silent buffer so
+ * Chrome/Safari treat audio as unlocked for a later completion play().
  */
 export function unlockCompletionSound(): void {
   try {
@@ -77,6 +80,18 @@ export function unlockCompletionSound(): void {
       void ctx.resume().catch(() => {
         // Gesture may have expired; completion play will best-effort resume.
       });
+    }
+
+    // Silent start during the gesture — required on Safari / some Chrome paths
+    // where resume() alone does not fully unlock Web Audio.
+    try {
+      const buffer = ctx.createBuffer(1, 1, ctx.sampleRate || 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    } catch {
+      // Ignore silent-buffer failures; resume may still be enough.
     }
   } catch {
     // Unsupported / blocked — ignore.
