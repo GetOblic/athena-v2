@@ -65,12 +65,14 @@ describe("Sprint 4 — Deployment Assets collapsed by default", () => {
     assert.match(deploymentAssets, /copyContext=\{copyContext\}/);
     assert.match(
       deploymentAssets,
-      /initiallyDone=\{Boolean\(doneByAssetType\[assetType\]\)\}/,
+      /initiallyDone=\{Boolean\(doneByAssetType\[card\.assetType\]\)\}/,
     );
     assert.match(
       deploymentAssets,
-      /initiallyTags=\{tagsByAssetType\[assetType\] \?\? \[\]\}/,
+      /initiallyTags=\{tagsByAssetType\[card\.assetType\] \?\? \[\]\}/,
     );
+    assert.match(deploymentAssets, /buildDeploymentAssetCards/);
+    assert.match(deploymentAssets, /executiveVersionId/);
 
     const block = read("components/assetBlueprints/CollapsiblePromptBlock.tsx");
     assert.match(block, /<CopyButton/);

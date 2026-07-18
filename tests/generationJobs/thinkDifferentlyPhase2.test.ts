@@ -115,12 +115,17 @@ describe("Think Differently Phase 2 — workflow isolation", () => {
     // Early returns on blueprint/DA failure before publish.
     assert.match(workflow, /blueprint_failed/);
     assert.match(workflow, /deployment_assets_failed/);
+    assert.match(workflow, /deployment_assets_insufficient_divergence/);
     assert.match(workflow, /publish_failed/);
     const failBlueprint = workflow.indexOf("blueprint_failed");
     const failAssets = workflow.indexOf("deployment_assets_failed");
+    const failDivergence = workflow.indexOf(
+      "deployment_assets_insufficient_divergence",
+    );
     const publish = workflow.indexOf("publishExecutiveIntelligenceVersion(");
     assert.ok(failBlueprint > 0 && failBlueprint < publish);
     assert.ok(failAssets > 0 && failAssets < publish);
+    assert.ok(failDivergence > 0 && failDivergence < publish);
   });
 
   it("F/L. forceNewVersion is optional and defaults off for Standard", () => {

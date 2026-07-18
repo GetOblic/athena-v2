@@ -212,9 +212,18 @@ export function buildSelectedExecutiveVersionViewModel(input: {
   const intelligence = selection.intelligence;
   const prospectMode = input.sourceKind === "prospect";
 
-  const deploymentAssets = intelligence?.analysis
-    ? buildDiscussionDeploymentAssets(intelligence.analysis, { prospectMode })
-    : [];
+  // Parse from a frozen copy of the selected version's analysis only.
+  // Never pass live/fallback analysis into the Deployment Assets normalizer.
+  const deploymentAssets =
+    intelligence?.analysis && !selection.selectionMissing
+      ? buildDiscussionDeploymentAssets(
+          {
+            ...intelligence.analysis,
+            suggested_cta: intelligence.analysis.suggested_cta ?? "",
+          },
+          { prospectMode },
+        )
+      : [];
 
   return {
     executiveVersionId: version?.id ?? null,

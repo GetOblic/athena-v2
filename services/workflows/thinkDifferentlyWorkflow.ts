@@ -24,8 +24,13 @@ import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 import {
+  evaluateThinkDifferentlyDeploymentAssetDivergence,
+  THINK_DIFFERENTLY_DEPLOYMENT_ASSET_MAX_ATTEMPTS,
+} from "@/services/brain/generationContracts/thinkDifferentlyDeploymentAssetDivergence";
+import {
   generateDeploymentAssets,
   persistDeploymentAssets,
+  type GeneratedDeploymentAssets,
 } from "@/services/workflows/deploymentAssetsWorkflow";
 
 async function resolveThinkDifferentlyBlueprintBundle(input: {
@@ -176,29 +181,109 @@ export async function processThinkDifferentlyWorkflow(input: {
     const newBlueprint = blueprintOutcome.blueprint;
     const strategicBlueprintRecord = blueprintToPromptRecord(newBlueprint);
 
+    // Baseline for divergence: prior package on the shared analysis row before this run mutates it.
+    const previousSuggestedCta = String(analysis.suggested_cta ?? "");
+
     // 2) Generate Deployment Assets from the NEW blueprint (in-memory), not the prior Standard blueprint.
-    let generatedAssets;
-    try {
-      generatedAssets = await generateDeploymentAssets({
-        discussion,
-        analysis,
-        opportunity,
-        briefing,
-        regenerationRunId,
-        discussionId: input.discussionId,
-        organizationId: input.organizationId,
-        explicitRegeneration: true,
-        generationMode: "think_differently",
-        strategicBlueprint: strategicBlueprintRecord,
-      });
-    } catch (error) {
+    //    Prior suggested_cta is stripped from the prompt; material difference is enforced before persist.
+    let generatedAssets: {
+      assets: GeneratedDeploymentAssets;
+      rawResponse: string;
+      model: string;
+    } | null = null;
+    let divergenceRepairDuplicateKeys: string[] | null = null;
+    let lastDivergenceReason: string | null = null;
+
+    for (
+      let attempt = 1;
+      attempt <= THINK_DIFFERENTLY_DEPLOYMENT_ASSET_MAX_ATTEMPTS;
+      attempt += 1
+    ) {
+      try {
+        const candidate = await generateDeploymentAssets({
+          discussion,
+          analysis,
+          opportunity,
+          briefing,
+          regenerationRunId,
+          discussionId: input.discussionId,
+          organizationId: input.organizationId,
+          explicitRegeneration: true,
+          generationMode: "think_differently",
+          strategicBlueprint: strategicBlueprintRecord,
+          divergenceRepairDuplicateKeys,
+        });
+
+        const divergence = evaluateThinkDifferentlyDeploymentAssetDivergence({
+          previousSuggestedCta,
+          nextSuggestedCta: candidate.assets.suggested_cta,
+        });
+
+        console.info(
+          JSON.stringify({
+            event: "think_differently_deployment_asset_divergence",
+            discussionId: input.discussionId,
+            organizationId: input.organizationId,
+            regenerationRunId,
+            attempt,
+            accepted: divergence.accepted,
+            comparedCount: divergence.comparedCount,
+            duplicateCount: divergence.duplicateCount,
+            duplicateRatio: Number(divergence.duplicateRatio.toFixed(4)),
+            duplicateKeys: divergence.duplicateKeys,
+            coreDuplicateKeys: divergence.coreDuplicateKeys,
+          }),
+        );
+
+        if (divergence.accepted) {
+          generatedAssets = candidate;
+          break;
+        }
+
+        lastDivergenceReason = divergence.reason;
+        divergenceRepairDuplicateKeys = [
+          ...new Set([
+            ...divergence.duplicateKeys,
+            ...divergence.coreDuplicateKeys,
+          ]),
+        ];
+
+        if (attempt >= THINK_DIFFERENTLY_DEPLOYMENT_ASSET_MAX_ATTEMPTS) {
+          return {
+            success: false,
+            error:
+              lastDivergenceReason ??
+              "Think Differently Deployment Assets were not materially distinct from the prior package.",
+            status: "deployment_assets_insufficient_divergence",
+            blueprintId: newBlueprint.id,
+            analysisId: analysis.id,
+            opportunityId: opportunity?.id ?? null,
+            reviewId: briefing?.id ?? null,
+          };
+        }
+      } catch (error) {
+        return {
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Think Differently Deployment Assets generation failed.",
+          status: "deployment_assets_failed",
+          blueprintId: newBlueprint.id,
+          analysisId: analysis.id,
+          opportunityId: opportunity?.id ?? null,
+          reviewId: briefing?.id ?? null,
+        };
+      }
+    }
+
+    if (!generatedAssets) {
       return {
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Think Differently Deployment Assets generation failed.",
-        status: "deployment_assets_failed",
+          lastDivergenceReason ??
+          "Think Differently Deployment Assets generation failed.",
+        status: "deployment_assets_insufficient_divergence",
         blueprintId: newBlueprint.id,
         analysisId: analysis.id,
         opportunityId: opportunity?.id ?? null,

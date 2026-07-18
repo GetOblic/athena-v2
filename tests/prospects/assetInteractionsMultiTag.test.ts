@@ -152,7 +152,7 @@ describe("Multi-tag API / service contracts", () => {
   it("11. Deployment Assets and Blueprint prompts support tags", () => {
     const assets = read("components/deployment/DeploymentAssets.tsx");
     assert.match(assets, /tagsByAssetType/);
-    assert.match(assets, /initiallyTags=\{tagsByAssetType\[assetType\]/);
+    assert.match(assets, /initiallyTags=\{tagsByAssetType\[card\.assetType\]/);
 
     const blueprint = read(
       "components/assetBlueprints/StrategicAssetBlueprint.tsx",

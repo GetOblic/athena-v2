@@ -12,9 +12,17 @@
  */
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { CollapsiblePromptBlock } from "../../components/assetBlueprints/CollapsiblePromptBlock";
+import {
+  buildDeploymentAssetCards,
+  DeploymentAssets,
+} from "../../components/deployment/DeploymentAssets";
 import type { AthenaAssetBlueprint } from "../../services/assetBlueprints/assetBlueprintService";
 import type { DiscussionAnalysis } from "../../services/discussionAnalysisService";
 import {
@@ -44,8 +52,18 @@ const SHARED_ANALYSIS_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 const HISTORICAL_BLUEPRINT_V8 = "HISTORICAL_BLUEPRINT_V8";
 const CURRENT_BLUEPRINT_V9 = "CURRENT_BLUEPRINT_V9";
-const HISTORICAL_ASSET_V8 = "HISTORICAL_ASSET_V8";
-const CURRENT_ASSET_V9 = "CURRENT_ASSET_V9";
+const HISTORICAL_EMAIL_V8 = "HISTORICAL_EMAIL_V8";
+const HISTORICAL_FOLLOWUP_V8 = "HISTORICAL_FOLLOWUP_V8";
+const HISTORICAL_LINKEDIN_V8 = "HISTORICAL_LINKEDIN_V8";
+const HISTORICAL_CTA_V8 = "HISTORICAL_CTA_V8";
+const CURRENT_EMAIL_V9 = "CURRENT_EMAIL_V9";
+const CURRENT_FOLLOWUP_V9 = "CURRENT_FOLLOWUP_V9";
+const CURRENT_LINKEDIN_V9 = "CURRENT_LINKEDIN_V9";
+const CURRENT_CTA_V9 = "CURRENT_CTA_V9";
+
+function sha16(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex").slice(0, 16);
+}
 
 function analysis(
   overrides: Partial<DiscussionAnalysis> = {},
@@ -111,29 +129,22 @@ function version(input: {
   is_current: boolean;
   blueprint_id: string;
   blueprintMarker: string;
-  assetMarker: string;
+  email: string;
+  followUp: string;
+  linkedin: string;
+  cta: string;
   generated_at: string;
   created_at: string;
 }): ExecutiveIntelligenceVersion {
   const suggestedCta = [
     "PERSONALIZED_OUTREACH_EMAIL:",
-    input.assetMarker,
+    input.email,
     "FOLLOW_UP_EMAIL:",
-    `${input.assetMarker}_FOLLOW_UP`,
+    input.followUp,
     "LINKEDIN_CONNECTION:",
-    `${input.assetMarker}_LI`,
-    "COLD_CALL_OPENING:",
-    `${input.assetMarker}_CALL`,
-    "DISCOVERY_QUESTIONS:",
-    `${input.assetMarker}_DISCOVERY`,
-    "PERSONALIZED_VALUE_PROPOSITION:",
-    `${input.assetMarker}_VP`,
-    "OBJECTION_ANTICIPATION:",
-    `${input.assetMarker}_OBJECTION`,
-    "MEETING_PREPARATION:",
-    `${input.assetMarker}_MEETING`,
+    input.linkedin,
     "RECOMMENDED_CTA:",
-    `${input.assetMarker}_CTA`,
+    input.cta,
   ].join("\n");
 
   return {
@@ -160,7 +171,7 @@ function version(input: {
       analysis: analysis({
         suggested_cta: suggestedCta,
         raw_json: {
-          deployment_assets: { raw_ai_response: input.assetMarker },
+          deployment_assets: { raw_ai_response: suggestedCta },
         },
       }),
       opportunity: null,
@@ -178,7 +189,10 @@ const version8 = version({
   is_current: false,
   blueprint_id: BLUEPRINT_V8_ID,
   blueprintMarker: HISTORICAL_BLUEPRINT_V8,
-  assetMarker: HISTORICAL_ASSET_V8,
+  email: HISTORICAL_EMAIL_V8,
+  followUp: HISTORICAL_FOLLOWUP_V8,
+  linkedin: HISTORICAL_LINKEDIN_V8,
+  cta: HISTORICAL_CTA_V8,
   generated_at: "2026-07-17T16:13:00.000Z",
   created_at: "2026-07-18T10:00:00.000Z",
 });
@@ -189,7 +203,10 @@ const version9 = version({
   is_current: true,
   blueprint_id: BLUEPRINT_V9_ID,
   blueprintMarker: CURRENT_BLUEPRINT_V9,
-  assetMarker: CURRENT_ASSET_V9,
+  email: CURRENT_EMAIL_V9,
+  followUp: CURRENT_FOLLOWUP_V9,
+  linkedin: CURRENT_LINKEDIN_V9,
+  cta: CURRENT_CTA_V9,
   generated_at: "2026-07-17T16:13:00.000Z",
   created_at: "2026-07-18T11:00:00.000Z",
 });
@@ -264,8 +281,8 @@ describe("Prospect production path — ExecutiveIntelligenceWorkspace", () => {
     assert.equal(rendered.blueprintId, BLUEPRINT_V8_ID);
     assert.match(rendered.blueprintTitle, /HISTORICAL_BLUEPRINT_V8/);
     assert.doesNotMatch(rendered.blueprintTitle, /CURRENT_BLUEPRINT_V9/);
-    assert.match(rendered.assetText, /HISTORICAL_ASSET_V8/);
-    assert.doesNotMatch(rendered.assetText, /CURRENT_ASSET_V9/);
+    assert.match(rendered.assetText, /HISTORICAL_EMAIL_V8/);
+    assert.doesNotMatch(rendered.assetText, /CURRENT_EMAIL_V9/);
     assert.equal(vm.usedFallback, false);
     assert.equal(vm.isHistorical, true);
   });
@@ -276,9 +293,9 @@ describe("Prospect production path — ExecutiveIntelligenceWorkspace", () => {
 
     assert.equal(rendered.executiveVersionId, VERSION_9_ID);
     assert.match(rendered.blueprintTitle, /CURRENT_BLUEPRINT_V9/);
-    assert.match(rendered.assetText, /CURRENT_ASSET_V9/);
+    assert.match(rendered.assetText, /CURRENT_EMAIL_V9/);
     assert.doesNotMatch(rendered.blueprintTitle, /HISTORICAL_BLUEPRINT_V8/);
-    assert.doesNotMatch(rendered.assetText, /HISTORICAL_ASSET_V8/);
+    assert.doesNotMatch(rendered.assetText, /HISTORICAL_EMAIL_V8/);
     assert.equal(vm.isCurrent, true);
   });
 
@@ -433,7 +450,138 @@ describe("Prospect production path — ExecutiveIntelligenceWorkspace", () => {
     );
     assert.doesNotMatch(
       vm.analysis?.suggested_cta ?? "",
-      /CURRENT_ASSET_V9/,
+      /CURRENT_EMAIL_V9/,
+    );
+  });
+});
+
+describe("Prospect Deployment Assets version switching (production path)", () => {
+  function cardMarkupForVersion(selectedVersionId: string) {
+    const vm = prospectViewModel(selectedVersionId);
+    const cards = buildDeploymentAssetCards(
+      vm.deploymentAssets,
+      vm.executiveVersionId,
+    );
+    const propsMarkup = renderToStaticMarkup(
+      createElement(DeploymentAssets, {
+        assets: vm.deploymentAssets,
+        executiveVersionId: vm.executiveVersionId,
+      }),
+    );
+    const openCardsMarkup = cards
+      .map((card) =>
+        renderToStaticMarkup(
+          createElement(CollapsiblePromptBlock, {
+            key: card.key,
+            label: card.label,
+            description: card.description,
+            text: card.text,
+            defaultOpen: true,
+            assetType: card.assetType,
+          }),
+        ),
+      )
+      .join("\n");
+
+    return {
+      vm,
+      cards,
+      normalizedHash: sha16(JSON.stringify(vm.deploymentAssets)),
+      propsHash: sha16(JSON.stringify(vm.deploymentAssets)),
+      propsMarkup,
+      openCardsMarkup,
+    };
+  }
+
+  it("1–4. Version 8 normalized assets, props, and open cards use V8 sentinels only", () => {
+    const result = cardMarkupForVersion(VERSION_8_ID);
+    assert.equal(result.vm.executiveVersionId, VERSION_8_ID);
+    assert.match(result.openCardsMarkup, /HISTORICAL_EMAIL_V8/);
+    assert.match(result.openCardsMarkup, /HISTORICAL_FOLLOWUP_V8/);
+    assert.match(result.openCardsMarkup, /HISTORICAL_LINKEDIN_V8/);
+    assert.match(result.openCardsMarkup, /HISTORICAL_CTA_V8/);
+    assert.doesNotMatch(result.openCardsMarkup, /CURRENT_EMAIL_V9/);
+    assert.doesNotMatch(result.openCardsMarkup, /CURRENT_FOLLOWUP_V9/);
+    assert.doesNotMatch(result.openCardsMarkup, /CURRENT_LINKEDIN_V9/);
+    assert.doesNotMatch(result.openCardsMarkup, /CURRENT_CTA_V9/);
+    assert.match(result.propsMarkup, new RegExp(VERSION_8_ID));
+    for (const card of result.cards) {
+      assert.match(card.key, new RegExp(`^${VERSION_8_ID}:`));
+    }
+  });
+
+  it("5–6. Version 9 normalized assets and open cards use V9 sentinels only", () => {
+    const result = cardMarkupForVersion(VERSION_9_ID);
+    assert.equal(result.vm.executiveVersionId, VERSION_9_ID);
+    assert.match(result.openCardsMarkup, /CURRENT_EMAIL_V9/);
+    assert.match(result.openCardsMarkup, /CURRENT_FOLLOWUP_V9/);
+    assert.match(result.openCardsMarkup, /CURRENT_LINKEDIN_V9/);
+    assert.match(result.openCardsMarkup, /CURRENT_CTA_V9/);
+    assert.doesNotMatch(result.openCardsMarkup, /HISTORICAL_EMAIL_V8/);
+    assert.doesNotMatch(result.openCardsMarkup, /HISTORICAL_CTA_V8/);
+    assert.notEqual(
+      result.normalizedHash,
+      cardMarkupForVersion(VERSION_8_ID).normalizedHash,
+    );
+  });
+
+  it("7–8. Switching V8 → V9 → V8 restores correct card content; keys differ by version", () => {
+    const first = cardMarkupForVersion(VERSION_8_ID);
+    const second = cardMarkupForVersion(VERSION_9_ID);
+    const third = cardMarkupForVersion(VERSION_8_ID);
+
+    assert.equal(first.normalizedHash, third.normalizedHash);
+    assert.notEqual(first.normalizedHash, second.normalizedHash);
+    assert.match(first.openCardsMarkup, /HISTORICAL_EMAIL_V8/);
+    assert.match(second.openCardsMarkup, /CURRENT_EMAIL_V9/);
+    assert.match(third.openCardsMarkup, /HISTORICAL_EMAIL_V8/);
+    assert.notEqual(first.cards[0]?.key, second.cards[0]?.key);
+
+    // Rerender with same selection preserves V8 (no stale V9 content).
+    const rerender = cardMarkupForVersion(VERSION_8_ID);
+    assert.equal(rerender.normalizedHash, first.normalizedHash);
+    assert.doesNotMatch(rerender.openCardsMarkup, /CURRENT_EMAIL_V9/);
+  });
+
+  it("9. Historical missing payload shows unavailable, never Current assets", () => {
+    const emptyHistorical: ExecutiveIntelligenceVersion = {
+      ...version8,
+      intelligence: {
+        ...version8.intelligence,
+        analysis: analysis({ suggested_cta: "" }),
+      },
+    };
+    const vm = buildSelectedExecutiveVersionViewModel({
+      versions: [version9, emptyHistorical],
+      selectedVersionId: VERSION_8_ID,
+      fallbackIntelligence: liveCurrent,
+      sourceKind: "prospect",
+    });
+    assert.equal(vm.deploymentAssets.length, 0);
+    assert.doesNotMatch(
+      JSON.stringify(vm.deploymentAssets),
+      /CURRENT_EMAIL_V9/,
+    );
+    assert.equal(vm.isHistorical, true);
+  });
+
+  it("10–11. Current rendering unchanged; Discussion copy path unaffected", () => {
+    const current = cardMarkupForVersion(VERSION_9_ID);
+    assert.equal(current.vm.isCurrent, true);
+    assert.match(current.openCardsMarkup, /CURRENT_EMAIL_V9/);
+
+    const workspace = read(
+      "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
+    );
+    assert.match(workspace, /executiveVersionId=\{viewModel\.executiveVersionId\}/);
+    assert.match(
+      workspace,
+      /key=\{`deployment-assets-\$\{viewModel\.executiveVersionId/,
+    );
+
+    assert.equal(
+      currentVersionExpandedCopy("discussion"),
+      "This is Athena's current executive intelligence for this discussion.",
     );
   });
 });

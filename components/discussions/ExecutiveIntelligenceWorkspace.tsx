@@ -566,11 +566,14 @@ export function ExecutiveIntelligenceWorkspace({
 
         {deploymentAssets.length > 0 ? (
           <AthenaCollapsibleSection
+            key={`deployment-assets-section-${viewModel.executiveVersionId ?? "none"}`}
             title="Deployment Assets"
             defaultOpen={false}
             className="mt-8"
           >
             <DeploymentAssets
+              key={`deployment-assets-${viewModel.executiveVersionId ?? "none"}`}
+              executiveVersionId={viewModel.executiveVersionId}
               assets={deploymentAssets}
               copyContext={copyContext}
               doneByAssetType={doneByAssetType}

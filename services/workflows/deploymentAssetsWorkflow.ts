@@ -24,6 +24,11 @@ import {
 import type { ExecutiveGenerationMode } from "@/services/brain/generationContracts/executiveGenerationMode";
 import { normalizeExecutiveGenerationMode } from "@/services/brain/generationContracts/executiveGenerationMode";
 import { appendThinkDifferentlyInstruction } from "@/services/brain/generationContracts/thinkDifferentlyInstruction";
+import {
+  appendThinkDifferentlyDeploymentAssetRepairInstruction,
+  appendThinkDifferentlyDeploymentAssetsAddendum,
+  stripPriorDeploymentAssetsFromPromptContext,
+} from "@/services/brain/generationContracts/thinkDifferentlyDeploymentAssetDivergence";
 import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 import { getProspectByLinkedDiscussionId } from "@/services/prospects/prospectService";
@@ -106,6 +111,11 @@ export async function generateDeploymentAssets(input: {
   generationMode?: ExecutiveGenerationMode;
   /** Newly generated Strategic Blueprint — required for think_differently coherence. */
   strategicBlueprint?: Record<string, unknown> | null;
+  /**
+   * Think Differently divergence repair only: asset keys that were exact
+   * duplicates of the prior package on the previous attempt.
+   */
+  divergenceRepairDuplicateKeys?: string[] | null;
 }): Promise<{
   assets: GeneratedDeploymentAssets;
   rawResponse: string;
@@ -152,12 +162,29 @@ export async function generateDeploymentAssets(input: {
     }
   }
 
+  const promptContext =
+    generationMode === "think_differently"
+      ? stripPriorDeploymentAssetsFromPromptContext({
+          analysis: input.analysis as Record<string, unknown>,
+          opportunity: (input.opportunity ?? null) as
+            | Record<string, unknown>
+            | null,
+          briefing: (input.briefing ?? null) as Record<string, unknown> | null,
+        })
+      : {
+          analysis: input.analysis as Record<string, unknown>,
+          opportunity: (input.opportunity ?? null) as
+            | Record<string, unknown>
+            | null,
+          briefing: (input.briefing ?? null) as Record<string, unknown> | null,
+        };
+
   const standardPrompt = assembleDeploymentAssetsPrompt({
     bundle,
     discussion: input.discussion,
-    analysis: input.analysis as Record<string, unknown>,
-    opportunity: input.opportunity ?? undefined,
-    briefing: input.briefing ?? undefined,
+    analysis: promptContext.analysis,
+    opportunity: promptContext.opportunity ?? undefined,
+    briefing: promptContext.briefing ?? undefined,
     regenerationRunId: input.regenerationRunId,
     brandIdentity,
     websiteIntelligence,
@@ -167,10 +194,23 @@ export async function generateDeploymentAssets(input: {
         : null,
   });
 
-  const prompt =
+  let prompt =
     generationMode === "think_differently"
-      ? appendThinkDifferentlyInstruction(standardPrompt)
+      ? appendThinkDifferentlyDeploymentAssetsAddendum(
+          appendThinkDifferentlyInstruction(standardPrompt),
+        )
       : standardPrompt;
+
+  if (
+    generationMode === "think_differently" &&
+    Array.isArray(input.divergenceRepairDuplicateKeys) &&
+    input.divergenceRepairDuplicateKeys.length > 0
+  ) {
+    prompt = appendThinkDifferentlyDeploymentAssetRepairInstruction(
+      prompt,
+      input.divergenceRepairDuplicateKeys,
+    );
+  }
 
   const rawResponse = await generateReview(prompt, {
     stage: "deployment_assets.generation",
