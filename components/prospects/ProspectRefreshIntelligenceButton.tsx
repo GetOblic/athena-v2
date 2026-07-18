@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
+import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import {
   emptyRegenerationSnapshot,
   fetchRegenerationStatus,
@@ -44,6 +45,10 @@ export function ProspectRefreshIntelligenceButton({
 
   async function queueAction(kind: QueueKind) {
     if (queueingKind || isGenerating) return;
+
+    // Unlock audio during the initiating click, before any await.
+    // Completion chime is owned by DiscussionRegenerationProvider.
+    unlockCompletionSound();
 
     setQueueingKind(kind);
     setMessage(null);

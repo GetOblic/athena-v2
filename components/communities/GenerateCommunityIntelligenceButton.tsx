@@ -15,6 +15,7 @@ export function GenerateCommunityIntelligenceButton({
   const [error, setError] = useState<string | null>(null);
 
   async function handleGenerate() {
+    completionSound.unlock();
     setIsGenerating(true);
     setError(null);
     completionSound.observe("generating");
