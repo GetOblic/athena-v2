@@ -168,10 +168,13 @@ describe("Think Differently Phase 2 — prompt + routing isolation", () => {
     assert.match(daWorkflow, /generationMode === "think_differently"/);
   });
 
-  it("C/D/O. Existing blueprint and deployment-assets routing unchanged", () => {
+  it("C/D/O. Standard DA stays on analysis; Think Differently DA is explicit premium stage", () => {
     const routing = read("lib/llm/modelRouting.ts");
-    assert.match(routing, /deployment_assets/);
-    assert.doesNotMatch(routing, /think_differently/);
+    assert.match(routing, /deployment_assets: roles\.analysis/);
+    assert.match(
+      routing,
+      /deployment_assets_think_differently:\s*"premiumStrategicOutput"/,
+    );
     assert.doesNotMatch(routing, /breakthrough/i);
 
     const assetService = read(

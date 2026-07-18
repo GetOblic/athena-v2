@@ -57,6 +57,19 @@ export function classifyGenerationError(
         ? error
         : "Unknown generation failure";
 
+  // Workflow already exhausted bounded DA divergence retries — do not job-retry.
+  if (
+    /insufficient_divergence|not materially distinct from the prior package/i.test(
+      message,
+    )
+  ) {
+    return {
+      classification: "terminal",
+      code: "DEPLOYMENT_ASSETS_INSUFFICIENT_DIVERGENCE",
+      message: message.slice(0, 1000),
+    };
+  }
+
   // Stage failures that should retry within max_attempts.
   if (
     /deployment assets/i.test(message) ||

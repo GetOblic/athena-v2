@@ -6,6 +6,7 @@ import {
   appendThinkDifferentlyDeploymentAssetRepairInstruction,
   appendThinkDifferentlyDeploymentAssetsAddendum,
   evaluateThinkDifferentlyDeploymentAssetDivergence,
+  parseCanonicalDeploymentAssetMap,
   stripPriorDeploymentAssetsFromPromptContext,
   THINK_DIFFERENTLY_CORE_DEPLOYMENT_ASSET_KEYS,
   THINK_DIFFERENTLY_DEPLOYMENT_ASSET_MAX_ATTEMPTS,
@@ -13,6 +14,13 @@ import {
   THINK_DIFFERENTLY_MAX_DUPLICATE_RATIO,
 } from "../../services/brain/generationContracts/thinkDifferentlyDeploymentAssetDivergence";
 import { appendThinkDifferentlyInstruction } from "../../services/brain/generationContracts/thinkDifferentlyInstruction";
+import { parseLabeledDeploymentAssets } from "../../lib/deploymentAssets";
+import {
+  resolveModelForStage,
+  THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE,
+} from "../../lib/llm/modelRouting";
+import { classifyGenerationError } from "../../services/generationJobs/generationJobErrors";
+import { canonicalDeploymentAssetType } from "../../services/assetInteractions/assetInteractionKeys";
 
 const ROOT = process.cwd();
 
@@ -78,6 +86,18 @@ describe("Think Differently Deployment Asset divergence — evaluation", () => {
     assert.match(String(result.reason), /exact duplicates|Core assets unchanged/);
   });
 
+  it("rejects 26/26 exact duplicates (V10===V11 production mode)", () => {
+    const previous = labeledPackage("IDENTICAL");
+    const next = labeledPackage("IDENTICAL");
+    const result = evaluateThinkDifferentlyDeploymentAssetDivergence({
+      previousSuggestedCta: previous,
+      nextSuggestedCta: next,
+    });
+    assert.equal(result.accepted, false);
+    assert.equal(result.duplicateRatio, 1);
+    assert.equal(result.priorPayloadSha16, result.candidatePayloadSha16);
+  });
+
   it("accepts materially different packages with stable factual KB card", () => {
     const previous = labeledPackage("PRIOR");
     const next = labeledPackage("ALTERNATIVE", {
@@ -117,6 +137,38 @@ describe("Think Differently Deployment Asset divergence — evaluation", () => {
       nextSuggestedCta: next,
     });
     assert.equal(result.accepted, true);
+    assert.equal(result.baselineMissing, true);
+  });
+
+  it("detects equivalent aliases as the same canonical card", () => {
+    const previous = "PERSONALIZED_OUTREACH_EMAIL:\nSAME_BODY\n\nRECOMMENDED_CTA:\nCTA";
+    const next = "COLD_EMAIL:\nSAME_BODY\n\nRECOMMENDED_CTA:\nCTA";
+    const prevMap = parseCanonicalDeploymentAssetMap(previous);
+    const nextMap = parseCanonicalDeploymentAssetMap(next);
+    assert.equal(prevMap.get("email_outreach"), nextMap.get("email_outreach"));
+    assert.equal(
+      canonicalDeploymentAssetType("PERSONALIZED_OUTREACH_EMAIL"),
+      "email_outreach",
+    );
+    assert.equal(canonicalDeploymentAssetType("COLD_EMAIL"), "email_outreach");
+
+    const result = evaluateThinkDifferentlyDeploymentAssetDivergence({
+      previousSuggestedCta: previous,
+      nextSuggestedCta: next,
+    });
+    assert.ok(result.coreDuplicateKeys.includes("email_outreach"));
+    assert.equal(result.accepted, false);
+  });
+
+  it("uses the same canonical parser as UI Deployment Assets", () => {
+    const payload = labeledPackage("SHARED_PARSER");
+    const uiCards = parseLabeledDeploymentAssets(payload);
+    const divergenceMap = parseCanonicalDeploymentAssetMap(payload);
+    assert.equal(uiCards.length, divergenceMap.size);
+    for (const card of uiCards) {
+      assert.ok(card.assetKey);
+      assert.equal(divergenceMap.get(card.assetKey!), card.content.trim());
+    }
   });
 });
 
@@ -167,7 +219,6 @@ describe("Think Differently Deployment Asset divergence — prompt isolation", (
       undefined,
     );
 
-    // Serialized SOURCE INTELLIGENCE must not reintroduce prior package text.
     const serialized = JSON.stringify(stripped);
     assert.doesNotMatch(serialized, /PRIOR_PACKAGE/);
     assert.match(serialized, /Executive summary stays/);
@@ -182,6 +233,7 @@ describe("Think Differently Deployment Asset divergence — prompt isolation", (
       1,
     );
     assert.match(withAddendum, /Prior Deployment Assets are intentionally omitted/);
+    assert.match(withAddendum, /supersedes any prior execution strategy/);
     assert.throws(() =>
       appendThinkDifferentlyDeploymentAssetsAddendum(withAddendum),
     );
@@ -195,27 +247,77 @@ describe("Think Differently Deployment Asset divergence — prompt isolation", (
   });
 });
 
+describe("Think Differently Deployment Asset — model routing", () => {
+  it("1. Standard DA remains on Gemini Flash analysis role", () => {
+    const route = resolveModelForStage("deployment_assets");
+    assert.equal(route.role, "analysis");
+    assert.match(route.model, /gemini-2\.5-flash|google\//);
+  });
+
+  it("2–3. Think Differently DA uses premium Claude family for generate and retries", () => {
+    const route = resolveModelForStage(THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE);
+    assert.equal(route.stage, "deployment_assets_think_differently");
+    assert.equal(route.role, "premiumStrategicOutput");
+    assert.match(route.model, /claude|anthropic\//);
+
+    const blueprint = resolveModelForStage("strategic_blueprint");
+    assert.equal(route.role, blueprint.role);
+    assert.equal(route.model, blueprint.model);
+
+    const daWorkflow = read("services/workflows/deploymentAssetsWorkflow.ts");
+    assert.match(daWorkflow, /THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE/);
+    assert.match(daWorkflow, /reasoningProfile:\s*[\s\S]*STRATEGIC/);
+    // Retries call the same generateDeploymentAssets path — no Flash fallback stage.
+    assert.doesNotMatch(
+      daWorkflow,
+      /think_differently[\s\S]*athenaStage:\s*"deployment_assets"/,
+    );
+  });
+
+  it("12. Strategic Assets / blueprint routing remains premium", () => {
+    const route = resolveModelForStage("strategic_blueprint");
+    assert.equal(route.role, "premiumStrategicOutput");
+    assert.match(route.model, /claude|anthropic\//);
+  });
+});
+
 describe("Think Differently Deployment Asset divergence — workflow wiring", () => {
-  it("workflow generates freshly, validates divergence, retries, and refuses publish on exhaustion", () => {
+  it("4. Previous Current frozen payload is captured before analysis mutation", () => {
     const workflow = read("services/workflows/thinkDifferentlyWorkflow.ts");
+    assert.match(workflow, /previousDeploymentAssetPayload/);
+    assert.match(workflow, /getCurrentExecutiveVersion/);
+    assert.match(workflow, /frozenCurrentSuggestedCta/);
+
+    const baselineIdx = workflow.indexOf("previousDeploymentAssetPayload");
+    const generateIdx = workflow.indexOf("generateDeploymentAssets(");
+    const persistIdx = workflow.indexOf("persistDeploymentAssets(");
+    const publishIdx = workflow.indexOf(
+      "publishExecutiveIntelligenceVersion(",
+    );
+    assert.ok(baselineIdx > 0 && baselineIdx < generateIdx);
+    assert.ok(persistIdx > generateIdx);
+    assert.ok(publishIdx > persistIdx);
+  });
+
+  it("5–10. Gate, retries, persistence/publication bypass, terminal failure", () => {
+    const workflow = read("services/workflows/thinkDifferentlyWorkflow.ts");
+    const executor = read(
+      "services/generationJobs/generationJobExecutor.ts",
+    );
     const daWorkflow = read("services/workflows/deploymentAssetsWorkflow.ts");
 
-    assert.match(workflow, /previousSuggestedCta/);
+    assert.match(workflow, /ATHENA_TD_DA_DIVERGENCE/);
     assert.match(
       workflow,
       /evaluateThinkDifferentlyDeploymentAssetDivergence/,
     );
     assert.match(
       workflow,
-      /THINK_DIFFERENTLY_DEPLOYMENT_ASSET_MAX_ATTEMPTS/,
-    );
-    assert.match(
-      workflow,
       /deployment_assets_insufficient_divergence/,
     );
     assert.match(workflow, /divergenceRepairDuplicateKeys/);
+    assert.match(workflow, /reject_exhausted/);
 
-    const generateIdx = workflow.indexOf("generateDeploymentAssets(");
     const evaluateIdx = workflow.indexOf(
       "evaluateThinkDifferentlyDeploymentAssetDivergence(",
     );
@@ -223,31 +325,63 @@ describe("Think Differently Deployment Asset divergence — workflow wiring", ()
     const publishIdx = workflow.indexOf(
       "publishExecutiveIntelligenceVersion(",
     );
-    assert.ok(generateIdx > 0 && evaluateIdx > generateIdx);
-    assert.ok(persistIdx > evaluateIdx);
-    assert.ok(publishIdx > persistIdx);
-
     const failIdx = workflow.indexOf(
       "deployment_assets_insufficient_divergence",
     );
-    assert.ok(failIdx > 0 && failIdx < publishIdx);
+    assert.ok(evaluateIdx > 0 && evaluateIdx < persistIdx);
+    assert.ok(failIdx > 0 && failIdx < persistIdx);
+    assert.ok(failIdx < publishIdx);
+
+    assert.match(executor, /generationJobId:\s*job\.id/);
+    assert.match(
+      executor,
+      /DEPLOYMENT_ASSETS_INSUFFICIENT_DIVERGENCE/,
+    );
+    assert.match(
+      executor,
+      /divergenceTerminal[\s\S]*retryable:\s*divergenceTerminal[\s\S]*false/,
+    );
+
+    const classified = classifyGenerationError(
+      "deployment_assets_insufficient_divergence: Think Differently Deployment Assets were not materially distinct from the prior package.",
+    );
+    assert.equal(classified.classification, "terminal");
+    assert.equal(
+      classified.code,
+      "DEPLOYMENT_ASSETS_INSUFFICIENT_DIVERGENCE",
+    );
 
     assert.match(daWorkflow, /stripPriorDeploymentAssetsFromPromptContext/);
-    assert.match(daWorkflow, /appendThinkDifferentlyDeploymentAssetsAddendum/);
-    assert.match(
-      daWorkflow,
-      /appendThinkDifferentlyDeploymentAssetRepairInstruction/,
-    );
-    assert.match(daWorkflow, /divergenceRepairDuplicateKeys/);
-
-    // Standard path must not strip or add TD DA addendum unconditionally.
-    assert.match(
-      daWorkflow,
-      /generationMode === "think_differently"[\s\S]*stripPriorDeploymentAssetsFromPromptContext/,
-    );
-
     assert.equal(THINK_DIFFERENTLY_DEPLOYMENT_ASSET_MAX_ATTEMPTS, 3);
-    assert.ok(THINK_DIFFERENTLY_CORE_DEPLOYMENT_ASSET_KEYS.includes("email_outreach"));
+    assert.ok(
+      THINK_DIFFERENTLY_CORE_DEPLOYMENT_ASSET_KEYS.includes("email_outreach"),
+    );
+  });
+
+  it("11. Materially different accepted candidates can reach persist/publish", () => {
+    const previous = labeledPackage("PRIOR");
+    const next = labeledPackage("PREMIUM_DISTINCT");
+    const result = evaluateThinkDifferentlyDeploymentAssetDivergence({
+      previousSuggestedCta: previous,
+      nextSuggestedCta: next,
+    });
+    assert.equal(result.accepted, true);
+
+    const workflow = read("services/workflows/thinkDifferentlyWorkflow.ts");
+    const acceptBreak = workflow.indexOf("generatedAssets = candidate");
+    const persistIdx = workflow.indexOf("persistDeploymentAssets(");
+    assert.ok(acceptBreak > 0 && acceptBreak < persistIdx);
+  });
+
+  it("13. Discussion Think Differently shares premium DA routing via generationMode", () => {
+    const workflow = read("services/workflows/thinkDifferentlyWorkflow.ts");
+    assert.match(workflow, /generationMode:\s*"think_differently"/);
+    assert.doesNotMatch(workflow, /platform === .*prospect/);
+    const daWorkflow = read("services/workflows/deploymentAssetsWorkflow.ts");
+    assert.match(
+      daWorkflow,
+      /generationMode === "think_differently"[\s\S]*THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE/,
+    );
   });
 
   it("UI version-bound Deployment Asset key fix remains present", () => {
@@ -271,5 +405,6 @@ describe("Think Differently Deployment Asset divergence — workflow wiring", ()
       /deployment_assets_insufficient_divergence/,
     );
     assert.doesNotMatch(endToEnd, /stripPriorDeploymentAssetsFromPromptContext/);
+    assert.doesNotMatch(endToEnd, /deployment_assets_think_differently/);
   });
 });

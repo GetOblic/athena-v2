@@ -1,4 +1,8 @@
 import { generateReview, resolveModelForStage } from "@/services/aiService";
+import {
+  THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE,
+  type AthenaExtendedLLMStage,
+} from "@/lib/llm/modelRouting";
 import type { Discussion } from "@/services/discussionService";
 import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { updateDiscussionAnalysisDeploymentFields } from "@/services/discussionAnalysisService";
@@ -212,12 +216,24 @@ export async function generateDeploymentAssets(input: {
     );
   }
 
+  const athenaStage: AthenaExtendedLLMStage =
+    generationMode === "think_differently"
+      ? THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE
+      : "deployment_assets";
+  const routedModel = resolveModelForStage(athenaStage).model;
+
   const rawResponse = await generateReview(prompt, {
-    stage: "deployment_assets.generation",
+    stage:
+      generationMode === "think_differently"
+        ? "deployment_assets.think_differently.generation"
+        : "deployment_assets.generation",
     promptSource:
       "services/brain/generationContracts/deploymentAssetsPromptAssembly.ts::assembleDeploymentAssetsPrompt",
     generationKind: input.opportunity ? "executive_briefing" : "discussion_analysis",
-    athenaStage: "deployment_assets",
+    athenaStage,
+    // Match Strategic Blueprint effort for Think Differently DA; never fall back to Flash mid-retry.
+    reasoningProfile:
+      generationMode === "think_differently" ? "STRATEGIC" : undefined,
     regenerationRunId: input.regenerationRunId,
     discussionId: input.discussionId,
     explicitRegeneration: input.explicitRegeneration,
@@ -255,14 +271,14 @@ export async function generateDeploymentAssets(input: {
         cta: unwrapped.cta,
       },
       rawResponse,
-      model: resolveModelForStage("deployment_assets").model,
+      model: routedModel,
     };
   }
 
   return {
     assets: parseDeploymentAssetsResponse(rawResponse),
     rawResponse,
-    model: resolveModelForStage("deployment_assets").model,
+    model: routedModel,
   };
 }
 

@@ -3,12 +3,13 @@
  *
  * Prevents publishing a new Executive Version when almost all Deployment Asset
  * cards are exact duplicates of the prior package — the production failure mode
- * observed when consecutive TD runs produced 25/26 identical cards despite
- * distinct Strategic Blueprints and fresh LLM responses.
+ * observed when consecutive TD runs produced 25/26 (and later 26/26) identical
+ * cards despite distinct Strategic Blueprints.
  *
  * Standard generation never uses this module.
  */
 
+import { createHash } from "node:crypto";
 import { parseLabeledDeploymentAssets } from "@/lib/deploymentAssets";
 import { canonicalDeploymentAssetType } from "@/services/assetInteractions/assetInteractionKeys";
 
@@ -44,11 +45,21 @@ export const THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_ADDENDUM_MARKER =
 
 export const THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_ADDENDUM = `${THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_ADDENDUM_MARKER}
 
-Prior Deployment Assets are intentionally omitted from source intelligence for this request.
+AUTHORITATIVE SOURCE HIERARCHY FOR THIS REQUEST:
+1. The Strategic Blueprint block above is the authoritative alternative execution strategy.
+2. Prospect facts and upstream analysis are factual grounding only — they do not preserve the prior campaign.
+3. Prior Deployment Assets are intentionally omitted from source intelligence.
 
-Produce a materially distinct execution package that operationalizes the authoritative Strategic Blueprint above. Do not reuse prior asset structure, hooks, CTA, sequence, value proposition, or outreach framing unless that reuse is strategically required by the new direction.
+The alternative blueprint supersedes any prior execution strategy. Do not preserve the previous campaign structure, hooks, CTA, sequence, value proposition, or creative direction merely because Prospect facts are unchanged.
 
-Every core outreach asset must express the alternative strategic thesis — not a paraphrase of a previous package.`;
+Produce a materially distinct execution package that operationalizes the alternative strategic concept:
+- a new outreach thesis;
+- a new value proposition;
+- a new CTA;
+- a new follow-up sequence;
+- a new creative direction for core assets.
+
+This is not a rewrite or paraphrase of a prior package. Every core outreach asset must express the alternative strategic thesis.`;
 
 const FACTUAL_KEY_SET = new Set<string>(
   THINK_DIFFERENTLY_FACTUAL_DEPLOYMENT_ASSET_KEYS,
@@ -61,10 +72,51 @@ export type ThinkDifferentlyDeploymentAssetDivergenceResult = {
   duplicateRatio: number;
   duplicateKeys: string[];
   coreDuplicateKeys: string[];
+  priorCanonicalCount: number;
+  candidateCanonicalCount: number;
+  priorPayloadSha16: string;
+  candidatePayloadSha16: string;
+  baselineMissing: boolean;
   reason: string | null;
 };
 
-function cardsByKey(suggestedCta: string | null | undefined): Map<string, string> {
+export type AthenaTdDaDivergenceLog = {
+  event: "ATHENA_TD_DA_DIVERGENCE";
+  prospectId: string | null;
+  generationJobId: string | null;
+  regenerationRunId: string | null;
+  blueprintId: string | null;
+  attempt: number;
+  maxAttempts: number;
+  model: string | null;
+  priorPayloadSha16: string;
+  candidatePayloadSha16: string;
+  priorCanonicalCount: number;
+  candidateCanonicalCount: number;
+  comparedCount: number;
+  duplicateCount: number;
+  duplicateRatio: number;
+  duplicateKeys: string[];
+  coreDuplicateKeys: string[];
+  baselineMissing: boolean;
+  decision: "accept" | "reject_retry" | "reject_exhausted" | "baseline_empty_accept";
+  finalFailureCode: string | null;
+};
+
+export function sha16Payload(value: string | null | undefined): string {
+  return createHash("sha256")
+    .update(value ?? "")
+    .digest("hex")
+    .slice(0, 16);
+}
+
+/**
+ * Shared canonical parser with the UI Deployment Assets path:
+ * parseLabeledDeploymentAssets → canonicalDeploymentAssetType.
+ */
+export function parseCanonicalDeploymentAssetMap(
+  suggestedCta: string | null | undefined,
+): Map<string, string> {
   const cards = parseLabeledDeploymentAssets(suggestedCta ?? "");
   const map = new Map<string, string>();
   for (const card of cards) {
@@ -84,16 +136,21 @@ function cardsByKey(suggestedCta: string | null | undefined): Map<string, string
  * 1. Exclude factual cards (e.g. knowledge_base_enhancement) from the ratio.
  * 2. Reject when duplicateRatio > 0.8 among substantive compared cards.
  * 3. Reject when any core outreach asset is an exact duplicate.
- * 4. If there is no prior package to compare, accept.
+ * 4. If there is no prior package to compare, accept (baseline_empty).
  */
 export function evaluateThinkDifferentlyDeploymentAssetDivergence(input: {
   previousSuggestedCta?: string | null;
   nextSuggestedCta?: string | null;
 }): ThinkDifferentlyDeploymentAssetDivergenceResult {
-  const previous = cardsByKey(input.previousSuggestedCta);
-  const next = cardsByKey(input.nextSuggestedCta);
+  const previousPayload = String(input.previousSuggestedCta ?? "");
+  const candidatePayload = String(input.nextSuggestedCta ?? "");
+  const previous = parseCanonicalDeploymentAssetMap(previousPayload);
+  const next = parseCanonicalDeploymentAssetMap(candidatePayload);
+  const priorPayloadSha16 = sha16Payload(previousPayload);
+  const candidatePayloadSha16 = sha16Payload(candidatePayload);
+  const baselineMissing = previous.size === 0;
 
-  if (previous.size === 0) {
+  if (baselineMissing) {
     return {
       accepted: true,
       comparedCount: 0,
@@ -101,6 +158,11 @@ export function evaluateThinkDifferentlyDeploymentAssetDivergence(input: {
       duplicateRatio: 0,
       duplicateKeys: [],
       coreDuplicateKeys: [],
+      priorCanonicalCount: 0,
+      candidateCanonicalCount: next.size,
+      priorPayloadSha16,
+      candidatePayloadSha16,
+      baselineMissing: true,
       reason: null,
     };
   }
@@ -151,8 +213,17 @@ export function evaluateThinkDifferentlyDeploymentAssetDivergence(input: {
     duplicateRatio,
     duplicateKeys,
     coreDuplicateKeys: [...coreDuplicateKeys],
+    priorCanonicalCount: previous.size,
+    candidateCanonicalCount: next.size,
+    priorPayloadSha16,
+    candidatePayloadSha16,
+    baselineMissing: false,
     reason,
   };
+}
+
+export function logAthenaTdDaDivergence(input: AthenaTdDaDivergenceLog): void {
+  console.info(JSON.stringify(input));
 }
 
 /**

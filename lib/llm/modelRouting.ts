@@ -12,6 +12,7 @@ export type AthenaLLMStage =
 /** Additional pipeline stages routed through the analysis role until split further. */
 export type AthenaExtendedLLMStage =
   | AthenaLLMStage
+  | "deployment_assets_think_differently"
   | "community_intelligence"
   | "production_intelligence"
   | "identity_profile"
@@ -83,11 +84,17 @@ const EXTENDED_STAGE_ROLE: Record<
   Exclude<AthenaExtendedLLMStage, AthenaLLMStage>,
   AthenaLLMRole
 > = {
+  // Think Differently DA only — Standard deployment_assets stays on analysis/Gemini.
+  deployment_assets_think_differently: "premiumStrategicOutput",
   community_intelligence: "analysis",
   production_intelligence: "analysis",
   identity_profile: "analysis",
   generic_review: "analysis",
 };
+
+/** Stage used for Think Differently Deployment Assets (premium Claude family). */
+export const THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE: AthenaExtendedLLMStage =
+  "deployment_assets_think_differently";
 
 export function resolveAthenaStageFromGenerationKind(
   kind: AthenaGenerationKind,

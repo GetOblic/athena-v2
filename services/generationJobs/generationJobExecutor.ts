@@ -222,6 +222,7 @@ export async function executeClaimedGenerationJob(
           organizationId: job.organization_id,
           regenerationRunId:
             job.regeneration_run_id ?? createRegenerationRunId(),
+          generationJobId: job.id,
         })
       : await processDiscussionEndToEnd(
           job.discussion_id,
@@ -240,16 +241,29 @@ export async function executeClaimedGenerationJob(
     }
 
     if (!result.success) {
-      const classified = classifyGenerationError(result.error);
+      const divergenceTerminal =
+        result.status === "deployment_assets_insufficient_divergence";
+      const classified = classifyGenerationError(
+        divergenceTerminal
+          ? "deployment_assets_insufficient_divergence: Think Differently Deployment Assets were not materially distinct from the prior package."
+          : result.error,
+      );
       const failed = await failGenerationJobWithClaim({
         jobId: job.id,
         claimToken,
-        errorCode: classified.code,
+        errorCode: divergenceTerminal
+          ? "DEPLOYMENT_ASSETS_INSUFFICIENT_DIVERGENCE"
+          : classified.code,
         errorMessage: classified.message,
-        retryable: classified.classification === "retryable",
+        // Divergence already exhausted in-workflow retries — never publish via job retry.
+        retryable: divergenceTerminal
+          ? false
+          : classified.classification === "retryable",
         attemptCount: job.attempt_count,
         failedStage: thinkDifferently
-          ? "strategic_blueprint"
+          ? divergenceTerminal
+            ? "deployment_assets"
+            : "strategic_blueprint"
           : job.current_stage,
         errorMetadata: {
           status: result.status ?? null,
@@ -257,6 +271,7 @@ export async function executeClaimedGenerationJob(
           pipeline: thinkDifferently
             ? "strategic_blueprint_and_deployment_assets"
             : "full",
+          published: false,
         },
       });
 

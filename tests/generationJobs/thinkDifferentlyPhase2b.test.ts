@@ -247,9 +247,10 @@ describe("Think Differently Phase 2B — version metadata + badge", () => {
 });
 
 describe("Think Differently Phase 2B — regression scope", () => {
-  it("E. no routing / migration / workflow stage redesign", () => {
+  it("E. no full-pipeline redesign; TD DA premium stage is explicit and isolated", () => {
     const routing = read("lib/llm/modelRouting.ts");
-    assert.doesNotMatch(routing, /think_differently/);
+    assert.match(routing, /deployment_assets: roles\.analysis/);
+    assert.match(routing, /deployment_assets_think_differently/);
 
     const workflow = read("services/workflows/thinkDifferentlyWorkflow.ts");
     assert.doesNotMatch(workflow, /await\s+processDiscussionEndToEnd\s*\(/);

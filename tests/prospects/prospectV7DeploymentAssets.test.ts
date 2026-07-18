@@ -129,7 +129,12 @@ describe("V7 Prospect Deployment Assets — registry and Gemini Flash route", ()
     assert.match(refreshRoute, /manual_refresh/);
     assert.match(importer, /enqueueDiscussionGenerationJob/);
     assert.match(deploymentWorkflow, /assembleDeploymentAssetsPrompt/);
-    assert.match(deploymentWorkflow, /athenaStage:\s*["']deployment_assets["']/);
+    // Standard DA stage remains deployment_assets; TD uses a separate premium stage.
+    assert.match(
+      deploymentWorkflow,
+      /:\s*"deployment_assets"[\s\S]*athenaStage,/,
+    );
+    assert.match(deploymentWorkflow, /THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE/);
   });
 
   it("3) four assets use existing Prospect Deployment Asset Gemini Flash route", () => {

@@ -19,12 +19,17 @@ import { resolveGenerationBundle } from "@/services/brain/generationContractServ
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDiscussionById } from "@/services/discussionService";
-import { publishExecutiveIntelligenceVersion } from "@/services/executiveVersions/executiveVersionService";
+import {
+  getCurrentExecutiveVersion,
+  publishExecutiveIntelligenceVersion,
+} from "@/services/executiveVersions/executiveVersionService";
 import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
+import { getProspectByLinkedDiscussionId } from "@/services/prospects/prospectService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
 import {
   evaluateThinkDifferentlyDeploymentAssetDivergence,
+  logAthenaTdDaDivergence,
   THINK_DIFFERENTLY_DEPLOYMENT_ASSET_MAX_ATTEMPTS,
 } from "@/services/brain/generationContracts/thinkDifferentlyDeploymentAssetDivergence";
 import {
@@ -95,6 +100,7 @@ export async function processThinkDifferentlyWorkflow(input: {
   discussionId: string;
   organizationId: string;
   regenerationRunId?: string | null;
+  generationJobId?: string | null;
 }): Promise<ThinkDifferentlyWorkflowResult> {
   const regenerationRunId =
     input.regenerationRunId?.trim() || createRegenerationRunId();
@@ -125,6 +131,33 @@ export async function processThinkDifferentlyWorkflow(input: {
         status: "missing_analysis",
       };
     }
+
+    // Immutable baseline: Current EV frozen suggested_cta, captured before any
+    // candidate generation, analysis mutation, persist, or publication.
+    const currentExecutiveVersion = await getCurrentExecutiveVersion(
+      input.discussionId,
+      input.organizationId,
+    );
+    const frozenCurrentSuggestedCta = String(
+      (
+        currentExecutiveVersion?.intelligence as
+          | { analysis?: { suggested_cta?: string | null } }
+          | null
+          | undefined
+      )?.analysis?.suggested_cta ?? "",
+    );
+    const previousDeploymentAssetPayload =
+      frozenCurrentSuggestedCta.trim().length > 0
+        ? frozenCurrentSuggestedCta
+        : String(analysis.suggested_cta ?? "");
+
+    const linkedProspect = isProspectIntelligenceBridge(discussion)
+      ? await getProspectByLinkedDiscussionId(
+          input.discussionId,
+          input.organizationId,
+        ).catch(() => null)
+      : null;
+    const prospectId = linkedProspect?.id ?? null;
 
     const opportunity = await getOpportunityByDiscussionId(
       input.discussionId,
@@ -181,11 +214,9 @@ export async function processThinkDifferentlyWorkflow(input: {
     const newBlueprint = blueprintOutcome.blueprint;
     const strategicBlueprintRecord = blueprintToPromptRecord(newBlueprint);
 
-    // Baseline for divergence: prior package on the shared analysis row before this run mutates it.
-    const previousSuggestedCta = String(analysis.suggested_cta ?? "");
-
     // 2) Generate Deployment Assets from the NEW blueprint (in-memory), not the prior Standard blueprint.
-    //    Prior suggested_cta is stripped from the prompt; material difference is enforced before persist.
+    //    Prior suggested_cta is stripped from the prompt; material difference vs immutable
+    //    previousDeploymentAssetPayload is enforced before any persist/publish.
     let generatedAssets: {
       assets: GeneratedDeploymentAssets;
       rawResponse: string;
@@ -215,25 +246,45 @@ export async function processThinkDifferentlyWorkflow(input: {
         });
 
         const divergence = evaluateThinkDifferentlyDeploymentAssetDivergence({
-          previousSuggestedCta,
+          previousSuggestedCta: previousDeploymentAssetPayload,
           nextSuggestedCta: candidate.assets.suggested_cta,
         });
 
-        console.info(
-          JSON.stringify({
-            event: "think_differently_deployment_asset_divergence",
-            discussionId: input.discussionId,
-            organizationId: input.organizationId,
-            regenerationRunId,
-            attempt,
-            accepted: divergence.accepted,
-            comparedCount: divergence.comparedCount,
-            duplicateCount: divergence.duplicateCount,
-            duplicateRatio: Number(divergence.duplicateRatio.toFixed(4)),
-            duplicateKeys: divergence.duplicateKeys,
-            coreDuplicateKeys: divergence.coreDuplicateKeys,
-          }),
-        );
+        const exhausted =
+          !divergence.accepted &&
+          attempt >= THINK_DIFFERENTLY_DEPLOYMENT_ASSET_MAX_ATTEMPTS;
+        const decision = divergence.accepted
+          ? divergence.baselineMissing
+            ? ("baseline_empty_accept" as const)
+            : ("accept" as const)
+          : exhausted
+            ? ("reject_exhausted" as const)
+            : ("reject_retry" as const);
+
+        logAthenaTdDaDivergence({
+          event: "ATHENA_TD_DA_DIVERGENCE",
+          prospectId,
+          generationJobId: input.generationJobId ?? null,
+          regenerationRunId,
+          blueprintId: newBlueprint.id,
+          attempt,
+          maxAttempts: THINK_DIFFERENTLY_DEPLOYMENT_ASSET_MAX_ATTEMPTS,
+          model: candidate.model,
+          priorPayloadSha16: divergence.priorPayloadSha16,
+          candidatePayloadSha16: divergence.candidatePayloadSha16,
+          priorCanonicalCount: divergence.priorCanonicalCount,
+          candidateCanonicalCount: divergence.candidateCanonicalCount,
+          comparedCount: divergence.comparedCount,
+          duplicateCount: divergence.duplicateCount,
+          duplicateRatio: Number(divergence.duplicateRatio.toFixed(4)),
+          duplicateKeys: divergence.duplicateKeys,
+          coreDuplicateKeys: divergence.coreDuplicateKeys,
+          baselineMissing: divergence.baselineMissing,
+          decision,
+          finalFailureCode: exhausted
+            ? "deployment_assets_insufficient_divergence"
+            : null,
+        });
 
         if (divergence.accepted) {
           generatedAssets = candidate;
@@ -248,7 +299,8 @@ export async function processThinkDifferentlyWorkflow(input: {
           ]),
         ];
 
-        if (attempt >= THINK_DIFFERENTLY_DEPLOYMENT_ASSET_MAX_ATTEMPTS) {
+        if (exhausted) {
+          // Hard stop: never persist or publish a rejected candidate.
           return {
             success: false,
             error:
@@ -291,7 +343,7 @@ export async function processThinkDifferentlyWorkflow(input: {
       };
     }
 
-    // 3) Persist Deployment Assets only after successful generation/validation.
+    // 3) Persist Deployment Assets only after successful generation + divergence accept.
     const persisted = await persistDeploymentAssets({
       organizationId: input.organizationId,
       discussionId: input.discussionId,

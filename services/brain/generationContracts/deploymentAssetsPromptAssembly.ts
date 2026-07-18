@@ -250,26 +250,45 @@ ${visualAssetsBlock}
   const blueprintAuthorityBlock = input.strategicBlueprint
     ? `
 === STRATEGIC BLUEPRINT (AUTHORITATIVE FOR THIS GENERATION) ===
-Deployment Assets must follow this Strategic Blueprint direction. Do not revert to a prior blueprint or invent a conflicting strategy.
+This alternative Strategic Blueprint supersedes prior execution strategy.
+Prospect facts below are factual grounding only — do not preserve a previous campaign structure merely because facts are unchanged.
+Deployment Assets must operationalize this blueprint direction. Do not revert to a prior blueprint or invent a conflicting strategy.
 ${JSON.stringify(input.strategicBlueprint, null, 2)}
 `.trim()
     : "";
 
-  return [
-    executiveContextBlock,
-    `
+  // When a Think Differently blueprint is present, place it above unchanged analysis.
+  const objectiveAndSources = input.strategicBlueprint
+    ? `
+=== OBJECTIVE ===
+Generate paste-ready deployment assets that operationalize the authoritative alternative Strategic Blueprint. Upstream analysis is factual grounding only — not a mandate to reuse the prior execution package.
+${isProspectSource ? "Source type: Prospect Intelligence. Prefer prospect outreach assets over community discussion assets." : ""}
+
+${blueprintAuthorityBlock}
+
+=== SOURCE INTELLIGENCE (FACTUAL GROUNDING) ===
+${sourceIntelligence}
+
+=== REQUIRED OUTPUT ===
+${requiredOutput}
+
+=== QUALITY STANDARD ===
+${qualityStandard}
+`.trim()
+    : `
 === OBJECTIVE ===
 Generate paste-ready deployment assets only from the source intelligence below. Do not repeat executive analysis.
 ${isProspectSource ? "Source type: Prospect Intelligence. Prefer prospect outreach assets over community discussion assets." : ""}
 
 === SOURCE INTELLIGENCE ===
 ${sourceIntelligence}
-${blueprintAuthorityBlock ? `\n${blueprintAuthorityBlock}\n` : ""}
+
 === REQUIRED OUTPUT ===
 ${requiredOutput}
 
 === QUALITY STANDARD ===
 ${qualityStandard}
-`.trim(),
-  ].join("\n\n");
+`.trim();
+
+  return [executiveContextBlock, objectiveAndSources].join("\n\n");
 }
