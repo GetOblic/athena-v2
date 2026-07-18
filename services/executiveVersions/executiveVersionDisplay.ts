@@ -287,15 +287,24 @@ export function resolveVersionIntelligenceForDisplay(
   const snapshot = version.intelligence;
   const isCurrent = version.is_current;
 
+  // Frozen snapshot blueprint is authoritative when present.
   let blueprint = snapshot.blueprint;
+  // Reference hydration: never the live "newest" row.
+  // - When blueprint_id is set, only that exact row may fill a missing snapshot.
+  // - When blueprint_id is null, Current may still accept an explicitly loaded row
+  //   (incomplete-publish recovery); historical must not.
   if (
     !hasBlueprint(blueprint) &&
     blueprintById &&
-    blueprintMatchesVersion(blueprintById, version)
+    blueprintMatchesVersion(blueprintById, version) &&
+    (version.blueprint_id
+      ? blueprintById.id === version.blueprint_id
+      : isCurrent)
   ) {
     blueprint = blueprintById;
   }
 
+  // Live newest blueprint fills gaps for Current only — never historical.
   if (
     !hasBlueprint(blueprint) &&
     isCurrent &&

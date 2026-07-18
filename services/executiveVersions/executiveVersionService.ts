@@ -12,6 +12,7 @@ import {
   shouldPatchIncompleteCurrentVersion,
   withResolvedVersionIntelligence,
 } from "@/services/executiveVersions/executiveVersionDisplay";
+import { resolveExecutiveVersionGeneratedAt } from "@/services/executiveVersions/executiveVersionSelection";
 import {
   EXECUTIVE_INTELLIGENCE_PIPELINE_VERSION,
   type ExecutiveIntelligencePayload,
@@ -198,10 +199,12 @@ async function insertExecutiveVersion(input: {
       user_id: input.userId ?? input.intelligence.analysis.user_id ?? null,
       version_number: versionNumber,
       is_current: input.markCurrent,
-      generated_at:
-        input.generatedAt ??
-        input.intelligence.analysis.created_at ??
-        new Date().toISOString(),
+      generated_at: resolveExecutiveVersionGeneratedAt({
+        generatedAt: input.generatedAt,
+        generationMode: input.generationMode,
+        analysisCreatedAt: input.intelligence.analysis.created_at,
+        nowIso: new Date().toISOString(),
+      }),
       generation_duration_ms: input.generationDurationMs ?? null,
       models_used: metadata.models_used,
       routing_profile: metadata.routing_profile,
@@ -290,6 +293,13 @@ export async function publishExecutiveIntelligenceVersion(input: {
   forceNewVersion?: boolean;
   /** Persisted on the version intelligence snapshot for Think Differently tagging. */
   generationMode?: ExecutiveIntelligencePayload["generationMode"];
+  /**
+   * Optional publication/completion time for this specific generation run.
+   * Think Differently must pass this explicitly. When omitted, insert uses
+   * resolveExecutiveVersionGeneratedAt (analysis.created_at for Standard;
+   * now for Think Differently mode as a safety net).
+   */
+  generatedAt?: string;
 }): Promise<ExecutiveIntelligenceVersion | null> {
   const intelligence = await loadLiveExecutiveIntelligence(
     input.discussionId,
@@ -356,6 +366,9 @@ export async function publishExecutiveIntelligenceVersion(input: {
     return current;
   }
 
+  // Pass through an explicit publication timestamp when provided (Think Differently).
+  // Otherwise insertExecutiveVersion keeps prior Standard / lazy-backfill semantics
+  // via resolveExecutiveVersionGeneratedAt (analysis.created_at, then now).
   return insertExecutiveVersion({
     discussionId: input.discussionId,
     organizationId: input.organizationId,
@@ -369,6 +382,7 @@ export async function publishExecutiveIntelligenceVersion(input: {
     reviewId: input.reviewId ?? intelligence.briefing?.id ?? null,
     blueprintId: input.blueprintId ?? intelligence.blueprint?.id ?? null,
     generationMode: input.generationMode,
+    generatedAt: input.generatedAt,
   });
 }
 

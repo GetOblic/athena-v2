@@ -20,6 +20,10 @@ import type {
 } from "@/services/executiveVersions/executiveVersionTypes";
 import { isThinkDifferentlyExecutiveVersion } from "@/services/executiveVersions/executiveVersionTypes";
 import { normalizeAnalysisForDisplay } from "@/services/executiveVersions/analysisNormalization";
+import {
+  buildExecutiveVersionCacheKey,
+  resolveWorkspaceVersionSelection,
+} from "@/services/executiveVersions/executiveVersionSelection";
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 
@@ -235,6 +239,8 @@ export function ExecutiveIntelligenceWorkspace({
   }, [isGenerating, isCompleted, discussionId]);
 
   // Auto-select only when a completed regeneration published a new Current Version.
+  // Do not depend on the versions array identity — that re-fired on refresh and
+  // could reset an intentional historical selection when pending was stale.
   useEffect(() => {
     if (isGenerating) {
       return;
@@ -261,19 +267,20 @@ export function ExecutiveIntelligenceWorkspace({
       return next;
     });
     clearPendingAutoSelect(discussionId);
-  }, [
-    isGenerating,
-    isCompleted,
-    currentVersion,
-    discussionId,
-    versions,
-  ]);
+  }, [isGenerating, isCompleted, currentVersion, discussionId]);
 
-  const selectedVersion =
-    sortedVersions.find((version) => version.id === selectedVersionId) ??
-    currentVersion;
-
+  const selection = resolveWorkspaceVersionSelection({
+    versions: sortedVersions,
+    selectedVersionId,
+    fallbackIntelligence,
+  });
+  const selectedVersion = selection.selectedVersion;
   const executiveVersionIdForCopy = selectedVersion?.id ?? null;
+  const versionCacheKey = buildExecutiveVersionCacheKey({
+    sourceType: copySourceType,
+    sourceId: copySourceId,
+    executiveVersionId: executiveVersionIdForCopy,
+  });
   const [doneByAssetType, setDoneByAssetType] = useState<
     Record<string, boolean>
   >({});
@@ -331,7 +338,7 @@ export function ExecutiveIntelligenceWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [copySourceType, copySourceId, executiveVersionIdForCopy]);
+  }, [copySourceType, copySourceId, executiveVersionIdForCopy, versionCacheKey]);
 
   const copyContext = useMemo(
     () => ({
@@ -342,8 +349,9 @@ export function ExecutiveIntelligenceWorkspace({
     [copySourceType, copySourceId, executiveVersionIdForCopy],
   );
 
+  // Never substitute Current/live when a version is selected (or selection is missing).
   const intelligence: ExecutiveIntelligencePayload | null =
-    selectedVersion?.intelligence ?? fallbackIntelligence;
+    selection.intelligence;
 
   if (!intelligence) {
     return (
@@ -355,8 +363,9 @@ export function ExecutiveIntelligenceWorkspace({
             Executive Intelligence
           </div>
           <p className="mt-4 text-white/50">
-            Run Athena analysis to unlock executive intelligence for this
-            discussion.
+            {selection.selectionMissing
+              ? "The selected Executive Version is unavailable. Choose Current Version or another archived version."
+              : "Run Athena analysis to unlock executive intelligence for this discussion."}
           </p>
         </div>
         {afterBlueprint}
@@ -374,8 +383,9 @@ export function ExecutiveIntelligenceWorkspace({
           >
             <div className="space-y-7">
               <div className="text-white/50">
-                No generated Athena analysis has been saved for this discussion
-                yet. Use Generate Intelligence in the page header to generate.
+                {selection.selectionMissing
+                  ? "Historical snapshot content is unavailable for this selection."
+                  : "No generated Athena analysis has been saved for this discussion yet. Use Generate Intelligence in the page header to generate."}
               </div>
             </div>
           </AthenaCollapsibleSection>
@@ -408,6 +418,8 @@ export function ExecutiveIntelligenceWorkspace({
   }
 
   function selectVersion(versionId: string) {
+    // Explicit user selection wins over any pending post-regen auto-select.
+    clearPendingAutoSelect(discussionId);
     setSelectedVersionId(versionId);
     setExpandedVersionIds((previous) => new Set(previous).add(versionId));
   }
@@ -537,20 +549,31 @@ export function ExecutiveIntelligenceWorkspace({
         </div>
       )}
 
-      <div className="mt-8">
+      <div
+        key={`version-meta-${selectedVersion?.id ?? "none"}`}
+        className="mt-8"
+      >
         <AthenaRecommendationRibbon analysis={intelligence.analysis} />
-        <RegenerationMetadata analysis={intelligence.analysis} />
+        <RegenerationMetadata
+          analysis={intelligence.analysis}
+          generatedAt={selectedVersion?.generated_at ?? null}
+        />
       </div>
 
-      <div id="executive-intelligence" className="mt-6 scroll-mt-24">
+      <div
+        id="executive-intelligence"
+        key={`version-card-${selectedVersion?.id ?? "none"}`}
+        className="mt-6 scroll-mt-24"
+      >
         <ExecutiveIntelligenceCard
           analysis={intelligence.analysis}
           sourceKind={sourceKind}
         />
       </div>
 
-      {deploymentAssets.length > 0 && (
+      {deploymentAssets.length > 0 ? (
         <AthenaCollapsibleSection
+          key={`deployment-assets-${selectedVersion?.id ?? "none"}`}
           title="Deployment Assets"
           defaultOpen={false}
           className="mt-8"
@@ -563,10 +586,19 @@ export function ExecutiveIntelligenceWorkspace({
             continuationPreferences={continuationPreferences}
           />
         </AthenaCollapsibleSection>
-      )}
+      ) : selectedVersion && !selectedVersion.is_current ? (
+        <div
+          key={`deployment-assets-unavailable-${selectedVersion.id}`}
+          className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55"
+        >
+          Deployment Assets are unavailable in this archived Executive Version
+          snapshot.
+        </div>
+      ) : null}
 
-      {intelligence.blueprint && (
+      {intelligence.blueprint ? (
         <AthenaCollapsibleSection
+          key={`strategic-blueprint-${selectedVersion?.id ?? "none"}`}
           title="Strategic Asset Blueprint"
           defaultOpen={false}
           className="mt-8"
@@ -580,7 +612,15 @@ export function ExecutiveIntelligenceWorkspace({
             continuationPreferences={continuationPreferences}
           />
         </AthenaCollapsibleSection>
-      )}
+      ) : selectedVersion && !selectedVersion.is_current ? (
+        <div
+          key={`strategic-blueprint-unavailable-${selectedVersion.id}`}
+          className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55"
+        >
+          Strategic Asset Blueprint is unavailable in this archived Executive
+          Version snapshot.
+        </div>
+      ) : null}
 
       {afterBlueprint}
 

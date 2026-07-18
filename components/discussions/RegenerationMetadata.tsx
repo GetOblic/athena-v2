@@ -2,6 +2,11 @@ import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 
 type RegenerationMetadataProps = {
   analysis: DiscussionAnalysis;
+  /**
+   * Executive Version publication/completion time when browsing versions.
+   * Prefer this over analysis.created_at — Think Differently reuses analysis.
+   */
+  generatedAt?: string | null;
 };
 
 function formatModelLabel(model: string | null | undefined): string {
@@ -69,12 +74,19 @@ function formatGenerationTime(generationTimeMs: number | null | undefined): stri
   return `${seconds} second${seconds === 1 ? "" : "s"}`;
 }
 
-export function RegenerationMetadata({ analysis }: RegenerationMetadataProps) {
+export function RegenerationMetadata({
+  analysis,
+  generatedAt = null,
+}: RegenerationMetadataProps) {
+  const generatedTimestamp = generatedAt?.trim() || analysis.created_at;
+
   return (
     <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-white/45">
       <div>
         <span className="text-white/30">Generated: </span>
-        <span className="text-white/65">{formatGeneratedAt(analysis.created_at)}</span>
+        <span className="text-white/65">
+          {formatGeneratedAt(generatedTimestamp)}
+        </span>
       </div>
       <div>
         <span className="text-white/30">Generation Time: </span>

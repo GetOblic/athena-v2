@@ -221,6 +221,7 @@ export async function processThinkDifferentlyWorkflow(input: {
     });
 
     // 4) Publish new EV only after both stages succeed.
+    // generatedAt is this run's publication time — never the reused analysis.created_at.
     const published = await publishExecutiveIntelligenceVersion({
       discussionId: input.discussionId,
       organizationId: input.organizationId,
@@ -233,6 +234,7 @@ export async function processThinkDifferentlyWorkflow(input: {
       requireProspectCompleteness: isProspectIntelligenceBridge(discussion),
       forceNewVersion: true,
       generationMode: "think_differently",
+      generatedAt: new Date().toISOString(),
     });
 
     if (!published) {
