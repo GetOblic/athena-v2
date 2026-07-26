@@ -1,6 +1,9 @@
 "use client";
 
-import { CollapsiblePromptBlock } from "@/components/assetBlueprints/CollapsiblePromptBlock";
+import {
+  CollapsiblePromptBlock,
+  type DiscussWithAthenaPayload,
+} from "@/components/assetBlueprints/CollapsiblePromptBlock";
 import type { AssetCopyTrackingContext } from "@/components/deployment/CopyButton";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
@@ -23,6 +26,10 @@ export type DeploymentAssetCardModel = {
   text: string;
 };
 
+export type DeploymentDiscussPayload = DiscussWithAthenaPayload & {
+  executiveVersionId: string;
+};
+
 type DeploymentAssetsProps = {
   assets: DeploymentAsset[];
   /**
@@ -34,6 +41,8 @@ type DeploymentAssetsProps = {
   doneByAssetType?: Record<string, boolean>;
   tagsByAssetType?: Record<string, AssetUsageTag[]>;
   continuationPreferences?: AiWorkspacePreferences | null;
+  /** Identifiers only — never pass asset body/title as trusted input. */
+  onDiscussWithAthena?: (payload: DeploymentDiscussPayload) => void;
 };
 
 /**
@@ -68,6 +77,7 @@ export function DeploymentAssets({
   doneByAssetType = {},
   tagsByAssetType = {},
   continuationPreferences = null,
+  onDiscussWithAthena,
 }: DeploymentAssetsProps) {
   const cards = buildDeploymentAssetCards(assets, executiveVersionId);
 
@@ -101,6 +111,20 @@ export function DeploymentAssets({
             initiallyDone={Boolean(doneByAssetType[card.assetType])}
             initiallyTags={tagsByAssetType[card.assetType] ?? []}
             continuationPreferences={continuationPreferences}
+            discussAssetKind={
+              executiveVersionId && onDiscussWithAthena
+                ? "deployment"
+                : null
+            }
+            onDiscussWithAthena={
+              executiveVersionId && onDiscussWithAthena
+                ? (payload) =>
+                    onDiscussWithAthena({
+                      ...payload,
+                      executiveVersionId,
+                    })
+                : undefined
+            }
           />
         ))}
       </div>

@@ -7,6 +7,9 @@ type AthenaCollapsibleSectionProps = {
   title: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  /** Optional controlled open state (e.g. open from Discuss with Athena). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   /** Optional eyebrow above the title */
   eyebrow?: string;
   className?: string;
@@ -23,13 +26,24 @@ export function AthenaCollapsibleSection({
   title,
   children,
   defaultOpen = false,
+  open: openControlled,
+  onOpenChange,
   eyebrow,
   className = "",
   contentClassName = "",
   headerAside,
 }: AthenaCollapsibleSectionProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [openUncontrolled, setOpenUncontrolled] = useState(defaultOpen);
+  const isControlled = openControlled !== undefined;
+  const open = isControlled ? openControlled : openUncontrolled;
   const panelId = useId();
+
+  function setOpen(next: boolean) {
+    if (!isControlled) {
+      setOpenUncontrolled(next);
+    }
+    onOpenChange?.(next);
+  }
 
   return (
     <section
@@ -38,7 +52,7 @@ export function AthenaCollapsibleSection({
       <div className="flex items-start justify-between gap-4 px-6 py-5 sm:px-8">
         <button
           type="button"
-          onClick={() => setOpen((value) => !value)}
+          onClick={() => setOpen(!open)}
           className="flex min-w-0 flex-1 items-center gap-3 text-left transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
           aria-expanded={open}
           aria-controls={panelId}

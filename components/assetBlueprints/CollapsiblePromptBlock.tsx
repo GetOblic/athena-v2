@@ -8,6 +8,11 @@ import {
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 
+export type DiscussWithAthenaPayload = {
+  assetKind: "deployment" | "blueprint";
+  assetKey: string;
+};
+
 type CollapsiblePromptBlockProps = {
   label: string;
   /** Optional supporting line shown in the collapsed header (e.g. Deployment objective). */
@@ -21,6 +26,9 @@ type CollapsiblePromptBlockProps = {
   initiallyTags?: AssetUsageTag[];
   /** Org Continue destination preferences (defaults apply when omitted). */
   continuationPreferences?: AiWorkspacePreferences | null;
+  /** Contained Discuss action — identifiers only; no asset body. */
+  discussAssetKind?: "deployment" | "blueprint" | null;
+  onDiscussWithAthena?: (payload: DiscussWithAthenaPayload) => void;
 };
 
 export function CollapsiblePromptBlock({
@@ -34,11 +42,18 @@ export function CollapsiblePromptBlock({
   initiallyDone = false,
   initiallyTags = [],
   continuationPreferences = null,
+  discussAssetKind = null,
+  onDiscussWithAthena,
 }: CollapsiblePromptBlockProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const content = text?.trim();
   const hasContent = Boolean(content);
   const descriptionText = description?.trim();
+  const canDiscuss =
+    Boolean(onDiscussWithAthena) &&
+    Boolean(discussAssetKind) &&
+    Boolean(assetType?.trim()) &&
+    hasContent;
 
   return (
     <article
@@ -67,21 +82,37 @@ export function CollapsiblePromptBlock({
             {isOpen ? "▲" : "▼"}
           </span>
         </button>
-        {hasContent && content && isOpen && (
-          <CopyButton
-            text={content}
-            initiallyDone={initiallyDone}
-            initiallyTags={initiallyTags}
-            tracking={
-              copyContext && assetType
-                ? { ...copyContext, assetType }
-                : null
-            }
-            showContinue
-            assetType={assetType}
-            continuationPreferences={continuationPreferences}
-          />
-        )}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {canDiscuss ? (
+            <button
+              type="button"
+              onClick={() =>
+                onDiscussWithAthena?.({
+                  assetKind: discussAssetKind!,
+                  assetKey: assetType!.trim(),
+                })
+              }
+              className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-white/65 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+            >
+              Discuss with Athena
+            </button>
+          ) : null}
+          {hasContent && content && isOpen && (
+            <CopyButton
+              text={content}
+              initiallyDone={initiallyDone}
+              initiallyTags={initiallyTags}
+              tracking={
+                copyContext && assetType
+                  ? { ...copyContext, assetType }
+                  : null
+              }
+              showContinue
+              assetType={assetType}
+              continuationPreferences={continuationPreferences}
+            />
+          )}
+        </div>
       </div>
 
       {isOpen && (

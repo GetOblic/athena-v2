@@ -7,6 +7,7 @@ import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveInt
 import { RegenerationMetadata } from "@/components/discussions/RegenerationMetadata";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
+import { ProspectConversationPanel } from "@/components/prospects/ProspectConversationPanel";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
@@ -29,6 +30,10 @@ import {
 } from "@/services/executiveVersions/executiveVersionSelection";
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
+import type {
+  ProspectConversationAssetReference,
+  ProspectConversationVersionState,
+} from "@/services/prospectConversation/prospectConversationTypes";
 
 /**
  * Persists across navigation so a regeneration that finishes after leaving
@@ -194,6 +199,9 @@ export function ExecutiveIntelligenceWorkspace({
   const [expandedVersionIds, setExpandedVersionIds] = useState<Set<string>>(
     () => new Set(currentVersion ? [currentVersion.id] : []),
   );
+  const [conversationOpen, setConversationOpen] = useState(false);
+  const [conversationAssetReference, setConversationAssetReference] =
+    useState<ProspectConversationAssetReference | null>(null);
 
   // Capture Current Version id when regeneration starts (survives navigation).
   useEffect(() => {
@@ -353,6 +361,56 @@ export function ExecutiveIntelligenceWorkspace({
 
   const intelligence = viewModel.intelligence;
 
+  const conversationVersionState: ProspectConversationVersionState =
+    viewModel.executiveVersionId == null
+      ? "none"
+      : viewModel.isCurrent
+        ? "current"
+        : "archived";
+
+  function handleDiscussWithAthena(payload: {
+    executiveVersionId: string;
+    assetKind: "deployment" | "blueprint";
+    assetKey: string;
+  }) {
+    // Identifiers only — never pass asset body. Changing target does not clear messages.
+    setConversationAssetReference({
+      kind: payload.assetKind,
+      key: payload.assetKey,
+    });
+    setConversationOpen(true);
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        document
+          .getElementById("prospect-conversation")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById("prospect-conversation-input")?.focus();
+      }, 0);
+    }
+  }
+
+  const prospectConversationSlot =
+    isProspect && prospectId?.trim() ? (
+      <ProspectConversationPanel
+        prospectId={prospectId.trim()}
+        executiveVersionId={viewModel.executiveVersionId}
+        versionState={conversationVersionState}
+        versionLabel={
+          viewModel.executiveVersionId == null
+            ? null
+            : viewModel.isCurrent
+              ? "Current Executive Version"
+              : viewModel.displayGeneratedAt
+                ? `Archived Executive Version — ${formatVersionGeneratedAt(viewModel.displayGeneratedAt, true)}`
+                : "Archived Executive Version"
+        }
+        assetReference={conversationAssetReference}
+        onAssetReferenceChange={setConversationAssetReference}
+        open={conversationOpen}
+        onOpenChange={setConversationOpen}
+      />
+    ) : null;
+
   if (!intelligence || !viewModel.analysis) {
     return (
       <>
@@ -370,6 +428,7 @@ export function ExecutiveIntelligenceWorkspace({
                 : "Run Athena analysis to unlock executive intelligence for this discussion."}
           </p>
         </div>
+        {prospectConversationSlot}
         {afterBlueprint}
         <div className="mt-8 grid gap-8 lg:grid-cols-3">
           <AthenaCollapsibleSection
@@ -419,6 +478,8 @@ export function ExecutiveIntelligenceWorkspace({
     clearPendingAutoSelect(discussionId);
     setSelectedVersionId(versionId);
     setExpandedVersionIds((previous) => new Set(previous).add(versionId));
+    // Version switch starts a separate conversation scope — clear asset target only.
+    setConversationAssetReference(null);
   }
 
   function onViewVersion(versionId: string) {
@@ -579,6 +640,9 @@ export function ExecutiveIntelligenceWorkspace({
               doneByAssetType={doneByAssetType}
               tagsByAssetType={tagsByAssetType}
               continuationPreferences={continuationPreferences}
+              onDiscussWithAthena={
+                isProspect ? handleDiscussWithAthena : undefined
+              }
             />
           </AthenaCollapsibleSection>
         ) : viewModel.isHistorical ? (
@@ -601,6 +665,9 @@ export function ExecutiveIntelligenceWorkspace({
               tagsByAssetType={tagsByAssetType}
               brandDirection={brandDirection}
               continuationPreferences={continuationPreferences}
+              onDiscussWithAthena={
+                isProspect ? handleDiscussWithAthena : undefined
+              }
             />
           </AthenaCollapsibleSection>
         ) : viewModel.isHistorical ? (
@@ -611,6 +678,7 @@ export function ExecutiveIntelligenceWorkspace({
         ) : null}
       </div>
 
+      {prospectConversationSlot}
       {afterBlueprint}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-3">

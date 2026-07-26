@@ -1,6 +1,9 @@
 "use client";
 
-import { CollapsiblePromptBlock } from "@/components/assetBlueprints/CollapsiblePromptBlock";
+import {
+  CollapsiblePromptBlock,
+  type DiscussWithAthenaPayload,
+} from "@/components/assetBlueprints/CollapsiblePromptBlock";
 import type { AssetCopyTrackingContext } from "@/components/deployment/CopyButton";
 import { formatBlueprintReadiness } from "@/lib/blueprintReadiness";
 import { BLUEPRINT_ASSET_TYPES } from "@/services/assetInteractions/assetInteractionKeys";
@@ -13,6 +16,10 @@ import {
 } from "@/services/identity/blueprintBrandDirection";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
+export type BlueprintDiscussPayload = DiscussWithAthenaPayload & {
+  executiveVersionId: string;
+};
+
 type StrategicAssetBlueprintProps = {
   blueprint: AthenaAssetBlueprint;
   copyContext?: Omit<AssetCopyTrackingContext, "assetType"> | null;
@@ -21,6 +28,8 @@ type StrategicAssetBlueprintProps = {
   /** Current organization brand — display/copy overlay only; never persisted. */
   brandDirection?: BlueprintBrandDirectionInput | null;
   continuationPreferences?: AiWorkspacePreferences | null;
+  /** Identifiers only — blueprint body is resolved server-side. */
+  onDiscussWithAthena?: (payload: BlueprintDiscussPayload) => void;
 };
 
 export function StrategicAssetBlueprint({
@@ -30,7 +39,10 @@ export function StrategicAssetBlueprint({
   tagsByAssetType = {},
   brandDirection = null,
   continuationPreferences = null,
+  onDiscussWithAthena,
 }: StrategicAssetBlueprintProps) {
+  const executiveVersionId = copyContext?.executiveVersionId?.trim() || null;
+  const discussEnabled = Boolean(executiveVersionId && onDiscussWithAthena);
   const readinessBadges = formatBlueprintReadiness(blueprint);
   const imagePromptText = composeBlueprintPromptWithBrandDirection(
     blueprint.image_prompt,
@@ -115,6 +127,16 @@ export function StrategicAssetBlueprint({
             tagsByAssetType[BLUEPRINT_ASSET_TYPES.image_prompt] ?? []
           }
           continuationPreferences={continuationPreferences}
+          discussAssetKind={discussEnabled ? "blueprint" : null}
+          onDiscussWithAthena={
+            discussEnabled
+              ? (payload) =>
+                  onDiscussWithAthena!({
+                    ...payload,
+                    executiveVersionId: executiveVersionId!,
+                  })
+              : undefined
+          }
         />
         <CollapsiblePromptBlock
           label="PDF Prompt"
@@ -128,6 +150,16 @@ export function StrategicAssetBlueprint({
             tagsByAssetType[BLUEPRINT_ASSET_TYPES.pdf_prompt] ?? []
           }
           continuationPreferences={continuationPreferences}
+          discussAssetKind={discussEnabled ? "blueprint" : null}
+          onDiscussWithAthena={
+            discussEnabled
+              ? (payload) =>
+                  onDiscussWithAthena!({
+                    ...payload,
+                    executiveVersionId: executiveVersionId!,
+                  })
+              : undefined
+          }
         />
         <CollapsiblePromptBlock
           label="Social Prompt"
@@ -141,6 +173,16 @@ export function StrategicAssetBlueprint({
             tagsByAssetType[BLUEPRINT_ASSET_TYPES.social_prompt] ?? []
           }
           continuationPreferences={continuationPreferences}
+          discussAssetKind={discussEnabled ? "blueprint" : null}
+          onDiscussWithAthena={
+            discussEnabled
+              ? (payload) =>
+                  onDiscussWithAthena!({
+                    ...payload,
+                    executiveVersionId: executiveVersionId!,
+                  })
+              : undefined
+          }
         />
         <CollapsiblePromptBlock
           label="Notes"
@@ -151,6 +193,16 @@ export function StrategicAssetBlueprint({
           initiallyDone={Boolean(doneByAssetType[BLUEPRINT_ASSET_TYPES.notes])}
           initiallyTags={tagsByAssetType[BLUEPRINT_ASSET_TYPES.notes] ?? []}
           continuationPreferences={continuationPreferences}
+          discussAssetKind={discussEnabled ? "blueprint" : null}
+          onDiscussWithAthena={
+            discussEnabled
+              ? (payload) =>
+                  onDiscussWithAthena!({
+                    ...payload,
+                    executiveVersionId: executiveVersionId!,
+                  })
+              : undefined
+          }
         />
       </div>
     </section>
