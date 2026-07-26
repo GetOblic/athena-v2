@@ -6,6 +6,7 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { assembleProspectConversationContext } from "@/services/prospectConversation/prospectConversationContext";
+import { mapOpenRouterHttpFailure } from "@/services/prospectConversation/prospectConversationOpenRouterErrors";
 import { buildProspectConversationPrompt } from "@/services/prospectConversation/prospectConversationPrompt";
 import {
   PROSPECT_CONVERSATION_LIMITS,
@@ -28,6 +29,8 @@ export {
   validateProspectConversationRequest,
 } from "@/services/prospectConversation/prospectConversationValidation";
 
+export { mapOpenRouterHttpFailure } from "@/services/prospectConversation/prospectConversationOpenRouterErrors";
+
 function hashStable(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
@@ -49,6 +52,7 @@ async function callGeminiViaOpenRouter(input: {
       "PROVIDER_ERROR",
       "AI provider is not configured.",
       500,
+      { requestId: input.requestId, retryable: false },
     );
   }
 
@@ -97,11 +101,8 @@ async function callGeminiViaOpenRouter(input: {
           contextCharCount: input.contextCharCount,
         }),
       );
-      throw new ProspectConversationError(
-        "PROVIDER_ERROR",
-        "Athena could not complete the conversation response.",
-        500,
-      );
+
+      throw mapOpenRouterHttpFailure(response.status, input.requestId);
     }
 
     const data = (await response.json()) as {
@@ -109,10 +110,12 @@ async function callGeminiViaOpenRouter(input: {
     };
     const content = data.choices?.[0]?.message?.content ?? "";
     if (!content.trim()) {
+      // Empty model content is not treated as a transient transport/provider class.
       throw new ProspectConversationError(
         "PROVIDER_ERROR",
         "Athena returned an empty response.",
         500,
+        { requestId: input.requestId, retryable: false },
       );
     }
 
@@ -158,6 +161,7 @@ async function callGeminiViaOpenRouter(input: {
         "TIMEOUT",
         "Athena took too long to respond. Please try again.",
         504,
+        { requestId: input.requestId, retryable: true },
       );
     }
     if (error instanceof ProspectConversationError) {
@@ -167,6 +171,7 @@ async function callGeminiViaOpenRouter(input: {
       "PROVIDER_ERROR",
       "Athena could not complete the conversation response.",
       500,
+      { requestId: input.requestId, retryable: false },
     );
   } finally {
     clearTimeout(timeout);
@@ -178,15 +183,18 @@ export async function runProspectConversation(input: {
   userId: string;
   prospect: Prospect;
   body: unknown;
-}): Promise<ProspectConversationResult> {
-  const requestId = randomUUID();
+  requestId?: string;
+}): Promise<{ result: ProspectConversationResult; requestId: string }> {
+  const requestId = input.requestId?.trim() || randomUUID();
   const request = validateProspectConversationRequest(input.body);
 
   if (!tryAcquireConversationSlot(input.userId, input.prospect.id)) {
+    // Athena concurrent-request slot — not provider rate limiting.
     throw new ProspectConversationError(
       "RATE_LIMITED",
       "A conversation request is already in progress for this prospect.",
       429,
+      { requestId, retryable: false },
     );
   }
 
@@ -243,7 +251,17 @@ export async function runProspectConversation(input: {
       },
     };
 
-    return result;
+    return { result, requestId };
+  } catch (error) {
+    if (error instanceof ProspectConversationError && !error.requestId) {
+      throw new ProspectConversationError(
+        error.code,
+        error.message,
+        error.httpStatus,
+        { retryable: error.retryable, requestId },
+      );
+    }
+    throw error;
   } finally {
     releaseConversationSlot(input.userId, input.prospect.id);
   }

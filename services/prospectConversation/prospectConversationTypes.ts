@@ -6,6 +6,9 @@
 /** Hardcoded model for this feature only — does not alter stage routing. */
 export const PROSPECT_CONVERSATION_MODEL = "google/gemini-2.5-flash" as const;
 
+/** Safe correlation header returned on conversation success and structured failures. */
+export const ATHENA_REQUEST_ID_HEADER = "X-Athena-Request-Id";
+
 /** Explicit interactive Q&A limits (documented in code per Phase 2 contract). */
 export const PROSPECT_CONVERSATION_LIMITS = {
   /** Max characters for the latest user message. */
@@ -24,6 +27,13 @@ export const PROSPECT_CONVERSATION_LIMITS = {
   maxTotalPromptChars: 100_000,
   /** OpenRouter AbortController timeout (ms). */
   openRouterTimeoutMs: 45_000,
+  /**
+   * Browser client request timeout (ms).
+   * Slightly above OpenRouter timeout; safely within route maxDuration (60s).
+   */
+  clientRequestTimeoutMs: 56_000,
+  /** Backoff before the single automatic client retry (ms). */
+  autoRetryBackoffMs: 700,
   /** Max concurrent in-process conversation requests per user+prospect. */
   maxConcurrentPerUserProspect: 1,
 } as const;
@@ -127,7 +137,10 @@ export type ProspectConversationErrorCode =
   | "ASSET_NOT_FOUND"
   | "VERSION_NOT_FOUND"
   | "TIMEOUT"
+  /** Athena in-process concurrent-request slot for this user+prospect. */
   | "RATE_LIMITED"
+  /** Upstream OpenRouter HTTP 429 (distinct from Athena RATE_LIMITED). */
+  | "PROVIDER_RATE_LIMITED"
   | "PROVIDER_ERROR"
   | "INTERNAL_ERROR";
 
@@ -136,6 +149,8 @@ export type ProspectConversationFailureResult = {
   error: {
     code: ProspectConversationErrorCode;
     message: string;
+    /** Present only when the server classifies the failure as auto-retryable. */
+    retryable?: boolean;
   };
 };
 
@@ -146,16 +161,21 @@ export type ProspectConversationResult =
 export class ProspectConversationError extends Error {
   readonly code: ProspectConversationErrorCode;
   readonly httpStatus: number;
+  readonly retryable: boolean;
+  readonly requestId: string | null;
 
   constructor(
     code: ProspectConversationErrorCode,
     message: string,
     httpStatus: number,
+    options?: { retryable?: boolean; requestId?: string | null },
   ) {
     super(message);
     this.name = "ProspectConversationError";
     this.code = code;
     this.httpStatus = httpStatus;
+    this.retryable = Boolean(options?.retryable);
+    this.requestId = options?.requestId ?? null;
   }
 }
 

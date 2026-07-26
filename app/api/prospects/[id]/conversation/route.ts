@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import {
   OrganizationAccessError,
@@ -5,7 +6,9 @@ import {
 } from "@/services/organizationService";
 import { getProspectById } from "@/services/prospects/prospectService";
 import {
+  ATHENA_REQUEST_ID_HEADER,
   ProspectConversationError,
+  type ProspectConversationFailureResult,
   type ProspectConversationResult,
 } from "@/services/prospectConversation/prospectConversationTypes";
 import { runProspectConversation } from "@/services/prospectConversation/prospectConversationService";
@@ -15,17 +18,42 @@ export const dynamic = "force-dynamic";
 /** Synchronous AI route — align with interactive conversation timeout. */
 export const maxDuration = 60;
 
-function json(data: ProspectConversationResult | { ok: false; error: { code: string; message: string } }, status = 200) {
+function json(
+  data: ProspectConversationResult | ProspectConversationFailureResult,
+  status = 200,
+  requestId: string,
+) {
+  const headers: Record<string, string> = {
+    "Cache-Control": "no-store",
+    [ATHENA_REQUEST_ID_HEADER]: requestId,
+  };
   return NextResponse.json(data, {
     status,
-    headers: { "Cache-Control": "no-store" },
+    headers,
   });
+}
+
+function failureJson(
+  error: ProspectConversationError,
+  fallbackRequestId: string,
+) {
+  const body: ProspectConversationFailureResult = {
+    ok: false,
+    error: {
+      code: error.code,
+      message: error.message,
+      ...(error.retryable ? { retryable: true as const } : {}),
+    },
+  };
+  return json(body, error.httpStatus, error.requestId ?? fallbackRequestId);
 }
 
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const requestId = randomUUID();
+
   try {
     const { id } = await context.params;
     const { organizationId, userId } =
@@ -39,6 +67,7 @@ export async function POST(
           error: { code: "NOT_FOUND", message: "Prospect not found." },
         },
         404,
+        requestId,
       );
     }
 
@@ -55,17 +84,20 @@ export async function POST(
           },
         },
         400,
+        requestId,
       );
     }
 
-    const result = await runProspectConversation({
-      organizationId,
-      userId,
-      prospect,
-      body,
-    });
+    const { result, requestId: serviceRequestId } =
+      await runProspectConversation({
+        organizationId,
+        userId,
+        prospect,
+        body,
+        requestId,
+      });
 
-    return json(result, 200);
+    return json(result, 200, serviceRequestId || requestId);
   } catch (error) {
     if (error instanceof OrganizationAccessError) {
       return json(
@@ -74,22 +106,18 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+        requestId,
       );
     }
 
     if (error instanceof ProspectConversationError) {
-      return json(
-        {
-          ok: false,
-          error: { code: error.code, message: error.message },
-        },
-        error.httpStatus,
-      );
+      return failureJson(error, requestId);
     }
 
     console.error(
       JSON.stringify({
         event: "prospect_conversation_unhandled_error",
+        requestId,
         // No request/body content logged.
         message: error instanceof Error ? error.message : "unknown",
       }),
@@ -104,6 +132,7 @@ export async function POST(
         },
       },
       500,
+      requestId,
     );
   }
 }

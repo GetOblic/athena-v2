@@ -310,7 +310,8 @@ export async function assembleProspectConversationContext(
         pushSection(sections, {
           type: "ORGANIZATION_VOICE",
           trust: "confirmed_fact",
-          label: "Organization voice",
+          label:
+            "Organization voice (default style guidance; may be overridden for conversational drafts)",
           content: truncate(
             identity.about_you.trim(),
             PROSPECT_CONVERSATION_LIMITS.maxKnowledgeContextChars,

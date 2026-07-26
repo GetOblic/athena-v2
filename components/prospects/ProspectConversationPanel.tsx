@@ -10,7 +10,7 @@ import {
 } from "react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { writeClipboardText } from "@/lib/clipboard";
-import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { postProspectConversation } from "@/services/prospectConversation/prospectConversationClient";
 import {
   clearProspectConversationSession,
   readProspectConversationSession,
@@ -19,7 +19,6 @@ import {
 import type {
   ProspectConversationAssetReference,
   ProspectConversationHistoryMessage,
-  ProspectConversationResult,
   ProspectConversationVersionState,
 } from "@/services/prospectConversation/prospectConversationTypes";
 
@@ -85,6 +84,15 @@ function readInitialSession(input: {
   };
 }
 
+function ThinkingIndicator() {
+  return (
+    <span
+      className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--athena-orange)]/30 border-t-[var(--athena-orange)]"
+      aria-hidden="true"
+    />
+  );
+}
+
 function ProspectConversationPanelInner({
   prospectId,
   executiveVersionId,
@@ -99,6 +107,7 @@ function ProspectConversationPanelInner({
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const requestSeqRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const inFlightRef = useRef(false);
   // Captures the mount scope; inner panel remounts when prospect/version changes.
   const mountedScopeRef = useRef({ prospectId, executiveVersionId });
 
@@ -114,10 +123,12 @@ function ProspectConversationPanelInner({
     null,
   );
   const [busy, setBusy] = useState(false);
+  const [pendingResponse, setPendingResponse] = useState(false);
   const [error, setError] = useState<{
     code: string;
     message: string;
     retryMessage?: string;
+    requestId?: string | null;
   } | null>(null);
   const [copyAck, setCopyAck] = useState<string | null>(null);
 
@@ -136,6 +147,7 @@ function ProspectConversationPanelInner({
   }
 
   // Persist scoped session to sessionStorage (external system write).
+  // Pending Athena rows are never part of `messages` and are never persisted.
   useEffect(() => {
     const storage =
       typeof window !== "undefined" ? window.sessionStorage : null;
@@ -154,15 +166,31 @@ function ProspectConversationPanelInner({
     return () => {
       abortRef.current?.abort();
       abortRef.current = null;
+      inFlightRef.current = false;
     };
   }, []);
 
+  function rollbackUserTurn(trimmed: string) {
+    setMessages((prev) => {
+      if (
+        prev.length > 0 &&
+        prev[prev.length - 1]?.role === "user" &&
+        prev[prev.length - 1]?.content === trimmed
+      ) {
+        return prev.slice(0, -1);
+      }
+      return prev;
+    });
+    setDraft(trimmed);
+  }
+
   async function sendMessage(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || busy) {
+    if (!trimmed || busy || inFlightRef.current) {
       return;
     }
 
+    inFlightRef.current = true;
     const seq = ++requestSeqRef.current;
     const scopeAtSend = {
       prospectId: mountedScopeRef.current.prospectId,
@@ -175,6 +203,7 @@ function ProspectConversationPanelInner({
     abortRef.current = controller;
 
     setBusy(true);
+    setPendingResponse(true);
     setError(null);
     setDraft("");
 
@@ -182,24 +211,14 @@ function ProspectConversationPanelInner({
     setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
 
     try {
-      const response = await fetch(
-        `/api/prospects/${encodeURIComponent(prospectId)}/conversation`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: trimmed,
-            history: historyForRequest,
-            executiveVersionId,
-            assetReference: assetReference ?? undefined,
-          }),
-          signal: controller.signal,
-        },
-      );
-
-      const payload = await parseJsonResponse<ProspectConversationResult>(
-        response,
-      );
+      const outcome = await postProspectConversation({
+        prospectId,
+        message: trimmed,
+        history: historyForRequest,
+        executiveVersionId,
+        assetReference: assetReference ?? null,
+        signal: controller.signal,
+      });
 
       if (
         seq !== requestSeqRef.current ||
@@ -210,29 +229,16 @@ function ProspectConversationPanelInner({
         return;
       }
 
-      if (!response.ok || !payload.ok) {
-        const failure =
-          payload && typeof payload === "object" && "error" in payload
-            ? (payload as { error?: { code?: string; message?: string } })
-                .error
-            : null;
-        setMessages((prev) => {
-          if (
-            prev.length > 0 &&
-            prev[prev.length - 1]?.role === "user" &&
-            prev[prev.length - 1]?.content === trimmed
-          ) {
-            return prev.slice(0, -1);
-          }
-          return prev;
-        });
-        setDraft(trimmed);
+      if (!outcome.ok) {
+        if (outcome.failure.kind === "lifecycle_abort") {
+          return;
+        }
+        rollbackUserTurn(trimmed);
         setError({
-          code: failure?.code ?? `HTTP_${response.status}`,
-          message:
-            failure?.message ??
-            "Athena could not complete the conversation response.",
+          code: outcome.failure.code,
+          message: outcome.failure.message,
           retryMessage: trimmed,
+          requestId: outcome.failure.requestId,
         });
         return;
       }
@@ -241,14 +247,14 @@ function ProspectConversationPanelInner({
         ...prev,
         {
           role: "assistant",
-          content: payload.message.content,
+          content: outcome.result.message.content,
         },
       ]);
-      if (payload.context.asset) {
-        setResolvedAssetTitle(payload.context.asset.title);
+      if (outcome.result.context.asset) {
+        setResolvedAssetTitle(outcome.result.context.asset.title);
         setAssetReference({
-          kind: payload.context.asset.kind,
-          key: payload.context.asset.key,
+          kind: outcome.result.context.asset.kind,
+          key: outcome.result.context.asset.key,
         });
       }
     } catch (err) {
@@ -258,25 +264,17 @@ function ProspectConversationPanelInner({
       ) {
         return;
       }
-      setMessages((prev) => {
-        if (
-          prev.length > 0 &&
-          prev[prev.length - 1]?.role === "user" &&
-          prev[prev.length - 1]?.content === trimmed
-        ) {
-          return prev.slice(0, -1);
-        }
-        return prev;
-      });
-      setDraft(trimmed);
+      rollbackUserTurn(trimmed);
       setError({
-        code: "NETWORK_ERROR",
-        message: "Network error. Please try again.",
+        code: "TRANSPORT_ERROR",
+        message: "Athena could not reach the service. Please try again.",
         retryMessage: trimmed,
       });
     } finally {
       if (seq === requestSeqRef.current) {
         setBusy(false);
+        setPendingResponse(false);
+        inFlightRef.current = false;
       }
     }
   }
@@ -295,6 +293,9 @@ function ProspectConversationPanelInner({
 
   function clearConversation() {
     abortRef.current?.abort();
+    inFlightRef.current = false;
+    setBusy(false);
+    setPendingResponse(false);
     setMessages([]);
     setError(null);
     setResolvedAssetTitle(null);
@@ -376,8 +377,9 @@ function ProspectConversationPanelInner({
           className="mt-6 space-y-4"
           aria-live="polite"
           aria-relevant="additions"
+          aria-busy={pendingResponse || busy}
         >
-          {messages.length === 0 ? (
+          {messages.length === 0 && !pendingResponse ? (
             <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/35">
                 Try asking
@@ -401,38 +403,58 @@ function ProspectConversationPanelInner({
               </ul>
             </div>
           ) : (
-            messages.map((message, index) => {
-              const key = `${message.role}-${index}`;
-              const isUser = message.role === "user";
-              return (
-                <div
-                  key={key}
-                  className={`rounded-2xl border px-4 py-3 ${
-                    isUser
-                      ? "border-white/10 bg-white/[0.04]"
-                      : "border-[var(--athena-orange)]/20 bg-[var(--athena-orange)]/[0.06]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-                      {isUser ? "You" : "Athena"}
+            <>
+              {messages.map((message, index) => {
+                const key = `${message.role}-${index}`;
+                const isUser = message.role === "user";
+                return (
+                  <div
+                    key={key}
+                    className={`rounded-2xl border px-4 py-3 ${
+                      isUser
+                        ? "border-white/10 bg-white/[0.04]"
+                        : "border-[var(--athena-orange)]/20 bg-[var(--athena-orange)]/[0.06]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                        {isUser ? "You" : "Athena"}
+                      </div>
+                      {!isUser ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void copyAssistant(message.content, key)
+                          }
+                          className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-white/50 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+                        >
+                          {copyAck === key ? "Copied" : "Copy"}
+                        </button>
+                      ) : null}
                     </div>
-                    {!isUser ? (
-                      <button
-                        type="button"
-                        onClick={() => void copyAssistant(message.content, key)}
-                        className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-white/50 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
-                      >
-                        {copyAck === key ? "Copied" : "Copy"}
-                      </button>
-                    ) : null}
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-white/85">
+                      {message.content}
+                    </p>
                   </div>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-white/85">
-                    {message.content}
+                );
+              })}
+              {pendingResponse ? (
+                <div
+                  className="rounded-2xl border border-[var(--athena-orange)]/20 bg-[var(--athena-orange)]/[0.06] px-4 py-3"
+                  data-athena-pending-response="true"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+                      Athena
+                    </div>
+                    <ThinkingIndicator />
+                  </div>
+                  <p className="mt-2 text-sm leading-7 text-white/65">
+                    Athena is thinking…
                   </p>
                 </div>
-              );
-            })
+              ) : null}
+            </>
           )}
         </div>
 
@@ -442,6 +464,11 @@ function ProspectConversationPanelInner({
             role="alert"
           >
             <div>{error.message}</div>
+            {error.requestId ? (
+              <div className="mt-1 text-xs text-red-100/55">
+                Support reference: {error.requestId}
+              </div>
+            ) : null}
             {error.retryMessage ? (
               <button
                 type="button"
