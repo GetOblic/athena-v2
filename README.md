@@ -187,6 +187,19 @@ OPENROUTER_PREMIUM_REASONING_EFFORT=high
 
 Analysis stages (discussion analysis, briefings, community intelligence, deployment assets, etc.) use the analysis model. Strategic blueprint uses the premium model.
 
+### GetOblic Links (Identity → Brain Status)
+
+Athena manages short links via the production Cloudflare Worker at `https://link.getoblic.com`. Configure these **server-only** variables (never use `NEXT_PUBLIC_`):
+
+```bash
+GETOBLIC_LINKS_BASE_URL=https://link.getoblic.com
+GETOBLIC_LINKS_API_KEY=your_worker_api_key
+```
+
+- `GETOBLIC_LINKS_API_KEY` is required for create/get/update/delete.
+- `GETOBLIC_LINKS_BASE_URL` defaults to `https://link.getoblic.com` when omitted.
+- The API key must never be exposed to browser code.
+
 ---
 
 # Project Principles

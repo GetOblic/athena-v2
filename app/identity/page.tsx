@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AiWorkspacePreferencesSection } from "@/components/identity/AiWorkspacePreferencesSection";
 import { BrandIdentitySection } from "@/components/identity/BrandIdentitySection";
 import { DeepScrapeWebsiteButton } from "@/components/identity/DeepScrapeWebsiteButton";
+import { GetOblicLinksCard } from "@/components/identity/GetOblicLinksCard";
 import { IdentityExecutiveIntelligence } from "@/components/identity/IdentityExecutiveIntelligence";
 import {
   TrainAthenaForm,
@@ -341,6 +342,11 @@ export default async function IdentityPage({
                 ? identity.last_deep_scrape_pages
                 : null
             }
+          />
+
+          <GetOblicLinksCard
+            organizationId={organizationId}
+            userId={userId}
           />
         </aside>
       </div>
