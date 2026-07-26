@@ -36,6 +36,32 @@ function readBaseUrl(): string {
   return baseUrl;
 }
 
+/**
+ * User-facing short-link origin (e.g. https://link.getoblic.com).
+ * Prefers GETOBLIC_LINKS_PUBLIC_BASE_URL; falls back to GETOBLIC_LINKS_BASE_URL.
+ * Distinct from the Worker API base when the Worker is reached via workers.dev.
+ */
+export function readPublicBaseUrl(): string {
+  const publicConfigured = process.env.GETOBLIC_LINKS_PUBLIC_BASE_URL?.trim();
+  const baseUrl = (
+    publicConfigured ||
+    process.env.GETOBLIC_LINKS_BASE_URL?.trim() ||
+    DEFAULT_BASE_URL
+  ).replace(/\/+$/, "");
+
+  if (!/^https?:\/\//i.test(baseUrl)) {
+    throw new GetOblicWorkerError(
+      "CONFIG_MISSING",
+      publicConfigured
+        ? "GETOBLIC_LINKS_PUBLIC_BASE_URL must be an http(s) URL."
+        : "GETOBLIC_LINKS_BASE_URL must be an http(s) URL.",
+      503,
+    );
+  }
+
+  return baseUrl;
+}
+
 function readConfig(): WorkerConfig {
   const baseUrl = readBaseUrl();
   const apiKey = process.env.GETOBLIC_LINKS_API_KEY?.trim() ?? "";
@@ -138,19 +164,16 @@ function readNumber(
   return null;
 }
 
-function buildShortUrl(
-  baseUrl: string,
-  slug: string,
-  provided: string | null,
-): string {
-  if (provided) {
-    try {
-      return new URL(provided).toString();
-    } catch {
-      // fall through
-    }
-  }
-  return new URL(`/${slug}`, `${baseUrl}/`).toString();
+/**
+ * Always build the canonical public short URL from the public base + slug.
+ * Worker-provided short_url values (e.g. workers.dev) must not override this.
+ * Slug case is preserved exactly; the path segment is URI-encoded.
+ */
+function buildShortUrl(publicBaseUrl: string, slug: string): string {
+  return new URL(
+    `/${encodeURIComponent(slug)}`,
+    `${publicBaseUrl}/`,
+  ).toString();
 }
 
 /**
@@ -162,7 +185,7 @@ function buildShortUrl(
  */
 export function normalizeWorkerLink(
   payload: unknown,
-  baseUrl: string,
+  publicBaseUrl: string,
   fallbackSlug?: string,
 ): GetOblicLinkRecord {
   const root = asRecord(payload);
@@ -200,9 +223,6 @@ export function normalizeWorkerLink(
     );
   }
 
-  const shortUrlProvided =
-    readString(source, "short_url") ?? readString(root, "short_url");
-
   const disabled = nested
     ? readBoolean(source, "disabled", false)
     : readBoolean(root, "disabled", readBoolean(source, "disabled", false));
@@ -210,7 +230,8 @@ export function normalizeWorkerLink(
   return {
     slug,
     url,
-    short_url: buildShortUrl(baseUrl, slug, shortUrlProvided),
+    // Worker short_url (e.g. workers.dev) is ignored; always use public base + slug.
+    short_url: buildShortUrl(publicBaseUrl, slug),
     disabled,
     click_count: readNumber(source, "click_count"),
     created_at:
@@ -387,7 +408,6 @@ export async function getGetOblicLinksHealth(): Promise<{
 export async function createGetOblicLink(
   input: GetOblicCreateLinkInput,
 ): Promise<GetOblicLinkRecord> {
-  const config = readConfig();
   // Worker accepts `url` only — never send destination aliases.
   const body: Record<string, unknown> = {
     url: input.url,
@@ -417,23 +437,21 @@ export async function createGetOblicLink(
     body,
   });
 
-  return normalizeWorkerLink(payload, config.baseUrl);
+  return normalizeWorkerLink(payload, readPublicBaseUrl());
 }
 
 export async function getGetOblicLink(slug: string): Promise<GetOblicLinkRecord> {
-  const config = readConfig();
   const encoded = encodeURIComponent(slug);
   const { payload } = await workerFetch(`/api/links/${encoded}`, {
     method: "GET",
   });
-  return normalizeWorkerLink(payload, config.baseUrl, slug);
+  return normalizeWorkerLink(payload, readPublicBaseUrl(), slug);
 }
 
 export async function updateGetOblicLink(
   slug: string,
   input: GetOblicUpdateLinkInput,
 ): Promise<GetOblicLinkRecord> {
-  const config = readConfig();
   const body: Record<string, unknown> = {};
   if (input.url !== undefined) {
     body.url = input.url;
@@ -463,7 +481,7 @@ export async function updateGetOblicLink(
     method: "PATCH",
     body,
   });
-  return normalizeWorkerLink(payload, config.baseUrl, slug);
+  return normalizeWorkerLink(payload, readPublicBaseUrl(), slug);
 }
 
 export async function deleteGetOblicLink(slug: string): Promise<void> {

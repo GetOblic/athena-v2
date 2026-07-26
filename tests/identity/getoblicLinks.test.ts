@@ -19,6 +19,7 @@ import {
 } from "../../lib/getoblic-links/history";
 import {
   normalizeWorkerLink,
+  readPublicBaseUrl,
   toAthenaApiError,
 } from "../../lib/getoblic-links/server";
 import {
@@ -534,17 +535,103 @@ describe("GetOblic Links — Worker client normalization", () => {
     assert.equal(mapped.body.error.code, "TIMEOUT");
     assert.doesNotMatch(JSON.stringify(mapped.body), /Bearer|X-API-Key|API_KEY/i);
   });
+
+  it("builds canonical public short_url from public base + slug", () => {
+    const daniel = normalizeWorkerLink(
+      {
+        success: true,
+        slug: "daniel",
+        short_url: "https://getoblic-links.example.workers.dev/daniel",
+        destination_url: "https://claim.getoblic.com/daniel",
+        created_at: "2026-07-26T00:00:00.000Z",
+        expires_at: null,
+        disabled: false,
+      },
+      "https://link.getoblic.com",
+    );
+    assert.equal(daniel.short_url, "https://link.getoblic.com/daniel");
+
+    const mixed = normalizeWorkerLink(
+      {
+        success: true,
+        link: {
+          slug: "DanielMix",
+          url: "https://claim.getoblic.com/dest",
+          short_url: "https://getoblic-links.example.workers.dev/DanielMix",
+          disabled: false,
+          click_count: 0,
+        },
+      },
+      "https://link.getoblic.com",
+    );
+    assert.equal(mixed.slug, "DanielMix");
+    assert.equal(mixed.short_url, "https://link.getoblic.com/DanielMix");
+  });
+
+  it("ignores Worker-provided workers.dev short_url when building canonical URL", () => {
+    const record = normalizeWorkerLink(
+      {
+        success: true,
+        slug: "abc123",
+        short_url: "https://getoblic-links.example.workers.dev/abc123",
+        destination_url: "https://claim.getoblic.com/dest",
+        disabled: false,
+      },
+      "https://link.getoblic.com",
+    );
+    assert.equal(record.short_url, "https://link.getoblic.com/abc123");
+    assert.doesNotMatch(record.short_url, /workers\.dev/);
+  });
+});
+
+describe("GetOblic Links — public base URL resolution", () => {
+  const originalEnv = {
+    publicBase: process.env.GETOBLIC_LINKS_PUBLIC_BASE_URL,
+    base: process.env.GETOBLIC_LINKS_BASE_URL,
+  };
+
+  afterEach(() => {
+    if (originalEnv.publicBase === undefined) {
+      delete process.env.GETOBLIC_LINKS_PUBLIC_BASE_URL;
+    } else {
+      process.env.GETOBLIC_LINKS_PUBLIC_BASE_URL = originalEnv.publicBase;
+    }
+    if (originalEnv.base === undefined) {
+      delete process.env.GETOBLIC_LINKS_BASE_URL;
+    } else {
+      process.env.GETOBLIC_LINKS_BASE_URL = originalEnv.base;
+    }
+  });
+
+  it("strips trailing slashes from GETOBLIC_LINKS_PUBLIC_BASE_URL", () => {
+    process.env.GETOBLIC_LINKS_PUBLIC_BASE_URL =
+      "https://link.getoblic.com///";
+    delete process.env.GETOBLIC_LINKS_BASE_URL;
+    assert.equal(readPublicBaseUrl(), "https://link.getoblic.com");
+  });
+
+  it("falls back to GETOBLIC_LINKS_BASE_URL when public base is unset", () => {
+    delete process.env.GETOBLIC_LINKS_PUBLIC_BASE_URL;
+    process.env.GETOBLIC_LINKS_BASE_URL = "https://link.getoblic.com/";
+    assert.equal(readPublicBaseUrl(), "https://link.getoblic.com");
+  });
 });
 
 describe("GetOblic Links — Worker client fetch", () => {
   const originalFetch = globalThis.fetch;
   const originalEnv = {
+    publicBase: process.env.GETOBLIC_LINKS_PUBLIC_BASE_URL,
     base: process.env.GETOBLIC_LINKS_BASE_URL,
     key: process.env.GETOBLIC_LINKS_API_KEY,
   };
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (originalEnv.publicBase === undefined) {
+      delete process.env.GETOBLIC_LINKS_PUBLIC_BASE_URL;
+    } else {
+      process.env.GETOBLIC_LINKS_PUBLIC_BASE_URL = originalEnv.publicBase;
+    }
     if (originalEnv.base === undefined) {
       delete process.env.GETOBLIC_LINKS_BASE_URL;
     } else {
@@ -591,6 +678,7 @@ describe("GetOblic Links — Worker client fetch", () => {
 
     assert.equal(link.slug, "created1");
     assert.equal(link.url, "https://claim.getoblic.com/new");
+    assert.equal(link.short_url, "https://link.getoblic.com/created1");
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.url, "https://link.getoblic.com/api/links");
     assert.equal(calls[0]?.init?.method, "POST");
@@ -601,6 +689,42 @@ describe("GetOblic Links — Worker client fetch", () => {
     const body = String(calls[0]?.init?.body);
     assert.match(body, /"url":"https:\/\/claim\.getoblic\.com\/new"/);
     assert.doesNotMatch(body, /"destination"/);
+  });
+
+  it("create normalizes short_url to public base even when Worker returns workers.dev", async () => {
+    process.env.GETOBLIC_LINKS_BASE_URL =
+      "https://getoblic-links.example.workers.dev";
+    process.env.GETOBLIC_LINKS_PUBLIC_BASE_URL = "https://link.getoblic.com";
+    process.env.GETOBLIC_LINKS_API_KEY = "test-secret-key";
+
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          slug: "daniel",
+          short_url: "https://getoblic-links.example.workers.dev/daniel",
+          destination_url: "https://claim.getoblic.com/daniel",
+          created_at: "2026-07-26T00:00:00.000Z",
+          expires_at: null,
+          disabled: false,
+        }),
+        {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }) as typeof fetch;
+
+    const { createGetOblicLink } = await import(
+      "../../lib/getoblic-links/server"
+    );
+    const link = await createGetOblicLink({
+      url: "https://claim.getoblic.com/daniel",
+      slug: "daniel",
+    });
+
+    assert.equal(link.short_url, "https://link.getoblic.com/daniel");
+    assert.doesNotMatch(link.short_url, /workers\.dev/);
   });
 
   it("sends disabled (not enabled) on PATCH", async () => {
@@ -757,6 +881,7 @@ describe("GetOblic Links — API route and Identity contracts", () => {
     const server = read("lib/getoblic-links/server.ts");
     assert.match(server, /GETOBLIC_LINKS_API_KEY/);
     assert.match(server, /GETOBLIC_LINKS_BASE_URL/);
+    assert.match(server, /GETOBLIC_LINKS_PUBLIC_BASE_URL/);
     assert.match(server, /X-API-Key/);
     assert.doesNotMatch(server, /Authorization:\s*`Bearer/);
     assert.doesNotMatch(server, /NEXT_PUBLIC_GETOBLIC_LINKS/);
