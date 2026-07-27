@@ -11,7 +11,8 @@
     "worker:dev": "node --import tsx workers/athenaWorker.ts",
     "worker:start": "node dist/worker/athenaWorker.js",
     "lint": "eslint",
-    "test:worker": "node --import tsx --test tests/generationJobs/*.test.ts tests/executiveVersions/*.test.ts tests/prospects/*.test.ts tests/identity/*.test.ts tests/websiteLearning/*.test.ts"
+    "test:worker": "node --import tsx --test tests/generationJobs/*.test.ts tests/executiveVersions/*.test.ts tests/prospects/*.test.ts tests/identity/*.test.ts tests/websiteLearning/*.test.ts",
+    "test:conversation": "node --import tsx --test tests/prospects/prospectConversationService.test.ts tests/prospects/prospectConversationUi.test.ts tests/identityConversation/*.test.ts tests/gettingStartedConversation/*.test.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
