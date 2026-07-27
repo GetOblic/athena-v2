@@ -132,9 +132,12 @@ describe("getting started product context", () => {
       organizationId: "org-1",
       userId: "user-1",
     });
-    assert.equal(assembled.sections.length, 1);
+    assert.equal(assembled.sections.length, 2);
     assert.equal(assembled.sections[0]?.type, "ATHENA_PRODUCT_CONTEXT");
     assert.match(assembled.sections[0]?.content ?? "", /Getting Started workflow/);
+    assert.equal(assembled.sections[1]?.type, "ATHENA_PRODUCT_KNOWLEDGE");
+    assert.equal(assembled.sections[1]?.label, "ATHENA PRODUCT KNOWLEDGE");
+    assert.match(assembled.sections[1]?.content ?? "", /Athena Product Knowledge/);
 
     const context = read(
       "services/gettingStartedConversation/gettingStartedConversationContext.ts",
@@ -145,6 +148,43 @@ describe("getting started product context", () => {
     assert.doesNotMatch(context, /getKnowledgeAssets/);
     assert.doesNotMatch(context, /formatDeepIntelligenceForBrainPrompt/);
     assert.doesNotMatch(context, /readStoredHomepageLearning/);
+  });
+
+  it("trusted prompt context includes Product Knowledge and keeps existing guidance", () => {
+    const built = buildGettingStartedConversationPrompt({
+      assembled: assembleGettingStartedConversationContext({
+        organizationId: "org-1",
+        userId: "user-1",
+      }),
+      history: [],
+      userMessage: "How does Athena work?",
+    });
+    const user = built.messages[built.messages.length - 1];
+    assert.match(user.content, /ATHENA PRODUCT KNOWLEDGE/);
+    assert.match(user.content, /Athena Product Knowledge/);
+    assert.match(user.content, /ATHENA_PRODUCT_CONTEXT|Athena product context/);
+    assert.match(user.content, /Getting Started workflow/);
+    assert.doesNotMatch(user.content, /knowledge\/athena-product-knowledge\.md/);
+    assert.doesNotMatch(user.content, /lib\/server\/productKnowledge/);
+  });
+
+  it("Identity and Prospect conversation modules do not load Product Knowledge", () => {
+    assert.doesNotMatch(
+      read("services/identityConversation/identityConversationContext.ts"),
+      /getProductKnowledge|athena-product-knowledge/,
+    );
+    assert.doesNotMatch(
+      read("services/identityConversation/identityConversationPrompt.ts"),
+      /getProductKnowledge|athena-product-knowledge/,
+    );
+    assert.doesNotMatch(
+      read("services/prospectConversation/prospectConversationContext.ts"),
+      /getProductKnowledge|athena-product-knowledge/,
+    );
+    assert.doesNotMatch(
+      read("services/prospectConversation/prospectConversationPrompt.ts"),
+      /getProductKnowledge|athena-product-knowledge/,
+    );
   });
 });
 

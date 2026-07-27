@@ -33,6 +33,7 @@ const USER_PREAMBLE_SUFFIX = "\n\nAuthenticated user question:\n";
 function sectionKeepPriority(type: string): number {
   switch (type) {
     case "ATHENA_PRODUCT_CONTEXT":
+    case "ATHENA_PRODUCT_KNOWLEDGE":
       return 1;
     default:
       return 5;

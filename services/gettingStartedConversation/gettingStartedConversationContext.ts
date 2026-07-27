@@ -4,6 +4,7 @@
  * Prospects, Executive Versions, or asset bodies.
  */
 
+import { getProductKnowledge } from "@/lib/server/productKnowledge";
 import { truncateText } from "@/services/athenaConversation/athenaConversationPromptShared";
 import type { AthenaConversationContextSection } from "@/services/athenaConversation/athenaConversationTypes";
 import {
@@ -49,6 +50,16 @@ export function assembleGettingStartedConversationContext(
     });
   } else {
     missingNotes.push("Authoritative product context is unavailable.");
+  }
+
+  const productKnowledge = getProductKnowledge();
+  if (productKnowledge) {
+    sections.push({
+      type: "ATHENA_PRODUCT_KNOWLEDGE",
+      trust: "server_product_context",
+      label: "ATHENA PRODUCT KNOWLEDGE",
+      content: productKnowledge,
+    });
   }
 
   return { sections, missingNotes };
