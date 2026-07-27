@@ -27,11 +27,13 @@ import {
   resolveOrganizationBrandProfilePicturePreviewUrl,
   updateOrganizationBrandIdentity,
 } from "@/services/identity/brandIdentityService";
+import { IdentityConversationPanel } from "@/components/identity/IdentityConversationPanel";
 import {
   getAthenaIdentityByUserId,
   upsertAthenaIdentity,
 } from "@/services/identity/identityService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import { buildConversationScopeFingerprint } from "@/services/athenaConversation/athenaConversationScope";
 
 const fieldClassName =
   "rounded-2xl border border-white/15 bg-white/[0.04] px-5 py-4 text-sm text-white/90 shadow-inner shadow-black/20 outline-none placeholder:text-white/30 focus:border-[var(--athena-orange)] focus:ring-1 focus:ring-[var(--athena-orange)]";
@@ -229,6 +231,14 @@ export default async function IdentityPage({
           Brand Identity saved successfully.
         </div>
       )}
+
+      <IdentityConversationPanel
+        opaqueScope={buildConversationScopeFingerprint({
+          scope: "identity",
+          organizationId,
+          userId,
+        })}
+      />
 
       <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
         <TrainAthenaForm

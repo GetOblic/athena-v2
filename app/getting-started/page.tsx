@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { GettingStartedConversationPanel } from "@/components/getting-started/GettingStartedConversationPanel";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const workflowSteps = [
@@ -54,12 +55,15 @@ export default async function GettingStartedPage() {
             </p>
 
             <p className="mt-6 text-base leading-7 text-white/50">
-              Athena monitors conversations happening across your market,
-              identifies opportunities, recommends actions and prepares
-              ready-to-use business assets. Think of Athena as an intelligent
-              teammate that watches your market while you focus on your business.
+              Import the conversations that matter to your business, and Athena
+              analyzes them to identify opportunities, generate intelligence,
+              and prepare strategic assets. Think of Athena as your intelligent
+              teammate that helps you analyze important business conversations
+              and turn them into actionable intelligence.
             </p>
           </div>
+
+          <GettingStartedConversationPanel />
 
           <div className="max-w-4xl space-y-6">
             <GuideCard
@@ -162,8 +166,8 @@ export default async function GettingStartedPage() {
             <section className="rounded-[28px] border border-[var(--athena-orange)]/25 bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 text-center shadow-[0_0_40px_rgba(255,102,0,0.06)]">
               <h2 className="text-3xl font-semibold">Ready to begin?</h2>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/50">
-                Train Athena once, then let it watch your market and prepare
-                assets while you run your business.
+                Train Athena, import relevant discussions, and let Athena
+                transform them into actionable intelligence.
               </p>
               <Link
                 href="/identity"
