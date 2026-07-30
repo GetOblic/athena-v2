@@ -28,8 +28,8 @@ import {
   prepareProspectBridgeBeforeGeneration,
 } from "@/services/prospects/prospectImporter";
 import {
-  markPersonaGenerationAnalysisComplete,
   markPersonaGenerationFailed,
+  markPersonaGenerationReady,
   preparePersonaBridgeBeforeGeneration,
 } from "@/services/personas/personaImporter";
 import { isThinkDifferentlyJobProgress } from "@/services/brain/generationContracts/executiveGenerationMode";
@@ -364,7 +364,7 @@ export async function executeClaimedGenerationJob(
       );
     }
 
-    // Prospect publication completeness only — never applied to Persona bridges.
+    // Prospect / Persona publication completeness — mutually exclusive gates.
     if (isProspect && !published?.id) {
       const failed = await failGenerationJobWithClaim({
         jobId: job.id,
@@ -386,16 +386,16 @@ export async function executeClaimedGenerationJob(
       return failed?.status === "retryable" ? "retryable" : "failed";
     }
 
-    // Stage 3 Persona: shared analysis completion is sufficient (no Prospect Ready gate).
-    if (isPersona && !result.analysisId) {
+    if (isPersona && !published?.id) {
       const failed = await failGenerationJobWithClaim({
         jobId: job.id,
         claimToken,
-        errorCode: "ANALYSIS_INCOMPLETE",
-        errorMessage: "Persona generation did not produce shared analysis.",
+        errorCode: "PUBLICATION_INCOMPLETE",
+        errorMessage:
+          "Persona generation did not publish a complete Current Version.",
         retryable: true,
         attemptCount: job.attempt_count,
-        failedStage: "discussion_analysis",
+        failedStage: "executive_version",
       });
       if (failed?.status === "failed") {
         await markPersonaGenerationFailed(
@@ -437,7 +437,7 @@ export async function executeClaimedGenerationJob(
     }
 
     if (isPersona) {
-      await markPersonaGenerationAnalysisComplete(
+      await markPersonaGenerationReady(
         job.discussion_id,
         job.organization_id,
         opportunityScore,

@@ -11,7 +11,7 @@ import { normalizeAnalysisForDisplay } from "@/services/executiveVersions/analys
 type ExecutiveIntelligenceCardProps = {
   analysis: DiscussionAnalysis;
   /** Isolated source wording. Defaults to discussion labels. */
-  sourceKind?: "discussion" | "prospect";
+  sourceKind?: "discussion" | "prospect" | "persona";
 };
 
 export function ExecutiveIntelligenceCard({
@@ -26,6 +26,22 @@ export function ExecutiveIntelligenceCard({
     ...display,
   });
   const isProspect = sourceKind === "prospect";
+  const isPersona = sourceKind === "persona";
+  const assessmentLabel = isProspect
+    ? "Prospect Assessment"
+    : isPersona
+      ? "Persona Assessment"
+      : "Executive Insight";
+  const concernLabel = isProspect
+    ? "Primary Business Concern"
+    : isPersona
+      ? "Primary Persona Concern"
+      : "Primary Buyer Concern";
+  const strategyLabel = isProspect
+    ? "Outreach Strategy"
+    : isPersona
+      ? "Engagement Strategy"
+      : "Recommended Strategy";
 
   return (
     <section
@@ -42,18 +58,13 @@ export function ExecutiveIntelligenceCard({
       <div className="mt-8 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
         <div className="space-y-7">
           <IntelBlock
-            label={isProspect ? "Prospect Assessment" : "Executive Insight"}
+            label={assessmentLabel}
             value={display.summary}
             prominent
           />
+          <IntelBlock label={concernLabel} value={display.pain_points} />
           <IntelBlock
-            label={
-              isProspect ? "Primary Business Concern" : "Primary Buyer Concern"
-            }
-            value={display.pain_points}
-          />
-          <IntelBlock
-            label={isProspect ? "Outreach Strategy" : "Recommended Strategy"}
+            label={strategyLabel}
             value={display.recommended_action}
           />
         </div>

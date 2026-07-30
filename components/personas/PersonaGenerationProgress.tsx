@@ -3,104 +3,95 @@
 import { useEffect, useState } from "react";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
-const STAGES = [
-  "Profile Created",
+type PersonaGenerationProgressProps = {
+  personaId: string;
+  initialStatus?: string | null;
+};
+
+const ACTIVE_STATUSES = new Set([
   "Queued",
   "Processing",
   "Generating Executive Intelligence",
-  "Analysis Generated",
-] as const;
-
-type PersonaGenerationProgressProps = {
-  personaId: string;
-  initialStatus: string;
-};
-
-type StatusPayload = {
-  ok?: boolean;
-  status?: string;
-  regenerationInFlight?: boolean;
-};
-
-function stageIndex(status: string): number {
-  if (/fail/i.test(status)) return -1;
-  if (/analysis generated/i.test(status)) return 4;
-  if (/generat|analyz/i.test(status)) return 3;
-  if (/process/i.test(status)) return 2;
-  if (/queued/i.test(status)) return 1;
-  return 0;
-}
+]);
 
 export function PersonaGenerationProgress({
   personaId,
-  initialStatus,
+  initialStatus = null,
 }: PersonaGenerationProgressProps) {
   const [status, setStatus] = useState(initialStatus);
+  const [inFlight, setInFlight] = useState(
+    ACTIVE_STATUSES.has(String(initialStatus ?? "")),
+  );
 
   useEffect(() => {
     setStatus(initialStatus);
+    setInFlight(ACTIVE_STATUSES.has(String(initialStatus ?? "")));
   }, [initialStatus]);
 
   useEffect(() => {
-    let cancelled = false;
-    const tick = async () => {
-      try {
-        const response = await fetch(`/api/personas/${personaId}/status`, {
-          cache: "no-store",
-        });
-        const payload = await parseJsonResponse<StatusPayload>(response);
-        if (!cancelled && payload.ok && payload.status) {
-          setStatus(payload.status);
-        }
-      } catch {
-        /* ignore */
-      }
-    };
+    if (!inFlight) return;
 
-    void tick();
+    let cancelled = false;
     const timer = setInterval(() => {
-      void tick();
+      void (async () => {
+        try {
+          const response = await fetch(`/api/personas/${personaId}/status`, {
+            cache: "no-store",
+          });
+          const payload = await parseJsonResponse<{
+            ok?: boolean;
+            status?: string;
+            regenerationInFlight?: boolean;
+          }>(response);
+          if (cancelled || !response.ok || !payload.ok) return;
+
+          if (payload.status) setStatus(payload.status);
+          const flying = Boolean(payload.regenerationInFlight);
+          setInFlight(flying);
+          if (!flying) {
+            clearInterval(timer);
+          }
+        } catch {
+          /* keep last known */
+        }
+      })();
     }, 5_000);
+
     return () => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [personaId]);
+  }, [inFlight, personaId]);
 
-  const failed = /fail/i.test(status);
-  const current = stageIndex(status);
+  if (!status || status === "Profile Created") {
+    return null;
+  }
+
+  const failed = status === "Processing Failed";
+  const ready = status === "Ready";
 
   return (
-    <div className="mt-6">
+    <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 px-5 py-4">
       <div className="text-xs uppercase tracking-[0.16em] text-white/35">
-        Generation progress
+        Generation status
       </div>
-      <ol className="mt-4 space-y-2">
-        {STAGES.map((stage, index) => {
-          const active = !failed && index === current;
-          const done = !failed && index < current;
-          return (
-            <li
-              key={stage}
-              className={[
-                "text-sm",
-                active
-                  ? "text-[var(--athena-orange)]"
-                  : done
-                    ? "text-white/70"
-                    : "text-white/30",
-              ].join(" ")}
-            >
-              {done ? "✓ " : active ? "→ " : "○ "}
-              {stage}
-            </li>
-          );
-        })}
-      </ol>
-      {failed ? (
-        <p className="mt-3 text-sm text-red-300">Processing Failed</p>
+      <div
+        className={`mt-2 text-sm font-medium ${
+          failed
+            ? "text-red-300"
+            : ready
+              ? "text-[var(--athena-success)]"
+              : "text-white/75"
+        }`}
+      >
+        {status}
+      </div>
+      {inFlight ? (
+        <p className="mt-2 text-sm leading-6 text-white/45">
+          Athena is generating Persona Executive Intelligence in the background.
+          Blueprint and Deployment Assets publish when the run completes.
+        </p>
       ) : null}
-      <p className="mt-3 text-sm text-white/50">Current: {status}</p>
     </div>
   );
 }

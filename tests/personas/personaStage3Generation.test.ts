@@ -22,7 +22,7 @@ describe("persona stage-3 display status", () => {
     );
   });
 
-  it("maps job states and Stage 3 Analysis Generated terminal", () => {
+  it("maps job states and Stage 4 Ready after Current publication", () => {
     assert.equal(
       resolvePersonaDisplayStatus({
         personaStatus: "Queued",
@@ -42,13 +42,21 @@ describe("persona stage-3 display status", () => {
         personaStatus: "Analysis Generated",
         hasGeneratedAnalysis: true,
       }),
-      "Analysis Generated",
+      "Generating Executive Intelligence",
     );
     assert.equal(
       resolvePersonaDisplayStatus({
         personaStatus: "Ready",
+        hasCurrentExecutiveVersion: true,
       }),
-      "Analysis Generated",
+      "Ready",
+    );
+    assert.equal(
+      resolvePersonaDisplayStatus({
+        personaStatus: "Queued",
+        hasCurrentExecutiveVersion: true,
+      }),
+      "Ready",
     );
     assert.equal(
       resolvePersonaDisplayStatus({
@@ -132,29 +140,24 @@ describe("persona stage-3 queueing and create/import contracts", () => {
 });
 
 describe("persona stage-3 executor integration", () => {
-  it("adds Persona prepare/complete/fail branches without Prospect completeness", () => {
+  it("adds Persona prepare/Ready/fail branches with publication completeness", () => {
     const executor = read("services/generationJobs/generationJobExecutor.ts");
     assert.match(executor, /PERSONA_INTELLIGENCE_PLATFORM/);
     assert.match(executor, /preparePersonaBridgeBeforeGeneration/);
-    assert.match(executor, /markPersonaGenerationAnalysisComplete/);
+    assert.match(executor, /markPersonaGenerationReady/);
     assert.match(executor, /markPersonaGenerationFailed/);
     assert.match(executor, /prepareProspectBridgeBeforeGeneration/);
     assert.match(executor, /markProspectGenerationReady/);
-    assert.match(
-      executor,
-      /Prospect publication completeness only — never applied to Persona/,
-    );
     assert.match(executor, /if \(isPersona\)/);
-    assert.doesNotMatch(executor, /personaDeploymentAssetContract/);
     assert.doesNotMatch(executor, /isCompleteProspectDeploymentAssetSet/);
   });
 
-  it("discussion workflow Prospect completeness remains Prospect-gated", () => {
+  it("discussion workflow gates Prospect and Persona completeness separately", () => {
     const workflow = read("services/workflows/discussionWorkflow.ts");
     assert.match(workflow, /isProspectIntelligenceBridge/);
     assert.match(workflow, /requireProspectCompleteness: isProspect/);
-    assert.doesNotMatch(workflow, /isPersonaIntelligenceBridge/);
-    assert.doesNotMatch(workflow, /requirePersonaCompleteness/);
+    assert.match(workflow, /isPersonaIntelligenceBridge/);
+    assert.match(workflow, /requirePersonaCompleteness: isPersona/);
   });
 });
 
@@ -202,33 +205,21 @@ describe("persona stage-3 APIs and UI", () => {
     assert.doesNotMatch(refresh, /deep-scrape|Deep Scrape/);
   });
 
-  it("detail page exposes Generate Intelligence without Stage 4 actions", () => {
+  it("detail page exposes Generate Intelligence and Stage 4 workspace", () => {
     const page = read("app/personas/[id]/page.tsx");
     assert.match(page, /PersonaGenerateIntelligenceButton/);
     assert.match(page, /PersonaGenerationProgress/);
     assert.match(page, /Generate Intelligence/);
-    assert.match(
-      page,
-      /Strategic Blueprint, Persona\s+Deployment Assets/,
-    );
-    assert.doesNotMatch(page, /Think Differently/);
+    assert.match(page, /ExecutiveIntelligenceWorkspace/);
+    assert.match(page, /sourceKind="persona"/);
     assert.doesNotMatch(page, /Deep Scrape/);
     assert.doesNotMatch(page, /Append Interaction/);
     assert.doesNotMatch(page, /Ask Athena/);
-    assert.doesNotMatch(page, /ExecutiveIntelligenceWorkspace/);
   });
 });
 
 describe("persona stage-3 containment", () => {
-  it("does not add Stage 4 Persona surfaces", () => {
-    assert.equal(
-      existsSync(join(ROOT, "lib/personaDeploymentAssetContract.ts")),
-      false,
-    );
-    assert.equal(
-      existsSync(join(ROOT, "app/api/personas/[id]/think-differently")),
-      false,
-    );
+  it("does not add Stage 5 Persona surfaces", () => {
     assert.equal(
       existsSync(join(ROOT, "app/api/personas/[id]/updates")),
       false,
@@ -244,7 +235,6 @@ describe("persona stage-3 containment", () => {
 
     const importer = read("services/personas/personaImporter.ts");
     assert.doesNotMatch(importer, /persona_deep_scrape/);
-    assert.doesNotMatch(importer, /personaDeploymentAsset/);
   });
 
   it("documents Persona analysis prompt branch location", () => {

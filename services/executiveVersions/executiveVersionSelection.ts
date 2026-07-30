@@ -96,7 +96,7 @@ export function resolveWorkspaceVersionSelection(
  * Must include executiveVersionId so historical and Current never share state.
  */
 export function buildExecutiveVersionCacheKey(input: {
-  sourceType: "discussion" | "prospect";
+  sourceType: "discussion" | "prospect" | "persona";
   sourceId: string;
   executiveVersionId: string | null;
 }): string {
@@ -200,7 +200,7 @@ export function buildSelectedExecutiveVersionViewModel(input: {
   versions: ExecutiveIntelligenceVersion[];
   selectedVersionId: string | null;
   fallbackIntelligence: ExecutiveIntelligencePayload | null;
-  sourceKind?: "discussion" | "prospect";
+  sourceKind?: "discussion" | "prospect" | "persona";
 }): SelectedExecutiveVersionViewModel {
   const selection = resolveWorkspaceVersionSelection({
     versions: input.versions,
@@ -211,6 +211,7 @@ export function buildSelectedExecutiveVersionViewModel(input: {
   const version = selection.selectedVersion;
   const intelligence = selection.intelligence;
   const prospectMode = input.sourceKind === "prospect";
+  const personaMode = input.sourceKind === "persona";
 
   // Parse from a frozen copy of the selected version's analysis only.
   // Never pass live/fallback analysis into the Deployment Assets normalizer.
@@ -221,7 +222,7 @@ export function buildSelectedExecutiveVersionViewModel(input: {
             ...intelligence.analysis,
             suggested_cta: intelligence.analysis.suggested_cta ?? "",
           },
-          { prospectMode },
+          { prospectMode, personaMode },
         )
       : [];
 
@@ -250,11 +251,15 @@ export function buildSelectedExecutiveVersionViewModel(input: {
 
 /** Source-specific copy for the expanded Current Version card. */
 export function currentVersionExpandedCopy(
-  sourceKind: "discussion" | "prospect",
+  sourceKind: "discussion" | "prospect" | "persona",
 ): string {
-  return sourceKind === "prospect"
-    ? "This is Athena's current executive intelligence for this prospect."
-    : "This is Athena's current executive intelligence for this discussion.";
+  if (sourceKind === "prospect") {
+    return "This is Athena's current executive intelligence for this prospect.";
+  }
+  if (sourceKind === "persona") {
+    return "This is Athena's current executive intelligence for this persona.";
+  }
+  return "This is Athena's current executive intelligence for this discussion.";
 }
 
 export function archivedVersionExpandedCopy(): string {

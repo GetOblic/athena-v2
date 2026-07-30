@@ -115,19 +115,13 @@ describe("persona stage-2 manual create normalization", () => {
   });
 });
 
-describe("persona stage-2 containment — no Stage 4 surfaces", () => {
-  it("does not introduce Stage 4 Persona deployment or conversation surfaces", () => {
+describe("persona stage-2 containment — no Stage 5 surfaces", () => {
+  it("does not introduce Stage 5 Persona deep-scrape or conversation surfaces", () => {
     const sidebar = read("components/dashboard/DashboardSidebar.tsx");
     assert.doesNotMatch(sidebar, /persona_intelligence/);
     assert.doesNotMatch(
       read("services/personas/personaImporter.ts"),
       /persona_deep_scrape/,
-    );
-    assert.equal(
-      readFileSync(join(ROOT, "package.json"), "utf8").includes(
-        "personaDeploymentAssetContract",
-      ),
-      false,
     );
   });
 

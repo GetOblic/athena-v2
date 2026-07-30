@@ -4,6 +4,7 @@ import {
   getLatestGenerationJobForDiscussion,
 } from "@/services/generationJobs/generationJobService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
+import { getCurrentExecutiveVersion } from "@/services/executiveVersions/executiveVersionService";
 import { toPublicPersona } from "@/services/personas/personaPublic";
 import { resolvePersonaDisplayStatus } from "@/services/personas/personaDisplay";
 import { getPersonaById } from "@/services/personas/personaService";
@@ -25,7 +26,7 @@ function json(data: unknown, status = 200) {
 /**
  * Read-only Persona generation observability.
  * Does not claim, requeue, or execute jobs.
- * Stage 3 terminal display is Analysis Generated — not Prospect Ready.
+ * Stage 4 Ready requires a Current Executive Version (complete publication).
  */
 export async function GET(
   _request: Request,
@@ -48,13 +49,14 @@ export async function GET(
     }
 
     const discussionId = persona.linked_discussion_id;
-    const [activeJob, latestJob, latestAnalysis] = discussionId
+    const [activeJob, latestJob, latestAnalysis, currentVersion] = discussionId
       ? await Promise.all([
           getActiveGenerationJobForDiscussion(discussionId, organizationId),
           getLatestGenerationJobForDiscussion(discussionId, organizationId),
           getLatestDiscussionAnalysis(discussionId, organizationId),
+          getCurrentExecutiveVersion(discussionId, organizationId),
         ])
-      : [null, null, null];
+      : [null, null, null, null];
 
     const regenerationInFlight = Boolean(
       activeJob &&
@@ -64,10 +66,11 @@ export async function GET(
     );
 
     const hasGeneratedAnalysis = Boolean(latestAnalysis);
+    const hasCurrentExecutiveVersion = Boolean(currentVersion?.id);
     const hasTerminalJobFailure = Boolean(
       !activeJob &&
         latestJob?.status === "failed" &&
-        !hasGeneratedAnalysis,
+        !hasCurrentExecutiveVersion,
     );
 
     const displayStatus = resolvePersonaDisplayStatus({
@@ -75,6 +78,7 @@ export async function GET(
       jobStatus: activeJob?.status ?? null,
       jobStage: activeJob?.current_stage ?? null,
       hasGeneratedAnalysis,
+      hasCurrentExecutiveVersion,
       hasTerminalJobFailure,
     });
 
@@ -90,11 +94,13 @@ export async function GET(
       jobStatus: observedJob?.status ?? null,
       jobStage: observedJob?.current_stage ?? null,
       generationCompleted: Boolean(
-        latestJob?.status === "completed" && hasGeneratedAnalysis,
+        latestJob?.status === "completed" && hasCurrentExecutiveVersion,
       ),
       hasGeneratedAnalysis,
+      hasCurrentExecutiveVersion,
       persona: toPublicPersona(persona),
       latestAnalysisId: latestAnalysis?.id ?? null,
+      currentExecutiveVersionId: currentVersion?.id ?? null,
     });
   } catch (error) {
     if (error instanceof OrganizationAccessError) {

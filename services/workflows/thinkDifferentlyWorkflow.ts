@@ -24,6 +24,7 @@ import {
   publishExecutiveIntelligenceVersion,
 } from "@/services/executiveVersions/executiveVersionService";
 import { getOpportunityByDiscussionId } from "@/services/opportunityService";
+import { isPersonaIntelligenceBridge } from "@/services/personas/personaBridgeMarker";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 import { getProspectByLinkedDiscussionId } from "@/services/prospects/prospectService";
 import { getLatestReviewByOpportunityId } from "@/services/reviewService";
@@ -369,6 +370,9 @@ export async function processThinkDifferentlyWorkflow(input: {
       reviewId: persisted.review?.id ?? briefing?.id ?? null,
       blueprintId: newBlueprint.id,
       requireProspectCompleteness: isProspectIntelligenceBridge(discussion),
+      requirePersonaCompleteness:
+        !isProspectIntelligenceBridge(discussion) &&
+        isPersonaIntelligenceBridge(discussion),
       forceNewVersion: true,
       generationMode: "think_differently",
       generatedAt: new Date().toISOString(),

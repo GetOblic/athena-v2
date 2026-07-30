@@ -14,6 +14,11 @@ import {
   PROSPECT_DEPLOYMENT_CHANNEL_GUIDE,
   PROSPECT_DEPLOYMENT_SECTION_LABELS,
 } from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
+import {
+  PERSONA_DEPLOYMENT_CHANNEL_GUIDE,
+  PERSONA_DEPLOYMENT_EVIDENCE_DISCIPLINE,
+  PERSONA_DEPLOYMENT_SECTION_LABELS,
+} from "@/services/ai/prompts/personaDeploymentAssetsConstraints";
 import { HIDDEN_GEMS_GENERATION_RULES } from "@/services/ai/prompts/hiddenGemsConstraints";
 import { REDDIT_POST_GENERATION_RULES } from "@/services/ai/prompts/redditPostConstraints";
 import { SKOOL_COURSE_IDEA_GENERATION_RULES } from "@/services/ai/prompts/skoolCourseIdeaConstraints";
@@ -43,6 +48,7 @@ import type { GenerationBundle } from "@/services/brain/generationContracts/gene
 import { formatRegenerationRunStamp } from "@/lib/regenerationDiagnostics";
 import type { OrganizationBrandIdentity } from "@/services/identity/brandIdentity";
 import { formatVisualBrandCreativeDirectionBlock } from "@/services/identity/visualBrandCreativeDirection";
+import { PERSONA_INTELLIGENCE_PLATFORM } from "@/services/personas/personaBridgeMarker";
 import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 
 export { buildDeploymentAssetsRequiredOutputInstructions } from "@/services/brain/generationContracts/deploymentAssetsRequiredOutput";
@@ -164,6 +170,9 @@ export function assembleDeploymentAssetsPrompt(input: {
 
   const isProspectSource =
     input.discussion.platform === PROSPECT_INTELLIGENCE_PLATFORM;
+  const isPersonaSource =
+    !isProspectSource &&
+    input.discussion.platform === PERSONA_INTELLIGENCE_PLATFORM;
 
   const knowledgeBaseRules = deepWebsiteIntelligence
     ? KNOWLEDGE_BASE_DEEP_SCRAPE_GENERATION_RULES
@@ -171,6 +180,7 @@ export function assembleDeploymentAssetsPrompt(input: {
 
   const requiredOutput = buildDeploymentAssetsRequiredOutputInstructions({
     isProspectSource,
+    isPersonaSource,
   });
 
   const visualBrandBlock = formatVisualBrandCreativeDirectionBlock(
@@ -237,6 +247,26 @@ Do not generate LOCAL_OUTREACH_IMAGE_PROMPT for non-Prospect sources.
 
 ${SHARED_OUTPUT_DIVERSITY_RULES}
 `.trim()
+    : isPersonaSource
+      ? `
+=== DEPLOYMENT ASSETS (PERSONA) ===
+${SHARED_ANTI_GENERIC_RULES}
+
+${PERSONA_DEPLOYMENT_EVIDENCE_DISCIPLINE}
+
+${PERSONA_DEPLOYMENT_CHANNEL_GUIDE}
+
+Use exact section labels:
+${PERSONA_DEPLOYMENT_SECTION_LABELS}
+
+Treat the subject as an archetype or audience segment — not an identifiable lead.
+Do not assume the Reference Website is owned by the Persona.
+Do not invent demographic certainty, slang, dialect, or cultural traits without evidence.
+Do not produce one-to-one cold outreach assets or Prospect LinkedIn/lead-outreach formats.
+Do not collapse output into PRIMARY_REPLY or unlabeled prose.
+
+${SHARED_OUTPUT_DIVERSITY_RULES}
+`.trim()
     : `
 ${
   input.opportunity
@@ -248,7 +278,15 @@ ${visualAssetsBlock}
 `.trim();
 
   const blueprintAuthorityBlock = input.strategicBlueprint
-    ? `
+    ? isPersonaSource
+      ? `
+=== STRATEGIC BLUEPRINT (AUTHORITATIVE FOR THIS GENERATION) ===
+This alternative Strategic Blueprint supersedes prior execution strategy.
+Persona evidence below is factual grounding only — do not preserve a previous campaign structure merely because evidence is unchanged.
+Deployment Assets must operationalize this blueprint direction. Do not revert to a prior blueprint or invent a conflicting strategy.
+${JSON.stringify(input.strategicBlueprint, null, 2)}
+`.trim()
+      : `
 === STRATEGIC BLUEPRINT (AUTHORITATIVE FOR THIS GENERATION) ===
 This alternative Strategic Blueprint supersedes prior execution strategy.
 Prospect facts below are factual grounding only — do not preserve a previous campaign structure merely because facts are unchanged.
@@ -257,12 +295,18 @@ ${JSON.stringify(input.strategicBlueprint, null, 2)}
 `.trim()
     : "";
 
+  const sourceTypeLine = isProspectSource
+    ? "Source type: Prospect Intelligence. Prefer prospect outreach assets over community discussion assets."
+    : isPersonaSource
+      ? "Source type: Persona Intelligence. Generate archetype deployment assets — not Prospect lead-outreach assets."
+      : "";
+
   // When a Think Differently blueprint is present, place it above unchanged analysis.
   const objectiveAndSources = input.strategicBlueprint
     ? `
 === OBJECTIVE ===
 Generate paste-ready deployment assets that operationalize the authoritative alternative Strategic Blueprint. Upstream analysis is factual grounding only — not a mandate to reuse the prior execution package.
-${isProspectSource ? "Source type: Prospect Intelligence. Prefer prospect outreach assets over community discussion assets." : ""}
+${sourceTypeLine}
 
 ${blueprintAuthorityBlock}
 
@@ -278,7 +322,7 @@ ${qualityStandard}
     : `
 === OBJECTIVE ===
 Generate paste-ready deployment assets only from the source intelligence below. Do not repeat executive analysis.
-${isProspectSource ? "Source type: Prospect Intelligence. Prefer prospect outreach assets over community discussion assets." : ""}
+${sourceTypeLine}
 
 === SOURCE INTELLIGENCE ===
 ${sourceIntelligence}

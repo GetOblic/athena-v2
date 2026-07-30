@@ -52,7 +52,11 @@ import {
   ensureCurrentLiveIntelligenceIsVersioned,
   publishExecutiveIntelligenceVersion,
 } from "@/services/executiveVersions/executiveVersionService";
+import { isPersonaIntelligenceBridge } from "@/services/personas/personaBridgeMarker";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
+import {
+  logPersonaDeploymentAssetStability,
+} from "@/lib/personaDeploymentAssetContract";
 import {
   logProspectDeploymentAssetStability,
 } from "@/lib/prospectDeploymentAssetContract";
@@ -517,6 +521,8 @@ export async function processDiscussionEndToEnd(
 
     const discussion = await getDiscussionById(discussionId, organizationId);
     const isProspect = isProspectIntelligenceBridge(discussion);
+    const isPersona =
+      !isProspect && isPersonaIntelligenceBridge(discussion);
 
     if (isProspect && !result.blueprintId) {
       logProspectDeploymentAssetStability("publication_blocked_missing_blueprint", {
@@ -527,6 +533,18 @@ export async function processDiscussionEndToEnd(
       return workflowFailure(
         discussionId,
         "Strategic Blueprint missing before Prospect publication.",
+      );
+    }
+
+    if (isPersona && !result.blueprintId) {
+      logPersonaDeploymentAssetStability("publication_blocked_missing_blueprint", {
+        discussionId,
+        organizationId,
+        regenerationRunId: runContext?.regenerationRunId ?? null,
+      });
+      return workflowFailure(
+        discussionId,
+        "Strategic Blueprint missing before Persona publication.",
       );
     }
 
@@ -541,6 +559,7 @@ export async function processDiscussionEndToEnd(
         reviewId: result.reviewId ?? null,
         blueprintId: result.blueprintId ?? null,
         requireProspectCompleteness: isProspect,
+        requirePersonaCompleteness: isPersona,
       });
 
       if (isProspect && !published) {
@@ -550,14 +569,31 @@ export async function processDiscussionEndToEnd(
         );
       }
 
-      if (published) {
-        logProspectDeploymentAssetStability("executive_version_published", {
+      if (isPersona && !published) {
+        return workflowFailure(
           discussionId,
-          organizationId,
-          regenerationRunId: runContext?.regenerationRunId ?? null,
-          executiveVersionId: published.id,
-          blueprintId: published.blueprint_id,
-        });
+          "Executive Version publication failed for incomplete Persona candidate.",
+        );
+      }
+
+      if (published) {
+        if (isProspect) {
+          logProspectDeploymentAssetStability("executive_version_published", {
+            discussionId,
+            organizationId,
+            regenerationRunId: runContext?.regenerationRunId ?? null,
+            executiveVersionId: published.id,
+            blueprintId: published.blueprint_id,
+          });
+        } else if (isPersona) {
+          logPersonaDeploymentAssetStability("executive_version_published", {
+            discussionId,
+            organizationId,
+            regenerationRunId: runContext?.regenerationRunId ?? null,
+            executiveVersionId: published.id,
+            blueprintId: published.blueprint_id,
+          });
+        }
       }
 
       return {
@@ -569,7 +605,7 @@ export async function processDiscussionEndToEnd(
         "Failed to publish executive intelligence version:",
         error,
       );
-      if (isProspect) {
+      if (isProspect || isPersona) {
         return workflowFailure(
           discussionId,
           error instanceof Error
@@ -631,7 +667,9 @@ async function processDiscussionEndToEndInternal(
   }
 
   const isProspect = isProspectIntelligenceBridge(discussion);
-  const requireCompleteBlueprint = isProspect;
+  const isPersona =
+    !isProspect && isPersonaIntelligenceBridge(discussion);
+  const requireCompleteBlueprint = isProspect || isPersona;
 
   const { bundle: analysisBundle, legacyBrainPrompt } =
     await resolveDiscussionAnalysisGeneration(
@@ -846,15 +884,26 @@ async function processDiscussionEndToEndInternal(
       }
     } catch (error) {
       console.error("Deployment assets generation failed:", error);
-      if (explicitRegeneration || isProspect) {
-        logProspectDeploymentAssetStability("deployment_assets_failed", {
-          discussionId,
-          organizationId,
-          regenerationRunId: regenerationRunId ?? null,
-          retryOrTerminal: "retryable_stage_failure",
-          failureReason:
-            error instanceof Error ? error.name : "deployment_assets_failed",
-        });
+      if (explicitRegeneration || isProspect || isPersona) {
+        if (isPersona) {
+          logPersonaDeploymentAssetStability("deployment_assets_failed", {
+            discussionId,
+            organizationId,
+            regenerationRunId: regenerationRunId ?? null,
+            retryOrTerminal: "retryable_stage_failure",
+            failureReason:
+              error instanceof Error ? error.name : "deployment_assets_failed",
+          });
+        } else if (isProspect) {
+          logProspectDeploymentAssetStability("deployment_assets_failed", {
+            discussionId,
+            organizationId,
+            regenerationRunId: regenerationRunId ?? null,
+            retryOrTerminal: "retryable_stage_failure",
+            failureReason:
+              error instanceof Error ? error.name : "deployment_assets_failed",
+          });
+        }
         return workflowFailure(
           discussionId,
           "Deployment assets generation failed.",
@@ -1096,15 +1145,26 @@ async function processDiscussionEndToEndInternal(
     }
   } catch (error) {
     console.error("Deployment assets generation failed:", error);
-    if (explicitRegeneration || isProspect) {
-      logProspectDeploymentAssetStability("deployment_assets_failed", {
-        discussionId,
-        organizationId,
-        regenerationRunId: regenerationRunId ?? null,
-        retryOrTerminal: "retryable_stage_failure",
-        failureReason:
-          error instanceof Error ? error.name : "deployment_assets_failed",
-      });
+    if (explicitRegeneration || isProspect || isPersona) {
+      if (isPersona) {
+        logPersonaDeploymentAssetStability("deployment_assets_failed", {
+          discussionId,
+          organizationId,
+          regenerationRunId: regenerationRunId ?? null,
+          retryOrTerminal: "retryable_stage_failure",
+          failureReason:
+            error instanceof Error ? error.name : "deployment_assets_failed",
+        });
+      } else if (isProspect) {
+        logProspectDeploymentAssetStability("deployment_assets_failed", {
+          discussionId,
+          organizationId,
+          regenerationRunId: regenerationRunId ?? null,
+          retryOrTerminal: "retryable_stage_failure",
+          failureReason:
+            error instanceof Error ? error.name : "deployment_assets_failed",
+        });
+      }
       return workflowFailure(
         discussionId,
         "Deployment assets generation failed.",

@@ -237,6 +237,8 @@ export async function ensurePersonaGenerationQueued(
   options?: {
     requestedBy?: string | null;
     triggerType?: "discussion_import" | "manual_refresh" | "discussion_update";
+    /** Optional job progress intent (e.g. Think Differently). */
+    progress?: Record<string, unknown> | null;
   },
 ): Promise<{ persona: Persona; queued: boolean; jobId?: string }> {
   const ensured = await ensurePersonaBridgeDiscussion(persona);
@@ -250,6 +252,7 @@ export async function ensurePersonaGenerationQueued(
     requestedBy: options?.requestedBy ?? current.user_id,
     allowExisting: true,
     requestFollowUpIfActive: true,
+    progress: options?.progress ?? null,
   });
 
   const queued = Boolean(enqueue.accepted || enqueue.alreadyActive);
@@ -266,8 +269,11 @@ export async function ensurePersonaGenerationQueued(
   };
 }
 
-/** Stage 3 terminal: shared analysis completed — not Prospect Ready. */
-export async function markPersonaGenerationAnalysisComplete(
+/**
+ * Stage 4 terminal: complete Persona publication succeeded.
+ * Ready means Current Executive Version + Blueprint + 14 Deployment Assets.
+ */
+export async function markPersonaGenerationReady(
   discussionId: string,
   organizationId: string,
   opportunityScore?: number | null,
@@ -279,8 +285,7 @@ export async function markPersonaGenerationAnalysisComplete(
   if (!persona) return;
 
   await updatePersona(persona.id, organizationId, {
-    // Stage 3 terminal stored status — not Prospect Ready / completeness.
-    status: "Analysis Generated",
+    status: "Ready",
     opportunity_score:
       typeof opportunityScore === "number"
         ? Math.max(0, Math.min(100, Math.round(opportunityScore)))

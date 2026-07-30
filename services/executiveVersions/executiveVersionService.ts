@@ -20,10 +20,16 @@ import {
   type ExecutiveVersionSummary,
 } from "@/services/executiveVersions/executiveVersionTypes";
 import {
+  logPersonaDeploymentAssetStability,
+  requirePersonaCompleteness,
+  IncompletePersonaPublicationError,
+} from "@/lib/personaDeploymentAssetContract";
+import {
   logProspectDeploymentAssetStability,
   validateProspectDeploymentAssetPayload,
   IncompleteProspectPublicationError,
 } from "@/lib/prospectDeploymentAssetContract";
+import { isPersonaIntelligenceBridge } from "@/services/personas/personaBridgeMarker";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 
 function assertProspectPublicationCandidate(input: {
@@ -56,6 +62,39 @@ function assertProspectPublicationCandidate(input: {
     throw new IncompleteProspectPublicationError(
       "Prospect publication needs a complete Deployment Asset set.",
     );
+  }
+}
+
+function assertPersonaPublicationCandidate(input: {
+  intelligence: ExecutiveIntelligencePayload;
+  blueprintId?: string | null;
+  discussionId: string;
+  organizationId: string;
+  regenerationRunId?: string | null;
+}): void {
+  const blueprintId =
+    input.blueprintId ?? input.intelligence.blueprint?.id ?? null;
+
+  try {
+    requirePersonaCompleteness({
+      suggestedCta: input.intelligence.analysis.suggested_cta,
+      blueprintId,
+    });
+  } catch (error) {
+    if (error instanceof IncompletePersonaPublicationError) {
+      const validationMessage = error.message;
+      if (validationMessage.includes("Deployment Asset")) {
+        logPersonaDeploymentAssetStability(
+          "publication_rejected_incomplete_cta",
+          {
+            discussionId: input.discussionId,
+            organizationId: input.organizationId,
+            regenerationRunId: input.regenerationRunId ?? null,
+          },
+        );
+      }
+    }
+    throw error;
   }
 }
 
@@ -286,6 +325,8 @@ export async function publishExecutiveIntelligenceVersion(input: {
   reviewId?: string | null;
   blueprintId?: string | null;
   requireProspectCompleteness?: boolean;
+  /** Persona bridges: require Blueprint + complete 14-key Persona DA set. */
+  requirePersonaCompleteness?: boolean;
   /**
    * When true, always insert a new Current version even if analysis_id matches.
    * Required for Think Differently (same upstream analysis, new blueprint + assets).
@@ -312,6 +353,16 @@ export async function publishExecutiveIntelligenceVersion(input: {
 
   if (input.requireProspectCompleteness) {
     assertProspectPublicationCandidate({
+      intelligence,
+      blueprintId: input.blueprintId,
+      discussionId: input.discussionId,
+      organizationId: input.organizationId,
+      regenerationRunId: input.regenerationRunId,
+    });
+  }
+
+  if (input.requirePersonaCompleteness) {
+    assertPersonaPublicationCandidate({
       intelligence,
       blueprintId: input.blueprintId,
       discussionId: input.discussionId,
@@ -352,9 +403,18 @@ export async function publishExecutiveIntelligenceVersion(input: {
     }
 
     // Same analysis already Current and not an upgrade — refuse to leave
-    // incomplete Prospect Current when completeness is required.
+    // incomplete Prospect/Persona Current when completeness is required.
     if (input.requireProspectCompleteness) {
       assertProspectPublicationCandidate({
+        intelligence: current.intelligence,
+        blueprintId: current.blueprint_id,
+        discussionId: input.discussionId,
+        organizationId: input.organizationId,
+        regenerationRunId: input.regenerationRunId,
+      });
+    }
+    if (input.requirePersonaCompleteness) {
+      assertPersonaPublicationCandidate({
         intelligence: current.intelligence,
         blueprintId: current.blueprint_id,
         discussionId: input.discussionId,
@@ -523,10 +583,13 @@ export async function getExecutiveVersionsForDiscussionPage(
   versions: ExecutiveIntelligenceVersion[];
   current: ExecutiveIntelligenceVersion | null;
 }> {
-  // Lazy backfill for genuine Discussions only. Prospect page loads are
+  // Lazy backfill for genuine Discussions only. Prospect/Persona page loads are
   // read-only — publication is owned exclusively by the generation worker.
   const discussion = await getDiscussionById(discussionId, organizationId);
-  if (!isProspectIntelligenceBridge(discussion)) {
+  if (
+    !isProspectIntelligenceBridge(discussion) &&
+    !isPersonaIntelligenceBridge(discussion)
+  ) {
     await ensureCurrentLiveIntelligenceIsVersioned(discussionId, organizationId);
   }
 

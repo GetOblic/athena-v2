@@ -41,7 +41,9 @@ export function classifyGenerationError(
   if (
     error instanceof Error &&
     (error.name === "IncompleteProspectDeploymentAssetsError" ||
-      error.name === "IncompleteProspectPublicationError")
+      error.name === "IncompleteProspectPublicationError" ||
+      error.name === "IncompletePersonaDeploymentAssetsError" ||
+      error.name === "IncompletePersonaPublicationError")
   ) {
     return {
       classification: "retryable",
@@ -75,7 +77,8 @@ export function classifyGenerationError(
     /deployment assets/i.test(message) ||
     /strategic blueprint/i.test(message) ||
     /publication failed/i.test(message) ||
-    /incomplete prospect/i.test(message)
+    /incomplete prospect/i.test(message) ||
+    /incomplete persona/i.test(message)
   ) {
     return {
       classification: "retryable",

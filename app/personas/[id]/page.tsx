@@ -1,6 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import {
+  DiscussionRegenerationProgress,
+  DiscussionRegenerationProvider,
+} from "@/components/discussions/DiscussionRegenerationProvider";
+import { ExecutiveIntelligenceWorkspace } from "@/components/discussions/ExecutiveIntelligenceWorkspace";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { PersonaGenerateIntelligenceButton } from "@/components/personas/PersonaGenerateIntelligenceButton";
 import { PersonaGenerationProgress } from "@/components/personas/PersonaGenerationProgress";
@@ -8,10 +13,18 @@ import { PersonaLifecycleStatusControl } from "@/components/personas/PersonaLife
 import { PersonaMetadataEditor } from "@/components/personas/PersonaMetadataEditor";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
+import { getDiscussionById } from "@/services/discussionService";
+import {
+  getExecutiveVersionsForDiscussionPage,
+  loadLiveExecutiveIntelligence,
+} from "@/services/executiveVersions/executiveVersionService";
 import {
   getActiveGenerationJobForDiscussion,
   getLatestGenerationJobForDiscussion,
 } from "@/services/generationJobs/generationJobService";
+import { getOrganizationAiWorkspacePreferences } from "@/services/identity/aiWorkspacePreferences";
+import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
+import { toBlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import {
   formatPersonaLocation,
   formatPersonaOpportunityScore,
@@ -75,15 +88,40 @@ export default async function PersonaDetailsPage({
   }
 
   const discussionId = persona.linked_discussion_id;
-  const [activeJob, latestJob, latestAnalysis] = discussionId
+  const discussion = discussionId
+    ? await getDiscussionById(discussionId, organizationId)
+    : null;
+
+  const [
+    activeJob,
+    latestJob,
+    latestAnalysis,
+    versionState,
+    liveIntelligence,
+    organizationBrand,
+    continuationPreferences,
+  ] = discussion
     ? await Promise.all([
-        getActiveGenerationJobForDiscussion(discussionId, organizationId),
-        getLatestGenerationJobForDiscussion(discussionId, organizationId),
-        getLatestDiscussionAnalysis(discussionId, organizationId),
+        getActiveGenerationJobForDiscussion(discussion.id, organizationId),
+        getLatestGenerationJobForDiscussion(discussion.id, organizationId),
+        getLatestDiscussionAnalysis(discussion.id, organizationId),
+        getExecutiveVersionsForDiscussionPage(discussion.id, organizationId),
+        loadLiveExecutiveIntelligence(discussion.id, organizationId),
+        getOrganizationBrandIdentity(organizationId).catch(() => null),
+        getOrganizationAiWorkspacePreferences(organizationId),
       ])
-    : [null, null, null];
+    : [
+        null,
+        null,
+        null,
+        { versions: [], current: null },
+        null,
+        null,
+        null,
+      ];
 
   const hasGeneratedAnalysis = Boolean(latestAnalysis);
+  const hasCurrentExecutiveVersion = Boolean(versionState.current?.id);
   const regenerationInFlight = Boolean(
     activeJob &&
       (activeJob.status === "queued" ||
@@ -91,7 +129,7 @@ export default async function PersonaDetailsPage({
         activeJob.status === "retryable"),
   );
   const hasTerminalJobFailure = Boolean(
-    !activeJob && latestJob?.status === "failed" && !hasGeneratedAnalysis,
+    !activeJob && latestJob?.status === "failed" && !hasCurrentExecutiveVersion,
   );
 
   const displayLabel = resolvePersonaDisplayLabel(persona);
@@ -101,6 +139,7 @@ export default async function PersonaDetailsPage({
     jobStatus: activeJob?.status ?? null,
     jobStage: activeJob?.current_stage ?? null,
     hasGeneratedAnalysis,
+    hasCurrentExecutiveVersion,
     hasTerminalJobFailure,
   });
   const lifecycle = normalizePersonaLifecycleStatus(persona.lifecycle_status);
@@ -109,8 +148,20 @@ export default async function PersonaDetailsPage({
   );
   const referenceHref = normalizeWebsiteUrl(persona.reference_website);
   const scoreLabel = formatPersonaOpportunityScore(persona.opportunity_score);
+  const brandDirection = organizationBrand
+    ? toBlueprintBrandDirectionInput(organizationBrand)
+    : null;
 
-  return (
+  const initialRegenerationSnapshot = {
+    latestAnalysisId: latestAnalysis?.id ?? null,
+    latestAnalysisCreatedAt: latestAnalysis?.created_at ?? null,
+    latestAnalysisUpdatedAt: latestAnalysis?.updated_at ?? null,
+    blueprintUpdatedAt:
+      versionState.current?.intelligence.blueprint?.updated_at ?? null,
+    regenerationInFlight,
+  };
+
+  const pageBody = (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
       <AthenaBrandLink className="mb-8" />
       <Link href="/personas" className="text-sm text-[var(--athena-orange)]">
@@ -137,6 +188,7 @@ export default async function PersonaDetailsPage({
             personaId={persona.id}
             initialStatus={readiness}
             initialInFlight={regenerationInFlight}
+            hasCurrentExecutiveVersion={hasCurrentExecutiveVersion}
           />
           <PersonaLifecycleStatusControl persona={persona} />
         </div>
@@ -192,35 +244,81 @@ export default async function PersonaDetailsPage({
         <PersonaMetadataEditor persona={persona} />
       </div>
 
-      <div
-        className={`mt-8 rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
-      >
-        <h2 className="text-lg font-semibold">Persona Intelligence</h2>
-        {hasGeneratedAnalysis ? (
-          <div className="mt-4 space-y-4">
-            {latestAnalysis?.summary ? (
-              <p className="max-w-3xl text-sm leading-7 text-white/70">
-                {latestAnalysis.summary}
-              </p>
-            ) : null}
-            <p className="max-w-3xl text-sm leading-7 text-white/45">
-              Persona analysis has been generated. Strategic Blueprint, Persona
-              Deployment Assets, and the full Executive Intelligence workspace
-              will be connected in the next implementation stage.
-            </p>
+      {discussion ? (
+        <>
+          <div className="mt-8">
+            <DiscussionRegenerationProgress />
           </div>
-        ) : (
+          <ExecutiveIntelligenceWorkspace
+            discussionId={discussion.id}
+            personaId={persona.id}
+            sourceKind="persona"
+            versions={versionState.versions}
+            fallbackIntelligence={
+              versionState.current?.intelligence ?? liveIntelligence
+            }
+            brandDirection={brandDirection}
+            continuationPreferences={continuationPreferences}
+            afterBlueprint={null}
+            afterDetailedReasoning={null}
+            originalDiscussionSection={
+              <div className="space-y-4">
+                <p className="text-sm leading-6 text-white/45">
+                  Persona profile fields and Reference Website context used for
+                  this archetype. Profile fields are managed in Persona Details
+                  above.
+                </p>
+                {persona.ads_content?.trim() ? (
+                  <div>
+                    <div className="text-sm text-white/40">Ads Content</div>
+                    <div className="mt-2 whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70">
+                      {persona.ads_content}
+                    </div>
+                  </div>
+                ) : null}
+                {persona.preferred_channels?.trim() ? (
+                  <div>
+                    <div className="text-sm text-white/40">
+                      Preferred Channels
+                    </div>
+                    <div className="mt-2 text-sm leading-7 text-white/70">
+                      {persona.preferred_channels}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            }
+          />
+        </>
+      ) : (
+        <div
+          className={`mt-8 rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
+        >
+          <h2 className="text-lg font-semibold">Persona Intelligence</h2>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/45">
             {readiness === "Profile Created"
-              ? "This Persona profile is ready. Use Generate Intelligence to enqueue durable analysis through Athena’s shared pipeline."
+              ? "This Persona profile is ready. Use Generate Intelligence to enqueue durable publication through Athena’s shared pipeline."
               : regenerationInFlight
                 ? "Athena is generating Persona intelligence in the background."
                 : readiness === "Processing Failed"
                   ? "The last generation attempt failed. Use Retry Generate Intelligence to try again."
                   : "Persona intelligence generation is in progress or awaiting completion."}
           </p>
-        )}
-      </div>
+        </div>
+      )}
     </main>
+  );
+
+  if (!discussion) {
+    return pageBody;
+  }
+
+  return (
+    <DiscussionRegenerationProvider
+      discussionId={discussion.id}
+      initialSnapshot={initialRegenerationSnapshot}
+    >
+      {pageBody}
+    </DiscussionRegenerationProvider>
   );
 }

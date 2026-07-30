@@ -142,6 +142,28 @@ export function assembleOpportunityReviewPrompt(input: {
   return assembleExecutiveBriefingPrompt(input);
 }
 
+const PERSONA_STRATEGIC_BLUEPRINT_CONTEXT = `
+=== PERSONA STRATEGIC BLUEPRINT CONTEXT ===
+This source is a Persona archetype / audience segment — not an identifiable individual lead.
+Address: Persona positioning, trust formation, communication style, language and cultural fit, objections, offer architecture, channel selection, experience design, visual direction, and validation of weak assumptions.
+Distinguish facts, user observations, source-derived evidence, and inference.
+Do not assume the Reference Website is owned by the Persona — treat it as contextual market/reference evidence only.
+Do not interpret the Persona as one identifiable individual.
+Identify important unknowns and propose cheap validation actions.
+Avoid stereotypes and fabricated demographic or cultural certainty.
+`.trim();
+
+function withPersonaBlueprintContext(
+  prompt: string,
+  discussion: Record<string, unknown>,
+): string {
+  const platform = String(discussion.platform ?? "").trim();
+  if (platform !== "persona_intelligence") {
+    return prompt;
+  }
+  return `${prompt}\n\n${PERSONA_STRATEGIC_BLUEPRINT_CONTEXT}`;
+}
+
 export function assembleStrategicBlueprintPrompt(input: {
   bundle: GenerationBundle;
   discussion: Record<string, unknown>;
@@ -169,12 +191,15 @@ export function assembleStrategicBlueprintPrompt(input: {
     });
 
   if (input.analysis) {
-    return buildAssetBlueprintFromAnalysisPrompt({
-      executiveContextPrompt: executiveContextBlock,
-      productionSpecsPrompt,
-      discussion: input.discussion,
-      analysis: input.analysis,
-    });
+    return withPersonaBlueprintContext(
+      buildAssetBlueprintFromAnalysisPrompt({
+        executiveContextPrompt: executiveContextBlock,
+        productionSpecsPrompt,
+        discussion: input.discussion,
+        analysis: input.analysis,
+      }),
+      input.discussion,
+    );
   }
 
   if (!input.opportunity || !input.briefing) {
@@ -183,13 +208,16 @@ export function assembleStrategicBlueprintPrompt(input: {
     );
   }
 
-  return buildAssetBlueprintPrompt({
-    executiveContextPrompt: executiveContextBlock,
-    productionSpecsPrompt,
-    discussion: input.discussion,
-    opportunity: input.opportunity,
-    briefing: input.briefing,
-  });
+  return withPersonaBlueprintContext(
+    buildAssetBlueprintPrompt({
+      executiveContextPrompt: executiveContextBlock,
+      productionSpecsPrompt,
+      discussion: input.discussion,
+      opportunity: input.opportunity,
+      briefing: input.briefing,
+    }),
+    input.discussion,
+  );
 }
 
 export type DiscussionAnalysisPromptInput = {

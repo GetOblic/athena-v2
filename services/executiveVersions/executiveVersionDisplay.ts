@@ -19,6 +19,11 @@ import type {
   ExecutiveIntelligenceVersion,
 } from "@/services/executiveVersions/executiveVersionTypes";
 import {
+  extractPersonaDeploymentAssetKeys,
+  isCompletePersonaDeploymentAssetSet,
+  isStrictlyMoreCompletePersonaCta,
+} from "@/lib/personaDeploymentAssetContract";
+import {
   extractProspectDeploymentAssetKeys,
   isCompleteProspectDeploymentAssetSet,
   isStrictlyMoreCompleteProspectCta,
@@ -422,8 +427,21 @@ export function shouldPatchIncompleteCurrentVersion(input: {
   const snapshotComplete = isCompleteProspectDeploymentAssetSet(snapshotKeys);
   const liveComplete = isCompleteProspectDeploymentAssetSet(liveKeys);
 
-  // Never replace a complete Prospect snapshot with a smaller set.
+  const personaSnapshotKeys = extractPersonaDeploymentAssetKeys(snapshotCta);
+  const personaLiveKeys = extractPersonaDeploymentAssetKeys(liveCta);
+  const personaSnapshotComplete =
+    isCompletePersonaDeploymentAssetSet(personaSnapshotKeys);
+  const personaLiveComplete =
+    isCompletePersonaDeploymentAssetSet(personaLiveKeys);
+
+  // Never replace a complete Prospect or Persona snapshot with a smaller set.
   if (snapshotComplete && liveKeys.length < snapshotKeys.length) {
+    return false;
+  }
+  if (
+    personaSnapshotComplete &&
+    personaLiveKeys.length < personaSnapshotKeys.length
+  ) {
     return false;
   }
 
@@ -433,7 +451,9 @@ export function shouldPatchIncompleteCurrentVersion(input: {
   const ctaUpgrade =
     (snapshotMissingCta && liveHasAnyCta) ||
     isStrictlyMoreCompleteProspectCta(snapshotCta, liveCta) ||
-    (!snapshotComplete && liveComplete);
+    isStrictlyMoreCompletePersonaCta(snapshotCta, liveCta) ||
+    (!snapshotComplete && liveComplete) ||
+    (!personaSnapshotComplete && personaLiveComplete);
 
   return (
     (snapshotMissingBlueprint && liveHasBlueprint) || ctaUpgrade

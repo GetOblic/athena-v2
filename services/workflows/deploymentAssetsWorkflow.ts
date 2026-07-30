@@ -20,6 +20,12 @@ import {
   logPersistedRegenerationOutput,
 } from "@/lib/regenerationDiagnostics";
 import {
+  logPersonaDeploymentAssetStability,
+  toPersonaDeploymentAssetDiagnostics,
+  unwrapPersonaDeploymentAssetResponse,
+  IncompletePersonaDeploymentAssetsError,
+} from "@/lib/personaDeploymentAssetContract";
+import {
   logProspectDeploymentAssetStability,
   toProspectDeploymentAssetDiagnostics,
   unwrapProspectDeploymentAssetResponse,
@@ -34,6 +40,7 @@ import {
   stripPriorDeploymentAssetsFromPromptContext,
 } from "@/services/brain/generationContracts/thinkDifferentlyDeploymentAssetDivergence";
 import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
+import { isPersonaIntelligenceBridge } from "@/services/personas/personaBridgeMarker";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 import { getProspectByLinkedDiscussionId } from "@/services/prospects/prospectService";
 import { logDeepScrapeEvent } from "@/services/websiteLearning/deepScrape/observability";
@@ -240,6 +247,8 @@ export async function generateDeploymentAssets(input: {
   });
 
   const isProspect = isProspectIntelligenceBridge(input.discussion);
+  const isPersona =
+    !isProspect && isPersonaIntelligenceBridge(input.discussion);
 
   if (isProspect) {
     const unwrapped = unwrapProspectDeploymentAssetResponse(rawResponse);
@@ -260,6 +269,41 @@ export async function generateDeploymentAssets(input: {
               "linkedin_asset_exceeds_200_characters"
             ? "Prospect LinkedIn Deployment Assets exceed the 200-character limit."
             : "Prospect Deployment Assets invalid or malformed.",
+        diagnostics,
+      );
+    }
+
+    return {
+      assets: {
+        suggested_cta: unwrapped.suggestedCta,
+        recommended_response: unwrapped.recommendedResponse,
+        cta: unwrapped.cta,
+      },
+      rawResponse,
+      model: routedModel,
+    };
+  }
+
+  if (isPersona) {
+    const unwrapped = unwrapPersonaDeploymentAssetResponse(rawResponse);
+    const diagnostics = toPersonaDeploymentAssetDiagnostics(unwrapped);
+
+    logPersonaDeploymentAssetStability("deployment_assets_unwrapped", {
+      discussionId: input.discussionId,
+      organizationId: input.organizationId,
+      regenerationRunId: input.regenerationRunId ?? null,
+      ...diagnostics,
+    });
+
+    if (!unwrapped.isComplete) {
+      const missing =
+        unwrapped.missingKeys.length > 0
+          ? ` Missing: ${unwrapped.missingKeys.join(", ")}.`
+          : "";
+      throw new IncompletePersonaDeploymentAssetsError(
+        unwrapped.failureReason === "incomplete_canonical_set"
+          ? `Persona Deployment Assets incomplete.${missing}`
+          : `Persona Deployment Assets invalid or malformed.${missing}`,
         diagnostics,
       );
     }

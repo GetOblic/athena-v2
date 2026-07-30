@@ -1,9 +1,8 @@
 /**
  * Pure Persona display helpers.
  *
- * Stage 3: job-aware readiness labels. Stored Queued without an active job
- * remains "Profile Created" for pre-Stage-3 / ungenerated Personas.
- * Terminal shared analysis maps to "Analysis Generated" (not Prospect Ready).
+ * Stage 4: Ready means Current Executive Version + Blueprint + complete
+ * 14-key Persona Deployment Asset set. Analysis Generated is not terminal.
  */
 
 export const PERSONA_STORED_STATUSES = [
@@ -18,13 +17,13 @@ export const PERSONA_STORED_STATUSES = [
 
 export type PersonaStoredStatus = (typeof PERSONA_STORED_STATUSES)[number];
 
-/** Stage 3 user-facing readiness labels (display-layer only). */
+/** Stage 4 user-facing readiness labels (display-layer only). */
 export const PERSONA_DISPLAY_READINESS_LABELS = [
   "Profile Created",
   "Queued",
   "Processing",
   "Generating Executive Intelligence",
-  "Analysis Generated",
+  "Ready",
   "Processing Failed",
 ] as const;
 
@@ -42,14 +41,15 @@ export function resolvePersonaDisplayReadiness(
 }
 
 /**
- * Job + analysis aware Persona display status (Stage 3).
- * Never claims Prospect-style Ready from Deployment Asset completeness.
+ * Job + publication aware Persona display status (Stage 4).
+ * Ready only when publication completeness is known (Current EV) or stored Ready.
  */
 export function resolvePersonaDisplayStatus(input: {
   personaStatus?: string | null;
   jobStatus?: string | null;
   jobStage?: string | null;
   hasGeneratedAnalysis?: boolean;
+  hasCurrentExecutiveVersion?: boolean;
   hasTerminalJobFailure?: boolean;
 }): PersonaDisplayReadiness {
   const job = input.jobStatus?.toLowerCase() ?? null;
@@ -63,8 +63,8 @@ export function resolvePersonaDisplayStatus(input: {
     return "Generating Executive Intelligence";
   }
 
-  if (input.hasGeneratedAnalysis) {
-    return "Analysis Generated";
+  if (input.hasCurrentExecutiveVersion) {
+    return "Ready";
   }
 
   if (input.hasTerminalJobFailure) {
@@ -73,14 +73,19 @@ export function resolvePersonaDisplayStatus(input: {
 
   const current = String(input.personaStatus ?? "").trim();
   if (/fail/i.test(current)) return "Processing Failed";
-  if (/analysis generated/i.test(current)) return "Analysis Generated";
-  // Stage 3: never display Prospect Ready — map accidental Ready storage away.
-  if (/^ready$/i.test(current)) return "Analysis Generated";
+  if (/^ready$/i.test(current)) return "Ready";
   if (/generat|analyz/i.test(current)) {
     return "Generating Executive Intelligence";
   }
   if (/process/i.test(current)) return "Processing";
   // Stage 2 / ungenerated: stored Queued is not a live generation queue.
+  // Analysis Generated without Current EV is not Ready — treat as Profile Created
+  // until a complete publication exists (or active job drives processing labels).
+  if (/analysis generated/i.test(current) && !input.hasCurrentExecutiveVersion) {
+    return input.hasGeneratedAnalysis
+      ? "Generating Executive Intelligence"
+      : "Profile Created";
+  }
   return "Profile Created";
 }
 

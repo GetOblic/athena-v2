@@ -3,6 +3,10 @@ import type { AthenaReview } from "@/services/reviewService";
 import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import type { Opportunity } from "@/services/opportunityService";
 import {
+  PERSONA_DEPLOYMENT_ASSET_KEYS,
+  PERSONA_DEPLOYMENT_ASSET_META,
+} from "@/services/ai/prompts/personaDeploymentAssetsConstraints";
+import {
   PROSPECT_DEPLOYMENT_ASSET_KEYS,
   PROSPECT_DEPLOYMENT_ASSET_META,
 } from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
@@ -77,6 +81,7 @@ const DISCUSSION_LABELS: Record<string, { title: string; objective: string }> = 
 const LABELS: Record<string, { title: string; objective: string }> = {
   ...DISCUSSION_LABELS,
   ...PROSPECT_DEPLOYMENT_ASSET_META,
+  ...PERSONA_DEPLOYMENT_ASSET_META,
 };
 
 /**
@@ -121,6 +126,7 @@ export function canonicalizeDeploymentAssetHeadings(text: string): string {
 const LABELED_ASSET_PATTERN = new RegExp(
   `(?:^|\\n)(${[
     ...PROSPECT_DEPLOYMENT_ASSET_KEYS,
+    ...PERSONA_DEPLOYMENT_ASSET_KEYS,
     "COMMUNITY_REPLY",
     "PRIVATE_MESSAGE",
     "SOCIAL_POST",
@@ -186,7 +192,11 @@ export function parseLabeledDeploymentAssets(
 
 export function buildDiscussionDeploymentAssets(
   analysis: DiscussionAnalysis | null,
-  options?: { platform?: string | null; prospectMode?: boolean },
+  options?: {
+    platform?: string | null;
+    prospectMode?: boolean;
+    personaMode?: boolean;
+  },
 ): DeploymentAsset[] {
   if (!analysis) {
     return [];
@@ -200,9 +210,12 @@ export function buildDiscussionDeploymentAssets(
   const isProspect =
     options?.prospectMode === true ||
     options?.platform === "prospect_intelligence";
+  const isPersona =
+    options?.personaMode === true ||
+    options?.platform === "persona_intelligence";
 
-  // Prospect Intelligence must never collapse malformed output into Primary Reply.
-  if (isProspect) {
+  // Prospect / Persona Intelligence must never collapse malformed output into Primary Reply.
+  if (isProspect || isPersona) {
     return [];
   }
 
