@@ -119,10 +119,67 @@ export async function getPersonas(organizationId: string): Promise<Persona[]> {
 
   if (error) {
     console.error("Error fetching personas:", error);
-    return [];
+    // Stage 2: never silently degrade load failures into an empty library.
+    throw new Error("Failed to load Personas for this organization.");
   }
 
   return ((data ?? []) as Persona[]).map(mapPersonaRow);
+}
+
+export async function findPersonaByReferenceWebsite(
+  organizationId: string,
+  referenceWebsite: string,
+): Promise<Persona | null> {
+  const normalized = normalizePersonaReferenceWebsite(referenceWebsite)
+    .referenceWebsite;
+  if (!normalized) return null;
+
+  const { data, error } = await supabaseAdmin
+    .from("personas")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .ilike("reference_website", normalized)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error finding persona by reference website:", error);
+    return null;
+  }
+
+  return data ? mapPersonaRow(data as Persona) : null;
+}
+
+export async function findPersonaByNameAndCity(
+  organizationId: string,
+  personaName: string,
+  city?: string | null,
+): Promise<Persona | null> {
+  const name = personaName.trim();
+  if (!name) return null;
+  const cityValue = (city ?? "").trim().toLowerCase();
+
+  const { data, error } = await supabaseAdmin
+    .from("personas")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .is("reference_website", null)
+    .ilike("persona_name", name)
+    .limit(20);
+
+  if (error) {
+    console.error("Error finding persona by name and city:", error);
+    return null;
+  }
+
+  const match = (data as Persona[] | null)?.find((row) => {
+    const rowCity = String(row.city ?? "")
+      .trim()
+      .toLowerCase();
+    return rowCity === cityValue;
+  });
+
+  return match ? mapPersonaRow(match) : null;
 }
 
 export async function getPersonaById(

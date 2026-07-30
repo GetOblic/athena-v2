@@ -9,6 +9,7 @@ export const dashboardNavItems = [
   { label: "Inbox", href: "/inbox" },
   { label: "Discussions", href: "/discussions" },
   { label: "Prospects", href: "/prospects" },
+  { label: "Personas", href: "/personas" },
   { label: "Opportunities", href: "/opportunities" },
   { label: "Briefings", href: "/briefings" },
 ];

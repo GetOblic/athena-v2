@@ -1,7 +1,7 @@
 import "./personaTestEnv";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { TENANT_TABLES } from "../../lib/tenantDatabase";
 
@@ -120,12 +120,8 @@ describe("persona service tenant containment contracts", () => {
   });
 });
 
-describe("persona stage-1 containment — no UI/API/generation surfaces", () => {
-  it("does not add Persona pages, API routes, or Prospect modifications", () => {
-    assert.equal(existsSync(join(ROOT, "app/personas")), false);
-    assert.equal(existsSync(join(ROOT, "app/api/personas")), false);
-    assert.equal(existsSync(join(ROOT, "components/personas")), false);
-
+describe("persona stage-1 foundation — Prospect isolation preserved", () => {
+  it("does not modify Prospect service or public DTO for Personas", () => {
     const prospectService = read("services/prospects/prospectService.ts");
     assert.doesNotMatch(prospectService, /persona/i);
 

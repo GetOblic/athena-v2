@@ -48,3 +48,18 @@ export function assertPersonaLifecycleStatus(
   }
   return trimmed;
 }
+
+const LIFECYCLE_COLORS: Record<PersonaLifecycleStatus, string> = {
+  New: "text-[var(--athena-warning)]",
+  Reviewing: "text-cyan-400",
+  Researching: "text-sky-300",
+  "In Use": "text-blue-300",
+  Validating: "text-purple-300",
+  Refined: "text-[var(--athena-success)]",
+  "Not a Fit": "text-white/45",
+  Archived: "text-white/35",
+};
+
+export function getPersonaLifecycleColor(value?: string | null): string {
+  return LIFECYCLE_COLORS[normalizePersonaLifecycleStatus(value)];
+}
