@@ -193,7 +193,7 @@ export function buildRankedCrawlPlanForSource(input: {
   rootUrl: string;
   homepageUrl: string;
   candidates: RankedPlanCandidateInput[];
-  sourceType: "brain" | "prospect";
+  sourceType: "brain" | "prospect" | "persona";
 }): RankedCrawlPlan {
   void input.sourceType;
   return buildRankedCrawlPlan(input);

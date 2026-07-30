@@ -239,7 +239,7 @@ describe("persona CSV import persistence containment", () => {
     );
     // Stage 3: durable enqueue is active; still no Deep Scrape / sync generation.
     assert.match(importerSource, /ensurePersonaGenerationQueued/);
-    assert.doesNotMatch(importerSource, /persona_deep_scrape/);
+    assert.doesNotMatch(importerSource, /["']persona_deep_scrape["']/);
     assert.doesNotMatch(importerSource, /processDiscussionEndToEnd/);
 
     const { importPersonasFromRows } = await import(

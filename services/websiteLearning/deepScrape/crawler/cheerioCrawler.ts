@@ -35,7 +35,7 @@ import { isPathAllowedByRobots, type RobotsRules } from "@/services/websiteLearn
 export type CheerioPhaseContext = {
   organizationId: string;
   jobId: string;
-  sourceType: "brain" | "prospect";
+  sourceType: "brain" | "prospect" | "persona";
   registrableDomain: string;
   rootUrl: string;
   robots: RobotsRules;

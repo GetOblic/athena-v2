@@ -52,7 +52,7 @@ export async function runDeepWebsiteCrawl(input: {
   websiteUrl: string;
   organizationId: string;
   jobId: string;
-  sourceType: "brain" | "prospect";
+  sourceType: "brain" | "prospect" | "persona";
   onProgress?: (progress: DeepCrawlProgress) => void | Promise<void>;
 }): Promise<DeepCrawlEngineResult> {
   const startedAt = Date.now();

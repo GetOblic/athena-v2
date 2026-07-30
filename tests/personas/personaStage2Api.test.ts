@@ -121,7 +121,7 @@ describe("persona stage-2 containment — no Stage 5 surfaces", () => {
     assert.doesNotMatch(sidebar, /persona_intelligence/);
     assert.doesNotMatch(
       read("services/personas/personaImporter.ts"),
-      /persona_deep_scrape/,
+      /["']persona_deep_scrape["']/,
     );
   });
 

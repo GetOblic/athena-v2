@@ -161,7 +161,7 @@ describe("persona stage-3 bridge lifecycle source contracts", () => {
       read("app/api/personas/[id]/refresh/route.ts"),
       /triggerType: "manual_refresh"/,
     );
-    assert.doesNotMatch(importer, /persona_deep_scrape/);
+    assert.doesNotMatch(importer, /["']persona_deep_scrape["']/);
     assert.doesNotMatch(importer, /prospect_intelligence/);
     assert.doesNotMatch(importer, /scrapeHomepageIntelligence/);
   });

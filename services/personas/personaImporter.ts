@@ -236,7 +236,15 @@ export async function ensurePersonaGenerationQueued(
   persona: Persona,
   options?: {
     requestedBy?: string | null;
-    triggerType?: "discussion_import" | "manual_refresh" | "discussion_update";
+    /**
+     * Existing trigger types only.
+     * Deep-scrape follow-on reuses prospect_deep_scrape (no persona_deep_scrape trigger).
+     */
+    triggerType?:
+      | "discussion_import"
+      | "manual_refresh"
+      | "discussion_update"
+      | "prospect_deep_scrape";
     /** Optional job progress intent (e.g. Think Differently). */
     progress?: Record<string, unknown> | null;
   },

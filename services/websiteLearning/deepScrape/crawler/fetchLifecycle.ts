@@ -114,14 +114,14 @@ export class DeepScrapeFetchLifecycle {
   private readonly meta: {
     organizationId: string;
     jobId: string;
-    sourceType: "brain" | "prospect";
+    sourceType: "brain" | "prospect" | "persona";
     domain: string;
   };
 
   constructor(meta: {
     organizationId: string;
     jobId: string;
-    sourceType: "brain" | "prospect";
+    sourceType: "brain" | "prospect" | "persona";
     domain: string;
   }) {
     this.meta = meta;

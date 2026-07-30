@@ -196,13 +196,10 @@ describe("persona stage-2 library UX contracts", () => {
 });
 
 describe("persona stage-2 detail and metadata contracts", () => {
-  it("detail page keeps metadata editing and excludes Stage 5 actions", () => {
+  it("detail page keeps metadata editing alongside later-stage actions", () => {
     const page = read("app/personas/[id]/page.tsx");
     assert.match(page, /PersonaMetadataEditor/);
     assert.match(page, /PersonaLifecycleStatusControl/);
-    assert.doesNotMatch(page, /Deep Scrape/);
-    assert.doesNotMatch(page, /Append Interaction/);
-    assert.doesNotMatch(page, /Ask Athena/);
   });
 
   it("metadata editor updates without regeneration hooks", () => {
@@ -221,7 +218,7 @@ describe("persona stage-2 detail and metadata contracts", () => {
 });
 
 describe("persona stage-2 route surface", () => {
-  it("keeps Stage 2 CRUD/import routes and excludes Stage 5 routes", () => {
+  it("keeps Stage 2 CRUD/import routes and excludes Prospect analyze route", () => {
     assert.equal(existsSync(join(ROOT, "app/personas/page.tsx")), true);
     assert.equal(existsSync(join(ROOT, "app/personas/import/page.tsx")), true);
     assert.equal(existsSync(join(ROOT, "app/personas/[id]/page.tsx")), true);
@@ -242,18 +239,6 @@ describe("persona stage-2 route surface", () => {
 
     assert.equal(
       existsSync(join(ROOT, "app/api/personas/[id]/analyze")),
-      false,
-    );
-    assert.equal(
-      existsSync(join(ROOT, "app/api/personas/[id]/updates")),
-      false,
-    );
-    assert.equal(
-      existsSync(join(ROOT, "app/api/personas/[id]/conversation")),
-      false,
-    );
-    assert.equal(
-      existsSync(join(ROOT, "app/api/personas/[id]/deep-scrape")),
       false,
     );
   });

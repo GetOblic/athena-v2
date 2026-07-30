@@ -139,7 +139,6 @@ describe("persona stage-4 workspace and Think Differently", () => {
     assert.match(card, /Persona Assessment/);
     assert.match(page, /sourceKind="persona"/);
     assert.match(page, /ExecutiveIntelligenceWorkspace/);
-    assert.doesNotMatch(page, /deep-scrape|Append Interaction|Ask Athena/i);
     assert.doesNotMatch(
       page,
       /will be connected in the next implementation stage/,
@@ -171,19 +170,9 @@ describe("persona stage-4 workspace and Think Differently", () => {
 });
 
 describe("persona stage-4 containment", () => {
-  it("does not introduce Stage 5 surfaces", () => {
-    const paths = [
-      "app/api/personas/[id]/deep-scrape",
-      "app/api/personas/[id]/updates",
-      "app/api/personas/[id]/conversation",
-    ];
-    for (const relative of paths) {
-      assert.equal(existsSync(join(ROOT, relative)), false, relative);
-    }
-
-    const importer = read("services/personas/personaImporter.ts");
-    const page = read("app/personas/[id]/page.tsx");
-    assert.doesNotMatch(importer, /persona_deep_scrape/);
-    assert.doesNotMatch(page, /persona_deep_scrape|Ask Athena|Append Interaction/);
+  it("does not introduce persona_deep_scrape generation trigger", () => {
+    const triggers = read("services/generationJobs/generationJobTypes.ts");
+    assert.doesNotMatch(triggers, /["']persona_deep_scrape["']/);
+    assert.match(triggers, /["']prospect_deep_scrape["']/);
   });
 });

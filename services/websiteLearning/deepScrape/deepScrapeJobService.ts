@@ -136,6 +136,49 @@ export async function getLatestDeepScrapeJobForProspect(input: {
   return mapDeepScrapeJobRow(data as Record<string, unknown>);
 }
 
+export async function getActiveDeepScrapeJobForPersona(input: {
+  personaId: string;
+  organizationId: string;
+}): Promise<AthenaWebsiteDeepScrapeJob | null> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_website_deep_scrape_jobs")
+    .select("*")
+    .eq("organization_id", input.organizationId)
+    .eq("persona_id", input.personaId)
+    .eq("source_type", "persona")
+    .in("status", ["queued", "processing", "awaiting_follow_on", "retryable"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[ATHENA_DEEP_SCRAPE] active_persona_lookup_failed", {
+      personaId: input.personaId,
+      error: error.message,
+    });
+    return null;
+  }
+  return data ? mapDeepScrapeJobRow(data as Record<string, unknown>) : null;
+}
+
+export async function getLatestDeepScrapeJobForPersona(input: {
+  personaId: string;
+  organizationId: string;
+}): Promise<AthenaWebsiteDeepScrapeJob | null> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_website_deep_scrape_jobs")
+    .select("*")
+    .eq("organization_id", input.organizationId)
+    .eq("persona_id", input.personaId)
+    .eq("source_type", "persona")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapDeepScrapeJobRow(data as Record<string, unknown>);
+}
+
 export async function getDeepScrapeJobById(input: {
   jobId: string;
   organizationId: string;
@@ -181,6 +224,7 @@ export async function enqueueBrainDeepScrapeJob(input: {
       source_type: "brain",
       identity_id: input.identityId,
       prospect_id: null,
+      persona_id: null,
       discussion_id: null,
       root_url: root.url,
       normalized_domain: root.registrableDomain,
@@ -248,6 +292,7 @@ export async function enqueueProspectDeepScrapeJob(input: {
       source_type: "prospect",
       identity_id: null,
       prospect_id: input.prospectId,
+      persona_id: null,
       discussion_id: input.discussionId ?? null,
       root_url: root.url,
       normalized_domain: root.registrableDomain,
@@ -266,6 +311,71 @@ export async function enqueueProspectDeepScrapeJob(input: {
     if (error.code === "23505") {
       const existing = await getActiveDeepScrapeJobForProspect({
         prospectId: input.prospectId,
+        organizationId: input.organizationId,
+      });
+      if (existing) {
+        return { job: existing, created: false };
+      }
+    }
+    throw error;
+  }
+
+  return {
+    job: mapDeepScrapeJobRow(data as Record<string, unknown>),
+    created: true,
+  };
+}
+
+export async function enqueuePersonaDeepScrapeJob(input: {
+  organizationId: string;
+  personaId: string;
+  discussionId?: string | null;
+  websiteUrl: string;
+  requestedBy?: string | null;
+}): Promise<{
+  job: AthenaWebsiteDeepScrapeJob;
+  created: boolean;
+}> {
+  const active = await getActiveDeepScrapeJobForPersona({
+    personaId: input.personaId,
+    organizationId: input.organizationId,
+  });
+  if (active) {
+    return { job: active, created: false };
+  }
+
+  const root = normalizeRootWebsiteUrl(input.websiteUrl);
+  if (!root) {
+    throw new Error("INVALID_WEBSITE_URL");
+  }
+
+  const now = touch();
+  const { data, error } = await supabaseAdmin
+    .from("athena_website_deep_scrape_jobs")
+    .insert({
+      organization_id: input.organizationId,
+      source_type: "persona",
+      identity_id: null,
+      prospect_id: null,
+      persona_id: input.personaId,
+      discussion_id: input.discussionId ?? null,
+      root_url: root.url,
+      normalized_domain: root.registrableDomain,
+      status: "queued",
+      current_stage: "queued",
+      progress: {},
+      max_attempts: getAthenaWorkerConfig().maxAttempts,
+      requested_by: input.requestedBy ?? null,
+      created_at: now,
+      updated_at: now,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      const existing = await getActiveDeepScrapeJobForPersona({
+        personaId: input.personaId,
         organizationId: input.organizationId,
       });
       if (existing) {

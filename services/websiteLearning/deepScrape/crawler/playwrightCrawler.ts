@@ -28,7 +28,7 @@ import { canonicalizePageUrl } from "@/services/websiteLearning/deepScrape/urlSa
 export type PlaywrightPhaseContext = {
   organizationId: string;
   jobId: string;
-  sourceType: "brain" | "prospect";
+  sourceType: "brain" | "prospect" | "persona";
   registrableDomain: string;
   config: Configuration;
   requestQueue: RequestQueue;

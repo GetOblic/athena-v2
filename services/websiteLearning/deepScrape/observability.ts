@@ -74,9 +74,10 @@ export type DeepScrapeEventName =
 export type DeepScrapeEventMeta = {
   organizationId?: string | null;
   jobId?: string | null;
-  sourceType?: "brain" | "prospect" | null;
+  sourceType?: "brain" | "prospect" | "persona" | null;
   identityId?: string | null;
   prospectId?: string | null;
+  personaId?: string | null;
   discussionId?: string | null;
   domain?: string | null;
   rootUrl?: string | null;

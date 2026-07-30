@@ -49,7 +49,7 @@ export type AddressClassification =
 export type HostnameSafetyContext = {
   jobId?: string | null;
   organizationId?: string | null;
-  sourceType?: "brain" | "prospect" | null;
+  sourceType?: "brain" | "prospect" | "persona" | null;
   fetchPurpose?: "robots" | "sitemap" | "homepage" | "page";
   redirectDepth?: number;
 };

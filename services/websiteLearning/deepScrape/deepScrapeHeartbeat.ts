@@ -39,7 +39,7 @@ export class DeepScrapeHeartbeatController {
       claimToken: string;
       workerId: string;
       organizationId: string;
-      sourceType: "brain" | "prospect";
+      sourceType: "brain" | "prospect" | "persona";
       leaseSeconds: number;
       intervalMs: number;
       initialStage: string;

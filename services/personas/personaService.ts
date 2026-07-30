@@ -362,6 +362,43 @@ export async function updatePersona(
 }
 
 /**
+ * Append-safe Notes update with optimistic locking on updated_at.
+ * Used by Append Interaction to avoid silent lost updates.
+ * Does not touch additional_context or ads_content.
+ */
+export async function updatePersonaNotesIfUnchanged(input: {
+  personaId: string;
+  organizationId: string;
+  expectedUpdatedAt: string;
+  notes: string;
+  lastActivity?: string | null;
+}): Promise<Persona | null> {
+  const payload: Record<string, unknown> = {
+    notes: input.notes,
+    updated_at: new Date().toISOString(),
+  };
+  if (input.lastActivity !== undefined) {
+    payload.last_activity = input.lastActivity;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("personas")
+    .update(payload)
+    .eq("id", input.personaId)
+    .eq("organization_id", input.organizationId)
+    .eq("updated_at", input.expectedUpdatedAt)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error updating persona notes with optimistic lock:", error);
+    return null;
+  }
+
+  return data ? mapPersonaRow(data as Persona) : null;
+}
+
+/**
  * Delete a Persona owned by the organization.
  * Stage 1: row delete only (no bridge Discussion cleanup).
  */

@@ -7,8 +7,13 @@ import {
   normalizeOptionalText,
   resolvePersonaDisplayLabel,
 } from "@/services/personas/personaUtils";
+import {
+  deepIntelligenceHasUsableContent,
+  formatDeepIntelligenceForBrainPrompt,
+  isDeepWebsiteIntelligence,
+} from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
 
-export type PersonaPipelineFieldSnapshot = {
+type PersonaPipelineTextSnapshot = {
   persona_name?: string | null;
   short_description?: string | null;
   category?: string | null;
@@ -55,6 +60,63 @@ export type PersonaPipelineFieldSnapshot = {
   ads_content?: string | null;
 };
 
+export type PersonaPipelineFieldSnapshot = PersonaPipelineTextSnapshot & {
+  reference_website_intelligence?: Record<string, unknown> | null;
+};
+
+/**
+ * Format successful Reference Website research for the Persona pipeline body.
+ * Omits worker diagnostics, stack traces, and raw crawl metadata.
+ */
+export function formatPersonaReferenceWebsiteResearchEvidence(
+  referenceWebsite: string | null | undefined,
+  intelligence: Record<string, unknown> | null | undefined,
+): string | null {
+  const website = normalizeOptionalText(referenceWebsite);
+  if (!website || !intelligence || typeof intelligence !== "object") {
+    return null;
+  }
+
+  let scrapedContent = "";
+  if (
+    isDeepWebsiteIntelligence(intelligence) &&
+    deepIntelligenceHasUsableContent(intelligence)
+  ) {
+    scrapedContent = formatDeepIntelligenceForBrainPrompt(intelligence).trim();
+  } else {
+    const lines: string[] = [];
+    for (const [key, value] of Object.entries(intelligence)) {
+      if (
+        key === "crawl_summary" ||
+        key === "pages" ||
+        key === "error" ||
+        key === "error_code" ||
+        key === "error_message" ||
+        key === "stack" ||
+        key === "diagnostics"
+      ) {
+        continue;
+      }
+      if (typeof value === "string" && value.trim()) {
+        lines.push(`${key}:\n${value.trim()}`);
+      }
+    }
+    scrapedContent = lines.join("\n\n").trim();
+  }
+
+  if (!scrapedContent) return null;
+
+  return [
+    "=== REFERENCE WEBSITE RESEARCH — EXTERNAL CONTEXTUAL EVIDENCE ===",
+    `Source URL: ${website}`,
+    "",
+    scrapedContent,
+    "",
+    "EVIDENCE LIMIT:",
+    "This content comes from a contextual reference source. It is not automatically owned by the Persona and must not be treated as representative of every person in the segment.",
+  ].join("\n");
+}
+
 function fieldLine(label: string, value?: string | null): string | null {
   const trimmed = normalizeOptionalText(value);
   if (!trimmed) return null;
@@ -66,7 +128,7 @@ function fieldLine(label: string, value?: string | null): string | null {
 
 const IMPORTANT_EMPTY_SECTIONS: Array<{
   label: string;
-  keys: Array<keyof PersonaPipelineFieldSnapshot>;
+  keys: Array<keyof PersonaPipelineTextSnapshot>;
 }> = [
   {
     label: "Identity and demographics",
@@ -109,7 +171,7 @@ const IMPORTANT_EMPTY_SECTIONS: Array<{
   },
 ];
 
-function missingSections(persona: PersonaPipelineFieldSnapshot): string[] {
+function missingSections(persona: PersonaPipelineTextSnapshot): string[] {
   const missing: string[] = [];
   for (const section of IMPORTANT_EMPTY_SECTIONS) {
     const hasAny = section.keys.some((key) =>
@@ -224,6 +286,15 @@ export function formatNormalizedPersonaInputForPipeline(
     lines.push(
       "The URL is a contextual reference source. It is not automatically owned by the Persona and is not necessarily representative of every person in the segment.",
     );
+    lines.push("");
+  }
+
+  const research = formatPersonaReferenceWebsiteResearchEvidence(
+    persona.reference_website,
+    persona.reference_website_intelligence,
+  );
+  if (research) {
+    lines.push(research);
     lines.push("");
   }
 

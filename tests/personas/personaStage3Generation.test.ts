@@ -80,7 +80,7 @@ describe("persona stage-3 queueing and create/import contracts", () => {
     assert.match(importer, /triggerType: "discussion_import"/);
     assert.match(importer, /Persona created but intelligence generation/);
     assert.doesNotMatch(importer, /processDiscussionEndToEnd/);
-    assert.doesNotMatch(importer, /persona_deep_scrape/);
+    assert.doesNotMatch(importer, /["']persona_deep_scrape["']/);
   });
 
   it("CSV import queues independently and reports queue failures separately", async () => {
@@ -212,29 +212,14 @@ describe("persona stage-3 APIs and UI", () => {
     assert.match(page, /Generate Intelligence/);
     assert.match(page, /ExecutiveIntelligenceWorkspace/);
     assert.match(page, /sourceKind="persona"/);
-    assert.doesNotMatch(page, /Deep Scrape/);
-    assert.doesNotMatch(page, /Append Interaction/);
-    assert.doesNotMatch(page, /Ask Athena/);
   });
 });
 
 describe("persona stage-3 containment", () => {
-  it("does not add Stage 5 Persona surfaces", () => {
-    assert.equal(
-      existsSync(join(ROOT, "app/api/personas/[id]/updates")),
-      false,
-    );
-    assert.equal(
-      existsSync(join(ROOT, "app/api/personas/[id]/conversation")),
-      false,
-    );
-    assert.equal(
-      existsSync(join(ROOT, "app/api/personas/[id]/deep-scrape")),
-      false,
-    );
-
-    const importer = read("services/personas/personaImporter.ts");
-    assert.doesNotMatch(importer, /persona_deep_scrape/);
+  it("does not introduce persona_deep_scrape generation trigger", () => {
+    const triggers = read("services/generationJobs/generationJobTypes.ts");
+    assert.doesNotMatch(triggers, /["']persona_deep_scrape["']/);
+    assert.match(triggers, /["']prospect_deep_scrape["']/);
   });
 
   it("documents Persona analysis prompt branch location", () => {

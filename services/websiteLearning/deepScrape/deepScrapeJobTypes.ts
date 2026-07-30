@@ -3,7 +3,7 @@ import {
   type DeepScrapePersistedStage,
 } from "@/services/websiteLearning/deepScrape/deepScrapeStages";
 
-export const DEEP_SCRAPE_SOURCE_TYPES = ["brain", "prospect"] as const;
+export const DEEP_SCRAPE_SOURCE_TYPES = ["brain", "prospect", "persona"] as const;
 export type DeepScrapeSourceType = (typeof DEEP_SCRAPE_SOURCE_TYPES)[number];
 
 export const DEEP_SCRAPE_JOB_STATUSES = [
@@ -26,6 +26,7 @@ export type AthenaWebsiteDeepScrapeJob = {
   source_type: DeepScrapeSourceType;
   identity_id: string | null;
   prospect_id: string | null;
+  persona_id: string | null;
   discussion_id: string | null;
   root_url: string;
   normalized_domain: string;
@@ -68,6 +69,7 @@ export function mapDeepScrapeJobRow(
     source_type: row.source_type as DeepScrapeSourceType,
     identity_id: (row.identity_id as string | null) ?? null,
     prospect_id: (row.prospect_id as string | null) ?? null,
+    persona_id: (row.persona_id as string | null) ?? null,
     discussion_id: (row.discussion_id as string | null) ?? null,
     root_url: String(row.root_url ?? ""),
     normalized_domain: String(row.normalized_domain ?? ""),

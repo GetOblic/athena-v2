@@ -99,6 +99,6 @@ export type CrawlerRunInput = {
   websiteUrl: string;
   organizationId: string;
   jobId: string;
-  sourceType: "brain" | "prospect";
+  sourceType: "brain" | "prospect" | "persona";
   onProgress?: (progress: CrawlerProgress) => void | Promise<void>;
 };

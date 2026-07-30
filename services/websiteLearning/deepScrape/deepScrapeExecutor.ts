@@ -13,6 +13,11 @@ import { getAthenaWorkerConfig } from "@/services/generationJobs/generationJobWo
 import {
   getGenerationJobById,
 } from "@/services/generationJobs/generationJobService";
+import { ensurePersonaGenerationQueued } from "@/services/personas/personaImporter";
+import {
+  getPersonaById,
+  updatePersona,
+} from "@/services/personas/personaService";
 import { ensureProspectGenerationQueued } from "@/services/prospects/prospectImporter";
 import { getProspectById, updateProspect } from "@/services/prospects/prospectService";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -138,6 +143,26 @@ async function promoteProspectIntelligence(input: {
   }
 }
 
+async function promotePersonaIntelligence(input: {
+  personaId: string;
+  organizationId: string;
+  intelligence: DeepWebsiteIntelligence;
+  pagesAnalyzed: number;
+}): Promise<void> {
+  const updated = await updatePersona(input.personaId, input.organizationId, {
+    reference_website_intelligence: input.intelligence as unknown as Record<
+      string,
+      unknown
+    >,
+    last_deep_scrape_at: new Date().toISOString(),
+    last_deep_scrape_pages: input.pagesAnalyzed,
+    last_activity: new Date().toISOString(),
+  });
+  if (!updated) {
+    throw new Error("PERSISTENCE_FAILED");
+  }
+}
+
 function checkpointIntelligence(
   job: AthenaWebsiteDeepScrapeJob,
 ): DeepWebsiteIntelligence | null {
@@ -214,6 +239,7 @@ export async function executeClaimedDeepScrapeJob(
       sourceType: job.source_type,
       identityId: job.identity_id,
       prospectId: job.prospect_id,
+      personaId: job.persona_id,
       domain: job.normalized_domain,
       stage: job.current_stage,
       diagnostic: {
@@ -252,6 +278,15 @@ export async function executeClaimedDeepScrapeJob(
     }
     if (job.promoted_at && job.source_type === "prospect") {
       return await parkProspectPhaseB(
+        job,
+        claimToken,
+        renewLease,
+        isClaimLost,
+        () => heartbeat.stop(),
+      );
+    }
+    if (job.promoted_at && job.source_type === "persona") {
+      return await parkPersonaPhaseB(
         job,
         claimToken,
         renewLease,
@@ -374,6 +409,13 @@ export async function executeClaimedDeepScrapeJob(
         organizationId: job.organization_id,
         intelligence,
       });
+    } else if (job.source_type === "persona" && job.persona_id) {
+      await promotePersonaIntelligence({
+        personaId: job.persona_id,
+        organizationId: job.organization_id,
+        intelligence,
+        pagesAnalyzed,
+      });
     } else {
       throw new Error("INVALID_SOURCE");
     }
@@ -395,6 +437,7 @@ export async function executeClaimedDeepScrapeJob(
       sourceType: job.source_type,
       identityId: job.identity_id,
       prospectId: job.prospect_id,
+      personaId: job.persona_id,
       domain: job.normalized_domain,
       pagesAnalyzed,
     });
@@ -422,6 +465,15 @@ export async function executeClaimedDeepScrapeJob(
         });
       }
       return result;
+    }
+    if (job.source_type === "persona") {
+      return await parkPersonaPhaseB(
+        job,
+        claimToken,
+        renewLease,
+        isClaimLost,
+        () => heartbeat.stop(),
+      );
     }
     return await parkProspectPhaseB(
       job,
@@ -693,7 +745,244 @@ async function parkProspectPhaseB(
 }
 
 /**
- * Finalize Prospect deep-scrape jobs waiting on generation completion.
+ * Enqueue existing full Persona generation, then park deep job so the worker
+ * can process the generation job. Finalization happens in reconcileAwaitingFollowOnJobs.
+ */
+async function parkPersonaPhaseB(
+  job: AthenaWebsiteDeepScrapeJob,
+  claimToken: string,
+  renewLease: RenewLease,
+  isClaimLost: () => boolean,
+  stopHeartbeat?: () => Promise<void>,
+): Promise<"awaiting_follow_on" | "failed" | "retryable" | "claim_lost"> {
+  if (!job.persona_id) {
+    throw new Error("INVALID_SOURCE");
+  }
+
+  await renewLease("regenerating", {
+    pagesAnalyzed: job.pages_analyzed,
+    phase: "persona_deep_scrape",
+  });
+  if (isClaimLost()) return "claim_lost";
+
+  const persona = await getPersonaById(job.persona_id, job.organization_id);
+  if (!persona) {
+    throw new Error("PERSONA_NOT_FOUND");
+  }
+
+  let followOnJobId = job.follow_on_generation_job_id;
+  let reusedFollowOn = false;
+  if (followOnJobId) {
+    const existing = await getGenerationJobById(
+      followOnJobId,
+      job.organization_id,
+    );
+    if (
+      existing &&
+      (existing.status === "queued" ||
+        existing.status === "processing" ||
+        existing.status === "retryable" ||
+        existing.status === "completed")
+    ) {
+      reusedFollowOn = true;
+      logDeepScrapeEvent("deep_scrape_follow_on_reused", {
+        organizationId: job.organization_id,
+        jobId: job.id,
+        sourceType: "persona",
+        personaId: job.persona_id,
+        followOnJobId,
+        executiveVersionId:
+          existing.published_version_id ?? existing.executive_version_id,
+        diagnostic: {
+          generationStatus: existing.status,
+        },
+      });
+    } else {
+      followOnJobId = null;
+    }
+  }
+
+  if (!followOnJobId) {
+    // Reuse existing deep-scrape-compatible generation trigger (no new trigger).
+    const queued = await ensurePersonaGenerationQueued(persona, {
+      requestedBy: job.requested_by,
+      triggerType: "prospect_deep_scrape",
+    });
+    followOnJobId = queued.jobId ?? null;
+    if (!followOnJobId) {
+      throw new Error("PERSONA_GENERATION_ENQUEUE_FAILED");
+    }
+
+    logDeepScrapeEvent("prospect_generation_started", {
+      organizationId: job.organization_id,
+      jobId: job.id,
+      sourceType: "persona",
+      personaId: job.persona_id,
+      discussionId: persona.linked_discussion_id,
+      domain: job.normalized_domain,
+      followOnJobId,
+      pagesAnalyzed: job.pages_analyzed,
+      diagnostic: {
+        reusedFollowOn,
+      },
+    });
+  }
+
+  if (stopHeartbeat) {
+    await stopHeartbeat();
+  }
+
+  const parked = await updateDeepScrapeJobFields({
+    jobId: job.id,
+    organizationId: job.organization_id,
+    patch: {
+      status: "awaiting_follow_on",
+      current_stage: "regenerating",
+      follow_on_generation_job_id: followOnJobId,
+      claim_token: null,
+      claimed_by: null,
+      claim_expires_at: null,
+      discussion_id: persona.linked_discussion_id,
+      progress: {
+        ...(job.progress ?? {}),
+        phase: "awaiting_follow_on",
+        followOnJobId,
+      },
+    },
+  });
+
+  void claimToken;
+  void parked;
+
+  return "awaiting_follow_on";
+}
+
+async function reconcileOneAwaitingFollowOnJob(
+  job: Record<string, unknown>,
+): Promise<boolean> {
+  const jobId = String(job.id);
+  const organizationId = String(job.organization_id);
+  const rawSourceType = String(job.source_type ?? "");
+  const sourceType =
+    rawSourceType === "prospect" ||
+    rawSourceType === "persona" ||
+    rawSourceType === "brain"
+      ? rawSourceType
+      : null;
+  const followOnId = job.follow_on_generation_job_id
+    ? String(job.follow_on_generation_job_id)
+    : null;
+  const prospectId = job.prospect_id ? String(job.prospect_id) : null;
+  const personaId = job.persona_id ? String(job.persona_id) : null;
+
+  if (!followOnId) {
+    await updateDeepScrapeJobFields({
+      jobId,
+      organizationId,
+      patch: {
+        status: "retryable",
+        current_stage: "regenerating",
+        error_code: "MISSING_FOLLOW_ON_JOB",
+        error_message: "Follow-on generation job missing after deep scrape.",
+        next_attempt_at: new Date(Date.now() + 15_000).toISOString(),
+      },
+    });
+    return true;
+  }
+
+  const generationJob = await getGenerationJobById(followOnId, organizationId);
+  if (!generationJob) {
+    return false;
+  }
+
+  if (
+    generationJob.status === "queued" ||
+    generationJob.status === "processing" ||
+    generationJob.status === "retryable"
+  ) {
+    return false;
+  }
+
+  if (generationJob.status === "completed") {
+    const versionId =
+      generationJob.published_version_id ??
+      generationJob.executive_version_id ??
+      null;
+
+    if (
+      job.status === "completed" &&
+      job.result_executive_version_id === versionId
+    ) {
+      return false;
+    }
+
+    const completedAt =
+      typeof job.completed_at === "string" && job.completed_at
+        ? job.completed_at
+        : new Date().toISOString();
+
+    await updateDeepScrapeJobFields({
+      jobId,
+      organizationId,
+      patch: {
+        status: "completed",
+        current_stage: "completed",
+        result_executive_version_id: versionId,
+        completed_at: completedAt,
+        error_code: null,
+        error_message: null,
+      },
+    });
+
+    logDeepScrapeEvent("executive_version_published", {
+      organizationId,
+      jobId,
+      sourceType,
+      prospectId,
+      personaId,
+      discussionId: generationJob.discussion_id,
+      executiveVersionId: versionId,
+      followOnJobId: followOnId,
+      pagesAnalyzed: Number(job.pages_analyzed ?? 0),
+    });
+    logDeepScrapeEvent("deep_scrape_job_completed", {
+      organizationId,
+      jobId,
+      sourceType,
+      prospectId,
+      personaId,
+      executiveVersionId: versionId,
+      followOnJobId: followOnId,
+      pagesAnalyzed: Number(job.pages_analyzed ?? 0),
+    });
+    return true;
+  }
+
+  const generationFailedCode =
+    sourceType === "persona"
+      ? "PERSONA_GENERATION_FAILED"
+      : "PROSPECT_GENERATION_FAILED";
+  const generationFailedMessage =
+    sourceType === "persona"
+      ? "Persona generation failed after deep scrape promotion."
+      : "Prospect generation failed after deep scrape promotion.";
+
+  await updateDeepScrapeJobFields({
+    jobId,
+    organizationId,
+    patch: {
+      status: "retryable",
+      current_stage: "regenerating",
+      error_code: generationJob.error_code ?? generationFailedCode,
+      error_message: generationJob.error_message ?? generationFailedMessage,
+      next_attempt_at: new Date(Date.now() + 30_000).toISOString(),
+    },
+  });
+  return true;
+}
+
+/**
+ * Finalize Prospect/Persona deep-scrape jobs waiting on generation completion.
  * Called from the worker loop so concurrency-1 can still process generation jobs.
  */
 export async function reconcileAwaitingFollowOnJobs(): Promise<boolean> {
@@ -701,7 +990,7 @@ export async function reconcileAwaitingFollowOnJobs(): Promise<boolean> {
     .from("athena_website_deep_scrape_jobs")
     .select("*")
     .eq("status", "awaiting_follow_on")
-    .eq("source_type", "prospect")
+    .in("source_type", ["prospect", "persona"])
     .order("updated_at", { ascending: true })
     .limit(5);
 
@@ -712,114 +1001,10 @@ export async function reconcileAwaitingFollowOnJobs(): Promise<boolean> {
   let changed = false;
 
   for (const row of data) {
-    const job = row as Record<string, unknown>;
-    const jobId = String(job.id);
-    const organizationId = String(job.organization_id);
-    const followOnId = job.follow_on_generation_job_id
-      ? String(job.follow_on_generation_job_id)
-      : null;
-    const prospectId = job.prospect_id ? String(job.prospect_id) : null;
-
-    if (!followOnId) {
-      await updateDeepScrapeJobFields({
-        jobId,
-        organizationId,
-        patch: {
-          status: "retryable",
-          current_stage: "regenerating",
-          error_code: "MISSING_FOLLOW_ON_JOB",
-          error_message: "Follow-on generation job missing after deep scrape.",
-          next_attempt_at: new Date(Date.now() + 15_000).toISOString(),
-        },
-      });
-      changed = true;
-      continue;
-    }
-
-    const generationJob = await getGenerationJobById(followOnId, organizationId);
-    if (!generationJob) {
-      continue;
-    }
-
-    if (
-      generationJob.status === "queued" ||
-      generationJob.status === "processing" ||
-      generationJob.status === "retryable"
-    ) {
-      continue;
-    }
-
-    if (generationJob.status === "completed") {
-      const versionId =
-        generationJob.published_version_id ??
-        generationJob.executive_version_id ??
-        null;
-
-      // Idempotent: already completed with the same EV.
-      if (
-        job.status === "completed" &&
-        job.result_executive_version_id === versionId
-      ) {
-        continue;
-      }
-
-      const completedAt =
-        typeof job.completed_at === "string" && job.completed_at
-          ? job.completed_at
-          : new Date().toISOString();
-
-      await updateDeepScrapeJobFields({
-        jobId,
-        organizationId,
-        patch: {
-          status: "completed",
-          current_stage: "completed",
-          result_executive_version_id: versionId,
-          completed_at: completedAt,
-          error_code: null,
-          error_message: null,
-        },
-      });
-
-      logDeepScrapeEvent("executive_version_published", {
-        organizationId,
-        jobId,
-        sourceType: "prospect",
-        prospectId,
-        discussionId: generationJob.discussion_id,
-        executiveVersionId: versionId,
-        followOnJobId: followOnId,
-        pagesAnalyzed: Number(job.pages_analyzed ?? 0),
-      });
-      logDeepScrapeEvent("deep_scrape_job_completed", {
-        organizationId,
-        jobId,
-        sourceType: "prospect",
-        prospectId,
-        executiveVersionId: versionId,
-        followOnJobId: followOnId,
-        pagesAnalyzed: Number(job.pages_analyzed ?? 0),
-      });
-      changed = true;
-      continue;
-    }
-
-    // Generation failed terminal — keep deep intel, mark deep job failed (regen retry via new click or retryable).
-    await updateDeepScrapeJobFields({
-      jobId,
-      organizationId,
-      patch: {
-        status: "retryable",
-        current_stage: "regenerating",
-        error_code: generationJob.error_code ?? "PROSPECT_GENERATION_FAILED",
-        error_message:
-          generationJob.error_message ??
-          "Prospect generation failed after deep scrape promotion.",
-        next_attempt_at: new Date(Date.now() + 30_000).toISOString(),
-        // Keep promoted_at so reclaim resumes Phase B only.
-      },
-    });
-    changed = true;
+    const didChange = await reconcileOneAwaitingFollowOnJob(
+      row as Record<string, unknown>,
+    );
+    if (didChange) changed = true;
   }
 
   return changed;

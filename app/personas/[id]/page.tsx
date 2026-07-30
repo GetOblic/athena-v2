@@ -7,6 +7,10 @@ import {
 } from "@/components/discussions/DiscussionRegenerationProvider";
 import { ExecutiveIntelligenceWorkspace } from "@/components/discussions/ExecutiveIntelligenceWorkspace";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { PersonaAppendInteraction } from "@/components/personas/PersonaAppendInteraction";
+import { PersonaAppendInteractionTracked } from "@/components/personas/PersonaAppendInteractionTracked";
+import { PersonaConversationPanel } from "@/components/personas/PersonaConversationPanel";
+import { PersonaDeepScrapeWebsiteButton } from "@/components/personas/PersonaDeepScrapeWebsiteButton";
 import { PersonaGenerateIntelligenceButton } from "@/components/personas/PersonaGenerateIntelligenceButton";
 import { PersonaGenerationProgress } from "@/components/personas/PersonaGenerationProgress";
 import { PersonaLifecycleStatusControl } from "@/components/personas/PersonaLifecycleStatusControl";
@@ -35,9 +39,11 @@ import { normalizePersonaLifecycleStatus } from "@/services/personas/personaLife
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getPersonaById } from "@/services/personas/personaService";
 import {
+  normalizePersonaReferenceWebsite,
   normalizeWebsiteUrl,
   resolvePersonaDisplayLabel,
 } from "@/services/personas/personaUtils";
+import { normalizeRootWebsiteUrl } from "@/services/websiteLearning/deepScrape/urlSafety";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return null;
@@ -152,6 +158,16 @@ export default async function PersonaDetailsPage({
     ? toBlueprintBrandDirectionInput(organizationBrand)
     : null;
 
+  const deepScrapeAvailable = Boolean(
+    normalizeRootWebsiteUrl(
+      normalizePersonaReferenceWebsite(persona.reference_website)
+        .referenceWebsite ?? "",
+    ),
+  );
+  const conversationVersionState = versionState.current
+    ? ("current" as const)
+    : ("none" as const);
+
   const initialRegenerationSnapshot = {
     latestAnalysisId: latestAnalysis?.id ?? null,
     latestAnalysisCreatedAt: latestAnalysis?.created_at ?? null,
@@ -189,6 +205,10 @@ export default async function PersonaDetailsPage({
             initialStatus={readiness}
             initialInFlight={regenerationInFlight}
             hasCurrentExecutiveVersion={hasCurrentExecutiveVersion}
+          />
+          <PersonaDeepScrapeWebsiteButton
+            personaId={persona.id}
+            initiallyAvailable={deepScrapeAvailable}
           />
           <PersonaLifecycleStatusControl persona={persona} />
         </div>
@@ -260,7 +280,25 @@ export default async function PersonaDetailsPage({
             brandDirection={brandDirection}
             continuationPreferences={continuationPreferences}
             afterBlueprint={null}
-            afterDetailedReasoning={null}
+            afterDetailedReasoning={
+              <div className="mt-8 space-y-8">
+                <PersonaAppendInteractionTracked
+                  personaId={persona.id}
+                  discussionId={discussion.id}
+                  initialNotes={persona.notes}
+                />
+                <PersonaConversationPanel
+                  personaId={persona.id}
+                  executiveVersionId={versionState.current?.id ?? null}
+                  versionState={conversationVersionState}
+                  versionLabel={
+                    versionState.current
+                      ? "Current Executive Version"
+                      : null
+                  }
+                />
+              </div>
+            }
             originalDiscussionSection={
               <div className="space-y-4">
                 <p className="text-sm leading-6 text-white/45">
@@ -291,20 +329,35 @@ export default async function PersonaDetailsPage({
           />
         </>
       ) : (
-        <div
-          className={`mt-8 rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
-        >
-          <h2 className="text-lg font-semibold">Persona Intelligence</h2>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/45">
-            {readiness === "Profile Created"
-              ? "This Persona profile is ready. Use Generate Intelligence to enqueue durable publication through Athena’s shared pipeline."
-              : regenerationInFlight
-                ? "Athena is generating Persona intelligence in the background."
-                : readiness === "Processing Failed"
-                  ? "The last generation attempt failed. Use Retry Generate Intelligence to try again."
-                  : "Persona intelligence generation is in progress or awaiting completion."}
-          </p>
-        </div>
+        <>
+          <div
+            className={`mt-8 rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
+          >
+            <h2 className="text-lg font-semibold">Persona Intelligence</h2>
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-white/45">
+              {readiness === "Profile Created"
+                ? "This Persona profile is ready. Use Generate Intelligence to enqueue durable publication through Athena’s shared pipeline."
+                : regenerationInFlight
+                  ? "Athena is generating Persona intelligence in the background."
+                  : readiness === "Processing Failed"
+                    ? "The last generation attempt failed. Use Retry Generate Intelligence to try again."
+                    : "Persona intelligence generation is in progress or awaiting completion."}
+            </p>
+          </div>
+          <div className="mt-8 space-y-8">
+            <PersonaAppendInteraction
+              personaId={persona.id}
+              discussionId={null}
+              initialNotes={persona.notes}
+            />
+            <PersonaConversationPanel
+              personaId={persona.id}
+              executiveVersionId={null}
+              versionState="none"
+              versionLabel={null}
+            />
+          </div>
+        </>
       )}
     </main>
   );
