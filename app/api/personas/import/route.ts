@@ -20,7 +20,7 @@ function json(data: unknown, status = 200) {
   });
 }
 
-/** CSV Persona import — persist only; no generation enqueue (Stage 2). */
+/** CSV Persona import — persist + durable generation enqueue per row. */
 export async function POST(request: Request) {
   try {
     const { organizationId, userId } =
@@ -136,6 +136,8 @@ export async function POST(request: Request) {
       mode: "csv",
       summary: {
         imported: summary.imported,
+        queued: summary.queued,
+        queueFailed: summary.queueFailed,
         warnings: summary.warnings,
         duplicates: summary.duplicates,
         invalidRows: summary.invalidRows,
@@ -145,6 +147,8 @@ export async function POST(request: Request) {
       },
       message: [
         `Imported: ${summary.imported}`,
+        `Queued for intelligence: ${summary.queued}`,
+        `Imported but queue failed: ${summary.queueFailed}`,
         `Warnings: ${summary.warnings}`,
         `Duplicates skipped: ${summary.duplicates}`,
         `Invalid skipped: ${summary.invalidRows}`,

@@ -1,3 +1,4 @@
+import { PERSONA_INTELLIGENCE_PLATFORM } from "@/services/personas/personaBridgeMarker";
 import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectBridgeMarker";
 import { getOriginalDiscussionBody } from "@/lib/discussionContent";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -32,7 +33,8 @@ export async function getDiscussionCount(
         .from("discussions")
         .select("*", { count: "exact", head: true })
         .eq("organization_id", organizationId)
-        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM);
+        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
+        .neq("platform", PERSONA_INTELLIGENCE_PLATFORM);
 
     if (error) {
         console.error("Error fetching discussion count:", error);
@@ -51,6 +53,7 @@ export async function getHighPriorityDiscussions(
         .select("*")
         .eq("organization_id", organizationId)
         .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
+        .neq("platform", PERSONA_INTELLIGENCE_PLATFORM)
         .in("status", ["New", "Needs Review", "Reviewing"])
         .order("opportunity_score", { ascending: false })
         .order("priority", { ascending: false })
@@ -72,6 +75,7 @@ export async function getDiscussions(
         .select("*")
         .eq("organization_id", organizationId)
         .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
+        .neq("platform", PERSONA_INTELLIGENCE_PLATFORM)
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -110,7 +114,8 @@ export async function getDiscussionIdsByCommunityId(
         .select("id")
         .eq("community_id", communityId)
         .eq("organization_id", organizationId)
-        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM);
+        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
+        .neq("platform", PERSONA_INTELLIGENCE_PLATFORM);
 
     if (error) {
         console.error("Error fetching community discussion ids:", error);
@@ -130,6 +135,7 @@ export async function getDiscussionsByCommunityId(
         .eq("community_id", communityId)
         .eq("organization_id", organizationId)
         .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
+        .neq("platform", PERSONA_INTELLIGENCE_PLATFORM)
         .order("created_at", { ascending: false });
 
     if (error) {

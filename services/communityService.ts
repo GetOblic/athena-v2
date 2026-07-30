@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { PERSONA_INTELLIGENCE_PLATFORM } from "@/services/personas/personaBridgeMarker";
 import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectBridgeMarker";
 
 export type Community = {
@@ -165,7 +166,8 @@ export async function getCommunityDiscussionCount(
         .select("*", { count: "exact", head: true })
         .eq("community_id", communityId)
         .eq("organization_id", organizationId)
-        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM);
+        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
+        .neq("platform", PERSONA_INTELLIGENCE_PLATFORM);
 
     if (error) {
         console.error("Error counting community discussions:", error);

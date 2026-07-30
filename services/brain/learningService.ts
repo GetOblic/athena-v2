@@ -5,6 +5,7 @@ import { getReviewById, type AthenaReview } from "@/services/reviewService";
 import { getExecutiveReasoning } from "@/services/brain/executiveReasoningService";
 import { getExecutiveUnderstanding } from "@/services/brain/executiveUnderstandingService";
 import type { ExecutiveInitiativeSelection } from "@/services/brain/executiveUnderstanding/executiveUnderstandingTypes";
+import { isPersonaIntelligenceBridge } from "@/services/personas/personaBridgeMarker";
 import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
 
 function compactText(value: unknown): string {
@@ -142,6 +143,14 @@ export async function learnFromApprovedBriefing(
         learned: false,
         reason:
           "Prospect Intelligence sources do not emit Discussion learning signals.",
+      };
+    }
+
+    if (isPersonaIntelligenceBridge(discussion)) {
+      return {
+        learned: false,
+        reason:
+          "Persona Intelligence sources do not emit Discussion learning signals.",
       };
     }
 

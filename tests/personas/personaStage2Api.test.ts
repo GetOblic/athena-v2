@@ -13,15 +13,14 @@ function read(relativePath: string): string {
 }
 
 describe("persona stage-2 API route contracts", () => {
-  it("create route requires org context and returns 201 without queued fields", () => {
+  it("create route requires org context and returns durable create response", () => {
     const route = read("app/api/personas/route.ts");
     assert.match(route, /requireCurrentOrganizationContext/);
     assert.match(route, /importPersonaManual/);
     assert.match(route, /201/);
     assert.match(route, /personaId/);
-    assert.doesNotMatch(route, /generationJobId/);
+    // Stage 3 activates enqueue; create still never exposes internal discussionId.
     assert.doesNotMatch(route, /discussionId/);
-    assert.doesNotMatch(route, /queued:\s*true/);
     assert.doesNotMatch(route, /enqueueDiscussionGenerationJob/);
   });
 
@@ -50,7 +49,7 @@ describe("persona stage-2 API route contracts", () => {
     assert.doesNotMatch(route, /enqueueDiscussionGenerationJob/);
   });
 
-  it("import routes never enqueue generation", () => {
+  it("import preview remains enqueue-free; import route delegates to importer", () => {
     const preview = read("app/api/personas/import/preview/route.ts");
     const importRoute = read("app/api/personas/import/route.ts");
     assert.match(preview, /preparePersonaImportRows/);
@@ -116,34 +115,26 @@ describe("persona stage-2 manual create normalization", () => {
   });
 });
 
-describe("persona stage-2 containment — no Stage 3 surfaces", () => {
-  it("does not introduce generation, bridge, or shared pipeline Persona branches", () => {
-    const service = read("services/personas/personaService.ts");
-    const importer = read("services/personas/personaImporter.ts");
+describe("persona stage-2 containment — no Stage 4 surfaces", () => {
+  it("does not introduce Stage 4 Persona deployment or conversation surfaces", () => {
     const sidebar = read("components/dashboard/DashboardSidebar.tsx");
-
-    assert.doesNotMatch(service, /persona_intelligence/);
-    assert.doesNotMatch(service, /enqueueDiscussionGenerationJob/);
-    assert.doesNotMatch(importer, /createDiscussion/);
-    assert.doesNotMatch(importer, /persona_intelligence/);
-
     assert.doesNotMatch(sidebar, /persona_intelligence/);
-
-    // No Stage 3 shared prompt / deployment asset Persona contracts.
+    assert.doesNotMatch(
+      read("services/personas/personaImporter.ts"),
+      /persona_deep_scrape/,
+    );
     assert.equal(
       readFileSync(join(ROOT, "package.json"), "utf8").includes(
-        "persona_intelligence",
+        "personaDeploymentAssetContract",
       ),
       false,
     );
   });
 
-  it("manual import form and create API do not call generation", () => {
+  it("manual import form still posts to Persona create API", () => {
     const forms = read("components/personas/PersonaImportForms.tsx");
-    const route = read("app/api/personas/route.ts");
     assert.match(forms, /\/api\/personas/);
     assert.match(forms, /Create Persona/);
     assert.doesNotMatch(forms, /generationJobId/);
-    assert.doesNotMatch(route, /202/);
   });
 });

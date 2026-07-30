@@ -1,25 +1,46 @@
 /**
- * Persona import — persist only (Stage 2).
- * Never creates bridge Discussions or enqueues generation.
+ * Persona import + enqueue into the shared durable generation pipeline.
+ * Never waits for generation to finish.
+ *
+ * Compatibility bridge:
+ * each Persona links to a Discussion with platform = persona_intelligence.
+ * That Discussion feeds Generation Jobs → Athena Worker → shared analysis pipeline.
  */
 
 import { randomUUID } from "crypto";
+import {
+  createDiscussion,
+  getDiscussionById,
+  updateDiscussion,
+} from "@/services/discussionService";
+import { enqueueDiscussionGenerationJob } from "@/services/generationJobs/generationJobRunner";
 import {
   findExistingPersonaDuplicate,
   preparePersonaImportRows,
   type FindPersonaDuplicateFn,
 } from "@/services/personas/personaImportPreparation";
 import {
+  isTrustedPersonaBridgeFor,
+  PERSONA_INTELLIGENCE_PLATFORM,
+} from "@/services/personas/personaBridgeMarker";
+import { buildPersonaAnalysisBody } from "@/services/personas/personaPipelineBody";
+import {
   createPersona,
+  getPersonaById,
+  getPersonaByLinkedDiscussionId,
   type CreatePersonaInput,
   type Persona,
+  updatePersona,
 } from "@/services/personas/personaService";
 import {
   toPersonaCsvParsedRecords,
   type PersonaCsvParsedRecord,
   type PersonaCsvRow,
 } from "@/services/personas/personaCsv";
-import { normalizeOptionalText } from "@/services/personas/personaUtils";
+import {
+  normalizeOptionalText,
+  resolvePersonaDisplayLabel,
+} from "@/services/personas/personaUtils";
 
 export type PersonaImportRow = PersonaCsvRow;
 
@@ -30,6 +51,8 @@ export type PersonaImportInvalidRow = {
 
 export type PersonaImportSummary = {
   imported: number;
+  queued: number;
+  queueFailed: number;
   warnings: number;
   duplicates: number;
   invalidRows: number;
@@ -101,7 +124,188 @@ function mapRowToInput(
   };
 }
 
-/** Manual Persona create — synchronous persist only. */
+function bridgeMarkerRawJson(personaId: string): Record<string, unknown> {
+  return {
+    intelligence_source: "persona",
+    persona_id: personaId,
+  };
+}
+
+/**
+ * Ensure the Persona has a trusted linked Discussion bridge.
+ * Idempotent: reuses a valid linked bridge; creates/relinks when missing or invalid.
+ */
+export async function ensurePersonaBridgeDiscussion(
+  persona: Persona,
+): Promise<{ persona: Persona; discussionId: string }> {
+  let current = persona;
+  const title = resolvePersonaDisplayLabel(current);
+  const bridgeBody = buildPersonaAnalysisBody(current);
+  let discussionId = current.linked_discussion_id;
+
+  if (discussionId) {
+    const existing = await getDiscussionById(
+      discussionId,
+      current.organization_id,
+    );
+    const trusted = isTrustedPersonaBridgeFor(
+      existing,
+      current.id,
+      current.organization_id,
+    );
+    if (!trusted) {
+      discussionId = null;
+    }
+  }
+
+  if (!discussionId) {
+    const discussion = await createDiscussion({
+      organization_id: current.organization_id,
+      community_id: current.community_id,
+      user_id: current.user_id,
+      platform: PERSONA_INTELLIGENCE_PLATFORM,
+      title,
+      author: null,
+      url: current.reference_website,
+      body: bridgeBody,
+      status: "New",
+      raw_json: bridgeMarkerRawJson(current.id),
+    });
+
+    if (!discussion) {
+      await updatePersona(current.id, current.organization_id, {
+        status: "Processing Failed",
+      });
+      throw new Error("Failed to create Persona Intelligence bridge discussion.");
+    }
+
+    discussionId = discussion.id;
+    current =
+      (await updatePersona(current.id, current.organization_id, {
+        linked_discussion_id: discussionId,
+      })) ?? current;
+  } else {
+    await updateDiscussion(discussionId, current.organization_id, {
+      title,
+      url: current.reference_website,
+      body: bridgeBody,
+      platform: PERSONA_INTELLIGENCE_PLATFORM,
+    });
+  }
+
+  return { persona: current, discussionId };
+}
+
+/**
+ * Worker / pre-generation: reload Persona fields into the bridge body.
+ */
+export async function preparePersonaBridgeBeforeGeneration(
+  discussionId: string,
+  organizationId: string,
+): Promise<void> {
+  const persona = await getPersonaByLinkedDiscussionId(
+    discussionId,
+    organizationId,
+  );
+  if (!persona) return;
+
+  let current =
+    (await getPersonaById(persona.id, organizationId)) ?? persona;
+
+  current =
+    (await updatePersona(current.id, organizationId, {
+      status: "Generating Executive Intelligence",
+      last_activity: new Date().toISOString(),
+    })) ?? current;
+
+  const ensured = await ensurePersonaBridgeDiscussion(current);
+  if (!ensured.discussionId) return;
+
+  await updateDiscussion(ensured.discussionId, organizationId, {
+    title: resolvePersonaDisplayLabel(ensured.persona),
+    url: ensured.persona.reference_website,
+    body: buildPersonaAnalysisBody(ensured.persona),
+    platform: PERSONA_INTELLIGENCE_PLATFORM,
+  });
+}
+
+/**
+ * Ensure the Persona has a linked Discussion bridge and a queued generation job.
+ */
+export async function ensurePersonaGenerationQueued(
+  persona: Persona,
+  options?: {
+    requestedBy?: string | null;
+    triggerType?: "discussion_import" | "manual_refresh" | "discussion_update";
+  },
+): Promise<{ persona: Persona; queued: boolean; jobId?: string }> {
+  const ensured = await ensurePersonaBridgeDiscussion(persona);
+  let current = ensured.persona;
+  const discussionId = ensured.discussionId;
+
+  const enqueue = await enqueueDiscussionGenerationJob({
+    organizationId: current.organization_id,
+    discussionId,
+    triggerType: options?.triggerType ?? "discussion_import",
+    requestedBy: options?.requestedBy ?? current.user_id,
+    allowExisting: true,
+    requestFollowUpIfActive: true,
+  });
+
+  const queued = Boolean(enqueue.accepted || enqueue.alreadyActive);
+  current =
+    (await updatePersona(current.id, current.organization_id, {
+      status: queued ? "Queued" : current.status,
+      last_activity: new Date().toISOString(),
+    })) ?? current;
+
+  return {
+    persona: current,
+    queued,
+    jobId: enqueue.job.id,
+  };
+}
+
+/** Stage 3 terminal: shared analysis completed — not Prospect Ready. */
+export async function markPersonaGenerationAnalysisComplete(
+  discussionId: string,
+  organizationId: string,
+  opportunityScore?: number | null,
+): Promise<void> {
+  const persona = await getPersonaByLinkedDiscussionId(
+    discussionId,
+    organizationId,
+  );
+  if (!persona) return;
+
+  await updatePersona(persona.id, organizationId, {
+    // Stage 3 terminal stored status — not Prospect Ready / completeness.
+    status: "Analysis Generated",
+    opportunity_score:
+      typeof opportunityScore === "number"
+        ? Math.max(0, Math.min(100, Math.round(opportunityScore)))
+        : undefined,
+    last_activity: new Date().toISOString(),
+  });
+}
+
+export async function markPersonaGenerationFailed(
+  discussionId: string,
+  organizationId: string,
+): Promise<void> {
+  const persona = await getPersonaByLinkedDiscussionId(
+    discussionId,
+    organizationId,
+  );
+  if (!persona) return;
+
+  await updatePersona(persona.id, organizationId, {
+    status: "Processing Failed",
+    last_activity: new Date().toISOString(),
+  });
+}
+
+/** Manual Persona create — persist then enqueue generation. */
 export async function importPersonaManual(input: {
   organizationId: string;
   userId: string | null;
@@ -110,6 +314,9 @@ export async function importPersonaManual(input: {
   persona: Persona;
   duplicate: boolean;
   invalidReferenceWebsite: boolean;
+  queued: boolean;
+  jobId?: string;
+  queueError?: string | null;
 }> {
   const mapped = mapRowToInput(
     input.row,
@@ -119,8 +326,6 @@ export async function importPersonaManual(input: {
     randomUUID(),
   );
 
-  // Soft-normalize Reference Website through createPersona / preparePersonaCreateRow.
-  // Duplicate checks use the same rules as CSV import when identity keys exist.
   const { normalizePersonaReferenceWebsite } = await import(
     "@/services/personas/personaUtils"
   );
@@ -142,16 +347,40 @@ export async function importPersonaManual(input: {
         persona: existing,
         duplicate: true,
         invalidReferenceWebsite: false,
+        queued: false,
       };
     }
   }
 
   const created = await createPersona(mapped);
-  return {
-    persona: created,
-    duplicate: false,
-    invalidReferenceWebsite,
-  };
+
+  try {
+    const queued = await ensurePersonaGenerationQueued(created, {
+      requestedBy: input.userId,
+      triggerType: "discussion_import",
+    });
+    return {
+      persona: queued.persona,
+      duplicate: false,
+      invalidReferenceWebsite,
+      queued: queued.queued,
+      jobId: queued.jobId,
+      queueError: queued.queued
+        ? null
+        : "Persona created but intelligence generation was not queued.",
+    };
+  } catch (error) {
+    return {
+      persona: created,
+      duplicate: false,
+      invalidReferenceWebsite,
+      queued: false,
+      queueError:
+        error instanceof Error
+          ? error.message
+          : "Persona created but intelligence generation was not queued.",
+    };
+  }
 }
 
 export async function importPersonasFromRows(input: {
@@ -162,9 +391,11 @@ export async function importPersonasFromRows(input: {
   source?: string;
   findDuplicate?: FindPersonaDuplicateFn;
   createPersona?: typeof createPersona;
+  ensureQueued?: typeof ensurePersonaGenerationQueued;
 }): Promise<PersonaImportSummary> {
   const batchId = randomUUID();
   const persist = input.createPersona ?? createPersona;
+  const enqueue = input.ensureQueued ?? ensurePersonaGenerationQueued;
   const records =
     input.records ?? toPersonaCsvParsedRecords(input.rows ?? []);
 
@@ -176,6 +407,8 @@ export async function importPersonasFromRows(input: {
 
   const summary: PersonaImportSummary = {
     imported: 0,
+    queued: 0,
+    queueFailed: 0,
     warnings: prepared.warningRows,
     duplicates: prepared.duplicateRows,
     invalidRows: prepared.invalidRows,
@@ -209,6 +442,42 @@ export async function importPersonasFromRows(input: {
       summary.imported += 1;
       summary.personaIds.push(created.id);
 
+      try {
+        const queued = await enqueue(created, {
+          requestedBy: input.userId,
+          triggerType: "discussion_import",
+        });
+        if (queued.queued) {
+          summary.queued += 1;
+        } else {
+          summary.queueFailed += 1;
+          if (summary.invalidRowDetails.length < 25) {
+            summary.invalidRowDetails.push({
+              rowNumber: item.rowNumber,
+              reason:
+                "Persona created but generation job was not queued.",
+            });
+          }
+        }
+      } catch (queueError) {
+        summary.queueFailed += 1;
+        if (summary.invalidRowDetails.length < 25) {
+          summary.invalidRowDetails.push({
+            rowNumber: item.rowNumber,
+            reason:
+              "Persona created but generation job was not queued.",
+          });
+        }
+        console.error("[PERSONA_IMPORT] queue_failed", {
+          rowNumber: item.rowNumber,
+          personaId: created.id,
+          error:
+            queueError instanceof Error
+              ? queueError.message
+              : String(queueError),
+        });
+      }
+
       if (summary.imported % CSV_PERSIST_CHUNK_SIZE === 0) {
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
@@ -217,10 +486,7 @@ export async function importPersonasFromRows(input: {
       if (summary.invalidRowDetails.length < 25) {
         summary.invalidRowDetails.push({
           rowNumber: item.rowNumber,
-          reason:
-            error instanceof Error
-              ? "Row could not be imported."
-              : "Row could not be imported.",
+          reason: "Row could not be imported.",
         });
       }
       console.error("[PERSONA_IMPORT] row_failed", {

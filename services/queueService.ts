@@ -22,6 +22,7 @@ import type { Opportunity } from "@/services/opportunityService";
 import { getCanonicalOpportunities } from "@/services/opportunityService";
 import type { AthenaReview } from "@/services/reviewService";
 import { getCanonicalReviews } from "@/services/reviewService";
+import { PERSONA_INTELLIGENCE_PLATFORM } from "@/services/personas/personaBridgeMarker";
 import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 
 export type DiscussionQueueSection = {
@@ -114,7 +115,10 @@ export async function getDiscussionQueues(
   };
 
   for (const discussion of discussions) {
-    if (discussion.platform === PROSPECT_INTELLIGENCE_PLATFORM) {
+    if (
+      discussion.platform === PROSPECT_INTELLIGENCE_PLATFORM ||
+      discussion.platform === PERSONA_INTELLIGENCE_PLATFORM
+    ) {
       continue;
     }
     const hasAnalysis = analyzedDiscussionIds.has(discussion.id);

@@ -2,14 +2,21 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { PersonaGenerateIntelligenceButton } from "@/components/personas/PersonaGenerateIntelligenceButton";
+import { PersonaGenerationProgress } from "@/components/personas/PersonaGenerationProgress";
 import { PersonaLifecycleStatusControl } from "@/components/personas/PersonaLifecycleStatusControl";
 import { PersonaMetadataEditor } from "@/components/personas/PersonaMetadataEditor";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
+import {
+  getActiveGenerationJobForDiscussion,
+  getLatestGenerationJobForDiscussion,
+} from "@/services/generationJobs/generationJobService";
 import {
   formatPersonaLocation,
   formatPersonaOpportunityScore,
   formatPersonaReferenceWebsiteDisplay,
-  resolvePersonaDisplayReadiness,
+  resolvePersonaDisplayStatus,
 } from "@/services/personas/personaDisplay";
 import { normalizePersonaLifecycleStatus } from "@/services/personas/personaLifecycle";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -67,9 +74,35 @@ export default async function PersonaDetailsPage({
     );
   }
 
+  const discussionId = persona.linked_discussion_id;
+  const [activeJob, latestJob, latestAnalysis] = discussionId
+    ? await Promise.all([
+        getActiveGenerationJobForDiscussion(discussionId, organizationId),
+        getLatestGenerationJobForDiscussion(discussionId, organizationId),
+        getLatestDiscussionAnalysis(discussionId, organizationId),
+      ])
+    : [null, null, null];
+
+  const hasGeneratedAnalysis = Boolean(latestAnalysis);
+  const regenerationInFlight = Boolean(
+    activeJob &&
+      (activeJob.status === "queued" ||
+        activeJob.status === "processing" ||
+        activeJob.status === "retryable"),
+  );
+  const hasTerminalJobFailure = Boolean(
+    !activeJob && latestJob?.status === "failed" && !hasGeneratedAnalysis,
+  );
+
   const displayLabel = resolvePersonaDisplayLabel(persona);
   const location = formatPersonaLocation(persona);
-  const readiness = resolvePersonaDisplayReadiness(persona.status);
+  const readiness = resolvePersonaDisplayStatus({
+    personaStatus: persona.status,
+    jobStatus: activeJob?.status ?? null,
+    jobStage: activeJob?.current_stage ?? null,
+    hasGeneratedAnalysis,
+    hasTerminalJobFailure,
+  });
   const lifecycle = normalizePersonaLifecycleStatus(persona.lifecycle_status);
   const referenceDisplay = formatPersonaReferenceWebsiteDisplay(
     persona.reference_website,
@@ -99,7 +132,14 @@ export default async function PersonaDetailsPage({
           ) : null}
         </div>
 
-        <PersonaLifecycleStatusControl persona={persona} />
+        <div className="flex flex-col items-stretch gap-3 sm:items-end">
+          <PersonaGenerateIntelligenceButton
+            personaId={persona.id}
+            initialStatus={readiness}
+            initialInFlight={regenerationInFlight}
+          />
+          <PersonaLifecycleStatusControl persona={persona} />
+        </div>
       </div>
 
       <div
@@ -141,6 +181,11 @@ export default async function PersonaDetailsPage({
             </div>
           ) : null}
         </div>
+
+        <PersonaGenerationProgress
+          personaId={persona.id}
+          initialStatus={readiness}
+        />
       </div>
 
       <div className="mt-8">
@@ -151,10 +196,30 @@ export default async function PersonaDetailsPage({
         className={`mt-8 rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
       >
         <h2 className="text-lg font-semibold">Persona Intelligence</h2>
-        <p className="mt-4 max-w-3xl text-sm leading-7 text-white/45">
-          Persona intelligence generation will become available after the Persona
-          profile is connected to Athena’s intelligence pipeline.
-        </p>
+        {hasGeneratedAnalysis ? (
+          <div className="mt-4 space-y-4">
+            {latestAnalysis?.summary ? (
+              <p className="max-w-3xl text-sm leading-7 text-white/70">
+                {latestAnalysis.summary}
+              </p>
+            ) : null}
+            <p className="max-w-3xl text-sm leading-7 text-white/45">
+              Persona analysis has been generated. Strategic Blueprint, Persona
+              Deployment Assets, and the full Executive Intelligence workspace
+              will be connected in the next implementation stage.
+            </p>
+          </div>
+        ) : (
+          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/45">
+            {readiness === "Profile Created"
+              ? "This Persona profile is ready. Use Generate Intelligence to enqueue durable analysis through Athena’s shared pipeline."
+              : regenerationInFlight
+                ? "Athena is generating Persona intelligence in the background."
+                : readiness === "Processing Failed"
+                  ? "The last generation attempt failed. Use Retry Generate Intelligence to try again."
+                  : "Persona intelligence generation is in progress or awaiting completion."}
+          </p>
+        )}
       </div>
     </main>
   );

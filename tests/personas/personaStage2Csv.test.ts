@@ -230,17 +230,17 @@ describe("persona CSV parsing", () => {
 });
 
 describe("persona CSV import persistence containment", () => {
-  it("importer persists without generation enqueue or discussion creation", async () => {
+  it("importer persists rows and reports queue outcomes separately", async () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
     const importerSource = readFileSync(
       join(ROOT, "services/personas/personaImporter.ts"),
       "utf8",
     );
-    assert.doesNotMatch(importerSource, /enqueueDiscussionGenerationJob/);
-    assert.doesNotMatch(importerSource, /createDiscussion/);
-    assert.doesNotMatch(importerSource, /ensurePersonaGeneration/);
-    assert.doesNotMatch(importerSource, /persona_intelligence/);
+    // Stage 3: durable enqueue is active; still no Deep Scrape / sync generation.
+    assert.match(importerSource, /ensurePersonaGenerationQueued/);
+    assert.doesNotMatch(importerSource, /persona_deep_scrape/);
+    assert.doesNotMatch(importerSource, /processDiscussionEndToEnd/);
 
     const { importPersonasFromRows } = await import(
       "../../services/personas/personaImporter"
@@ -263,9 +263,16 @@ describe("persona CSV import persistence containment", () => {
           organization_id: input.organization_id,
         } as never;
       },
+      ensureQueued: async (persona) => ({
+        persona: persona as never,
+        queued: true,
+        jobId: "job-test",
+      }),
     });
 
     assert.equal(summary.imported, 2);
+    assert.equal(summary.queued, 2);
+    assert.equal(summary.queueFailed, 0);
     assert.equal(summary.invalidRows, 1);
     assert.equal(summary.failed, 0);
     assert.equal(created.length, 2);

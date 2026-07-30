@@ -72,7 +72,7 @@ function rowFromBody(body: Record<string, unknown>) {
   };
 }
 
-/** Manual Persona create — synchronous persistence only (Stage 2). */
+/** Manual Persona create + durable enqueue. */
 export async function POST(request: Request) {
   try {
     const { organizationId, userId } =
@@ -90,6 +90,7 @@ export async function POST(request: Request) {
       return json({
         ok: true,
         success: true,
+        accepted: false,
         duplicate: true,
         persona: toPublicPersona(result.persona),
         personaId: result.persona.id,
@@ -97,17 +98,27 @@ export async function POST(request: Request) {
       });
     }
 
+    const queued = result.queued;
     return json(
       {
         ok: true,
         success: true,
+        accepted: queued,
+        queued,
         duplicate: false,
         invalidReferenceWebsite: result.invalidReferenceWebsite,
         persona: toPublicPersona(result.persona),
         personaId: result.persona.id,
-        message: "Persona created.",
+        jobId: result.jobId ?? null,
+        status: result.persona.status,
+        queueError: result.queueError ?? null,
+        message: queued
+          ? "Persona created. Intelligence generation queued."
+          : result.queueError
+            ? "Persona created, but intelligence generation must be retried from the Persona detail page."
+            : "Persona created.",
       },
-      201,
+      queued ? 202 : 201,
     );
   } catch (error) {
     if (error instanceof OrganizationAccessError) {

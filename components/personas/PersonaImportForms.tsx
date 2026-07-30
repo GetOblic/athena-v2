@@ -153,6 +153,8 @@ export function PersonaImportForms() {
         ok?: boolean;
         message?: string;
         personaId?: string;
+        queued?: boolean;
+        queueError?: string | null;
         error?: string | { message?: string };
       }>(response);
 
@@ -161,9 +163,19 @@ export function PersonaImportForms() {
           ? payload.error
           : payload.error?.message;
 
+      const warning =
+        payload.ok && payload.personaId && payload.queued === false
+          ? payload.queueError ||
+            "Persona was created, but intelligence generation must be retried from the detail page."
+          : null;
+
       setManualResult({
         ok: Boolean(payload.ok),
-        message: payload.message || errorMessage || "Create finished.",
+        message:
+          warning ||
+          payload.message ||
+          errorMessage ||
+          "Create finished.",
         personaId: payload.personaId,
       });
 

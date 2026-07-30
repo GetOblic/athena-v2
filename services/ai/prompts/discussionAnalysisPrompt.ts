@@ -7,6 +7,7 @@ import {
   SHARED_DEPLOYMENT_QUALITY,
   SHARED_JSON_OUTPUT_RULES,
 } from "@/services/ai/prompts/sharedPromptConstraints";
+import { PERSONA_INTELLIGENCE_PLATFORM } from "@/services/personas/personaBridgeMarker";
 
 export const DISCUSSION_ANALYSIS_PROMPT_VERSION =
   "discussion_analysis_v5_reasoning";
@@ -23,15 +24,33 @@ function resolveDomainFramework(brainContextPrompt: string): string {
   return ELEVATE_STRATEGY_PROMPT;
 }
 
+function personaSourceInstruction(discussion: Discussion): string {
+  if (discussion.platform !== PERSONA_INTELLIGENCE_PLATFORM) {
+    return "";
+  }
+
+  return `
+=== PERSONA SOURCE INSTRUCTION ===
+Analyze a clientele archetype or audience segment — not an identifiable Prospect lead and not one universally representative individual.
+Do not invent missing demographics.
+Distinguish user observations, source evidence, and inference.
+Avoid stereotypes and unsupported universal claims.
+Identify uncertainty and missing information.
+Produce useful audience, messaging, offer, channel, objection, language, and experience insights.
+`;
+}
+
 export function buildDiscussionAnalysisPrompt(
   discussion: Discussion,
   brainContextPrompt = "",
 ): string {
   const domainFramework = resolveDomainFramework(brainContextPrompt);
+  const personaInstruction = personaSourceInstruction(discussion);
 
   return `
 === OBJECTIVE ===
 Analyze the discussion. Produce executive intelligence (JSON fields) and paste-ready deployment assets in suggested_cta.
+${personaInstruction}
 
 === BUSINESS CONTEXT ===
 ${brainContextPrompt || "No business context provided."}

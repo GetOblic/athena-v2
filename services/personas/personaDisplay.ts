@@ -1,11 +1,9 @@
 /**
  * Pure Persona display helpers.
  *
- * Stage 2 readiness note:
- * Stored `status` defaults to "Queued", but Stage 2 never enqueues generation.
- * Display maps pre-generation stored values to a neutral label so the UI does
- * not imply a live queued job. Stage 3 can activate true generation labels
- * without a migration by changing this mapping only.
+ * Stage 3: job-aware readiness labels. Stored Queued without an active job
+ * remains "Profile Created" for pre-Stage-3 / ungenerated Personas.
+ * Terminal shared analysis maps to "Analysis Generated" (not Prospect Ready).
  */
 
 export const PERSONA_STORED_STATUSES = [
@@ -13,19 +11,20 @@ export const PERSONA_STORED_STATUSES = [
   "Processing",
   "Learning from Website",
   "Generating Executive Intelligence",
+  "Analysis Generated",
   "Ready",
   "Processing Failed",
 ] as const;
 
 export type PersonaStoredStatus = (typeof PERSONA_STORED_STATUSES)[number];
 
-/** Stage 2 user-facing readiness labels (display-layer only). */
+/** Stage 3 user-facing readiness labels (display-layer only). */
 export const PERSONA_DISPLAY_READINESS_LABELS = [
   "Profile Created",
+  "Queued",
   "Processing",
-  "Learning from Website",
   "Generating Executive Intelligence",
-  "Ready",
+  "Analysis Generated",
   "Processing Failed",
 ] as const;
 
@@ -33,23 +32,55 @@ export type PersonaDisplayReadiness =
   (typeof PERSONA_DISPLAY_READINESS_LABELS)[number];
 
 /**
- * Map stored Persona.status to a Stage 2 display readiness label.
- * "Queued" (and unknown pre-generation values) → "Profile Created".
+ * Map stored Persona.status alone (library / Stage 2-compatible).
+ * "Queued" without job context → "Profile Created".
  */
 export function resolvePersonaDisplayReadiness(
   storedStatus?: string | null,
 ): PersonaDisplayReadiness {
-  const current = String(storedStatus ?? "").trim();
+  return resolvePersonaDisplayStatus({ personaStatus: storedStatus });
+}
 
+/**
+ * Job + analysis aware Persona display status (Stage 3).
+ * Never claims Prospect-style Ready from Deployment Asset completeness.
+ */
+export function resolvePersonaDisplayStatus(input: {
+  personaStatus?: string | null;
+  jobStatus?: string | null;
+  jobStage?: string | null;
+  hasGeneratedAnalysis?: boolean;
+  hasTerminalJobFailure?: boolean;
+}): PersonaDisplayReadiness {
+  const job = input.jobStatus?.toLowerCase() ?? null;
+  const stage = (input.jobStage ?? "").toLowerCase();
+
+  if (job === "failed") return "Processing Failed";
+  if (job === "queued") return "Queued";
+  if (job === "retryable") return "Processing";
+  if (job === "processing") {
+    if (stage.includes("prepar")) return "Processing";
+    return "Generating Executive Intelligence";
+  }
+
+  if (input.hasGeneratedAnalysis) {
+    return "Analysis Generated";
+  }
+
+  if (input.hasTerminalJobFailure) {
+    return "Processing Failed";
+  }
+
+  const current = String(input.personaStatus ?? "").trim();
   if (/fail/i.test(current)) return "Processing Failed";
-  if (/ready/i.test(current)) return "Ready";
-  if (/learn|scrape|website/i.test(current)) return "Learning from Website";
+  if (/analysis generated/i.test(current)) return "Analysis Generated";
+  // Stage 3: never display Prospect Ready — map accidental Ready storage away.
+  if (/^ready$/i.test(current)) return "Analysis Generated";
   if (/generat|analyz/i.test(current)) {
     return "Generating Executive Intelligence";
   }
   if (/process/i.test(current)) return "Processing";
-
-  // Stage 2: stored Queued is not a live generation queue.
+  // Stage 2 / ungenerated: stored Queued is not a live generation queue.
   return "Profile Created";
 }
 

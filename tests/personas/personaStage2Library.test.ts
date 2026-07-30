@@ -118,7 +118,11 @@ describe("persona stage-2 navigation", () => {
 describe("persona stage-2 display helpers", () => {
   it("maps stored Queued readiness to Profile Created without changing stored status", () => {
     assert.equal(resolvePersonaDisplayReadiness("Queued"), "Profile Created");
-    assert.equal(resolvePersonaDisplayReadiness("Ready"), "Ready");
+    // Stage 3: Ready is never a Persona display claim; map to Analysis Generated.
+    assert.equal(
+      resolvePersonaDisplayReadiness("Ready"),
+      "Analysis Generated",
+    );
     assert.equal(
       resolvePersonaDisplayReadiness("Processing Failed"),
       "Processing Failed",
@@ -195,19 +199,14 @@ describe("persona stage-2 library UX contracts", () => {
 });
 
 describe("persona stage-2 detail and metadata contracts", () => {
-  it("detail page is metadata-only without future intelligence controls", () => {
+  it("detail page keeps metadata editing and excludes Stage 4 actions", () => {
     const page = read("app/personas/[id]/page.tsx");
     assert.match(page, /PersonaMetadataEditor/);
     assert.match(page, /PersonaLifecycleStatusControl/);
-    assert.match(
-      page,
-      /Persona intelligence generation will become available/,
-    );
     assert.doesNotMatch(page, /Think Differently/);
     assert.doesNotMatch(page, /Deep Scrape/);
     assert.doesNotMatch(page, /Append Interaction/);
     assert.doesNotMatch(page, /Ask Athena/);
-    assert.doesNotMatch(page, /RefreshIntelligence/);
     assert.doesNotMatch(page, /DiscussionRegeneration/);
   });
 
@@ -227,7 +226,7 @@ describe("persona stage-2 detail and metadata contracts", () => {
 });
 
 describe("persona stage-2 route surface", () => {
-  it("creates only Stage 2 CRUD and import routes", () => {
+  it("keeps Stage 2 CRUD/import routes and excludes Stage 4 routes", () => {
     assert.equal(existsSync(join(ROOT, "app/personas/page.tsx")), true);
     assert.equal(existsSync(join(ROOT, "app/personas/import/page.tsx")), true);
     assert.equal(existsSync(join(ROOT, "app/personas/[id]/page.tsx")), true);
@@ -247,10 +246,6 @@ describe("persona stage-2 route surface", () => {
     );
 
     assert.equal(
-      existsSync(join(ROOT, "app/api/personas/[id]/refresh")),
-      false,
-    );
-    assert.equal(
       existsSync(join(ROOT, "app/api/personas/[id]/analyze")),
       false,
     );
@@ -268,10 +263,6 @@ describe("persona stage-2 route surface", () => {
     );
     assert.equal(
       existsSync(join(ROOT, "app/api/personas/[id]/deep-scrape")),
-      false,
-    );
-    assert.equal(
-      existsSync(join(ROOT, "app/api/personas/[id]/status")),
       false,
     );
   });

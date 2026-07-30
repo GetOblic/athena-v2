@@ -27,7 +27,13 @@ import {
   markProspectGenerationReady,
   prepareProspectBridgeBeforeGeneration,
 } from "@/services/prospects/prospectImporter";
+import {
+  markPersonaGenerationAnalysisComplete,
+  markPersonaGenerationFailed,
+  preparePersonaBridgeBeforeGeneration,
+} from "@/services/personas/personaImporter";
 import { isThinkDifferentlyJobProgress } from "@/services/brain/generationContracts/executiveGenerationMode";
+import { PERSONA_INTELLIGENCE_PLATFORM } from "@/services/personas/personaBridgeMarker";
 import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
 import { processThinkDifferentlyWorkflow } from "@/services/workflows/thinkDifferentlyWorkflow";
@@ -212,6 +218,19 @@ export async function executeClaimedGenerationJob(
       if (claimLost) {
         return "claim_lost";
       }
+    } else if (discussion?.platform === PERSONA_INTELLIGENCE_PLATFORM) {
+      await renewLease("persona_bridge");
+      if (claimLost) {
+        return "claim_lost";
+      }
+      await preparePersonaBridgeBeforeGeneration(
+        job.discussion_id,
+        job.organization_id,
+      );
+      await renewLease("discussion_analysis");
+      if (claimLost) {
+        return "claim_lost";
+      }
     }
 
     const thinkDifferently = isThinkDifferentlyJobProgress(job.progress);
@@ -288,6 +307,10 @@ export async function executeClaimedGenerationJob(
           job.discussion_id,
           job.organization_id,
         );
+        await markPersonaGenerationFailed(
+          job.discussion_id,
+          job.organization_id,
+        );
         await maybeEnqueueFollowUp(job);
       }
 
@@ -300,6 +323,11 @@ export async function executeClaimedGenerationJob(
     }
 
     const discussionForPlatform = discussion;
+    const isProspect =
+      discussionForPlatform?.platform === PROSPECT_INTELLIGENCE_PLATFORM;
+    const isPersona =
+      discussionForPlatform?.platform === PERSONA_INTELLIGENCE_PLATFORM;
+
     // After a successful pipeline run, prefer the version tied to this regeneration run.
     let published = null as Awaited<
       ReturnType<typeof resolvePublishedVersionForJob>
@@ -336,9 +364,7 @@ export async function executeClaimedGenerationJob(
       );
     }
 
-    const isProspect =
-      discussionForPlatform?.platform === PROSPECT_INTELLIGENCE_PLATFORM;
-
+    // Prospect publication completeness only — never applied to Persona bridges.
     if (isProspect && !published?.id) {
       const failed = await failGenerationJobWithClaim({
         jobId: job.id,
@@ -352,6 +378,27 @@ export async function executeClaimedGenerationJob(
       });
       if (failed?.status === "failed") {
         await markProspectGenerationFailed(
+          job.discussion_id,
+          job.organization_id,
+        );
+        await maybeEnqueueFollowUp(job);
+      }
+      return failed?.status === "retryable" ? "retryable" : "failed";
+    }
+
+    // Stage 3 Persona: shared analysis completion is sufficient (no Prospect Ready gate).
+    if (isPersona && !result.analysisId) {
+      const failed = await failGenerationJobWithClaim({
+        jobId: job.id,
+        claimToken,
+        errorCode: "ANALYSIS_INCOMPLETE",
+        errorMessage: "Persona generation did not produce shared analysis.",
+        retryable: true,
+        attemptCount: job.attempt_count,
+        failedStage: "discussion_analysis",
+      });
+      if (failed?.status === "failed") {
+        await markPersonaGenerationFailed(
           job.discussion_id,
           job.organization_id,
         );
@@ -389,11 +436,19 @@ export async function executeClaimedGenerationJob(
       }
     }
 
-    await markProspectGenerationReady(
-      job.discussion_id,
-      job.organization_id,
-      opportunityScore,
-    );
+    if (isPersona) {
+      await markPersonaGenerationAnalysisComplete(
+        job.discussion_id,
+        job.organization_id,
+        opportunityScore,
+      );
+    } else {
+      await markProspectGenerationReady(
+        job.discussion_id,
+        job.organization_id,
+        opportunityScore,
+      );
+    }
 
     await maybeEnqueueFollowUp(job);
 
@@ -434,6 +489,10 @@ export async function executeClaimedGenerationJob(
 
     if (failed?.status === "failed") {
       await markProspectGenerationFailed(
+        job.discussion_id,
+        job.organization_id,
+      );
+      await markPersonaGenerationFailed(
         job.discussion_id,
         job.organization_id,
       );

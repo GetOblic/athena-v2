@@ -1,8 +1,14 @@
 /**
  * Persona Intelligence — first-class archetype intelligence source.
- * Stage 1: isolated organization-scoped CRUD foundation only.
- * Generation / bridge Discussions are intentionally out of scope.
+ * Stage 3: organization-scoped CRUD plus bridge Discussion linkage.
  */
+
+export { PERSONA_INTELLIGENCE_PLATFORM } from "@/services/personas/personaBridgeMarker";
+export {
+  isPersonaIntelligenceBridge,
+  excludePersonaIntelligenceBridges,
+} from "@/services/personas/personaBridgeMarker";
+export { buildPersonaAnalysisBody } from "@/services/personas/personaPipelineBody";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
@@ -180,6 +186,25 @@ export async function findPersonaByNameAndCity(
   });
 
   return match ? mapPersonaRow(match) : null;
+}
+
+export async function getPersonaByLinkedDiscussionId(
+  discussionId: string,
+  organizationId: string,
+): Promise<Persona | null> {
+  const { data, error } = await supabaseAdmin
+    .from("personas")
+    .select("*")
+    .eq("linked_discussion_id", discussionId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching persona by linked discussion:", error);
+    return null;
+  }
+
+  return data ? mapPersonaRow(data as Persona) : null;
 }
 
 export async function getPersonaById(
