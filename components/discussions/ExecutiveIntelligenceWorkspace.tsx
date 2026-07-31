@@ -675,11 +675,37 @@ export function ExecutiveIntelligenceWorkspace({
               />
             </AthenaCollapsibleSection>
           )
+        ) : isPersona &&
+          (viewModel.isHistorical ||
+            viewModel.personaAnalysisAssets.length > 0) ? (
+          <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
+            Persona Deployment Assets are unavailable in this Executive Version
+            snapshot.
+          </div>
         ) : viewModel.isHistorical ? (
           <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
             Deployment Assets are unavailable in this archived Executive Version
             snapshot.
           </div>
+        ) : null}
+
+        {isPersona && viewModel.personaAnalysisAssets.length > 0 ? (
+          <AthenaCollapsibleSection
+            key={`persona-analysis-assets-section-${viewModel.executiveVersionId ?? "none"}`}
+            title="Persona Analysis Assets"
+            defaultOpen={false}
+            className="mt-8"
+          >
+            <DeploymentAssets
+              key={`persona-analysis-assets-${viewModel.executiveVersionId ?? "none"}`}
+              executiveVersionId={viewModel.executiveVersionId}
+              assets={viewModel.personaAnalysisAssets}
+              copyContext={copyContext}
+              doneByAssetType={doneByAssetType}
+              tagsByAssetType={tagsByAssetType}
+              continuationPreferences={continuationPreferences}
+            />
+          </AthenaCollapsibleSection>
         ) : null}
 
         {viewModel.blueprint ? (

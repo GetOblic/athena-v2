@@ -1,17 +1,22 @@
 /**
- * Canonical Persona Deployment Asset contract.
- * Shared by generation validation, publication, status, and display.
+ * Canonical Persona Analysis Asset contract (V15).
+ *
+ * The 14 strategic headings below are Persona Analysis Assets.
+ * Persona publishable Deployment Assets reuse the Prospect 26-key catalog
+ * (see lib/personaIntelligenceAssetCatalog.ts) and are validated with the
+ * Prospect deployment contract for the deployment package only.
  *
  * Assets are one labeled suggested_cta string — not per-asset rows.
- * Mutually exclusive with Prospect: never accept Prospect keys as Persona completeness.
+ * Mutually exclusive with Prospect for Analysis keys: never accept Prospect
+ * keys as Persona Analysis completeness.
  */
 
 import {
-  PERSONA_DEPLOYMENT_ASSET_META,
+  PERSONA_ANALYSIS_ASSET_META,
 } from "@/services/ai/prompts/personaDeploymentAssetsConstraints";
 
-/** Required Stage 4 keys — all 14 must be non-empty for Ready / publication. */
-export const REQUIRED_PERSONA_DEPLOYMENT_ASSET_KEYS = [
+/** Required Analysis keys — all 14 must be non-empty for V15 Ready / publication. */
+export const REQUIRED_PERSONA_ANALYSIS_ASSET_KEYS = [
   "PERSONA_EXECUTIVE_PROFILE",
   "MESSAGING_FRAMEWORK",
   "VALUE_PROPOSITION",
@@ -28,10 +33,20 @@ export const REQUIRED_PERSONA_DEPLOYMENT_ASSET_KEYS = [
   "VALIDATION_AND_LEARNING_PLAN",
 ] as const;
 
-export type RequiredPersonaDeploymentAssetKey =
-  (typeof REQUIRED_PERSONA_DEPLOYMENT_ASSET_KEYS)[number];
+/**
+ * @deprecated Use REQUIRED_PERSONA_ANALYSIS_ASSET_KEYS. Kept as an alias so
+ * older imports resolve to the Analysis catalog (not Prospect Deployment keys).
+ */
+export const REQUIRED_PERSONA_DEPLOYMENT_ASSET_KEYS =
+  REQUIRED_PERSONA_ANALYSIS_ASSET_KEYS;
 
-const HEADING_SOURCE_KEYS = [...REQUIRED_PERSONA_DEPLOYMENT_ASSET_KEYS] as const;
+export type RequiredPersonaAnalysisAssetKey =
+  (typeof REQUIRED_PERSONA_ANALYSIS_ASSET_KEYS)[number];
+
+/** @deprecated Use RequiredPersonaAnalysisAssetKey */
+export type RequiredPersonaDeploymentAssetKey = RequiredPersonaAnalysisAssetKey;
+
+const HEADING_SOURCE_KEYS = [...REQUIRED_PERSONA_ANALYSIS_ASSET_KEYS] as const;
 
 // After the colon, consume only same-line whitespace so the newline that
 // anchors the next heading remains available for `(?:^|\\n)`.
@@ -40,7 +55,7 @@ const SECTION_HEADING_PATTERN = new RegExp(
   "g",
 );
 
-const OBJECT_SHAPE_KEYS = [...REQUIRED_PERSONA_DEPLOYMENT_ASSET_KEYS] as const;
+const OBJECT_SHAPE_KEYS = [...REQUIRED_PERSONA_ANALYSIS_ASSET_KEYS] as const;
 
 export type PersonaDeploymentAssetParseResult = {
   suggestedCta: string;
@@ -48,8 +63,8 @@ export type PersonaDeploymentAssetParseResult = {
   cta: string;
   rawCharacterCount: number;
   unwrappedCharacterCount: number;
-  parsedKeys: RequiredPersonaDeploymentAssetKey[];
-  missingKeys: RequiredPersonaDeploymentAssetKey[];
+  parsedKeys: RequiredPersonaAnalysisAssetKey[];
+  missingKeys: RequiredPersonaAnalysisAssetKey[];
   isComplete: boolean;
   isValid: boolean;
   failureReason: string | null;
@@ -59,8 +74,8 @@ export type PersonaDeploymentAssetDiagnostics = {
   rawCharacterCount: number;
   unwrappedCharacterCount: number;
   parsedAssetCount: number;
-  parsedCanonicalKeys: RequiredPersonaDeploymentAssetKey[];
-  missingCanonicalKeys: RequiredPersonaDeploymentAssetKey[];
+  parsedCanonicalKeys: RequiredPersonaAnalysisAssetKey[];
+  missingCanonicalKeys: RequiredPersonaAnalysisAssetKey[];
   validationResult: "complete" | "incomplete" | "invalid";
   failureReason: string | null;
 };
@@ -79,37 +94,39 @@ function looksLikeSectionHeadingBlock(text: string): boolean {
 
 function canonicalizeKey(
   label: string,
-): RequiredPersonaDeploymentAssetKey | null {
+): RequiredPersonaAnalysisAssetKey | null {
   if (
-    (REQUIRED_PERSONA_DEPLOYMENT_ASSET_KEYS as readonly string[]).includes(
-      label,
-    )
+    (REQUIRED_PERSONA_ANALYSIS_ASSET_KEYS as readonly string[]).includes(label)
   ) {
-    return label as RequiredPersonaDeploymentAssetKey;
+    return label as RequiredPersonaAnalysisAssetKey;
   }
   return null;
 }
 
-export type PersonaDeploymentAssetSection = {
-  key: RequiredPersonaDeploymentAssetKey;
+export type PersonaAnalysisAssetSection = {
+  key: RequiredPersonaAnalysisAssetKey;
   content: string;
 };
 
+/** @deprecated Use PersonaAnalysisAssetSection */
+export type PersonaDeploymentAssetSection = PersonaAnalysisAssetSection;
+
 /**
- * Extract canonical sections from actual section headings only (anchored).
+ * Extract canonical Analysis sections from actual section headings only.
  * Order-independent; duplicates collapse to first occurrence with content.
+ * Does not treat OBJECTION_HANDLING as Prospect OBJECTION_ANTICIPATION.
  */
-export function extractPersonaDeploymentAssetSections(
+export function extractPersonaAnalysisAssetSections(
   value?: string | null,
-): PersonaDeploymentAssetSection[] {
+): PersonaAnalysisAssetSection[] {
   if (!value?.trim()) {
     return [];
   }
 
   SECTION_HEADING_PATTERN.lastIndex = 0;
   const matches = [...value.matchAll(SECTION_HEADING_PATTERN)];
-  const seen = new Set<RequiredPersonaDeploymentAssetKey>();
-  const sections: PersonaDeploymentAssetSection[] = [];
+  const seen = new Set<RequiredPersonaAnalysisAssetKey>();
+  const sections: PersonaAnalysisAssetSection[] = [];
 
   for (let index = 0; index < matches.length; index += 1) {
     const match = matches[index];
@@ -134,27 +151,55 @@ export function extractPersonaDeploymentAssetSections(
   return sections;
 }
 
-export function extractPersonaDeploymentAssetKeys(
+/** @deprecated Use extractPersonaAnalysisAssetSections */
+export function extractPersonaDeploymentAssetSections(
   value?: string | null,
-): RequiredPersonaDeploymentAssetKey[] {
-  return extractPersonaDeploymentAssetSections(value).map(
+): PersonaAnalysisAssetSection[] {
+  return extractPersonaAnalysisAssetSections(value);
+}
+
+export function extractPersonaAnalysisAssetKeys(
+  value?: string | null,
+): RequiredPersonaAnalysisAssetKey[] {
+  return extractPersonaAnalysisAssetSections(value).map(
     (section) => section.key,
   );
 }
 
-export function missingPersonaDeploymentAssetKeys(
+/** @deprecated Use extractPersonaAnalysisAssetKeys */
+export function extractPersonaDeploymentAssetKeys(
+  value?: string | null,
+): RequiredPersonaAnalysisAssetKey[] {
+  return extractPersonaAnalysisAssetKeys(value);
+}
+
+export function missingPersonaAnalysisAssetKeys(
   parsedKeys: readonly string[],
-): RequiredPersonaDeploymentAssetKey[] {
+): RequiredPersonaAnalysisAssetKey[] {
   const present = new Set(parsedKeys);
-  return REQUIRED_PERSONA_DEPLOYMENT_ASSET_KEYS.filter(
+  return REQUIRED_PERSONA_ANALYSIS_ASSET_KEYS.filter(
     (key) => !present.has(key),
   );
 }
 
+/** @deprecated Use missingPersonaAnalysisAssetKeys */
+export function missingPersonaDeploymentAssetKeys(
+  parsedKeys: readonly string[],
+): RequiredPersonaAnalysisAssetKey[] {
+  return missingPersonaAnalysisAssetKeys(parsedKeys);
+}
+
+export function isCompletePersonaAnalysisAssetSet(
+  parsedKeys: readonly string[],
+): boolean {
+  return missingPersonaAnalysisAssetKeys(parsedKeys).length === 0;
+}
+
+/** @deprecated Use isCompletePersonaAnalysisAssetSet */
 export function isCompletePersonaDeploymentAssetSet(
   parsedKeys: readonly string[],
 ): boolean {
-  return missingPersonaDeploymentAssetKeys(parsedKeys).length === 0;
+  return isCompletePersonaAnalysisAssetSet(parsedKeys);
 }
 
 function composeLabeledCtaFromObject(
@@ -163,7 +208,7 @@ function composeLabeledCtaFromObject(
   for (const key of OBJECT_SHAPE_KEYS) {
     const value = String(parsed[key] ?? "").trim();
     if (value && looksLikeSectionHeadingBlock(value)) {
-      const keys = extractPersonaDeploymentAssetKeys(value);
+      const keys = extractPersonaAnalysisAssetKeys(value);
       if (keys.length > 0) {
         return value;
       }
@@ -171,7 +216,7 @@ function composeLabeledCtaFromObject(
   }
 
   const parts: string[] = [];
-  for (const key of REQUIRED_PERSONA_DEPLOYMENT_ASSET_KEYS) {
+  for (const key of REQUIRED_PERSONA_ANALYSIS_ASSET_KEYS) {
     const direct = String(parsed[key] ?? "").trim();
     if (direct) {
       parts.push(`${key}:\n${direct}`);
@@ -210,10 +255,10 @@ function tryParseJsonObject(text: string): Record<string, unknown> | null {
 }
 
 /**
- * Unwrap model response into a labeled suggested_cta payload.
- * Rejects unlabeled prose / bare JSON without canonical Persona sections.
+ * Unwrap model response into a labeled Analysis Asset suggested_cta payload.
+ * Rejects unlabeled prose / bare JSON without canonical Persona Analysis sections.
  */
-export function unwrapPersonaDeploymentAssetResponse(
+export function unwrapPersonaAnalysisAssetResponse(
   rawText: string,
 ): PersonaDeploymentAssetParseResult {
   const rawCharacterCount = rawText.length;
@@ -224,8 +269,8 @@ export function unwrapPersonaDeploymentAssetResponse(
     failureReason: string,
     suggestedCta = "",
   ): PersonaDeploymentAssetParseResult => {
-    const parsedKeys = extractPersonaDeploymentAssetKeys(suggestedCta);
-    const missingKeys = missingPersonaDeploymentAssetKeys(parsedKeys);
+    const parsedKeys = extractPersonaAnalysisAssetKeys(suggestedCta);
+    const missingKeys = missingPersonaAnalysisAssetKeys(parsedKeys);
     const isComplete = missingKeys.length === 0 && parsedKeys.length > 0;
     return {
       suggestedCta,
@@ -303,6 +348,13 @@ export function unwrapPersonaDeploymentAssetResponse(
   return empty("unlabeled_or_malformed_output");
 }
 
+/** @deprecated Use unwrapPersonaAnalysisAssetResponse */
+export function unwrapPersonaDeploymentAssetResponse(
+  rawText: string,
+): PersonaDeploymentAssetParseResult {
+  return unwrapPersonaAnalysisAssetResponse(rawText);
+}
+
 function finalizeParseResult(
   suggestedCta: string,
   recommendedResponse: string,
@@ -310,8 +362,8 @@ function finalizeParseResult(
   rawCharacterCount: number,
   unwrappedCharacterCount: number,
 ): PersonaDeploymentAssetParseResult {
-  const parsedKeys = extractPersonaDeploymentAssetKeys(suggestedCta);
-  const missingKeys = missingPersonaDeploymentAssetKeys(parsedKeys);
+  const parsedKeys = extractPersonaAnalysisAssetKeys(suggestedCta);
+  const missingKeys = missingPersonaAnalysisAssetKeys(parsedKeys);
   const isComplete = missingKeys.length === 0;
 
   let failureReason: string | null = null;
@@ -335,7 +387,7 @@ function finalizeParseResult(
   };
 }
 
-export function validatePersonaDeploymentAssetPayload(
+export function validatePersonaAnalysisAssetPayload(
   suggestedCta?: string | null,
 ): PersonaDeploymentAssetParseResult {
   const text = suggestedCta?.trim() ?? "";
@@ -347,7 +399,7 @@ export function validatePersonaDeploymentAssetPayload(
       rawCharacterCount: 0,
       unwrappedCharacterCount: 0,
       parsedKeys: [],
-      missingKeys: [...REQUIRED_PERSONA_DEPLOYMENT_ASSET_KEYS],
+      missingKeys: [...REQUIRED_PERSONA_ANALYSIS_ASSET_KEYS],
       isComplete: false,
       isValid: false,
       failureReason: "empty_suggested_cta",
@@ -355,6 +407,13 @@ export function validatePersonaDeploymentAssetPayload(
   }
 
   return finalizeParseResult(text, text, "", text.length, text.length);
+}
+
+/** @deprecated Use validatePersonaAnalysisAssetPayload */
+export function validatePersonaDeploymentAssetPayload(
+  suggestedCta?: string | null,
+): PersonaDeploymentAssetParseResult {
+  return validatePersonaAnalysisAssetPayload(suggestedCta);
 }
 
 export function toPersonaDeploymentAssetDiagnostics(
@@ -388,31 +447,43 @@ export function logPersonaDeploymentAssetStability(
   );
 }
 
-export function personaDeploymentAssetTitle(
-  key: RequiredPersonaDeploymentAssetKey,
+export function personaAnalysisAssetTitle(
+  key: RequiredPersonaAnalysisAssetKey,
 ): string {
-  return (
-    PERSONA_DEPLOYMENT_ASSET_META[key]?.title ?? key.replace(/_/g, " ")
-  );
+  return PERSONA_ANALYSIS_ASSET_META[key]?.title ?? key.replace(/_/g, " ");
 }
 
-/** Count recognized required keys in a CTA string (for completeness comparisons). */
+/** @deprecated Use personaAnalysisAssetTitle */
+export function personaDeploymentAssetTitle(
+  key: RequiredPersonaAnalysisAssetKey,
+): string {
+  return personaAnalysisAssetTitle(key);
+}
+
+/** Count recognized Analysis keys in a CTA string (for completeness comparisons). */
+export function countPersonaAnalysisAssetKeys(value?: string | null): number {
+  return extractPersonaAnalysisAssetKeys(value).length;
+}
+
+/** @deprecated Use countPersonaAnalysisAssetKeys */
 export function countPersonaDeploymentAssetKeys(
   value?: string | null,
 ): number {
-  return extractPersonaDeploymentAssetKeys(value).length;
+  return countPersonaAnalysisAssetKeys(value);
 }
 
 /**
- * Whether live CTA is a strict upgrade over snapshot CTA for the same run.
- * Never treats a smaller set as an upgrade.
+ * Whether live CTA is a strict upgrade over snapshot CTA for Analysis keys.
+ * Never treats a smaller Analysis set as an upgrade.
+ * V15 dual-package upgrades are handled in personaIntelligenceAssetCatalog /
+ * executiveVersionDisplay.
  */
 export function isStrictlyMoreCompletePersonaCta(
   snapshotCta?: string | null,
   liveCta?: string | null,
 ): boolean {
-  const snapshotKeys = extractPersonaDeploymentAssetKeys(snapshotCta);
-  const liveKeys = extractPersonaDeploymentAssetKeys(liveCta);
+  const snapshotKeys = extractPersonaAnalysisAssetKeys(snapshotCta);
+  const liveKeys = extractPersonaAnalysisAssetKeys(liveCta);
   if (liveKeys.length <= snapshotKeys.length) {
     return false;
   }
@@ -440,31 +511,5 @@ export class IncompletePersonaPublicationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "IncompletePersonaPublicationError";
-  }
-}
-
-/**
- * Publication completeness assertion for Persona Executive Versions.
- * Requires Strategic Blueprint + complete 14-key Persona Deployment Asset set.
- */
-export function requirePersonaCompleteness(input: {
-  suggestedCta?: string | null;
-  blueprintId?: string | null;
-}): void {
-  if (!input.blueprintId) {
-    throw new IncompletePersonaPublicationError(
-      "Persona publication needs a linked Strategic Blueprint.",
-    );
-  }
-
-  const validation = validatePersonaDeploymentAssetPayload(input.suggestedCta);
-  if (!validation.isComplete) {
-    const missing =
-      validation.missingKeys.length > 0
-        ? ` Missing: ${validation.missingKeys.join(", ")}.`
-        : "";
-    throw new IncompletePersonaPublicationError(
-      `Persona publication needs a complete Deployment Asset set.${missing}`,
-    );
   }
 }

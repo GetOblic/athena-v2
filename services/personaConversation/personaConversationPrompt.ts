@@ -42,7 +42,7 @@ PERSONA ARCHETYPE CONTRACT:
 
 GROUNDING CONTRACT:
 - Answer only from the assembled Athena context provided for this Persona.
-- Prefer Current Executive Version Strategic Blueprint and Persona Deployment Assets when present.
+- Prefer Current Executive Version Strategic Blueprint, publish-ready Persona Deployment Assets, and strategic Persona Analysis Assets when present. Distinguish publish-ready channel copy from strategic Analysis.
 - Label material inference as interpretation, not confirmed fact.
 - Provide useful recommendations tied to available evidence.
 
@@ -66,6 +66,7 @@ function sectionKeepPriority(type: PersonaConversationSourceType): number {
   switch (type) {
     case "STRATEGIC_BLUEPRINT":
     case "DEPLOYMENT_ASSETS":
+    case "ANALYSIS_ASSETS":
     case "DISCUSSION_ANALYSIS":
     case "EXECUTIVE_VERSION_METADATA":
       return 1;

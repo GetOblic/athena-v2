@@ -15,10 +15,15 @@ import {
   PROSPECT_DEPLOYMENT_SECTION_LABELS,
 } from "@/services/ai/prompts/prospectDeploymentAssetsConstraints";
 import {
-  PERSONA_DEPLOYMENT_CHANNEL_GUIDE,
-  PERSONA_DEPLOYMENT_EVIDENCE_DISCIPLINE,
-  PERSONA_DEPLOYMENT_SECTION_LABELS,
+  PERSONA_ANALYSIS_CHANNEL_GUIDE,
+  PERSONA_ANALYSIS_EVIDENCE_DISCIPLINE,
+  PERSONA_ANALYSIS_SECTION_LABELS,
 } from "@/services/ai/prompts/personaDeploymentAssetsConstraints";
+import {
+  PERSONA_PUBLISHABLE_CONTEXTUAL_REASONING,
+  PERSONA_PUBLISHABLE_DEPLOYMENT_EVIDENCE_DISCIPLINE,
+  PERSONA_PUBLISHABLE_DEPLOYMENT_TARGETING,
+} from "@/services/ai/prompts/personaPublishableDeploymentAssetsConstraints";
 import { HIDDEN_GEMS_GENERATION_RULES } from "@/services/ai/prompts/hiddenGemsConstraints";
 import { REDDIT_POST_GENERATION_RULES } from "@/services/ai/prompts/redditPostConstraints";
 import { SKOOL_COURSE_IDEA_GENERATION_RULES } from "@/services/ai/prompts/skoolCourseIdeaConstraints";
@@ -56,6 +61,10 @@ export { buildDeploymentAssetsRequiredOutputInstructions } from "@/services/brai
 type PromptAssemblyOptions = {
   regenerationRunId?: string;
 };
+
+export type PersonaDeploymentPromptPackageKind =
+  | "publishable_deployment"
+  | "analysis";
 
 function buildDeploymentExecutiveContext(
   bundle: GenerationBundle,
@@ -95,6 +104,147 @@ function buildDeploymentExecutiveContext(
     .trim();
 }
 
+function buildProspectQualityStandard(input: {
+  knowledgeBaseRules: string;
+  visualAssetsBlock: string;
+}): string {
+  return `
+=== DEPLOYMENT ASSETS (PROSPECT) ===
+${SHARED_ANTI_GENERIC_RULES}
+
+${PROSPECT_DEPLOYMENT_CHANNEL_GUIDE}
+
+Use exact section labels:
+${PROSPECT_DEPLOYMENT_SECTION_LABELS}
+
+${LINKEDIN_PROSPECT_ASSET_GENERATION_RULES}
+
+${WHATSAPP_OUTREACH_GENERATION_RULES}
+
+${input.knowledgeBaseRules}
+
+${HIDDEN_GEMS_GENERATION_RULES}
+
+${SUBSTACK_POST_GENERATION_RULES}
+
+${SUBSTACK_NOTE_GENERATION_RULES}
+
+${REDDIT_POST_GENERATION_RULES}
+
+${SKOOL_POST_GENERATION_RULES}
+
+${SKOOL_COURSE_IDEA_GENERATION_RULES}
+
+${SOCIAL_VOICE_POST_GENERATION_RULES}
+
+${input.visualAssetsBlock}
+
+Channel isolation is mandatory:
+- Email must read like email; WhatsApp must read like WhatsApp; LinkedIn must read like LinkedIn.
+- Substack Post must be publication-ready long-form editorial content — not SEO or sales copy.
+- Substack Note must be a concise feed-native note — not a full newsletter or Substack Post.
+- Reddit must be transparent and community-native.
+- Skool Post must be discussion-oriented community content — not a cold sales post.
+- Skool Course Idea must be prospect-specific and teachable — not a generic category course.
+- Hidden Gems must be non-obvious analyst findings from the complete learned website corpus — not a website summary and not Knowledge Base Enhancement.
+- Knowledge Base Enhancement must be factual operational knowledge — never invent facts; omit unknowns.
+- Social Voice Post must be first-person in the client's Athena Brain Voice — not outreach email, not Discussion SOCIAL_POST, not a sales template.
+- Short Video Prompt, Visual Message Prompt, and Local Outreach Image Prompt are generator prompts only — never scripts, strategies, or explanations.
+Do not let one asset format leak into another.
+Newsletter Idea and Blog Post Idea are for the Athena client's audience, using prospect/homepage/ads as market evidence — not outreach emails.
+Substack Post, Substack Note, Reddit Post, Skool Post, and Social Voice Post must be materially different from each other and from Newsletter/Blog Idea.
+Do not generate LOCAL_OUTREACH_IMAGE_PROMPT for non-Prospect sources.
+
+${SHARED_OUTPUT_DIVERSITY_RULES}
+`.trim();
+}
+
+function buildPersonaPublishableQualityStandard(input: {
+  knowledgeBaseRules: string;
+  visualAssetsBlock: string;
+}): string {
+  return `
+=== PERSONA DEPLOYMENT ASSETS (PUBLISH-READY) ===
+${SHARED_ANTI_GENERIC_RULES}
+
+${PERSONA_PUBLISHABLE_DEPLOYMENT_TARGETING}
+
+${PERSONA_PUBLISHABLE_CONTEXTUAL_REASONING}
+
+${PERSONA_PUBLISHABLE_DEPLOYMENT_EVIDENCE_DISCIPLINE}
+
+Reuse the Prospect channel guide and exact Prospect section labels for full channel parity:
+
+${PROSPECT_DEPLOYMENT_CHANNEL_GUIDE}
+
+Use exact section labels:
+${PROSPECT_DEPLOYMENT_SECTION_LABELS}
+
+${LINKEDIN_PROSPECT_ASSET_GENERATION_RULES}
+
+${WHATSAPP_OUTREACH_GENERATION_RULES}
+
+${input.knowledgeBaseRules}
+
+${HIDDEN_GEMS_GENERATION_RULES}
+
+${SUBSTACK_POST_GENERATION_RULES}
+
+${SUBSTACK_NOTE_GENERATION_RULES}
+
+${REDDIT_POST_GENERATION_RULES}
+
+${SKOOL_POST_GENERATION_RULES}
+
+${SKOOL_COURSE_IDEA_GENERATION_RULES}
+
+${SOCIAL_VOICE_POST_GENERATION_RULES}
+
+${input.visualAssetsBlock}
+
+Channel isolation is mandatory (same Prospect rules, Persona targeting):
+- Email must read like email; WhatsApp must read like WhatsApp; LinkedIn must read like LinkedIn.
+- Substack Post must be publication-ready long-form editorial content — not SEO or sales copy.
+- Substack Note must be a concise feed-native note — not a full newsletter or Substack Post.
+- Reddit must be transparent and community-native.
+- Skool Post must be discussion-oriented community content — not a cold sales post.
+- Skool Course Idea must be Persona-market-specific and teachable — not a generic category course.
+- Hidden Gems must be non-obvious analyst findings from available contextual evidence — not a website summary and not Knowledge Base Enhancement.
+- Knowledge Base Enhancement must be factual operational knowledge — never invent facts; omit unknowns.
+- Social Voice Post must be first-person in the client's Athena Brain Voice — speaking to this Persona market.
+- Short Video Prompt, Visual Message Prompt, and Local Outreach Image Prompt are generator prompts only — never scripts, strategies, or explanations.
+- Local Outreach Image Prompt may use Persona location fields when available.
+Do not let one asset format leak into another.
+Newsletter Idea and Blog Post Idea are for the Athena client's audience, using Persona/market evidence — not one-to-one lead emails.
+Emit OBJECTION_ANTICIPATION only (never OBJECTION_HANDLING) in this publish-ready package.
+Do not emit Persona Analysis headings in this response.
+
+${SHARED_OUTPUT_DIVERSITY_RULES}
+`.trim();
+}
+
+function buildPersonaAnalysisQualityStandard(): string {
+  return `
+=== PERSONA ANALYSIS ASSETS ===
+${SHARED_ANTI_GENERIC_RULES}
+
+${PERSONA_ANALYSIS_EVIDENCE_DISCIPLINE}
+
+${PERSONA_ANALYSIS_CHANNEL_GUIDE}
+
+Use exact section labels:
+${PERSONA_ANALYSIS_SECTION_LABELS}
+
+Treat the subject as an archetype or audience segment — not an identifiable lead.
+Do not assume the Reference Website is owned by the Persona.
+Do not invent demographic certainty, slang, dialect, or cultural traits without evidence.
+Do not emit Prospect Deployment headings (including OBJECTION_ANTICIPATION) in this Analysis response.
+Do not collapse output into PRIMARY_REPLY or unlabeled prose.
+
+${SHARED_OUTPUT_DIVERSITY_RULES}
+`.trim();
+}
+
 export function assembleDeploymentAssetsPrompt(input: {
   bundle: GenerationBundle;
   discussion: Discussion;
@@ -111,6 +261,11 @@ export function assembleDeploymentAssetsPrompt(input: {
    * stay coherent with that direction (not a prior Standard blueprint).
    */
   strategicBlueprint?: Record<string, unknown> | null;
+  /**
+   * Persona-only V15 package selector. Ignored for Prospect/Discussion.
+   * Defaults to analysis for backward-compatible call sites.
+   */
+  personaPackageKind?: PersonaDeploymentPromptPackageKind;
 }): string {
   const executiveContextBlock = buildDeploymentExecutiveContext(input.bundle, {
     regenerationRunId: input.regenerationRunId,
@@ -173,6 +328,8 @@ export function assembleDeploymentAssetsPrompt(input: {
   const isPersonaSource =
     !isProspectSource &&
     input.discussion.platform === PERSONA_INTELLIGENCE_PLATFORM;
+  const personaPackageKind: PersonaDeploymentPromptPackageKind =
+    input.personaPackageKind ?? "analysis";
 
   const knowledgeBaseRules = deepWebsiteIntelligence
     ? KNOWLEDGE_BASE_DEEP_SCRAPE_GENERATION_RULES
@@ -181,93 +338,37 @@ export function assembleDeploymentAssetsPrompt(input: {
   const requiredOutput = buildDeploymentAssetsRequiredOutputInstructions({
     isProspectSource,
     isPersonaSource,
+    personaPackageKind: isPersonaSource ? personaPackageKind : undefined,
   });
 
   const visualBrandBlock = formatVisualBrandCreativeDirectionBlock(
     input.brandIdentity,
   );
 
+  const includeLocalOutreachVisual =
+    isProspectSource ||
+    (isPersonaSource && personaPackageKind === "publishable_deployment");
+
   const visualAssetsBlock = [
     visualBrandBlock,
     VISUAL_DEPLOYMENT_ASSETS_SHARED_RULES,
     SHORT_VIDEO_PROMPT_GENERATION_RULES,
     VISUAL_MESSAGE_PROMPT_GENERATION_RULES,
-    isProspectSource ? LOCAL_OUTREACH_IMAGE_PROMPT_GENERATION_RULES : "",
+    includeLocalOutreachVisual ? LOCAL_OUTREACH_IMAGE_PROMPT_GENERATION_RULES : "",
   ]
     .filter(Boolean)
     .join("\n\n");
 
   const qualityStandard = isProspectSource
-    ? `
-=== DEPLOYMENT ASSETS (PROSPECT) ===
-${SHARED_ANTI_GENERIC_RULES}
-
-${PROSPECT_DEPLOYMENT_CHANNEL_GUIDE}
-
-Use exact section labels:
-${PROSPECT_DEPLOYMENT_SECTION_LABELS}
-
-${LINKEDIN_PROSPECT_ASSET_GENERATION_RULES}
-
-${WHATSAPP_OUTREACH_GENERATION_RULES}
-
-${knowledgeBaseRules}
-
-${HIDDEN_GEMS_GENERATION_RULES}
-
-${SUBSTACK_POST_GENERATION_RULES}
-
-${SUBSTACK_NOTE_GENERATION_RULES}
-
-${REDDIT_POST_GENERATION_RULES}
-
-${SKOOL_POST_GENERATION_RULES}
-
-${SKOOL_COURSE_IDEA_GENERATION_RULES}
-
-${SOCIAL_VOICE_POST_GENERATION_RULES}
-
-${visualAssetsBlock}
-
-Channel isolation is mandatory:
-- Email must read like email; WhatsApp must read like WhatsApp; LinkedIn must read like LinkedIn.
-- Substack Post must be publication-ready long-form editorial content — not SEO or sales copy.
-- Substack Note must be a concise feed-native note — not a full newsletter or Substack Post.
-- Reddit must be transparent and community-native.
-- Skool Post must be discussion-oriented community content — not a cold sales post.
-- Skool Course Idea must be prospect-specific and teachable — not a generic category course.
-- Hidden Gems must be non-obvious analyst findings from the complete learned website corpus — not a website summary and not Knowledge Base Enhancement.
-- Knowledge Base Enhancement must be factual operational knowledge — never invent facts; omit unknowns.
-- Social Voice Post must be first-person in the client's Athena Brain Voice — not outreach email, not Discussion SOCIAL_POST, not a sales template.
-- Short Video Prompt, Visual Message Prompt, and Local Outreach Image Prompt are generator prompts only — never scripts, strategies, or explanations.
-Do not let one asset format leak into another.
-Newsletter Idea and Blog Post Idea are for the Athena client's audience, using prospect/homepage/ads as market evidence — not outreach emails.
-Substack Post, Substack Note, Reddit Post, Skool Post, and Social Voice Post must be materially different from each other and from Newsletter/Blog Idea.
-Do not generate LOCAL_OUTREACH_IMAGE_PROMPT for non-Prospect sources.
-
-${SHARED_OUTPUT_DIVERSITY_RULES}
-`.trim()
+    ? buildProspectQualityStandard({ knowledgeBaseRules, visualAssetsBlock })
     : isPersonaSource
-      ? `
-=== DEPLOYMENT ASSETS (PERSONA) ===
-${SHARED_ANTI_GENERIC_RULES}
-
-${PERSONA_DEPLOYMENT_EVIDENCE_DISCIPLINE}
-
-${PERSONA_DEPLOYMENT_CHANNEL_GUIDE}
-
-Use exact section labels:
-${PERSONA_DEPLOYMENT_SECTION_LABELS}
-
-Treat the subject as an archetype or audience segment — not an identifiable lead.
-Do not assume the Reference Website is owned by the Persona.
-Do not invent demographic certainty, slang, dialect, or cultural traits without evidence.
-Do not produce one-to-one cold outreach assets or Prospect LinkedIn/lead-outreach formats.
-Do not collapse output into PRIMARY_REPLY or unlabeled prose.
-
-${SHARED_OUTPUT_DIVERSITY_RULES}
-`.trim()
-    : `
+      ? personaPackageKind === "publishable_deployment"
+        ? buildPersonaPublishableQualityStandard({
+            knowledgeBaseRules,
+            visualAssetsBlock,
+          })
+        : buildPersonaAnalysisQualityStandard()
+      : `
 ${
   input.opportunity
     ? DEPLOYMENT_ASSETS_BRIEFING_QUALITY_INSTRUCTIONS
@@ -283,7 +384,11 @@ ${visualAssetsBlock}
 === STRATEGIC BLUEPRINT (AUTHORITATIVE FOR THIS GENERATION) ===
 This alternative Strategic Blueprint supersedes prior execution strategy.
 Persona evidence below is factual grounding only — do not preserve a previous campaign structure merely because evidence is unchanged.
-Deployment Assets must operationalize this blueprint direction. Do not revert to a prior blueprint or invent a conflicting strategy.
+${
+  personaPackageKind === "publishable_deployment"
+    ? "Persona publish-ready Deployment Assets must operationalize this blueprint direction."
+    : "Persona Analysis Assets must operationalize this blueprint direction."
+} Do not revert to a prior blueprint or invent a conflicting strategy.
 ${JSON.stringify(input.strategicBlueprint, null, 2)}
 `.trim()
       : `
@@ -298,14 +403,26 @@ ${JSON.stringify(input.strategicBlueprint, null, 2)}
   const sourceTypeLine = isProspectSource
     ? "Source type: Prospect Intelligence. Prefer prospect outreach assets over community discussion assets."
     : isPersonaSource
-      ? "Source type: Persona Intelligence. Generate archetype deployment assets — not Prospect lead-outreach assets."
+      ? personaPackageKind === "publishable_deployment"
+        ? "Source type: Persona Intelligence. Generate publish-ready Deployment Assets that attract, engage, and convert this Persona — full Prospect channel catalog with Persona targeting."
+        : "Source type: Persona Intelligence. Generate strategic Persona Analysis Assets — not publish-ready channel Deployment Assets."
       : "";
+
+  const objectiveVerb =
+    isPersonaSource && personaPackageKind === "analysis"
+      ? "Generate strategic Persona Analysis Assets only from the source intelligence below. Do not repeat executive analysis."
+      : "Generate paste-ready deployment assets only from the source intelligence below. Do not repeat executive analysis.";
+
+  const tdObjectiveVerb =
+    isPersonaSource && personaPackageKind === "analysis"
+      ? "Generate strategic Persona Analysis Assets that operationalize the authoritative alternative Strategic Blueprint. Upstream analysis is factual grounding only — not a mandate to reuse the prior execution package."
+      : "Generate paste-ready deployment assets that operationalize the authoritative alternative Strategic Blueprint. Upstream analysis is factual grounding only — not a mandate to reuse the prior execution package.";
 
   // When a Think Differently blueprint is present, place it above unchanged analysis.
   const objectiveAndSources = input.strategicBlueprint
     ? `
 === OBJECTIVE ===
-Generate paste-ready deployment assets that operationalize the authoritative alternative Strategic Blueprint. Upstream analysis is factual grounding only — not a mandate to reuse the prior execution package.
+${tdObjectiveVerb}
 ${sourceTypeLine}
 
 ${blueprintAuthorityBlock}
@@ -321,7 +438,7 @@ ${qualityStandard}
 `.trim()
     : `
 === OBJECTIVE ===
-Generate paste-ready deployment assets only from the source intelligence below. Do not repeat executive analysis.
+${objectiveVerb}
 ${sourceTypeLine}
 
 === SOURCE INTELLIGENCE ===
@@ -335,4 +452,24 @@ ${qualityStandard}
 `.trim();
 
   return [executiveContextBlock, objectiveAndSources].join("\n\n");
+}
+
+/** Persona Call 1 — publish-ready 26-asset Prospect catalog with Persona targeting. */
+export function assemblePersonaPublishableDeploymentAssetsPrompt(
+  input: Omit<Parameters<typeof assembleDeploymentAssetsPrompt>[0], "personaPackageKind">,
+): string {
+  return assembleDeploymentAssetsPrompt({
+    ...input,
+    personaPackageKind: "publishable_deployment",
+  });
+}
+
+/** Persona Call 2 — 14 strategic Analysis Assets. */
+export function assemblePersonaAnalysisAssetsPrompt(
+  input: Omit<Parameters<typeof assembleDeploymentAssetsPrompt>[0], "personaPackageKind">,
+): string {
+  return assembleDeploymentAssetsPrompt({
+    ...input,
+    personaPackageKind: "analysis",
+  });
 }

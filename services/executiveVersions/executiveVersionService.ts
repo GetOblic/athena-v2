@@ -21,9 +21,9 @@ import {
 } from "@/services/executiveVersions/executiveVersionTypes";
 import {
   logPersonaDeploymentAssetStability,
-  requirePersonaCompleteness,
   IncompletePersonaPublicationError,
 } from "@/lib/personaDeploymentAssetContract";
+import { requirePersonaCompleteness } from "@/lib/personaIntelligenceAssetCatalog";
 import {
   logProspectDeploymentAssetStability,
   validateProspectDeploymentAssetPayload,

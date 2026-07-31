@@ -1,13 +1,15 @@
 /**
- * Persona-specific Deployment Asset section labels and generation guide.
- * Used only when discussion.platform === persona_intelligence.
+ * Persona Analysis Asset section labels and generation guide (V15).
+ * Used for Persona Intelligence Call 2 (Analysis Assets) when
+ * discussion.platform === persona_intelligence.
  *
- * Stage 4 decision: optional Persona extras are omitted entirely to keep
- * prompt size and parser risk bounded. Ready/publication completeness uses
- * exactly the 14 required keys below — optional keys must never enter the gate.
+ * Publish-ready Deployment Assets (Call 1) reuse the Prospect 26-key catalog
+ * via personaPublishableDeploymentAssetsConstraints + Prospect contracts.
+ *
+ * Canonical Analysis keys are unchanged from Stage 4.
  */
 
-export const PERSONA_DEPLOYMENT_SECTION_LABELS = `
+export const PERSONA_ANALYSIS_SECTION_LABELS = `
 PERSONA_EXECUTIVE_PROFILE:
 MESSAGING_FRAMEWORK:
 VALUE_PROPOSITION:
@@ -24,15 +26,18 @@ CUSTOMER_EXPERIENCE_GUIDANCE:
 VALIDATION_AND_LEARNING_PLAN:
 `.trim();
 
-export const PERSONA_DEPLOYMENT_CHANNEL_GUIDE = `
+/** @deprecated Use PERSONA_ANALYSIS_SECTION_LABELS */
+export const PERSONA_DEPLOYMENT_SECTION_LABELS = PERSONA_ANALYSIS_SECTION_LABELS;
+
+export const PERSONA_ANALYSIS_CHANNEL_GUIDE = `
 PERSONA_EXECUTIVE_PROFILE — concise archetype description; primary needs and motivations; behavioral and decision patterns; evidence strength; contradictions; unknowns and confidence gaps. Do not invent demographic certainty.
 MESSAGING_FRAMEWORK — core message pillars; proof angles; language to use; language to avoid; sample message lines; trust-building principles.
 VALUE_PROPOSITION — Persona-specific value proposition; why it matters to them; why now; differentiators; evidence basis.
-OBJECTION_HANDLING — objection-response pairs. Clearly distinguish evidenced objections, user-observed objections, and inferred/hypothesized objections.
+OBJECTION_HANDLING — objection-response pairs. Clearly distinguish evidenced objections, user-observed objections, and inferred/hypothesized objections. This is strategic Analysis — distinct from publish-ready OBJECTION_ANTICIPATION Deployment Assets.
 LANGUAGE_AND_TONE_GUIDE — tone; vocabulary; phrases to use; phrases to avoid; communication sensitivities; cultural or linguistic considerations only where evidence exists. Do not invent slang, dialect, or cultural traits.
 OFFER_POSITIONING — packaging; positioning; value framing; pricing sensitivity considerations; offer hierarchy; risk-reduction mechanisms. Use caution when financial profile data is missing.
 CHANNEL_STRATEGY — prioritized channels; channel rationale; content/interaction role by channel; evidence or assumptions behind the ranking. Prefer explicitly supplied preferred_channels.
-CAMPAIGN_CONCEPTS — 2–3 actionable campaign concepts. Each: insight, hook, message, activation, CTA, validation signal. Do not produce one-to-one cold outreach assets.
+CAMPAIGN_CONCEPTS — 2–3 actionable campaign concepts. Each: insight, hook, message, activation, CTA, validation signal.
 CONTENT_THEMES — repeatable editorial themes; purpose; likely Persona interest; suitable formats; funnel or journey role.
 ADVERTISEMENT_CONCEPTS — multiple advertisement directions; audience insight; concept; copy direction; CTA; creative considerations. Use ads_content as evidence when present.
 LANDING_PAGE_DIRECTION — page narrative; hero direction; proof; objection reduction; section sequence; CTA; trust elements; visual considerations.
@@ -41,20 +46,27 @@ CUSTOMER_EXPERIENCE_GUIDANCE — journey stages; moments of truth; sensitivities
 VALIDATION_AND_LEARNING_PLAN — weak assumptions; highest-value missing information; hypotheses; inexpensive tests; success/failure signals; how future real-world evidence should refine the Persona.
 `.trim();
 
-export const PERSONA_DEPLOYMENT_EVIDENCE_DISCIPLINE = `
-=== PERSONA EVIDENCE DISCIPLINE (MANDATORY) ===
+/** @deprecated Use PERSONA_ANALYSIS_CHANNEL_GUIDE */
+export const PERSONA_DEPLOYMENT_CHANNEL_GUIDE = PERSONA_ANALYSIS_CHANNEL_GUIDE;
+
+export const PERSONA_ANALYSIS_EVIDENCE_DISCIPLINE = `
+=== PERSONA ANALYSIS EVIDENCE DISCIPLINE (MANDATORY) ===
 Treat the subject as an archetype / audience segment — never as an identifiable individual lead.
 Classify every claim as: fact from Persona fields, user observation, source-derived evidence, or inference.
 Identify unknowns and confidence gaps instead of fabricating certainty.
 Do not invent demographic, financial, cultural, slang, or dialect traits without evidence.
 Do not assume the Reference Website belongs to or is owned by the Persona — it is contextual market/reference evidence only.
 Do not treat one interaction or observation as universally representative of the entire Persona.
-Do not produce one-to-one cold outreach assets (connection notes, personalized cold emails to a named lead).
-Do not reuse Prospect LinkedIn character limits or Prospect lead-outreach framing.
+These are strategic Analysis Assets — not the publish-ready channel Deployment Assets package.
+Do not emit Prospect Deployment headings (PERSONALIZED_OUTREACH_EMAIL, OBJECTION_ANTICIPATION, etc.) in this Analysis response.
 Avoid stereotypes and visual clichés.
 `.trim();
 
-export const PERSONA_DEPLOYMENT_ASSET_KEYS = [
+/** @deprecated Use PERSONA_ANALYSIS_EVIDENCE_DISCIPLINE */
+export const PERSONA_DEPLOYMENT_EVIDENCE_DISCIPLINE =
+  PERSONA_ANALYSIS_EVIDENCE_DISCIPLINE;
+
+export const PERSONA_ANALYSIS_ASSET_KEYS = [
   "PERSONA_EXECUTIVE_PROFILE",
   "MESSAGING_FRAMEWORK",
   "VALUE_PROPOSITION",
@@ -71,11 +83,17 @@ export const PERSONA_DEPLOYMENT_ASSET_KEYS = [
   "VALIDATION_AND_LEARNING_PLAN",
 ] as const;
 
-export type PersonaDeploymentAssetKey =
-  (typeof PERSONA_DEPLOYMENT_ASSET_KEYS)[number];
+/** @deprecated Use PERSONA_ANALYSIS_ASSET_KEYS */
+export const PERSONA_DEPLOYMENT_ASSET_KEYS = PERSONA_ANALYSIS_ASSET_KEYS;
 
-export const PERSONA_DEPLOYMENT_ASSET_META: Record<
-  PersonaDeploymentAssetKey,
+export type PersonaAnalysisAssetKey =
+  (typeof PERSONA_ANALYSIS_ASSET_KEYS)[number];
+
+/** @deprecated Use PersonaAnalysisAssetKey */
+export type PersonaDeploymentAssetKey = PersonaAnalysisAssetKey;
+
+export const PERSONA_ANALYSIS_ASSET_META: Record<
+  PersonaAnalysisAssetKey,
   { title: string; objective: string }
 > = {
   PERSONA_EXECUTIVE_PROFILE: {
@@ -139,3 +157,6 @@ export const PERSONA_DEPLOYMENT_ASSET_META: Record<
       "Weak assumptions, missing information, cheap tests, and refinement signals.",
   },
 };
+
+/** @deprecated Use PERSONA_ANALYSIS_ASSET_META */
+export const PERSONA_DEPLOYMENT_ASSET_META = PERSONA_ANALYSIS_ASSET_META;

@@ -123,11 +123,13 @@ describe("V6 Sprint 2 — Prospect LinkedIn 200-character limit", () => {
       "services/brain/generationContracts/deploymentAssetsPromptAssembly.ts",
     );
     assert.match(assembly, /LINKEDIN_PROSPECT_ASSET_GENERATION_RULES/);
-    const prospectBranch = assembly.slice(
-      assembly.indexOf("const qualityStandard = isProspectSource"),
-      assembly.indexOf("? DEPLOYMENT_ASSETS_BRIEFING_QUALITY_INSTRUCTIONS"),
+    // Prospect quality block is assembled in buildProspectQualityStandard (unchanged rules).
+    const prospectQuality = assembly.slice(
+      assembly.indexOf("function buildProspectQualityStandard"),
+      assembly.indexOf("function buildPersonaPublishableQualityStandard"),
     );
-    assert.match(prospectBranch, /LINKEDIN_PROSPECT_ASSET_GENERATION_RULES/);
+    assert.match(prospectQuality, /LINKEDIN_PROSPECT_ASSET_GENERATION_RULES/);
+    assert.match(prospectQuality, /DEPLOYMENT ASSETS \(PROSPECT\)/);
   });
 
   it("over-limit LinkedIn assets cannot be published as complete", () => {

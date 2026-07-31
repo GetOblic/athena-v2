@@ -43,7 +43,29 @@ export const DEPLOYMENT_ASSET_TYPE_BY_LABEL: Record<string, string> = {
   VISUAL_MESSAGE_PROMPT: "visual_message_prompt",
   LOCAL_OUTREACH_IMAGE_PROMPT: "local_outreach_image_prompt",
   PRIMARY_REPLY: "primary_reply",
+  // Persona Analysis Assets (OBJECTION_HANDLING intentionally distinct below).
+  PERSONA_EXECUTIVE_PROFILE: "persona_executive_profile",
+  MESSAGING_FRAMEWORK: "messaging_framework",
+  VALUE_PROPOSITION: "value_proposition",
+  LANGUAGE_AND_TONE_GUIDE: "language_and_tone_guide",
+  OFFER_POSITIONING: "offer_positioning",
+  CHANNEL_STRATEGY: "channel_strategy",
+  CAMPAIGN_CONCEPTS: "campaign_concepts",
+  CONTENT_THEMES: "content_themes",
+  ADVERTISEMENT_CONCEPTS: "advertisement_concepts",
+  LANDING_PAGE_DIRECTION: "landing_page_direction",
+  VISUAL_AND_IMAGE_PROMPT_DIRECTION: "visual_and_image_prompt_direction",
+  CUSTOMER_EXPERIENCE_GUIDANCE: "customer_experience_guidance",
+  VALIDATION_AND_LEARNING_PLAN: "validation_and_learning_plan",
 };
+
+/**
+ * Persona Analysis OBJECTION_HANDLING must not share Prospect's
+ * objection_anticipation interaction key. Applied only when callers pass this
+ * explicit analysis key (see buildPersonaAnalysisAssets).
+ */
+export const PERSONA_ANALYSIS_OBJECTION_HANDLING_ASSET_TYPE =
+  "objection_handling" as const;
 
 export const BLUEPRINT_ASSET_TYPES = {
   image_prompt: "blueprint_image_prompt",
@@ -55,6 +77,7 @@ export const BLUEPRINT_ASSET_TYPES = {
 const SUPPORTED_ASSET_INTERACTION_TYPES = new Set<string>([
   ...Object.values(DEPLOYMENT_ASSET_TYPE_BY_LABEL),
   ...Object.values(BLUEPRINT_ASSET_TYPES),
+  PERSONA_ANALYSIS_OBJECTION_HANDLING_ASSET_TYPE,
 ]);
 
 export function isSupportedAssetInteractionType(assetType: string): boolean {

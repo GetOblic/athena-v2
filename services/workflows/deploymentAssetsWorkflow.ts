@@ -14,6 +14,10 @@ import {
   assembleDeploymentAssetsPrompt,
   resolveGenerationBundle,
 } from "@/services/brain/generationContractService";
+import {
+  assemblePersonaAnalysisAssetsPrompt,
+  assemblePersonaPublishableDeploymentAssetsPrompt,
+} from "@/services/brain/generationContracts/deploymentAssetsPromptAssembly";
 import type { GenerationBundle } from "@/services/brain/generationContracts/generationContractTypes";
 import {
   hashContent,
@@ -22,9 +26,13 @@ import {
 import {
   logPersonaDeploymentAssetStability,
   toPersonaDeploymentAssetDiagnostics,
-  unwrapPersonaDeploymentAssetResponse,
+  unwrapPersonaAnalysisAssetResponse,
   IncompletePersonaDeploymentAssetsError,
 } from "@/lib/personaDeploymentAssetContract";
+import {
+  finalizePersonaV15CombinedPackage,
+  isCompleteV15PersonaIntelligenceCta,
+} from "@/lib/personaIntelligenceAssetCatalog";
 import {
   logProspectDeploymentAssetStability,
   toProspectDeploymentAssetDiagnostics,
@@ -190,7 +198,17 @@ export async function generateDeploymentAssets(input: {
           briefing: (input.briefing ?? null) as Record<string, unknown> | null,
         };
 
-  const standardPrompt = assembleDeploymentAssetsPrompt({
+  const isProspect = isProspectIntelligenceBridge(input.discussion);
+  const isPersona =
+    !isProspect && isPersonaIntelligenceBridge(input.discussion);
+
+  const athenaStage: AthenaExtendedLLMStage =
+    generationMode === "think_differently"
+      ? THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE
+      : "deployment_assets";
+  const routedModel = resolveModelForStage(athenaStage).model;
+
+  const sharedPromptInput = {
     bundle,
     discussion: input.discussion,
     analysis: promptContext.analysis,
@@ -203,31 +221,190 @@ export async function generateDeploymentAssets(input: {
       generationMode === "think_differently"
         ? (input.strategicBlueprint ?? null)
         : null,
-  });
+  };
 
-  let prompt =
-    generationMode === "think_differently"
-      ? appendThinkDifferentlyDeploymentAssetsAddendum(
-          appendThinkDifferentlyInstruction(standardPrompt),
-        )
-      : standardPrompt;
+  const finalizePrompt = (standardPrompt: string): string => {
+    let prompt =
+      generationMode === "think_differently"
+        ? appendThinkDifferentlyDeploymentAssetsAddendum(
+            appendThinkDifferentlyInstruction(standardPrompt),
+          )
+        : standardPrompt;
 
-  if (
-    generationMode === "think_differently" &&
-    Array.isArray(input.divergenceRepairDuplicateKeys) &&
-    input.divergenceRepairDuplicateKeys.length > 0
-  ) {
-    prompt = appendThinkDifferentlyDeploymentAssetRepairInstruction(
-      prompt,
-      input.divergenceRepairDuplicateKeys,
+    if (
+      generationMode === "think_differently" &&
+      Array.isArray(input.divergenceRepairDuplicateKeys) &&
+      input.divergenceRepairDuplicateKeys.length > 0
+    ) {
+      prompt = appendThinkDifferentlyDeploymentAssetRepairInstruction(
+        prompt,
+        input.divergenceRepairDuplicateKeys,
+      );
+    }
+    return prompt;
+  };
+
+  // Persona V15: two sequential LLM calls inside this stage.
+  // Call 1 = publish-ready Prospect catalog (26). Call 2 = Analysis (14).
+  if (isPersona) {
+    const deploymentPrompt = finalizePrompt(
+      assemblePersonaPublishableDeploymentAssetsPrompt(sharedPromptInput),
     );
+    const deploymentRawResponse = await generateReview(deploymentPrompt, {
+      stage:
+        generationMode === "think_differently"
+          ? "deployment_assets.think_differently.generation"
+          : "deployment_assets.generation",
+      promptSource:
+        "services/brain/generationContracts/deploymentAssetsPromptAssembly.ts::assemblePersonaPublishableDeploymentAssetsPrompt",
+      generationKind: input.opportunity
+        ? "executive_briefing"
+        : "discussion_analysis",
+      athenaStage,
+      reasoningProfile:
+        generationMode === "think_differently" ? "STRATEGIC" : undefined,
+      regenerationRunId: input.regenerationRunId,
+      discussionId: input.discussionId,
+      explicitRegeneration: input.explicitRegeneration,
+    });
+
+    const deploymentUnwrapped =
+      unwrapProspectDeploymentAssetResponse(deploymentRawResponse);
+    const deploymentDiagnostics =
+      toProspectDeploymentAssetDiagnostics(deploymentUnwrapped);
+
+    logPersonaDeploymentAssetStability(
+      "persona_publishable_deployment_unwrapped",
+      {
+        discussionId: input.discussionId,
+        organizationId: input.organizationId,
+        regenerationRunId: input.regenerationRunId ?? null,
+        ...deploymentDiagnostics,
+      },
+    );
+
+    if (!deploymentUnwrapped.isComplete) {
+      const missing =
+        deploymentUnwrapped.missingKeys.length > 0
+          ? ` Missing: ${deploymentUnwrapped.missingKeys.join(", ")}.`
+          : "";
+      throw new IncompletePersonaDeploymentAssetsError(
+        deploymentUnwrapped.failureReason === "incomplete_canonical_set"
+          ? `Persona publish-ready Deployment Assets incomplete.${missing}`
+          : deploymentUnwrapped.failureReason ===
+              "linkedin_asset_exceeds_200_characters"
+            ? `Persona LinkedIn Deployment Assets exceed the 200-character limit.${missing}`
+            : `Persona publish-ready Deployment Assets invalid or malformed.${missing}`,
+        {
+          rawCharacterCount: deploymentDiagnostics.rawCharacterCount,
+          unwrappedCharacterCount:
+            deploymentDiagnostics.unwrappedCharacterCount,
+          parsedAssetCount: deploymentDiagnostics.parsedAssetCount,
+          parsedCanonicalKeys: [],
+          missingCanonicalKeys: [],
+          validationResult: deploymentDiagnostics.validationResult,
+          failureReason: deploymentDiagnostics.failureReason,
+        },
+      );
+    }
+
+    const analysisPrompt = finalizePrompt(
+      assemblePersonaAnalysisAssetsPrompt(sharedPromptInput),
+    );
+    const analysisRawResponse = await generateReview(analysisPrompt, {
+      stage:
+        generationMode === "think_differently"
+          ? "deployment_assets.think_differently.generation"
+          : "deployment_assets.generation",
+      promptSource:
+        "services/brain/generationContracts/deploymentAssetsPromptAssembly.ts::assemblePersonaAnalysisAssetsPrompt",
+      generationKind: input.opportunity
+        ? "executive_briefing"
+        : "discussion_analysis",
+      athenaStage,
+      reasoningProfile:
+        generationMode === "think_differently" ? "STRATEGIC" : undefined,
+      regenerationRunId: input.regenerationRunId,
+      discussionId: input.discussionId,
+      explicitRegeneration: input.explicitRegeneration,
+    });
+
+    const analysisUnwrapped =
+      unwrapPersonaAnalysisAssetResponse(analysisRawResponse);
+    const analysisDiagnostics =
+      toPersonaDeploymentAssetDiagnostics(analysisUnwrapped);
+
+    logPersonaDeploymentAssetStability("persona_analysis_assets_unwrapped", {
+      discussionId: input.discussionId,
+      organizationId: input.organizationId,
+      regenerationRunId: input.regenerationRunId ?? null,
+      ...analysisDiagnostics,
+    });
+
+    if (!analysisUnwrapped.isComplete) {
+      const missing =
+        analysisUnwrapped.missingKeys.length > 0
+          ? ` Missing: ${analysisUnwrapped.missingKeys.join(", ")}.`
+          : "";
+      throw new IncompletePersonaDeploymentAssetsError(
+        analysisUnwrapped.failureReason === "incomplete_canonical_set"
+          ? `Persona Analysis Assets incomplete.${missing}`
+          : `Persona Analysis Assets invalid or malformed.${missing}`,
+        analysisDiagnostics,
+      );
+    }
+
+    // Alias-normalize Call 1, combine, then final V15 integrity gate.
+    // Incomplete combined packages throw — never return, persist, or succeed.
+    const combinedCta = finalizePersonaV15CombinedPackage({
+      deploymentCta: deploymentUnwrapped.suggestedCta,
+      analysisCta: analysisUnwrapped.suggestedCta,
+    });
+
+    if (!isCompleteV15PersonaIntelligenceCta(combinedCta)) {
+      throw new IncompletePersonaDeploymentAssetsError(
+        "Persona V15 combined intelligence package incomplete.",
+        {
+          rawCharacterCount: combinedCta.length,
+          unwrappedCharacterCount: combinedCta.length,
+          parsedAssetCount: 0,
+          parsedCanonicalKeys: [],
+          missingCanonicalKeys: [],
+          validationResult: "incomplete",
+          failureReason: "incomplete_v15_combined_package",
+        },
+      );
+    }
+
+    const combinedRawResponse = [
+      "=== PERSONA_PUBLISHABLE_DEPLOYMENT_RAW ===",
+      deploymentRawResponse,
+      "=== PERSONA_ANALYSIS_RAW ===",
+      analysisRawResponse,
+    ].join("\n\n");
+
+    logPersonaDeploymentAssetStability("persona_v15_packages_combined", {
+      discussionId: input.discussionId,
+      organizationId: input.organizationId,
+      regenerationRunId: input.regenerationRunId ?? null,
+      deploymentParsedCount: deploymentUnwrapped.parsedKeys.length,
+      analysisParsedCount: analysisUnwrapped.parsedKeys.length,
+      combinedCharacterCount: combinedCta.length,
+    });
+
+    return {
+      assets: {
+        suggested_cta: combinedCta,
+        recommended_response: combinedCta,
+        cta: analysisUnwrapped.cta || deploymentUnwrapped.cta,
+      },
+      rawResponse: combinedRawResponse,
+      model: routedModel,
+    };
   }
 
-  const athenaStage: AthenaExtendedLLMStage =
-    generationMode === "think_differently"
-      ? THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE
-      : "deployment_assets";
-  const routedModel = resolveModelForStage(athenaStage).model;
+  const standardPrompt = assembleDeploymentAssetsPrompt(sharedPromptInput);
+  const prompt = finalizePrompt(standardPrompt);
 
   const rawResponse = await generateReview(prompt, {
     stage:
@@ -245,10 +422,6 @@ export async function generateDeploymentAssets(input: {
     discussionId: input.discussionId,
     explicitRegeneration: input.explicitRegeneration,
   });
-
-  const isProspect = isProspectIntelligenceBridge(input.discussion);
-  const isPersona =
-    !isProspect && isPersonaIntelligenceBridge(input.discussion);
 
   if (isProspect) {
     const unwrapped = unwrapProspectDeploymentAssetResponse(rawResponse);
@@ -269,41 +442,6 @@ export async function generateDeploymentAssets(input: {
               "linkedin_asset_exceeds_200_characters"
             ? "Prospect LinkedIn Deployment Assets exceed the 200-character limit."
             : "Prospect Deployment Assets invalid or malformed.",
-        diagnostics,
-      );
-    }
-
-    return {
-      assets: {
-        suggested_cta: unwrapped.suggestedCta,
-        recommended_response: unwrapped.recommendedResponse,
-        cta: unwrapped.cta,
-      },
-      rawResponse,
-      model: routedModel,
-    };
-  }
-
-  if (isPersona) {
-    const unwrapped = unwrapPersonaDeploymentAssetResponse(rawResponse);
-    const diagnostics = toPersonaDeploymentAssetDiagnostics(unwrapped);
-
-    logPersonaDeploymentAssetStability("deployment_assets_unwrapped", {
-      discussionId: input.discussionId,
-      organizationId: input.organizationId,
-      regenerationRunId: input.regenerationRunId ?? null,
-      ...diagnostics,
-    });
-
-    if (!unwrapped.isComplete) {
-      const missing =
-        unwrapped.missingKeys.length > 0
-          ? ` Missing: ${unwrapped.missingKeys.join(", ")}.`
-          : "";
-      throw new IncompletePersonaDeploymentAssetsError(
-        unwrapped.failureReason === "incomplete_canonical_set"
-          ? `Persona Deployment Assets incomplete.${missing}`
-          : `Persona Deployment Assets invalid or malformed.${missing}`,
         diagnostics,
       );
     }

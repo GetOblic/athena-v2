@@ -3,7 +3,10 @@
  * Defaults to Current Executive Version. Does not enqueue jobs or mutate data.
  */
 
-import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
+import {
+  buildDiscussionDeploymentAssets,
+  buildPersonaAnalysisAssets,
+} from "@/lib/deploymentAssets";
 import {
   getCurrentExecutiveVersion,
   getExecutiveVersionById,
@@ -88,10 +91,9 @@ function formatBlueprint(payload: ExecutiveIntelligencePayload): string {
   ].join("\n\n");
 }
 
-function formatDeploymentAssets(payload: ExecutiveIntelligencePayload): string {
-  const assets = buildDiscussionDeploymentAssets(payload.analysis ?? null, {
-    personaMode: true,
-  });
+function formatAssetList(
+  assets: ReturnType<typeof buildDiscussionDeploymentAssets>,
+): string {
   if (assets.length === 0) return "";
   return assets
     .map((asset) => {
@@ -99,6 +101,20 @@ function formatDeploymentAssets(payload: ExecutiveIntelligencePayload): string {
       return `[${key}] ${asset.title}\nObjective: ${asset.objective}\n\n${asset.content}`;
     })
     .join("\n\n---\n\n");
+}
+
+function formatDeploymentAssets(payload: ExecutiveIntelligencePayload): string {
+  return formatAssetList(
+    buildDiscussionDeploymentAssets(payload.analysis ?? null, {
+      personaMode: true,
+    }),
+  );
+}
+
+function formatAnalysisAssets(payload: ExecutiveIntelligencePayload): string {
+  return formatAssetList(
+    buildPersonaAnalysisAssets(payload.analysis?.suggested_cta ?? null),
+  );
 }
 
 function formatAnalysis(payload: ExecutiveIntelligencePayload): string {
@@ -316,11 +332,25 @@ export async function assemblePersonaConversationContext(input: {
       pushSection(sections, {
         type: "DEPLOYMENT_ASSETS",
         trust: "athena_analysis",
-        label: "Current Persona Deployment Assets",
+        label: "Current Persona Deployment Assets (publish-ready)",
         content: deploymentText,
       });
     } else {
-      missingNotes.push("Persona Deployment Assets are missing.");
+      missingNotes.push(
+        "Persona Deployment Assets (publish-ready) are missing.",
+      );
+    }
+
+    const analysisAssetsText = formatAnalysisAssets(intelligence);
+    if (analysisAssetsText) {
+      pushSection(sections, {
+        type: "ANALYSIS_ASSETS",
+        trust: "athena_analysis",
+        label: "Current Persona Analysis Assets (strategic)",
+        content: analysisAssetsText,
+      });
+    } else {
+      missingNotes.push("Persona Analysis Assets are missing.");
     }
   }
 

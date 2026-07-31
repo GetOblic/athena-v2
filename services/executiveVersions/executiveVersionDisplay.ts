@@ -24,6 +24,10 @@ import {
   isStrictlyMoreCompletePersonaCta,
 } from "@/lib/personaDeploymentAssetContract";
 import {
+  isCompleteV15PersonaIntelligenceCta,
+  isLegacyPersonaAnalysisOnlyCta,
+} from "@/lib/personaIntelligenceAssetCatalog";
+import {
   extractProspectDeploymentAssetKeys,
   isCompleteProspectDeploymentAssetSet,
   isStrictlyMoreCompleteProspectCta,
@@ -430,16 +434,20 @@ export function shouldPatchIncompleteCurrentVersion(input: {
   const personaSnapshotKeys = extractPersonaDeploymentAssetKeys(snapshotCta);
   const personaLiveKeys = extractPersonaDeploymentAssetKeys(liveCta);
   const personaSnapshotComplete =
-    isCompletePersonaDeploymentAssetSet(personaSnapshotKeys);
-  const personaLiveComplete =
-    isCompletePersonaDeploymentAssetSet(personaLiveKeys);
+    isCompleteV15PersonaIntelligenceCta(snapshotCta) ||
+    (isLegacyPersonaAnalysisOnlyCta(snapshotCta) &&
+      isCompletePersonaDeploymentAssetSet(personaSnapshotKeys));
+  const personaLiveComplete = isCompleteV15PersonaIntelligenceCta(liveCta);
+  const personaLegacyToV15Upgrade =
+    isLegacyPersonaAnalysisOnlyCta(snapshotCta) && personaLiveComplete;
 
   // Never replace a complete Prospect or Persona snapshot with a smaller set.
   if (snapshotComplete && liveKeys.length < snapshotKeys.length) {
     return false;
   }
   if (
-    personaSnapshotComplete &&
+    isCompleteV15PersonaIntelligenceCta(snapshotCta) &&
+    !personaLiveComplete &&
     personaLiveKeys.length < personaSnapshotKeys.length
   ) {
     return false;
@@ -452,6 +460,7 @@ export function shouldPatchIncompleteCurrentVersion(input: {
     (snapshotMissingCta && liveHasAnyCta) ||
     isStrictlyMoreCompleteProspectCta(snapshotCta, liveCta) ||
     isStrictlyMoreCompletePersonaCta(snapshotCta, liveCta) ||
+    personaLegacyToV15Upgrade ||
     (!snapshotComplete && liveComplete) ||
     (!personaSnapshotComplete && personaLiveComplete);
 

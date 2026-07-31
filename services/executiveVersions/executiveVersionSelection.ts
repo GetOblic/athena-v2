@@ -4,7 +4,10 @@
  * No I/O — selection, display timestamps, and version-bound render props only.
  */
 
-import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
+import {
+  buildDiscussionDeploymentAssets,
+  buildPersonaAnalysisAssets,
+} from "@/lib/deploymentAssets";
 import type { AthenaAssetBlueprint } from "@/services/assetBlueprints/assetBlueprintService";
 import type {
   ExecutiveIntelligencePayload,
@@ -189,6 +192,12 @@ export type SelectedExecutiveVersionViewModel = {
   analysis: ExecutiveIntelligencePayload["analysis"] | null;
   /** Frozen Deployment Assets parsed from the selected version only. */
   deploymentAssets: DeploymentAssetView[];
+  /**
+   * Persona-only: strategic Analysis Assets from the selected version.
+   * Empty for Prospect/Discussion. Legacy Persona versions may populate this
+   * while deploymentAssets stays empty.
+   */
+  personaAnalysisAssets: DeploymentAssetView[];
   version: ExecutiveIntelligenceVersion | null;
 };
 
@@ -215,15 +224,21 @@ export function buildSelectedExecutiveVersionViewModel(input: {
 
   // Parse from a frozen copy of the selected version's analysis only.
   // Never pass live/fallback analysis into the Deployment Assets normalizer.
+  const suggestedCta = intelligence?.analysis?.suggested_cta ?? "";
   const deploymentAssets =
     intelligence?.analysis && !selection.selectionMissing
       ? buildDiscussionDeploymentAssets(
           {
             ...intelligence.analysis,
-            suggested_cta: intelligence.analysis.suggested_cta ?? "",
+            suggested_cta: suggestedCta,
           },
           { prospectMode, personaMode },
         )
+      : [];
+
+  const personaAnalysisAssets =
+    personaMode && intelligence?.analysis && !selection.selectionMissing
+      ? buildPersonaAnalysisAssets(suggestedCta)
       : [];
 
   return {
@@ -245,6 +260,7 @@ export function buildSelectedExecutiveVersionViewModel(input: {
     intelligence,
     analysis: intelligence?.analysis ?? null,
     deploymentAssets,
+    personaAnalysisAssets,
     version,
   };
 }
