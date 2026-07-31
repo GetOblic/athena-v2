@@ -254,7 +254,7 @@ export function PersonaMetadataEditor({
     <AthenaCollapsibleSection
       title={isEditing ? "Edit metadata" : "Persona Details"}
       eyebrow="Persona Details"
-      defaultOpen
+      defaultOpen={false}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>

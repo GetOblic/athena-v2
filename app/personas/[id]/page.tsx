@@ -15,6 +15,7 @@ import { PersonaGenerateIntelligenceButton } from "@/components/personas/Persona
 import { PersonaGenerationProgress } from "@/components/personas/PersonaGenerationProgress";
 import { PersonaLifecycleStatusControl } from "@/components/personas/PersonaLifecycleStatusControl";
 import { PersonaMetadataEditor } from "@/components/personas/PersonaMetadataEditor";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDiscussionById } from "@/services/discussionService";
@@ -214,11 +215,8 @@ export default async function PersonaDetailsPage({
         </div>
       </div>
 
-      <div
-        className={`mt-10 rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
-      >
-        <h2 className="text-lg font-semibold">Summary</h2>
-        <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+      <AthenaCollapsibleSection title="Summary" defaultOpen={false} className="mt-10">
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           <SummaryItem label="Category" value={persona.category} />
           <SummaryItem label="Location" value={location} />
           <SummaryItem label="Languages" value={persona.languages} />
@@ -258,7 +256,7 @@ export default async function PersonaDetailsPage({
           personaId={persona.id}
           initialStatus={readiness}
         />
-      </div>
+      </AthenaCollapsibleSection>
 
       <div className="mt-8">
         <PersonaMetadataEditor persona={persona} />
