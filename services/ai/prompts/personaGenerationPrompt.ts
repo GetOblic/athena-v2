@@ -4,7 +4,7 @@
 
 import { SHARED_JSON_OUTPUT_RULES } from "@/services/ai/prompts/sharedPromptConstraints";
 
-export const PERSONA_GENERATION_PROMPT_VERSION = "persona_generation_v1";
+export const PERSONA_GENERATION_PROMPT_VERSION = "persona_generation_v2";
 
 export const PERSONA_GENERATION_OUTPUT_FIELDS = [
   "persona_name",
@@ -58,6 +58,8 @@ export type PersonaGenerationPromptInput = {
   existingPersonasBlock: string;
   instruction: string | null;
   noveltyRetryHint?: string | null;
+  /** Guidance from the Portfolio Coverage Planner (pre-generation). */
+  coveragePlanBlock?: string | null;
 };
 
 export function buildPersonaGenerationPrompt(
@@ -74,15 +76,28 @@ ${input.instruction}
 `.trim()
     : `
 === OPTIONAL USER GUIDANCE ===
-No optional instruction was provided. Independently identify one commercially
-useful audience or buyer gap from Athena Brain and existing Personas, then fill it.
+No optional instruction was provided. Follow the Portfolio Coverage Plan and
+Athena Brain to identify one commercially useful gap, then fill it.
 `.trim();
+
+  const coveragePlanBlock = input.coveragePlanBlock
+    ? `
+=== PORTFOLIO COVERAGE PLAN (INTERNAL GUIDANCE) ===
+Athena already evaluated the complete Persona portfolio. Generate the Persona
+that strengthens portfolio completeness as directed below. Do not optimize for
+novelty alone. Optimize for strategic coverage while remaining factually grounded
+in Athena Brain.
+
+${input.coveragePlanBlock}
+`.trim()
+    : "";
 
   const retryBlock = input.noveltyRetryHint
     ? `
 === NOVELTY RETRY CONSTRAINT ===
 A previous candidate was rejected as a superficial duplicate of an existing Persona.
-Generate a different Persona that fills a meaningfully distinct gap.
+Generate a different Persona that still follows the Portfolio Coverage Plan and
+fills a meaningfully distinct gap.
 
 Detected overlap:
 ${input.noveltyRetryHint}
@@ -95,7 +110,7 @@ Do not fix this with only a new name, age, city, synonyms, or rewritten descript
 === OBJECTIVE ===
 You are Athena. Generate exactly ONE new Persona candidate for this organization.
 The candidate must be a commercially relevant audience or buyer archetype that
-fills a meaningful gap relative to Personas already present.
+intentionally strengthens portfolio coverage relative to Personas already present.
 
 === ATHENA BRAIN AND CLIENT CONTEXT (TRUSTED FACTUAL CONTEXT) ===
 Treat the following as factual organizational context. Do not invent unsupported
@@ -109,32 +124,36 @@ represented and avoid superficial paraphrases.
 
 ${input.existingPersonasBlock || "No existing Personas."}
 
+${coveragePlanBlock}
+
 ${instructionBlock}
 
 ${retryBlock}
 
 === GENERATION RULES ===
 1. Analyze the client's actual business and market context from Athena Brain.
-2. Identify customer, buyer, or audience patterns already represented.
-3. Identify meaningful gaps where applicable, such as:
-   - unrepresented roles
+2. Honor the Portfolio Coverage Plan when present — it identifies the strategic
+   gap this Persona should fill.
+3. Identify customer, buyer, or audience patterns already represented.
+4. Prefer gaps that improve portfolio intelligence, such as:
+   - unrepresented roles or decision makers
    - different seniority or authority levels
-   - different business stages
-   - different awareness levels
-   - different buying motivations
-   - different objections
+   - different business stages or maturity levels
+   - different company sizes or industries
+   - different awareness or buying journeys
+   - different buying motivations or objections
    - different urgency levels
    - different geographic or market conditions
-   - different purchasing behavior
-   - underrepresented use cases
-4. Generate one Persona that fills one useful gap.
-5. Avoid superficial novelty based only on a new name, different age, changed city,
+   - different purchasing behavior or acquisition channels
+   - underrepresented use cases or strategic viewpoints
+5. Generate one Persona that fills one useful coverage gap.
+6. Avoid superficial novelty based only on a new name, different age, changed city,
    synonyms, or rewritten descriptions.
-6. Remain commercially and strategically relevant to the client.
-7. Never force novelty at the expense of factual relevance.
-8. Prefer concrete, usable descriptive fields over empty placeholders.
-9. Leave a field null or omit it when you lack support rather than inventing.
-10. Never set reference_website. Always omit it or leave it null/empty.
+7. Remain commercially and strategically relevant to the client.
+8. Never force novelty at the expense of factual relevance.
+9. Prefer concrete, usable descriptive fields over empty placeholders.
+10. Leave a field null or omit it when you lack support rather than inventing.
+11. Never set reference_website. Always omit it or leave it null/empty.
     Do not copy the client organization's website into reference_website.
     Do not invent, look up, or associate a website with this Persona archetype.
     Do not perform web search. The operator may enter a research URL later.

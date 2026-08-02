@@ -56,6 +56,9 @@ export function PersonaGenerateForm() {
   const [candidate, setCandidate] = useState<Record<string, string> | null>(
     null,
   );
+  const [portfolioCoverageInsight, setPortfolioCoverageInsight] = useState<
+    string | null
+  >(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [createResult, setCreateResult] = useState<CreateResult | null>(null);
 
@@ -74,6 +77,7 @@ export function PersonaGenerateForm() {
 
   function clearCandidate() {
     setCandidate(null);
+    setPortfolioCoverageInsight(null);
     setPhase("idle");
     setGenerateError(null);
     setCreateResult(null);
@@ -83,6 +87,7 @@ export function PersonaGenerateForm() {
     if (busy || requestLockRef.current) return;
 
     const previousCandidate = candidate;
+    const previousInsight = portfolioCoverageInsight;
     requestLockRef.current = true;
     setPhase("generating");
     setGenerateError(null);
@@ -99,6 +104,7 @@ export function PersonaGenerateForm() {
       const payload = await parseJsonResponse<{
         ok?: boolean;
         candidate?: Record<string, string | null | undefined>;
+        portfolioCoverageInsight?: string | null;
         error?: string | { message?: string };
         message?: string;
       }>(response);
@@ -107,9 +113,11 @@ export function PersonaGenerateForm() {
         // Keep the prior review candidate if Generate Again fails.
         if (previousCandidate) {
           setCandidate(previousCandidate);
+          setPortfolioCoverageInsight(previousInsight);
           setPhase("review");
         } else {
           setCandidate(null);
+          setPortfolioCoverageInsight(null);
           setPhase("idle");
         }
         setGenerateError(
@@ -122,13 +130,21 @@ export function PersonaGenerateForm() {
       }
 
       setCandidate(personaCandidateToFormState(payload.candidate));
+      setPortfolioCoverageInsight(
+        typeof payload.portfolioCoverageInsight === "string" &&
+          payload.portfolioCoverageInsight.trim()
+          ? payload.portfolioCoverageInsight.trim()
+          : null,
+      );
       setPhase("review");
     } catch (error) {
       if (previousCandidate) {
         setCandidate(previousCandidate);
+        setPortfolioCoverageInsight(previousInsight);
         setPhase("review");
       } else {
         setCandidate(null);
+        setPortfolioCoverageInsight(null);
         setPhase("idle");
       }
       setGenerateError(
@@ -247,8 +263,8 @@ export function PersonaGenerateForm() {
             aria-live="polite"
             className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65"
           >
-            Athena is analyzing your Brain, market context, and existing Personas
-            to generate one candidate…
+            Athena is evaluating portfolio coverage, then generating one candidate
+            from your Brain, market context, and existing Personas…
           </div>
         )}
 
@@ -271,6 +287,20 @@ export function PersonaGenerateForm() {
               ? " Athena is generating another candidate — the current one stays until a new response succeeds."
               : ""}
           </p>
+
+          {portfolioCoverageInsight && (
+            <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+              <h4 className="text-sm font-semibold text-white">
+                Portfolio Coverage Insight
+              </h4>
+              <p className="mt-2 text-sm leading-6 text-white/60">
+                Athena selected this Persona because:
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/80 whitespace-pre-wrap">
+                {portfolioCoverageInsight}
+              </p>
+            </div>
+          )}
 
           <div className="mt-8 space-y-4">
             <label className="block text-sm text-white/50">

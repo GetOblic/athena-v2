@@ -5,6 +5,10 @@
 
 import { randomUUID } from "node:crypto";
 import {
+  planPersonaPortfolioCoverage,
+  type PersonaPortfolioCoveragePlan,
+} from "@/lib/personas/coveragePlanner";
+import {
   buildPersonaGenerationPrompt,
   PERSONA_GENERATION_OUTPUT_FIELDS,
   PERSONA_GENERATION_PROMPT_VERSION,
@@ -124,6 +128,11 @@ export type PersonaGenerationSuccess = {
   requestId: string;
   promptVersion: string;
   attempts: number;
+  /**
+   * Non-persistent operator-facing rationale from the Portfolio Coverage Planner.
+   * Shown during review only — never stored on the Persona.
+   */
+  portfolioCoverageInsight: string;
 };
 
 export type PersonaGenerationFailureCode =
@@ -209,8 +218,20 @@ export type GeneratePersonaCandidateDeps = {
   buildBrain?: typeof buildBrainContextForOrganization;
   getPersonas?: typeof getPersonas;
   generateReview?: typeof generateReview;
+  /** Injected in tests; defaults to planPersonaPortfolioCoverage. */
+  planCoverage?: typeof planPersonaPortfolioCoverage;
   requestId?: string;
 };
+
+function formatCoveragePlanForGenerationPrompt(
+  plan: PersonaPortfolioCoveragePlan,
+): string {
+  return [
+    `Planning summary: ${plan.planningSummary}`,
+    `Generation guidance: ${plan.generationGuidance}`,
+    `Coverage rationale: ${plan.explanation}`,
+  ].join("\n");
+}
 
 function truncateText(value: string, maxLen: number): string {
   if (value.length <= maxLen) return value;
@@ -749,6 +770,8 @@ export async function generatePersonaCandidate(input: {
     input.deps?.buildBrain ?? buildBrainContextForOrganization;
   const loadPersonas = input.deps?.getPersonas ?? getPersonas;
   const generate = input.deps?.generateReview ?? generateReview;
+  const planCoverage =
+    input.deps?.planCoverage ?? planPersonaPortfolioCoverage;
 
   let brain: BrainEngineContext | null;
   try {
@@ -768,6 +791,17 @@ export async function generatePersonaCandidate(input: {
   const brainBlock = formatBrainContextForPersonaGeneration(brain);
   const existingBlock = formatExistingPersonasBlock(summaries);
 
+  // Portfolio Coverage Planner runs once before generation attempts.
+  // Uses the complete org Persona list; failures degrade to a safe fallback.
+  const coveragePlan = await planCoverage({
+    brainContextBlock: brainBlock,
+    personas: existingPersonas,
+    instruction,
+    requestId,
+    deps: { generateReview: generate },
+  });
+  const coveragePlanBlock = formatCoveragePlanForGenerationPrompt(coveragePlan);
+
   let noveltyHint: string | null = null;
   let lastNoveltyExplanation = "";
   let attempts = 0;
@@ -779,6 +813,7 @@ export async function generatePersonaCandidate(input: {
       existingPersonasBlock: existingBlock,
       instruction,
       noveltyRetryHint: noveltyHint,
+      coveragePlanBlock,
     });
 
     let raw: string;
@@ -882,6 +917,7 @@ export async function generatePersonaCandidate(input: {
       requestId,
       promptVersion: PERSONA_GENERATION_PROMPT_VERSION,
       attempts,
+      portfolioCoverageInsight: coveragePlan.explanation,
     };
   }
 

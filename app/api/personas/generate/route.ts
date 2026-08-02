@@ -12,8 +12,8 @@ import { ATHENA_REQUEST_ID_HEADER } from "@/services/personaConversation/persona
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** Synchronous Athena AI route — aligned with Persona conversation / Getting Started. */
-export const maxDuration = 60;
+/** Synchronous Athena AI route — planner + generate (two model calls). */
+export const maxDuration = 90;
 
 function json(
   data: unknown,
@@ -76,6 +76,7 @@ export async function POST(request: Request) {
         requestId: result.requestId,
         promptVersion: result.promptVersion,
         attempts: result.attempts,
+        portfolioCoverageInsight: result.portfolioCoverageInsight,
       },
       200,
       result.requestId || requestId,

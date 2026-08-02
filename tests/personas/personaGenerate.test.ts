@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import {
+  formatPersonaPortfolioForCoveragePlanner,
+  parsePersonaPortfolioCoveragePlan,
+  type PersonaPortfolioCoveragePlan,
+} from "../../lib/personas/coveragePlanner";
+import { buildPersonaCoveragePlannerPrompt } from "../../services/ai/prompts/personaCoveragePlannerPrompt";
 import { buildPersonaGenerationPrompt } from "../../services/ai/prompts/personaGenerationPrompt";
 import {
   blankGeneratedCandidateReferenceWebsite,
@@ -26,6 +32,20 @@ import {
 import { personaCandidateToFormState } from "../../components/personas/personaFormFields";
 import type { Persona } from "../../services/personas/personaService";
 import type { BrainEngineContext } from "../../services/brain/brainContextTypes";
+
+const STUB_COVERAGE_PLAN: PersonaPortfolioCoveragePlan = {
+  planningSummary:
+    "Strong executive coverage; limited operational buyer representation.",
+  generationGuidance:
+    "Generate an operational buyer such as an Operations Manager who evaluates day-to-day clinic workflow tools.",
+  explanation:
+    "This Persona was generated because the organization currently has strong executive coverage but very limited operational buyer representation.",
+  promptVersion: "persona_coverage_planner_v1",
+};
+
+async function stubPlanCoverage(): Promise<PersonaPortfolioCoveragePlan> {
+  return STUB_COVERAGE_PLAN;
+}
 
 const ROOT = join(process.cwd());
 const ORG = "11111111-1111-1111-1111-111111111111";
@@ -377,6 +397,7 @@ describe("persona generation — reference_website blanking", () => {
         requestId: "req-blank-getoblic",
         buildBrain: async () => makeBrain(),
         getPersonas: async () => [],
+        planCoverage: stubPlanCoverage,
         generateReview: async () =>
           JSON.stringify({
             ...distinctCandidate,
@@ -400,6 +421,7 @@ describe("persona generation — reference_website blanking", () => {
         requestId: "req-blank-other-url",
         buildBrain: async () => makeBrain(),
         getPersonas: async () => [],
+        planCoverage: stubPlanCoverage,
         generateReview: async () =>
           JSON.stringify({
             ...distinctCandidate,
@@ -427,6 +449,7 @@ describe("persona generation — reference_website blanking", () => {
         requestId: "req-omit-website",
         buildBrain: async () => makeBrain(),
         getPersonas: async () => [],
+        planCoverage: stubPlanCoverage,
         generateReview: async () => JSON.stringify(withoutWebsite),
       },
     });
@@ -715,6 +738,98 @@ describe("persona generation — structured output and novelty", () => {
   });
 });
 
+describe("persona generation — portfolio coverage planner", () => {
+  it("formats the complete portfolio for planner reasoning", () => {
+    const block = formatPersonaPortfolioForCoveragePlanner([
+      baseExisting,
+      makePersona({
+        id: "p-ops",
+        persona_name: "Ops Lead",
+        occupation: "Operations Manager",
+        seniority: "Manager",
+      }),
+    ]);
+    assert.match(block, /Total Personas in portfolio: 2/);
+    assert.match(block, /Clinic Owner/);
+    assert.match(block, /Ops Lead/);
+    assert.match(block, /Operations Manager/);
+  });
+
+  it("parses planner JSON into guidance and explanation", () => {
+    const plan = parsePersonaPortfolioCoveragePlan(
+      JSON.stringify({
+        planningSummary: "Concentrated on executives.",
+        generationGuidance: "Generate a procurement lead.",
+        explanation:
+          "The portfolio contains several SMB Personas but almost no enterprise decision makers.",
+      }),
+    );
+    assert.ok(plan);
+    assert.equal(plan!.generationGuidance, "Generate a procurement lead.");
+    assert.match(plan!.explanation, /enterprise decision makers/);
+  });
+
+  it("planner prompt optimizes for portfolio completeness", () => {
+    const prompt = buildPersonaCoveragePlannerPrompt({
+      brainContextBlock: '{"organization":{"name":"Acme"}}',
+      portfolioBlock: "Persona 1: occupation=Clinic Owner",
+      instruction: null,
+    });
+    assert.match(prompt, /Portfolio Coverage Planner/i);
+    assert.match(prompt, /portfolio completeness/i);
+    assert.match(prompt, /Do not optimize for novelty alone/i);
+    assert.match(prompt, /COMPLETE PERSONA PORTFOLIO/);
+  });
+
+  it("plans before generation and returns non-persistent coverage insight", async () => {
+    let plannedPersonas: Persona[] | null = null;
+    let generationPrompt = "";
+
+    const result = await generatePersonaCandidate({
+      organizationId: ORG,
+      instruction: null,
+      deps: {
+        requestId: "req-coverage-plan",
+        buildBrain: async () => makeBrain(),
+        getPersonas: async () => [baseExisting],
+        planCoverage: async (input) => {
+          plannedPersonas = input.personas;
+          return STUB_COVERAGE_PLAN;
+        },
+        generateReview: async (prompt) => {
+          generationPrompt = prompt;
+          return JSON.stringify(distinctCandidate);
+        },
+      },
+    });
+
+    assert.ok(plannedPersonas);
+    assert.equal(plannedPersonas!.length, 1);
+    assert.match(generationPrompt, /PORTFOLIO COVERAGE PLAN/);
+    assert.match(generationPrompt, /operational buyer/);
+    assert.equal(
+      result.portfolioCoverageInsight,
+      STUB_COVERAGE_PLAN.explanation,
+    );
+    const serialized = JSON.stringify(result);
+    assert.doesNotMatch(serialized, /masterProfile/);
+    assert.doesNotMatch(serialized, /embedding/i);
+  });
+
+  it("generation prompt includes coverage plan guidance when provided", () => {
+    const prompt = buildPersonaGenerationPrompt({
+      brainContextBlock: "{}",
+      existingPersonasBlock: "None",
+      instruction: null,
+      coveragePlanBlock:
+        "Generation guidance: Generate a Private Equity Partner buyer.",
+    });
+    assert.match(prompt, /PORTFOLIO COVERAGE PLAN/);
+    assert.match(prompt, /Private Equity Partner/);
+    assert.match(prompt, /strengthens portfolio coverage/i);
+  });
+});
+
 describe("persona generation — orchestration", () => {
   it("ignores client organizationId and does not persist", async () => {
     let createCalls = 0;
@@ -732,6 +847,7 @@ describe("persona generation — orchestration", () => {
           return makeBrain();
         },
         getPersonas: async () => [baseExisting],
+        planCoverage: stubPlanCoverage,
         generateReview: async () => {
           modelCalls += 1;
           createCalls += 0;
@@ -745,6 +861,7 @@ describe("persona generation — orchestration", () => {
     assert.equal(result.candidate.persona_name, distinctCandidate.persona_name);
     assert.equal(modelCalls, 1);
     assert.equal(createCalls, 0);
+    assert.equal(result.portfolioCoverageInsight, STUB_COVERAGE_PLAN.explanation);
     assert.equal(
       Object.prototype.hasOwnProperty.call(result.candidate, "organization_id"),
       false,
@@ -767,6 +884,7 @@ describe("persona generation — orchestration", () => {
         requestId: "req-no-brain-leak",
         buildBrain: async () => brain,
         getPersonas: async () => [],
+        planCoverage: stubPlanCoverage,
         generateReview: async (prompt) => {
           assert.match(prompt, /Generate a skeptical buyer\./);
           assert.match(prompt, /Aesthetic clinic growth advisor/);
@@ -817,6 +935,7 @@ describe("persona generation — orchestration", () => {
             requestId: "req-novelty-retry",
             buildBrain: async () => makeBrain(),
             getPersonas: async () => [baseExisting],
+            planCoverage: stubPlanCoverage,
             generateReview: async (prompt) => {
               calls += 1;
               if (calls === 2) {
@@ -869,6 +988,7 @@ describe("persona generation — orchestration", () => {
         requestId: "req-novelty-recover",
         buildBrain: async () => makeBrain(),
         getPersonas: async () => [baseExisting],
+        planCoverage: stubPlanCoverage,
         generateReview: async () => {
           calls += 1;
           return JSON.stringify(calls === 1 ? duplicate : distinctCandidate);
@@ -879,6 +999,7 @@ describe("persona generation — orchestration", () => {
     assert.equal(calls, 2);
     assert.equal(result.attempts, 2);
     assert.equal(result.candidate.persona_name, distinctCandidate.persona_name);
+    assert.equal(result.portfolioCoverageInsight, STUB_COVERAGE_PLAN.explanation);
   });
 });
 
@@ -888,8 +1009,9 @@ describe("persona generation — route and UI contracts", () => {
     assert.match(route, /requireCurrentOrganizationContext/);
     assert.match(route, /generatePersonaCandidate/);
     assert.match(route, /ATHENA_REQUEST_ID_HEADER/);
-    assert.match(route, /maxDuration = 60/);
+    assert.match(route, /maxDuration = 90/);
     assert.match(route, /clientOrganizationId/);
+    assert.match(route, /portfolioCoverageInsight/);
     assert.doesNotMatch(route, /createPersona\(/);
     assert.doesNotMatch(route, /importPersonaManual/);
     assert.doesNotMatch(route, /enqueueDiscussionGenerationJob/);
@@ -904,6 +1026,9 @@ describe("persona generation — route and UI contracts", () => {
     assert.match(form, /Generate Again/);
     assert.match(form, /Clear Candidate/);
     assert.match(form, /Create Persona/);
+    assert.match(form, /Portfolio Coverage Insight/);
+    assert.match(form, /Athena selected this Persona because:/);
+    assert.match(form, /portfolioCoverageInsight/);
     assert.match(form, /body: JSON\.stringify\(\{\s*instruction,/);
     assert.match(form, /candidateHasMeaningfulContent/);
     assert.match(form, /requestLockRef/);
@@ -918,6 +1043,7 @@ describe("persona generation — route and UI contracts", () => {
       /body: JSON\.stringify\(\{\s*\.\.\.candidate,\s*source: "generated",\s*\}\)/,
     );
     assert.doesNotMatch(createFn!, /\binstruction\b/);
+    assert.doesNotMatch(createFn!, /portfolioCoverageInsight/);
     assert.doesNotMatch(createFn!, /\/api\/personas\/generate/);
   });
 
@@ -974,6 +1100,8 @@ describe("persona generation — route and UI contracts", () => {
     assert.match(service, /buildBrainContextForOrganization/);
     assert.match(service, /generateReview/);
     assert.match(service, /getPersonas/);
+    assert.match(service, /planPersonaPortfolioCoverage/);
+    assert.match(service, /portfolioCoverageInsight/);
     assert.match(service, /preparePersonaCreateRow/);
     assert.match(service, /hasMeaningfulPersonaContent/);
     assert.match(service, /blankGeneratedCandidateReferenceWebsite/);
@@ -981,6 +1109,13 @@ describe("persona generation — route and UI contracts", () => {
     assert.doesNotMatch(service, /createPersona\(/);
     assert.doesNotMatch(service, /productKnowledge/i);
     assert.doesNotMatch(service, /embedding/i);
+
+    const planner = read("lib/personas/coveragePlanner.ts");
+    assert.match(planner, /planPersonaPortfolioCoverage/);
+    assert.match(planner, /formatPersonaPortfolioForCoveragePlanner/);
+    assert.doesNotMatch(planner, /embedding/i);
+    assert.doesNotMatch(planner, /vector/i);
+    assert.doesNotMatch(planner, /from\("personas"\)\.insert/);
   });
 });
 
