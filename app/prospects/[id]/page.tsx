@@ -14,6 +14,7 @@ import { ProspectHomepageIntelligence } from "@/components/prospects/ProspectHom
 import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectLifecycleStatusControl";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import { ProspectDeepScrapeWebsiteButton } from "@/components/prospects/ProspectDeepScrapeWebsiteButton";
+import { ProspectHeaderDeleteButton } from "@/components/prospects/ProspectHeaderDeleteButton";
 import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import {
@@ -189,17 +190,22 @@ export default async function ProspectDetailsPage({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <ProspectRefreshIntelligenceButton
-              prospectId={prospect.id}
-              discussionId={
-                discussion?.id ?? prospect.linked_discussion_id ?? null
-              }
-            />
-            <ProspectDeepScrapeWebsiteButton
-              prospectId={prospect.id}
-              initiallyAvailable={hasCurrentVersion && Boolean(prospect.website)}
-            />
+          <div className="flex flex-col items-stretch gap-3 lg:items-end">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <ProspectRefreshIntelligenceButton
+                prospectId={prospect.id}
+                discussionId={
+                  discussion?.id ?? prospect.linked_discussion_id ?? null
+                }
+              />
+              <ProspectDeepScrapeWebsiteButton
+                prospectId={prospect.id}
+                initiallyAvailable={
+                  hasCurrentVersion && Boolean(prospect.website)
+                }
+              />
+              <ProspectHeaderDeleteButton prospectId={prospect.id} />
+            </div>
           </div>
         </div>
 

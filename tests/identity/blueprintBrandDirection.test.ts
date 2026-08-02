@@ -6,6 +6,7 @@ import { BLUEPRINT_ASSET_TYPES } from "../../services/assetInteractions/assetInt
 import {
   composeBlueprintPromptWithBrandDirection,
   formatBlueprintBrandDirectionSuffix,
+  promptAlreadyContainsBrandDirection,
   resolveBrandFontDisplayName,
 } from "../../services/identity/blueprintBrandDirection";
 
@@ -104,6 +105,64 @@ describe("Blueprint brand direction formatter", () => {
     assert.equal(
       composeBlueprintPromptWithBrandDirection(null, FULL_BRAND),
       null,
+    );
+  });
+
+  it("does not append a second Brand direction block when one is already present", () => {
+    const once = composeBlueprintPromptWithBrandDirection(
+      "Base visual prompt",
+      FULL_BRAND,
+    );
+    const twice = composeBlueprintPromptWithBrandDirection(once, FULL_BRAND);
+    assert.equal(
+      (String(twice).match(/Brand direction:/g) ?? []).length,
+      1,
+    );
+
+    const withVisualHeading =
+      "Prompt body\n\nVisual Brand Creative Direction:\nUse brand cues.";
+    assert.equal(
+      composeBlueprintPromptWithBrandDirection(withVisualHeading, FULL_BRAND),
+      withVisualHeading,
+    );
+  });
+
+  it("detects brand headings case-insensitively and with whitespace; ignores prose", () => {
+    assert.equal(promptAlreadyContainsBrandDirection(""), false);
+    assert.equal(promptAlreadyContainsBrandDirection(null), false);
+    assert.equal(promptAlreadyContainsBrandDirection("no brand here"), false);
+    assert.equal(
+      promptAlreadyContainsBrandDirection(
+        "Please follow the brand direction carefully.",
+      ),
+      false,
+    );
+
+    assert.equal(
+      promptAlreadyContainsBrandDirection("Brand direction:\n- Primary"),
+      true,
+    );
+    assert.equal(
+      promptAlreadyContainsBrandDirection("brand direction:\n- Primary"),
+      true,
+    );
+    assert.equal(
+      promptAlreadyContainsBrandDirection(
+        "Visual Brand Creative Direction:\nUse cues",
+      ),
+      true,
+    );
+    assert.equal(
+      promptAlreadyContainsBrandDirection(
+        "  \n   Brand direction:   \n- Primary",
+      ),
+      true,
+    );
+    assert.equal(
+      promptAlreadyContainsBrandDirection(
+        "Long prompt body\n\nBrand direction:\nalready at end",
+      ),
+      true,
     );
   });
 });

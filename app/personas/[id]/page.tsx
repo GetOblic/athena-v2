@@ -13,6 +13,7 @@ import { PersonaConversationPanel } from "@/components/personas/PersonaConversat
 import { PersonaDeepScrapeWebsiteButton } from "@/components/personas/PersonaDeepScrapeWebsiteButton";
 import { PersonaGenerateIntelligenceButton } from "@/components/personas/PersonaGenerateIntelligenceButton";
 import { PersonaGenerationProgress } from "@/components/personas/PersonaGenerationProgress";
+import { PersonaHeaderDeleteButton } from "@/components/personas/PersonaHeaderDeleteButton";
 import { PersonaLifecycleStatusControl } from "@/components/personas/PersonaLifecycleStatusControl";
 import { PersonaMetadataEditor } from "@/components/personas/PersonaMetadataEditor";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
@@ -212,6 +213,7 @@ export default async function PersonaDetailsPage({
             initiallyAvailable={deepScrapeAvailable}
           />
           <PersonaLifecycleStatusControl persona={persona} />
+          <PersonaHeaderDeleteButton personaId={persona.id} />
         </div>
       </div>
 

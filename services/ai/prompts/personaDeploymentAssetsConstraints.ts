@@ -41,7 +41,7 @@ CAMPAIGN_CONCEPTS — 2–3 actionable campaign concepts. Each: insight, hook, m
 CONTENT_THEMES — repeatable editorial themes; purpose; likely Persona interest; suitable formats; funnel or journey role.
 ADVERTISEMENT_CONCEPTS — multiple advertisement directions; audience insight; concept; copy direction; CTA; creative considerations. Use ads_content as evidence when present.
 LANDING_PAGE_DIRECTION — page narrative; hero direction; proof; objection reduction; section sequence; CTA; trust elements; visual considerations.
-VISUAL_AND_IMAGE_PROMPT_DIRECTION — visual tone; credible environments; people/subject direction; composition; imagery to avoid; at least one paste-ready image-generation prompt (preferably two when evidence supports distinct concepts). Avoid stereotypes and visual clichés.
+VISUAL_AND_IMAGE_PROMPT_DIRECTION — visual tone; credible environments; people/subject direction; composition; imagery to avoid; at least one paste-ready image-generation prompt (preferably two when evidence supports distinct concepts). Each paste-ready image-generation prompt must include Visual Brand Creative Direction from Brand Identity. Avoid stereotypes and visual clichés.
 CUSTOMER_EXPERIENCE_GUIDANCE — journey stages; moments of truth; sensitivities; friction reduction; trust and reassurance; service adaptations; follow-up considerations.
 VALIDATION_AND_LEARNING_PLAN — weak assumptions; highest-value missing information; hypotheses; inexpensive tests; success/failure signals; how future real-world evidence should refine the Persona.
 `.trim();

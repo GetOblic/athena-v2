@@ -54,7 +54,8 @@ describe("Generate Intelligence header placement", () => {
     assert.doesNotMatch(editor, />\s*Generate Intelligence\s*</);
     assert.doesNotMatch(editor, />\s*Refresh Intelligence\s*</);
     assert.match(editor, /Edit/);
-    assert.match(editor, /Delete/);
+    assert.doesNotMatch(editor, />\s*Delete\s*</);
+    assert.doesNotMatch(editor, /handleDelete|Confirm Delete/);
   });
 
   it("5/6. exactly one Generate Intelligence action mounts per page", () => {
@@ -145,23 +146,29 @@ describe("Generate Intelligence header placement", () => {
   it("18/19. Discussion Edit and Delete remain in the header action group", () => {
     const header = read("components/discussions/DiscussionHeaderActions.tsx");
     assert.match(header, /Edit Discussion/);
-    assert.match(header, /Delete/);
+    assert.match(header, /ConfirmDeleteControl/);
     assert.match(header, /method: "PATCH"/);
-    assert.match(header, /method: "DELETE"/);
     const refreshIndex = header.indexOf("<AnalyzeDiscussionButton");
     const thinkIndex = header.indexOf("<ThinkDifferentlyButton");
     const editIndex = header.indexOf("Edit Discussion");
-    const deleteIndex = header.indexOf("\n          Delete\n");
+    const deleteIndex = header.indexOf("<ConfirmDeleteControl");
     assert.ok(refreshIndex > 0 && thinkIndex > refreshIndex);
     assert.ok(editIndex > thinkIndex);
     assert.ok(deleteIndex > editIndex);
+
+    const deleteControl = read("components/ui/ConfirmDeleteControl.tsx");
+    assert.match(deleteControl, /method: "DELETE"/);
+    assert.match(deleteControl, />\s*Delete\s*</);
   });
 
   it("20/21. Prospect Details and Detailed Athena Reasoning remain otherwise intact", () => {
     const editor = read("components/prospects/ProspectMetadataEditor.tsx");
     assert.match(editor, /Prospect Details/);
     assert.match(editor, /beginEdit/);
-    assert.match(editor, /handleDelete/);
+    assert.doesNotMatch(editor, /handleDelete/);
+
+    const prospectPage = read("app/prospects/[id]/page.tsx");
+    assert.match(prospectPage, /ProspectHeaderDeleteButton/);
 
     const workspace = read(
       "components/discussions/ExecutiveIntelligenceWorkspace.tsx",

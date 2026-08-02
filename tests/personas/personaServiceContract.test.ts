@@ -95,7 +95,19 @@ describe("persona service tenant containment contracts", () => {
     assert.match(deleteBlock, /getPersonaById\(id, organizationId\)/);
     assert.match(deleteBlock, /\.eq\("id", id\)/);
     assert.match(deleteBlock, /\.eq\("organization_id", organizationId\)/);
-    assert.doesNotMatch(deleteBlock, /deleteDiscussion/);
+    assert.match(deleteBlock, /linked_discussion_id/);
+    assert.match(deleteBlock, /bridgeDiscussionId/);
+    assert.match(deleteBlock, /deleteDiscussion/);
+    assert.match(deleteBlock, /getDiscussionById/);
+    assert.match(deleteBlock, /stillPresent/);
+    const personaDeleteIndex = deleteBlock.indexOf('.from("personas")');
+    const discussionDeleteIndex = deleteBlock.indexOf("await deleteDiscussion");
+    assert.ok(personaDeleteIndex >= 0);
+    assert.ok(discussionDeleteIndex >= 0);
+    assert.ok(
+      discussionDeleteIndex < personaDeleteIndex,
+      "bridge cleanup must run before Persona row delete",
+    );
   });
 
   it("update allowlist excludes protected ownership identifiers", () => {

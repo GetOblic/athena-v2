@@ -5,6 +5,10 @@
 
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
 import { BLUEPRINT_ASSET_TYPES } from "@/services/assetInteractions/assetInteractionKeys";
+import {
+  composeBlueprintPromptWithBrandDirection,
+  type BlueprintBrandDirectionInput,
+} from "@/services/identity/blueprintBrandDirection";
 import type { ExecutiveIntelligencePayload } from "@/services/executiveVersions/executiveVersionTypes";
 import {
   ProspectConversationError,
@@ -61,6 +65,7 @@ function resolveDeploymentAsset(
 function resolveBlueprintAsset(
   payload: ExecutiveIntelligencePayload,
   key: string,
+  brandDirection?: BlueprintBrandDirectionInput | null,
 ): ProspectConversationResolvedAsset | null {
   const blueprint = payload.blueprint;
   if (!blueprint) {
@@ -70,10 +75,16 @@ function resolveBlueprintAsset(
   if (!field) {
     return null;
   }
-  const content = String(blueprint[field] ?? "").trim();
-  if (!content) {
+  const raw = String(blueprint[field] ?? "").trim();
+  if (!raw) {
     return null;
   }
+  const content =
+    field === "image_prompt" || field === "pdf_prompt"
+      ? String(
+          composeBlueprintPromptWithBrandDirection(raw, brandDirection) ?? raw,
+        ).trim()
+      : raw;
   return {
     kind: "blueprint",
     key:
@@ -88,6 +99,7 @@ function resolveBlueprintAsset(
 export function resolveReferencedAsset(input: {
   payload: ExecutiveIntelligencePayload | null;
   assetReference: ProspectConversationAssetReference;
+  brandDirection?: BlueprintBrandDirectionInput | null;
 }): ProspectConversationResolvedAsset {
   if (!input.payload) {
     throw new ProspectConversationError(
@@ -120,7 +132,11 @@ export function resolveReferencedAsset(input: {
   }
 
   if (kind === "blueprint") {
-    const resolved = resolveBlueprintAsset(input.payload, key);
+    const resolved = resolveBlueprintAsset(
+      input.payload,
+      key,
+      input.brandDirection,
+    );
     if (!resolved) {
       throw new ProspectConversationError(
         "ASSET_NOT_FOUND",

@@ -472,6 +472,10 @@ export async function updateProspect(
  * Delete a Prospect owned by the organization.
  * Also removes the temporary Discussion compatibility bridge (and its cascaded
  * generation jobs / executive versions) via the existing deleteDiscussion path.
+ *
+ * Bridge cleanup runs first (FK is ON DELETE SET NULL). That avoids reporting
+ * success while leaving known orphaned intelligence, and keeps the Prospect
+ * row available for retry if bridge cleanup fails.
  */
 export async function deleteProspect(
   id: string,
@@ -484,6 +488,34 @@ export async function deleteProspect(
 
   const bridgeDiscussionId = existing.linked_discussion_id;
 
+  if (bridgeDiscussionId) {
+    try {
+      const { deleteDiscussion, getDiscussionById } = await import(
+        "@/services/discussionService"
+      );
+      const cleaned = await deleteDiscussion(
+        bridgeDiscussionId,
+        organizationId,
+      );
+      if (!cleaned) {
+        const stillPresent = await getDiscussionById(
+          bridgeDiscussionId,
+          organizationId,
+        );
+        if (stillPresent) {
+          console.error(
+            "Prospect bridge discussion cleanup failed; discussion still present",
+          );
+          return false;
+        }
+        // Bridge already missing for this organization — safe to continue.
+      }
+    } catch (error) {
+      console.error("Prospect bridge discussion cleanup threw:", error);
+      return false;
+    }
+  }
+
   const { error } = await supabaseAdmin
     .from("prospects")
     .delete()
@@ -493,13 +525,6 @@ export async function deleteProspect(
   if (error) {
     console.error("Error deleting prospect:", error);
     return false;
-  }
-
-  if (bridgeDiscussionId) {
-    const { deleteDiscussion } = await import(
-      "@/services/discussionService"
-    );
-    await deleteDiscussion(bridgeDiscussionId, organizationId);
   }
 
   return true;

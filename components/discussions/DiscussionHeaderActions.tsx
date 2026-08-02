@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 import { ThinkDifferentlyButton } from "@/components/discussions/ThinkDifferentlyButton";
+import { ConfirmDeleteControl } from "@/components/ui/ConfirmDeleteControl";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 
 type IntelligenceDomainOption = {
@@ -38,8 +39,6 @@ export function DiscussionHeaderActions({
 }: DiscussionHeaderActionsProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [platform, setPlatform] = useState(discussion.platform);
@@ -86,34 +85,6 @@ export function DiscussionHeaderActions({
     }
   }
 
-  async function handleDelete() {
-    setIsDeleting(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/discussions/${discussion.id}`, {
-        method: "DELETE",
-      });
-
-      const payload = await response.json();
-
-      if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to delete discussion.");
-      }
-
-      router.push("/discussions");
-      router.refresh();
-    } catch (deleteError) {
-      setError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Failed to delete discussion.",
-      );
-      setIsDeleting(false);
-      setShowDeleteConfirm(false);
-    }
-  }
-
   return (
     <div className="flex flex-col items-stretch gap-3 lg:items-end">
       <div className="flex flex-wrap items-center justify-end gap-3">
@@ -129,7 +100,6 @@ export function DiscussionHeaderActions({
           type="button"
           onClick={() => {
             setIsEditing((current) => !current);
-            setShowDeleteConfirm(false);
             setError(null);
           }}
           className="rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-[var(--athena-orange)]/40 hover:text-white"
@@ -137,43 +107,15 @@ export function DiscussionHeaderActions({
           {isEditing ? "Cancel Edit" : "Edit Discussion"}
         </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setShowDeleteConfirm(true);
-            setIsEditing(false);
-            setError(null);
-          }}
-          className="rounded-full border border-red-500/30 px-6 py-3 text-sm font-semibold text-red-300 transition hover:border-red-400/50 hover:text-red-200"
-        >
-          Delete
-        </button>
+        <ConfirmDeleteControl
+          confirmMessage="Delete this discussion permanently? This cannot be undone."
+          deleteUrl={`/api/discussions/${discussion.id}`}
+          redirectTo="/discussions"
+          isSuccessPayload={(payload) => Boolean(payload.success)}
+          errorFallback="Failed to delete discussion."
+          dismissKey={isEditing}
+        />
       </div>
-
-      {showDeleteConfirm && (
-        <div className="w-full max-w-md rounded-2xl border border-red-500/20 bg-black/30 p-5 lg:text-right">
-          <p className="text-sm leading-6 text-white/70">
-            Delete this discussion permanently? This cannot be undone.
-          </p>
-          <div className="mt-4 flex flex-wrap justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => setShowDeleteConfirm(false)}
-              className="rounded-full border border-white/15 px-5 py-2 text-sm text-white/70"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="rounded-full bg-red-500/20 px-5 py-2 text-sm font-semibold text-red-200 disabled:opacity-50"
-            >
-              {isDeleting ? "Deleting..." : "Confirm Delete"}
-            </button>
-          </div>
-        </div>
-      )}
 
       {isEditing && (
         <form

@@ -400,7 +400,12 @@ export async function updatePersonaNotesIfUnchanged(input: {
 
 /**
  * Delete a Persona owned by the organization.
- * Stage 1: row delete only (no bridge Discussion cleanup).
+ * Also removes the temporary Discussion compatibility bridge (and its cascaded
+ * generation jobs / executive versions) via the existing deleteDiscussion path.
+ *
+ * Bridge cleanup runs first (FK is ON DELETE SET NULL). That avoids reporting
+ * success while leaving known orphaned intelligence, and keeps the Persona
+ * row available for retry if bridge cleanup fails.
  */
 export async function deletePersona(
   id: string,
@@ -409,6 +414,36 @@ export async function deletePersona(
   const existing = await getPersonaById(id, organizationId);
   if (!existing) {
     return false;
+  }
+
+  const bridgeDiscussionId = existing.linked_discussion_id;
+
+  if (bridgeDiscussionId) {
+    try {
+      const { deleteDiscussion, getDiscussionById } = await import(
+        "@/services/discussionService"
+      );
+      const cleaned = await deleteDiscussion(
+        bridgeDiscussionId,
+        organizationId,
+      );
+      if (!cleaned) {
+        const stillPresent = await getDiscussionById(
+          bridgeDiscussionId,
+          organizationId,
+        );
+        if (stillPresent) {
+          console.error(
+            "Persona bridge discussion cleanup failed; discussion still present",
+          );
+          return false;
+        }
+        // Bridge already missing for this organization — safe to continue.
+      }
+    } catch (error) {
+      console.error("Persona bridge discussion cleanup threw:", error);
+      return false;
+    }
   }
 
   const { error } = await supabaseAdmin

@@ -5,14 +5,16 @@
  */
 
 import {
+  promptAlreadyContainsBrandDirection,
   resolveBrandFontDisplayName,
   toBlueprintBrandDirectionInput,
+  VISUAL_BRAND_CREATIVE_DIRECTION_HEADING,
   type BlueprintBrandDirectionInput,
 } from "@/services/identity/blueprintBrandDirection";
 import type { OrganizationBrandIdentity } from "@/services/identity/brandIdentity";
 
 const PREMIUM_NEUTRAL_FALLBACK = `
-Visual Brand Creative Direction:
+${VISUAL_BRAND_CREATIVE_DIRECTION_HEADING}
 Use a premium neutral aesthetic — refined commercial photography, restrained palette, clean composition, high production value, timeless and polished without relying on a specific brand palette.
 `.trim();
 
@@ -92,7 +94,7 @@ export function formatVisualBrandCreativeDirectionBlock(
   const aesthetic = inferAestheticLanguage(direction);
   const fontLabel = resolveBrandFontDisplayName(direction.font);
   const lines: string[] = [
-    "Visual Brand Creative Direction:",
+    VISUAL_BRAND_CREATIVE_DIRECTION_HEADING,
     "Translate the client's Brand Identity into creative direction for all visual prompts — do not merely paste hex codes.",
     `Aesthetic intent: ${aesthetic.join("; ")}.`,
     "Maintain premium production quality, emotional clarity, and aesthetic consistency across Short Video Prompt, Visual Message Prompt, and Local Outreach Image Prompt (when present).",
@@ -125,4 +127,23 @@ export function formatVisualBrandCreativeDirectionBlock(
   );
 
   return lines.join("\n");
+}
+
+/**
+ * Append Visual Brand Creative Direction to a visual prompt string once.
+ * Used when composing stored visual prompts that may already include the block.
+ */
+export function appendVisualBrandCreativeDirectionOnce(
+  prompt: string | null | undefined,
+  brand: OrganizationBrandIdentity | null | undefined,
+): string {
+  const base = String(prompt ?? "").trim();
+  const block = formatVisualBrandCreativeDirectionBlock(brand);
+  if (!base) {
+    return block;
+  }
+  if (promptAlreadyContainsBrandDirection(base)) {
+    return base;
+  }
+  return `${base}\n\n${block}`;
 }

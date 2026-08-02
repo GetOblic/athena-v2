@@ -16,6 +16,29 @@ export type BlueprintBrandDirectionInput = {
   font?: string | null;
 };
 
+/** Canonical brand-block headings used across Strategic and Deployment visual prompts. */
+export const BRAND_DIRECTION_HEADING = "Brand direction:";
+export const VISUAL_BRAND_CREATIVE_DIRECTION_HEADING =
+  "Visual Brand Creative Direction:";
+
+/**
+ * Deterministic detection that a prompt already contains a brand direction block.
+ * Recognizes both Strategic ("Brand direction:") and Deployment
+ * ("Visual Brand Creative Direction:") headings.
+ */
+export function promptAlreadyContainsBrandDirection(
+  prompt: string | null | undefined,
+): boolean {
+  const text = String(prompt ?? "");
+  if (!text.trim()) return false;
+  // Line-anchored headings only (case-insensitive). Prose like
+  // "follow the brand direction" must not suppress branding.
+  return (
+    /(^|\n)\s*Brand direction:\s*/iu.test(text) ||
+    /(^|\n)\s*Visual Brand Creative Direction:\s*/iu.test(text)
+  );
+}
+
 const FONT_LABEL_BY_VALUE = new Map<string, string>(
   BRAND_FONT_OPTIONS.filter((option) => option.value).map((option) => [
     option.value,
@@ -68,7 +91,7 @@ export function formatBlueprintBrandDirectionSuffix(
   if (lines.length === 0) return "";
 
   return [
-    "Brand direction:",
+    BRAND_DIRECTION_HEADING,
     "Use the following client brand specifications throughout the design:",
     ...lines,
     "Maintain strong visual consistency with this palette and typography.",
@@ -78,6 +101,7 @@ export function formatBlueprintBrandDirectionSuffix(
 /**
  * Compose generated prompt + brand direction for display and clipboard.
  * When no brand fields are configured, returns the original prompt unchanged.
+ * Does not append a second brand block when one is already present.
  */
 export function composeBlueprintPromptWithBrandDirection(
   generatedPrompt: string | null | undefined,
@@ -90,6 +114,10 @@ export function composeBlueprintPromptWithBrandDirection(
 
   const base = String(generatedPrompt ?? "");
   if (!base.trim()) {
+    return generatedPrompt;
+  }
+
+  if (promptAlreadyContainsBrandDirection(base)) {
     return generatedPrompt;
   }
 

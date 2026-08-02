@@ -114,13 +114,26 @@ describe("prospect refresh and delete route contracts", () => {
       "utf8",
     );
     assert.match(service, /export async function deleteProspect/);
-    assert.match(service, /deleteDiscussion/);
-    assert.match(service, /\.eq\("organization_id", organizationId\)/);
+    const deleteBlock = service.slice(
+      service.indexOf("export async function deleteProspect"),
+    );
+    assert.match(deleteBlock, /deleteDiscussion/);
+    assert.match(deleteBlock, /stillPresent/);
+    assert.match(deleteBlock, /bridge discussion cleanup threw/);
+    assert.match(deleteBlock, /\.eq\("organization_id", organizationId\)/);
+    const discussionDeleteIndex = deleteBlock.indexOf("await deleteDiscussion");
+    const prospectDeleteIndex = deleteBlock.indexOf('.from("prospects")');
+    assert.ok(discussionDeleteIndex >= 0);
+    assert.ok(prospectDeleteIndex >= 0);
+    assert.ok(
+      discussionDeleteIndex < prospectDeleteIndex,
+      "bridge cleanup must run before Prospect row delete",
+    );
   });
 });
 
 describe("prospect details read-only / edit UX contracts", () => {
-  it("ProspectMetadataEditor defaults to read-only with Edit/Save/Cancel/Delete", () => {
+  it("ProspectMetadataEditor defaults to read-only with Edit/Save/Cancel (Delete in header)", () => {
     const source = readFileSync(
       join(ROOT, "components/prospects/ProspectMetadataEditor.tsx"),
       "utf8",
@@ -129,8 +142,8 @@ describe("prospect details read-only / edit UX contracts", () => {
     assert.match(source, />\s*Edit\s*</);
     assert.match(source, /Saving…|"Save"/);
     assert.match(source, />\s*Cancel\s*</);
-    assert.match(source, />\s*Delete\s*</);
-    assert.match(source, /Confirm Delete/);
+    assert.doesNotMatch(source, />\s*Delete\s*</);
+    assert.doesNotMatch(source, /Confirm Delete/);
     assert.match(source, /trackQueuedGeneration/);
     assert.doesNotMatch(
       source,
@@ -147,6 +160,14 @@ describe("prospect details read-only / edit UX contracts", () => {
     );
     assert.match(source, /normalizeWebsiteUrl/);
     assert.match(source, /isEditing/);
+
+    const headerDelete = readFileSync(
+      join(ROOT, "components/prospects/ProspectHeaderDeleteButton.tsx"),
+      "utf8",
+    );
+    assert.match(headerDelete, /ConfirmDeleteControl/);
+    assert.match(headerDelete, /\/api\/prospects\/\$\{prospectId\}/);
+    assert.match(headerDelete, /redirectTo="\/prospects"/);
   });
 
   it("homepage intelligence uses collapsible sections", () => {

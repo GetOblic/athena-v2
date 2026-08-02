@@ -287,6 +287,23 @@ describe("prospect conversation asset resolution", () => {
     assert.match(resolved.title, /Image Prompt/);
   });
 
+  it("composes Brand direction into image/PDF blueprint resolve when brand is provided", () => {
+    const resolved = resolveReferencedAsset({
+      payload: payload(),
+      assetReference: {
+        kind: "blueprint",
+        key: BLUEPRINT_ASSET_TYPES.image_prompt,
+      },
+      brandDirection: {
+        primaryColor: "#FF6600",
+        font: "geist",
+      },
+    });
+    assert.match(resolved.content, /IMAGE PROMPT BODY/);
+    assert.match(resolved.content, /Brand direction:/);
+    assert.match(resolved.content, /Primary color: #FF6600/);
+  });
+
   it("fails safely for unknown asset references", () => {
     assert.throws(
       () =>

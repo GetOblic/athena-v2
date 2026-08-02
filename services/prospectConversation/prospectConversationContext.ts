@@ -5,6 +5,12 @@
  */
 
 import { buildDiscussionDeploymentAssets } from "@/lib/deploymentAssets";
+import {
+  composeBlueprintPromptWithBrandDirection,
+  toBlueprintBrandDirectionInput,
+  type BlueprintBrandDirectionInput,
+} from "@/services/identity/blueprintBrandDirection";
+import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
 import { getAthenaIdentityByUserId } from "@/services/identity/identityService";
 import { getKnowledgeAssets } from "@/services/knowledgeAssetService";
 import {
@@ -197,11 +203,30 @@ function formatBriefing(payload: ExecutiveIntelligencePayload): string {
     .join("\n");
 }
 
-function formatBlueprint(payload: ExecutiveIntelligencePayload): string {
+function formatBlueprint(
+  payload: ExecutiveIntelligencePayload,
+  brandDirection?: BlueprintBrandDirectionInput | null,
+): string {
   const blueprint = payload.blueprint;
   if (!blueprint) {
     return "";
   }
+  const imagePrompt = String(
+    composeBlueprintPromptWithBrandDirection(
+      blueprint.image_prompt,
+      brandDirection,
+    ) ??
+      blueprint.image_prompt ??
+      "",
+  );
+  const pdfPrompt = String(
+    composeBlueprintPromptWithBrandDirection(
+      blueprint.pdf_prompt,
+      brandDirection,
+    ) ??
+      blueprint.pdf_prompt ??
+      "",
+  );
   return [
     `asset_title: ${blueprint.asset_title ?? ""}`,
     `asset_type: ${blueprint.asset_type ?? ""}`,
@@ -209,8 +234,8 @@ function formatBlueprint(payload: ExecutiveIntelligencePayload): string {
     `target_audience: ${blueprint.target_audience ?? ""}`,
     `priority: ${blueprint.priority ?? ""}`,
     `estimated_reuse: ${blueprint.estimated_reuse ?? ""}`,
-    `image_prompt:\n${blueprint.image_prompt ?? ""}`,
-    `pdf_prompt:\n${blueprint.pdf_prompt ?? ""}`,
+    `image_prompt:\n${imagePrompt}`,
+    `pdf_prompt:\n${pdfPrompt}`,
     `social_prompt:\n${blueprint.social_prompt ?? ""}`,
     `notes:\n${blueprint.notes ?? ""}`,
   ].join("\n\n");
@@ -252,6 +277,10 @@ export async function assembleProspectConversationContext(
   const { organizationId, userId, prospect } = input;
   const sections: ProspectConversationContextSection[] = [];
   const missingNotes: string[] = [];
+
+  const brandDirection = await getOrganizationBrandIdentity(organizationId)
+    .then((brand) => toBlueprintBrandDirectionInput(brand))
+    .catch(() => null);
 
   pushSection(sections, {
     type: "PROSPECT_STRUCTURED_FACTS",
@@ -490,7 +519,7 @@ export async function assembleProspectConversationContext(
       missingNotes.push("Executive Briefing is missing.");
     }
 
-    const blueprintText = formatBlueprint(intelligence);
+    const blueprintText = formatBlueprint(intelligence, brandDirection);
     if (blueprintText) {
       pushSection(sections, {
         type: "STRATEGIC_BLUEPRINT",
@@ -524,6 +553,7 @@ export async function assembleProspectConversationContext(
     referencedAsset = resolveReferencedAsset({
       payload: intelligence,
       assetReference: input.assetReference,
+      brandDirection,
     });
     pushSection(sections, {
       type: "REFERENCED_ASSET",

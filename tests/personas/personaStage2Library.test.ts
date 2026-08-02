@@ -206,14 +206,23 @@ describe("persona stage-2 detail and metadata contracts", () => {
     const editor = read("components/personas/PersonaMetadataEditor.tsx");
     assert.match(editor, /\/api\/personas\/\$\{persona\.id\}/);
     assert.match(editor, /method: "PATCH"/);
-    assert.match(editor, /method: "DELETE"/);
-    assert.match(editor, /Confirm Delete/);
+    assert.doesNotMatch(editor, /method: "DELETE"/);
+    assert.doesNotMatch(editor, /Confirm Delete/);
     assert.doesNotMatch(editor, /regenerationQueued/);
     assert.doesNotMatch(editor, /ensurePersonaGeneration/);
     assert.doesNotMatch(editor, /trackQueuedGeneration/);
     assert.match(editor, /additional_context/);
     assert.match(editor, /notes/);
     assert.match(editor, /ads_content/);
+
+    const page = read("app/personas/[id]/page.tsx");
+    assert.match(page, /PersonaHeaderDeleteButton/);
+    const headerDelete = read(
+      "components/personas/PersonaHeaderDeleteButton.tsx",
+    );
+    assert.match(headerDelete, /ConfirmDeleteControl/);
+    assert.match(headerDelete, /\/api\/personas\/\$\{personaId\}/);
+    assert.match(headerDelete, /redirectTo="\/personas"/);
   });
 });
 

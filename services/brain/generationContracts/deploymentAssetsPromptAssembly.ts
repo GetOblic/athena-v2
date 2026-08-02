@@ -223,7 +223,20 @@ ${SHARED_OUTPUT_DIVERSITY_RULES}
 `.trim();
 }
 
-function buildPersonaAnalysisQualityStandard(): string {
+function buildPersonaAnalysisQualityStandard(input?: {
+  visualBrandBlock?: string;
+}): string {
+  const visualBrandBlock = String(input?.visualBrandBlock ?? "").trim();
+  const visualBrandSection = visualBrandBlock
+    ? `
+${visualBrandBlock}
+
+Apply Visual Brand Creative Direction when writing VISUAL_AND_IMAGE_PROMPT_DIRECTION.
+Every paste-ready image-generation prompt inside VISUAL_AND_IMAGE_PROMPT_DIRECTION must include the Visual Brand Creative Direction block (do not invent a second brand heading if already present).
+Do not add Visual Brand Creative Direction to non-visual Persona Analysis sections.
+`.trim()
+    : "";
+
   return `
 === PERSONA ANALYSIS ASSETS ===
 ${SHARED_ANTI_GENERIC_RULES}
@@ -231,6 +244,8 @@ ${SHARED_ANTI_GENERIC_RULES}
 ${PERSONA_ANALYSIS_EVIDENCE_DISCIPLINE}
 
 ${PERSONA_ANALYSIS_CHANNEL_GUIDE}
+
+${visualBrandSection}
 
 Use exact section labels:
 ${PERSONA_ANALYSIS_SECTION_LABELS}
@@ -367,7 +382,9 @@ export function assembleDeploymentAssetsPrompt(input: {
             knowledgeBaseRules,
             visualAssetsBlock,
           })
-        : buildPersonaAnalysisQualityStandard()
+        : buildPersonaAnalysisQualityStandard({
+            visualBrandBlock,
+          })
       : `
 ${
   input.opportunity

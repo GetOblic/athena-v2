@@ -156,15 +156,12 @@ export function PersonaMetadataEditor({
   const [form, setForm] = useState(() => formFromPersona(persona));
   const [savedForm, setSavedForm] = useState(() => formFromPersona(persona));
   const [saving, setSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function beginEdit() {
     setForm(savedForm);
     setIsEditing(true);
-    setShowDeleteConfirm(false);
     setMessage(null);
     setError(null);
   }
@@ -214,40 +211,6 @@ export function PersonaMetadataEditor({
     }
   }
 
-  async function handleDelete() {
-    setIsDeleting(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/personas/${persona.id}`, {
-        method: "DELETE",
-      });
-      const payload = await parseJsonResponse<{
-        ok?: boolean;
-        error?: string | { message?: string };
-      }>(response);
-      const errorMessage =
-        typeof payload.error === "string"
-          ? payload.error
-          : payload.error?.message;
-
-      if (!response.ok || !payload.ok) {
-        throw new Error(errorMessage || "Failed to delete persona.");
-      }
-
-      router.push("/personas");
-      router.refresh();
-    } catch (deleteError) {
-      setError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Failed to delete persona.",
-      );
-      setIsDeleting(false);
-      setShowDeleteConfirm(false);
-    }
-  }
-
   const display = isEditing ? form : savedForm;
 
   return (
@@ -265,73 +228,34 @@ export function PersonaMetadataEditor({
           </p>
         </div>
 
-        <div className="flex flex-col items-stretch gap-3 sm:items-end">
-          <div className="flex flex-wrap justify-end gap-3">
-            {!isEditing ? (
-              <button
-                type="button"
-                onClick={beginEdit}
-                className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-[var(--athena-orange)]/40 hover:text-white"
-              >
-                Edit metadata
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  disabled={saving}
-                  className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 disabled:opacity-40"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void save()}
-                  disabled={saving}
-                  className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
-                >
-                  {saving ? "Saving…" : "Save"}
-                </button>
-              </>
-            )}
-
+        <div className="flex flex-wrap justify-end gap-3">
+          {!isEditing ? (
             <button
               type="button"
-              onClick={() => {
-                setShowDeleteConfirm(true);
-                setError(null);
-              }}
-              className="rounded-full border border-red-500/30 px-5 py-3 text-sm font-semibold text-red-300 transition hover:border-red-400/50 hover:text-red-200"
+              onClick={beginEdit}
+              className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-[var(--athena-orange)]/40 hover:text-white"
             >
-              Delete
+              Edit metadata
             </button>
-          </div>
-
-          {showDeleteConfirm && (
-            <div className="w-full max-w-md rounded-2xl border border-red-500/20 bg-black/30 p-5 sm:text-right">
-              <p className="text-sm leading-6 text-white/70">
-                Delete this Persona permanently? The Persona record will be
-                removed. This cannot be undone.
-              </p>
-              <div className="mt-4 flex flex-wrap justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="rounded-full border border-white/15 px-5 py-2 text-sm text-white/70"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDelete()}
-                  disabled={isDeleting}
-                  className="rounded-full bg-red-500/20 px-5 py-2 text-sm font-semibold text-red-200 disabled:opacity-50"
-                >
-                  {isDeleting ? "Deleting..." : "Confirm Delete"}
-                </button>
-              </div>
-            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={cancelEdit}
+                disabled={saving}
+                className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void save()}
+                disabled={saving}
+                className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </>
           )}
         </div>
       </div>

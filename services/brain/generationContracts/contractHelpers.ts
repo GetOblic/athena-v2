@@ -244,7 +244,7 @@ export function buildStrategicBlueprintContract(
       "why_this_asset must reject at least one obvious generic alternative",
       "image_prompt must include composition, palette, metaphor, and avoid list",
       "pdf_prompt must include page structure and conversion CTA — not generic guide",
-      "social_prompt must be campaign-specific with hook and structure — not generic carousel outline",
+      "social_prompt must include Recommended platform:, Strategic rationale:, and Platform-native prompt: — platform chosen from analysis, LinkedIn only when justified, not a default",
       "notes must document rejected generic option and commercial strength",
     ],
     forbiddenBehaviors: {

@@ -12,6 +12,12 @@ import {
   getExecutiveVersionById,
 } from "@/services/executiveVersions/executiveVersionService";
 import type { ExecutiveIntelligencePayload } from "@/services/executiveVersions/executiveVersionTypes";
+import {
+  composeBlueprintPromptWithBrandDirection,
+  toBlueprintBrandDirectionInput,
+  type BlueprintBrandDirectionInput,
+} from "@/services/identity/blueprintBrandDirection";
+import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
 import { getAthenaIdentityByUserId } from "@/services/identity/identityService";
 import {
   PERSONA_CONVERSATION_LIMITS,
@@ -75,17 +81,36 @@ function formatPersonaStructuredProfile(persona: Persona): string {
   return lines.filter((line) => !line.endsWith(": ")).join("\n");
 }
 
-function formatBlueprint(payload: ExecutiveIntelligencePayload): string {
+function formatBlueprint(
+  payload: ExecutiveIntelligencePayload,
+  brandDirection?: BlueprintBrandDirectionInput | null,
+): string {
   const blueprint = payload.blueprint;
   if (!blueprint) return "";
+  const imagePrompt = String(
+    composeBlueprintPromptWithBrandDirection(
+      blueprint.image_prompt,
+      brandDirection,
+    ) ??
+      blueprint.image_prompt ??
+      "",
+  );
+  const pdfPrompt = String(
+    composeBlueprintPromptWithBrandDirection(
+      blueprint.pdf_prompt,
+      brandDirection,
+    ) ??
+      blueprint.pdf_prompt ??
+      "",
+  );
   return [
     `asset_title: ${blueprint.asset_title ?? ""}`,
     `asset_type: ${blueprint.asset_type ?? ""}`,
     `business_goal: ${blueprint.business_goal ?? ""}`,
     `target_audience: ${blueprint.target_audience ?? ""}`,
     `priority: ${blueprint.priority ?? ""}`,
-    `image_prompt:\n${blueprint.image_prompt ?? ""}`,
-    `pdf_prompt:\n${blueprint.pdf_prompt ?? ""}`,
+    `image_prompt:\n${imagePrompt}`,
+    `pdf_prompt:\n${pdfPrompt}`,
     `social_prompt:\n${blueprint.social_prompt ?? ""}`,
     `notes:\n${blueprint.notes ?? ""}`,
   ].join("\n\n");
@@ -141,6 +166,10 @@ export async function assemblePersonaConversationContext(input: {
   const { organizationId, userId, persona } = input;
   const sections: PersonaConversationContextSection[] = [];
   const missingNotes: string[] = [];
+
+  const brandDirection = await getOrganizationBrandIdentity(organizationId)
+    .then((brand) => toBlueprintBrandDirectionInput(brand))
+    .catch(() => null);
 
   pushSection(sections, {
     type: "PERSONA_STRUCTURED_PROFILE",
@@ -315,7 +344,7 @@ export async function assemblePersonaConversationContext(input: {
       });
     }
 
-    const blueprintText = formatBlueprint(intelligence);
+    const blueprintText = formatBlueprint(intelligence, brandDirection);
     if (blueprintText) {
       pushSection(sections, {
         type: "STRATEGIC_BLUEPRINT",
