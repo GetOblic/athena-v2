@@ -9,6 +9,7 @@ import {
 import {
   ATHENA_REQUEST_ID_HEADER,
   PERSONA_CONVERSATION_LIMITS,
+  type PersonaConversationAssetReference,
   type PersonaConversationHistoryMessage,
   type PersonaConversationSuccessResult,
 } from "@/services/personaConversation/personaConversationTypes";
@@ -46,6 +47,7 @@ export async function postPersonaConversation(input: {
   message: string;
   history: PersonaConversationHistoryMessage[];
   executiveVersionId: string | null;
+  assetReference?: PersonaConversationAssetReference | null;
   signal: AbortSignal;
 }): Promise<PersonaConversationClientOutcome> {
   const runOnce = async (): Promise<PersonaConversationClientOutcome> => {
@@ -71,6 +73,7 @@ export async function postPersonaConversation(input: {
             message: input.message,
             history: input.history,
             executiveVersionId: input.executiveVersionId,
+            assetReference: input.assetReference ?? undefined,
           }),
           signal: controller.signal,
           cache: "no-store",

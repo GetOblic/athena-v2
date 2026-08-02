@@ -5,6 +5,8 @@
 import {
   PERSONA_CONVERSATION_LIMITS,
   PersonaConversationError,
+  isPersonaConversationAssetKind,
+  type PersonaConversationAssetReference,
   type PersonaConversationHistoryMessage,
   type PersonaConversationRequest,
 } from "@/services/personaConversation/personaConversationTypes";
@@ -107,6 +109,9 @@ export function validatePersonaConversationRequest(
     "temperature",
     "blueprintBody",
     "deploymentAssetBody",
+    "assetContent",
+    "assetBody",
+    "assetTitle",
   ];
   for (const key of forbiddenKeys) {
     if (key in record) {
@@ -155,7 +160,51 @@ export function validatePersonaConversationRequest(
     executiveVersionId = record.executiveVersionId.trim() || null;
   }
 
-  return { message, history, executiveVersionId };
+  let assetReference: PersonaConversationAssetReference | undefined;
+  if (record.assetReference != null) {
+    if (
+      typeof record.assetReference !== "object" ||
+      Array.isArray(record.assetReference)
+    ) {
+      throw new PersonaConversationError(
+        "VALIDATION_ERROR",
+        "assetReference must be an object.",
+        400,
+      );
+    }
+    const ref = record.assetReference as Record<string, unknown>;
+    if ("content" in ref || "title" in ref || "body" in ref) {
+      throw new PersonaConversationError(
+        "VALIDATION_ERROR",
+        "assetReference may not include content or title.",
+        400,
+      );
+    }
+    if (!isPersonaConversationAssetKind(ref.kind)) {
+      throw new PersonaConversationError(
+        "VALIDATION_ERROR",
+        "assetReference.kind must be deployment or blueprint.",
+        400,
+      );
+    }
+    if (typeof ref.key !== "string" || !ref.key.trim()) {
+      throw new PersonaConversationError(
+        "VALIDATION_ERROR",
+        "assetReference.key must be a non-empty string.",
+        400,
+      );
+    }
+    if (!executiveVersionId) {
+      throw new PersonaConversationError(
+        "VALIDATION_ERROR",
+        "assetReference requires executiveVersionId.",
+        400,
+      );
+    }
+    assetReference = { kind: ref.kind, key: ref.key.trim() };
+  }
+
+  return { message, history, executiveVersionId, assetReference };
 }
 
 export function tryAcquireConversationSlot(

@@ -7,6 +7,7 @@ import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveInt
 import { RegenerationMetadata } from "@/components/discussions/RegenerationMetadata";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
+import { PersonaDiscussProvider } from "@/components/personas/personaDiscussContext";
 import { ProspectConversationPanel } from "@/components/prospects/ProspectConversationPanel";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
@@ -30,6 +31,10 @@ import {
 } from "@/services/executiveVersions/executiveVersionSelection";
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
+import type {
+  PersonaConversationAssetReference,
+  PersonaConversationVersionState,
+} from "@/services/personaConversation/personaConversationTypes";
 import type {
   ProspectConversationAssetReference,
   ProspectConversationVersionState,
@@ -208,6 +213,9 @@ export function ExecutiveIntelligenceWorkspace({
   const [conversationOpen, setConversationOpen] = useState(false);
   const [conversationAssetReference, setConversationAssetReference] =
     useState<ProspectConversationAssetReference | null>(null);
+  const [personaConversationOpen, setPersonaConversationOpen] = useState(true);
+  const [personaConversationAssetReference, setPersonaConversationAssetReference] =
+    useState<PersonaConversationAssetReference | null>(null);
 
   // Capture Current Version id when regeneration starts (survives navigation).
   useEffect(() => {
@@ -375,12 +383,45 @@ export function ExecutiveIntelligenceWorkspace({
         ? "current"
         : "archived";
 
+  const personaConversationVersionState: PersonaConversationVersionState =
+    viewModel.executiveVersionId == null
+      ? "none"
+      : viewModel.isCurrent
+        ? "current"
+        : "archived";
+
+  const personaConversationVersionLabel =
+    viewModel.executiveVersionId == null
+      ? null
+      : viewModel.isCurrent
+        ? "Current Executive Version"
+        : viewModel.displayGeneratedAt
+          ? `Archived Executive Version — ${formatVersionGeneratedAt(viewModel.displayGeneratedAt, true)}`
+          : "Archived Executive Version";
+
   function handleDiscussWithAthena(payload: {
     executiveVersionId: string;
     assetKind: "deployment" | "blueprint";
     assetKey: string;
   }) {
     // Identifiers only — never pass asset body. Changing target does not clear messages.
+    if (isPersona) {
+      setPersonaConversationAssetReference({
+        kind: payload.assetKind,
+        key: payload.assetKey,
+      });
+      setPersonaConversationOpen(true);
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => {
+          document
+            .getElementById("persona-conversation")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          document.getElementById("persona-conversation-input")?.focus();
+        }, 0);
+      }
+      return;
+    }
+
     setConversationAssetReference({
       kind: payload.assetKind,
       key: payload.assetKey,
@@ -418,8 +459,29 @@ export function ExecutiveIntelligenceWorkspace({
       />
     ) : null;
 
-  if (!intelligence || !viewModel.analysis) {
+  function wrapWithPersonaDiscuss(node: ReactNode) {
+    if (!isPersona) {
+      return node;
+    }
     return (
+      <PersonaDiscussProvider
+        value={{
+          assetReference: personaConversationAssetReference,
+          onAssetReferenceChange: setPersonaConversationAssetReference,
+          open: personaConversationOpen,
+          onOpenChange: setPersonaConversationOpen,
+          executiveVersionId: viewModel.executiveVersionId,
+          versionState: personaConversationVersionState,
+          versionLabel: personaConversationVersionLabel,
+        }}
+      >
+        {node}
+      </PersonaDiscussProvider>
+    );
+  }
+
+  if (!intelligence || !viewModel.analysis) {
+    return wrapWithPersonaDiscuss(
       <>
         <div
           className={`mt-8 rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
@@ -465,7 +527,7 @@ export function ExecutiveIntelligenceWorkspace({
           </AthenaCollapsibleSection>
         </div>
         {afterDetailedReasoning}
-      </>
+      </>,
     );
   }
 
@@ -491,6 +553,7 @@ export function ExecutiveIntelligenceWorkspace({
     setExpandedVersionIds((previous) => new Set(previous).add(versionId));
     // Version switch starts a separate conversation scope — clear asset target only.
     setConversationAssetReference(null);
+    setPersonaConversationAssetReference(null);
   }
 
   function onViewVersion(versionId: string) {
@@ -505,7 +568,7 @@ export function ExecutiveIntelligenceWorkspace({
     selectVersion(versionId);
   }
 
-  return (
+  return wrapWithPersonaDiscuss(
     <>
       {sortedVersions.length > 0 && (
         <AthenaCollapsibleSection
@@ -652,6 +715,7 @@ export function ExecutiveIntelligenceWorkspace({
                 doneByAssetType={doneByAssetType}
                 tagsByAssetType={tagsByAssetType}
                 continuationPreferences={continuationPreferences}
+                onDiscussWithAthena={handleDiscussWithAthena}
               />
             </AthenaCollapsibleSection>
           ) : (
@@ -704,6 +768,7 @@ export function ExecutiveIntelligenceWorkspace({
               doneByAssetType={doneByAssetType}
               tagsByAssetType={tagsByAssetType}
               continuationPreferences={continuationPreferences}
+              onDiscussWithAthena={handleDiscussWithAthena}
             />
           </AthenaCollapsibleSection>
         ) : null}
@@ -722,6 +787,7 @@ export function ExecutiveIntelligenceWorkspace({
                 tagsByAssetType={tagsByAssetType}
                 brandDirection={brandDirection}
                 continuationPreferences={continuationPreferences}
+                onDiscussWithAthena={handleDiscussWithAthena}
               />
             </AthenaCollapsibleSection>
           ) : (
@@ -866,7 +932,7 @@ export function ExecutiveIntelligenceWorkspace({
       </div>
 
       {afterDetailedReasoning}
-    </>
+    </>,
   );
 }
 

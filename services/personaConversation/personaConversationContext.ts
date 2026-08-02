@@ -20,10 +20,15 @@ import {
 import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
 import { getAthenaIdentityByUserId } from "@/services/identity/identityService";
 import {
+  resolvePersonaReferencedAsset,
+} from "@/services/personaConversation/personaConversationAssetResolve";
+import {
   PERSONA_CONVERSATION_LIMITS,
   PersonaConversationError,
   type PersonaConversationAssembledContext,
+  type PersonaConversationAssetReference,
   type PersonaConversationContextSection,
+  type PersonaConversationResolvedAsset,
   type PersonaConversationVersionState,
 } from "@/services/personaConversation/personaConversationTypes";
 import { formatPersonaReferenceWebsiteResearchEvidence } from "@/services/personas/personaPipelineBody";
@@ -162,6 +167,7 @@ export async function assemblePersonaConversationContext(input: {
   userId: string;
   persona: Persona;
   executiveVersionId: string | null;
+  assetReference?: PersonaConversationAssetReference | null;
 }): Promise<PersonaConversationAssembledContext> {
   const { organizationId, userId, persona } = input;
   const sections: PersonaConversationContextSection[] = [];
@@ -383,6 +389,28 @@ export async function assemblePersonaConversationContext(input: {
     }
   }
 
+  let referencedAsset: PersonaConversationResolvedAsset | null = null;
+  if (input.assetReference) {
+    if (!executiveVersionId) {
+      throw new PersonaConversationError(
+        "VALIDATION_ERROR",
+        "Asset references require a selected Executive Version.",
+        400,
+      );
+    }
+    referencedAsset = resolvePersonaReferencedAsset({
+      payload: intelligence,
+      assetReference: input.assetReference,
+      brandDirection,
+    });
+    pushSection(sections, {
+      type: "REFERENCED_ASSET",
+      trust: "athena_analysis",
+      label: `Referenced asset (${referencedAsset.group}) — ${referencedAsset.title}`,
+      content: referencedAsset.content,
+    });
+  }
+
   return {
     personaId: persona.id,
     organizationId,
@@ -390,6 +418,7 @@ export async function assemblePersonaConversationContext(input: {
     versionState,
     versionLabel,
     sections,
+    referencedAsset,
     missingNotes,
   };
 }

@@ -169,7 +169,7 @@ describe("prospect conversation UI placement", () => {
       "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
     );
     const handlerStart = workspace.indexOf("function handleDiscussWithAthena");
-    const handler = workspace.slice(handlerStart, handlerStart + 700);
+    const handler = workspace.slice(handlerStart, handlerStart + 1800);
     assert.match(handler, /setConversationAssetReference/);
     assert.match(handler, /Identifiers only/);
     assert.doesNotMatch(handler, /setMessages/);

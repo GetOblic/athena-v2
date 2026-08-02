@@ -69,6 +69,7 @@ describe("persona stage-5 Ask Athena evidence discipline", () => {
             content: "persona_name: Urban Millennials",
           },
         ],
+        referencedAsset: null,
         missingNotes: [],
       },
       history: [],

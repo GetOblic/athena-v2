@@ -64,22 +64,24 @@ NON-MUTATION CONTRACT:
 
 function sectionKeepPriority(type: PersonaConversationSourceType): number {
   switch (type) {
+    case "REFERENCED_ASSET":
+      return 1;
     case "STRATEGIC_BLUEPRINT":
     case "DEPLOYMENT_ASSETS":
     case "ANALYSIS_ASSETS":
     case "DISCUSSION_ANALYSIS":
     case "EXECUTIVE_VERSION_METADATA":
-      return 1;
+      return 2;
     case "PERSONA_STRUCTURED_PROFILE":
     case "PERSONA_ADDITIONAL_CONTEXT":
     case "PERSONA_NOTES":
-      return 2;
+      return 3;
     case "PERSONA_ADS_CONTENT":
     case "ORGANIZATION_IDENTITY":
     case "ORGANIZATION_VOICE":
-      return 3;
-    case "REFERENCE_WEBSITE_RESEARCH_UNTRUSTED":
       return 4;
+    case "REFERENCE_WEBSITE_RESEARCH_UNTRUSTED":
+      return 5;
     default:
       return 5;
   }

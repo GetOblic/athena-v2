@@ -5,6 +5,8 @@
 
 import {
   PERSONA_CONVERSATION_LIMITS,
+  isPersonaConversationAssetKind,
+  type PersonaConversationAssetReference,
   type PersonaConversationHistoryMessage,
 } from "@/services/personaConversation/personaConversationTypes";
 
@@ -15,6 +17,7 @@ export type PersonaConversationStoredState = {
   personaId: string;
   executiveVersionId: string | null;
   messages: PersonaConversationHistoryMessage[];
+  assetReference: PersonaConversationAssetReference | null;
   updatedAt: string;
 };
 
@@ -24,6 +27,21 @@ export function buildPersonaConversationStorageKey(input: {
 }): string {
   const versionPart = input.executiveVersionId?.trim() || "no-version";
   return `athena:persona-conversation:v1:${input.personaId}:${versionPart}`;
+}
+
+function isHistoryMessage(
+  value: unknown,
+): value is PersonaConversationHistoryMessage {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const role = (value as { role?: unknown }).role;
+  const content = (value as { content?: unknown }).content;
+  return (
+    (role === "user" || role === "assistant") &&
+    typeof content === "string" &&
+    content.length <= PERSONA_CONVERSATION_LIMITS.maxHistoryMessageLength
+  );
 }
 
 export function readPersonaConversationSession(
@@ -49,23 +67,31 @@ export function readPersonaConversationSession(
           : null;
     if (storedVersion !== expected.executiveVersionId) return null;
     if (!Array.isArray(record.messages)) return null;
-    const messages = record.messages.filter((item): item is PersonaConversationHistoryMessage => {
-      if (!item || typeof item !== "object") return false;
-      const role = (item as { role?: unknown }).role;
-      const content = (item as { content?: unknown }).content;
-      return (
-        (role === "user" || role === "assistant") &&
-        typeof content === "string" &&
-        content.length <= PERSONA_CONVERSATION_LIMITS.maxHistoryMessageLength
-      );
-    });
+    const messages = record.messages
+      .filter(isHistoryMessage)
+      .slice(-PERSONA_CONVERSATION_LIMITS.maxHistoryMessageCount);
+
+    let assetReference: PersonaConversationAssetReference | null = null;
+    if (record.assetReference != null && typeof record.assetReference === "object") {
+      const ref = record.assetReference as Record<string, unknown>;
+      if (
+        isPersonaConversationAssetKind(ref.kind) &&
+        typeof ref.key === "string" &&
+        ref.key.trim() &&
+        !("content" in ref) &&
+        !("title" in ref) &&
+        !("body" in ref)
+      ) {
+        assetReference = { kind: ref.kind, key: ref.key.trim() };
+      }
+    }
+
     return {
       schemaVersion: PERSONA_CONVERSATION_STORAGE_SCHEMA_VERSION,
       personaId: expected.personaId,
       executiveVersionId: expected.executiveVersionId,
-      messages: messages.slice(
-        -PERSONA_CONVERSATION_LIMITS.maxHistoryMessageCount,
-      ),
+      messages,
+      assetReference,
       updatedAt:
         typeof record.updatedAt === "string"
           ? record.updatedAt
@@ -88,6 +114,7 @@ export function writePersonaConversationSession(
     messages: state.messages.slice(
       -PERSONA_CONVERSATION_LIMITS.maxHistoryMessageCount,
     ),
+    assetReference: state.assetReference ?? null,
     updatedAt: new Date().toISOString(),
   };
   storage.setItem(

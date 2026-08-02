@@ -287,6 +287,11 @@ export default async function PersonaDetailsPage({
                   discussionId={discussion.id}
                   initialNotes={persona.notes}
                 />
+                {/*
+                  Discuss with Athena coordination (asset reference, open, scroll/focus,
+                  selected Executive Version) is provided by ExecutiveIntelligenceWorkspace
+                  via PersonaDiscussProvider. Props below are the no-context fallback.
+                */}
                 <PersonaConversationPanel
                   personaId={persona.id}
                   executiveVersionId={versionState.current?.id ?? null}

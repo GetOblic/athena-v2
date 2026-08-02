@@ -207,6 +207,7 @@ export async function runPersonaConversation(input: {
       userId: input.userId,
       persona: input.persona,
       executiveVersionId: request.executiveVersionId,
+      assetReference: request.assetReference ?? null,
     });
 
     const built = buildPersonaConversationPrompt({
@@ -243,6 +244,14 @@ export async function runPersonaConversation(input: {
         executiveVersionId: assembled.executiveVersionId,
         versionState: assembled.versionState,
         versionLabel: assembled.versionLabel,
+        asset: assembled.referencedAsset
+          ? {
+              kind: assembled.referencedAsset.kind,
+              key: assembled.referencedAsset.key,
+              title: assembled.referencedAsset.title,
+              group: assembled.referencedAsset.group,
+            }
+          : null,
       },
     };
 

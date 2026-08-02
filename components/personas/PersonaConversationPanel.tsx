@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import { usePersonaDiscussContext } from "@/components/personas/personaDiscussContext";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { postPersonaConversation } from "@/services/personaConversation/personaConversationClient";
 import {
@@ -15,7 +16,12 @@ import {
   readPersonaConversationSession,
   writePersonaConversationSession,
 } from "@/services/personaConversation/personaConversationSession";
+import {
+  describePersonaAssetKind,
+  isPersonaAnalysisAssetReferenceKey,
+} from "@/services/personaConversation/personaConversationAssetLabels";
 import type {
+  PersonaConversationAssetReference,
   PersonaConversationHistoryMessage,
   PersonaConversationVersionState,
 } from "@/services/personaConversation/personaConversationTypes";
@@ -25,6 +31,13 @@ type PersonaConversationPanelProps = {
   executiveVersionId: string | null;
   versionState: PersonaConversationVersionState;
   versionLabel: string | null;
+  /** Controlled asset target from Discuss actions / clear. */
+  assetReference?: PersonaConversationAssetReference | null;
+  onAssetReferenceChange?: (
+    next: PersonaConversationAssetReference | null,
+  ) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 const STARTER_QUESTIONS = [
@@ -51,6 +64,22 @@ function versionIndicatorCopy(input: {
   return "No Executive Version — using available Persona profile context";
 }
 
+function discussingBadgeLabel(input: {
+  assetReference: PersonaConversationAssetReference;
+  resolvedAssetTitle: string | null;
+  resolvedGroup: "deployment" | "analysis" | "blueprint" | null;
+}): string {
+  const group =
+    input.resolvedGroup ??
+    (input.assetReference.kind === "blueprint"
+      ? "blueprint"
+      : isPersonaAnalysisAssetReferenceKey(input.assetReference.key)
+        ? "analysis"
+        : "deployment");
+  const kindLabel = describePersonaAssetKind(input.assetReference.kind, group);
+  return `Discussing: ${kindLabel} — ${input.resolvedAssetTitle ?? input.assetReference.key}`;
+}
+
 function ThinkingIndicator() {
   return (
     <span
@@ -60,16 +89,26 @@ function ThinkingIndicator() {
   );
 }
 
-export function PersonaConversationPanel({
+function PersonaConversationPanelInner({
   personaId,
-  executiveVersionId,
-  versionState,
-  versionLabel,
+  executiveVersionId: executiveVersionIdProp,
+  versionState: versionStateProp,
+  versionLabel: versionLabelProp,
+  assetReference: assetReferenceControlled,
+  onAssetReferenceChange,
+  open: openControlled,
+  onOpenChange,
 }: PersonaConversationPanelProps) {
+  const discussContext = usePersonaDiscussContext();
   const messagesRegionId = useId();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const requestSeqRef = useRef(0);
+
+  const executiveVersionId =
+    discussContext?.executiveVersionId ?? executiveVersionIdProp;
+  const versionState = discussContext?.versionState ?? versionStateProp;
+  const versionLabel = discussContext?.versionLabel ?? versionLabelProp;
 
   const initial =
     typeof window !== "undefined"
@@ -83,8 +122,44 @@ export function PersonaConversationPanel({
     initial?.messages ?? [],
   );
   const [draft, setDraft] = useState("");
+  const [assetReferenceUncontrolled, setAssetReferenceUncontrolled] =
+    useState<PersonaConversationAssetReference | null>(
+      initial?.assetReference ?? null,
+    );
+  const [resolvedAssetTitle, setResolvedAssetTitle] = useState<string | null>(
+    null,
+  );
+  const [resolvedGroup, setResolvedGroup] = useState<
+    "deployment" | "analysis" | "blueprint" | null
+  >(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const assetReferenceControlledMode =
+    assetReferenceControlled !== undefined || discussContext != null;
+  const assetReference = assetReferenceControlledMode
+    ? (assetReferenceControlled !== undefined
+        ? assetReferenceControlled
+        : discussContext?.assetReference ?? null)
+    : assetReferenceUncontrolled;
+
+  const open =
+    openControlled !== undefined
+      ? openControlled
+      : discussContext?.open;
+
+  function setAssetReference(next: PersonaConversationAssetReference | null) {
+    if (!assetReferenceControlledMode) {
+      setAssetReferenceUncontrolled(next);
+    }
+    onAssetReferenceChange?.(next);
+    discussContext?.onAssetReferenceChange(next);
+  }
+
+  function handleOpenChange(next: boolean) {
+    onOpenChange?.(next);
+    discussContext?.onOpenChange(next);
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -92,8 +167,9 @@ export function PersonaConversationPanel({
       personaId,
       executiveVersionId,
       messages,
+      assetReference: assetReference ?? null,
     });
-  }, [personaId, executiveVersionId, messages]);
+  }, [personaId, executiveVersionId, messages, assetReference]);
 
   useEffect(() => {
     return () => {
@@ -125,6 +201,7 @@ export function PersonaConversationPanel({
       message,
       history: historyForRequest,
       executiveVersionId,
+      assetReference: assetReference ?? null,
       signal: controller.signal,
     });
 
@@ -144,6 +221,14 @@ export function PersonaConversationPanel({
         content: outcome.result.message.content,
       },
     ]);
+    if (outcome.result.context.asset) {
+      setResolvedAssetTitle(outcome.result.context.asset.title);
+      setResolvedGroup(outcome.result.context.asset.group);
+      setAssetReference({
+        kind: outcome.result.context.asset.kind,
+        key: outcome.result.context.asset.key,
+      });
+    }
   }
 
   function handleSubmit(event: FormEvent) {
@@ -162,6 +247,9 @@ export function PersonaConversationPanel({
     abortRef.current?.abort();
     setMessages([]);
     setError(null);
+    setResolvedAssetTitle(null);
+    setResolvedGroup(null);
+    setAssetReference(null);
     if (typeof window !== "undefined") {
       clearPersonaConversationSession(window.sessionStorage, {
         personaId,
@@ -170,101 +258,159 @@ export function PersonaConversationPanel({
     }
   }
 
+  function clearAssetTarget() {
+    setAssetReference(null);
+    setResolvedAssetTitle(null);
+    setResolvedGroup(null);
+  }
+
+  const discussingLabel = assetReference
+    ? discussingBadgeLabel({
+        assetReference,
+        resolvedAssetTitle,
+        resolvedGroup,
+      })
+    : null;
+
   return (
-    <AthenaCollapsibleSection title="Ask Athena about this Persona" defaultOpen>
-      <p className="text-sm leading-6 text-white/45">
-        Ask grounded questions about this Persona archetype using the current
-        profile, Notes, Reference Website research, and Current Executive
-        Version when available.
-      </p>
-      <p className="mt-2 text-xs uppercase tracking-[0.2em] text-white/35">
-        {versionIndicatorCopy({ versionState, versionLabel })}
-      </p>
-
-      {versionState === "none" ? (
-        <p className="mt-4 text-sm leading-6 text-amber-200/80">
-          Generate Persona intelligence before asking Athena detailed strategic
-          questions. Profile-level questions can still use available source
-          fields.
-        </p>
-      ) : null}
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {STARTER_QUESTIONS.map((question) => (
-          <button
-            key={question}
-            type="button"
-            disabled={busy}
-            onClick={() => void sendMessage(question)}
-            className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-left text-xs text-white/70 transition hover:border-[var(--athena-orange)]/40 hover:text-white disabled:opacity-40"
-          >
-            {question}
-          </button>
-        ))}
-      </div>
-
-      <div
-        id={messagesRegionId}
-        className="mt-6 max-h-[420px] space-y-4 overflow-y-auto rounded-2xl border border-white/10 bg-black/20 p-4"
+    <div id="persona-conversation" className="scroll-mt-24">
+      <AthenaCollapsibleSection
+        title="Ask Athena about this Persona"
+        defaultOpen
+        open={open}
+        onOpenChange={
+          openControlled !== undefined || discussContext != null
+            ? handleOpenChange
+            : undefined
+        }
       >
-        {messages.length === 0 ? (
-          <p className="text-sm text-white/40">No questions yet.</p>
-        ) : (
-          messages.map((message, index) => (
-            <div
-              key={`${message.role}-${index}`}
-              className={
-                message.role === "user"
-                  ? "ml-8 whitespace-pre-wrap text-sm leading-6 text-white/85"
-                  : "mr-8 whitespace-pre-wrap text-sm leading-6 text-white/70"
-              }
+        <p className="text-sm leading-6 text-white/45">
+          Ask grounded questions about this Persona archetype using the current
+          profile, Notes, Reference Website research, and Current Executive
+          Version when available.
+        </p>
+        <p className="mt-2 text-xs uppercase tracking-[0.2em] text-white/35">
+          {versionIndicatorCopy({ versionState, versionLabel })}
+        </p>
+
+        <p className="mt-3 text-xs leading-5 text-white/35">
+          Conversation responses do not modify Athena intelligence or assets.
+        </p>
+
+        {discussingLabel ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70">
+            <span>{discussingLabel}</span>
+            <button
+              type="button"
+              onClick={clearAssetTarget}
+              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-white/60 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
             >
-              <div className="mb-1 text-[10px] uppercase tracking-[0.2em] text-white/35">
-                {message.role === "user" ? "You" : "Athena"}
-              </div>
-              {message.content}
-            </div>
-          ))
-        )}
-        {busy ? (
-          <div className="flex items-center gap-2 text-sm text-white/50">
-            <ThinkingIndicator />
-            Athena is thinking…
+              Clear target
+            </button>
           </div>
         ) : null}
-      </div>
 
-      {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
+        {versionState === "none" ? (
+          <p className="mt-4 text-sm leading-6 text-amber-200/80">
+            Generate Persona intelligence before asking Athena detailed strategic
+            questions. Profile-level questions can still use available source
+            fields.
+          </p>
+        ) : null}
 
-      <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-        <textarea
-          ref={inputRef}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={handleKeyDown}
-          rows={3}
-          disabled={busy}
-          placeholder="Ask Athena about this Persona…"
-          className="w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/25 disabled:opacity-50"
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="submit"
-            disabled={busy || !draft.trim()}
-            className="rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
-          >
-            {busy ? "Sending…" : "Send"}
-          </button>
-          <button
-            type="button"
-            onClick={clearChat}
-            disabled={busy || messages.length === 0}
-            className="rounded-full border border-white/15 px-5 py-3 text-sm text-white/70 disabled:opacity-40"
-          >
-            Clear
-          </button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {STARTER_QUESTIONS.map((question) => (
+            <button
+              key={question}
+              type="button"
+              disabled={busy}
+              onClick={() => void sendMessage(question)}
+              className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-left text-xs text-white/70 transition hover:border-[var(--athena-orange)]/40 hover:text-white disabled:opacity-40"
+            >
+              {question}
+            </button>
+          ))}
         </div>
-      </form>
-    </AthenaCollapsibleSection>
+
+        <div
+          id={messagesRegionId}
+          className="mt-6 max-h-[420px] space-y-4 overflow-y-auto rounded-2xl border border-white/10 bg-black/20 p-4"
+        >
+          {messages.length === 0 ? (
+            <p className="text-sm text-white/40">No questions yet.</p>
+          ) : (
+            messages.map((message, index) => (
+              <div
+                key={`${message.role}-${index}`}
+                className={
+                  message.role === "user"
+                    ? "ml-8 whitespace-pre-wrap text-sm leading-6 text-white/85"
+                    : "mr-8 whitespace-pre-wrap text-sm leading-6 text-white/70"
+                }
+              >
+                <div className="mb-1 text-[10px] uppercase tracking-[0.2em] text-white/35">
+                  {message.role === "user" ? "You" : "Athena"}
+                </div>
+                {message.content}
+              </div>
+            ))
+          )}
+          {busy ? (
+            <div className="flex items-center gap-2 text-sm text-white/50">
+              <ThinkingIndicator />
+              Athena is thinking…
+            </div>
+          ) : null}
+        </div>
+
+        {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
+
+        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+          <label htmlFor="persona-conversation-input" className="sr-only">
+            Ask Athena about this Persona
+          </label>
+          <textarea
+            id="persona-conversation-input"
+            ref={inputRef}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={3}
+            disabled={busy}
+            placeholder="Ask Athena about this Persona…"
+            className="w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-50"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              disabled={busy || !draft.trim()}
+              className="rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              {busy ? "Sending…" : "Send"}
+            </button>
+            <button
+              type="button"
+              onClick={clearChat}
+              disabled={busy || (messages.length === 0 && !assetReference)}
+              className="rounded-full border border-white/15 px-5 py-3 text-sm text-white/70 disabled:opacity-40"
+            >
+              Clear
+            </button>
+          </div>
+        </form>
+      </AthenaCollapsibleSection>
+    </div>
+  );
+}
+
+export function PersonaConversationPanel(props: PersonaConversationPanelProps) {
+  const discussContext = usePersonaDiscussContext();
+  const executiveVersionId =
+    discussContext?.executiveVersionId ?? props.executiveVersionId;
+  return (
+    <PersonaConversationPanelInner
+      key={`persona-conversation-${props.personaId}-${executiveVersionId ?? "no-version"}`}
+      {...props}
+    />
   );
 }

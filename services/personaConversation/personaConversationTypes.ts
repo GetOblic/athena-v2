@@ -25,6 +25,9 @@ export type PersonaConversationRole = "user" | "assistant";
 
 export type PersonaConversationVersionState = "current" | "archived" | "none";
 
+/** Same identifier shape as Prospect — kind + key only; never trust client body. */
+export type PersonaConversationAssetKind = "deployment" | "blueprint";
+
 export type PersonaConversationTrustClass =
   | "confirmed_fact"
   | "athena_analysis"
@@ -42,9 +45,28 @@ export type PersonaConversationSourceType =
   | "DEPLOYMENT_ASSETS"
   | "ANALYSIS_ASSETS"
   | "DISCUSSION_ANALYSIS"
+  | "REFERENCED_ASSET"
   | "EXECUTIVE_VERSION_METADATA"
   | "ORGANIZATION_IDENTITY"
   | "ORGANIZATION_VOICE";
+
+/** Trusted reference — identifiers only; server resolves content. */
+export type PersonaConversationAssetReference = {
+  kind: PersonaConversationAssetKind;
+  key: string;
+};
+
+export type PersonaConversationResolvedAsset = {
+  kind: PersonaConversationAssetKind;
+  key: string;
+  title: string;
+  content: string;
+  /**
+   * Server-resolved group for badge/context labeling.
+   * Analysis assets may arrive as kind "deployment" from the shared UI.
+   */
+  group: "deployment" | "analysis" | "blueprint";
+};
 
 export type PersonaConversationHistoryMessage = {
   role: PersonaConversationRole;
@@ -56,6 +78,7 @@ export type PersonaConversationRequest = {
   history: PersonaConversationHistoryMessage[];
   /** Optional; server defaults to Current Executive Version when omitted. */
   executiveVersionId: string | null;
+  assetReference?: PersonaConversationAssetReference;
 };
 
 export type PersonaConversationContextSection = {
@@ -72,6 +95,7 @@ export type PersonaConversationAssembledContext = {
   versionState: PersonaConversationVersionState;
   versionLabel: string | null;
   sections: PersonaConversationContextSection[];
+  referencedAsset: PersonaConversationResolvedAsset | null;
   missingNotes: string[];
 };
 
@@ -86,6 +110,12 @@ export type PersonaConversationSuccessResult = {
     executiveVersionId: string | null;
     versionState: PersonaConversationVersionState;
     versionLabel: string | null;
+    asset: {
+      kind: PersonaConversationAssetKind;
+      key: string;
+      title: string;
+      group: PersonaConversationResolvedAsset["group"];
+    } | null;
   };
 };
 
@@ -93,12 +123,19 @@ export type PersonaConversationErrorCode =
   | "UNAUTHORIZED"
   | "NOT_FOUND"
   | "VALIDATION_ERROR"
+  | "ASSET_NOT_FOUND"
   | "VERSION_NOT_FOUND"
   | "TIMEOUT"
   | "RATE_LIMITED"
   | "PROVIDER_RATE_LIMITED"
   | "PROVIDER_ERROR"
   | "INTERNAL_ERROR";
+
+export function isPersonaConversationAssetKind(
+  value: unknown,
+): value is PersonaConversationAssetKind {
+  return value === "deployment" || value === "blueprint";
+}
 
 export type PersonaConversationFailureResult = {
   ok: false;
