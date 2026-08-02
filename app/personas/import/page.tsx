@@ -22,8 +22,10 @@ export default async function PersonaImportPage() {
           Create or Import Personas
         </h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Manual and CSV imports create Persona records immediately. Incomplete
-          profiles are welcome — only completely blank Personas are rejected.
+          Manual and CSV imports create Persona records immediately. Generate
+          Persona drafts a review candidate from Athena Brain first — nothing is
+          saved until you confirm. Incomplete profiles are welcome — only
+          completely blank Personas are rejected.
         </p>
       </div>
 
