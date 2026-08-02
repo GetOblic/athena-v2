@@ -2,6 +2,16 @@
  * athena-worker — dedicated durable generation job processor.
  *
  * Server-only. No Next.js request context. No after(). No React.
+ *
+ * Claim order (V18, concurrency remains 1):
+ * 1. reconcileAwaitingFollowOnJobs — unchanged Prospect/Persona deep-scrape finalize
+ * 2. claimAndExecuteNextJob — Discussion/Prospect/Persona generation (existing priority)
+ * 3. claimAndExecuteNextDeepScrapeJob — Deep scrape (existing)
+ * 4. claimAndExecuteNextAdGenerationJob — Organization Ads (only when 2+3 idle)
+ *
+ * Rationale: existing generation and deep-scrape jobs cannot be starved by Ads.
+ * Ads runs on idle capacity so it is not permanently starved under normal load.
+ * No second PM2 process; concurrency remains forced to 1.
  */
 import {
   claimAndExecuteNextJob,
@@ -11,6 +21,7 @@ import {
   getAthenaWorkerConfig,
   resetAthenaWorkerConfigCache,
 } from "@/services/generationJobs/generationJobWorkerConfig";
+import { claimAndExecuteNextAdGenerationJob } from "@/services/ads/adsGenerationJobs/adGenerationJobExecutor";
 import { logChromiumAvailabilityAtStartup } from "@/services/websiteLearning/deepScrape/crawler/chromiumCheck";
 import {
   claimAndExecuteNextDeepScrapeJob,
@@ -96,7 +107,19 @@ async function main(): Promise<void> {
       const didDeepWork = await deepWork;
       currentWork = null;
 
-      if (!didDeepWork) {
+      if (didDeepWork) {
+        continue;
+      }
+
+      // Ads only when generation + deep scrape queues are idle.
+      const adsWork = claimAndExecuteNextAdGenerationJob(workerId, {
+        shouldStop: () => stopping,
+      });
+      currentWork = adsWork;
+      const didAdsWork = await adsWork;
+      currentWork = null;
+
+      if (!didAdsWork) {
         await sleep(config.pollIntervalMs);
       }
     } catch (error) {

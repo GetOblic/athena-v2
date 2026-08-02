@@ -27,7 +27,11 @@ const ANALYSIS_EXTENDED_STAGES = [
   "production_intelligence",
   "identity_profile",
   "generic_review",
+  "ad_platform_assets",
+  "ad_keyword_themes",
 ] as const;
+
+const ADS_PREMIUM_EXTENDED_STAGES = ["ad_campaign_strategy"] as const;
 
 let failures = 0;
 
@@ -120,6 +124,25 @@ if (
   pass("opportunity_review generation kind maps to opportunity_generation stage");
 } else {
   fail("opportunity_review stage mapping incorrect");
+}
+
+for (const stage of ADS_PREMIUM_EXTENDED_STAGES) {
+  const route = resolveModelForStage(stage);
+  if (route.role !== "premiumStrategicOutput") {
+    fail(`${stage} must use premiumStrategicOutput role`);
+  } else {
+    pass(`${stage} routes to premiumStrategicOutput (${route.model})`);
+  }
+}
+
+{
+  const platform = resolveModelForStage("ad_platform_assets");
+  const keywords = resolveModelForStage("ad_keyword_themes");
+  if (platform.role === "analysis" && keywords.role === "analysis") {
+    pass("Ads platform/keyword stages use analysis role");
+  } else {
+    fail("Ads platform/keyword stages must use analysis role");
+  }
 }
 
 const openrouterSource = readFileSync(

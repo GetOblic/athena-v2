@@ -17,6 +17,7 @@ export const TENANT_TABLES = [
   "identity_documents",
   "prospects",
   "personas",
+  "ad_campaigns",
 ] as const;
 
 export type TenantTable = (typeof TENANT_TABLES)[number];

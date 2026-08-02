@@ -16,7 +16,10 @@ export type AthenaExtendedLLMStage =
   | "community_intelligence"
   | "production_intelligence"
   | "identity_profile"
-  | "generic_review";
+  | "generic_review"
+  | "ad_campaign_strategy"
+  | "ad_platform_assets"
+  | "ad_keyword_themes";
 
 export type LLMModelRoleConfig = {
   model: string;
@@ -90,6 +93,10 @@ const EXTENDED_STAGE_ROLE: Record<
   production_intelligence: "analysis",
   identity_profile: "analysis",
   generic_review: "analysis",
+  // Organization-level Ads (V18) — additive; does not alter existing stage mappings.
+  ad_campaign_strategy: "premiumStrategicOutput",
+  ad_platform_assets: "analysis",
+  ad_keyword_themes: "analysis",
 };
 
 /** Stage used for Think Differently Deployment Assets (premium Claude family). */
