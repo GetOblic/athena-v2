@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useId, useRef, useState } from "react";
+import { PersonaCreationBlock } from "@/components/personas/PersonaCreationBlock";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type PreviewRow = {
@@ -178,14 +179,12 @@ export function PersonaCsvImport() {
     Boolean(csvError);
 
   return (
-    <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-      <h2 className="text-2xl font-semibold">CSV Import</h2>
-      <p className="mt-3 text-sm leading-6 text-white/45">
-        Upload a CSV to preview how Athena interprets each row. No Persona
-        records are created until you review and confirm the import.
-      </p>
-
-      <div className="mt-6">
+    <PersonaCreationBlock
+      title="CSV Import"
+      panelId="persona-creation-csv"
+      summary="Upload a CSV to preview how Athena interprets each row. No Persona records are created until you review and confirm the import."
+    >
+      <div>
         <a
           href="/templates/athena-persona-import-template.csv"
           download="Athena_Persona_Import_Template.csv"
@@ -422,6 +421,6 @@ export function PersonaCsvImport() {
           )}
         </div>
       )}
-    </section>
+    </PersonaCreationBlock>
   );
 }

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { buildPersonaGenerationPrompt } from "../../services/ai/prompts/personaGenerationPrompt";
 import {
+  blankGeneratedCandidateReferenceWebsite,
   dimensionMeaningfullyDiffers,
   evaluatePersonaNovelty,
   formatBrainContextForPersonaGeneration,
@@ -22,6 +23,7 @@ import {
   summarizeExistingPersonasForGeneration,
   validatePersonaGenerationCandidate,
 } from "../../services/personas/personaGeneration";
+import { personaCandidateToFormState } from "../../components/personas/personaFormFields";
 import type { Persona } from "../../services/personas/personaService";
 import type { BrainEngineContext } from "../../services/brain/brainContextTypes";
 
@@ -363,6 +365,111 @@ describe("persona generation — existing Persona bounding", () => {
     const block = formatExistingPersonasBlock(summaries);
     assert.ok(block.length > 0);
     assert.ok(block.length <= 8_000);
+  });
+});
+
+describe("persona generation — reference_website blanking", () => {
+  it("blanks client website when the model returns https://getoblic.com", async () => {
+    const result = await generatePersonaCandidate({
+      organizationId: ORG,
+      instruction: null,
+      deps: {
+        requestId: "req-blank-getoblic",
+        buildBrain: async () => makeBrain(),
+        getPersonas: async () => [],
+        generateReview: async () =>
+          JSON.stringify({
+            ...distinctCandidate,
+            reference_website: "https://getoblic.com",
+          }),
+      },
+    });
+
+    assert.equal(result.candidate.reference_website, "");
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(result.candidate, "reference_website"),
+      true,
+    );
+  });
+
+  it("blanks any other model-supplied URL", async () => {
+    const result = await generatePersonaCandidate({
+      organizationId: ORG,
+      instruction: null,
+      deps: {
+        requestId: "req-blank-other-url",
+        buildBrain: async () => makeBrain(),
+        getPersonas: async () => [],
+        generateReview: async () =>
+          JSON.stringify({
+            ...distinctCandidate,
+            reference_website: "https://some-other-business.example",
+          }),
+      },
+    });
+
+    assert.equal(result.candidate.reference_website, "");
+  });
+
+  it("remains valid when the model omits reference_website", async () => {
+    const withoutWebsite = { ...distinctCandidate };
+    delete (withoutWebsite as { reference_website?: string }).reference_website;
+
+    const parsed = parsePersonaGenerationCandidate(
+      JSON.stringify(withoutWebsite),
+    );
+    assert.equal(parsed.reference_website, null);
+
+    const result = await generatePersonaCandidate({
+      organizationId: ORG,
+      instruction: null,
+      deps: {
+        requestId: "req-omit-website",
+        buildBrain: async () => makeBrain(),
+        getPersonas: async () => [],
+        generateReview: async () => JSON.stringify(withoutWebsite),
+      },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.candidate.reference_website, "");
+    assert.equal(result.candidate.persona_name, distinctCandidate.persona_name);
+  });
+
+  it("parse and validate always blank reference_website server-side", () => {
+    const parsed = parsePersonaGenerationCandidate(
+      JSON.stringify({
+        ...distinctCandidate,
+        reference_website: "https://getoblic.com",
+      }),
+    );
+    assert.equal(parsed.reference_website, null);
+
+    const validated = validatePersonaGenerationCandidate(
+      {
+        ...distinctCandidate,
+        reference_website: "https://example.com/persona",
+      },
+      ORG,
+    );
+    assert.equal(validated.reference_website, null);
+
+    const blanked = blankGeneratedCandidateReferenceWebsite({
+      persona_name: "Ops",
+      reference_website: "https://getoblic.com",
+    });
+    assert.equal(blanked.reference_website, null);
+  });
+
+  it("prompt forbids copying client website into reference_website", () => {
+    const prompt = buildPersonaGenerationPrompt({
+      brainContextBlock: '{"identity":{"website":"https://getoblic.com"}}',
+      existingPersonasBlock: "None",
+      instruction: null,
+    });
+    assert.match(prompt, /Never set reference_website/);
+    assert.match(prompt, /Do not copy the client organization's website/);
+    assert.match(prompt, /Do not perform web search/);
   });
 });
 
@@ -814,6 +921,30 @@ describe("persona generation — route and UI contracts", () => {
     assert.doesNotMatch(createFn!, /\/api\/personas\/generate/);
   });
 
+  it("review form keeps Reference Website editable; create posts candidate edits", () => {
+    const form = read("components/personas/PersonaGenerateForm.tsx");
+    assert.match(form, /Reference Website/);
+    assert.match(
+      form,
+      /setCandidateField\("reference_website", event\.target\.value\)/,
+    );
+    assert.match(
+      form,
+      /body: JSON\.stringify\(\{\s*\.\.\.candidate,\s*source: "generated",\s*\}\)/,
+    );
+
+    const formState = personaCandidateToFormState({
+      persona_name: "Ops Lead",
+      reference_website: "",
+    });
+    assert.equal(formState.reference_website, "");
+    formState.reference_website = "https://research.example/segment";
+    assert.equal(
+      formState.reference_website,
+      "https://research.example/segment",
+    );
+  });
+
   it("import page keeps Manual Create and CSV Import unchanged in behavior contracts", () => {
     const forms = read("components/personas/PersonaImportForms.tsx");
     assert.match(forms, /Manual Create/);
@@ -845,9 +976,106 @@ describe("persona generation — route and UI contracts", () => {
     assert.match(service, /getPersonas/);
     assert.match(service, /preparePersonaCreateRow/);
     assert.match(service, /hasMeaningfulPersonaContent/);
+    assert.match(service, /blankGeneratedCandidateReferenceWebsite/);
     assert.match(service, /MIN_STRATEGIC_DIMENSION_DIFFERENCES = 3/);
     assert.doesNotMatch(service, /createPersona\(/);
     assert.doesNotMatch(service, /productKnowledge/i);
     assert.doesNotMatch(service, /embedding/i);
+  });
+});
+
+describe("persona creation blocks — collapsible layout and state", () => {
+  it("all three blocks start collapsed by default", () => {
+    const block = read("components/personas/PersonaCreationBlock.tsx");
+    assert.match(block, /defaultOpen = false/);
+    assert.match(block, /useState\(defaultOpen\)/);
+    assert.match(block, /type="button"/);
+    assert.match(block, /aria-expanded=\{open\}/);
+    assert.match(block, /aria-controls=\{panelId\}/);
+    assert.match(block, /id=\{panelId\}/);
+    assert.match(block, /hidden=\{!open\}/);
+
+    const forms = read("components/personas/PersonaImportForms.tsx");
+    const generate = read("components/personas/PersonaGenerateForm.tsx");
+    const csv = read("components/personas/PersonaCsvImport.tsx");
+
+    assert.match(forms, /title="Manual Create"/);
+    assert.match(forms, /panelId="persona-creation-manual"/);
+    assert.doesNotMatch(forms, /defaultOpen=\{true\}/);
+
+    assert.match(generate, /title="Generate Persona"/);
+    assert.match(generate, /panelId="persona-creation-generate"/);
+    assert.doesNotMatch(generate, /defaultOpen=\{true\}/);
+
+    assert.match(csv, /title="CSV Import"/);
+    assert.match(csv, /panelId="persona-creation-csv"/);
+    assert.doesNotMatch(csv, /defaultOpen=\{true\}/);
+  });
+
+  it("each block expands independently with its own open state", () => {
+    const block = read("components/personas/PersonaCreationBlock.tsx");
+    assert.match(block, /const \[open, setOpen\] = useState\(defaultOpen\)/);
+    assert.match(
+      block,
+      /onClick=\{\(\) => setOpen\(\(previous\) => !previous\)\}/,
+    );
+
+    const forms = read("components/personas/PersonaImportForms.tsx");
+    assert.match(forms, /PersonaCreationBlock/);
+    assert.match(forms, /PersonaGenerateForm/);
+    assert.match(forms, /PersonaCsvImport/);
+    // Three distinct panel ids — independent disclosure instances.
+    assert.match(forms, /persona-creation-manual/);
+    assert.match(
+      read("components/personas/PersonaGenerateForm.tsx"),
+      /persona-creation-generate/,
+    );
+    assert.match(
+      read("components/personas/PersonaCsvImport.tsx"),
+      /persona-creation-csv/,
+    );
+  });
+
+  it("desktop DOM order places Manual and Generate before CSV", () => {
+    const forms = read("components/personas/PersonaImportForms.tsx");
+    assert.match(
+      forms,
+      /grid gap-8 lg:grid-cols-2[\s\S]*Manual Create[\s\S]*PersonaGenerateForm[\s\S]*PersonaCsvImport/,
+    );
+    const manualIndex = forms.indexOf('title="Manual Create"');
+    const generateIndex = forms.indexOf("<PersonaGenerateForm");
+    const csvIndex = forms.indexOf("<PersonaCsvImport");
+    assert.ok(manualIndex > 0);
+    assert.ok(generateIndex > manualIndex);
+    assert.ok(csvIndex > generateIndex);
+  });
+
+  it("collapse keeps form trees mounted so session state is preserved", () => {
+    const block = read("components/personas/PersonaCreationBlock.tsx");
+    // Keep-mounted pattern: hidden toggle always renders children.
+    assert.match(block, /hidden=\{!open\}/);
+    assert.match(block, /<div id=\{panelId\} hidden=\{!open\}>[\s\S]*\{children\}/);
+    assert.doesNotMatch(block, /\{open \?\s*\([\s\S]*\{children\}/);
+
+    const forms = read("components/personas/PersonaImportForms.tsx");
+    assert.match(forms, /const \[manual, setManual\]/);
+    assert.match(forms, /value=\{manual\.persona_name/);
+
+    const generate = read("components/personas/PersonaGenerateForm.tsx");
+    assert.match(generate, /const \[instruction, setInstruction\]/);
+    assert.match(generate, /const \[candidate, setCandidate\]/);
+    assert.match(generate, /value=\{instruction\}/);
+    assert.match(generate, /value=\{candidate\.reference_website/);
+
+    const csv = read("components/personas/PersonaCsvImport.tsx");
+    assert.match(csv, /const \[csvFile, setCsvFile\]/);
+    assert.match(csv, /const \[preview, setPreview\]/);
+    assert.match(csv, /PersonaCreationBlock/);
+  });
+
+  it("disclosure buttons do not submit forms", () => {
+    const block = read("components/personas/PersonaCreationBlock.tsx");
+    assert.match(block, /type="button"/);
+    assert.doesNotMatch(block, /type="submit"/);
   });
 });

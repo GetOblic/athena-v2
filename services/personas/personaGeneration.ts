@@ -521,6 +521,19 @@ export function stripJsonFence(rawText: string): string {
     .trim();
 }
 
+/**
+ * Generated candidates must never inherit the client website or any model-supplied
+ * URL. Operators may enter a research website only during explicit create review.
+ */
+export function blankGeneratedCandidateReferenceWebsite(
+  candidate: PersonaGenerationCandidate,
+): PersonaGenerationCandidate {
+  return {
+    ...candidate,
+    reference_website: null,
+  };
+}
+
 export function parsePersonaGenerationCandidate(
   rawText: string,
 ): PersonaGenerationCandidate {
@@ -557,7 +570,8 @@ export function parsePersonaGenerationCandidate(
     candidate[field] = null;
   }
 
-  return candidate;
+  // Enforce server-side: never trust model-supplied reference_website.
+  return blankGeneratedCandidateReferenceWebsite(candidate);
 }
 
 function containsObviousPlaceholder(
@@ -594,7 +608,7 @@ export function validatePersonaGenerationCandidate(
 
   const prepared = preparePersonaCreateRow({
     organization_id: organizationId,
-    ...candidate,
+    ...blankGeneratedCandidateReferenceWebsite(candidate),
     source: "generated",
   });
 
@@ -602,6 +616,9 @@ export function validatePersonaGenerationCandidate(
   for (const field of PERSONA_GENERATION_OUTPUT_FIELDS) {
     sanitized[field] = prepared[field] ?? null;
   }
+
+  // Re-blank after create-row normalization in case a URL was supplied upstream.
+  sanitized.reference_website = null;
 
   if (!hasMeaningfulPersonaContent(sanitized)) {
     throw new Error("BLANK_CANDIDATE");
@@ -675,6 +692,11 @@ function toPublicCandidate(
 ): PersonaGenerationCandidate {
   const out: PersonaGenerationCandidate = {};
   for (const field of PERSONA_GENERATION_OUTPUT_FIELDS) {
+    if (field === "reference_website") {
+      // UI contract: always return a blank key for the editable review field.
+      out.reference_website = "";
+      continue;
+    }
     const value = candidate[field];
     if (value != null) out[field] = value;
   }

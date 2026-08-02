@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { PersonaCreationBlock } from "@/components/personas/PersonaCreationBlock";
 import { PersonaCsvImport } from "@/components/personas/PersonaCsvImport";
 import { PersonaGenerateForm } from "@/components/personas/PersonaGenerateForm";
 import {
@@ -94,14 +95,12 @@ export function PersonaImportForms() {
   return (
     <div className="space-y-8">
       <div className="grid gap-8 lg:grid-cols-2">
-        <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-          <h2 className="text-2xl font-semibold">Manual Create</h2>
-          <p className="mt-3 text-sm leading-6 text-white/45">
-            Create a single Persona. Incomplete information is fine — only a
-            completely blank Persona is rejected.
-          </p>
-
-          <form onSubmit={submitManual} className="mt-8 space-y-4">
+        <PersonaCreationBlock
+          title="Manual Create"
+          panelId="persona-creation-manual"
+          summary="Create a single Persona. Incomplete information is fine — only a completely blank Persona is rejected."
+        >
+          <form onSubmit={submitManual} className="space-y-4">
             <label className="block text-sm text-white/50">
               Persona Name
               <span className="mt-1 block text-xs leading-5 text-white/35">
@@ -243,12 +242,12 @@ export function PersonaImportForms() {
               )}
             </div>
           )}
-        </section>
+        </PersonaCreationBlock>
 
-        <PersonaCsvImport />
+        <PersonaGenerateForm />
       </div>
 
-      <PersonaGenerateForm />
+      <PersonaCsvImport />
     </div>
   );
 }

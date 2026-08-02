@@ -134,8 +134,10 @@ ${retryBlock}
 7. Never force novelty at the expense of factual relevance.
 8. Prefer concrete, usable descriptive fields over empty placeholders.
 9. Leave a field null or omit it when you lack support rather than inventing.
-10. Include reference_website only when directly supported by client knowledge and
-    appropriate for this Persona. Never fabricate a personal website.
+10. Never set reference_website. Always omit it or leave it null/empty.
+    Do not copy the client organization's website into reference_website.
+    Do not invent, look up, or associate a website with this Persona archetype.
+    Do not perform web search. The operator may enter a research URL later.
 
 === REQUIRED OUTPUT ===
 ${SHARED_JSON_OUTPUT_RULES}

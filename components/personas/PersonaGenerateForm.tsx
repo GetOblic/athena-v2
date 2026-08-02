@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import { PersonaCreationBlock } from "@/components/personas/PersonaCreationBlock";
 import {
   PERSONA_ADVANCED_FIELD_GROUPS,
   PERSONA_FORM_FIELD_CLASS,
   personaCandidateToFormState,
 } from "@/components/personas/personaFormFields";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type CreateResult = {
@@ -206,14 +207,12 @@ export function PersonaGenerateForm() {
   }
 
   return (
-    <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-      <h2 className="text-2xl font-semibold">Generate Persona</h2>
-      <p className="mt-3 text-sm leading-6 text-white/45">
-        Use Athena Brain and your existing business knowledge to generate a new,
-        relevant Persona.
-      </p>
-
-      <div className="mt-8 space-y-4">
+    <PersonaCreationBlock
+      title="Generate Persona"
+      panelId="persona-creation-generate"
+      summary="Use Athena Brain and your existing business knowledge to generate a new, relevant Persona."
+    >
+      <div className="space-y-4">
         <label className="block text-sm text-white/50">
           What kind of Persona would you like Athena to generate? (Optional)
           <textarea
@@ -432,6 +431,6 @@ export function PersonaGenerateForm() {
           )}
         </div>
       )}
-    </section>
+    </PersonaCreationBlock>
   );
 }
