@@ -18,6 +18,7 @@ export const TENANT_TABLES = [
   "prospects",
   "personas",
   "ad_campaigns",
+  "seo_reports",
 ] as const;
 
 export type TenantTable = (typeof TENANT_TABLES)[number];

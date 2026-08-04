@@ -11,6 +11,7 @@ export const dashboardNavItems = [
   { label: "Prospects", href: "/prospects" },
   { label: "Personas", href: "/personas" },
   { label: "Ads", href: "/ads" },
+  { label: "SEO Intelligence", href: "/seo" },
   { label: "Opportunities", href: "/opportunities" },
   { label: "Briefings", href: "/briefings" },
 ];

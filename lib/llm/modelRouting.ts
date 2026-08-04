@@ -19,7 +19,10 @@ export type AthenaExtendedLLMStage =
   | "generic_review"
   | "ad_campaign_strategy"
   | "ad_platform_assets"
-  | "ad_keyword_themes";
+  | "ad_keyword_themes"
+  | "seo_executive_assessment"
+  | "seo_section_analysis"
+  | "seo_roadmap";
 
 export type LLMModelRoleConfig = {
   model: string;
@@ -97,6 +100,10 @@ const EXTENDED_STAGE_ROLE: Record<
   ad_campaign_strategy: "premiumStrategicOutput",
   ad_platform_assets: "analysis",
   ad_keyword_themes: "analysis",
+  // Organization-level SEO Intelligence (V19) — additive; does not alter existing stage mappings.
+  seo_executive_assessment: "premiumStrategicOutput",
+  seo_section_analysis: "analysis",
+  seo_roadmap: "premiumStrategicOutput",
 };
 
 /** Stage used for Think Differently Deployment Assets (premium Claude family). */

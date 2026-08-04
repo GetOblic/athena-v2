@@ -3,14 +3,15 @@
  *
  * Server-only. No Next.js request context. No after(). No React.
  *
- * Claim order (V18, concurrency remains 1):
+ * Claim order (V19, concurrency remains 1):
  * 1. reconcileAwaitingFollowOnJobs — unchanged Prospect/Persona deep-scrape finalize
  * 2. claimAndExecuteNextJob — Discussion/Prospect/Persona generation (existing priority)
  * 3. claimAndExecuteNextDeepScrapeJob — Deep scrape (existing)
  * 4. claimAndExecuteNextAdGenerationJob — Organization Ads (only when 2+3 idle)
+ * 5. claimAndExecuteNextSeoGenerationJob — Organization SEO Intelligence (only when 2+3+4 idle)
  *
- * Rationale: existing generation and deep-scrape jobs cannot be starved by Ads.
- * Ads runs on idle capacity so it is not permanently starved under normal load.
+ * Rationale: existing generation and deep-scrape jobs cannot be starved by Ads/SEO.
+ * Ads and SEO run on idle capacity so they are not permanently starved under normal load.
  * No second PM2 process; concurrency remains forced to 1.
  */
 import {
@@ -22,6 +23,7 @@ import {
   resetAthenaWorkerConfigCache,
 } from "@/services/generationJobs/generationJobWorkerConfig";
 import { claimAndExecuteNextAdGenerationJob } from "@/services/ads/adsGenerationJobs/adGenerationJobExecutor";
+import { claimAndExecuteNextSeoGenerationJob } from "@/services/seo/seoGenerationJobs/seoGenerationJobExecutor";
 import { logChromiumAvailabilityAtStartup } from "@/services/websiteLearning/deepScrape/crawler/chromiumCheck";
 import {
   claimAndExecuteNextDeepScrapeJob,
@@ -119,7 +121,19 @@ async function main(): Promise<void> {
       const didAdsWork = await adsWork;
       currentWork = null;
 
-      if (!didAdsWork) {
+      if (didAdsWork) {
+        continue;
+      }
+
+      // SEO Intelligence only when generation + deep scrape + Ads queues are idle.
+      const seoWork = claimAndExecuteNextSeoGenerationJob(workerId, {
+        shouldStop: () => stopping,
+      });
+      currentWork = seoWork;
+      const didSeoWork = await seoWork;
+      currentWork = null;
+
+      if (!didSeoWork) {
         await sleep(config.pollIntervalMs);
       }
     } catch (error) {
