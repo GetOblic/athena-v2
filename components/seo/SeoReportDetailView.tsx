@@ -3,10 +3,22 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { SeoExecutiveOverview } from "@/components/seo/SeoExecutiveOverview";
+import { SeoRecommendationCard } from "@/components/seo/SeoRecommendationCard";
 import { SeoReportHeaderDeleteButton } from "@/components/seo/SeoReportHeaderDeleteButton";
 import { SeoReportSection } from "@/components/seo/SeoReportSection";
 import { SeoReportStatusPanel } from "@/components/seo/SeoReportStatusPanel";
+import { SeoStrengthIndicator } from "@/components/seo/SeoStrengthIndicator";
+import { SeoWebsitePagesAnalyzedSection } from "@/components/seo/SeoWebsitePagesAnalyzedSection";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import {
+  buildSeoExecutiveOverview,
+  createEvidenceDeduper,
+  groupCommercialOpportunities,
+  groupIntentGaps,
+  groupRoadmapItems,
+  sectionReadingCorpus,
+} from "@/services/seo/seoReportPresentation";
 import type { PublicSeoReportDetail } from "@/services/seo/seoReportPublic";
 
 type SeoReportDetailViewProps = {
@@ -17,11 +29,44 @@ function joinLines(values: string[]): string {
   return values.join("\n");
 }
 
+function buildPresentation(pkg: NonNullable<PublicSeoReportDetail["package"]>) {
+  const overview = buildSeoExecutiveOverview(pkg);
+  const takeEvidence = createEvidenceDeduper();
+  // Dedup in render order so earlier sections keep primary citations.
+  const contentEvidence = takeEvidence(pkg.contentCoverage.athenaEvidence);
+  const intentEvidence = takeEvidence(pkg.customerIntent.athenaEvidence);
+  const intentGaps = groupIntentGaps(pkg.customerIntent.missingIntents);
+  const opportunities = groupCommercialOpportunities(
+    pkg.commercialOpportunities.opportunities,
+  ).map((opportunity) => ({
+    ...opportunity,
+    athenaEvidence: takeEvidence(opportunity.athenaEvidence),
+  }));
+  const trustEvidence = takeEvidence(pkg.trustAndAuthority.athenaEvidence);
+  const roadmapItems = groupRoadmapItems(pkg.ninetyDayRoadmap.items).map(
+    (item) => ({
+      ...item,
+      athenaEvidence: takeEvidence(item.athenaEvidence),
+    }),
+  );
+
+  return {
+    overview,
+    opportunities,
+    intentGaps,
+    roadmapItems,
+    contentEvidence,
+    intentEvidence,
+    trustEvidence,
+  };
+}
+
 export function SeoReportDetailView({ report }: SeoReportDetailViewProps) {
   const router = useRouter();
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pkg = report.package;
+  const presentation = pkg ? buildPresentation(pkg) : null;
 
   async function handleRegenerate() {
     if (regenerating) return;
@@ -95,11 +140,24 @@ export function SeoReportDetailView({ report }: SeoReportDetailViewProps) {
         initialErrorMessage={report.errorMessage}
       />
 
-      {pkg ? (
+      {pkg && presentation ? (
         <div className="space-y-6">
+          <SeoExecutiveOverview model={presentation.overview} />
+
           <SeoReportSection
-            title="Executive SEO Assessment"
+            title="Executive Assessment"
             eyebrow="1"
+            defaultOpen={false}
+            summary={pkg.executiveAssessment.summary}
+            stars={presentation.overview.overallScore.stars}
+            readingCorpus={sectionReadingCorpus([
+              pkg.executiveAssessment.overallAssessment,
+              pkg.executiveAssessment.summary,
+              pkg.executiveAssessment.seoReadiness,
+              pkg.executiveAssessment.businessVisibilityAssessment,
+              ...pkg.executiveAssessment.strengths,
+              ...pkg.executiveAssessment.weaknesses,
+            ])}
             fields={[
               {
                 label: "Overall assessment",
@@ -121,212 +179,308 @@ export function SeoReportDetailView({ report }: SeoReportDetailViewProps) {
                 label: "Business visibility",
                 value: pkg.executiveAssessment.businessVisibilityAssessment,
               },
-              { label: "Summary", value: pkg.executiveAssessment.summary },
             ]}
           />
 
           <SeoReportSection
             title="Content Coverage Analysis"
             eyebrow="2"
-            fields={[
-              {
-                label: "Well-covered services",
-                value: joinLines(pkg.contentCoverage.wellCoveredServices),
-              },
-              {
-                label: "Weakly covered services",
-                value: joinLines(pkg.contentCoverage.weaklyCoveredServices),
-              },
-              {
-                label: "Missing services",
-                value: joinLines(pkg.contentCoverage.missingServices),
-              },
-              {
-                label: "Missing customer questions",
-                value: joinLines(pkg.contentCoverage.missingCustomerQuestions),
-              },
-              {
-                label: "Missing trust content",
-                value: joinLines(pkg.contentCoverage.missingTrustContent),
-              },
-              {
-                label: "Missing educational content",
-                value: joinLines(pkg.contentCoverage.missingEducationalContent),
-              },
-              {
-                label: "Missing conversion content",
-                value: joinLines(pkg.contentCoverage.missingConversionContent),
-              },
-              { label: "Analysis", value: pkg.contentCoverage.analysis },
-              {
-                label: "Athena evidence",
-                value: joinLines(pkg.contentCoverage.athenaEvidence),
-              },
-            ]}
-          />
+            defaultOpen={false}
+            summary={pkg.contentCoverage.analysis}
+            stars={presentation.overview.contentCoverage.stars}
+            readingCorpus={sectionReadingCorpus([
+              pkg.contentCoverage.analysis,
+              ...pkg.contentCoverage.wellCoveredServices,
+              ...pkg.contentCoverage.weaklyCoveredServices,
+              ...pkg.contentCoverage.missingServices,
+              ...pkg.contentCoverage.missingCustomerQuestions,
+              ...pkg.contentCoverage.missingTrustContent,
+              ...pkg.contentCoverage.missingEducationalContent,
+              ...pkg.contentCoverage.missingConversionContent,
+              ...presentation.contentEvidence,
+            ])}
+          >
+            <SeoStrengthIndicator
+              label="Coverage strength"
+              score={presentation.overview.contentCoverage}
+              compact
+            />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <NarrativeBlock
+                label="Well covered"
+                value={joinLines(pkg.contentCoverage.wellCoveredServices)}
+              />
+              <NarrativeBlock
+                label="Weakly covered"
+                value={joinLines(pkg.contentCoverage.weaklyCoveredServices)}
+              />
+              <NarrativeBlock
+                label="Missing services"
+                value={joinLines(pkg.contentCoverage.missingServices)}
+              />
+              <NarrativeBlock
+                label="Missing customer questions"
+                value={joinLines(pkg.contentCoverage.missingCustomerQuestions)}
+              />
+              <NarrativeBlock
+                label="Missing trust content"
+                value={joinLines(pkg.contentCoverage.missingTrustContent)}
+              />
+              <NarrativeBlock
+                label="Missing educational content"
+                value={joinLines(
+                  pkg.contentCoverage.missingEducationalContent,
+                )}
+              />
+              <NarrativeBlock
+                label="Missing conversion content"
+                value={joinLines(pkg.contentCoverage.missingConversionContent)}
+              />
+            </div>
+            <NarrativeBlock
+              label="Analysis"
+              value={pkg.contentCoverage.analysis}
+            />
+            {presentation.contentEvidence.length > 0 ? (
+              <NarrativeBlock
+                label="Athena evidence"
+                value={joinLines(presentation.contentEvidence)}
+              />
+            ) : null}
+          </SeoReportSection>
 
           <SeoReportSection
             title="Customer Intent Analysis"
             eyebrow="3"
-            fields={[
-              {
-                label: "Represented intents",
-                value: joinLines(pkg.customerIntent.representedIntents),
-              },
-              {
-                label: "Buyer intent summary",
-                value: pkg.customerIntent.buyerIntentSummary,
-              },
-              {
-                label: "Pain point gaps",
-                value: joinLines(pkg.customerIntent.painPointGaps),
-              },
-              ...pkg.customerIntent.missingIntents.flatMap((gap, index) => [
-                {
-                  label: `Missing intent ${index + 1}`,
-                  value: gap.intent,
-                },
-                {
-                  label: `Missing intent ${index + 1} source`,
-                  value: gap.source,
-                },
-                {
-                  label: `Missing intent ${index + 1} website gap`,
-                  value: gap.websiteGap,
-                },
-                {
-                  label: `Missing intent ${index + 1} recommendation`,
-                  value: gap.recommendation,
-                },
+            defaultOpen={false}
+            summary={pkg.customerIntent.buyerIntentSummary}
+            stars={presentation.overview.commercialReadiness.stars}
+            readingCorpus={sectionReadingCorpus([
+              pkg.customerIntent.buyerIntentSummary,
+              ...pkg.customerIntent.representedIntents,
+              ...pkg.customerIntent.painPointGaps,
+              ...presentation.intentGaps.flatMap((gap) => [
+                gap.intent,
+                gap.websiteGap,
+                gap.recommendation,
               ]),
-              {
-                label: "Athena evidence",
-                value: joinLines(pkg.customerIntent.athenaEvidence),
-              },
-            ]}
-          />
+              ...presentation.intentEvidence,
+            ])}
+          >
+            <NarrativeBlock
+              label="Buyer intent summary"
+              value={pkg.customerIntent.buyerIntentSummary}
+            />
+            <NarrativeBlock
+              label="Represented intents"
+              value={joinLines(pkg.customerIntent.representedIntents)}
+            />
+            <NarrativeBlock
+              label="Pain point gaps"
+              value={joinLines(pkg.customerIntent.painPointGaps)}
+            />
+            <div className="space-y-4">
+              {presentation.intentGaps.map((gap) => (
+                <SeoRecommendationCard
+                  key={`${gap.intent}-${gap.source}`}
+                  title={gap.recommendation}
+                  why={`${gap.intent} — ${gap.websiteGap}`}
+                  meta={`Source · ${gap.source}`}
+                  evidence={[]}
+                  futureActionKinds={gap.futureActionKinds}
+                />
+              ))}
+            </div>
+            {presentation.intentEvidence.length > 0 ? (
+              <NarrativeBlock
+                label="Athena evidence"
+                value={joinLines(presentation.intentEvidence)}
+              />
+            ) : null}
+          </SeoReportSection>
 
           <SeoReportSection
             title="Commercial Opportunity Analysis"
             eyebrow="4"
-            fields={[
-              {
-                label: "Summary",
-                value: pkg.commercialOpportunities.summary,
-              },
-              ...pkg.commercialOpportunities.opportunities.flatMap(
-                (opportunity, index) => [
-                  {
-                    label: `Opportunity ${index + 1} type`,
-                    value: opportunity.contentType,
-                  },
-                  {
-                    label: `Opportunity ${index + 1} title`,
-                    value: opportunity.title,
-                  },
-                  {
-                    label: `Opportunity ${index + 1} rationale`,
-                    value: opportunity.rationale,
-                  },
-                  {
-                    label: `Opportunity ${index + 1} expected impact`,
-                    value: opportunity.expectedImpact,
-                  },
-                  {
-                    label: `Opportunity ${index + 1} evidence`,
-                    value: joinLines(opportunity.athenaEvidence),
-                  },
-                ],
-              ),
-            ]}
-          />
+            defaultOpen={false}
+            summary={pkg.commercialOpportunities.summary}
+            stars={presentation.overview.commercialReadiness.stars}
+            readingCorpus={sectionReadingCorpus([
+              pkg.commercialOpportunities.summary,
+              ...presentation.opportunities.flatMap((opportunity) => [
+                opportunity.title,
+                opportunity.rationale,
+                opportunity.expectedImpact,
+                ...opportunity.athenaEvidence,
+              ]),
+            ])}
+          >
+            <SeoStrengthIndicator
+              label="Opportunity strength"
+              score={presentation.overview.commercialReadiness}
+              compact
+            />
+            <NarrativeBlock
+              label="Summary"
+              value={pkg.commercialOpportunities.summary}
+            />
+            <div className="space-y-4">
+              {presentation.opportunities.map((opportunity) => (
+                <SeoRecommendationCard
+                  key={`${opportunity.contentType}-${opportunity.title}`}
+                  title={opportunity.title}
+                  why={opportunity.rationale}
+                  impact={opportunity.expectedImpact}
+                  meta={opportunity.contentType}
+                  evidence={opportunity.athenaEvidence}
+                  futureActionKinds={opportunity.futureActionKinds}
+                />
+              ))}
+            </div>
+          </SeoReportSection>
 
           <SeoReportSection
             title="Trust & Authority Analysis"
             eyebrow="5"
-            fields={[
-              {
-                label: "Trust signals",
-                value: pkg.trustAndAuthority.trustSignals,
-              },
-              {
-                label: "Testimonials",
-                value: pkg.trustAndAuthority.testimonials,
-              },
-              {
-                label: "Case studies",
-                value: pkg.trustAndAuthority.caseStudies,
-              },
-              {
-                label: "Expert positioning",
-                value: pkg.trustAndAuthority.expertPositioning,
-              },
-              {
-                label: "Authority messaging",
-                value: pkg.trustAndAuthority.authorityMessaging,
-              },
-              {
-                label: "Differentiation",
-                value: pkg.trustAndAuthority.differentiation,
-              },
-              {
-                label: "Calls to action",
-                value: pkg.trustAndAuthority.callsToAction,
-              },
-              {
-                label: "Consistency",
-                value: pkg.trustAndAuthority.consistency,
-              },
-              {
-                label: "Recommendations",
-                value: joinLines(pkg.trustAndAuthority.recommendations),
-              },
-              {
-                label: "Athena evidence",
-                value: joinLines(pkg.trustAndAuthority.athenaEvidence),
-              },
-            ]}
-          />
+            defaultOpen={false}
+            summary={pkg.trustAndAuthority.authorityMessaging}
+            stars={presentation.overview.trustAuthority.stars}
+            readingCorpus={sectionReadingCorpus([
+              pkg.trustAndAuthority.trustSignals,
+              pkg.trustAndAuthority.testimonials,
+              pkg.trustAndAuthority.caseStudies,
+              pkg.trustAndAuthority.expertPositioning,
+              pkg.trustAndAuthority.authorityMessaging,
+              pkg.trustAndAuthority.differentiation,
+              pkg.trustAndAuthority.callsToAction,
+              pkg.trustAndAuthority.consistency,
+              ...pkg.trustAndAuthority.recommendations,
+              ...presentation.trustEvidence,
+            ])}
+          >
+            <SeoStrengthIndicator
+              label="Authority strength"
+              score={presentation.overview.trustAuthority}
+              compact
+            />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <NarrativeBlock
+                label="Trust signals"
+                value={pkg.trustAndAuthority.trustSignals}
+              />
+              <NarrativeBlock
+                label="Testimonials"
+                value={pkg.trustAndAuthority.testimonials}
+              />
+              <NarrativeBlock
+                label="Case studies"
+                value={pkg.trustAndAuthority.caseStudies}
+              />
+              <NarrativeBlock
+                label="Expert positioning"
+                value={pkg.trustAndAuthority.expertPositioning}
+              />
+              <NarrativeBlock
+                label="Authority messaging"
+                value={pkg.trustAndAuthority.authorityMessaging}
+              />
+              <NarrativeBlock
+                label="Differentiation"
+                value={pkg.trustAndAuthority.differentiation}
+              />
+              <NarrativeBlock
+                label="Calls to action"
+                value={pkg.trustAndAuthority.callsToAction}
+              />
+              <NarrativeBlock
+                label="Consistency"
+                value={pkg.trustAndAuthority.consistency}
+              />
+            </div>
+            <div className="space-y-4">
+              {pkg.trustAndAuthority.recommendations.map((recommendation) => (
+                <SeoRecommendationCard
+                  key={recommendation}
+                  title={recommendation}
+                  why="Strengthens buyer confidence where proof and authority are currently thin."
+                  futureActionKinds={[
+                    "generate_trust_page",
+                    "generate_article",
+                  ]}
+                />
+              ))}
+            </div>
+            {presentation.trustEvidence.length > 0 ? (
+              <NarrativeBlock
+                label="Athena evidence"
+                value={joinLines(presentation.trustEvidence)}
+              />
+            ) : null}
+          </SeoReportSection>
 
           <SeoReportSection
             title="90-Day SEO Roadmap"
             eyebrow="6"
-            fields={[
-              {
-                label: "Overview",
-                value: pkg.ninetyDayRoadmap.overview,
-              },
-              ...pkg.ninetyDayRoadmap.items.flatMap((item, index) => [
-                {
-                  label: `Item ${index + 1} priority`,
-                  value: item.priority,
-                },
-                {
-                  label: `Item ${index + 1} recommendation`,
-                  value: item.recommendation,
-                },
-                {
-                  label: `Item ${index + 1} reason`,
-                  value: item.reason,
-                },
-                {
-                  label: `Item ${index + 1} expected impact`,
-                  value: item.expectedBusinessImpact,
-                },
-                {
-                  label: `Item ${index + 1} effort`,
-                  value: item.estimatedEffort,
-                },
-                {
-                  label: `Item ${index + 1} evidence`,
-                  value: joinLines(item.athenaEvidence),
-                },
+            defaultOpen={false}
+            summary={pkg.ninetyDayRoadmap.overview}
+            stars={presentation.overview.overallScore.stars}
+            readingCorpus={sectionReadingCorpus([
+              pkg.ninetyDayRoadmap.overview,
+              ...presentation.roadmapItems.flatMap((item) => [
+                item.recommendation,
+                item.reason,
+                item.expectedBusinessImpact,
+                ...item.athenaEvidence,
               ]),
-              { label: "Disclaimer", value: pkg.disclaimer },
-            ]}
+              pkg.disclaimer,
+            ])}
+          >
+            <NarrativeBlock
+              label="Overview"
+              value={pkg.ninetyDayRoadmap.overview}
+            />
+            <div className="space-y-4">
+              {presentation.roadmapItems.map((item) => (
+                <SeoRecommendationCard
+                  key={`${item.priority}-${item.recommendation}`}
+                  title={item.recommendation}
+                  why={item.reason}
+                  impact={item.expectedBusinessImpact}
+                  priorityVisual={item.visual}
+                  meta={`Effort · ${item.estimatedEffort}`}
+                  evidence={item.athenaEvidence}
+                  futureActionKinds={item.futureActionKinds}
+                />
+              ))}
+            </div>
+            <NarrativeBlock label="Disclaimer" value={pkg.disclaimer} />
+          </SeoReportSection>
+
+          <SeoWebsitePagesAnalyzedSection
+            inventory={pkg.websitePagesAnalyzed}
           />
         </div>
       ) : null}
     </main>
+  );
+}
+
+function NarrativeBlock({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  if (!value.trim()) return null;
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
+        {label}
+      </div>
+      <div className="whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white/80">
+        {value}
+      </div>
+    </div>
   );
 }

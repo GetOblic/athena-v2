@@ -37,12 +37,12 @@ describe("Deep scrape 200→1 scheduling defect regression", () => {
     );
 
     assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveryInventory, 500);
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates, 50);
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxFetchAttempts, 50);
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 25);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates, 100);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxFetchAttempts, 100);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 50);
     assert.match(policy, /maxDiscoveryInventory:\s*500/);
-    assert.match(policy, /maxRankedCandidates:\s*50/);
-    assert.match(policy, /maxFetchAttempts:\s*50/);
+    assert.match(policy, /maxRankedCandidates:\s*100/);
+    assert.match(policy, /maxFetchAttempts:\s*100/);
     assert.match(adapter, /buildRankedCrawlPlan/);
     assert.match(adapter, /maxRequestsPerCrawlOverride = 1/);
     assert.match(
@@ -51,7 +51,7 @@ describe("Deep scrape 200→1 scheduling defect regression", () => {
     );
   });
 
-  it("navigation candidates participate in top-50 after homepage; noise excluded", () => {
+  it("navigation candidates participate in top-ranked plan after homepage; noise excluded", () => {
     const primaryNavExisting = [
       "https://getoblic.com/about",
       "https://getoblic.com/services",
@@ -87,7 +87,7 @@ describe("Deep scrape 200→1 scheduling defect regression", () => {
     });
 
     assert.equal(plan.selected[0]?.normalizedUrl, HOMEPAGE);
-    assert.ok(plan.selected.length <= 50);
+    assert.ok(plan.selected.length <= DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates);
 
     for (const url of [...primaryNavExisting, ...primaryNavNew]) {
       const canonical = canonicalizePageUrl(url)!;

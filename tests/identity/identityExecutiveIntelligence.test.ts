@@ -253,6 +253,22 @@ describe("Identity Executive Intelligence — website coverage", () => {
     assert.equal(deep.sourcePages.length, 2);
   });
 
+  it("Brain page inventory UI reuses shared WebsiteAnalyzedPagesList without SEO crawl", () => {
+    const identityUi = read(
+      "components/identity/IdentityExecutiveIntelligence.tsx",
+    );
+    const shared = read(
+      "components/websiteLearning/WebsiteAnalyzedPagesList.tsx",
+    );
+    assert.match(identityUi, /WebsiteAnalyzedPagesList/);
+    assert.match(identityUi, /Analyzed source pages/);
+    assert.match(identityUi, /buildIdentityWebsiteCoverageView/);
+    assert.doesNotMatch(identityUi, /services\/seo/);
+    assert.match(shared, /target="_blank"/);
+    assert.match(shared, /rel="noopener noreferrer"/);
+    assert.match(shared, /Untitled page/);
+  });
+
   it("7+9+10) source URLs from persisted pages; dedupe; missing titles safe", () => {
     const pages = buildIdentityWebsiteSourcePages({
       provider: DEEP_WEBSITE_INTELLIGENCE_PROVIDER,

@@ -3,7 +3,7 @@
  */
 
 import { normalizeSeoReportBrief } from "@/services/seo/seoReportBrief";
-import { isCompleteSeoIntelligencePackage } from "@/services/seo/seoReportValidation";
+import { validateSeoIntelligencePackage } from "@/services/seo/seoReportValidation";
 import {
   isSeoReportGenerationStage,
   isSeoReportStatus,
@@ -31,10 +31,12 @@ function mapPackage(
   if (status !== "Ready") {
     return null;
   }
-  if (!isCompleteSeoIntelligencePackage(value)) {
+  try {
+    // Normalize so legacy Ready packages gain an empty websitePagesAnalyzed snapshot.
+    return validateSeoIntelligencePackage(value);
+  } catch {
     return null;
   }
-  return value;
 }
 
 export function mapSeoReportRow(row: Record<string, unknown>): SeoReport {

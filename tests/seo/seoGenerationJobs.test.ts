@@ -81,5 +81,6 @@ describe("seo generation jobs", () => {
     assert.match(pipeline, /ninety_day_roadmap/);
     assert.match(pipeline, /validating/);
     assert.match(pipeline, /validateSeoIntelligencePackage/);
+    assert.match(pipeline, /websitePagesAnalyzed: context\.websitePagesAnalyzed/);
   });
 });

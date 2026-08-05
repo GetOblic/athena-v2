@@ -255,6 +255,7 @@ export async function runSeoGenerationPipeline(input: {
       trustAndAuthority,
       ninetyDayRoadmap,
       disclaimer,
+      websitePagesAnalyzed: context.websitePagesAnalyzed,
     });
     await onStage("completed");
     return { package: pkg, context };

@@ -5,6 +5,7 @@
 
 import {
   SEO_REPORT_DISCLAIMER,
+  SEO_WEBSITE_PAGES_ANALYZED_MAX,
   type SeoCommercialOpportunity,
   type SeoCommercialOpportunityAnalysis,
   type SeoContentCoverageAnalysis,
@@ -17,7 +18,10 @@ import {
   type SeoRoadmapItem,
   type SeoRoadmapPriority,
   type SeoTrustAuthorityAnalysis,
+  type SeoWebsitePageAnalyzed,
+  type SeoWebsitePagesAnalyzed,
 } from "@/services/seo/seoReportTypes";
+import { emptySeoWebsitePagesAnalyzed } from "@/services/seo/seoWebsitePagesSnapshot";
 
 export class SeoReportPackageValidationError extends Error {
   readonly code = "INVALID_PACKAGE";
@@ -600,6 +604,107 @@ function validateRoadmap(
   return { overview, items };
 }
 
+function validateWebsitePagesAnalyzed(
+  value: unknown,
+  errors: string[],
+): SeoWebsitePagesAnalyzed | null {
+  // Absent on legacy packages being re-normalized: treat as empty snapshot.
+  if (value == null) {
+    return emptySeoWebsitePagesAnalyzed();
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    errors.push("websitePagesAnalyzed must be an object.");
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  const pagesRaw = raw.pages;
+  if (!Array.isArray(pagesRaw)) {
+    errors.push("websitePagesAnalyzed.pages must be an array.");
+    return null;
+  }
+  if (pagesRaw.length > SEO_WEBSITE_PAGES_ANALYZED_MAX) {
+    errors.push(
+      `websitePagesAnalyzed.pages must contain at most ${SEO_WEBSITE_PAGES_ANALYZED_MAX} pages.`,
+    );
+    return null;
+  }
+
+  const pages: SeoWebsitePageAnalyzed[] = [];
+  for (let i = 0; i < pagesRaw.length; i += 1) {
+    const item = pagesRaw[i];
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      errors.push(`websitePagesAnalyzed.pages[${i}] must be an object.`);
+      continue;
+    }
+    const page = item as Record<string, unknown>;
+    const url =
+      typeof page.url === "string" && page.url.trim() ? page.url.trim() : null;
+    if (!url) {
+      errors.push(`websitePagesAnalyzed.pages[${i}].url must be a non-empty string.`);
+      continue;
+    }
+    const title =
+      page.title == null
+        ? null
+        : typeof page.title === "string"
+          ? page.title.trim() || null
+          : null;
+    if (page.title != null && typeof page.title !== "string") {
+      errors.push(`websitePagesAnalyzed.pages[${i}].title must be a string or null.`);
+      continue;
+    }
+    const pageType =
+      page.pageType == null
+        ? null
+        : typeof page.pageType === "string"
+          ? page.pageType.trim() || null
+          : null;
+    if (page.pageType != null && typeof page.pageType !== "string") {
+      errors.push(
+        `websitePagesAnalyzed.pages[${i}].pageType must be a string or null.`,
+      );
+      continue;
+    }
+    pages.push({ title, url, pageType });
+  }
+
+  const pagesAnalyzedCount =
+    typeof raw.pagesAnalyzedCount === "number" &&
+    Number.isFinite(raw.pagesAnalyzedCount) &&
+    raw.pagesAnalyzedCount >= 0
+      ? Math.floor(raw.pagesAnalyzedCount)
+      : pages.length;
+
+  const sourceUrl =
+    raw.sourceUrl == null
+      ? null
+      : typeof raw.sourceUrl === "string"
+        ? raw.sourceUrl.trim() || null
+        : null;
+  if (raw.sourceUrl != null && typeof raw.sourceUrl !== "string") {
+    errors.push("websitePagesAnalyzed.sourceUrl must be a string or null.");
+    return null;
+  }
+
+  const scrapedAt =
+    raw.scrapedAt == null
+      ? null
+      : typeof raw.scrapedAt === "string"
+        ? raw.scrapedAt.trim() || null
+        : null;
+  if (raw.scrapedAt != null && typeof raw.scrapedAt !== "string") {
+    errors.push("websitePagesAnalyzed.scrapedAt must be a string or null.");
+    return null;
+  }
+
+  return {
+    pagesAnalyzedCount,
+    sourceUrl,
+    scrapedAt,
+    pages,
+  };
+}
+
 /**
  * Validate and normalize a complete SeoIntelligencePackage.
  * Throws SeoReportPackageValidationError when incomplete or unsafe.
@@ -636,6 +741,10 @@ export function validateSeoIntelligencePackage(
     errors,
   );
   const ninetyDayRoadmap = validateRoadmap(raw.ninetyDayRoadmap, errors);
+  const websitePagesAnalyzed = validateWebsitePagesAnalyzed(
+    raw.websitePagesAnalyzed,
+    errors,
+  );
 
   let disclaimer = requireNonEmptyString(raw.disclaimer, "disclaimer", errors);
   if (disclaimer) {
@@ -661,6 +770,7 @@ export function validateSeoIntelligencePackage(
     !commercialOpportunities ||
     !trustAndAuthority ||
     !ninetyDayRoadmap ||
+    !websitePagesAnalyzed ||
     !disclaimer
   ) {
     throw new SeoReportPackageValidationError(
@@ -680,11 +790,16 @@ export function validateSeoIntelligencePackage(
     disclaimer: disclaimer.includes("not based on")
       ? disclaimer
       : SEO_REPORT_DISCLAIMER,
+    websitePagesAnalyzed,
   };
 
   // Scan package text for Phase-1 forbidden topics / external metric claims.
-  // Skip the fixed disclaimer itself (it may mention prohibited sources while negating them).
-  const { disclaimer: _disclaimer, ...scannable } = pkg;
+  // Skip disclaimer and provenance page inventory (URLs/titles are evidence, not analysis claims).
+  const {
+    disclaimer: _disclaimer,
+    websitePagesAnalyzed: _pages,
+    ...scannable
+  } = pkg;
   scanObjectText(scannable, "package", errors);
 
   if (errors.length > 0) {

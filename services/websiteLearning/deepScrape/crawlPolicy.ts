@@ -1,6 +1,6 @@
 /**
  * Conservative Deep Website Scrape crawl limits and URL scoring.
- * Reliability over exhaustive coverage. Max 25 meaningful pages.
+ * Reliability over exhaustive coverage. Max 50 meaningful pages.
  */
 
 import {
@@ -19,16 +19,16 @@ export const DEEP_SCRAPE_CRAWL_POLICY = {
    */
   maxDiscoveredUrls: 500,
   /**
-   * Max URLs in the final ranked fetch plan (homepage + up to 49 secondaries).
+   * Max URLs in the final ranked fetch plan (homepage + up to 99 secondaries).
    */
-  maxRankedCandidates: 50,
+  maxRankedCandidates: 100,
   /** Max substantive pages accepted into the synthesis corpus. */
-  maxMeaningfulPages: 25,
+  maxMeaningfulPages: 50,
   /**
    * Max candidate pages fetched (Cheerio request budget for the ranked plan).
    * Homepage counts toward this total.
    */
-  maxFetchAttempts: 50,
+  maxFetchAttempts: 100,
   maxConcurrentRequests: 2,
   perPageTimeoutMs: 15_000,
   phaseAWallClockMs: 12 * 60_000,

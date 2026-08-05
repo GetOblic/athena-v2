@@ -1,5 +1,6 @@
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import { WebsiteAnalyzedPagesList } from "@/components/websiteLearning/WebsiteAnalyzedPagesList";
 import {
   BUSINESS_MODEL_FIELD_LABELS,
   buildIdentityWebsiteCoverageView,
@@ -271,29 +272,9 @@ function WebsiteIntelligenceCoverageCard({
                   <div className="text-xs uppercase tracking-[0.2em] text-white/35">
                     {group}
                   </div>
-                  <ul className="mt-3 space-y-3">
-                    {pages.map((page) => (
-                      <li
-                        key={page.url}
-                        className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-                      >
-                        <div className="text-sm font-medium text-white/80">
-                          {page.title || "Untitled page"}
-                        </div>
-                        <a
-                          href={page.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1 block break-all text-xs text-[var(--athena-orange)] underline-offset-2 hover:underline"
-                        >
-                          {page.url}
-                        </a>
-                        <div className="mt-1 text-xs text-white/40">
-                          {page.pageType}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="mt-3">
+                    <WebsiteAnalyzedPagesList pages={pages} />
+                  </div>
                 </div>
               ))}
             </div>

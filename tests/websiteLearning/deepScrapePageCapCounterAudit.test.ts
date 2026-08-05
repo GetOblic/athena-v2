@@ -44,8 +44,8 @@ describe("Deep scrape page-cap counter forensic audit", () => {
       adapter,
       /maxQueueSize: DEEP_SCRAPE_CRAWL_POLICY\.maxRankedCandidates/,
     );
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 25);
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates, 50);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 50);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates, 100);
   });
 
   it("ranked-plan capacity emits ranked exclusion, not page-cap, at 1 accepted", async () => {

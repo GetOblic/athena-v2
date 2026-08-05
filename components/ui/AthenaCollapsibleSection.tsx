@@ -12,6 +12,12 @@ type AthenaCollapsibleSectionProps = {
   onOpenChange?: (open: boolean) => void;
   /** Optional eyebrow above the title */
   eyebrow?: string;
+  /** Optional one-line summary shown under the title (especially when collapsed). */
+  summary?: string;
+  /** Optional meta row under the title (stars, reading time, badges). */
+  headerMeta?: ReactNode;
+  /** When true, toggle control shows Expand/Collapse labels beside the arrow. */
+  showToggleLabel?: boolean;
   className?: string;
   contentClassName?: string;
   /** Keep a live processing / status badge visible in the header */
@@ -29,6 +35,9 @@ export function AthenaCollapsibleSection({
   open: openControlled,
   onOpenChange,
   eyebrow,
+  summary,
+  headerMeta,
+  showToggleLabel = false,
   className = "",
   contentClassName = "",
   headerAside,
@@ -68,9 +77,24 @@ export function AthenaCollapsibleSection({
             >
               {title}
             </h2>
+            {headerMeta ? <div className="mt-2">{headerMeta}</div> : null}
+            {summary ? (
+              <p className="mt-2 line-clamp-2 text-sm leading-6 text-white/55">
+                {summary}
+              </p>
+            ) : null}
           </div>
-          <span className="shrink-0 text-xs text-white/35" aria-hidden="true">
-            {open ? "▲" : "▼"}
+          <span
+            className="shrink-0 self-center text-xs text-white/45"
+            aria-hidden="true"
+          >
+            {showToggleLabel
+              ? open
+                ? "▲ Collapse"
+                : "▼ Expand"
+              : open
+                ? "▲"
+                : "▼"}
           </span>
         </button>
         {headerAside ? (

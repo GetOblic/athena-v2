@@ -22,6 +22,7 @@ import { ensureProspectGenerationQueued } from "@/services/prospects/prospectImp
 import { getProspectById, updateProspect } from "@/services/prospects/prospectService";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { runDeepWebsiteCrawl } from "@/services/websiteLearning/deepScrape/crawlEngine";
+import { DEEP_SCRAPE_CRAWL_POLICY } from "@/services/websiteLearning/deepScrape/crawlPolicy";
 import {
   deepIntelligenceHasUsableContent,
   type DeepWebsiteIntelligence,
@@ -335,7 +336,7 @@ export async function executeClaimedDeepScrapeJob(
       await renewLease("discovering", {
         pagesDiscovered: 0,
         pagesCrawled: 0,
-        pagesTarget: 25,
+        pagesTarget: DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
       });
       if (options?.shouldStop?.()) return "claim_lost";
       if (heartbeat.validationError) throw heartbeat.validationError;

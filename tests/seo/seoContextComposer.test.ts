@@ -15,6 +15,9 @@ describe("seo context composer", () => {
     assert.match(composer, /loadOrganizationDeepWebsiteIntelligence/);
     assert.match(composer, /website_intelligence/);
     assert.match(composer, /formatDeepIntelligenceForBrainPrompt/);
+    assert.match(composer, /snapshotSeoWebsitePagesAnalyzed/);
+    assert.match(composer, /websitePagesAnalyzed/);
+    assert.match(composer, /pages\.slice\(0, 50\)/);
     assert.match(composer, /never mutates Deep Scrape/i);
     assert.doesNotMatch(composer, /enqueueDeepScrape/);
     assert.doesNotMatch(composer, /claimAndExecuteNextDeepScrapeJob/);

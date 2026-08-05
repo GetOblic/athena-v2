@@ -135,6 +135,23 @@ function validPackage(
       ],
     },
     disclaimer: SEO_REPORT_DISCLAIMER,
+    websitePagesAnalyzed: {
+      pagesAnalyzedCount: 2,
+      sourceUrl: "https://example.com",
+      scrapedAt: "2026-08-05T00:00:00.000Z",
+      pages: [
+        {
+          title: "Home",
+          url: "https://example.com/",
+          pageType: "homepage",
+        },
+        {
+          title: null,
+          url: "https://example.com/about",
+          pageType: "about",
+        },
+      ],
+    },
     ...overrides,
   };
 }
@@ -144,7 +161,37 @@ describe("seo report output contract", () => {
     const pkg = validateSeoIntelligencePackage(validPackage());
     assert.equal(pkg.reportName, "Visibility & Authority Report");
     assert.equal(pkg.ninetyDayRoadmap.items.length, 4);
+    assert.equal(pkg.websitePagesAnalyzed.pages.length, 2);
+    assert.equal(pkg.websitePagesAnalyzed.pages[1]?.title, null);
     assert.equal(isCompleteSeoIntelligencePackage(pkg), true);
+  });
+
+  it("defaults missing websitePagesAnalyzed to an empty immutable snapshot", () => {
+    const { websitePagesAnalyzed: _omit, ...legacy } = validPackage();
+    const pkg = validateSeoIntelligencePackage(legacy);
+    assert.equal(pkg.websitePagesAnalyzed.pages.length, 0);
+    assert.equal(pkg.websitePagesAnalyzed.pagesAnalyzedCount, 0);
+  });
+
+  it("rejects websitePagesAnalyzed inventories larger than 50 pages", () => {
+    assert.throws(
+      () =>
+        validateSeoIntelligencePackage(
+          validPackage({
+            websitePagesAnalyzed: {
+              pagesAnalyzedCount: 51,
+              sourceUrl: "https://example.com",
+              scrapedAt: "2026-08-05T00:00:00.000Z",
+              pages: Array.from({ length: 51 }, (_, i) => ({
+                title: `Page ${i}`,
+                url: `https://example.com/p-${i}`,
+                pageType: "other",
+              })),
+            },
+          }),
+        ),
+      SeoReportPackageValidationError,
+    );
   });
 
   it("rejects incomplete packages", () => {

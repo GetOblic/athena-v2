@@ -17,7 +17,9 @@ import {
 import type {
   SeoReportBrief,
   SeoReportBriefMode,
+  SeoWebsitePagesAnalyzed,
 } from "@/services/seo/seoReportTypes";
+import { snapshotSeoWebsitePagesAnalyzed } from "@/services/seo/seoWebsitePagesSnapshot";
 import type { Persona } from "@/services/personas/personaService";
 import {
   formatDeepIntelligenceForBrainPrompt,
@@ -153,6 +155,8 @@ export type SeoOrganizationContext = {
   adsKeywordThemesBlock: string;
   operatorGuidanceBlock: string;
   composedPromptContext: string;
+  /** Immutable deep_v1 page inventory for package persistence (not live Identity). */
+  websitePagesAnalyzed: SeoWebsitePagesAnalyzed;
   meta: {
     personaCount: number;
     brainAvailable: boolean;
@@ -160,6 +164,7 @@ export type SeoOrganizationContext = {
     executiveIntelligenceAvailable: boolean;
     adsKeywordThemesAvailable: boolean;
     totalChars: number;
+    websitePagesSnapshotCount: number;
   };
 };
 
@@ -339,7 +344,7 @@ function formatDeepWebsiteIntelligenceBlock(
     ].join("\n");
   }
 
-  const pages = intelligence.pages.slice(0, 30).map((page) => ({
+  const pages = intelligence.pages.slice(0, 50).map((page) => ({
     url: page.url,
     title: page.title,
     page_type: page.page_type,
@@ -457,6 +462,8 @@ export async function composeSeoOrganizationContext(input: {
   }
   const deepWebsiteIntelligenceBlock =
     formatDeepWebsiteIntelligenceBlock(deepIntelligence);
+  const websitePagesAnalyzed =
+    snapshotSeoWebsitePagesAnalyzed(deepIntelligence);
 
   let personas: Persona[] = [];
   try {
@@ -528,6 +535,7 @@ export async function composeSeoOrganizationContext(input: {
     adsKeywordThemesBlock,
     operatorGuidanceBlock,
     composedPromptContext,
+    websitePagesAnalyzed,
     meta: {
       personaCount: personaSummaries.length,
       brainAvailable: brain != null,
@@ -537,6 +545,7 @@ export async function composeSeoOrganizationContext(input: {
       ),
       adsKeywordThemesAvailable: Boolean(adsKeywordThemesRaw),
       totalChars: composedPromptContext.length,
+      websitePagesSnapshotCount: websitePagesAnalyzed.pages.length,
     },
   };
 }

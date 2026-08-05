@@ -55,7 +55,7 @@ describe("Deep scrape discovery fallback and usefulness", () => {
     const meaningful = selectMeaningfulUrls(onlyHomepage);
     assert.equal(meaningful.length, 1);
     assert.equal(meaningful[0]?.pageType, "homepage");
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 25);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 50);
   });
 
   it("5. homepage internal links are scored as crawl candidates", () => {
@@ -239,7 +239,7 @@ describe("Deep scrape discovery fallback and usefulness", () => {
   });
 
   it("23-26. caps, synthesis model path, worker leases, and initial flows unchanged", () => {
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 25);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 50);
     const synthesize = readFileSync(
       path.join(ROOT, "services/websiteLearning/deepScrape/synthesize.ts"),
       "utf8",

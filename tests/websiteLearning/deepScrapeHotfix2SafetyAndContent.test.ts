@@ -288,7 +288,7 @@ describe("Deep scrape hotfix 2 — content acceptance policy", () => {
   });
 
   it("41-48. phase B, caps, and unchanged flows remain wired", () => {
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 25);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 50);
     const engine = readFileSync(
       path.join(ROOT, "services/websiteLearning/deepScrape/crawlEngine.ts"),
       "utf8",

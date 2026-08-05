@@ -71,8 +71,8 @@ describe("Deep scrape URL safety", () => {
 });
 
 describe("Deep scrape crawl policy", () => {
-  it("caps meaningful pages at 25", () => {
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 25);
+  it("caps meaningful pages at 50", () => {
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 50);
   });
 
   it("excludes legal/login/cart paths", () => {

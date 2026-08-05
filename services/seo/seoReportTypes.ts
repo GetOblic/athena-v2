@@ -119,6 +119,26 @@ export type SeoNinetyDayRoadmap = {
   items: SeoRoadmapItem[];
 };
 
+/**
+ * Immutable snapshot of Deep Website Intelligence pages used as SEO evidence.
+ * Persisted inside package_json — no separate DB column / migration.
+ * Ordering matches website_intelligence.pages[] at generation time.
+ */
+export type SeoWebsitePageAnalyzed = {
+  title: string | null;
+  url: string;
+  pageType: string | null;
+};
+
+export type SeoWebsitePagesAnalyzed = {
+  pagesAnalyzedCount: number;
+  sourceUrl: string | null;
+  scrapedAt: string | null;
+  pages: SeoWebsitePageAnalyzed[];
+};
+
+export const SEO_WEBSITE_PAGES_ANALYZED_MAX = 50 as const;
+
 export const SEO_REPORT_DISCLAIMER =
   "This SEO Intelligence report is inferred from Athena's organization intelligence (Brain, Deep Website Intelligence, Personas, Communities, Discussions, and Opportunities). It is not based on Search Console, Analytics, Semrush, Ahrefs, PageSpeed, crawl technical audits, or live keyword databases." as const;
 
@@ -132,6 +152,8 @@ export type SeoIntelligencePackage = {
   trustAndAuthority: SeoTrustAuthorityAnalysis;
   ninetyDayRoadmap: SeoNinetyDayRoadmap;
   disclaimer: string;
+  /** Snapshot of deep_v1 pages used at generation; empty when unavailable. */
+  websitePagesAnalyzed: SeoWebsitePagesAnalyzed;
 };
 
 export type SeoReport = {

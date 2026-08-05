@@ -41,21 +41,63 @@ describe("seo workspace UI", () => {
     assert.match(form, /submittingRef/);
   });
 
-  it("detail view renders six Ready sections, copy controls, status stages, regenerate", () => {
+  it("detail view renders executive overview and progressive disclosure sections", () => {
     const detail = read("components/seo/SeoReportDetailView.tsx");
-    assert.match(detail, /Executive SEO Assessment/);
+    assert.match(detail, /SeoExecutiveOverview/);
+    assert.match(detail, /Executive Assessment/);
     assert.match(detail, /Content Coverage Analysis/);
     assert.match(detail, /Customer Intent Analysis/);
     assert.match(detail, /Commercial Opportunity Analysis/);
     assert.match(detail, /Trust & Authority Analysis/);
     assert.match(detail, /90-Day SEO Roadmap/);
+    assert.match(detail, /SeoWebsitePagesAnalyzedSection/);
+    assert.match(detail, /SeoRecommendationCard/);
     assert.match(detail, /SeoReportStatusPanel/);
     assert.match(detail, /Regenerate/);
+    assert.match(detail, /defaultOpen=\{false\}/);
+
+    const overview = read("components/seo/SeoExecutiveOverview.tsx");
+    assert.match(overview, /Overall SEO Intelligence Score/);
+    assert.match(overview, /Commercial Readiness/);
+    assert.match(overview, /Content Coverage/);
+    assert.match(overview, /Trust & Authority/);
+    assert.match(overview, /Biggest Opportunity/);
+    assert.match(overview, /Biggest Risk/);
+    assert.match(overview, /Fastest Win/);
+    assert.match(overview, /Recommended Next Action/);
 
     const section = read("components/seo/SeoReportSection.tsx");
     assert.match(section, /CopyButton/);
     assert.match(section, /showContinue=\{false\}/);
     assert.match(section, /tracking=\{null\}/);
+    assert.match(section, /defaultOpen = false/);
+    assert.match(section, /formatReadingTime/);
+    assert.match(section, /formatStarRating/);
+    assert.match(section, /showToggleLabel/);
+
+    const recommendation = read("components/seo/SeoRecommendationCard.tsx");
+    assert.match(recommendation, /Why Athena recommends this/);
+    assert.match(recommendation, /Expected business impact/);
+    assert.match(recommendation, /data-future-action-kinds/);
+    assert.match(recommendation, /seo-recommendation-actions/);
+
+    const pagesSection = read("components/seo/SeoWebsitePagesAnalyzedSection.tsx");
+    assert.match(pagesSection, /Website Pages Analyzed/);
+    assert.match(pagesSection, /defaultOpen=\{false\}/);
+    assert.match(pagesSection, /WebsiteAnalyzedPagesList/);
+    assert.match(pagesSection, /No website page inventory was captured/);
+
+    const sharedList = read(
+      "components/websiteLearning/WebsiteAnalyzedPagesList.tsx",
+    );
+    assert.match(sharedList, /Untitled page/);
+    assert.match(sharedList, /target="_blank"/);
+    assert.match(sharedList, /rel="noopener noreferrer"/);
+
+    const identity = read("components/identity/IdentityExecutiveIntelligence.tsx");
+    assert.match(identity, /WebsiteAnalyzedPagesList/);
+    assert.match(identity, /Analyzed source pages/);
+    assert.match(identity, /Website Intelligence Coverage/);
 
     const status = read("components/seo/SeoReportStatusPanel.tsx");
     assert.match(status, /Assembling organization intelligence/);

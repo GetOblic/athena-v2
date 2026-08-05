@@ -58,7 +58,7 @@ function pathOf(url: string): string {
 /**
  * Normalize, hard-filter, dedupe (strongest provenance), rank, select top plan.
  * Homepage is always first in `selected` when present and is not displaced by
- * higher-scoring sitemap seeds. Plan size ≤ maxRankedCandidates (default 50).
+ * higher-scoring sitemap seeds. Plan size ≤ maxRankedCandidates (default 100).
  */
 export function buildRankedCrawlPlan(input: {
   rootUrl: string;

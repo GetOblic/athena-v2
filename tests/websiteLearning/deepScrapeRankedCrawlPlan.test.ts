@@ -119,8 +119,8 @@ describe("Deep scrape ranked crawl plan", () => {
     assert.ok(plan.selected.length <= DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates);
   });
 
-  it("C. top-50 plan is deterministic with tie-breakers", () => {
-    const candidates = Array.from({ length: 80 }, (_, i) => ({
+  it("C. top-ranked plan is deterministic with tie-breakers", () => {
+    const candidates = Array.from({ length: 140 }, (_, i) => ({
       url: `https://example.com/page-${String(i).padStart(3, "0")}`,
       provenance: "content_link" as const,
     }));
@@ -159,9 +159,9 @@ describe("Deep scrape ranked crawl plan", () => {
   });
 
   it("D. fetch budget and acceptance cap remain separate policy knobs", () => {
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates, 50);
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxFetchAttempts, 50);
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 25);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates, 100);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxFetchAttempts, 100);
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 50);
     assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxDiscoveryInventory, 500);
     assert.ok(
       DEEP_SCRAPE_CRAWL_POLICY.maxFetchAttempts >
@@ -180,9 +180,9 @@ describe("Deep scrape ranked crawl plan", () => {
         provenance: "sitemap" as const,
       })).concat([{ url: HOMEPAGE, provenance: "unknown" }]),
     });
-    assert.ok(plan.selected.length <= 50);
-    assert.equal(plan.stats.maxFetchAttempts, 50);
-    assert.equal(plan.stats.maxMeaningfulPages, 25);
+    assert.ok(plan.selected.length <= DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates);
+    assert.equal(plan.stats.maxFetchAttempts, 100);
+    assert.equal(plan.stats.maxMeaningfulPages, 50);
   });
 
   it("E. small site without sitemap still selects useful nav pages", () => {

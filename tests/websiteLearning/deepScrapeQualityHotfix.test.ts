@@ -271,8 +271,8 @@ describe("Deep scrape quality hotfix — extraction uniqueness", () => {
     assert.match(cheerio, /playwrightFallbackUrls\.push\(fallbackUrl\)/);
   });
 
-  it("16-18. corpus collapse gate and 25-page cap remain wired", () => {
-    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 25);
+  it("16-18. corpus collapse gate and 50-page cap remain wired", () => {
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages, 50);
     const adapter = readFileSync(
       path.join(
         ROOT,
