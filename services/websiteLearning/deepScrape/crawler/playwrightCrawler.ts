@@ -223,6 +223,10 @@ export async function runPlaywrightCrawlPhase(
           canonicalizePageUrl(finalUrl) ??
           finalUrl;
 
+        const rankedPlanIndex =
+          typeof request.userData?.rankedPlanIndex === "number"
+            ? request.userData.rankedPlanIndex
+            : ctx.fetchLifecycle?.getEntry(request.url)?.rank ?? null;
         const pageDocument: NormalizedPageDocument = {
           url: request.url,
           canonicalUrl,
@@ -250,6 +254,9 @@ export async function runPlaywrightCrawlPhase(
           extractionMethodSelected: extracted.extractionMethodSelected,
           preBoilerplateChars: extracted.preBoilerplateChars,
           postBoilerplateChars: extracted.preBoilerplateChars,
+          discoveryProvenance: provenance,
+          rankScore: totalScore,
+          rankedPlanIndex,
         };
 
         const classification = classifyNormalizedPage({

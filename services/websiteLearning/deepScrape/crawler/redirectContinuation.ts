@@ -6,12 +6,14 @@
  * already in the enqueue set (e.g. /products → /products/), we must continue
  * fetching that Location as the same logical candidate instead of terminalizing
  * REDIRECT without ever seeing the final 200.
+ *
+ * Loop detection uses hop identity that preserves trailing-slash / scheme / host
+ * differences. Canonical equivalence alone must not classify /faq → /faq/ as a loop.
  */
 
 import { DEEP_SCRAPE_CRAWL_POLICY } from "@/services/websiteLearning/deepScrape/crawlPolicy";
 import {
   assertPublicHostname,
-  canonicalizePageUrl,
   isSameRegistrableDomain,
   type HostnameSafetyContext,
 } from "@/services/websiteLearning/deepScrape/urlSafety";
@@ -58,8 +60,34 @@ export type RedirectContinuationDeps = {
   ) => Promise<string[]> | string[];
 };
 
-function canonicalKey(url: string): string {
-  return canonicalizePageUrl(url) ?? url;
+/**
+ * Hop identity for redirect-loop detection.
+ * Preserves trailing slash, scheme, and host so /faq and /faq/ are distinct hops.
+ * Strips only hash + common tracking params (not path shape).
+ */
+export function redirectHopKey(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    parsed.username = "";
+    parsed.password = "";
+    parsed.hostname = parsed.hostname.toLowerCase();
+    const dropKeys: string[] = [];
+    parsed.searchParams.forEach((_value, key) => {
+      if (
+        /^(utm_|fbclid|gclid|mc_|session|sid|ref)$/i.test(key) ||
+        key.toLowerCase().startsWith("utm_")
+      ) {
+        dropKeys.push(key);
+      }
+    });
+    for (const key of dropKeys) {
+      parsed.searchParams.delete(key);
+    }
+    return parsed.toString();
+  } catch {
+    return url;
+  }
 }
 
 /**
@@ -84,10 +112,8 @@ export async function continueSameOriginRedirectChain(input: {
   const fetchImpl = input.deps?.fetchImpl ?? fetch;
   const assertHostname = input.deps?.assertHostname ?? assertPublicHostname;
 
-  // Canonical keys already seen as redirect sources (or the original candidate).
-  // The first hop may target a URL that shares a canonical with startUrl
-  // (/products → /products/); that is allowed once, then fetched.
-  const visited = new Set<string>([canonicalKey(input.startUrl)]);
+  // Traversed hop identities (request URLs), not slash-collapsed canonicals.
+  const visitedHops = new Set<string>([redirectHopKey(input.startUrl)]);
 
   let currentUrl: string;
   try {
@@ -103,7 +129,6 @@ export async function continueSameOriginRedirectChain(input: {
 
   // First hop already consumed by the Cheerio response that handed us Location.
   let redirectCount = 1;
-  let allowSameCanonicalAsStart = true;
 
   while (true) {
     if (redirectCount > maxRedirects) {
@@ -115,24 +140,16 @@ export async function continueSameOriginRedirectChain(input: {
       };
     }
 
-    const currentKey = canonicalKey(currentUrl);
-    if (visited.has(currentKey)) {
-      if (
-        !(
-          allowSameCanonicalAsStart &&
-          currentKey === canonicalKey(input.startUrl)
-        )
-      ) {
-        return {
-          ok: false,
-          errorCode: "REDIRECT_LOOP",
-          finalUrl: currentUrl,
-          redirectCount,
-        };
-      }
+    const currentHop = redirectHopKey(currentUrl);
+    if (visitedHops.has(currentHop)) {
+      return {
+        ok: false,
+        errorCode: "REDIRECT_LOOP",
+        finalUrl: currentUrl,
+        redirectCount,
+      };
     }
-    visited.add(currentKey);
-    allowSameCanonicalAsStart = false;
+    visitedHops.add(currentHop);
 
     if (!isSameRegistrableDomain(currentUrl, input.registrableDomain)) {
       return {
@@ -222,8 +239,10 @@ export async function continueSameOriginRedirectChain(input: {
         };
       }
 
-      const nextKey = canonicalKey(nextUrl);
-      if (visited.has(nextKey)) {
+      const nextHop = redirectHopKey(nextUrl);
+      // Self-redirect (server returns 3xx to the same hop) or revisit of any
+      // previously traversed hop (A → B → A).
+      if (nextHop === currentHop || visitedHops.has(nextHop)) {
         return {
           ok: false,
           errorCode: "REDIRECT_LOOP",

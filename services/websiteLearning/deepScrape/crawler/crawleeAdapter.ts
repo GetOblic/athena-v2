@@ -23,6 +23,7 @@ import {
 } from "@/services/websiteLearning/deepScrape/crawler/cheerioCrawler";
 import { DeepScrapeFetchLifecycle } from "@/services/websiteLearning/deepScrape/crawler/fetchLifecycle";
 import type { ExtractedDiscoveryLink } from "@/services/websiteLearning/deepScrape/crawler/navigationExtraction";
+import { selectBoundedCorpusPages } from "@/services/websiteLearning/deepScrape/crawler/corpusSelection";
 import { buildRankedCrawlPlan } from "@/services/websiteLearning/deepScrape/crawler/rankedCrawlPlan";
 import type { DiscoveryProvenance } from "@/services/websiteLearning/deepScrape/crawler/urlRelevance";
 import {
@@ -221,6 +222,7 @@ export async function runCrawleeWebsiteCrawl(
       label: "homepage",
       provenance: "unknown",
       forefront: false,
+      rankedPlanIndex: 0,
     });
     cheerioCtx.maxRequestsPerCrawlOverride = 1;
     const homepageResult = await runCheerioCrawlPhase(cheerioCtx);
@@ -432,7 +434,7 @@ export async function runCrawleeWebsiteCrawl(
     cheerioCtx.forefrontOnEnqueue = false;
     cheerioCtx.maxRequestsPerCrawlOverride = remainingFetchBudget;
 
-    for (const entry of rankedPlan.secondarySelected) {
+    for (const [secondaryIndex, entry] of rankedPlan.secondarySelected.entries()) {
       if (enqueuedUrls.size >= DEEP_SCRAPE_CRAWL_POLICY.maxRankedCandidates) {
         break;
       }
@@ -441,6 +443,8 @@ export async function runCrawleeWebsiteCrawl(
         provenance: entry.provenance,
         anchorText: entry.anchorText,
         forefront: false,
+        // Homepage occupies index 0 in the finalized plan.
+        rankedPlanIndex: secondaryIndex + 1,
       });
     }
 
@@ -529,6 +533,13 @@ export async function runCrawleeWebsiteCrawl(
       }
 
       for (const entry of uniqueFallback) {
+        const rankedIndex =
+          rankedPlan.selected.findIndex(
+            (candidate) =>
+              (canonicalizePageUrl(candidate.normalizedUrl) ??
+                candidate.normalizedUrl) ===
+              (canonicalizePageUrl(entry.url) ?? entry.url),
+          );
         await playwrightQueue.addRequest(
           {
             url: entry.url,
@@ -537,6 +548,7 @@ export async function runCrawleeWebsiteCrawl(
               pageType: entry.pageType,
               provenance: entry.provenance,
               totalScore: entry.totalScore,
+              rankedPlanIndex: rankedIndex >= 0 ? rankedIndex : null,
             },
           },
           // Deterministic score-desc enqueue order; no forefront reordering.
@@ -701,27 +713,26 @@ export async function runCrawleeWebsiteCrawl(
     }
 
     const uniquePages = [...dedupedByHash.values()];
-    const boundedPages: NormalizedPageDocument[] = [];
-    let combinedChars = 0;
-    for (const page of uniquePages) {
-      if (boundedPages.length >= DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages) {
-        break;
-      }
-      if (combinedChars >= DEEP_SCRAPE_CRAWL_POLICY.maxCombinedSourceChars) {
-        break;
-      }
-      const remaining =
-        DEEP_SCRAPE_CRAWL_POLICY.maxCombinedSourceChars - combinedChars;
-      const text = (page.meaningfulText || page.readableText).slice(
-        0,
-        remaining,
-      );
-      combinedChars += text.length;
-      boundedPages.push({
-        ...page,
-        readableText: text,
-        meaningfulText: text,
-      });
+    const corpusSelection = selectBoundedCorpusPages({
+      pages: uniquePages,
+      homepageUrl: rootCanonical,
+      rankedSelected: rankedPlan.selected,
+      maxPages: DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
+      maxCombinedChars: DEEP_SCRAPE_CRAWL_POLICY.maxCombinedSourceChars,
+      primaryNavigationSelectedCount: rankedPlan.selected.filter(
+        (entry) => entry.provenance === "primary_navigation",
+      ).length,
+    });
+    const boundedPages = corpusSelection.pages;
+
+    const primaryNavigationRejectedByReason: Record<string, number> = {};
+    for (const entry of rankedPlan.selected) {
+      if (entry.provenance !== "primary_navigation") continue;
+      const life = fetchLifecycle.getEntry(entry.normalizedUrl);
+      if (!life || life.terminalOutcome === "accepted") continue;
+      const code = life.reasonCode ?? life.terminalOutcome ?? "UNKNOWN";
+      primaryNavigationRejectedByReason[code] =
+        (primaryNavigationRejectedByReason[code] ?? 0) + 1;
     }
 
     const uniqueChars = boundedPages.reduce(
@@ -838,6 +849,19 @@ export async function runCrawleeWebsiteCrawl(
       browserFallbackUsed: playwrightProcessed > 0,
       queueSizeBounded,
       browserClosed,
+      rankedCandidatesSelected:
+        lifecycleSummary?.rankedCandidatesSelected ?? rankedPlanSelectedCount,
+      rankedHandlersEntered: lifecycleSummary?.rankedHandlersEntered,
+      pagesFetched: lifecycleSummary?.responsesReceived,
+      pagesExtracted: lifecycleSummary?.cheerioExtractedCompleted,
+      pagesAcceptedBeforeCorpusBound:
+        corpusSelection.pagesAcceptedBeforeCorpusBound,
+      pagesIncludedInCorpus: corpusSelection.pagesIncludedInCorpus,
+      corpusStopReason: corpusSelection.stopReason,
+      primaryNavigationSelected: corpusSelection.primaryNavigationSelected,
+      primaryNavigationAccepted: corpusSelection.primaryNavigationAccepted,
+      primaryNavigationIncluded: corpusSelection.primaryNavigationIncluded,
+      primaryNavigationRejectedByReason,
     };
 
     if (!corpus.useful) {
@@ -866,6 +890,17 @@ export async function runCrawleeWebsiteCrawl(
         synthesisInvoked: false,
         // fetchesAttempted = requestHandlersEntered (unique handler URLs).
         fetchLifecycle: lifecycleSummary,
+        maxCombinedSourceChars: DEEP_SCRAPE_CRAWL_POLICY.maxCombinedSourceChars,
+        maxMeaningfulPages: DEEP_SCRAPE_CRAWL_POLICY.maxMeaningfulPages,
+        corpusStopReason: corpusSelection.stopReason,
+        pagesAcceptedBeforeCorpusBound:
+          corpusSelection.pagesAcceptedBeforeCorpusBound,
+        pagesIncludedInCorpus: corpusSelection.pagesIncludedInCorpus,
+        primaryNavigationSelected: corpusSelection.primaryNavigationSelected,
+        primaryNavigationAccepted: corpusSelection.primaryNavigationAccepted,
+        primaryNavigationIncluded: corpusSelection.primaryNavigationIncluded,
+        primaryNavigationRejectedByReason,
+        excludedByCharCapSample: corpusSelection.excludedByCharCap.slice(0, 20),
       },
     });
 

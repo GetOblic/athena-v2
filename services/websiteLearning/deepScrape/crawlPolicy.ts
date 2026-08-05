@@ -34,7 +34,18 @@ export const DEEP_SCRAPE_CRAWL_POLICY = {
   phaseAWallClockMs: 12 * 60_000,
   maxResponseBytes: 1_500_000,
   maxExtractedCharsPerPage: 12_000,
-  maxCombinedSourceChars: 120_000,
+  /**
+   * Synthesis corpus character ceiling (post-accept, pre-Gemini).
+   *
+   * Budget justification (deep_scrape.synthesize → Gemini 2.5 Flash / analysis role):
+   * - Per-page extract cap: 12_000; prompt slice: 6_000/page → worst page block 50×6k = 300_000 chars.
+   * - Production GetOblic density ≈ 4.2k chars/accepted page (122_275 / 29).
+   * - 50 × ~4.2k ≈ 210k; +~14% headroom for denser sites → 240_000.
+   * - Estimated tokens at ~4 chars/token: ~60k content + <2k overhead + ~8k output reserve
+   *   ≪ Gemini 2.5 Flash ~1M input context (safety margin >90%).
+   * - Previous 120_000 made maxMeaningfulPages=50 unreachable (stopped at 29).
+   */
+  maxCombinedSourceChars: 240_000,
   maxRedirectDepth: 3,
   pageRetryCount: 1,
   sitemapDepth: 2,

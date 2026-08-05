@@ -48,6 +48,12 @@ export type NormalizedPageDocument = {
   extractionMethodSelected?: string;
   preBoilerplateChars?: number;
   postBoilerplateChars?: number;
+  /** Discovery provenance at accept time (nav/sitemap/…). */
+  discoveryProvenance?: string;
+  /** Ranked-plan score at accept time. */
+  rankScore?: number;
+  /** Index in the ranked fetch plan (homepage = 0), when known. */
+  rankedPlanIndex?: number | null;
 };
 
 export type PageClassificationResult = {
@@ -74,9 +80,12 @@ export type CrawlerProgress = {
   pagesTarget: number;
 };
 
+export type CorpusStopReason = "page_cap" | "char_cap" | "exhausted";
+
 export type CrawlerRunStats = {
   candidatesDiscovered: number;
   fetchesAttempted: number;
+  /** Pages included in the final synthesis corpus (after char/page bind). */
   pagesAccepted: number;
   pagesRejected: number;
   pagesRendered: number;
@@ -88,6 +97,18 @@ export type CrawlerRunStats = {
   browserFallbackUsed: boolean;
   queueSizeBounded: boolean;
   browserClosed: boolean;
+  /** Additive diagnostics — do not replace legacy counters. */
+  rankedCandidatesSelected?: number;
+  rankedHandlersEntered?: number;
+  pagesFetched?: number;
+  pagesExtracted?: number;
+  pagesAcceptedBeforeCorpusBound?: number;
+  pagesIncludedInCorpus?: number;
+  corpusStopReason?: CorpusStopReason;
+  primaryNavigationSelected?: number;
+  primaryNavigationAccepted?: number;
+  primaryNavigationIncluded?: number;
+  primaryNavigationRejectedByReason?: Record<string, number>;
 };
 
 export type CrawlerRunResult = {

@@ -9,12 +9,21 @@ import { DEEP_SCRAPE_CRAWL_POLICY } from "../../services/websiteLearning/deepScr
 import { DeepScrapeFetchLifecycle } from "../../services/websiteLearning/deepScrape/crawler/fetchLifecycle";
 import { classifyNormalizedPage } from "../../services/websiteLearning/deepScrape/crawler/pageClassifier";
 import { extractWithReadability } from "../../services/websiteLearning/deepScrape/crawler/readabilityExtractor";
-import { continueSameOriginRedirectChain } from "../../services/websiteLearning/deepScrape/crawler/redirectContinuation";
+import {
+  continueSameOriginRedirectChain,
+  redirectHopKey,
+} from "../../services/websiteLearning/deepScrape/crawler/redirectContinuation";
 import { canonicalizePageUrl } from "../../services/websiteLearning/deepScrape/urlSafety";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const ROOT = path.join(__dirname, "../..");
+
+const ALLOW_ALL_ROBOTS = {
+  fetched: true,
+  disallow: [] as string[],
+  allow: [] as string[],
+};
 
 const SERVICE_HTML = `<!doctype html><html><head><title>Products</title>
 <meta name="description" content="Medical spa products and skincare."/>
@@ -77,7 +86,7 @@ describe("Deep scrape same-origin redirect continuation", () => {
       firstLocation: "/products/",
       registrableDomain: "example.test",
       safetyContext: { fetchPurpose: "page" },
-      robotsRules: { rules: [], sitemaps: [], crawlDelay: null },
+      robotsRules: ALLOW_ALL_ROBOTS,
       deps: {
         assertHostname: async () => [],
         fetchImpl: async (input) => {
@@ -95,6 +104,7 @@ describe("Deep scrape same-origin redirect continuation", () => {
     assert.equal(result.finalUrl, slashUrl);
     assert.equal(result.redirectCount, 1);
     assert.deepEqual(fetches, [slashUrl]);
+    assert.notEqual(redirectHopKey(startUrl), redirectHopKey(slashUrl));
 
     const extracted = extractWithReadability({
       html: result.bodyText,
@@ -144,7 +154,7 @@ describe("Deep scrape same-origin redirect continuation", () => {
       firstLocation: "/b",
       registrableDomain: "example.test",
       safetyContext: { fetchPurpose: "page" },
-      robotsRules: { rules: [], sitemaps: [], crawlDelay: null },
+      robotsRules: ALLOW_ALL_ROBOTS,
       maxRedirects: 3,
       deps: {
         assertHostname: async () => [],
@@ -175,7 +185,7 @@ describe("Deep scrape same-origin redirect continuation", () => {
       firstLocation: "/loop-b",
       registrableDomain: "example.test",
       safetyContext: { fetchPurpose: "page" },
-      robotsRules: { rules: [], sitemaps: [], crawlDelay: null },
+      robotsRules: ALLOW_ALL_ROBOTS,
       deps: {
         assertHostname: async () => [],
         fetchImpl: async (input) => {
@@ -199,7 +209,7 @@ describe("Deep scrape same-origin redirect continuation", () => {
       firstLocation: "https://evil.example/phish",
       registrableDomain: "example.test",
       safetyContext: { fetchPurpose: "page" },
-      robotsRules: { rules: [], sitemaps: [], crawlDelay: null },
+      robotsRules: ALLOW_ALL_ROBOTS,
       deps: {
         assertHostname: async () => [],
         fetchImpl: async () => {
@@ -221,7 +231,7 @@ describe("Deep scrape same-origin redirect continuation", () => {
       firstLocation: "/products/",
       registrableDomain: "example.test",
       safetyContext: { fetchPurpose: "page" },
-      robotsRules: { rules: [], sitemaps: [], crawlDelay: null },
+      robotsRules: ALLOW_ALL_ROBOTS,
       deps: {
         assertHostname: async () => {
           throw new Error("PRIVATE_IP_REJECTED");
@@ -295,7 +305,7 @@ describe("Deep scrape same-origin redirect continuation", () => {
       firstLocation: "/b",
       registrableDomain: "example.test",
       safetyContext: { fetchPurpose: "page" },
-      robotsRules: { rules: [], sitemaps: [], crawlDelay: null },
+      robotsRules: ALLOW_ALL_ROBOTS,
       maxRedirects: 3,
       deps: {
         assertHostname: async () => [],
@@ -312,5 +322,129 @@ describe("Deep scrape same-origin redirect continuation", () => {
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.equal(result.errorCode, "REDIRECT_DEPTH_EXCEEDED");
+  });
+
+  it("canonical trailing-slash /faq → /faq/ is accepted (not a loop)", async () => {
+    const startUrl = "https://example.test/faq";
+    const slashUrl = "https://example.test/faq/";
+    assert.equal(canonicalizePageUrl(startUrl), canonicalizePageUrl(slashUrl));
+    assert.notEqual(redirectHopKey(startUrl), redirectHopKey(slashUrl));
+
+    const result = await continueSameOriginRedirectChain({
+      startUrl,
+      firstLocation: "/faq/",
+      registrableDomain: "example.test",
+      safetyContext: { fetchPurpose: "page" },
+      robotsRules: ALLOW_ALL_ROBOTS,
+      deps: {
+        assertHostname: async () => [],
+        fetchImpl: async (input) => {
+          assert.equal(String(input), slashUrl);
+          return htmlResponse(200, SERVICE_HTML);
+        },
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.finalUrl, slashUrl);
+  });
+
+  it("GetOblic-shaped https /faq → http /faq/ → https /faq/ is accepted", async () => {
+    const startUrl = "https://example.test/faq";
+    const fetches: string[] = [];
+    const result = await continueSameOriginRedirectChain({
+      startUrl,
+      firstLocation: "http://example.test/faq/",
+      registrableDomain: "example.test",
+      safetyContext: { fetchPurpose: "page" },
+      robotsRules: ALLOW_ALL_ROBOTS,
+      deps: {
+        assertHostname: async () => [],
+        fetchImpl: async (input) => {
+          const url = String(input);
+          fetches.push(url);
+          if (url === "http://example.test/faq/") {
+            return redirectResponse("https://example.test/faq/");
+          }
+          if (url === "https://example.test/faq/") {
+            return htmlResponse(200, SERVICE_HTML);
+          }
+          throw new Error(`unexpected ${url}`);
+        },
+      },
+    });
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.redirectCount, 2);
+    assert.deepEqual(fetches, [
+      "http://example.test/faq/",
+      "https://example.test/faq/",
+    ]);
+  });
+
+  it("/faq/ → /faq repeated 301 loop is rejected", async () => {
+    const result = await continueSameOriginRedirectChain({
+      startUrl: "https://example.test/faq/",
+      firstLocation: "/faq",
+      registrableDomain: "example.test",
+      safetyContext: { fetchPurpose: "page" },
+      robotsRules: ALLOW_ALL_ROBOTS,
+      deps: {
+        assertHostname: async () => [],
+        fetchImpl: async (input) => {
+          const url = String(input);
+          if (url.endsWith("/faq") && !url.endsWith("/faq/")) {
+            return redirectResponse("/faq/");
+          }
+          if (url.endsWith("/faq/")) {
+            return redirectResponse("/faq");
+          }
+          throw new Error(`unexpected ${url}`);
+        },
+      },
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.errorCode, "REDIRECT_LOOP");
+  });
+
+  it("self-redirect to the same hop is rejected", async () => {
+    const result = await continueSameOriginRedirectChain({
+      startUrl: "https://example.test/faq",
+      firstLocation: "/faq/",
+      registrableDomain: "example.test",
+      safetyContext: { fetchPurpose: "page" },
+      robotsRules: ALLOW_ALL_ROBOTS,
+      deps: {
+        assertHostname: async () => [],
+        fetchImpl: async () => redirectResponse("/faq/"),
+      },
+    });
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.errorCode, "REDIRECT_LOOP");
+  });
+
+  it("HTTP → HTTPS same-site redirect is accepted", async () => {
+    const result = await continueSameOriginRedirectChain({
+      startUrl: "http://example.test/about",
+      firstLocation: "https://example.test/about",
+      registrableDomain: "example.test",
+      safetyContext: { fetchPurpose: "page" },
+      robotsRules: ALLOW_ALL_ROBOTS,
+      deps: {
+        assertHostname: async () => [],
+        fetchImpl: async (input) => {
+          assert.equal(String(input), "https://example.test/about");
+          return htmlResponse(200, SERVICE_HTML);
+        },
+      },
+    });
+    assert.equal(result.ok, true);
+  });
+
+  it("redirect depth maximum remains enforced", async () => {
+    assert.equal(DEEP_SCRAPE_CRAWL_POLICY.maxRedirectDepth, 3);
   });
 });

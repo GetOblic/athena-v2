@@ -193,6 +193,7 @@ async function maybeEnqueue(
     anchorText?: string | null;
     /** Force forefront; default respects ctx.forefrontOnEnqueue (false). */
     forefront?: boolean;
+    rankedPlanIndex?: number | null;
   },
 ): Promise<void> {
   const canonical = canonicalizePageUrl(url);
@@ -297,6 +298,7 @@ async function maybeEnqueue(
         totalScore: observed.ranked.totalScore,
         scoreFactors: observed.ranked.factors.slice(0, 8),
         pathDepth: observed.ranked.arborescence.pathDepth,
+        rankedPlanIndex: options?.rankedPlanIndex ?? null,
       },
     },
     { forefront },
@@ -636,6 +638,10 @@ export async function runCheerioCrawlPhase(
 
         const canonicalUrl =
           extracted.canonicalUrl ?? canonicalizePageUrl(finalUrl) ?? finalUrl;
+        const rankedPlanIndex =
+          typeof request.userData?.rankedPlanIndex === "number"
+            ? request.userData.rankedPlanIndex
+            : ctx.fetchLifecycle?.getEntry(request.url)?.rank ?? null;
         const pageDocument: NormalizedPageDocument = {
           url: request.url,
           canonicalUrl,
@@ -661,6 +667,9 @@ export async function runCheerioCrawlPhase(
           extractionMethodSelected: extracted.extractionMethodSelected,
           preBoilerplateChars: extracted.preBoilerplateChars,
           postBoilerplateChars: extracted.preBoilerplateChars,
+          discoveryProvenance: String(provenance),
+          rankScore: totalScore,
+          rankedPlanIndex,
         };
 
         const classification = classifyNormalizedPage({
