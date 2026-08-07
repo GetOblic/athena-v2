@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { clearLicenseeMasterMarkerCookie } from "@/services/licensee/licenseeMasterMarkerCookie";
 import { clearLicenseeOriginCookie } from "@/services/licensee/licenseeOriginCookie";
+import { clearSuperAdminMarkerCookie } from "@/services/superAdmin/superAdminMarkerCookie";
 
 /**
  * Normal Athena logout.
@@ -17,5 +18,6 @@ export async function POST() {
   );
   clearLicenseeOriginCookie(response);
   clearLicenseeMasterMarkerCookie(response);
+  clearSuperAdminMarkerCookie(response);
   return response;
 }

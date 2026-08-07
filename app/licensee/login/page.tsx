@@ -11,6 +11,10 @@ import {
   isLicenseeMasterUser,
 } from "@/services/licensee/licenseeIdentity";
 import { licenseeMasterMarkerCookieWriteOptions } from "@/services/licensee/licenseeMasterMarkerCookie";
+import {
+  AccountAccessDeniedError,
+  assertAccountAccessActive,
+} from "@/services/superAdmin/accountAccessStatus";
 
 /**
  * Business Licensee Master OTP login.
@@ -103,6 +107,20 @@ export default async function LicenseeLoginPage({
           "This email is not authorized as a Business Licensee Master.",
         )}`,
       );
+    }
+
+    try {
+      await assertAccountAccessActive(user.id);
+    } catch (accessError) {
+      await supabase.auth.signOut();
+      if (accessError instanceof AccountAccessDeniedError) {
+        redirect(
+          `/licensee/login?message=${encodeURIComponent(
+            "This Master account has been deactivated.",
+          )}`,
+        );
+      }
+      throw accessError;
     }
 
     const cookieStore = await cookies();

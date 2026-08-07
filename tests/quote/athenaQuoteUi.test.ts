@@ -47,6 +47,8 @@ describe("Athena Quote UI", () => {
     assert.match(page, /QuoteFormScrollLink/);
     assert.match(page, /Back to Master dashboard/);
     assert.match(page, /getLicenseeAccountByUserId/);
+    assert.match(page, /isAccountAccessActive/);
+    assert.match(page, /This Master account has been deactivated/);
     assert.match(page, /\/licensee\/login/);
     assert.doesNotMatch(page, /DashboardSidebar/);
     assert.doesNotMatch(page, /suggested retail/i);

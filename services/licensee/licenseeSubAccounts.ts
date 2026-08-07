@@ -21,6 +21,14 @@ import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectBri
 import { deepIntelligenceHasUsableContent } from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
+  AccountAccessDeniedError,
+  assertAccountAccessActive,
+} from "@/services/superAdmin/accountAccessStatus";
+import {
+  SuperAdminAuthorityLookupError,
+  isGetOblicSuperAdminUser,
+} from "@/services/superAdmin/superAdminIdentity";
+import {
   getOrganizationMembership,
   provisionTenantForAuthenticatedUser,
 } from "@/services/organizationService";
@@ -234,6 +242,15 @@ export async function requireLicenseeMasterAccount(
     throw new LicenseeAccessError(
       "Authenticated user is not a Business Licensee Master.",
     );
+  }
+  // Existing-session fail-closed for deactivated Licensee Masters.
+  try {
+    await assertAccountAccessActive(userId);
+  } catch (error) {
+    if (error instanceof AccountAccessDeniedError) {
+      throw new LicenseeAccessError(error.message);
+    }
+    throw error;
   }
   return account;
 }
@@ -760,6 +777,28 @@ export async function createLicenseeSubAccount(input: {
     );
   }
 
+  if (authUser) {
+    try {
+      if (await isGetOblicSuperAdminUser(authUser.id)) {
+        throw new LicenseeSubAccountCreateError(
+          "SUPER_ADMIN_EMAIL_REJECTED",
+          "A GetOblic Super Admin email cannot be used as a sub-account email.",
+        );
+      }
+    } catch (error) {
+      if (error instanceof LicenseeSubAccountCreateError) {
+        throw error;
+      }
+      if (error instanceof SuperAdminAuthorityLookupError) {
+        throw new LicenseeSubAccountCreateError(
+          "SUPER_ADMIN_LOOKUP_FAILED",
+          "Super Admin authority could not be verified. Sub-account creation denied.",
+        );
+      }
+      throw error;
+    }
+  }
+
   if (!authUser) {
     try {
       authUser = await createConfirmedAuthUser(accountEmail);
@@ -777,6 +816,25 @@ export async function createLicenseeSubAccount(input: {
           "MASTER_EMAIL_REJECTED",
           "A Master email cannot be used as a sub-account email.",
         );
+      }
+      try {
+        if (await isGetOblicSuperAdminUser(authUser.id)) {
+          throw new LicenseeSubAccountCreateError(
+            "SUPER_ADMIN_EMAIL_REJECTED",
+            "A GetOblic Super Admin email cannot be used as a sub-account email.",
+          );
+        }
+      } catch (lookupError) {
+        if (lookupError instanceof LicenseeSubAccountCreateError) {
+          throw lookupError;
+        }
+        if (lookupError instanceof SuperAdminAuthorityLookupError) {
+          throw new LicenseeSubAccountCreateError(
+            "SUPER_ADMIN_LOOKUP_FAILED",
+            "Super Admin authority could not be verified. Sub-account creation denied.",
+          );
+        }
+        throw lookupError;
       }
     }
   }

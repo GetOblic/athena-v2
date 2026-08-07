@@ -10,6 +10,10 @@ import {
   buildLicenseeOriginCookieValue,
   parseLicenseeOriginCookieValue,
 } from "@/services/licensee/licenseeOriginCookie";
+import {
+  AccountAccessDeniedError,
+  assertAccountAccessActive,
+} from "@/services/superAdmin/accountAccessStatus";
 
 export {
   LICENSEE_ORIGIN_COOKIE,
@@ -153,6 +157,16 @@ export async function restoreMasterFromOriginCookie(
     const licenseeAccount = await getLicenseeAccountByUserId(origin.masterUserId);
     if (!licenseeAccount || licenseeAccount.id !== origin.licenseeAccountId) {
       throw new LicenseeAccessError("Master-origin context is no longer valid.");
+    }
+
+    // Back-to-Master must not restore a deactivated Master.
+    try {
+      await assertAccountAccessActive(origin.masterUserId);
+    } catch (error) {
+      if (error instanceof AccountAccessDeniedError) {
+        throw new LicenseeAccessError(error.message);
+      }
+      throw error;
     }
 
     const { data: relationship, error: relationshipError } = await supabaseAdmin

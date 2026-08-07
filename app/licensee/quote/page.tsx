@@ -10,6 +10,7 @@ import { QuoteFormScrollLink } from "@/components/quote/QuoteFormScrollLink";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LICENSEE_MASTER_MARKER_COOKIE } from "@/services/licensee/licenseeCookieNames";
 import { getLicenseeAccountByUserId } from "@/services/licensee/licenseeIdentity";
+import { isAccountAccessActive } from "@/services/superAdmin/accountAccessStatus";
 
 const workflowSteps = [
   {
@@ -113,6 +114,14 @@ export default async function LicenseeAthenaQuotePage() {
   const licenseeAccount = await getLicenseeAccountByUserId(user.id);
   if (!licenseeAccount) {
     redirect("/api/licensee/master-marker?action=clear");
+  }
+
+  if (!(await isAccountAccessActive(user.id))) {
+    redirect(
+      `/licensee/login?message=${encodeURIComponent(
+        "This Master account has been deactivated.",
+      )}`,
+    );
   }
 
   const cookieStore = await cookies();

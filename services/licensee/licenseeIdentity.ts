@@ -1,4 +1,8 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  AccountAccessDeniedError,
+  assertAccountAccessActive,
+} from "@/services/superAdmin/accountAccessStatus";
 
 export type LicenseeAccount = {
   id: string;
@@ -158,6 +162,18 @@ export async function resolveAuthorizedSubAccountHandoff(input: {
 
   if (ownerError || !ownerUser.user?.email) {
     throw new LicenseeAccessError("Sub-account owner auth user could not be resolved.");
+  }
+
+  // Master Open Athena into a deactivated Athena sub-account fails closed.
+  // Deactivated Masters also cannot hand off.
+  try {
+    await assertAccountAccessActive(masterUserId);
+    await assertAccountAccessActive(membership.user_id);
+  } catch (error) {
+    if (error instanceof AccountAccessDeniedError) {
+      throw new LicenseeAccessError(error.message);
+    }
+    throw error;
   }
 
   return {

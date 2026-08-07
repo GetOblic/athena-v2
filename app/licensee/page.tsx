@@ -9,6 +9,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getLicenseeAccountByUserId } from "@/services/licensee/licenseeIdentity";
 import { LICENSEE_MASTER_MARKER_COOKIE } from "@/services/licensee/licenseeCookieNames";
 import { listLicenseeSubAccountsForMaster } from "@/services/licensee/licenseeSubAccounts";
+import { isAccountAccessActive } from "@/services/superAdmin/accountAccessStatus";
 
 /**
  * Business Licensee Master dashboard — relationships only.
@@ -32,6 +33,14 @@ export default async function LicenseeMasterPage({
     // Ordinary Athena users: clear forged/stale Master marker via Route Handler
     // (Server Components cannot call cookies().set()).
     redirect("/api/licensee/master-marker?action=clear");
+  }
+
+  if (!(await isAccountAccessActive(user.id))) {
+    redirect(
+      `/licensee/login?message=${encodeURIComponent(
+        "This Master account has been deactivated.",
+      )}`,
+    );
   }
 
   // Refresh UX marker TTL via Route Handler when missing/stale write is needed.

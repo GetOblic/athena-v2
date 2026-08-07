@@ -11,10 +11,14 @@ type AthenaBrandLinkProps = {
 export function AthenaBrandLink({ className = "" }: AthenaBrandLinkProps) {
   const pathname = usePathname();
   const isLicenseePath = pathname === "/licensee" || pathname.startsWith("/licensee/");
+  const isSuperPath = pathname === "/super" || pathname.startsWith("/super/");
   const showLogout =
     pathname !== "/login" &&
     !pathname.startsWith("/auth") &&
-    !isLicenseePath;
+    !isLicenseePath &&
+    !isSuperPath;
+
+  const homeHref = isSuperPath ? "/super" : isLicenseePath ? "/licensee" : "/";
 
   const brand = (
     <>
@@ -26,7 +30,7 @@ export function AthenaBrandLink({ className = "" }: AthenaBrandLinkProps) {
   if (!showLogout) {
     return (
       <Link
-        href={isLicenseePath ? "/licensee" : "/"}
+        href={homeHref}
         className={`inline-block transition hover:opacity-90 ${className}`}
       >
         {brand}

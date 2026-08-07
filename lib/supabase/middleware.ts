@@ -4,13 +4,14 @@ import {
   LICENSEE_MASTER_MARKER_COOKIE,
   LICENSEE_ORIGIN_COOKIE,
 } from "@/services/licensee/licenseeCookieNames";
+import { SUPER_ADMIN_MARKER_COOKIE } from "@/services/superAdmin/superAdminCookieNames";
 
 /**
  * Session refresh + route gates that can run on the Edge runtime.
  *
- * Master identity tables are NOT queried here — that requires the service-role
- * client and remains the security authority in Node route/service guards.
- * The Master marker cookie is UX-only.
+ * Master / Super Admin identity tables are NOT queried here — that requires the
+ * service-role client and remains the security authority in Node route/service
+ * guards. Marker cookies are UX-only.
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
@@ -51,6 +52,7 @@ export async function updateSession(request: NextRequest) {
   const isPublicPath =
     path === "/login" ||
     path === "/licensee/login" ||
+    path === "/super/login" ||
     path.startsWith("/auth/callback") ||
     path.startsWith("/api/ingestion") ||
     path.startsWith("/api/licensee/origin") ||
@@ -58,6 +60,7 @@ export async function updateSession(request: NextRequest) {
     path === "/favicon.ico";
 
   const isLicenseePath = path === "/licensee" || path.startsWith("/licensee/");
+  const isSuperPath = path === "/super" || path.startsWith("/super/");
 
   // Programmatic API clients must never receive an HTML login redirect.
   // Browser pages still redirect; API routes return structured JSON 401.
@@ -80,16 +83,57 @@ export async function updateSession(request: NextRequest) {
     }
 
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = isLicenseePath ? "/licensee/login" : "/login";
+    redirectUrl.pathname = isSuperPath
+      ? "/super/login"
+      : isLicenseePath
+        ? "/licensee/login"
+        : "/login";
     redirectUrl.searchParams.set("redirectedFrom", path);
     return NextResponse.redirect(redirectUrl);
   }
 
   if (user && path === "/login") {
     const redirectUrl = request.nextUrl.clone();
+    const hasSuperMarker = request.cookies.has(SUPER_ADMIN_MARKER_COOKIE);
     const hasMasterMarker = request.cookies.has(LICENSEE_MASTER_MARKER_COOKIE);
     const inHandoff = request.cookies.has(LICENSEE_ORIGIN_COOKIE);
-    redirectUrl.pathname = hasMasterMarker && !inHandoff ? "/licensee" : "/";
+    redirectUrl.pathname = hasSuperMarker
+      ? "/super"
+      : hasMasterMarker && !inHandoff
+        ? "/licensee"
+        : "/";
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // UX-only Super Admin product-route gate. Marker is not security authority.
+  if (
+    user &&
+    request.cookies.has(SUPER_ADMIN_MARKER_COOKIE) &&
+    !isSuperPath &&
+    !isPublicPath &&
+    !path.startsWith("/api/super/")
+  ) {
+    if (isApiPath) {
+      return NextResponse.json(
+        {
+          ok: false,
+          success: false,
+          error: {
+            code: "SUPER_ADMIN_CONTEXT",
+            message:
+              "GetOblic Super Admin sessions cannot access Athena or Licensee product APIs.",
+          },
+        },
+        {
+          status: 403,
+          headers: { "Cache-Control": "no-store" },
+        },
+      );
+    }
+
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/super";
     redirectUrl.search = "";
     return NextResponse.redirect(redirectUrl);
   }
@@ -128,9 +172,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Do not auto-redirect authenticated users away from /licensee/login here.
-  // Master identity requires a Node service-role lookup, which must not run in
-  // Edge middleware. The login page enforces Master authorization.
+  // Do not auto-redirect authenticated users away from control-plane login pages.
+  // Identity requires a Node service-role lookup, which must not run in Edge middleware.
 
   return response;
 }

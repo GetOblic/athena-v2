@@ -9,6 +9,7 @@ import {
   resolveOrganizationIdForIngestion,
   resolveOrganizationIdForUser,
 } from "@/services/organizationService";
+import { AccountAccessDeniedError } from "@/services/superAdmin/accountAccessStatus";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -121,6 +122,20 @@ export async function POST(request: Request) {
       { status: enqueueResult.accepted ? 202 : 200 },
     );
   } catch (error) {
+    if (error instanceof AccountAccessDeniedError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          success: false,
+          error: {
+            code: "ACCOUNT_DEACTIVATED",
+            message: error.message,
+          },
+        },
+        { status: 403 },
+      );
+    }
+
     if (error instanceof OrganizationContextMissingError) {
       return NextResponse.json(
         {

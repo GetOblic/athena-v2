@@ -131,7 +131,8 @@ export async function POST(request: NextRequest) {
     if (
       error instanceof LicenseeAccessError ||
       (error instanceof Error &&
-        error.name === "LicenseeMasterProvisionBlockedError")
+        (error.name === "LicenseeMasterProvisionBlockedError" ||
+          error.name === "AccountAccessDeniedError"))
     ) {
       return jsonError(403, error.name, error.message);
     }

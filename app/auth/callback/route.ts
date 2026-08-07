@@ -2,24 +2,113 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isLicenseeMasterUser } from "@/services/licensee/licenseeIdentity";
 import { applyLicenseeMasterMarkerCookie } from "@/services/licensee/licenseeMasterMarkerCookie";
+import {
+  AccountAccessDeniedError,
+  assertAccountAccessActive,
+} from "@/services/superAdmin/accountAccessStatus";
+import {
+  SuperAdminAuthorityLookupError,
+  isGetOblicSuperAdminUser,
+} from "@/services/superAdmin/superAdminIdentity";
+import { applySuperAdminMarkerCookie } from "@/services/superAdmin/superAdminMarkerCookie";
 import { provisionTenantForAuthenticatedUser } from "@/services/organizationService";
 
 async function postAuthDestination(
   userId: string | undefined,
   siteUrl: string,
 ): Promise<URL> {
+  if (userId && (await isGetOblicSuperAdminUser(userId))) {
+    return new URL("/super", siteUrl);
+  }
   if (userId && (await isLicenseeMasterUser(userId))) {
     return new URL("/licensee", siteUrl);
   }
   return new URL("/", siteUrl);
 }
 
-function redirectWithMasterMarker(url: URL, isMaster: boolean): NextResponse {
+function redirectWithControlPlaneMarker(
+  url: URL,
+  options: { isMaster: boolean; isSuperAdmin: boolean },
+): NextResponse {
   const response = NextResponse.redirect(url);
-  if (isMaster) {
+  if (options.isSuperAdmin) {
+    applySuperAdminMarkerCookie(response);
+  } else if (options.isMaster) {
     applyLicenseeMasterMarkerCookie(response);
   }
   return response;
+}
+
+async function finalizeAuthenticatedUser(
+  userId: string,
+  email: string | undefined,
+  siteUrl: string,
+): Promise<NextResponse> {
+  try {
+    await assertAccountAccessActive(userId);
+  } catch (error) {
+    if (error instanceof AccountAccessDeniedError) {
+      const supabase = await createSupabaseServerClient();
+      await supabase.auth.signOut();
+      return NextResponse.redirect(
+        new URL(
+          `/login?message=${encodeURIComponent("This account has been deactivated.")}`,
+          siteUrl,
+        ),
+      );
+    }
+    throw error;
+  }
+
+  try {
+    if (await isGetOblicSuperAdminUser(userId)) {
+      return redirectWithControlPlaneMarker(
+        await postAuthDestination(userId, siteUrl),
+        { isMaster: false, isSuperAdmin: true },
+      );
+    }
+  } catch (error) {
+    // Fail closed: authority lookup failure must not provision as ordinary Athena.
+    if (error instanceof SuperAdminAuthorityLookupError) {
+      const supabase = await createSupabaseServerClient();
+      await supabase.auth.signOut();
+      return NextResponse.redirect(
+        new URL(
+          `/login?message=${encodeURIComponent(
+            "Account authority could not be verified. Please try again.",
+          )}`,
+          siteUrl,
+        ),
+      );
+    }
+    throw error;
+  }
+
+  if (await isLicenseeMasterUser(userId)) {
+    return redirectWithControlPlaneMarker(
+      await postAuthDestination(userId, siteUrl),
+      { isMaster: true, isSuperAdmin: false },
+    );
+  }
+
+  try {
+    await provisionTenantForAuthenticatedUser(userId, email);
+  } catch (error) {
+    if (error instanceof SuperAdminAuthorityLookupError) {
+      const supabase = await createSupabaseServerClient();
+      await supabase.auth.signOut();
+      return NextResponse.redirect(
+        new URL(
+          `/login?message=${encodeURIComponent(
+            "Account authority could not be verified. Please try again.",
+          )}`,
+          siteUrl,
+        ),
+      );
+    }
+    throw error;
+  }
+  return NextResponse.redirect(await postAuthDestination(userId, siteUrl));
 }
 
 export async function GET(request: NextRequest) {
@@ -50,13 +139,7 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (user?.id) {
-      if (await isLicenseeMasterUser(user.id)) {
-        return redirectWithMasterMarker(
-          await postAuthDestination(user.id, siteUrl),
-          true,
-        );
-      }
-      await provisionTenantForAuthenticatedUser(user.id, user.email);
+      return finalizeAuthenticatedUser(user.id, user.email, siteUrl);
     }
 
     return NextResponse.redirect(await postAuthDestination(user?.id, siteUrl));
@@ -79,13 +162,7 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (user?.id) {
-      if (await isLicenseeMasterUser(user.id)) {
-        return redirectWithMasterMarker(
-          await postAuthDestination(user.id, siteUrl),
-          true,
-        );
-      }
-      await provisionTenantForAuthenticatedUser(user.id, user.email);
+      return finalizeAuthenticatedUser(user.id, user.email, siteUrl);
     }
 
     return NextResponse.redirect(await postAuthDestination(user?.id, siteUrl));

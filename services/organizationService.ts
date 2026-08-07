@@ -6,6 +6,15 @@ import {
   LicenseeMasterProvisionBlockedError,
   isLicenseeMasterUser,
 } from "@/services/licensee/licenseeIdentity";
+import {
+  AccountAccessDeniedError,
+  assertAccountAccessActive,
+} from "@/services/superAdmin/accountAccessStatus";
+import {
+  SuperAdminAuthorityLookupError,
+  SuperAdminProvisionBlockedError,
+  isGetOblicSuperAdminUser,
+} from "@/services/superAdmin/superAdminIdentity";
 
 function isDocumentNavigationRequest(acceptHeader: string | null, secFetchDest: string | null): boolean {
   const dest = (secFetchDest || "").toLowerCase();
@@ -107,6 +116,27 @@ async function createOrganizationForUser(
     });
 
   if (memberError) {
+    // Bounded internal rollback: only the organization created above.
+    const { error: cleanupError } = await supabaseAdmin
+      .from("organizations")
+      .delete()
+      .eq("id", organization.id);
+
+    if (cleanupError) {
+      console.error(
+        "[ATHENA_PROVISION] membership insert failed and newly-created organization cleanup failed:",
+        {
+          leftoverOrganizationId: organization.id,
+          userId,
+          membershipError: memberError.message,
+          cleanupError: cleanupError.message,
+        },
+      );
+      throw new Error(
+        `Organization membership could not be created and cleanup failed. leftoverOrganizationId=${organization.id}; membershipError=${memberError.message}; cleanupError=${cleanupError.message}`,
+      );
+    }
+
     throw new Error(memberError.message);
   }
 
@@ -128,15 +158,29 @@ export async function getOrganizationMembership(userId: string) {
   return data;
 }
 
-export async function provisionTenantForAuthenticatedUser(
+export type ProvisionTenantResult = {
+  organizationId: string;
+  /** True only when this call created a new organizations row. */
+  organizationCreated: boolean;
+};
+
+/**
+ * Provision or resolve tenant membership.
+ * Distinguishes newly-created organization vs pre-existing membership.
+ * Super Admin authority lookup failure fails closed (does not treat as ordinary).
+ */
+export async function provisionTenantForAuthenticatedUserDetailed(
   userId: string,
   email?: string | null,
   options?: ProvisionTenantOptions,
-): Promise<string> {
+): Promise<ProvisionTenantResult> {
   const membership = await getOrganizationMembership(userId);
 
   if (membership?.organization_id) {
-    return membership.organization_id;
+    return {
+      organizationId: membership.organization_id,
+      organizationCreated: false,
+    };
   }
 
   // Master accounts own relationships only — never auto-create Athena orgs.
@@ -144,7 +188,30 @@ export async function provisionTenantForAuthenticatedUser(
     throw new LicenseeMasterProvisionBlockedError();
   }
 
-  return createOrganizationForUser(userId, email, options);
+  // Super Admin accounts are a separate control plane — never auto-create Athena orgs.
+  // Authority lookup errors propagate as SuperAdminAuthorityLookupError (fail closed).
+  if (await isGetOblicSuperAdminUser(userId)) {
+    throw new SuperAdminProvisionBlockedError();
+  }
+
+  const organizationId = await createOrganizationForUser(userId, email, options);
+  return {
+    organizationId,
+    organizationCreated: true,
+  };
+}
+
+export async function provisionTenantForAuthenticatedUser(
+  userId: string,
+  email?: string | null,
+  options?: ProvisionTenantOptions,
+): Promise<string> {
+  const result = await provisionTenantForAuthenticatedUserDetailed(
+    userId,
+    email,
+    options,
+  );
+  return result.organizationId;
 }
 
 export async function resolveOrganizationIdForUser(
@@ -152,6 +219,9 @@ export async function resolveOrganizationIdForUser(
   email?: string | null,
   options?: ProvisionTenantOptions,
 ): Promise<string> {
+  // Session-based org resolution must fail closed for deactivated accounts
+  // before any provision/access of organization data.
+  await assertAccountAccessActive(userId);
   return provisionTenantForAuthenticatedUser(userId, email, options);
 }
 
@@ -207,6 +277,37 @@ export async function requireCurrentOrganizationContext(): Promise<OrganizationC
     requestHeaders.get("sec-fetch-dest"),
   );
 
+  // Existing-session fail-closed: deactivated Athena users cannot continue.
+  try {
+    await assertAccountAccessActive(user.id);
+  } catch (error) {
+    if (error instanceof AccountAccessDeniedError) {
+      if (isDocumentNavigation) {
+        redirect(
+          `/login?message=${encodeURIComponent("This account has been deactivated.")}`,
+        );
+      }
+      throw new OrganizationAccessError(error.message);
+    }
+    throw error;
+  }
+
+  try {
+    if (await isGetOblicSuperAdminUser(user.id)) {
+      // Super Admin sessions must not enter Athena tenant context.
+      if (isDocumentNavigation) {
+        redirect("/super");
+      }
+      throw new SuperAdminProvisionBlockedError();
+    }
+  } catch (error) {
+    if (error instanceof SuperAdminAuthorityLookupError) {
+      // Fail closed: authority lookup failure must not continue as ordinary Athena.
+      throw new OrganizationAccessError(error.message);
+    }
+    throw error;
+  }
+
   if (await isLicenseeMasterUser(user.id)) {
     // Master sessions must not enter Athena tenant context.
     // Document navigations redirect to the Master dashboard; API callers get 403.
@@ -256,6 +357,7 @@ export async function resolveOrganizationIdForIngestion(
   input: IngestionOrganizationInput,
 ): Promise<string> {
   if (input.userId) {
+    await assertAccountAccessActive(input.userId);
     return provisionTenantForAuthenticatedUser(input.userId);
   }
 

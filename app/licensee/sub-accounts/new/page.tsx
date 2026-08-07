@@ -10,6 +10,7 @@ import {
   LicenseeSubAccountCreateError,
   createLicenseeSubAccount,
 } from "@/services/licensee/licenseeSubAccounts";
+import { isAccountAccessActive } from "@/services/superAdmin/accountAccessStatus";
 
 export default async function CreateLicenseeSubAccountPage({
   searchParams,
@@ -33,6 +34,14 @@ export default async function CreateLicenseeSubAccountPage({
   const licenseeAccount = await getLicenseeAccountByUserId(user.id);
   if (!licenseeAccount) {
     redirect("/");
+  }
+
+  if (!(await isAccountAccessActive(user.id))) {
+    redirect(
+      `/licensee/login?message=${encodeURIComponent(
+        "This Master account has been deactivated.",
+      )}`,
+    );
   }
 
   async function createSubAccount(formData: FormData) {
