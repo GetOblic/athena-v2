@@ -57,16 +57,24 @@ export function SeoLibraryClient({
       <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-14 text-center">
         <h2 className="text-2xl font-semibold">No SEO reports yet</h2>
         <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/50">
-          Generate strategic SEO Intelligence from Athena&apos;s accumulated
-          website, Brain, persona, and discussion intelligence. A brief is
+          Choose SEO Intelligence for strategic, content-focused guidance, or
+          Technical SEO for evidence-backed technical optimization. A brief is
           optional.
         </p>
-        <Link
-          href="/seo/new"
-          className="mt-8 inline-flex rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white"
-        >
-          Generate SEO Intelligence
-        </Link>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/seo/new"
+            className="inline-flex rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white"
+          >
+            Generate SEO Intelligence
+          </Link>
+          <Link
+            href="/seo/new"
+            className="inline-flex rounded-2xl bg-[var(--athena-success)] px-6 py-3 text-sm font-semibold text-white"
+          >
+            Generate Technical SEO
+          </Link>
+        </div>
       </div>
     );
   }
@@ -80,12 +88,20 @@ export function SeoLibraryClient({
           placeholder="Search SEO reports"
           className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none md:max-w-md"
         />
-        <Link
-          href="/seo/new"
-          className="inline-flex rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white"
-        >
-          Generate SEO Intelligence
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/seo/new"
+            className="inline-flex rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white"
+          >
+            Generate SEO Intelligence
+          </Link>
+          <Link
+            href="/seo/new"
+            className="inline-flex rounded-2xl bg-[var(--athena-success)] px-6 py-3 text-sm font-semibold text-white"
+          >
+            Generate Technical SEO
+          </Link>
+        </div>
       </div>
 
       <div className="space-y-3">

@@ -25,12 +25,20 @@ describe("technical SEO UX identification", () => {
     const badge = read("components/seo/SeoGenerationTypeBadge.tsx");
     assert.match(library, /SeoGenerationTypeBadge/);
     assert.match(library, /Generate SEO Intelligence/);
+    assert.match(library, /Generate Technical SEO/);
     assert.match(badge, /seoGenerationTypeLabel/);
     assert.match(badge, /--athena-success/);
     assert.match(badge, /--athena-orange/);
     const labels = read("services/seo/seoGenerationType.ts");
     assert.match(labels, /SEO Intelligence/);
     assert.match(labels, /Technical SEO/);
+  });
+
+  it("seo workspace copy is neutral and dual-mode", () => {
+    const page = read("app/seo/page.tsx");
+    assert.match(page, /SEO Workspace/);
+    assert.match(page, /evidence-backed technical optimization/);
+    assert.doesNotMatch(page, /not a traditional crawler audit/);
   });
 
   it("detail views branch by generation type", () => {

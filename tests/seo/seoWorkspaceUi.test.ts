@@ -24,10 +24,13 @@ describe("seo workspace UI", () => {
     );
   });
 
-  it("library has empty state, Generate CTA, open/delete actions", () => {
+  it("library has empty state, dual Generate CTAs, open/delete actions", () => {
     const library = read("components/seo/SeoLibraryClient.tsx");
     assert.match(library, /No SEO reports yet/);
     assert.match(library, /Generate SEO Intelligence/);
+    assert.match(library, /Generate Technical SEO/);
+    assert.match(library, /--athena-orange/);
+    assert.match(library, /--athena-success/);
     assert.match(library, /Open/);
     assert.match(library, /SeoReportHeaderDeleteButton/);
   });

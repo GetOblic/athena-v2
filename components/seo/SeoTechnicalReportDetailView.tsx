@@ -227,8 +227,15 @@ export function SeoTechnicalReportDetailView({
             defaultOpen={false}
             summary={
               pkg.pageMetadata.length
-                ? `${pkg.pageMetadata.length} page recommendation(s)`
-                : "No page-level metadata recommendations required"
+                ? `${pkg.pageMetadata.length} analyzed page(s) · ${
+                    pkg.pageMetadata.filter(
+                      (page) =>
+                        page.recommendedTitle ||
+                        page.recommendedDescription ||
+                        page.recommendedH1,
+                    ).length
+                  } with AI recommendations`
+                : "No analyzed pages in metadata matrix"
             }
             fields={
               pkg.pageMetadata.length === 0
@@ -236,20 +243,24 @@ export function SeoTechnicalReportDetailView({
                     {
                       label: "Notes",
                       value:
-                        "No page-level metadata recommendations were required for the analyzed corpus.",
+                        "No analyzed pages were available for the metadata matrix.",
                     },
                   ]
                 : pkg.pageMetadata.map((page) => ({
                     label: page.url,
                     value: [
+                      `HTTP status: ${page.httpStatus ?? "—"}`,
                       `Current title: ${page.currentTitle ?? "—"}`,
-                      `Recommended title: ${page.recommendedTitle ?? "—"}`,
+                      `Recommended title: ${page.recommendedTitle ?? "— (healthy / no rewrite)"}`,
                       `Current description: ${page.currentDescription ?? "—"}`,
-                      `Recommended description: ${page.recommendedDescription ?? "—"}`,
+                      `Recommended description: ${page.recommendedDescription ?? "— (healthy / no rewrite)"}`,
                       `H1: ${page.h1Observation ?? "—"}`,
-                      `Recommended H1: ${page.recommendedH1 ?? "—"}`,
+                      `Recommended H1: ${page.recommendedH1 ?? "— (healthy / no rewrite)"}`,
                       `Canonical: ${page.canonicalObservation ?? "—"}`,
                       `Robots: ${page.robotsObservation ?? "—"}`,
+                      page.issueFlags && page.issueFlags.length > 0
+                        ? `Issue flags: ${page.issueFlags.join(", ")}`
+                        : "Issue flags: none",
                     ].join("\n"),
                   }))
             }

@@ -35,15 +35,16 @@ export default async function SeoIntelligencePage() {
 
       <div className="mb-10 mt-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Organization SEO Intelligence
+          SEO Workspace
         </div>
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          SEO Intelligence
+          SEO
         </h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Generate strategic, content-focused SEO guidance from Athena&apos;s
-          Website Deep Scrape intelligence, Brain, Personas, Communities, and
-          Discussions — not a traditional crawler audit.
+          Generate SEO Intelligence for strategic, content-focused guidance from
+          Athena&apos;s Website Deep Scrape intelligence, Brain, Personas,
+          Communities, and Discussions — or Generate Technical SEO for
+          evidence-backed technical optimization from Website Intelligence.
         </p>
       </div>
 

@@ -119,6 +119,8 @@ describe("deterministic technical SEO analyzer", () => {
     assert.equal(evidence.crawl.httpStatusDistribution["200"], 2);
     assert.equal(evidence.crawl.httpStatusDistribution["404"], 1);
     assert.equal(evidence.crawl.redirectPages, 1);
+    assert.equal(evidence.crawl.singleHopFinal200Pages, 1);
+    assert.equal(evidence.crawl.redirectChainCandidatePages, 0);
     assert.equal(evidence.crawl.pageTypeDistribution.homepage, 1);
   });
 

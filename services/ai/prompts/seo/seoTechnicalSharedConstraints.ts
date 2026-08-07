@@ -18,6 +18,22 @@ Unsupported metric prohibitions (mandatory for Technical SEO):
 - If evidence is thin for a topic, say so — do not fabricate coverage.
 `.trim();
 
+export const SEO_TECHNICAL_SEVERITY_RULES = `
+Severity contract (Critical | High | Improvement):
+- Use ONLY these three priorities. Do not invent other severity labels.
+- Critical requires genuinely critical technical impact supported by deterministic evidence (e.g. sitewide blocking crawl/index failures, widespread hard errors). Empty criticalIssues is valid when none are evidenced.
+- H1 imperfections, title/meta length tuning, and similar on-page polish must NOT be labeled Critical merely to fill a template.
+- Do NOT require every severity tier to appear. Prefer accurate priorities over forcing Critical + High + Improvement in every report.
+`.trim();
+
+export const SEO_TECHNICAL_REDIRECT_INTERPRETATION_RULES = `
+Redirect interpretation (mandatory):
+- redirectCount === 0 → no redirect issue.
+- redirectCount === 1 AND final HTTP status === 200 → single-hop / normalization informational evidence ONLY. Do NOT recommend "Optimize Redirect Chains" or equivalent remediation from this alone.
+- redirectCount >= 2 → redirect-chain candidate; remediation may be recommended only then.
+- Preserve and describe single-hop evidence as informational when present; do not delete it and do not escalate it to chain remediation debt.
+`.trim();
+
 export const SEO_TECHNICAL_SHARED_OUTPUT_RULES = `
 ${SHARED_JSON_OUTPUT_RULES}
 
@@ -29,5 +45,7 @@ Technical SEO generation rules:
 - Website Intelligence pages are read-only evidence — do not invent pages.
 - Brain / organization context may inform recommendation wording, but not invent technical facts.
 - Distinguish TRUSTED ORGANIZATION CONTEXT from OPERATOR GUIDANCE.
+${SEO_TECHNICAL_SEVERITY_RULES}
+${SEO_TECHNICAL_REDIRECT_INTERPRETATION_RULES}
 ${SEO_TECHNICAL_UNSUPPORTED_METRIC_PROHIBITIONS}
 `.trim();

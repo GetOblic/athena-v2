@@ -40,7 +40,11 @@ Return ONLY JSON:
 }
 
 Rules:
-- actionPlan.items: at least 3 items using priorities Critical / High / Improvement.
+- actionPlan.items: at least 3 items. Each item priority MUST be one of Critical, High, or Improvement.
+- Do NOT require that every severity tier appears. Accurate priorities beat forcing all three labels.
+- Critical ONLY when PRIOR SECTIONS executiveEvaluation.criticalIssues is non-empty AND deterministic evidence supports genuinely critical impact. Otherwise use High or Improvement.
+- H1 / metadata polish must not be Critical without executive critical evidence.
+- redirectRecommendations / redirect remediation items: ONLY when deterministic evidence shows redirectChainCandidatePages > 0 (redirectCount >= 2). Single-hop final-200 is informational — never "Optimize Redirect Chains" from that alone.
 - evidence must reference deterministic findings (counts, URLs, statuses) not invented metrics.
 - implementationAssets must be developer-ready and commercially useful.
 - reportName: concise; prefer "${input.suggestedReportName}" when sensible.

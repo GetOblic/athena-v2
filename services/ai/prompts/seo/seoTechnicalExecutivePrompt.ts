@@ -26,6 +26,8 @@ Return ONLY JSON:
 Rules:
 - strengths: at least 1 item grounded in evidence.
 - criticalIssues / warnings: may be empty arrays when none are evidenced.
+- criticalIssues: ONLY for genuinely critical technical impact (e.g. widespread hard crawl/index failures). Do NOT put H1, title length, or meta description polish into criticalIssues.
+- Single-hop final-200 redirects are informational — do not list them as criticalIssues or chain-remediation priorities.
 - remediationPriorities: at least 1 prioritized next step.
 - summary: short executive summary for report cards.
 

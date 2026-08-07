@@ -6,6 +6,17 @@
 
 import type { SeoTechnicalDeterministicEvidence } from "@/services/seo/seoTechnicalAnalyzer";
 import {
+  filterEvidenceBackedRecommendedLinks,
+  filterRedirectRemediationRecommendations,
+  hasRedirectChainRemediationEvidence,
+  textClaimsRedirectChainRemediation,
+} from "@/services/seo/seoTechnicalInternalLinks";
+import { buildCompletePageMetadataMatrix } from "@/services/seo/seoTechnicalPageMetadata";
+import {
+  isSeoTechnicalPriority,
+  normalizeActionPlanSeverityConsistency,
+} from "@/services/seo/seoTechnicalSeverity";
+import {
   SEO_TECHNICAL_REPORT_DISCLAIMER,
   SEO_WEBSITE_PAGES_ANALYZED_MAX,
   type SeoTechnicalActionItem,
@@ -18,7 +29,6 @@ import {
   type SeoTechnicalImplementationAssets,
   type SeoTechnicalPackage,
   type SeoTechnicalPageMetadataRecommendation,
-  type SeoTechnicalPriority,
   type SeoTechnicalSchemaFindings,
   type SeoWebsitePageAnalyzed,
   type SeoWebsitePagesAnalyzed,
@@ -263,7 +273,7 @@ function optionalString(value: unknown): string | null {
   return trimmed || null;
 }
 
-function validatePageMetadata(
+function validatePageMetadataOverlays(
   value: unknown,
   errors: string[],
 ): SeoTechnicalPageMetadataRecommendation[] | null {
@@ -281,6 +291,11 @@ function validatePageMetadata(
     const raw = row as Record<string, unknown>;
     const url = requireNonEmptyString(raw.url, `pageMetadata[${index}].url`, errors);
     if (!url) continue;
+    const issueFlags = Array.isArray(raw.issueFlags)
+      ? raw.issueFlags.filter(
+          (flag): flag is string => typeof flag === "string" && Boolean(flag.trim()),
+        )
+      : undefined;
     pages.push({
       url,
       currentTitle: optionalString(raw.currentTitle),
@@ -291,6 +306,13 @@ function validatePageMetadata(
       recommendedH1: optionalString(raw.recommendedH1),
       canonicalObservation: optionalString(raw.canonicalObservation),
       robotsObservation: optionalString(raw.robotsObservation),
+      httpStatus:
+        typeof raw.httpStatus === "number" && Number.isFinite(raw.httpStatus)
+          ? raw.httpStatus
+          : raw.httpStatus === null
+            ? null
+            : undefined,
+      issueFlags,
     });
   }
   return pages;
@@ -299,6 +321,7 @@ function validatePageMetadata(
 function validateArchitecture(
   value: unknown,
   errors: string[],
+  evidence: SeoTechnicalDeterministicEvidence | null,
 ): SeoTechnicalArchitectureFindings | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     errors.push("siteArchitecture must be an object.");
@@ -331,7 +354,7 @@ function validateArchitecture(
   const recommendedLinksRaw = Array.isArray(raw.recommendedLinks)
     ? raw.recommendedLinks
     : [];
-  const recommendedLinks = recommendedLinksRaw
+  const parsedLinks = recommendedLinksRaw
     .map((item, index) => {
       if (!item || typeof item !== "object" || Array.isArray(item)) {
         errors.push(
@@ -374,15 +397,38 @@ function validateArchitecture(
       } => item != null,
     );
 
+  // Drop invented edges rather than failing the whole package.
+  const recommendedLinks = evidence
+    ? filterEvidenceBackedRecommendedLinks(parsedLinks, evidence).kept
+    : parsedLinks;
+
   if (!architectureFindings || !linkingEvidence || !weaklyLinkedCandidates || !summary) {
     return null;
   }
+
+  let nextLinkingEvidence = linkingEvidence;
+  let nextSummary = summary;
+  if (
+    evidence &&
+    parsedLinks.length > 0 &&
+    recommendedLinks.length === 0
+  ) {
+    const honesty =
+      "No evidence-backed internal-link edges were available for implementation recommendations; unsupported invented source→destination pairs were omitted.";
+    if (!nextLinkingEvidence.some((line) => /evidence-backed|insufficient/i.test(line))) {
+      nextLinkingEvidence = [...nextLinkingEvidence, honesty];
+    }
+    if (!/insufficient|no evidence-backed/i.test(nextSummary)) {
+      nextSummary = `${nextSummary} ${honesty}`.trim();
+    }
+  }
+
   return {
     architectureFindings,
-    linkingEvidence,
+    linkingEvidence: nextLinkingEvidence,
     weaklyLinkedCandidates,
     recommendedLinks,
-    summary,
+    summary: nextSummary,
   };
 }
 
@@ -607,6 +653,7 @@ function validateCrawlFindings(
 function validateActionPlan(
   value: unknown,
   errors: string[],
+  technicalCoverage: SeoTechnicalDeterministicEvidence | null,
 ): SeoTechnicalActionPlan | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     errors.push("actionPlan must be an object.");
@@ -622,11 +669,6 @@ function validateActionPlan(
     errors.push("actionPlan.items must be an array.");
     return null;
   }
-  const priorities: SeoTechnicalPriority[] = [
-    "Critical",
-    "High",
-    "Improvement",
-  ];
   const items: SeoTechnicalActionItem[] = [];
   for (let index = 0; index < raw.items.length; index += 1) {
     const row = raw.items[index];
@@ -636,10 +678,7 @@ function validateActionPlan(
     }
     const item = row as Record<string, unknown>;
     const priority = item.priority;
-    if (
-      typeof priority !== "string" ||
-      !priorities.includes(priority as SeoTechnicalPriority)
-    ) {
+    if (!isSeoTechnicalPriority(priority)) {
       errors.push(
         `actionPlan.items[${index}].priority must be Critical, High, or Improvement.`,
       );
@@ -674,8 +713,19 @@ function validateActionPlan(
     if (!title || !affectedPages || !evidence || !reason || !recommendedAction) {
       continue;
     }
+
+    const remediationText = `${title} ${recommendedAction} ${reason}`;
+    if (
+      technicalCoverage &&
+      !hasRedirectChainRemediationEvidence(technicalCoverage) &&
+      textClaimsRedirectChainRemediation(remediationText)
+    ) {
+      // Drop false-positive redirect-chain remediation; preserve other items.
+      continue;
+    }
+
     items.push({
-      priority: priority as SeoTechnicalPriority,
+      priority,
       title,
       affectedPages,
       evidence,
@@ -695,6 +745,7 @@ function validateActionPlan(
 function validateImplementationAssets(
   value: unknown,
   errors: string[],
+  technicalCoverage: SeoTechnicalDeterministicEvidence | null,
 ): SeoTechnicalImplementationAssets | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     errors.push("implementationAssets must be an object.");
@@ -724,7 +775,7 @@ function validateImplementationAssets(
     errors,
     0,
   );
-  const redirectRecommendations = requireStringArray(
+  const redirectRecommendationsRaw = requireStringArray(
     raw.redirectRecommendations,
     "implementationAssets.redirectRecommendations",
     errors,
@@ -741,11 +792,17 @@ function validateImplementationAssets(
     !headingRecommendations ||
     !internalLinkPlan ||
     !schemaRecommendations ||
-    !redirectRecommendations ||
+    !redirectRecommendationsRaw ||
     !developerRemediationInstructions
   ) {
     return null;
   }
+  const redirectRecommendations = technicalCoverage
+    ? filterRedirectRemediationRecommendations(
+        redirectRecommendationsRaw,
+        technicalCoverage,
+      )
+    : redirectRecommendationsRaw;
   return {
     metadataTableNotes,
     headingRecommendations,
@@ -800,8 +857,20 @@ export function validateSeoTechnicalPackage(
   const technicalCoverage = isDeterministicEvidence(raw.technicalCoverage)
     ? raw.technicalCoverage
     : null;
-  const pageMetadata = validatePageMetadata(raw.pageMetadata, errors);
-  const siteArchitecture = validateArchitecture(raw.siteArchitecture, errors);
+  const pageMetadataOverlays = validatePageMetadataOverlays(
+    raw.pageMetadata,
+    errors,
+  );
+  // Authoritative matrix = full deterministic inventory + AI overlays.
+  const pageMetadata =
+    technicalCoverage && pageMetadataOverlays
+      ? buildCompletePageMetadataMatrix(technicalCoverage, pageMetadataOverlays)
+      : pageMetadataOverlays;
+  const siteArchitecture = validateArchitecture(
+    raw.siteArchitecture,
+    errors,
+    technicalCoverage,
+  );
   const contentHtmlFindings = validateContentHtml(
     raw.contentHtmlFindings,
     errors,
@@ -809,10 +878,22 @@ export function validateSeoTechnicalPackage(
   const structuredData = validateSchema(raw.structuredData, errors);
   const imageSeo = validateImageSeo(raw.imageSeo, errors);
   const crawlFindings = validateCrawlFindings(raw.crawlFindings, errors);
-  const actionPlan = validateActionPlan(raw.actionPlan, errors);
+  const actionPlanRaw = validateActionPlan(
+    raw.actionPlan,
+    errors,
+    technicalCoverage,
+  );
+  const actionPlan =
+    actionPlanRaw && executiveEvaluation
+      ? normalizeActionPlanSeverityConsistency(
+          actionPlanRaw,
+          executiveEvaluation,
+        )
+      : actionPlanRaw;
   const implementationAssets = validateImplementationAssets(
     raw.implementationAssets,
     errors,
+    technicalCoverage,
   );
   const websitePagesAnalyzed = validateWebsitePagesAnalyzed(
     raw.websitePagesAnalyzed,

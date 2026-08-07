@@ -3,9 +3,13 @@
  * Facts and measurements are calculated in code — never invented by the LLM.
  */
 
-import type { DeepCrawledPage } from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
-import type { DeepWebsiteIntelligence } from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
+import type {
+  DeepCrawledInternalLinkSample,
+  DeepCrawledPage,
+  DeepWebsiteIntelligence,
+} from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
 import { deepCrawledPageHasTechnicalEvidence } from "@/services/seo/seoTechnicalEvidence";
+import type { SeoTechnicalLinkEdgeSample } from "@/services/seo/seoTechnicalInternalLinks";
 
 const TITLE_SHORT = 30;
 const TITLE_LONG = 60;
@@ -13,8 +17,34 @@ const DESC_SHORT = 70;
 const DESC_LONG = 160;
 const THIN_CONTENT_CHARS = 300;
 const WEAK_INTERNAL_LINKS = 2;
+const MAX_LINK_SAMPLES_PER_PAGE = 15;
+const MAX_LINK_EDGE_SAMPLES = 80;
 
 export type SeoTechnicalLengthBand = "missing" | "short" | "ok" | "long";
+
+/**
+ * Technical SEO redirect interpretation (does not change Deep Scrape crawl).
+ * - none: redirectCount === 0
+ * - single_hop_final_200: one hop ending in HTTP 200 (informational; not remediation debt)
+ * - redirect_chain_candidate: redirectCount >= 2
+ * - single_hop_other: one hop with non-200 / unknown final status (evidence only)
+ */
+export type SeoTechnicalRedirectInterpretation =
+  | "none"
+  | "single_hop_final_200"
+  | "redirect_chain_candidate"
+  | "single_hop_other";
+
+export function classifyRedirectInterpretation(
+  redirectCount: number | null,
+  httpStatus: number | null,
+): SeoTechnicalRedirectInterpretation {
+  const count = redirectCount ?? 0;
+  if (count <= 0) return "none";
+  if (count >= 2) return "redirect_chain_candidate";
+  if (count === 1 && httpStatus === 200) return "single_hop_final_200";
+  return "single_hop_other";
+}
 
 export type SeoTechnicalPageFact = {
   url: string;
@@ -32,6 +62,7 @@ export type SeoTechnicalPageFact = {
   selfCanonical: boolean | null;
   httpStatus: number | null;
   redirectCount: number | null;
+  redirectInterpretation: SeoTechnicalRedirectInterpretation;
   htmlLanguage: string | null;
   contentChars: number | null;
   thinContent: boolean | null;
@@ -39,6 +70,7 @@ export type SeoTechnicalPageFact = {
   hasSchema: boolean | null;
   internalLinkCount: number | null;
   weakInternalLinks: boolean | null;
+  internalLinksSample: DeepCrawledInternalLinkSample[];
   robotsMeta: string | null;
   imageAltTotal: number | null;
   imageAltWithAlt: number | null;
@@ -76,8 +108,23 @@ export type SeoTechnicalDeterministicEvidence = {
   };
   crawl: {
     httpStatusDistribution: Record<string, number>;
+    /** Pages with any persisted redirect_count > 0 (raw evidence preserved). */
     redirectPages: number;
     totalRedirectHops: number;
+    /** Single-hop final-200 — informational normalization evidence, not remediation debt. */
+    singleHopFinal200Pages: number;
+    /** redirectCount >= 2 — eligible for redirect-chain remediation. */
+    redirectChainCandidatePages: number;
+    singleHopFinal200Evidence: Array<{
+      url: string;
+      redirectCount: number;
+      httpStatus: number | null;
+    }>;
+    redirectChainCandidates: Array<{
+      url: string;
+      redirectCount: number;
+      httpStatus: number | null;
+    }>;
     pageTypeDistribution: Record<string, number>;
   };
   content: {
@@ -99,6 +146,8 @@ export type SeoTechnicalDeterministicEvidence = {
     pagesWithCounts: number;
     averageInternalLinks: number | null;
     weakLinkingCandidates: Array<{ url: string; internalLinkCount: number }>;
+    /** Bounded source→destination samples from persisted internal_links_sample. */
+    linkEdgeSamples: SeoTechnicalLinkEdgeSample[];
   };
   images: {
     pagesWithImageData: number;
@@ -191,6 +240,36 @@ function pageFacts(page: DeepCrawledPage): SeoTechnicalPageFact {
     typeof page.internal_link_count === "number"
       ? page.internal_link_count
       : null;
+  const httpStatus =
+    typeof page.http_status === "number" ? page.http_status : null;
+  const redirectCount =
+    typeof page.redirect_count === "number" ? page.redirect_count : null;
+  const internalLinksSample = Array.isArray(page.internal_links_sample)
+    ? page.internal_links_sample
+        .filter(
+          (link): link is DeepCrawledInternalLinkSample =>
+            Boolean(link) &&
+            typeof link === "object" &&
+            typeof (link as { url?: unknown }).url === "string" &&
+            Boolean(String((link as { url: string }).url).trim()),
+        )
+        .slice(0, MAX_LINK_SAMPLES_PER_PAGE)
+        .map((link) => ({
+          url: link.url.trim(),
+          anchor:
+            link.anchor == null
+              ? null
+              : typeof link.anchor === "string"
+                ? link.anchor
+                : null,
+          provenance:
+            link.provenance == null
+              ? null
+              : typeof link.provenance === "string"
+                ? link.provenance
+                : null,
+        }))
+    : [];
 
   return {
     url: page.url,
@@ -208,9 +287,12 @@ function pageFacts(page: DeepCrawledPage): SeoTechnicalPageFact {
       page.canonical_url === undefined ? null : page.canonical_url,
     selfCanonical:
       typeof page.self_canonical === "boolean" ? page.self_canonical : null,
-    httpStatus: typeof page.http_status === "number" ? page.http_status : null,
-    redirectCount:
-      typeof page.redirect_count === "number" ? page.redirect_count : null,
+    httpStatus,
+    redirectCount,
+    redirectInterpretation: classifyRedirectInterpretation(
+      redirectCount,
+      httpStatus,
+    ),
     htmlLanguage:
       page.html_language === undefined ? null : page.html_language,
     contentChars,
@@ -227,6 +309,7 @@ function pageFacts(page: DeepCrawledPage): SeoTechnicalPageFact {
       internalLinkCount == null
         ? null
         : internalLinkCount <= WEAK_INTERNAL_LINKS,
+    internalLinksSample,
     robotsMeta: page.robots_meta === undefined ? null : page.robots_meta,
     imageAltTotal: page.image_alt?.total ?? null,
     imageAltWithAlt: page.image_alt?.with_alt ?? null,
@@ -271,6 +354,18 @@ export function analyzeTechnicalSeoEvidence(
   const pageTypeDistribution: Record<string, number> = {};
   let redirectPages = 0;
   let totalRedirectHops = 0;
+  let singleHopFinal200Pages = 0;
+  let redirectChainCandidatePages = 0;
+  const singleHopFinal200Evidence: Array<{
+    url: string;
+    redirectCount: number;
+    httpStatus: number | null;
+  }> = [];
+  const redirectChainCandidates: Array<{
+    url: string;
+    redirectCount: number;
+    httpStatus: number | null;
+  }> = [];
   const contentSizeBands = {
     thin: 0,
     medium: 0,
@@ -288,6 +383,10 @@ export function analyzeTechnicalSeoEvidence(
     url: string;
     internalLinkCount: number;
   }> = [];
+  const linkEdgeSamples: SeoTechnicalLinkEdgeSample[] = [];
+  const corpusUrlKeys = new Set(
+    pages.map((page) => page.url.trim().replace(/\/+$/, "").toLowerCase()),
+  );
   let pagesWithImageData = 0;
   let totalImages = 0;
   let imagesWithAlt = 0;
@@ -345,6 +444,21 @@ export function analyzeTechnicalSeoEvidence(
       redirectPages += 1;
       totalRedirectHops += page.redirectCount ?? 0;
     }
+    if (page.redirectInterpretation === "single_hop_final_200") {
+      singleHopFinal200Pages += 1;
+      singleHopFinal200Evidence.push({
+        url: page.url,
+        redirectCount: page.redirectCount ?? 1,
+        httpStatus: page.httpStatus,
+      });
+    } else if (page.redirectInterpretation === "redirect_chain_candidate") {
+      redirectChainCandidatePages += 1;
+      redirectChainCandidates.push({
+        url: page.url,
+        redirectCount: page.redirectCount ?? 2,
+        httpStatus: page.httpStatus,
+      });
+    }
 
     if (page.contentChars == null) {
       contentSizeBands.unknown += 1;
@@ -378,6 +492,18 @@ export function analyzeTechnicalSeoEvidence(
           internalLinkCount: page.internalLinkCount,
         });
       }
+    }
+    for (const sample of page.internalLinksSample) {
+      if (linkEdgeSamples.length >= MAX_LINK_EDGE_SAMPLES) break;
+      const destKey = sample.url.trim().replace(/\/+$/, "").toLowerCase();
+      // Prefer corpus destinations for implementation recommendations.
+      if (!corpusUrlKeys.has(destKey)) continue;
+      linkEdgeSamples.push({
+        sourceUrl: page.url,
+        destinationUrl: sample.url,
+        anchor: sample.anchor,
+        provenance: sample.provenance,
+      });
     }
 
     if (page.imageAltTotal != null) {
@@ -447,6 +573,10 @@ export function analyzeTechnicalSeoEvidence(
       httpStatusDistribution,
       redirectPages,
       totalRedirectHops,
+      singleHopFinal200Pages,
+      redirectChainCandidatePages,
+      singleHopFinal200Evidence: singleHopFinal200Evidence.slice(0, 25),
+      redirectChainCandidates: redirectChainCandidates.slice(0, 25),
       pageTypeDistribution,
     },
     content: {
@@ -470,6 +600,7 @@ export function analyzeTechnicalSeoEvidence(
       weakLinkingCandidates: weakLinkingCandidates
         .sort((a, b) => a.internalLinkCount - b.internalLinkCount)
         .slice(0, 25),
+      linkEdgeSamples,
     },
     images: {
       pagesWithImageData,
@@ -517,7 +648,23 @@ export function formatTechnicalEvidenceForPrompt(
       missingCanonical: evidence.canonicals.missingCanonical,
       inconsistentCount: evidence.canonicals.inconsistentCandidates.length,
     },
-    crawl: evidence.crawl,
+    crawl: {
+      httpStatusDistribution: evidence.crawl.httpStatusDistribution,
+      redirectPages: evidence.crawl.redirectPages,
+      totalRedirectHops: evidence.crawl.totalRedirectHops,
+      singleHopFinal200Pages: evidence.crawl.singleHopFinal200Pages,
+      redirectChainCandidatePages: evidence.crawl.redirectChainCandidatePages,
+      singleHopFinal200Evidence: evidence.crawl.singleHopFinal200Evidence,
+      redirectChainCandidates: evidence.crawl.redirectChainCandidates,
+      pageTypeDistribution: evidence.crawl.pageTypeDistribution,
+      redirectInterpretationRules: {
+        none: "redirectCount === 0 → no redirect issue",
+        single_hop_final_200:
+          "redirectCount === 1 AND final HTTP 200 → informational normalization only; MUST NOT by itself generate redirect-chain remediation",
+        redirect_chain_candidate:
+          "redirectCount >= 2 → redirect-chain remediation candidate",
+      },
+    },
     content: {
       contentSizeBands: evidence.content.contentSizeBands,
       thinContentCandidateCount: evidence.content.thinContentCandidates.length,
@@ -530,8 +677,8 @@ export function formatTechnicalEvidenceForPrompt(
     },
     internalLinks: {
       averageInternalLinks: evidence.internalLinks.averageInternalLinks,
-      weakLinkingCandidateCount:
-        evidence.internalLinks.weakLinkingCandidates.length,
+      weakLinkingCandidates: evidence.internalLinks.weakLinkingCandidates,
+      linkEdgeSamples: evidence.internalLinks.linkEdgeSamples.slice(0, 40),
     },
     images: evidence.images,
     robots: {
@@ -551,9 +698,11 @@ export function formatTechnicalEvidenceForPrompt(
     selfCanonical: page.selfCanonical,
     httpStatus: page.httpStatus,
     redirectCount: page.redirectCount,
+    redirectInterpretation: page.redirectInterpretation,
     contentChars: page.contentChars,
     schemaTypes: page.schemaTypes,
     internalLinkCount: page.internalLinkCount,
+    internalLinksSample: page.internalLinksSample.slice(0, 8),
     robotsMeta: page.robotsMeta,
     imageAltMissing: page.imageAltMissing,
   }));
@@ -562,7 +711,10 @@ export function formatTechnicalEvidenceForPrompt(
     "DETERMINISTIC TECHNICAL SEO EVIDENCE (authoritative; do not invent metrics):",
     JSON.stringify(summary, null, 2),
     "",
-    "PAGE-LEVEL FACTS:",
+    "PAGE-LEVEL FACTS (authoritative inventory for the page metadata matrix):",
     JSON.stringify(pageRows, null, 2),
+    "",
+    "INTERNAL LINK EDGE SAMPLES (only these edges are evidenced; do not invent source→destination pairs):",
+    JSON.stringify(evidence.internalLinks.linkEdgeSamples.slice(0, 40), null, 2),
   ].join("\n");
 }

@@ -197,6 +197,10 @@ export type SeoTechnicalPageMetadataRecommendation = {
   recommendedH1: string | null;
   canonicalObservation: string | null;
   robotsObservation: string | null;
+  /** Deterministic HTTP status from Website Intelligence (matrix field). */
+  httpStatus?: number | null;
+  /** Deterministic issue flags derived from technicalCoverage.pages. */
+  issueFlags?: string[];
 };
 
 export type SeoTechnicalInternalLinkRecommendation = {

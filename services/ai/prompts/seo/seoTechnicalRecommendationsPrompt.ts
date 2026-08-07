@@ -71,11 +71,13 @@ Return ONLY JSON:
 }
 
 Rules:
-- pageMetadata: include analyzed pages that need metadata/H1/canonical/robots attention; omit healthy pages when unnecessary. Prefer actionable rows over noise.
+- pageMetadata: OPTIONAL AI overlays only. Include rows for pages where you recommend a title/description/H1 change. Healthy pages may be omitted — Athena merges overlays onto the full deterministic page inventory (technicalCoverage.pages). Do NOT treat sparse pageMetadata as the page inventory.
 - recommended titles/descriptions/H1 must be commercially useful and grounded in page + business context.
-- weaklyLinkedCandidates / recommendedLinks only when deterministic internal-link evidence supports them.
+- weaklyLinkedCandidates: use deterministic weakLinkingCandidates (url + count). Be honest when evidence is thin.
+- recommendedLinks: ONLY for source→destination edges present in INTERNAL LINK EDGE SAMPLES (or linkEdgeSamples), and ONLY when both URLs are in the analyzed corpus. AI may improve anchor wording and rationale. AI must NOT invent arbitrary from→to pairs merely because two URLs exist. If evidence is insufficient, return recommendedLinks: [] and say so in linkingEvidence/summary.
+- redirectFindings: classify per redirectInterpretationRules. Single-hop final-200 is informational only. Do not recommend optimizing redirect chains unless redirectChainCandidatePages > 0.
 - exampleSnippets may include compact JSON-LD examples when schema recommendations are warranted.
-- Do not invent HTTP statuses, redirects, schema types, or alt counts beyond evidence.
+- Do not invent HTTP statuses, redirects, schema types, link edges, or alt counts beyond evidence.
 
 PRIOR EXECUTIVE EVALUATION:
 ${JSON.stringify(input.executiveEvaluation)}

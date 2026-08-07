@@ -125,14 +125,7 @@ function validTechnicalPackage(
       architectureFindings: ["Homepage links to key service pages"],
       linkingEvidence: ["Average internal links are healthy on homepage"],
       weaklyLinkedCandidates: [],
-      recommendedLinks: [
-        {
-          fromUrl: "https://example.com/about",
-          toUrl: "https://example.com/services",
-          recommendedAnchor: "our services",
-          rationale: "Strengthen commercial pathways",
-        },
-      ],
+      recommendedLinks: [],
       summary: "Architecture is workable with selective linking improvements.",
     },
     contentHtmlFindings: {
@@ -225,6 +218,54 @@ describe("technical SEO package validation", () => {
     const pkg = validateSeoTechnicalPackage(validTechnicalPackage());
     assert.equal(pkg.generationType, "technical");
     assert.equal(isCompleteSeoTechnicalPackage(pkg), true);
+    assert.equal(
+      pkg.pageMetadata.length,
+      pkg.technicalCoverage.pages.length,
+    );
+  });
+
+  it("downgrades orphan Critical when executive has no criticalIssues", () => {
+    const pkg = validateSeoTechnicalPackage(
+      validTechnicalPackage({
+        executiveEvaluation: {
+          ...validTechnicalPackage().executiveEvaluation,
+          criticalIssues: [],
+        },
+        actionPlan: {
+          overview: "No executive critical",
+          items: [
+            {
+              priority: "Critical",
+              title: "Close metadata gaps",
+              affectedPages: ["https://example.com/"],
+              evidence: "metadata",
+              reason: "metadata",
+              recommendedAction: "Fix titles",
+            },
+            {
+              priority: "High",
+              title: "Improve image alt coverage",
+              affectedPages: ["https://example.com/"],
+              evidence: "alt",
+              reason: "alt",
+              recommendedAction: "Add alt",
+            },
+            {
+              priority: "Improvement",
+              title: "Add Service schema",
+              affectedPages: ["https://example.com/services"],
+              evidence: "schema",
+              reason: "schema",
+              recommendedAction: "Add schema",
+            },
+          ],
+        },
+      }),
+    );
+    assert.equal(
+      pkg.actionPlan.items.some((item) => item.priority === "Critical"),
+      false,
+    );
   });
 
   it("rejects unsupported metric claims", () => {

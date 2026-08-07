@@ -40,6 +40,7 @@ import {
   assessTechnicalSeoEvidenceSufficiency,
   TECHNICAL_SEO_EVIDENCE_INSUFFICIENT_CODE,
 } from "@/services/seo/seoTechnicalEvidence";
+import { buildCompletePageMetadataMatrix } from "@/services/seo/seoTechnicalPageMetadata";
 import { validateSeoTechnicalPackage } from "@/services/seo/seoTechnicalValidation";
 import { SeoReportPackageValidationError } from "@/services/seo/seoReportValidation";
 
@@ -179,8 +180,14 @@ export async function runSeoTechnicalGenerationPipeline(input: {
     reasoningProfile: "BALANCED",
   });
 
-  const pageMetadata =
-    recommendations.pageMetadata as unknown as SeoTechnicalPageMetadataRecommendation[];
+  const pageMetadataOverlays = Array.isArray(recommendations.pageMetadata)
+    ? (recommendations.pageMetadata as unknown as SeoTechnicalPageMetadataRecommendation[])
+    : [];
+  // Deterministic inventory is authoritative; AI rows are overlays only.
+  const pageMetadata = buildCompletePageMetadataMatrix(
+    technicalCoverage,
+    pageMetadataOverlays,
+  );
   const siteArchitecture =
     recommendations.siteArchitecture as unknown as SeoTechnicalArchitectureFindings;
   const contentHtmlFindings =
