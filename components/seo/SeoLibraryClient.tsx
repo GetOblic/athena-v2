@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { SeoGenerationTypeBadge } from "@/components/seo/SeoGenerationTypeBadge";
 import { SeoReportHeaderDeleteButton } from "@/components/seo/SeoReportHeaderDeleteButton";
 import { ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS } from "@/components/ui/athenaIntelligenceRow";
 import type { PublicSeoReportSummary } from "@/services/seo/seoReportPublic";
@@ -94,9 +95,17 @@ export function SeoLibraryClient({
             className={`${ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS} flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between`}
           >
             <Link href={`/seo/${report.id}`} className="min-w-0 flex-1">
-              <div className="text-lg font-semibold">{report.name}</div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="text-lg font-semibold">{report.name}</div>
+                <SeoGenerationTypeBadge
+                  generationType={report.generationType ?? "intelligence"}
+                />
+              </div>
               <div className="mt-2 text-sm text-white/50">
-                {report.summary || "SEO Intelligence report pending"}
+                {report.summary ||
+                  (report.generationType === "technical"
+                    ? "Technical SEO report pending"
+                    : "SEO Intelligence report pending")}
               </div>
               <div className="mt-2 text-xs text-white/35">
                 {formatDate(report.createdAt)} · {report.status}

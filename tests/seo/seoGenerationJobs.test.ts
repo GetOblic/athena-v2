@@ -65,6 +65,7 @@ describe("seo generation jobs", () => {
       "services/seo/seoGenerationJobs/seoGenerationJobExecutor.ts",
     );
     assert.match(executor, /runSeoGenerationPipeline/);
+    assert.match(executor, /runSeoTechnicalGenerationPipeline/);
     assert.match(executor, /completeSeoGenerationJobWithClaim/);
     assert.match(executor, /packageJson: result\.package/);
     assert.match(executor, /Ready reports are immutable/);

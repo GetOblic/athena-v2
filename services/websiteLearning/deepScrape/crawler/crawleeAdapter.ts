@@ -64,14 +64,63 @@ function pathAllowed(
   }
 }
 
+/** Synthesis page input — core fields plus additive Technical SEO evidence. */
+export type SynthesisPageInput = {
+  url: string;
+  title: string | null;
+  pageType: string;
+  text: string;
+  metaDescription?: string | null;
+  headingEntries?: Array<{ level: number; text: string }>;
+  declaredCanonicalUrl?: string | null;
+  selfCanonical?: boolean;
+  httpStatus?: number;
+  redirectCount?: number;
+  htmlLanguage?: string | null;
+  contentChars?: number;
+  schemaSummary?: { types: string[]; rawJsonLdCount: number } | null;
+  internalLinkCount?: number;
+  internalLinksSample?: Array<{
+    url: string;
+    anchor: string | null;
+    provenance: string | null;
+  }>;
+  robotsMeta?: string | null;
+  imageAltCoverage?: {
+    total: number;
+    withAlt: number;
+    missingAlt: number;
+  } | null;
+  hreflangAlternates?: Array<{ hreflang: string; href: string }>;
+};
+
 export function toSynthesisPages(
   pages: NormalizedPageDocument[],
-): Array<{ url: string; title: string | null; pageType: string; text: string }> {
+): SynthesisPageInput[] {
   return pages.map((page) => ({
     url: page.finalUrl || page.url,
     title: page.title,
     pageType: page.pageType,
     text: page.meaningfulText || page.readableText,
+    metaDescription: page.description,
+    headingEntries: page.headingEntries,
+    declaredCanonicalUrl: page.declaredCanonicalUrl ?? null,
+    selfCanonical: page.selfCanonical,
+    httpStatus: page.statusCode,
+    redirectCount: page.redirectCount,
+    htmlLanguage: page.htmlLanguage,
+    contentChars: (page.meaningfulText || page.readableText || "").length,
+    schemaSummary: page.structuredBusinessData
+      ? {
+          types: page.structuredBusinessData.types.slice(0, 20),
+          rawJsonLdCount: page.structuredBusinessData.rawJsonLdCount,
+        }
+      : null,
+    internalLinkCount: page.discoveredLinks.length,
+    internalLinksSample: (page.internalLinksSample ?? []).slice(0, 15),
+    robotsMeta: page.robotsMeta ?? null,
+    imageAltCoverage: page.imageAltCoverage ?? null,
+    hreflangAlternates: page.hreflangAlternates ?? [],
   }));
 }
 

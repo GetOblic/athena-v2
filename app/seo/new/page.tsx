@@ -18,14 +18,15 @@ export default async function NewSeoReportPage() {
 
       <div className="mb-10 mt-10 max-w-3xl">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Generate SEO Intelligence
+          SEO Workspace
         </div>
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
           New report
         </h1>
         <p className="mt-4 text-base leading-7 text-white/50">
-          Provide optional guidance, or leave everything blank and let Athena
-          infer the strongest content and visibility opportunities.
+          Provide optional guidance, then choose Generate SEO Intelligence for
+          strategic opportunities, or Generate Technical SEO for an
+          evidence-backed technical package from Website Intelligence.
         </p>
       </div>
 

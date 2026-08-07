@@ -36,14 +36,114 @@ function mergeKnowledge(
   return base;
 }
 
+type SynthesisPageRecord = {
+  url: string;
+  title: string | null;
+  pageType: string;
+  text: string;
+  metaDescription?: string | null;
+  headingEntries?: Array<{ level: number; text: string }>;
+  declaredCanonicalUrl?: string | null;
+  selfCanonical?: boolean;
+  httpStatus?: number;
+  redirectCount?: number;
+  htmlLanguage?: string | null;
+  contentChars?: number;
+  schemaSummary?: { types: string[]; rawJsonLdCount: number } | null;
+  internalLinkCount?: number;
+  internalLinksSample?: Array<{
+    url: string;
+    anchor: string | null;
+    provenance: string | null;
+  }>;
+  robotsMeta?: string | null;
+  imageAltCoverage?: {
+    total: number;
+    withAlt: number;
+    missingAlt: number;
+  } | null;
+  hreflangAlternates?: Array<{ hreflang: string; href: string }>;
+};
+
+/** Map crawl synthesis pages to persisted DeepCrawledPage records (additive technical fields). */
+export function mapSynthesisPagesToDeepCrawledPages(
+  pages: SynthesisPageRecord[],
+): DeepCrawledPage[] {
+  return pages.map((page) => {
+    const record: DeepCrawledPage = {
+      url: page.url,
+      title: page.title,
+      page_type: page.pageType,
+      excerpt: page.text.slice(0, 400),
+    };
+
+    if (page.metaDescription !== undefined) {
+      record.meta_description = page.metaDescription;
+    }
+    if (page.headingEntries && page.headingEntries.length > 0) {
+      record.headings = page.headingEntries.map((entry) => ({
+        level: entry.level,
+        text: entry.text,
+      }));
+    }
+    if (page.declaredCanonicalUrl !== undefined) {
+      record.canonical_url = page.declaredCanonicalUrl;
+    }
+    if (typeof page.selfCanonical === "boolean") {
+      record.self_canonical = page.selfCanonical;
+    }
+    if (typeof page.httpStatus === "number") {
+      record.http_status = page.httpStatus;
+    }
+    if (typeof page.redirectCount === "number") {
+      record.redirect_count = page.redirectCount;
+    }
+    if (page.htmlLanguage !== undefined) {
+      record.html_language = page.htmlLanguage;
+    }
+    if (typeof page.contentChars === "number") {
+      record.content_chars = page.contentChars;
+    }
+    if (page.schemaSummary) {
+      record.schema_summary = {
+        types: page.schemaSummary.types,
+        raw_json_ld_count: page.schemaSummary.rawJsonLdCount,
+      };
+    }
+    if (typeof page.internalLinkCount === "number") {
+      record.internal_link_count = page.internalLinkCount;
+    }
+    if (page.internalLinksSample && page.internalLinksSample.length > 0) {
+      record.internal_links_sample = page.internalLinksSample.map((link) => ({
+        url: link.url,
+        anchor: link.anchor,
+        provenance: link.provenance,
+      }));
+    }
+    if (page.robotsMeta !== undefined) {
+      record.robots_meta = page.robotsMeta;
+    }
+    if (page.imageAltCoverage) {
+      record.image_alt = {
+        total: page.imageAltCoverage.total,
+        with_alt: page.imageAltCoverage.withAlt,
+        missing_alt: page.imageAltCoverage.missingAlt,
+      };
+    }
+    if (page.hreflangAlternates && page.hreflangAlternates.length > 0) {
+      record.hreflang = page.hreflangAlternates.map((entry) => ({
+        hreflang: entry.hreflang,
+        href: entry.href,
+      }));
+    }
+
+    return record;
+  });
+}
+
 export function buildDeepSynthesisPrompt(input: {
   rootUrl: string;
-  pages: Array<{
-    url: string;
-    title: string | null;
-    pageType: string;
-    text: string;
-  }>;
+  pages: SynthesisPageRecord[];
 }): string {
   const pageBlocks = input.pages
     .map((page, index) => {
@@ -98,12 +198,7 @@ ${pageBlocks}
 
 export async function synthesizeDeepWebsiteIntelligence(input: {
   rootUrl: string;
-  pages: Array<{
-    url: string;
-    title: string | null;
-    pageType: string;
-    text: string;
-  }>;
+  pages: SynthesisPageRecord[];
   crawlSummary: DeepCrawlSummary;
 }): Promise<DeepWebsiteIntelligence> {
   if (input.pages.length === 0) {
@@ -135,12 +230,7 @@ export async function synthesizeDeepWebsiteIntelligence(input: {
     throw new Error("INSUFFICIENT_USEFUL_CONTENT");
   }
 
-  const pageRecords: DeepCrawledPage[] = input.pages.map((page) => ({
-    url: page.url,
-    title: page.title,
-    page_type: page.pageType,
-    excerpt: page.text.slice(0, 400),
-  }));
+  const pageRecords = mapSynthesisPagesToDeepCrawledPages(input.pages);
 
   const flat = flattenDeepIntelligenceForCompat(knowledge, pageRecords);
 

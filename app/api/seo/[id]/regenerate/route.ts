@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   SeoReportOrchestrationNotFoundError,
+  TechnicalSeoEvidenceInsufficientError,
   regenerateSeoReport,
 } from "@/services/seo/seoReportOrchestration";
 import { toPublicSeoReportDetail } from "@/services/seo/seoReportPublic";
@@ -77,6 +78,16 @@ export async function POST(
           error: { code: "NOT_FOUND", message: "SEO report not found." },
         },
         404,
+      );
+    }
+    if (error instanceof TechnicalSeoEvidenceInsufficientError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        409,
       );
     }
     console.error("[ATHENA_SEO_API] regenerate_failed", error);

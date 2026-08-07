@@ -257,6 +257,18 @@ export async function runPlaywrightCrawlPhase(
           discoveryProvenance: provenance,
           rankScore: totalScore,
           rankedPlanIndex,
+          declaredCanonicalUrl: extracted.declaredCanonicalUrl,
+          headingEntries: extracted.headingEntries,
+          robotsMeta: extracted.robotsMeta,
+          imageAltCoverage: extracted.imageAltCoverage,
+          hreflangAlternates: extracted.hreflangAlternates,
+          internalLinksSample: (extracted.discoveredLinkRecords ?? [])
+            .slice(0, 15)
+            .map((link) => ({
+              url: link.url,
+              anchor: link.anchorText,
+              provenance: link.provenance,
+            })),
         };
 
         const classification = classifyNormalizedPage({

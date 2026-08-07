@@ -720,6 +720,12 @@ export function validateSeoIntelligencePackage(
   }
   const raw = input as Record<string, unknown>;
 
+  if (raw.generationType === "technical") {
+    throw new SeoReportPackageValidationError([
+      'generationType "technical" must use Technical SEO validation.',
+    ]);
+  }
+
   const reportName = requireNonEmptyString(raw.reportName, "reportName", errors);
   const briefMode = raw.briefMode;
   if (briefMode !== "inferred" && briefMode !== "guided") {
@@ -746,7 +752,7 @@ export function validateSeoIntelligencePackage(
     errors,
   );
 
-  let disclaimer = requireNonEmptyString(raw.disclaimer, "disclaimer", errors);
+  const disclaimer = requireNonEmptyString(raw.disclaimer, "disclaimer", errors);
   if (disclaimer) {
     const lower = disclaimer.toLowerCase();
     if (
@@ -779,6 +785,7 @@ export function validateSeoIntelligencePackage(
   }
 
   const pkg: SeoIntelligencePackage = {
+    generationType: "intelligence",
     reportName,
     briefMode,
     executiveAssessment,

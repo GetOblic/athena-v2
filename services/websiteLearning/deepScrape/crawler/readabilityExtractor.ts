@@ -8,7 +8,12 @@ import { Readability } from "@mozilla/readability";
 import * as cheerio from "cheerio";
 import { JSDOM } from "jsdom";
 import { hashMeaningfulContent } from "@/services/websiteLearning/deepScrape/crawler/boilerplate";
-import type { StructuredBusinessData } from "@/services/websiteLearning/deepScrape/crawler/crawlerTypes";
+import type {
+  NormalizedHeadingEntry,
+  NormalizedHreflangAlternate,
+  NormalizedImageAltCoverage,
+  StructuredBusinessData,
+} from "@/services/websiteLearning/deepScrape/crawler/crawlerTypes";
 import {
   extractDiscoveryLinks,
   type ExtractedDiscoveryLink,
@@ -19,6 +24,9 @@ import {
   resolveAbsoluteUrl,
 } from "@/services/websiteLearning/deepScrape/urlSafety";
 
+/** Max internal-link sample rows persisted through synthesis. */
+export const TECHNICAL_INTERNAL_LINK_SAMPLE_MAX = 15 as const;
+
 export type ReadabilityExtraction = {
   title: string | null;
   byline: string | null;
@@ -27,8 +35,13 @@ export type ReadabilityExtraction = {
   /** Page-specific text used for hashing (excludes sitewide structured blob). */
   meaningfulText: string;
   description: string | null;
+  /** Text-only headings for legacy usefulness / classification. */
   headings: string[];
+  /** Headings with level + text (Technical SEO). */
+  headingEntries: NormalizedHeadingEntry[];
   canonicalUrl: string | null;
+  /** Declared canonical URL when present (may differ from identity canonicalUrl). */
+  declaredCanonicalUrl: string | null;
   /** True when extracted canonical matches this page URL path. */
   selfCanonical: boolean;
   htmlLanguage: string | null;
@@ -47,6 +60,9 @@ export type ReadabilityExtraction = {
     | "structured_only";
   preBoilerplateChars: number;
   pageSpecificHeading: string | null;
+  robotsMeta: string | null;
+  imageAltCoverage: NormalizedImageAltCoverage;
+  hreflangAlternates: NormalizedHreflangAlternate[];
 };
 
 function emptyStructuredData(): StructuredBusinessData {
@@ -223,13 +239,84 @@ export function collectStructuredBusinessData(html: string): StructuredBusinessD
   return data;
 }
 
-function extractHeadings($: cheerio.CheerioAPI): string[] {
-  const headings: string[] = [];
+function headingLevelFromElement(el: unknown): number {
+  const record = el as { name?: string; tagName?: string };
+  const tag = String(record.name ?? record.tagName ?? "").toLowerCase();
+  if (tag === "h1") return 1;
+  if (tag === "h2") return 2;
+  if (tag === "h3") return 3;
+  return 0;
+}
+
+function extractHeadingEntries($: cheerio.CheerioAPI): NormalizedHeadingEntry[] {
+  const headings: NormalizedHeadingEntry[] = [];
   $("h1, h2, h3").each((_, el) => {
+    const level = headingLevelFromElement(el);
+    if (!level) return;
     const text = $(el).text().replace(/\s+/g, " ").trim();
-    if (text) headings.push(text.slice(0, 200));
+    if (text) headings.push({ level, text: text.slice(0, 200) });
   });
   return headings.slice(0, 40);
+}
+
+function extractRobotsMeta($: cheerio.CheerioAPI): string | null {
+  const content =
+    $('meta[name="robots"]').attr("content")?.trim() ||
+    $('meta[name="googlebot"]').attr("content")?.trim() ||
+    null;
+  return content ? content.slice(0, 300) : null;
+}
+
+/**
+ * Count relevant content images and alt coverage.
+ * Skips tiny tracking pixels / data-URI spacers when detectable.
+ */
+function extractImageAltCoverage($: cheerio.CheerioAPI): NormalizedImageAltCoverage {
+  let total = 0;
+  let withAlt = 0;
+  $("img").each((_, el) => {
+    const src = ($(el).attr("src") || $(el).attr("data-src") || "").trim();
+    const width = Number($(el).attr("width") || 0);
+    const height = Number($(el).attr("height") || 0);
+    if (!src) return;
+    if (src.startsWith("data:") && src.length < 200) return;
+    if (width > 0 && height > 0 && width <= 2 && height <= 2) return;
+    total += 1;
+    const alt = $(el).attr("alt");
+    if (typeof alt === "string" && alt.trim().length > 0) {
+      withAlt += 1;
+    }
+  });
+  return {
+    total,
+    withAlt,
+    missingAlt: Math.max(0, total - withAlt),
+  };
+}
+
+function extractHreflangAlternates(
+  $: cheerio.CheerioAPI,
+  pageUrl: string,
+): NormalizedHreflangAlternate[] {
+  const seen = new Set<string>();
+  const alternates: NormalizedHreflangAlternate[] = [];
+  $('link[rel="alternate"][hreflang]').each((_, el) => {
+    if (alternates.length >= 30) return;
+    const hreflang = ($(el).attr("hreflang") || "").trim();
+    const hrefRaw = ($(el).attr("href") || "").trim();
+    if (!hreflang || !hrefRaw) return;
+    const resolved =
+      canonicalizePageUrl(resolveAbsoluteUrl(hrefRaw, pageUrl) ?? hrefRaw) ??
+      hrefRaw;
+    const key = `${hreflang.toLowerCase()}|${resolved}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    alternates.push({
+      hreflang: hreflang.slice(0, 32),
+      href: resolved.slice(0, 2_000),
+    });
+  });
+  return alternates;
 }
 
 function normalizeText(value: string): string {
@@ -362,7 +449,8 @@ export function extractWithReadability(input: {
   const html = String(input.html ?? "");
   const $meta = cheerio.load(html);
   const structuredBusinessData = collectStructuredBusinessData(html);
-  const headings = extractHeadings($meta);
+  const headingEntries = extractHeadingEntries($meta);
+  const headings = headingEntries.map((entry) => entry.text);
   const description =
     $meta('meta[name="description"]').attr("content")?.trim() ||
     $meta('meta[property="og:description"]').attr("content")?.trim() ||
@@ -385,7 +473,11 @@ export function extractWithReadability(input: {
   const canonicalUrl = selfCanonical
     ? resolvedCanonical
     : pageCanonical;
+  const declaredCanonicalUrl = resolvedCanonical;
   const htmlLanguage = $meta("html").attr("lang")?.trim() || null;
+  const robotsMeta = extractRobotsMeta($meta);
+  const imageAltCoverage = extractImageAltCoverage($meta);
+  const hreflangAlternates = extractHreflangAlternates($meta, input.url);
   const discovery = extractDiscoveryLinks({
     html,
     baseUrl: input.url,
@@ -498,7 +590,9 @@ export function extractWithReadability(input: {
     meaningfulText,
     description,
     headings,
+    headingEntries,
     canonicalUrl,
+    declaredCanonicalUrl,
     selfCanonical,
     htmlLanguage,
     discoveredLinks,
@@ -509,6 +603,9 @@ export function extractWithReadability(input: {
     extractionMethodSelected,
     preBoilerplateChars: meaningfulText.length,
     pageSpecificHeading,
+    robotsMeta,
+    imageAltCoverage,
+    hreflangAlternates,
   };
 }
 

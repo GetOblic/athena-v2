@@ -4,11 +4,68 @@
 
 export const DEEP_WEBSITE_INTELLIGENCE_PROVIDER = "deep_v1" as const;
 
+/** Bounded internal-link sample persisted for Technical SEO evidence. */
+export type DeepCrawledInternalLinkSample = {
+  url: string;
+  anchor: string | null;
+  provenance: string | null;
+};
+
+export type DeepCrawledHeading = {
+  level: number;
+  text: string;
+};
+
+export type DeepCrawledSchemaSummary = {
+  types: string[];
+  raw_json_ld_count: number;
+};
+
+export type DeepCrawledImageAltCoverage = {
+  total: number;
+  with_alt: number;
+  missing_alt: number;
+};
+
+export type DeepCrawledHreflangAlternate = {
+  hreflang: string;
+  href: string;
+};
+
+/**
+ * Deep-scraped page record.
+ * Core fields (url/title/page_type/excerpt) are always present.
+ * Technical SEO fields below are additive/optional — historical WI remains compatible.
+ */
 export type DeepCrawledPage = {
   url: string;
   title: string | null;
   page_type: string;
   excerpt: string;
+  /** Meta description when extracted. */
+  meta_description?: string | null;
+  /** Headings with level + text (V23+). */
+  headings?: DeepCrawledHeading[];
+  /** Declared canonical URL when present on the page. */
+  canonical_url?: string | null;
+  /** True when declared canonical matches this page. */
+  self_canonical?: boolean;
+  http_status?: number;
+  redirect_count?: number;
+  html_language?: string | null;
+  /** Useful content character count (meaningful text length). */
+  content_chars?: number;
+  /** Compact structured-data / schema summary. */
+  schema_summary?: DeepCrawledSchemaSummary | null;
+  internal_link_count?: number;
+  /** Bounded sample of internal links with anchor + provenance. */
+  internal_links_sample?: DeepCrawledInternalLinkSample[];
+  /** robots meta content when present. */
+  robots_meta?: string | null;
+  /** Image alt coverage counts for relevant images. */
+  image_alt?: DeepCrawledImageAltCoverage | null;
+  /** hreflang alternates when trivially extractable. */
+  hreflang?: DeepCrawledHreflangAlternate[];
 };
 
 export type DeepBusinessKnowledge = {

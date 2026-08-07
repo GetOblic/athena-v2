@@ -3,7 +3,10 @@ import {
   SeoReportBriefValidationError,
   normalizeSeoReportBrief,
 } from "@/services/seo/seoReportBrief";
-import { createSeoReportWithJob } from "@/services/seo/seoReportOrchestration";
+import {
+  createSeoReportWithJob,
+  TechnicalSeoEvidenceInsufficientError,
+} from "@/services/seo/seoReportOrchestration";
 import { toPublicSeoReportDetail, toPublicSeoReportSummary } from "@/services/seo/seoReportPublic";
 import { listSeoReports } from "@/services/seo/seoReportService";
 import {
@@ -124,6 +127,16 @@ export async function POST(request: Request) {
           error: { code: error.code, message: error.message },
         },
         400,
+      );
+    }
+    if (error instanceof TechnicalSeoEvidenceInsufficientError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        409,
       );
     }
     console.error("[ATHENA_SEO_API] create_failed", error);

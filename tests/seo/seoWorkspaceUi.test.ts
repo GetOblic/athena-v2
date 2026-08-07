@@ -35,9 +35,9 @@ describe("seo workspace UI", () => {
   it("new form states brief is optional and supports generation without brief", () => {
     const form = read("components/seo/SeoReportGenerateForm.tsx");
     assert.match(form, /brief is optional/i);
-    assert.match(form, /no brief at all/i);
     assert.match(form, /More detail/);
     assert.match(form, /Generate SEO Intelligence/);
+    assert.match(form, /Generate Technical SEO/);
     assert.match(form, /submittingRef/);
   });
 

@@ -15,7 +15,9 @@ import {
   SeoGenerationPipelineError,
   runSeoGenerationPipeline,
 } from "@/services/seo/seoGenerationPipeline";
+import { resolveBriefGenerationType } from "@/services/seo/seoReportBrief";
 import type { SeoReportGenerationStage } from "@/services/seo/seoReportTypes";
+import { runSeoTechnicalGenerationPipeline } from "@/services/seo/seoTechnicalGenerationPipeline";
 import { getAthenaWorkerConfig } from "@/services/generationJobs/generationJobWorkerConfig";
 
 export type ClaimedSeoJobExecution = {
@@ -140,22 +142,32 @@ export async function executeClaimedSeoGenerationJob(
       return "completed";
     }
 
-    const result = await runSeoGenerationPipeline({
-      organizationId: job.organization_id,
-      brief: report.brief_json,
-      onStage: async (stage) => {
-        currentStage = stage;
-        const renewed = await renewLease(stage);
-        if (!renewed) {
-          throw new SeoGenerationPipelineError({
-            code: "CLAIM_LOST",
-            message: "SEO generation claim was lost during processing.",
-            stage,
-            retryable: true,
+    const generationType = resolveBriefGenerationType(report.brief_json);
+    const onStage = async (stage: SeoReportGenerationStage) => {
+      currentStage = stage;
+      const renewed = await renewLease(stage);
+      if (!renewed) {
+        throw new SeoGenerationPipelineError({
+          code: "CLAIM_LOST",
+          message: "SEO generation claim was lost during processing.",
+          stage,
+          retryable: true,
+        });
+      }
+    };
+
+    const result =
+      generationType === "technical"
+        ? await runSeoTechnicalGenerationPipeline({
+            organizationId: job.organization_id,
+            brief: report.brief_json,
+            onStage,
+          })
+        : await runSeoGenerationPipeline({
+            organizationId: job.organization_id,
+            brief: report.brief_json,
+            onStage,
           });
-        }
-      },
-    });
 
     if (claimLost || options?.shouldStop?.()) {
       stopHeartbeat();

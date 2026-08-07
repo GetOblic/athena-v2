@@ -160,6 +160,7 @@ describe("seo report output contract", () => {
   it("accepts a complete valid package", () => {
     const pkg = validateSeoIntelligencePackage(validPackage());
     assert.equal(pkg.reportName, "Visibility & Authority Report");
+    assert.equal(pkg.generationType, "intelligence");
     assert.equal(pkg.ninetyDayRoadmap.items.length, 4);
     assert.equal(pkg.websitePagesAnalyzed.pages.length, 2);
     assert.equal(pkg.websitePagesAnalyzed.pages[1]?.title, null);

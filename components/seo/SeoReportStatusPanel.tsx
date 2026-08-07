@@ -13,7 +13,11 @@ const STAGE_LABELS: Record<SeoReportGenerationStage, string> = {
   commercial_opportunities: "Identifying commercial opportunities",
   trust_and_authority: "Evaluating trust and authority",
   ninety_day_roadmap: "Building 90-day SEO roadmap",
-  validating: "Validating SEO Intelligence report",
+  analyzing_technical_evidence: "Analyzing technical SEO evidence",
+  technical_executive_evaluation: "Generating technical executive evaluation",
+  technical_recommendations: "Building technical recommendations",
+  technical_action_plan: "Building technical action plan",
+  validating: "Validating SEO report",
   completed: "Completed",
   failed: "Failed",
 };

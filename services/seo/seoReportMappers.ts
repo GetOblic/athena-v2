@@ -3,36 +3,46 @@
  */
 
 import { normalizeSeoReportBrief } from "@/services/seo/seoReportBrief";
+import { resolveSeoGenerationType } from "@/services/seo/seoGenerationType";
 import { validateSeoIntelligencePackage } from "@/services/seo/seoReportValidation";
+import { validateSeoTechnicalPackage } from "@/services/seo/seoTechnicalValidation";
 import {
   isSeoReportGenerationStage,
   isSeoReportStatus,
-  type SeoIntelligencePackage,
   type SeoReport,
   type SeoReportBrief,
+  type SeoReportPackage,
   type SeoReportStatus,
 } from "@/services/seo/seoReportTypes";
 
 function mapBrief(value: unknown): SeoReportBrief {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
+    return { generationType: "intelligence" };
   }
   try {
     return normalizeSeoReportBrief(value);
   } catch {
-    return {};
+    return { generationType: "intelligence" };
   }
 }
 
 function mapPackage(
   value: unknown,
   status: SeoReportStatus,
-): SeoIntelligencePackage | null {
+  brief: SeoReportBrief,
+): SeoReportPackage | null {
   if (status !== "Ready") {
     return null;
   }
   try {
-    // Normalize so legacy Ready packages gain an empty websitePagesAnalyzed snapshot.
+    const generationType = resolveSeoGenerationType({
+      brief,
+      package: value,
+    });
+    if (generationType === "technical") {
+      return validateSeoTechnicalPackage(value);
+    }
+    // Normalize so legacy Ready packages gain generationType + empty websitePagesAnalyzed.
     return validateSeoIntelligencePackage(value);
   } catch {
     return null;
@@ -52,15 +62,17 @@ export function mapSeoReportRow(row: Record<string, unknown>): SeoReport {
         ? stageRaw
         : null;
 
+  const brief_json = mapBrief(row.brief_json);
+
   return {
     id: String(row.id),
     organization_id: String(row.organization_id),
     user_id: (row.user_id as string | null) ?? null,
     name: String(row.name ?? "Untitled SEO Report"),
-    brief_json: mapBrief(row.brief_json),
+    brief_json,
     status,
     generation_stage,
-    package_json: mapPackage(row.package_json, status),
+    package_json: mapPackage(row.package_json, status, brief_json),
     error_code: (row.error_code as string | null) ?? null,
     error_message: (row.error_message as string | null) ?? null,
     created_at: String(row.created_at ?? ""),

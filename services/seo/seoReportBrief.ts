@@ -3,6 +3,10 @@
  * All fields are optional. Empty/omitted brief → inferred mode.
  */
 
+import {
+  normalizeSeoGenerationType,
+  type SeoGenerationType,
+} from "@/services/seo/seoGenerationType";
 import type {
   SeoReportBrief,
   SeoReportBriefMode,
@@ -55,7 +59,7 @@ function trimToLimit(value: unknown, field: SeoReportBriefField): string | undef
  */
 export function normalizeSeoReportBrief(input: unknown): SeoReportBrief {
   if (input == null) {
-    return {};
+    return { generationType: "intelligence" };
   }
   if (typeof input !== "object" || Array.isArray(input)) {
     throw new SeoReportBriefValidationError("Brief must be an object.");
@@ -69,14 +73,22 @@ export function normalizeSeoReportBrief(input: unknown): SeoReportBrief {
   const focusArea = trimToLimit(raw.focusArea, "focusArea");
   const geography = trimToLimit(raw.geography, "geography");
   const constraints = trimToLimit(raw.constraints, "constraints");
+  const generationType = normalizeSeoGenerationType(raw.generationType);
 
   if (name) brief.name = name;
   if (guidance) brief.guidance = guidance;
   if (focusArea) brief.focusArea = focusArea;
   if (geography) brief.geography = geography;
   if (constraints) brief.constraints = constraints;
+  brief.generationType = generationType;
 
   return brief;
+}
+
+export function resolveBriefGenerationType(
+  brief: SeoReportBrief | null | undefined,
+): SeoGenerationType {
+  return normalizeSeoGenerationType(brief?.generationType);
 }
 
 /** True when any useful operator guidance is present (not just a name). */
@@ -96,7 +108,9 @@ export function defaultReportNameFromBrief(brief: SeoReportBrief): string {
   if (brief.name?.trim()) {
     return brief.name.trim();
   }
-  return "Untitled SEO Report";
+  return resolveBriefGenerationType(brief) === "technical"
+    ? "Untitled Technical SEO Report"
+    : "Untitled SEO Report";
 }
 
 /**

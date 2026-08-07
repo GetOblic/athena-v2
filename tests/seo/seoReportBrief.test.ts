@@ -10,9 +10,15 @@ import {
 
 describe("seo report brief", () => {
   it("accepts no brief / empty object as inferred", () => {
-    assert.deepEqual(normalizeSeoReportBrief(null), {});
-    assert.deepEqual(normalizeSeoReportBrief(undefined), {});
-    assert.deepEqual(normalizeSeoReportBrief({}), {});
+    assert.deepEqual(normalizeSeoReportBrief(null), {
+      generationType: "intelligence",
+    });
+    assert.deepEqual(normalizeSeoReportBrief(undefined), {
+      generationType: "intelligence",
+    });
+    assert.deepEqual(normalizeSeoReportBrief({}), {
+      generationType: "intelligence",
+    });
     assert.equal(resolveSeoReportBriefMode({}), "inferred");
     assert.equal(hasUsefulSeoReportGuidance({}), false);
   });

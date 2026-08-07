@@ -4,6 +4,11 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import type { SeoGenerationType } from "@/services/seo/seoGenerationType";
+
+/** Athena success-green treatment — same language as ThinkDifferentlyButton. */
+const TECHNICAL_SEO_BUTTON_CLASS =
+  "inline-flex items-center justify-center rounded-2xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-6 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-60";
 
 export function SeoReportGenerateForm() {
   const router = useRouter();
@@ -13,14 +18,14 @@ export function SeoReportGenerateForm() {
   const [focusArea, setFocusArea] = useState("");
   const [geography, setGeography] = useState("");
   const [constraints, setConstraints] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingType, setSubmittingType] =
+    useState<SeoGenerationType | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
+  async function handleGenerate(generationType: SeoGenerationType) {
     if (submittingRef.current) return;
     submittingRef.current = true;
-    setSubmitting(true);
+    setSubmittingType(generationType);
     setError(null);
 
     try {
@@ -33,6 +38,7 @@ export function SeoReportGenerateForm() {
           focusArea: focusArea.trim() || undefined,
           geography: geography.trim() || undefined,
           constraints: constraints.trim() || undefined,
+          generationType,
         }),
       });
       const payload = await parseJsonResponse<{
@@ -42,27 +48,46 @@ export function SeoReportGenerateForm() {
       }>(response);
 
       if (!payload.ok || !payload.report?.id) {
-        setError(payload.error?.message || "Failed to start SEO generation.");
+        setError(
+          payload.error?.message ||
+            (generationType === "technical"
+              ? "Failed to start Technical SEO generation."
+              : "Failed to start SEO generation."),
+        );
         return;
       }
 
       router.push(`/seo/${payload.report.id}`);
       router.refresh();
     } catch {
-      setError("Failed to start SEO generation.");
+      setError(
+        generationType === "technical"
+          ? "Failed to start Technical SEO generation."
+          : "Failed to start SEO generation.",
+      );
     } finally {
       submittingRef.current = false;
-      setSubmitting(false);
+      setSubmittingType(null);
     }
   }
 
+  const submitting = submittingType != null;
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void handleGenerate("intelligence");
+      }}
+      className="space-y-6"
+    >
       <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
         <p className="text-sm leading-7 text-white/60">
-          A brief is optional. Athena can generate a complete SEO Intelligence
-          report from existing Brain, Deep Website Intelligence, Personas,
-          Communities, and Discussions with no brief at all.
+          A brief is optional. Choose Generate SEO Intelligence for strategic
+          content and visibility opportunities from existing Brain, Deep Website
+          Intelligence, Personas, Communities, and Discussions. Choose Generate
+          Technical SEO for an evidence-backed technical package from refreshed
+          Website Intelligence.
         </p>
       </div>
 
@@ -118,13 +143,27 @@ export function SeoReportGenerateForm() {
 
       {error ? <p className="text-sm text-rose-200">{error}</p> : null}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
-      >
-        {submitting ? "Starting…" : "Generate SEO Intelligence"}
-      </button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          {submittingType === "intelligence"
+            ? "Starting…"
+            : "Generate SEO Intelligence"}
+        </button>
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={() => void handleGenerate("technical")}
+          className={TECHNICAL_SEO_BUTTON_CLASS}
+        >
+          {submittingType === "technical"
+            ? "Starting…"
+            : "Generate Technical SEO"}
+        </button>
+      </div>
     </form>
   );
 }

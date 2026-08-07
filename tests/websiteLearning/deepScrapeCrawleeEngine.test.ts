@@ -368,14 +368,14 @@ describe("Deep scrape Crawlee engine — extraction and acceptance", () => {
         meaningfulText: "Density treatments",
       }),
     ]);
-    assert.deepEqual(pages, [
-      {
-        url: "https://example.com/services",
-        title: "Services",
-        pageType: "services",
-        text: "Density treatments",
-      },
-    ]);
+    assert.equal(pages.length, 1);
+    assert.equal(pages[0]?.url, "https://example.com/services");
+    assert.equal(pages[0]?.title, "Services");
+    assert.equal(pages[0]?.pageType, "services");
+    assert.equal(pages[0]?.text, "Density treatments");
+    // Additive Technical SEO fields are passed through when present.
+    assert.equal(pages[0]?.httpStatus, 200);
+    assert.equal(typeof pages[0]?.metaDescription, "string");
   });
 
   it("27-36. Phase B, APIs, UI, and unchanged flows remain wired", () => {

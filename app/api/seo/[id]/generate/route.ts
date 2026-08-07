@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   SeoReportOrchestrationNotFoundError,
+  TechnicalSeoEvidenceInsufficientError,
   enqueueGenerationForExistingReport,
   ReadySeoReportImmutableError,
 } from "@/services/seo/seoReportOrchestration";
@@ -103,6 +104,16 @@ export async function POST(
             message: "An active SEO generation job already exists for this report.",
             jobId: error.existing.id,
           },
+        },
+        409,
+      );
+    }
+    if (error instanceof TechnicalSeoEvidenceInsufficientError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
         },
         409,
       );

@@ -23,12 +23,36 @@ export type StructuredBusinessData = {
   rawJsonLdCount: number;
 };
 
+/** Heading with explicit level — additive for Technical SEO persistence. */
+export type NormalizedHeadingEntry = {
+  level: number;
+  text: string;
+};
+
+export type NormalizedImageAltCoverage = {
+  total: number;
+  withAlt: number;
+  missingAlt: number;
+};
+
+export type NormalizedHreflangAlternate = {
+  hreflang: string;
+  href: string;
+};
+
+export type NormalizedInternalLinkSample = {
+  url: string;
+  anchor: string | null;
+  provenance: string | null;
+};
+
 export type NormalizedPageDocument = {
   url: string;
   canonicalUrl: string;
   finalUrl: string;
   title: string | null;
   description: string | null;
+  /** Text-only headings (legacy consumers / usefulness). */
   headings: string[];
   readableText: string;
   meaningfulText: string;
@@ -54,6 +78,18 @@ export type NormalizedPageDocument = {
   rankScore?: number;
   /** Index in the ranked fetch plan (homepage = 0), when known. */
   rankedPlanIndex?: number | null;
+  /**
+   * Declared canonical href when present (may differ from identity canonicalUrl).
+   * Additive — does not change crawl identity / acceptance.
+   */
+  declaredCanonicalUrl?: string | null;
+  /** Headings with level + text for Technical SEO persistence. */
+  headingEntries?: NormalizedHeadingEntry[];
+  robotsMeta?: string | null;
+  imageAltCoverage?: NormalizedImageAltCoverage | null;
+  hreflangAlternates?: NormalizedHreflangAlternate[];
+  /** Bounded internal-link sample with anchor + provenance. */
+  internalLinksSample?: NormalizedInternalLinkSample[];
 };
 
 export type PageClassificationResult = {

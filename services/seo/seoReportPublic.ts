@@ -2,19 +2,26 @@
  * Public API shapes for SEO reports — never trust client org ownership.
  */
 
+import {
+  normalizeSeoGenerationType,
+  resolveSeoGenerationType,
+  type SeoGenerationType,
+} from "@/services/seo/seoGenerationType";
 import type {
-  SeoIntelligencePackage,
   SeoReport,
   SeoReportBrief,
   SeoReportGenerationStage,
+  SeoReportPackage,
   SeoReportStatus,
 } from "@/services/seo/seoReportTypes";
+import { isSeoTechnicalPackage } from "@/services/seo/seoReportTypes";
 
 export type PublicSeoReportSummary = {
   id: string;
   name: string;
   status: SeoReportStatus;
   generationStage: SeoReportGenerationStage | null;
+  generationType: SeoGenerationType;
   summary: string | null;
   createdAt: string;
   updatedAt: string;
@@ -24,20 +31,33 @@ export type PublicSeoReportSummary = {
 
 export type PublicSeoReportDetail = PublicSeoReportSummary & {
   brief: SeoReportBrief;
-  package: SeoIntelligencePackage | null;
+  package: SeoReportPackage | null;
 };
+
+function packageSummary(pkg: SeoReportPackage | null): string | null {
+  if (!pkg) return null;
+  if (isSeoTechnicalPackage(pkg)) {
+    return pkg.executiveEvaluation.summary ?? null;
+  }
+  return pkg.executiveAssessment.summary ?? null;
+}
 
 /** Ready reports expose package; processing/failed never expose partial packages. */
 export function toPublicSeoReportSummary(report: SeoReport): PublicSeoReportSummary {
   const isReady = report.status === "Ready";
   const pkg = isReady ? report.package_json : null;
+  const generationType = resolveSeoGenerationType({
+    brief: report.brief_json,
+    package: pkg,
+  });
 
   return {
     id: report.id,
     name: report.name,
     status: report.status,
     generationStage: report.generation_stage,
-    summary: pkg?.executiveAssessment.summary ?? null,
+    generationType: normalizeSeoGenerationType(generationType),
+    summary: packageSummary(pkg),
     createdAt: report.created_at,
     updatedAt: report.updated_at,
     errorCode: report.error_code,
@@ -51,7 +71,7 @@ export function toPublicSeoReportDetail(report: SeoReport): PublicSeoReportDetai
 
   return {
     ...summary,
-    brief: report.brief_json ?? {},
+    brief: report.brief_json ?? { generationType: "intelligence" },
     package: isReady ? report.package_json : null,
   };
 }

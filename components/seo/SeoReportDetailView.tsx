@@ -19,7 +19,10 @@ import {
   groupRoadmapItems,
   sectionReadingCorpus,
 } from "@/services/seo/seoReportPresentation";
+import { SeoGenerationTypeBadge } from "@/components/seo/SeoGenerationTypeBadge";
+import { SeoTechnicalReportDetailView } from "@/components/seo/SeoTechnicalReportDetailView";
 import type { PublicSeoReportDetail } from "@/services/seo/seoReportPublic";
+import { isSeoTechnicalPackage } from "@/services/seo/seoReportTypes";
 
 type SeoReportDetailViewProps = {
   report: PublicSeoReportDetail;
@@ -29,7 +32,12 @@ function joinLines(values: string[]): string {
   return values.join("\n");
 }
 
-function buildPresentation(pkg: NonNullable<PublicSeoReportDetail["package"]>) {
+function buildPresentation(
+  pkg: Extract<
+    NonNullable<PublicSeoReportDetail["package"]>,
+    { executiveAssessment: unknown }
+  >,
+) {
   const overview = buildSeoExecutiveOverview(pkg);
   const takeEvidence = createEvidenceDeduper();
   // Dedup in render order so earlier sections keep primary citations.
@@ -62,10 +70,25 @@ function buildPresentation(pkg: NonNullable<PublicSeoReportDetail["package"]>) {
 }
 
 export function SeoReportDetailView({ report }: SeoReportDetailViewProps) {
+  if (
+    report.generationType === "technical" ||
+    isSeoTechnicalPackage(report.package)
+  ) {
+    return <SeoTechnicalReportDetailView report={report} />;
+  }
+  return <SeoIntelligenceReportDetailView report={report} />;
+}
+
+function SeoIntelligenceReportDetailView({
+  report,
+}: SeoReportDetailViewProps) {
   const router = useRouter();
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pkg = report.package;
+  const pkg =
+    report.package && !isSeoTechnicalPackage(report.package)
+      ? report.package
+      : null;
   const presentation = pkg ? buildPresentation(pkg) : null;
 
   async function handleRegenerate() {
@@ -102,8 +125,11 @@ export function SeoReportDetailView({ report }: SeoReportDetailViewProps) {
 
       <div className="mb-8 mt-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            SEO Intelligence
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
+              SEO Intelligence
+            </div>
+            <SeoGenerationTypeBadge generationType="intelligence" />
           </div>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">
             {report.name}
