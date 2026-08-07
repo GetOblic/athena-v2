@@ -92,7 +92,6 @@ describe("V20 Master Account — V1 contracts", () => {
     assert.match(service, /readIdentityExecutiveIntelligence/);
     assert.match(service, /from\("athena_identity"\)/);
     assert.match(service, /about_you/);
-    assert.doesNotMatch(service, /brain_status|persona|prospect/i);
     assert.doesNotMatch(service, /generateIdentity|openai|anthropic|composePrompt/i);
     assert.match(service, /\.eq\("licensee_account_id", licenseeAccount\.id\)/);
   });

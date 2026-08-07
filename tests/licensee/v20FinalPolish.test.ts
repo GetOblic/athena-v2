@@ -34,8 +34,6 @@ describe("V20 final polish — header, dashboard UX, remove, notes, snapshot", (
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
     assert.match(client, /Search businesses, emails, notes/);
     assert.match(client, /SearchIcon/);
-    assert.match(client, /bg-\[var\(--athena-card\)\]/);
-    assert.match(client, /shadow-lg shadow-black\/25/);
     assert.match(client, /Open Athena →/);
     assert.match(client, /shadow-xl shadow-orange-500\/25/);
     assert.match(client, /Create your first Athena sub-account/);
@@ -53,10 +51,17 @@ describe("V20 final polish — header, dashboard UX, remove, notes, snapshot", (
       client,
       /rounded-full bg-\[var\(--athena-orange\)\][\s\S]*Open Athena →/,
     );
-    assert.match(
-      client,
-      /border border-white\/10[\s\S]*Pin[\s\S]*Remove/,
-    );
+    assert.match(client, /☆|★/);
+    assert.match(client, /item\.pinned \? "Pinned" : "Pin"/);
+    assert.match(client, />\s*Remove\s*</);
+    // Pin/Remove live in expanded details; Open Athena remains on the collapsed card.
+    const cardStart = client.indexOf("function SubAccountCard");
+    const openIndex = client.indexOf("Open Athena →", cardStart);
+    const expandedIndex = client.indexOf("expanded ? (", cardStart);
+    const pinIndex = client.indexOf('item.pinned ? "Pinned" : "Pin"', cardStart);
+    assert.ok(cardStart >= 0);
+    assert.ok(openIndex > cardStart && openIndex < expandedIndex);
+    assert.ok(pinIndex > expandedIndex);
   });
 
   it("notes search and snapshot search are client-side only", () => {

@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { OtpSubmitButton } from "@/components/auth/OtpSubmitButton";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -170,12 +171,10 @@ async function LicenseeLoginForm({
             className="w-full rounded-2xl border border-white/10 bg-black/30 px-5 py-4 text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
           />
 
-          <button
-            type="submit"
-            className="w-full rounded-full bg-[var(--athena-orange)] px-6 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
-          >
-            Email my access code
-          </button>
+          <OtpSubmitButton
+            idleLabel="Email my access code"
+            pendingLabel="Sending access code…"
+          />
         </form>
       ) : (
         <form action={verifyCode} className="mt-8 space-y-5">
@@ -194,12 +193,10 @@ async function LicenseeLoginForm({
             className="w-full rounded-2xl border border-white/10 bg-black/30 px-5 py-4 text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
           />
 
-          <button
-            type="submit"
-            className="w-full rounded-full bg-[var(--athena-orange)] px-6 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
-          >
-            Verify code and enter Master dashboard
-          </button>
+          <OtpSubmitButton
+            idleLabel="Verify code and enter Master dashboard"
+            pendingLabel="Verifying code…"
+          />
         </form>
       )}
 

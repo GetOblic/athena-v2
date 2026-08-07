@@ -10,10 +10,15 @@ import {
   createConfirmedAuthUser,
   findAuthUserByEmail,
 } from "@/services/licensee/licenseeAuthUserLookup";
+import { computeAccountReadiness } from "@/services/licensee/licenseeAccountReadiness";
 import {
+  LICENSEE_SUB_ACCOUNT_DISPLAY_NAME_MAX_LENGTH,
   LICENSEE_SUB_ACCOUNT_NOTES_MAX_LENGTH,
   type LicenseeSubAccountListItem,
 } from "@/services/licensee/licenseeSubAccountTypes";
+import { PERSONA_INTELLIGENCE_PLATFORM } from "@/services/personas/personaBridgeMarker";
+import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectBridgeMarker";
+import { deepIntelligenceHasUsableContent } from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   getOrganizationMembership,
@@ -21,9 +26,14 @@ import {
 } from "@/services/organizationService";
 
 export {
+  LICENSEE_SUB_ACCOUNT_DISPLAY_NAME_MAX_LENGTH,
   LICENSEE_SUB_ACCOUNT_NOTES_MAX_LENGTH,
+  resolveLicenseeSubAccountTitle,
   type LicenseeSubAccountListItem,
+  type LicenseeSubAccountOperationalMetrics,
 } from "@/services/licensee/licenseeSubAccountTypes";
+
+export { computeAccountReadiness } from "@/services/licensee/licenseeAccountReadiness";
 
 /** Compact snapshot display length — existing identity text only, never generated. */
 const ACCOUNT_SNAPSHOT_MAX_LENGTH = 240;
@@ -92,6 +102,130 @@ function normalizeMasterNotes(notes: string | null | undefined): string {
   return notes.replace(/\r\n/g, "\n");
 }
 
+function normalizeDisplayName(
+  displayName: string | null | undefined,
+): string | null {
+  if (typeof displayName !== "string") {
+    return null;
+  }
+  const trimmed = displayName.trim().replace(/\s+/g, " ");
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function incrementCount(
+  map: Map<string, number>,
+  organizationId: string | null | undefined,
+) {
+  if (!organizationId) {
+    return;
+  }
+  map.set(organizationId, (map.get(organizationId) ?? 0) + 1);
+}
+
+/**
+ * Batched activity/status counts for authorized organization IDs.
+ * Never writes tenant data. Never uses licensee_account_id as tenant authority.
+ */
+async function loadBatchedTenantActivity(organizationIds: string[]): Promise<{
+  prospectCounts: Map<string, number>;
+  discussionCounts: Map<string, number>;
+  personaCounts: Map<string, number>;
+  seoReadyOrgs: Set<string>;
+  adsReadyOrgs: Set<string>;
+}> {
+  const prospectCounts = new Map<string, number>();
+  const discussionCounts = new Map<string, number>();
+  const personaCounts = new Map<string, number>();
+  const seoReadyOrgs = new Set<string>();
+  const adsReadyOrgs = new Set<string>();
+
+  if (organizationIds.length === 0) {
+    return {
+      prospectCounts,
+      discussionCounts,
+      personaCounts,
+      seoReadyOrgs,
+      adsReadyOrgs,
+    };
+  }
+
+  const [prospectsResult, discussionsResult, personasResult, seoResult, adsResult] =
+    await Promise.all([
+      supabaseAdmin
+        .from("prospects")
+        .select("organization_id")
+        .in("organization_id", organizationIds),
+      supabaseAdmin
+        .from("discussions")
+        .select("organization_id")
+        .in("organization_id", organizationIds)
+        .neq("platform", PROSPECT_INTELLIGENCE_PLATFORM)
+        .neq("platform", PERSONA_INTELLIGENCE_PLATFORM),
+      supabaseAdmin
+        .from("personas")
+        .select("organization_id")
+        .in("organization_id", organizationIds),
+      supabaseAdmin
+        .from("seo_reports")
+        .select("organization_id, status")
+        .in("organization_id", organizationIds),
+      supabaseAdmin
+        .from("ad_campaigns")
+        .select("organization_id, status")
+        .in("organization_id", organizationIds),
+    ]);
+
+  if (prospectsResult.error) {
+    throw new Error(
+      prospectsResult.error.message || "Failed to load prospect counts.",
+    );
+  }
+  if (discussionsResult.error) {
+    throw new Error(
+      discussionsResult.error.message || "Failed to load discussion counts.",
+    );
+  }
+  if (personasResult.error) {
+    throw new Error(
+      personasResult.error.message || "Failed to load persona counts.",
+    );
+  }
+  if (seoResult.error) {
+    throw new Error(seoResult.error.message || "Failed to load SEO readiness.");
+  }
+  if (adsResult.error) {
+    throw new Error(adsResult.error.message || "Failed to load Ads readiness.");
+  }
+
+  for (const row of prospectsResult.data ?? []) {
+    incrementCount(prospectCounts, row.organization_id as string);
+  }
+  for (const row of discussionsResult.data ?? []) {
+    incrementCount(discussionCounts, row.organization_id as string);
+  }
+  for (const row of personasResult.data ?? []) {
+    incrementCount(personaCounts, row.organization_id as string);
+  }
+  for (const row of seoResult.data ?? []) {
+    if (row.status === "Ready" && typeof row.organization_id === "string") {
+      seoReadyOrgs.add(row.organization_id);
+    }
+  }
+  for (const row of adsResult.data ?? []) {
+    if (row.status === "Ready" && typeof row.organization_id === "string") {
+      adsReadyOrgs.add(row.organization_id);
+    }
+  }
+
+  return {
+    prospectCounts,
+    discussionCounts,
+    personaCounts,
+    seoReadyOrgs,
+    adsReadyOrgs,
+  };
+}
+
 export async function requireLicenseeMasterAccount(
   userId: string,
 ): Promise<LicenseeAccount> {
@@ -107,6 +241,7 @@ export async function requireLicenseeMasterAccount(
 /**
  * Dashboard list: only orgs linked through the current Master's relationships.
  * Name/logo from organizations; optional compact snapshot from existing identity text.
+ * Operational metrics are batched, organization-scoped, read-only views.
  * Never generates AI summaries. Never mutates tenant intelligence.
  */
 export async function listLicenseeSubAccountsForMaster(
@@ -116,7 +251,9 @@ export async function listLicenseeSubAccountsForMaster(
 
   const { data: relationships, error } = await supabaseAdmin
     .from("licensee_sub_accounts")
-    .select("id, organization_id, pinned, pinned_at, notes, created_at")
+    .select(
+      "id, organization_id, pinned, pinned_at, notes, display_name, created_at",
+    )
     .eq("licensee_account_id", licenseeAccount.id);
 
   if (error) {
@@ -129,41 +266,50 @@ export async function listLicenseeSubAccountsForMaster(
 
   const organizationIds = relationships.map((row) => row.organization_id);
 
-  const { data: organizations, error: orgError } = await supabaseAdmin
-    .from("organizations")
-    .select("id, name, brand_logo_storage_path")
-    .in("id", organizationIds);
+  const [
+    { data: organizations, error: orgError },
+    { data: memberships, error: memberError },
+    { data: identities, error: identityError },
+    activity,
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("organizations")
+      .select("id, name, brand_logo_storage_path, last_visited_at")
+      .in("id", organizationIds),
+    supabaseAdmin
+      .from("organization_members")
+      .select("organization_id, user_id, role")
+      .in("organization_id", organizationIds)
+      .eq("role", "owner"),
+    supabaseAdmin
+      .from("athena_identity")
+      .select(
+        "organization_id, about_you, master_profile, brain_status, website_intelligence",
+      )
+      .in("organization_id", organizationIds),
+    loadBatchedTenantActivity(organizationIds),
+  ]);
 
   if (orgError) {
     throw new Error(orgError.message || "Failed to load organizations.");
+  }
+  if (memberError) {
+    throw new Error(memberError.message || "Failed to load account emails.");
+  }
+  if (identityError) {
+    throw new Error(identityError.message || "Failed to load account snapshots.");
   }
 
   const orgById = new Map(
     (organizations ?? []).map((org) => [org.id as string, org]),
   );
 
-  const { data: memberships, error: memberError } = await supabaseAdmin
-    .from("organization_members")
-    .select("organization_id, user_id, role")
-    .in("organization_id", organizationIds)
-    .eq("role", "owner");
-
-  if (memberError) {
-    throw new Error(memberError.message || "Failed to load account emails.");
-  }
-
   const ownerByOrg = new Map(
-    (memberships ?? []).map((row) => [row.organization_id as string, row.user_id as string]),
+    (memberships ?? []).map((row) => [
+      row.organization_id as string,
+      row.user_id as string,
+    ]),
   );
-
-  const { data: identities, error: identityError } = await supabaseAdmin
-    .from("athena_identity")
-    .select("organization_id, about_you, master_profile")
-    .in("organization_id", organizationIds);
-
-  if (identityError) {
-    throw new Error(identityError.message || "Failed to load account snapshots.");
-  }
 
   const identityByOrg = new Map(
     (identities ?? []).map((row) => [row.organization_id as string, row]),
@@ -198,11 +344,29 @@ export async function listLicenseeSubAccountsForMaster(
 
     const ownerUserId = ownerByOrg.get(org.id) ?? null;
     const identity = identityByOrg.get(org.id) ?? null;
+    const prospectCount = activity.prospectCounts.get(org.id) ?? 0;
+    const discussionCount = activity.discussionCounts.get(org.id) ?? 0;
+    const personaCount = activity.personaCounts.get(org.id) ?? 0;
+    const brainReady = identity?.brain_status === "ready";
+    const websiteIntelligenceReady = deepIntelligenceHasUsableContent(
+      identity?.website_intelligence,
+    );
+    const seoReady = activity.seoReadyOrgs.has(org.id);
+    const adsReady = activity.adsReadyOrgs.has(org.id);
+    const readiness = computeAccountReadiness({
+      brainReady,
+      websiteIntelligenceReady,
+      seoReady,
+      adsReady,
+      hasPersonas: personaCount > 0,
+      hasProspects: prospectCount > 0,
+    });
 
     items.push({
       relationshipId: relationship.id,
       organizationId: org.id,
       name: org.name,
+      displayName: normalizeDisplayName(relationship.display_name),
       logoPreviewUrl,
       pinned: Boolean(relationship.pinned),
       pinnedAt: relationship.pinned_at ?? null,
@@ -211,6 +375,18 @@ export async function listLicenseeSubAccountsForMaster(
         : null,
       notes: normalizeMasterNotes(relationship.notes),
       accountSnapshot: resolveAccountSnapshot(identity),
+      metrics: {
+        prospectCount,
+        discussionCount,
+        personaCount,
+        brainReady,
+        websiteIntelligenceReady,
+        seoReady,
+        adsReady,
+        lastVisitedAt:
+          typeof org.last_visited_at === "string" ? org.last_visited_at : null,
+        accountReadinessPercent: readiness.percent,
+      },
     });
   }
 
@@ -218,7 +394,9 @@ export async function listLicenseeSubAccountsForMaster(
     if (a.pinned !== b.pinned) {
       return a.pinned ? -1 : 1;
     }
-    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    const titleA = normalizeDisplayName(a.displayName) || a.name;
+    const titleB = normalizeDisplayName(b.displayName) || b.name;
+    return titleA.localeCompare(titleB, undefined, { sensitivity: "base" });
   });
 
   return items;
@@ -272,6 +450,66 @@ export async function setLicenseeSubAccountPinned(input: {
     relationshipId: updated.id,
     pinned: Boolean(updated.pinned),
     pinnedAt: updated.pinned_at ?? null,
+  };
+}
+
+/**
+ * Update Master-only display name on the relationship row only.
+ * Does not touch organizations.name or Athena tenant branding.
+ */
+export async function setLicenseeSubAccountDisplayName(input: {
+  masterUserId: string;
+  relationshipId: string;
+  displayName: string;
+}): Promise<{ relationshipId: string; displayName: string | null }> {
+  const licenseeAccount = await requireLicenseeMasterAccount(input.masterUserId);
+  const relationshipId = input.relationshipId.trim();
+  if (!relationshipId) {
+    throw new LicenseeAccessError("Missing relationship id.");
+  }
+
+  const displayName = normalizeDisplayName(input.displayName);
+  if (
+    displayName &&
+    displayName.length > LICENSEE_SUB_ACCOUNT_DISPLAY_NAME_MAX_LENGTH
+  ) {
+    throw new LicenseeSubAccountCreateError(
+      "DISPLAY_NAME_TOO_LONG",
+      `Master display name cannot exceed ${LICENSEE_SUB_ACCOUNT_DISPLAY_NAME_MAX_LENGTH} characters.`,
+    );
+  }
+
+  const { data: relationship, error: lookupError } = await supabaseAdmin
+    .from("licensee_sub_accounts")
+    .select("id, licensee_account_id")
+    .eq("id", relationshipId)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new LicenseeAccessError(lookupError.message);
+  }
+
+  if (!relationship || relationship.licensee_account_id !== licenseeAccount.id) {
+    throw new LicenseeAccessError(
+      "Master does not own this sub-account relationship.",
+    );
+  }
+
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from("licensee_sub_accounts")
+    .update({ display_name: displayName })
+    .eq("id", relationshipId)
+    .eq("licensee_account_id", licenseeAccount.id)
+    .select("id, display_name")
+    .single();
+
+  if (updateError || !updated) {
+    throw new Error(updateError?.message || "Failed to save Master display name.");
+  }
+
+  return {
+    relationshipId: updated.id,
+    displayName: normalizeDisplayName(updated.display_name),
   };
 }
 

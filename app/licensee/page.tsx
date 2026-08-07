@@ -53,7 +53,7 @@ export default async function LicenseeMasterPage({
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] px-6 py-10 text-white">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-5xl">
         <div className="mb-10 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <AthenaBrandLink className="mb-8" />
@@ -64,8 +64,8 @@ export default async function LicenseeMasterPage({
               Master dashboard
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-white/50">
-              Open and manage linked Athena sub-accounts. Intelligence always
-              stays inside each individual account.
+              Client operations console for linked Athena sub-accounts.
+              Intelligence always stays inside each individual account.
             </p>
           </div>
 

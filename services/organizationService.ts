@@ -31,6 +31,8 @@ export type Organization = {
   brand_font?: string | null;
   /** Navigational Continue destinations — does not affect generation routing. */
   ai_workspace_preferences?: Record<string, unknown> | null;
+  /** Most recent human workspace visit — operational metadata only. */
+  last_visited_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -167,6 +169,28 @@ export async function requireCurrentOrganizationId(): Promise<string> {
   return context.organizationId;
 }
 
+/**
+ * Record a human visit to an Athena organization workspace.
+ * Scoped to one organization id only — never touches other tenants.
+ */
+export async function touchOrganizationLastVisitedAt(
+  organizationId: string,
+): Promise<void> {
+  const id = organizationId.trim();
+  if (!id) {
+    return;
+  }
+
+  const { error } = await supabaseAdmin
+    .from("organizations")
+    .update({ last_visited_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Failed to update organization last_visited_at:", error);
+  }
+}
+
 export async function requireCurrentOrganizationContext(): Promise<OrganizationContext> {
   const supabase = await createSupabaseServerClient();
   const {
@@ -177,16 +201,16 @@ export async function requireCurrentOrganizationContext(): Promise<OrganizationC
     throw new OrganizationAccessError("Authentication required.");
   }
 
+  const requestHeaders = await headers();
+  const isDocumentNavigation = isDocumentNavigationRequest(
+    requestHeaders.get("accept"),
+    requestHeaders.get("sec-fetch-dest"),
+  );
+
   if (await isLicenseeMasterUser(user.id)) {
     // Master sessions must not enter Athena tenant context.
     // Document navigations redirect to the Master dashboard; API callers get 403.
-    const requestHeaders = await headers();
-    if (
-      isDocumentNavigationRequest(
-        requestHeaders.get("accept"),
-        requestHeaders.get("sec-fetch-dest"),
-      )
-    ) {
+    if (isDocumentNavigation) {
       redirect("/licensee");
     }
     throw new LicenseeMasterProvisionBlockedError();
@@ -196,6 +220,11 @@ export async function requireCurrentOrganizationContext(): Promise<OrganizationC
     user.id,
     user.email,
   );
+
+  // Human HTML workspace entry only — skips API polling, handoff JSON, workers.
+  if (isDocumentNavigation) {
+    await touchOrganizationLastVisitedAt(organizationId);
+  }
 
   return {
     organizationId,
