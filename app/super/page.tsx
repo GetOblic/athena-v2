@@ -8,6 +8,7 @@ import { SuperAdminDashboardClient } from "@/components/superAdmin/SuperAdminDas
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SUPER_ADMIN_MARKER_COOKIE } from "@/services/superAdmin/superAdminCookieNames";
 import { listManageableAccountsForSuperAdmin } from "@/services/superAdmin/superAdminAccounts";
+import { getActiveTrendSocialPromptInstruction } from "@/services/superAdmin/strategicBlueprintInstructions";
 import {
   SuperAdminAuthorityLookupError,
   getSuperAdminByUserId,
@@ -50,6 +51,8 @@ export default async function SuperAdminPage({
   }
 
   const accounts = await listManageableAccountsForSuperAdmin(user.id);
+  const trendSocialPromptInstruction =
+    await getActiveTrendSocialPromptInstruction();
   const params = searchParams ? await searchParams : {};
 
   return (
@@ -83,6 +86,12 @@ export default async function SuperAdminPage({
 
         <SuperAdminDashboardClient
           initialAccounts={accounts}
+          initialTrendSocialPromptInstruction={{
+            instructionText: trendSocialPromptInstruction.instructionText,
+            revisionId: trendSocialPromptInstruction.revisionId,
+            updatedAt: trendSocialPromptInstruction.updatedAt,
+            configured: trendSocialPromptInstruction.configured,
+          }}
           notice={params.message || null}
         />
       </div>

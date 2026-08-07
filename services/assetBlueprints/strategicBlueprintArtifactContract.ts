@@ -8,6 +8,7 @@ export type StrategicBlueprintArtifact = {
   image_prompt: string;
   pdf_prompt: string;
   social_prompt: string;
+  trend_social_prompt: string;
   notes: string;
   asset_objective?: string;
   business_objective?: string;
@@ -111,6 +112,7 @@ export function normalizeStrategicBlueprintArtifact(
     image_prompt: String(parsed.image_prompt ?? ""),
     pdf_prompt: String(parsed.pdf_prompt ?? ""),
     social_prompt: String(parsed.social_prompt ?? ""),
+    trend_social_prompt: String(parsed.trend_social_prompt ?? ""),
     notes: notesParts.join("\n\n"),
     asset_objective: assetObjective || undefined,
     business_objective: businessObjective || undefined,
@@ -143,6 +145,7 @@ export function validateStrategicBlueprintArtifact(
     !artifact.pdf_prompt.trim() &&
     !artifact.image_prompt.trim() &&
     !artifact.social_prompt.trim() &&
+    !artifact.trend_social_prompt.trim() &&
     !artifact.notes.trim()
   ) {
     errors.push("Blueprint missing executable prompts or notes.");
@@ -167,6 +170,7 @@ export function strategicBlueprintReviewText(
     artifact.pdf_prompt,
     artifact.image_prompt,
     artifact.social_prompt,
+    artifact.trend_social_prompt,
   ]
     .filter(Boolean)
     .join("\n");

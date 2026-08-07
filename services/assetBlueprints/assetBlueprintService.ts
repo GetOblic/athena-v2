@@ -44,16 +44,16 @@ import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import type { Discussion } from "@/services/discussionService";
 import type { Opportunity } from "@/services/opportunityService";
 import type { AthenaReview } from "@/services/reviewService";
-
-function applyBlueprintGenerationMode(
-  standardPrompt: string,
-  generationMode: ExecutiveGenerationMode,
-): string {
-  if (generationMode !== "think_differently") {
-    return standardPrompt;
-  }
-  return appendThinkDifferentlyInstruction(standardPrompt);
-}
+import {
+  appendTrendSocialPromptInstructionBlock,
+  applyTrendSocialPromptMissingConfigGuard,
+} from "@/services/assetBlueprints/trendSocialPromptInjection";
+import {
+  getActiveTrendSocialPromptInstruction,
+  toTrendSocialPromptConfigProvenance,
+  type ActiveStrategicBlueprintInstruction,
+  type TrendSocialPromptConfigProvenance,
+} from "@/services/superAdmin/strategicBlueprintInstructions";
 
 export type { StrategicBlueprintArtifact } from "@/services/assetBlueprints/strategicBlueprintArtifactContract";
 
@@ -72,6 +72,7 @@ export type AthenaAssetBlueprint = {
   image_prompt: string | null;
   pdf_prompt: string | null;
   social_prompt: string | null;
+  trend_social_prompt: string | null;
   notes: string | null;
   status: string;
   raw_json: Record<string, unknown> | null;
@@ -80,6 +81,43 @@ export type AthenaAssetBlueprint = {
 };
 
 type ParsedAssetBlueprint = StrategicBlueprintArtifact;
+
+function applyBlueprintGenerationMode(
+  standardPrompt: string,
+  generationMode: ExecutiveGenerationMode,
+): string {
+  if (generationMode !== "think_differently") {
+    return standardPrompt;
+  }
+  return appendThinkDifferentlyInstruction(standardPrompt);
+}
+
+async function resolveTrendSocialPromptGenerationContext(): Promise<{
+  instruction: ActiveStrategicBlueprintInstruction;
+  provenance: TrendSocialPromptConfigProvenance;
+}> {
+  const instruction = await getActiveTrendSocialPromptInstruction();
+  return {
+    instruction,
+    provenance: toTrendSocialPromptConfigProvenance(instruction),
+  };
+}
+
+function finalizeParsedBlueprintWithTrendGuard(
+  parsed: ParsedAssetBlueprint,
+  instruction: ActiveStrategicBlueprintInstruction,
+): ParsedAssetBlueprint {
+  const next: ParsedAssetBlueprint = { ...parsed };
+  applyTrendSocialPromptMissingConfigGuard(next, instruction);
+  return next;
+}
+
+function withTrendSocialPromptInstruction(
+  prompt: string,
+  instruction: ActiveStrategicBlueprintInstruction,
+): string {
+  return appendTrendSocialPromptInstructionBlock(prompt, instruction);
+}
 
 function normalizeParsedAssetBlueprint(
   parsed: Record<string, unknown>,
@@ -174,6 +212,7 @@ function emptyParsedBlueprint(): ParsedAssetBlueprint {
     image_prompt: "",
     pdf_prompt: "",
     social_prompt: "",
+    trend_social_prompt: "",
     notes: "",
   });
 }
@@ -213,13 +252,18 @@ async function findPreservedBlueprint(input: {
 export function blueprintHasPrompts(
   blueprint: Pick<
     AthenaAssetBlueprint,
-    "image_prompt" | "pdf_prompt" | "social_prompt" | "notes"
+    | "image_prompt"
+    | "pdf_prompt"
+    | "social_prompt"
+    | "trend_social_prompt"
+    | "notes"
   >,
 ): boolean {
   return Boolean(
     blueprint.image_prompt?.trim() ||
       blueprint.pdf_prompt?.trim() ||
       blueprint.social_prompt?.trim() ||
+      blueprint.trend_social_prompt?.trim() ||
       blueprint.notes?.trim(),
   );
 }
@@ -288,6 +332,7 @@ async function updateAssetBlueprint(
     briefingId?: string | null;
     executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
     regenerationRunId?: string | null;
+    trendSocialPromptConfig?: TrendSocialPromptConfigProvenance | null;
   },
 ): Promise<AthenaAssetBlueprint | null> {
   const { data, error } = await supabaseAdmin
@@ -304,6 +349,7 @@ async function updateAssetBlueprint(
       image_prompt: input.parsed.image_prompt,
       pdf_prompt: input.parsed.pdf_prompt,
       social_prompt: input.parsed.social_prompt,
+      trend_social_prompt: input.parsed.trend_social_prompt,
       notes: input.parsed.notes,
       status: "ready",
       raw_json: {
@@ -313,6 +359,7 @@ async function updateAssetBlueprint(
         raw_ai_response: input.rawBlueprint,
         executive_marketing_strategy: input.executiveMarketingStrategy ?? null,
         regeneration_run_id: input.regenerationRunId ?? null,
+        trend_social_prompt_config: input.trendSocialPromptConfig ?? null,
       },
       updated_at: new Date().toISOString(),
     })
@@ -340,6 +387,7 @@ async function insertAssetBlueprint(input: {
   source: string;
   executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
   regenerationRunId?: string | null;
+  trendSocialPromptConfig?: TrendSocialPromptConfigProvenance | null;
 }): Promise<AthenaAssetBlueprint | null> {
   if (!blueprintHasPrompts(input.parsed)) {
     console.warn(
@@ -365,6 +413,7 @@ async function insertAssetBlueprint(input: {
       image_prompt: input.parsed.image_prompt,
       pdf_prompt: input.parsed.pdf_prompt,
       social_prompt: input.parsed.social_prompt,
+      trend_social_prompt: input.parsed.trend_social_prompt,
       notes: input.parsed.notes,
       status: "ready",
       raw_json: {
@@ -374,6 +423,7 @@ async function insertAssetBlueprint(input: {
         raw_ai_response: input.rawBlueprint,
         executive_marketing_strategy: input.executiveMarketingStrategy ?? null,
         regeneration_run_id: input.regenerationRunId ?? null,
+        trend_social_prompt_config: input.trendSocialPromptConfig ?? null,
       },
     })
     .select("*")
@@ -445,6 +495,7 @@ async function upsertAssetBlueprint(input: {
   executiveMarketingStrategy?: ExecutiveMarketingStrategy | null;
   forceInsert?: boolean;
   regenerationRunId?: string | null;
+  trendSocialPromptConfig?: TrendSocialPromptConfigProvenance | null;
 }): Promise<AthenaAssetBlueprint | null> {
   const parsedWithDebugMarker: ParsedAssetBlueprint = {
     ...input.parsed,
@@ -475,6 +526,7 @@ async function upsertAssetBlueprint(input: {
       source: input.source,
       executiveMarketingStrategy: input.executiveMarketingStrategy,
       regenerationRunId: input.regenerationRunId,
+      trendSocialPromptConfig: input.trendSocialPromptConfig,
     });
 
     logRegenerationDiagnostic("BLUEPRINT_ROW_INSERTED", {
@@ -507,6 +559,7 @@ async function upsertAssetBlueprint(input: {
       briefingId: input.briefingId,
       executiveMarketingStrategy: input.executiveMarketingStrategy,
       regenerationRunId: input.regenerationRunId,
+      trendSocialPromptConfig: input.trendSocialPromptConfig,
     });
 
     logRegenerationDiagnostic("BLUEPRINT_ROW_UPDATED", {
@@ -799,6 +852,7 @@ async function persistBlueprintOrPreserve(input: {
   blueprintError?: string;
   explicitRegeneration?: boolean;
   regenerationRunId?: string;
+  trendSocialPromptConfig?: TrendSocialPromptConfigProvenance | null;
   /**
    * Think Differently inserts a new blueprint row so a partial failure cannot
    * overwrite the blueprint still referenced by the previous Current version.
@@ -888,6 +942,7 @@ async function persistBlueprintOrPreserve(input: {
     executiveMarketingStrategy: input.executiveMarketingStrategy,
     forceInsert: Boolean(input.forceInsert),
     regenerationRunId: input.regenerationRunId,
+    trendSocialPromptConfig: input.trendSocialPromptConfig,
   });
 
   if (!saved || !hasBlueprintDebugMarker(saved.notes)) {
@@ -935,6 +990,7 @@ async function persistBlueprintOrPreserve(input: {
         saved.pdf_prompt,
         saved.image_prompt,
         saved.social_prompt,
+        saved.trend_social_prompt,
       ].join("|"),
     ),
     recordId: saved.id,
@@ -970,6 +1026,7 @@ export async function createAssetBlueprintForBriefing(input: {
   try {
     const generationMode = normalizeExecutiveGenerationMode(input.generationMode);
     const organizationId = input.discussion.organization_id ?? "";
+    const trendContext = await resolveTrendSocialPromptGenerationContext();
     const effectiveBundle = await resolveBlueprintGenerationBundle({
       generationBundle: input.generationBundle,
       organizationId,
@@ -992,21 +1049,27 @@ export async function createAssetBlueprintForBriefing(input: {
         discussionId: input.discussion.id,
         explicitRegeneration: input.explicitRegeneration,
         buildPrompt: (refinementSuffix) =>
-          applyBlueprintGenerationMode(
-            assembleStrategicBlueprintPrompt({
-              bundle: effectiveBundle,
-              discussion: input.discussion as unknown as Record<string, unknown>,
-              opportunity: input.opportunity as unknown as Record<string, unknown>,
-              briefing: input.briefing as unknown as Record<string, unknown>,
-              qualityRefinementSuffix: refinementSuffix,
-              regenerationRunId: input.regenerationRunId,
-            }),
-            generationMode,
+          withTrendSocialPromptInstruction(
+            applyBlueprintGenerationMode(
+              assembleStrategicBlueprintPrompt({
+                bundle: effectiveBundle,
+                discussion: input.discussion as unknown as Record<string, unknown>,
+                opportunity: input.opportunity as unknown as Record<string, unknown>,
+                briefing: input.briefing as unknown as Record<string, unknown>,
+                qualityRefinementSuffix: refinementSuffix,
+                regenerationRunId: input.regenerationRunId,
+              }),
+              generationMode,
+            ),
+            trendContext.instruction,
           ),
       });
 
       if (gated.ok) {
-        parsed = gated.parsed;
+        parsed = finalizeParsedBlueprintWithTrendGuard(
+          gated.parsed,
+          trendContext.instruction,
+        );
         rawBlueprint = gated.rawBlueprint;
       } else {
         const recovered = await runBlueprintFallbackGeneration({
@@ -1017,15 +1080,18 @@ export async function createAssetBlueprintForBriefing(input: {
           regenerationRunId: input.regenerationRunId,
           explicitRegeneration: input.explicitRegeneration,
           buildPrompt: () =>
-            applyBlueprintGenerationMode(
-              assembleStrategicBlueprintPrompt({
-                bundle: effectiveBundle,
-                discussion: input.discussion as unknown as Record<string, unknown>,
-                opportunity: input.opportunity as unknown as Record<string, unknown>,
-                briefing: input.briefing as unknown as Record<string, unknown>,
-                regenerationRunId: input.regenerationRunId,
-              }),
-              generationMode,
+            withTrendSocialPromptInstruction(
+              applyBlueprintGenerationMode(
+                assembleStrategicBlueprintPrompt({
+                  bundle: effectiveBundle,
+                  discussion: input.discussion as unknown as Record<string, unknown>,
+                  opportunity: input.opportunity as unknown as Record<string, unknown>,
+                  briefing: input.briefing as unknown as Record<string, unknown>,
+                  regenerationRunId: input.regenerationRunId,
+                }),
+                generationMode,
+              ),
+              trendContext.instruction,
             ),
         });
         if (!recovered.ok) {
@@ -1033,21 +1099,27 @@ export async function createAssetBlueprintForBriefing(input: {
           blueprintError = recovered.error;
           rawBlueprint = recovered.rawBlueprint ?? null;
         } else {
-          parsed = recovered.parsed;
+          parsed = finalizeParsedBlueprintWithTrendGuard(
+            recovered.parsed,
+            trendContext.instruction,
+          );
           rawBlueprint = recovered.rawBlueprint;
         }
       }
     } else {
       try {
-        const prompt = applyBlueprintGenerationMode(
-          buildAssetBlueprintPrompt({
-            executiveContextPrompt: input.brainContextPrompt ?? "",
-            productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-            discussion: input.discussion as unknown as Record<string, unknown>,
-            opportunity: input.opportunity as unknown as Record<string, unknown>,
-            briefing: input.briefing as unknown as Record<string, unknown>,
-          }),
-          generationMode,
+        const prompt = withTrendSocialPromptInstruction(
+          applyBlueprintGenerationMode(
+            buildAssetBlueprintPrompt({
+              executiveContextPrompt: input.brainContextPrompt ?? "",
+              productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
+              discussion: input.discussion as unknown as Record<string, unknown>,
+              opportunity: input.opportunity as unknown as Record<string, unknown>,
+              briefing: input.briefing as unknown as Record<string, unknown>,
+            }),
+            generationMode,
+          ),
+          trendContext.instruction,
         );
         rawBlueprint = await generateBlueprintReview({
           stage: "strategic_blueprint.briefing.legacy",
@@ -1061,7 +1133,10 @@ export async function createAssetBlueprintForBriefing(input: {
           parseFailed = true;
           blueprintError = parsedResult.error;
         } else {
-          parsed = parsedResult.parsed;
+          parsed = finalizeParsedBlueprintWithTrendGuard(
+            parsedResult.parsed,
+            trendContext.instruction,
+          );
         }
       } catch (error) {
         parseFailed = true;
@@ -1088,6 +1163,7 @@ export async function createAssetBlueprintForBriefing(input: {
       blueprintError,
       explicitRegeneration: input.explicitRegeneration,
       regenerationRunId: input.regenerationRunId,
+      trendSocialPromptConfig: trendContext.provenance,
       forceInsert: generationMode === "think_differently",
     });
   } catch (error) {
@@ -1137,6 +1213,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
   try {
     const generationMode = normalizeExecutiveGenerationMode(input.generationMode);
     const organizationId = input.discussion.organization_id ?? "";
+    const trendContext = await resolveTrendSocialPromptGenerationContext();
     const effectiveBundle = await resolveBlueprintGenerationBundle({
       generationBundle: input.generationBundle,
       organizationId,
@@ -1157,20 +1234,26 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
         discussionId: input.discussion.id,
         explicitRegeneration: input.explicitRegeneration,
         buildPrompt: (refinementSuffix) =>
-          applyBlueprintGenerationMode(
-            assembleStrategicBlueprintPrompt({
-              bundle: effectiveBundle,
-              discussion: input.discussion as unknown as Record<string, unknown>,
-              analysis: input.analysis as unknown as Record<string, unknown>,
-              qualityRefinementSuffix: refinementSuffix,
-              regenerationRunId: input.regenerationRunId,
-            }),
-            generationMode,
+          withTrendSocialPromptInstruction(
+            applyBlueprintGenerationMode(
+              assembleStrategicBlueprintPrompt({
+                bundle: effectiveBundle,
+                discussion: input.discussion as unknown as Record<string, unknown>,
+                analysis: input.analysis as unknown as Record<string, unknown>,
+                qualityRefinementSuffix: refinementSuffix,
+                regenerationRunId: input.regenerationRunId,
+              }),
+              generationMode,
+            ),
+            trendContext.instruction,
           ),
       });
 
       if (gated.ok) {
-        parsed = gated.parsed;
+        parsed = finalizeParsedBlueprintWithTrendGuard(
+          gated.parsed,
+          trendContext.instruction,
+        );
         rawBlueprint = gated.rawBlueprint;
       } else {
         const recovered = await runBlueprintFallbackGeneration({
@@ -1181,14 +1264,17 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
           regenerationRunId: input.regenerationRunId,
           explicitRegeneration: input.explicitRegeneration,
           buildPrompt: () =>
-            applyBlueprintGenerationMode(
-              assembleStrategicBlueprintPrompt({
-                bundle: effectiveBundle,
-                discussion: input.discussion as unknown as Record<string, unknown>,
-                analysis: input.analysis as unknown as Record<string, unknown>,
-                regenerationRunId: input.regenerationRunId,
-              }),
-              generationMode,
+            withTrendSocialPromptInstruction(
+              applyBlueprintGenerationMode(
+                assembleStrategicBlueprintPrompt({
+                  bundle: effectiveBundle,
+                  discussion: input.discussion as unknown as Record<string, unknown>,
+                  analysis: input.analysis as unknown as Record<string, unknown>,
+                  regenerationRunId: input.regenerationRunId,
+                }),
+                generationMode,
+              ),
+              trendContext.instruction,
             ),
         });
         if (!recovered.ok) {
@@ -1196,20 +1282,26 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
           blueprintError = recovered.error;
           rawBlueprint = recovered.rawBlueprint ?? null;
         } else {
-          parsed = recovered.parsed;
+          parsed = finalizeParsedBlueprintWithTrendGuard(
+            recovered.parsed,
+            trendContext.instruction,
+          );
           rawBlueprint = recovered.rawBlueprint;
         }
       }
     } else {
       try {
-        const prompt = applyBlueprintGenerationMode(
-          buildAssetBlueprintFromAnalysisPrompt({
-            executiveContextPrompt: input.brainContextPrompt ?? "",
-            productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-            discussion: input.discussion as unknown as Record<string, unknown>,
-            analysis: input.analysis as unknown as Record<string, unknown>,
-          }),
-          generationMode,
+        const prompt = withTrendSocialPromptInstruction(
+          applyBlueprintGenerationMode(
+            buildAssetBlueprintFromAnalysisPrompt({
+              executiveContextPrompt: input.brainContextPrompt ?? "",
+              productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
+              discussion: input.discussion as unknown as Record<string, unknown>,
+              analysis: input.analysis as unknown as Record<string, unknown>,
+            }),
+            generationMode,
+          ),
+          trendContext.instruction,
         );
         rawBlueprint = await generateBlueprintReview({
           stage: "strategic_blueprint.analysis.legacy",
@@ -1223,7 +1315,10 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
           parseFailed = true;
           blueprintError = parsedResult.error;
         } else {
-          parsed = parsedResult.parsed;
+          parsed = finalizeParsedBlueprintWithTrendGuard(
+            parsedResult.parsed,
+            trendContext.instruction,
+          );
         }
       } catch (error) {
         parseFailed = true;
@@ -1248,6 +1343,7 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
       blueprintError,
       explicitRegeneration: input.explicitRegeneration,
       regenerationRunId: input.regenerationRunId,
+      trendSocialPromptConfig: trendContext.provenance,
       forceInsert: generationMode === "think_differently",
     });
   } catch (error) {

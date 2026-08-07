@@ -22,9 +22,11 @@ describe("Analysis-driven Social Prompt contract", () => {
     assert.match(instructions, /Strategic rationale:/);
     assert.match(instructions, /Platform-native prompt:/);
     assert.match(ASSET_BLUEPRINT_OUTPUT_SCHEMA, /social_prompt/);
+    assert.match(ASSET_BLUEPRINT_PROMPT_VERSION, /asset_blueprint_v/);
+    // Existing social_prompt analysis-driven contract remains required.
     assert.match(
-      ASSET_BLUEPRINT_PROMPT_VERSION,
-      /analysis_driven_social_platform/,
+      getAssetBlueprintOutputSchemaForDebug(),
+      /SOCIAL PROMPT \(ANALYSIS-DRIVEN PLATFORM\)/,
     );
   });
 

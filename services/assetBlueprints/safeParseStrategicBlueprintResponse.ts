@@ -20,6 +20,7 @@ const CANONICAL_FIELD_ALIASES: Record<string, string> = {
   imagePrompt: "image_prompt",
   pdfPrompt: "pdf_prompt",
   socialPrompt: "social_prompt",
+  trendSocialPrompt: "trend_social_prompt",
 };
 
 const REQUIRED_STRING_FIELDS = [
@@ -32,6 +33,7 @@ const REQUIRED_STRING_FIELDS = [
   "image_prompt",
   "pdf_prompt",
   "social_prompt",
+  "trend_social_prompt",
   "notes",
 ] as const;
 

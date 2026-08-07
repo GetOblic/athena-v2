@@ -185,6 +185,29 @@ export function StrategicAssetBlueprint({
           }
         />
         <CollapsiblePromptBlock
+          label="Trend Social Prompt"
+          text={blueprint.trend_social_prompt}
+          assetType={BLUEPRINT_ASSET_TYPES.trend_social_prompt}
+          copyContext={copyContext}
+          initiallyDone={Boolean(
+            doneByAssetType[BLUEPRINT_ASSET_TYPES.trend_social_prompt],
+          )}
+          initiallyTags={
+            tagsByAssetType[BLUEPRINT_ASSET_TYPES.trend_social_prompt] ?? []
+          }
+          continuationPreferences={continuationPreferences}
+          discussAssetKind={discussEnabled ? "blueprint" : null}
+          onDiscussWithAthena={
+            discussEnabled
+              ? (payload) =>
+                  onDiscussWithAthena!({
+                    ...payload,
+                    executiveVersionId: executiveVersionId!,
+                  })
+              : undefined
+          }
+        />
+        <CollapsiblePromptBlock
           label="Notes"
           text={blueprint.notes}
           fullWidth

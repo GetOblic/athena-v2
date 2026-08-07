@@ -4,7 +4,7 @@ import {
 } from "@/services/ai/prompts/sharedPromptConstraints";
 
 export const ASSET_BLUEPRINT_PROMPT_VERSION =
-  "asset_blueprint_v9_analysis_driven_social_platform";
+  "asset_blueprint_v10_trend_social_prompt";
 
 export const ASSET_BLUEPRINT_OUTPUT_SCHEMA = `
 {
@@ -17,12 +17,13 @@ export const ASSET_BLUEPRINT_OUTPUT_SCHEMA = `
   "image_prompt": "Standalone visual production prompt.",
   "pdf_prompt": "Standalone PDF or asset production prompt with structure and CTA.",
   "social_prompt": "Analysis-driven social prompt with Recommended platform, Strategic rationale, and Platform-native prompt.",
+  "trend_social_prompt": "Trend-aligned social production prompt generated from Athena strategic context plus the current GetOblic Trend Social instruction.",
   "notes": "Why this asset, why now, business objective, and expected outcome."
 }`.trim();
 
 const BLUEPRINT_INSTRUCTIONS = `
 === OBJECTIVE ===
-Act as an experienced executive strategy consultant. Select ONE highest-leverage strategic asset for this discussion, then write three channel-specific production prompts (image, PDF/asset, social).
+Act as an experienced executive strategy consultant. Select ONE highest-leverage strategic asset for this discussion, then write channel-specific production prompts (image, PDF/asset, social, and trend social).
 
 === OUTPUT CONTRACT (CRITICAL) ===
 Return ONE JSON object only.
@@ -34,14 +35,14 @@ Return ONE JSON object only.
 - Include every required field exactly once
 
 Required fields:
-asset_title, asset_type, business_goal, target_audience, priority, estimated_reuse, image_prompt, pdf_prompt, social_prompt, notes
+asset_title, asset_type, business_goal, target_audience, priority, estimated_reuse, image_prompt, pdf_prompt, social_prompt, trend_social_prompt, notes
 
 === STRATEGIC SELECTION ===
 Decide asset_type yourself after evaluating buyer uncertainty, objections, commercial objective, and conversion mechanism.
 Do not default to webinar, generic guide, checklist, or framework unless clearly strongest.
 
 === PRODUCTION PROMPTS ===
-image_prompt, pdf_prompt, and social_prompt must each be independently paste-ready production instructions.
+image_prompt, pdf_prompt, social_prompt, and trend_social_prompt must each be independently paste-ready production instructions.
 
 === SOCIAL PROMPT (ANALYSIS-DRIVEN PLATFORM) ===
 social_prompt must select the single best-fit social platform from available analysis — not a hardcoded default.
@@ -66,6 +67,17 @@ Strategic rationale:
 
 Platform-native prompt:
 <the actual social campaign/content prompt>
+
+=== TREND SOCIAL PROMPT (GETOBLIC GOVERNED) ===
+trend_social_prompt is ADDITIONAL to social_prompt. Never replace, rename, omit, or reinterpret social_prompt as trend_social_prompt.
+
+Generate trend_social_prompt according to:
+1. the normal Athena Strategic Asset Blueprint intelligence/context in this prompt
+2. the normal Athena system/generation constraints and this output contract
+3. the CURRENT GLOBAL GetOblic Trend Social instruction provided in a clearly delimited instruction block later in this prompt (when configured)
+
+Ground the result in the current Athena strategic context and the relevant Discussion, Prospect, or Persona intelligence.
+When the GetOblic instruction is absent, follow the ABSENT configuration rules in that section exactly — do not invent a substitute trend policy.
 
 === QUALITY STANDARD ===
 ${SHARED_ANTI_GENERIC_RULES}

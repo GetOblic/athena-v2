@@ -117,6 +117,7 @@ function formatBlueprint(
     `image_prompt:\n${imagePrompt}`,
     `pdf_prompt:\n${pdfPrompt}`,
     `social_prompt:\n${blueprint.social_prompt ?? ""}`,
+    `trend_social_prompt:\n${blueprint.trend_social_prompt ?? ""}`,
     `notes:\n${blueprint.notes ?? ""}`,
   ].join("\n\n");
 }

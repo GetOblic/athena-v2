@@ -30,15 +30,21 @@ export { describePersonaAssetKind, isPersonaAnalysisAssetReferenceKey };
 
 const BLUEPRINT_KEY_TO_FIELD: Record<
   string,
-  "image_prompt" | "pdf_prompt" | "social_prompt" | "notes"
+  | "image_prompt"
+  | "pdf_prompt"
+  | "social_prompt"
+  | "trend_social_prompt"
+  | "notes"
 > = {
   [BLUEPRINT_ASSET_TYPES.image_prompt]: "image_prompt",
   [BLUEPRINT_ASSET_TYPES.pdf_prompt]: "pdf_prompt",
   [BLUEPRINT_ASSET_TYPES.social_prompt]: "social_prompt",
+  [BLUEPRINT_ASSET_TYPES.trend_social_prompt]: "trend_social_prompt",
   [BLUEPRINT_ASSET_TYPES.notes]: "notes",
   image_prompt: "image_prompt",
   pdf_prompt: "pdf_prompt",
   social_prompt: "social_prompt",
+  trend_social_prompt: "trend_social_prompt",
   notes: "notes",
 };
 
@@ -46,6 +52,7 @@ const BLUEPRINT_FIELD_TITLES: Record<string, string> = {
   image_prompt: "Image Prompt",
   pdf_prompt: "PDF Prompt",
   social_prompt: "Social Prompt",
+  trend_social_prompt: "Trend Social Prompt",
   notes: "Notes",
 };
 

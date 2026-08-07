@@ -85,6 +85,7 @@ function blueprintToPromptRecord(
     briefing_id: blueprint.briefing_id,
     image_prompt: blueprint.image_prompt,
     social_prompt: blueprint.social_prompt,
+    trend_social_prompt: blueprint.trend_social_prompt,
     pdf_prompt: blueprint.pdf_prompt,
     asset_title: blueprint.asset_title,
     asset_type: blueprint.asset_type,

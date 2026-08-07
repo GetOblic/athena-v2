@@ -4,7 +4,8 @@ export type SuperAdminAuditAction =
   | "create_athena_account"
   | "create_licensee_master"
   | "deactivate_account"
-  | "reactivate_account";
+  | "reactivate_account"
+  | "update_strategic_blueprint_instruction";
 
 export type SuperAdminAuditAccountType = "athena" | "licensee";
 

@@ -8,7 +8,11 @@ export type BlueprintReadinessBadge = {
 export function formatBlueprintReadiness(
   blueprint: Pick<
     AthenaAssetBlueprint,
-    "image_prompt" | "pdf_prompt" | "social_prompt" | "notes"
+    | "image_prompt"
+    | "pdf_prompt"
+    | "social_prompt"
+    | "trend_social_prompt"
+    | "notes"
   >,
 ): BlueprintReadinessBadge[] {
   const badges: BlueprintReadinessBadge[] = [];
@@ -23,6 +27,10 @@ export function formatBlueprintReadiness(
 
   if (blueprint.social_prompt?.trim()) {
     badges.push({ key: "social", label: "Carousel / Social" });
+  }
+
+  if (blueprint.trend_social_prompt?.trim()) {
+    badges.push({ key: "trend-social", label: "Trend Social" });
   }
 
   const notes = blueprint.notes?.trim() ?? "";

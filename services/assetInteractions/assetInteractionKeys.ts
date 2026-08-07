@@ -71,6 +71,7 @@ export const BLUEPRINT_ASSET_TYPES = {
   image_prompt: "blueprint_image_prompt",
   pdf_prompt: "blueprint_pdf_prompt",
   social_prompt: "blueprint_social_prompt",
+  trend_social_prompt: "blueprint_trend_social_prompt",
   notes: "blueprint_notes",
 } as const;
 

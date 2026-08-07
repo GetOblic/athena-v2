@@ -4,14 +4,31 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { ManageableAccount } from "@/services/superAdmin/superAdminAccounts";
 
+type TrendSocialPromptInstructionState = {
+  instructionText: string;
+  revisionId: string | null;
+  updatedAt: string | null;
+  configured: boolean;
+};
+
 type SuperAdminDashboardClientProps = {
   initialAccounts: ManageableAccount[];
+  initialTrendSocialPromptInstruction: TrendSocialPromptInstructionState;
   notice?: string | null;
 };
 
 type ApiErrorBody = {
   ok?: boolean;
   error?: { code?: string; message?: string };
+};
+
+type TrendSocialPromptApiBody = ApiErrorBody & {
+  instruction?: {
+    instructionText?: string;
+    revisionId?: string | null;
+    updatedAt?: string | null;
+    configured?: boolean;
+  };
 };
 
 async function postJson(url: string, body: Record<string, unknown>) {
@@ -29,8 +46,24 @@ async function postJson(url: string, body: Record<string, unknown>) {
   return payload;
 }
 
+async function putJson(url: string, body: Record<string, unknown>) {
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = (await response.json().catch(() => ({}))) as TrendSocialPromptApiBody;
+  if (!response.ok || payload.ok === false) {
+    throw new Error(
+      payload.error?.message || `Request failed (${response.status}).`,
+    );
+  }
+  return payload;
+}
+
 export function SuperAdminDashboardClient({
   initialAccounts,
+  initialTrendSocialPromptInstruction,
   notice,
 }: SuperAdminDashboardClientProps) {
   const router = useRouter();
@@ -42,6 +75,14 @@ export function SuperAdminDashboardClient({
   const [athenaOrgName, setAthenaOrgName] = useState("");
   const [licenseeEmail, setLicenseeEmail] = useState("");
   const [licenseeName, setLicenseeName] = useState("");
+  const [trendSocialPromptText, setTrendSocialPromptText] = useState(
+    initialTrendSocialPromptInstruction.instructionText,
+  );
+  const [trendSocialPromptMeta, setTrendSocialPromptMeta] = useState({
+    revisionId: initialTrendSocialPromptInstruction.revisionId,
+    updatedAt: initialTrendSocialPromptInstruction.updatedAt,
+    configured: initialTrendSocialPromptInstruction.configured,
+  });
 
   function refresh() {
     startTransition(() => {
@@ -109,6 +150,35 @@ export function SuperAdminDashboardClient({
     }
   }
 
+  async function saveTrendSocialPrompt(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setLocalNotice(null);
+    try {
+      const payload = await putJson(
+        "/api/super/strategic-blueprints/trend-social-prompt",
+        { instructionText: trendSocialPromptText },
+      );
+      const next = payload.instruction;
+      setTrendSocialPromptText(String(next?.instructionText ?? ""));
+      setTrendSocialPromptMeta({
+        revisionId: next?.revisionId ?? null,
+        updatedAt: next?.updatedAt ?? null,
+        configured: Boolean(next?.configured),
+      });
+      setLocalNotice(
+        "Trend Social Prompt instruction saved. Future Strategic Asset Blueprint generations will use this instruction.",
+      );
+      refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Save Trend Social Prompt instruction failed.",
+      );
+    }
+  }
+
   return (
     <div className="space-y-10">
       {localNotice ? (
@@ -122,6 +192,63 @@ export function SuperAdminDashboardClient({
           {error}
         </div>
       ) : null}
+
+      <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6">
+        <div className="mb-5">
+          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
+            Strategic Asset Blueprints
+          </div>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight">
+            Centrally governed blueprint instructions
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-white/50">
+            Configure GetOblic instructions that Athena injects during future
+            Strategic Asset Blueprint generation. Previously generated outputs
+            are not rewritten.
+          </p>
+        </div>
+
+        <form onSubmit={saveTrendSocialPrompt} className="space-y-4">
+          <div>
+            <label
+              htmlFor="trend-social-prompt-instruction"
+              className="text-sm font-medium text-white/80"
+            >
+              Trend Social Prompt
+            </label>
+            <p className="mt-1 text-sm leading-6 text-white/45">
+              Active instruction for the Trend Social Prompt field. Distinct
+              from Athena&apos;s existing Social Prompt.
+            </p>
+          </div>
+          <textarea
+            id="trend-social-prompt-instruction"
+            value={trendSocialPromptText}
+            onChange={(event) => setTrendSocialPromptText(event.target.value)}
+            rows={14}
+            spellCheck={false}
+            placeholder="Enter the current GetOblic Trend Social Prompt instruction…"
+            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 font-mono text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
+          />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs leading-5 text-white/40">
+              {trendSocialPromptMeta.configured
+                ? `Configured · revision ${trendSocialPromptMeta.revisionId ?? "—"}`
+                : "Not configured — generations will mark Trend Social Prompt unavailable."}
+              {trendSocialPromptMeta.updatedAt
+                ? ` · updated ${new Date(trendSocialPromptMeta.updatedAt).toLocaleString()}`
+                : ""}
+            </div>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="rounded-xl bg-[var(--athena-orange)] px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
+            >
+              Save Trend Social Prompt
+            </button>
+          </div>
+        </form>
+      </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
         <form
