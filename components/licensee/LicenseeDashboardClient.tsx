@@ -282,6 +282,23 @@ export function LicenseeDashboardClient({
         </Link>
       </div>
 
+      <Link
+        href="/licensee/quote"
+        className="block rounded-2xl border border-[var(--athena-border)] bg-black/20 px-5 py-5 transition hover:border-white/20 hover:bg-white/5"
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-base font-semibold text-white">Athena Quote</div>
+            <p className="mt-1 text-sm leading-6 text-white/50">
+              Submit client work for private GetOblic fulfillment pricing.
+            </p>
+          </div>
+          <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
+            Open →
+          </span>
+        </div>
+      </Link>
+
       {notice ? (
         <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
           {notice}

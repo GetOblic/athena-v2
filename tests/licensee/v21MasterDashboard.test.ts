@@ -191,6 +191,20 @@ describe("V21.2 — operational metrics and readiness", () => {
     assert.ok(openAthena > cardStart && openAthena < expandedBlock);
   });
 
+  it("Master dashboard exposes Athena Quote without product sidebar navigation", () => {
+    const client = read("components/licensee/LicenseeDashboardClient.tsx");
+    const quotePage = read("app/licensee/quote/page.tsx");
+    const sidebar = read("components/dashboard/DashboardSidebar.tsx");
+
+    assert.match(client, /Athena Quote/);
+    assert.match(client, /href="\/licensee\/quote"/);
+    assert.match(quotePage, /getLicenseeAccountByUserId/);
+    assert.match(quotePage, /Back to Master dashboard/);
+    assert.doesNotMatch(quotePage, /DashboardSidebar/);
+    assert.doesNotMatch(sidebar, /Athena Quote/);
+    assert.doesNotMatch(sidebar, /\/quote/);
+  });
+
   it("discussion counts exclude prospect/persona bridge platforms", () => {
     const service = read("services/licensee/licenseeSubAccounts.ts");
     assert.match(service, /PROSPECT_INTELLIGENCE_PLATFORM/);
