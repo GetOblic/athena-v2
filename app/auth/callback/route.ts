@@ -1,6 +1,26 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isLicenseeMasterUser } from "@/services/licensee/licenseeIdentity";
+import { applyLicenseeMasterMarkerCookie } from "@/services/licensee/licenseeMasterMarkerCookie";
 import { provisionTenantForAuthenticatedUser } from "@/services/organizationService";
+
+async function postAuthDestination(
+  userId: string | undefined,
+  siteUrl: string,
+): Promise<URL> {
+  if (userId && (await isLicenseeMasterUser(userId))) {
+    return new URL("/licensee", siteUrl);
+  }
+  return new URL("/", siteUrl);
+}
+
+function redirectWithMasterMarker(url: URL, isMaster: boolean): NextResponse {
+  const response = NextResponse.redirect(url);
+  if (isMaster) {
+    applyLicenseeMasterMarkerCookie(response);
+  }
+  return response;
+}
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -30,10 +50,16 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (user?.id) {
+      if (await isLicenseeMasterUser(user.id)) {
+        return redirectWithMasterMarker(
+          await postAuthDestination(user.id, siteUrl),
+          true,
+        );
+      }
       await provisionTenantForAuthenticatedUser(user.id, user.email);
     }
 
-    return NextResponse.redirect(new URL("/", siteUrl));
+    return NextResponse.redirect(await postAuthDestination(user?.id, siteUrl));
   }
 
   if (token && type === "magiclink") {
@@ -53,10 +79,16 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (user?.id) {
+      if (await isLicenseeMasterUser(user.id)) {
+        return redirectWithMasterMarker(
+          await postAuthDestination(user.id, siteUrl),
+          true,
+        );
+      }
       await provisionTenantForAuthenticatedUser(user.id, user.email);
     }
 
-    return NextResponse.redirect(new URL("/", siteUrl));
+    return NextResponse.redirect(await postAuthDestination(user?.id, siteUrl));
   }
 
   return NextResponse.redirect(

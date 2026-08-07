@@ -38,10 +38,14 @@ describe("Athena Logout CTA reuses /api/auth/logout", () => {
 
   it("AthenaBrandLink places Logout CTA top-right on authenticated pages only", () => {
     const brand = read("components/branding/AthenaBrandLink.tsx");
-    assert.match(brand, /LogoutCta/);
+    const actions = read("components/auth/AthenaHeaderActions.tsx");
+    assert.match(brand, /AthenaHeaderActions/);
     assert.match(brand, /pathname !== "\/login"/);
     assert.match(brand, /justify-between/);
     assert.match(brand, /w-full/);
+    assert.match(actions, /LogoutCta/);
+    assert.match(actions, /BackToMasterCta/);
+    assert.match(actions, /justify-end/);
   });
 
   it("logout API route remains Supabase signOut without new routes", () => {

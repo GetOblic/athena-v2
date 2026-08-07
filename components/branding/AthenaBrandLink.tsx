@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogoutCta } from "@/components/auth/LogoutCta";
+import { AthenaHeaderActions } from "@/components/auth/AthenaHeaderActions";
 
 type AthenaBrandLinkProps = {
   className?: string;
@@ -10,8 +10,11 @@ type AthenaBrandLinkProps = {
 
 export function AthenaBrandLink({ className = "" }: AthenaBrandLinkProps) {
   const pathname = usePathname();
+  const isLicenseePath = pathname === "/licensee" || pathname.startsWith("/licensee/");
   const showLogout =
-    pathname !== "/login" && !pathname.startsWith("/auth");
+    pathname !== "/login" &&
+    !pathname.startsWith("/auth") &&
+    !isLicenseePath;
 
   const brand = (
     <>
@@ -23,7 +26,7 @@ export function AthenaBrandLink({ className = "" }: AthenaBrandLinkProps) {
   if (!showLogout) {
     return (
       <Link
-        href="/"
+        href={isLicenseePath ? "/licensee" : "/"}
         className={`inline-block transition hover:opacity-90 ${className}`}
       >
         {brand}
@@ -32,13 +35,13 @@ export function AthenaBrandLink({ className = "" }: AthenaBrandLinkProps) {
   }
 
   return (
-    <div
-      className={`flex w-full items-start justify-between gap-4 ${className}`}
-    >
-      <Link href="/" className="inline-block transition hover:opacity-90">
-        {brand}
-      </Link>
-      <LogoutCta />
+    <div className={`flex w-full flex-col gap-3 ${className}`}>
+      <div className="flex w-full items-start justify-between gap-3">
+        <Link href="/" className="inline-block min-w-0 transition hover:opacity-90">
+          {brand}
+        </Link>
+      </div>
+      <AthenaHeaderActions />
     </div>
   );
 }

@@ -1,5 +1,21 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  LicenseeMasterProvisionBlockedError,
+  isLicenseeMasterUser,
+} from "@/services/licensee/licenseeIdentity";
+
+function isDocumentNavigationRequest(acceptHeader: string | null, secFetchDest: string | null): boolean {
+  const dest = (secFetchDest || "").toLowerCase();
+  if (dest === "document") {
+    return true;
+  }
+
+  const accept = (acceptHeader || "").toLowerCase();
+  return accept.includes("text/html") && !accept.includes("application/json");
+}
 
 export type Organization = {
   id: string;
@@ -48,18 +64,27 @@ function slugifyOrganizationName(value: string): string {
   return slug || "workspace";
 }
 
+export type ProvisionTenantOptions = {
+  /** Optional organization display name (Master Create Sub-account Business Name). */
+  organizationName?: string | null;
+};
+
 async function createOrganizationForUser(
   userId: string,
   email?: string | null,
+  options?: ProvisionTenantOptions,
 ): Promise<string> {
-  const baseName = email?.split("@")[0]?.trim() || "Workspace";
+  const explicitName = options?.organizationName?.trim();
+  const baseName =
+    explicitName || email?.split("@")[0]?.trim() || "Workspace";
+  const organizationName = explicitName || `${baseName}'s Organization`;
   const baseSlug = slugifyOrganizationName(baseName);
   const slug = `${baseSlug}-${userId.slice(0, 8)}`;
 
   const { data: organization, error: organizationError } = await supabaseAdmin
     .from("organizations")
     .insert({
-      name: `${baseName}'s Organization`,
+      name: organizationName,
       slug,
     })
     .select("*")
@@ -104,6 +129,7 @@ export async function getOrganizationMembership(userId: string) {
 export async function provisionTenantForAuthenticatedUser(
   userId: string,
   email?: string | null,
+  options?: ProvisionTenantOptions,
 ): Promise<string> {
   const membership = await getOrganizationMembership(userId);
 
@@ -111,14 +137,20 @@ export async function provisionTenantForAuthenticatedUser(
     return membership.organization_id;
   }
 
-  return createOrganizationForUser(userId, email);
+  // Master accounts own relationships only — never auto-create Athena orgs.
+  if (await isLicenseeMasterUser(userId)) {
+    throw new LicenseeMasterProvisionBlockedError();
+  }
+
+  return createOrganizationForUser(userId, email, options);
 }
 
 export async function resolveOrganizationIdForUser(
   userId: string,
   email?: string | null,
+  options?: ProvisionTenantOptions,
 ): Promise<string> {
-  return provisionTenantForAuthenticatedUser(userId, email);
+  return provisionTenantForAuthenticatedUser(userId, email, options);
 }
 
 export async function getCurrentUserId(): Promise<string | null> {
@@ -143,6 +175,21 @@ export async function requireCurrentOrganizationContext(): Promise<OrganizationC
 
   if (!user?.id) {
     throw new OrganizationAccessError("Authentication required.");
+  }
+
+  if (await isLicenseeMasterUser(user.id)) {
+    // Master sessions must not enter Athena tenant context.
+    // Document navigations redirect to the Master dashboard; API callers get 403.
+    const requestHeaders = await headers();
+    if (
+      isDocumentNavigationRequest(
+        requestHeaders.get("accept"),
+        requestHeaders.get("sec-fetch-dest"),
+      )
+    ) {
+      redirect("/licensee");
+    }
+    throw new LicenseeMasterProvisionBlockedError();
   }
 
   const organizationId = await provisionTenantForAuthenticatedUser(
