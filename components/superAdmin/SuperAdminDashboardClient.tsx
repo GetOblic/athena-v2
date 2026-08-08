@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import type { ManageableAccount } from "@/services/superAdmin/superAdminAccounts";
 
 type TrendSocialPromptInstructionState = {
@@ -193,21 +194,13 @@ export function SuperAdminDashboardClient({
         </div>
       ) : null}
 
-      <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6">
-        <div className="mb-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
-            Strategic Asset Blueprints
-          </div>
-          <h2 className="mt-3 text-2xl font-semibold tracking-tight">
-            Centrally governed blueprint instructions
-          </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-white/50">
-            Configure GetOblic instructions that Athena injects during future
-            Strategic Asset Blueprint generation. Previously generated outputs
-            are not rewritten.
-          </p>
-        </div>
-
+      <AthenaCollapsibleSection
+        eyebrow="Strategic Asset Blueprints"
+        title="Centrally governed blueprint instructions"
+        summary="Configure GetOblic instructions that Athena injects during future Strategic Asset Blueprint generation. Previously generated outputs are not rewritten."
+        defaultOpen={false}
+        showToggleLabel
+      >
         <form onSubmit={saveTrendSocialPrompt} className="space-y-4">
           <div>
             <label
@@ -248,7 +241,7 @@ export function SuperAdminDashboardClient({
             </button>
           </div>
         </form>
-      </section>
+      </AthenaCollapsibleSection>
 
       <section className="grid gap-6 lg:grid-cols-2">
         <form

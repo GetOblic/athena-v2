@@ -291,6 +291,21 @@ describe("V25 — Trend Social Prompt", () => {
     assert.doesNotMatch(client, /tenant intelligence|discussion body/i);
   });
 
+  it("17b. Strategic Asset Blueprints Super Admin card is collapsed by default", () => {
+    const client = read(
+      "components/superAdmin/SuperAdminDashboardClient.tsx",
+    );
+    assert.match(client, /AthenaCollapsibleSection/);
+    assert.match(
+      client,
+      /eyebrow="Strategic Asset Blueprints"[\s\S]*?defaultOpen=\{false\}/,
+    );
+    assert.doesNotMatch(
+      client,
+      /eyebrow="Strategic Asset Blueprints"[\s\S]*?defaultOpen=\{true\}/,
+    );
+  });
+
   it("missing-configuration behavior is deterministic and non-hallucinating", () => {
     const prompt = appendTrendSocialPromptInstructionBlock(
       "BASE",
