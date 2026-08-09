@@ -67,8 +67,10 @@ export async function createAthenaEstimateWithJob(input: {
     throw new Error("Licensee account identity mismatch.");
   }
 
-  const organizationNameSnapshot =
-    await loadOrganizationNameSnapshot(organizationId);
+  const organizationNameSnapshot = await loadOrganizationNameSnapshot({
+    licenseeAccountId,
+    organizationId,
+  });
 
   const estimate = await createQueuedAthenaEstimate({
     licenseeAccountId,

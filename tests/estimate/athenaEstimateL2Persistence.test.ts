@@ -21,6 +21,9 @@ describe("Athena Estimate L2 persistence + orchestration", () => {
     assert.match(service, /export async function getEstimateRelationshipConnectedMap/);
     assert.match(service, /export async function markAthenaEstimateEnqueueFailed/);
     assert.match(service, /export async function loadOrganizationNameSnapshot/);
+    assert.match(service, /resolveLicenseeSubAccountTitle/);
+    assert.match(service, /licenseeAccountId: string/);
+    assert.match(service, /organizationId: string/);
     // Package mutation / Ready completion is not an application-service concern.
     assert.doesNotMatch(service, /package_json:\s*input/);
     assert.doesNotMatch(service, /status:\s*"Ready"/);
@@ -38,6 +41,10 @@ describe("Athena Estimate L2 persistence + orchestration", () => {
     assert.match(orchestration, /assertLicenseeOwnsSubAccount/);
     assert.match(orchestration, /markAthenaEstimateEnqueueFailed/);
     assert.match(orchestration, /Failure safety \(mirrors SEO\/Ads\)/);
+    assert.match(
+      orchestration,
+      /loadOrganizationNameSnapshot\(\{\s*licenseeAccountId,\s*organizationId,\s*\}\)/,
+    );
   });
 
   it("maps estimate and job rows without requiring Ready package", () => {

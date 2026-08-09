@@ -118,6 +118,7 @@ describe("Athena Estimate L2 Master API contracts", () => {
     assert.match(service, /organization_name_snapshot/);
     assert.match(service, /request_json: input\.request/);
     assert.match(service, /loadOrganizationNameSnapshot/);
+    assert.match(service, /resolveLicenseeSubAccountTitle/);
 
     const jobService = read(
       "services/estimate/estimateGenerationJobs/estimateGenerationJobService.ts",
@@ -132,7 +133,10 @@ describe("Athena Estimate L2 Master API contracts", () => {
     assert.match(orchestration, /normalizeEstimateRequest/);
     assert.match(orchestration, /createQueuedAthenaEstimate/);
     assert.match(orchestration, /enqueueAthenaEstimateGenerationJob/);
-    assert.match(orchestration, /loadOrganizationNameSnapshot/);
+    assert.match(
+      orchestration,
+      /loadOrganizationNameSnapshot\(\{\s*licenseeAccountId,\s*organizationId,\s*\}\)/,
+    );
   });
 
   it("7. create/enqueue partial-failure safety uses markAthenaEstimateEnqueueFailed compensation", () => {

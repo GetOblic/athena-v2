@@ -9,6 +9,7 @@ import type {
   AthenaEstimate,
   EstimateRequest,
 } from "@/services/estimate/athenaEstimateTypes";
+import { resolveLicenseeSubAccountTitle } from "@/services/licensee/licenseeSubAccountTypes";
 
 export type { AthenaEstimate } from "@/services/estimate/athenaEstimateTypes";
 export { mapAthenaEstimateRow } from "@/services/estimate/athenaEstimateMappers";
@@ -140,27 +141,87 @@ export async function getEstimateRelationshipConnectedMap(input: {
   return result;
 }
 
-export async function loadOrganizationNameSnapshot(
-  organizationId: string,
-): Promise<string> {
-  const { data, error } = await supabaseAdmin
+/**
+ * Freeze the Licensee-facing title at Estimate creation time.
+ * Same semantics as Master dashboard/sub-account selector:
+ * trim(licensee_sub_accounts.display_name) || organizations.name
+ *
+ * Scoped to the authorized licensee_account_id + organization_id relationship
+ * so another Master's alias for the same org cannot leak in.
+ * Fail closed if that relationship (or org name) cannot be resolved.
+ */
+export async function loadOrganizationNameSnapshot(input: {
+  licenseeAccountId: string;
+  organizationId: string;
+}): Promise<string> {
+  const licenseeAccountId = input.licenseeAccountId.trim();
+  const organizationId = input.organizationId.trim();
+
+  if (!licenseeAccountId || !organizationId) {
+    throw new Error(
+      "Authorized Licensee relationship could not be resolved for Estimate name snapshot.",
+    );
+  }
+
+  const { data: relationship, error: relationshipError } = await supabaseAdmin
+    .from("licensee_sub_accounts")
+    .select("display_name")
+    .eq("licensee_account_id", licenseeAccountId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (relationshipError) {
+    console.error("[ATHENA_ESTIMATE] snapshot_relationship_lookup_failed", {
+      licenseeAccountId,
+      organizationId,
+      error: relationshipError.message,
+    });
+    throw new Error(
+      "Failed to resolve Estimate organization name snapshot.",
+    );
+  }
+
+  if (!relationship) {
+    throw new Error(
+      "Authorized Licensee relationship could not be resolved for Estimate name snapshot.",
+    );
+  }
+
+  const { data: organization, error: organizationError } = await supabaseAdmin
     .from("organizations")
     .select("name")
     .eq("id", organizationId)
     .maybeSingle();
 
-  if (error) {
+  if (organizationError) {
     console.error("[ATHENA_ESTIMATE] org_name_lookup_failed", {
       organizationId,
-      error: error.message,
+      error: organizationError.message,
     });
+    throw new Error(
+      "Failed to resolve Estimate organization name snapshot.",
+    );
   }
 
-  const name =
-    typeof data?.name === "string" && data.name.trim()
-      ? data.name.trim()
+  if (!organization) {
+    throw new Error(
+      "Organization could not be resolved for Estimate name snapshot.",
+    );
+  }
+
+  const organizationName =
+    typeof organization.name === "string" && organization.name.trim()
+      ? organization.name.trim()
       : "";
-  return name || "Organization";
+  const displayName =
+    typeof relationship.display_name === "string"
+      ? relationship.display_name
+      : null;
+
+  return resolveLicenseeSubAccountTitle({
+    displayName,
+    name: organizationName || "Organization",
+  });
 }
 
 export async function createQueuedAthenaEstimate(input: {
