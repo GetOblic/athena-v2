@@ -20,6 +20,7 @@ import {
   buildFrozenEstimateFactsBlock,
   composeEstimateConversationContext,
 } from "../../services/estimateConversation/estimateConversationContext";
+import { normalizeEstimateConversationPlainText } from "../../services/estimateConversation/estimateConversationPlainText";
 import {
   buildEstimateConversationPrompt,
   estimatePromptContainsImmutabilityContract,
@@ -772,6 +773,225 @@ describe("Athena Estimate L11 Ask Athena backend", () => {
     assert.ok(estimatePromptForbidsLiveResearchClaims(system));
   });
 
+  it("28c. assistant plain-text normalizer strips presentation markers", () => {
+    assert.equal(
+      normalizeEstimateConversationPlainText("**Current Scope:**"),
+      "Current Scope:",
+    );
+    assert.equal(
+      normalizeEstimateConversationPlainText("__Proposed Adjustment:__"),
+      "Proposed Adjustment:",
+    );
+    assert.equal(
+      normalizeEstimateConversationPlainText(
+        [
+          "# Full-Cycle Partner Acquisition Funnel Build-Out and Optimization:",
+          "## Value:",
+          "### Why this fee",
+        ].join("\n"),
+      ),
+      [
+        "Full-Cycle Partner Acquisition Funnel Build-Out and Optimization:",
+        "Value:",
+        "Why this fee",
+      ].join("\n"),
+    );
+    assert.equal(
+      normalizeEstimateConversationPlainText("* Defend urgency\n+ Keep scope tight"),
+      "- Defend urgency\n- Keep scope tight",
+    );
+    assert.equal(
+      normalizeEstimateConversationPlainText(
+        ["```text", "advisory note", "```"].join("\n"),
+      ),
+      "advisory note",
+    );
+    assert.equal(
+      normalizeEstimateConversationPlainText(
+        [
+          "**Current Scope:**",
+          "* Keep brand refresh",
+          "+ Drop optional CRM work",
+          "",
+          "```",
+          "unchanged Estimate",
+          "```",
+        ].join("\n"),
+      ),
+      [
+        "Current Scope:",
+        "- Keep brand refresh",
+        "- Drop optional CRM work",
+        "",
+        "unchanged Estimate",
+      ].join("\n"),
+    );
+
+    const service = read(
+      "services/estimateConversation/estimateConversationService.ts",
+    );
+    assert.match(service, /normalizeEstimateConversationPlainText/);
+    assert.match(
+      service,
+      /normalizeEstimateConversationPlainText\(assistantRaw\)[\s\S]*validateAssistantReplyShape\(\s*assistantNormalized[\s\S]*assertAssistantReplyAllowed\(\s*assistantContent/,
+    );
+    assert.doesNotMatch(
+      service,
+      /remark|rehype|marked|markdown-it|DOMPurify|dangerouslySetInnerHTML/i,
+    );
+  });
+
+  it("28d. normalization preserves plain text, lists, money, and paragraphs", () => {
+    // 7. Existing clean plain text must remain unchanged.
+    assert.equal(
+      normalizeEstimateConversationPlainText(
+        "Advisably keep the saved fee; the Estimate remains unchanged.",
+      ),
+      "Advisably keep the saved fee; the Estimate remains unchanged.",
+    );
+
+    // 8. Numbered lists must remain unchanged.
+    assert.equal(
+      normalizeEstimateConversationPlainText("1. Strategy\n2. Execution"),
+      "1. Strategy\n2. Execution",
+    );
+
+    // 9. Existing hyphen bullets must remain unchanged.
+    assert.equal(
+      normalizeEstimateConversationPlainText("- Strategy\n- Execution"),
+      "- Strategy\n- Execution",
+    );
+
+    // 10. Monetary values must remain unchanged.
+    assert.equal(
+      normalizeEstimateConversationPlainText(
+        ["$48,000", "$33,600", "$75,000–$110,000"].join("\n"),
+      ),
+      ["$48,000", "$33,600", "$75,000–$110,000"].join("\n"),
+    );
+
+    // 11. Multiline paragraph structure must be preserved.
+    assert.equal(
+      normalizeEstimateConversationPlainText(
+        "Paragraph one.\n\nParagraph two.\n\nParagraph three.",
+      ),
+      "Paragraph one.\n\nParagraph two.\n\nParagraph three.",
+    );
+  });
+
+  it("28e. normalization never bypasses forbidden-claim validation", async () => {
+    // 12/13. Normalize first; successful strip still cannot bypass forbidden claims.
+    const markedForbidden =
+      "**I checked current market rates** before answering.";
+    const normalized = normalizeEstimateConversationPlainText(markedForbidden);
+    assert.equal(normalized, "I checked current market rates before answering.");
+    assert.equal(
+      assistantReplyContainsForbiddenEstimateClaims(normalized),
+      true,
+    );
+
+    resetEstimateConversationConcurrencyForTests();
+    let pairCalls = 0;
+    await assert.rejects(
+      () =>
+        sendEstimateConversationForMaster({
+          masterUserId: "master-1",
+          estimateId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          body: { message: "Why this fee?" },
+          deps: {
+            requireMaster: async () => ({
+              id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              user_id: "master-1",
+              email: "m@example.com",
+            }),
+            getEstimate: async () => sampleEstimate(),
+            assertRelationship: async () => ({
+              licenseeAccountId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              organizationId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              relationshipId: "rel-1",
+            }),
+            getMethodology: async () => ({
+              configKey: "estimate_pricing_methodology" as const,
+              revisionId: "rev",
+              instructionText: "Doctrine",
+              configured: true,
+              updatedAt: null,
+              updatedBy: null,
+            }),
+            listMessages: async () => [],
+            insertMessagePair: async () => {
+              pairCalls += 1;
+              throw new Error("should not persist");
+            },
+            callProvider: async () => markedForbidden,
+            contextDeps: {
+              buildBrain: async () => null,
+              loadDeepIntelligence: async () => null,
+            },
+          },
+        }),
+      (error: unknown) =>
+        error instanceof EstimateConversationError &&
+        error.code === "PROVIDER_ERROR",
+    );
+    assert.equal(pairCalls, 0);
+  });
+
+  it("28f. empty/meaningless normalized assistant content persists neither message", async () => {
+    resetEstimateConversationConcurrencyForTests();
+    let pairCalls = 0;
+    await assert.rejects(
+      () =>
+        sendEstimateConversationForMaster({
+          masterUserId: "master-1",
+          estimateId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          body: { message: "Why?" },
+          deps: {
+            requireMaster: async () => ({
+              id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              user_id: "master-1",
+              email: "m@example.com",
+            }),
+            getEstimate: async () => sampleEstimate(),
+            assertRelationship: async () => ({
+              licenseeAccountId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+              organizationId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+              relationshipId: "rel-1",
+            }),
+            getMethodology: async () => ({
+              configKey: "estimate_pricing_methodology" as const,
+              revisionId: "rev",
+              instructionText: "Doctrine",
+              configured: true,
+              updatedAt: null,
+              updatedBy: null,
+            }),
+            listMessages: async () => [],
+            insertMessagePair: async () => {
+              pairCalls += 1;
+              throw new Error("should not persist");
+            },
+            callProvider: async () => ["```", "```", "**   **", "# "].join("\n"),
+            contextDeps: {
+              buildBrain: async () => null,
+              loadDeepIntelligence: async () => null,
+            },
+          },
+        }),
+      (error: unknown) =>
+        error instanceof EstimateConversationError &&
+        error.code === "PROVIDER_ERROR" &&
+        /empty response/i.test(error.message),
+    );
+    assert.equal(pairCalls, 0);
+    assert.equal(
+      normalizeEstimateConversationPlainText(
+        ["```", "```", "**   **", "# "].join("\n"),
+      ),
+      "",
+    );
+  });
+
   it("31/32/33. no web/search/FX/pricing APIs; no worker; synchronous provider route", () => {
     const service = read(
       "services/estimateConversation/estimateConversationService.ts",
@@ -1099,6 +1319,85 @@ describe("Athena Estimate L11 Ask Athena backend", () => {
     assert.deepEqual(estimate, snapshot);
   });
 
+  it("successful POST persists normalized plain-text assistant reply", async () => {
+    resetEstimateConversationConcurrencyForTests();
+    const estimate = sampleEstimate();
+    let persistedAssistant = "";
+    const { result } = await sendEstimateConversationForMaster({
+      masterUserId: "master-1",
+      estimateId: estimate.id,
+      body: { message: "Summarize scope" },
+      deps: {
+        requireMaster: async () => ({
+          id: estimate.licensee_account_id,
+          user_id: "master-1",
+          email: "m@example.com",
+        }),
+        getEstimate: async () => estimate,
+        assertRelationship: async () => ({
+          licenseeAccountId: estimate.licensee_account_id,
+          organizationId: estimate.organization_id,
+          relationshipId: "rel-1",
+        }),
+        getMethodology: async () => ({
+          configKey: "estimate_pricing_methodology" as const,
+          revisionId: "rev",
+          instructionText: "Doctrine",
+          configured: true,
+          updatedAt: null,
+          updatedBy: null,
+        }),
+        listMessages: async () => [],
+        insertMessagePair: async (input) => {
+          persistedAssistant = input.assistantContent;
+          return {
+            userMessage: {
+              id: "u-2",
+              estimateId: input.estimateId,
+              licenseeAccountId: input.licenseeAccountId,
+              organizationId: input.organizationId,
+              role: "user" as const,
+              content: input.userContent,
+              createdAt: "2026-08-09T03:10:00.000Z",
+            },
+            assistantMessage: {
+              id: "a-2",
+              estimateId: input.estimateId,
+              licenseeAccountId: input.licenseeAccountId,
+              organizationId: input.organizationId,
+              role: "assistant" as const,
+              content: input.assistantContent,
+              createdAt: "2026-08-09T03:10:01.000Z",
+            },
+          };
+        },
+        callProvider: async () =>
+          [
+            "**Current Scope:**",
+            "* Keep brand refresh",
+            "+ Drop optional CRM work",
+            "## Value:",
+            "Advisory only; Estimate unchanged.",
+          ].join("\n"),
+        contextDeps: {
+          buildBrain: async () => null,
+          loadDeepIntelligence: async () => null,
+        },
+      },
+    });
+    const expected = [
+      "Current Scope:",
+      "- Keep brand refresh",
+      "- Drop optional CRM work",
+      "Value:",
+      "Advisory only; Estimate unchanged.",
+    ].join("\n");
+    assert.equal(persistedAssistant, expected);
+    assert.equal(result.message.content, expected);
+    assert.doesNotMatch(result.message.content, /\*\*|__/);
+    assert.doesNotMatch(result.message.content, /^[#*+]/m);
+  });
+
   it("36. Quote non-interference", () => {
     const quoteFiles = [
       "services/quote",
@@ -1121,6 +1420,8 @@ describe("Athena Estimate L11 Ask Athena backend", () => {
   });
 
   it("GET history happy path returns oldest-first public messages", async () => {
+    const normalizedPersisted =
+      "Current Scope:\n- Keep brand refresh\nAdvisory only; Estimate unchanged.";
     const result = await listEstimateConversationForMaster({
       masterUserId: "master-1",
       estimateId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -1147,7 +1448,7 @@ describe("Athena Estimate L11 Ask Athena backend", () => {
             licenseeAccountId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
             organizationId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
             role: "assistant",
-            content: "b",
+            content: normalizedPersisted,
             createdAt: "2026-08-09T00:01:00.000Z",
           },
         ],
@@ -1155,7 +1456,8 @@ describe("Athena Estimate L11 Ask Athena backend", () => {
     });
     assert.equal(result.ok, true);
     assert.equal(result.messages[0].content, "a");
-    assert.equal(result.messages[1].content, "b");
+    // 17. Subsequent GET history returns the normalized persisted assistant content.
+    assert.equal(result.messages[1].content, normalizedPersisted);
   });
 
   it("API route exports GET + POST; no Hide/UI coupling", () => {
@@ -1181,6 +1483,19 @@ describe("Athena Estimate L11 Ask Athena backend", () => {
     // L12 owns Ask Athena UI wiring against this L11 conversation route.
     assert.match(client, /EstimateAskAthenaPanel/);
     assert.match(askPanel, /\/conversation/);
+    // 20. No UI Markdown/HTML renderer added.
+    assert.match(askPanel, /whitespace-pre-wrap/);
+    assert.match(askPanel, /\{message\.content\}/);
+    assert.doesNotMatch(
+      askPanel,
+      /ReactMarkdown|remark|rehype|marked|markdown-it|dangerouslySetInnerHTML|DOMPurify/i,
+    );
+    // 21. No dependency added for normalization/rendering.
+    const pkg = read("package.json");
+    assert.doesNotMatch(
+      pkg,
+      /"react-markdown"|"remark"|"rehype"|"marked"|"markdown-it"|"dompurify"/i,
+    );
   });
 
   it("message persistence uses service_role supabaseAdmin only", () => {

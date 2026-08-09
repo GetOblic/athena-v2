@@ -3,8 +3,14 @@
  * Durable messages; Ready Estimate remains immutable. No generation jobs/workers.
  *
  * Message-pair persistence:
- * 1. Validate + authorize + load history + compose + call LLM + validate reply
- * 2. Persist user + assistant as ONE multi-row INSERT (atomic at statement level)
+ * 1. Validate + authorize + load history + compose + call LLM
+ * 2. raw provider reply
+ *    → normalizeEstimateConversationPlainText
+ *    → validate assistant response (empty/length)
+ *    → forbidden-claim validation
+ *    → atomic pair persist (NORMALIZED assistant content)
+ * If provider fails, normalization is empty/meaningless, or validation rejects:
+ * persist neither user nor assistant message.
  * If pair insert fails: MESSAGE_PERSISTENCE_FAILED; neither new row persists.
  * Estimate remains unchanged. No transaction framework / RPC.
  */
@@ -36,6 +42,7 @@ import {
   composeEstimateConversationContext,
   type ComposeEstimateConversationContextDeps,
 } from "@/services/estimateConversation/estimateConversationContext";
+import { normalizeEstimateConversationPlainText } from "@/services/estimateConversation/estimateConversationPlainText";
 import { buildEstimateConversationPrompt } from "@/services/estimateConversation/estimateConversationPrompt";
 import {
   boundEstimateConversationHistory,
@@ -81,7 +88,7 @@ function mapProviderError(
   );
 }
 
-function validateAssistantReply(
+function validateAssistantReplyShape(
   content: string,
   requestId: string,
 ): string {
@@ -102,7 +109,14 @@ function validateAssistantReply(
       { requestId, retryable: false },
     );
   }
-  if (assistantReplyContainsForbiddenEstimateClaims(trimmed)) {
+  return trimmed;
+}
+
+function assertAssistantReplyAllowed(
+  content: string,
+  requestId: string,
+): void {
+  if (assistantReplyContainsForbiddenEstimateClaims(content)) {
     throw new EstimateConversationError(
       "PROVIDER_ERROR",
       "Athena returned a response that could not be accepted.",
@@ -110,7 +124,6 @@ function validateAssistantReply(
       { requestId, retryable: false },
     );
   }
-  return trimmed;
 }
 
 /**
@@ -263,7 +276,14 @@ export async function sendEstimateConversationForMaster(input: {
       throw mapProviderError(error, requestId);
     }
 
-    const assistantContent = validateAssistantReply(assistantRaw, requestId);
+    // Required order: normalize → shape validate → forbidden-claim → persist.
+    const assistantNormalized =
+      normalizeEstimateConversationPlainText(assistantRaw);
+    const assistantContent = validateAssistantReplyShape(
+      assistantNormalized,
+      requestId,
+    );
+    assertAssistantReplyAllowed(assistantContent, requestId);
 
     // Atomic pair insert only after a valid assistant reply exists.
     let assistantMessage;
