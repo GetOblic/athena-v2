@@ -10,6 +10,12 @@ export type LicenseeAccount = {
   email: string;
 };
 
+export type AuthorizedLicenseeSubAccountRelationship = {
+  licenseeAccountId: string;
+  organizationId: string;
+  relationshipId: string;
+};
+
 export type AuthorizedSubAccountHandoff = {
   licenseeAccountId: string;
   organizationId: string;
@@ -18,9 +24,13 @@ export type AuthorizedSubAccountHandoff = {
 };
 
 export class LicenseeAccessError extends Error {
-  constructor(message = "Licensee access denied.") {
+  /** Optional canonical code (e.g. ACCOUNT_DEACTIVATED) when wrapping typed denials. */
+  readonly code?: string;
+
+  constructor(message = "Licensee access denied.", code?: string) {
     super(message);
     this.name = "LicenseeAccessError";
+    if (code) this.code = code;
   }
 }
 
@@ -106,16 +116,19 @@ export async function getLicenseeAccountByUserId(
 }
 
 /**
- * Server-authoritative Open Athena authorization chain:
- * current Master user → licensee_accounts → licensee_sub_accounts →
- * organization_members owner → auth user email.
+ * Master → sub-account relationship authorization (non-impersonating).
+ *
+ * Canonical chain:
+ * current Master user → licensee_accounts → licensee_sub_accounts matching
+ * licensee_account_id + organization_id → active Master enforcement.
  *
  * Never trusts organization_id alone.
+ * Does not resolve organization owners or perform session handoff.
  */
-export async function resolveAuthorizedSubAccountHandoff(input: {
+export async function assertLicenseeOwnsSubAccount(input: {
   masterUserId: string;
   organizationId: string;
-}): Promise<AuthorizedSubAccountHandoff> {
+}): Promise<AuthorizedLicenseeSubAccountRelationship> {
   const masterUserId = input.masterUserId.trim();
   const organizationId = input.organizationId.trim();
 
@@ -125,7 +138,9 @@ export async function resolveAuthorizedSubAccountHandoff(input: {
 
   const licenseeAccount = await getLicenseeAccountByUserId(masterUserId);
   if (!licenseeAccount) {
-    throw new LicenseeAccessError("Authenticated user is not a Business Licensee Master.");
+    throw new LicenseeAccessError(
+      "Authenticated user is not a Business Licensee Master.",
+    );
   }
 
   const { data: relationship, error: relationshipError } = await supabaseAdmin
@@ -137,14 +152,49 @@ export async function resolveAuthorizedSubAccountHandoff(input: {
 
   if (relationshipError) {
     if (isMissingLicenseeRelationError(relationshipError)) {
-      throw new LicenseeAccessError("Licensee relationship tables are not available.");
+      throw new LicenseeAccessError(
+        "Licensee relationship tables are not available.",
+      );
     }
     throw new LicenseeAccessError(relationshipError.message);
   }
 
   if (!relationship) {
-    throw new LicenseeAccessError("Master does not own this sub-account relationship.");
+    throw new LicenseeAccessError(
+      "Master does not own this sub-account relationship.",
+    );
   }
+
+  // Existing Master-operation active-account enforcement (fail closed).
+  try {
+    await assertAccountAccessActive(masterUserId);
+  } catch (error) {
+    if (error instanceof AccountAccessDeniedError) {
+      throw new LicenseeAccessError(error.message, error.code);
+    }
+    throw error;
+  }
+
+  return {
+    licenseeAccountId: licenseeAccount.id,
+    organizationId,
+    relationshipId: String(relationship.id),
+  };
+}
+
+/**
+ * Server-authoritative Open Athena authorization + handoff identity chain:
+ * relationship authorization → organization_members owner → auth user email →
+ * owner active check.
+ *
+ * Never trusts organization_id alone.
+ */
+export async function resolveAuthorizedSubAccountHandoff(input: {
+  masterUserId: string;
+  organizationId: string;
+}): Promise<AuthorizedSubAccountHandoff> {
+  const authorized = await assertLicenseeOwnsSubAccount(input);
+  const organizationId = authorized.organizationId;
 
   const { data: membership, error: membershipError } = await supabaseAdmin
     .from("organization_members")
@@ -154,30 +204,32 @@ export async function resolveAuthorizedSubAccountHandoff(input: {
     .maybeSingle();
 
   if (membershipError || !membership?.user_id) {
-    throw new LicenseeAccessError("Sub-account owner membership could not be resolved.");
+    throw new LicenseeAccessError(
+      "Sub-account owner membership could not be resolved.",
+    );
   }
 
   const { data: ownerUser, error: ownerError } =
     await supabaseAdmin.auth.admin.getUserById(membership.user_id);
 
   if (ownerError || !ownerUser.user?.email) {
-    throw new LicenseeAccessError("Sub-account owner auth user could not be resolved.");
+    throw new LicenseeAccessError(
+      "Sub-account owner auth user could not be resolved.",
+    );
   }
 
   // Master Open Athena into a deactivated Athena sub-account fails closed.
-  // Deactivated Masters also cannot hand off.
   try {
-    await assertAccountAccessActive(masterUserId);
     await assertAccountAccessActive(membership.user_id);
   } catch (error) {
     if (error instanceof AccountAccessDeniedError) {
-      throw new LicenseeAccessError(error.message);
+      throw new LicenseeAccessError(error.message, error.code);
     }
     throw error;
   }
 
   return {
-    licenseeAccountId: licenseeAccount.id,
+    licenseeAccountId: authorized.licenseeAccountId,
     organizationId,
     ownerUserId: membership.user_id,
     ownerEmail: ownerUser.user.email,

@@ -198,10 +198,13 @@ describe("V21.2 — operational metrics and readiness", () => {
 
     assert.match(client, /Athena Quote/);
     assert.match(client, /href="\/licensee\/quote"/);
+    assert.match(client, /Athena Estimate/);
+    assert.match(client, /href="\/licensee\/estimate"/);
     assert.match(quotePage, /getLicenseeAccountByUserId/);
     assert.match(quotePage, /Back to Master dashboard/);
     assert.doesNotMatch(quotePage, /DashboardSidebar/);
     assert.doesNotMatch(sidebar, /Athena Quote/);
+    assert.doesNotMatch(sidebar, /Athena Estimate/);
     assert.doesNotMatch(sidebar, /\/quote/);
   });
 

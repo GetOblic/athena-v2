@@ -3,15 +3,16 @@
  *
  * Server-only. No Next.js request context. No after(). No React.
  *
- * Claim order (V19, concurrency remains 1):
+ * Claim order (V26 L6, concurrency remains 1):
  * 1. reconcileAwaitingFollowOnJobs — unchanged Prospect/Persona deep-scrape finalize
  * 2. claimAndExecuteNextJob — Discussion/Prospect/Persona generation (existing priority)
  * 3. claimAndExecuteNextDeepScrapeJob — Deep scrape (existing)
  * 4. claimAndExecuteNextAdGenerationJob — Organization Ads (only when 2+3 idle)
  * 5. claimAndExecuteNextSeoGenerationJob — Organization SEO Intelligence (only when 2+3+4 idle)
+ * 6. claimAndExecuteNextEstimateGenerationJob — Licensee Athena Estimate (only when 2+3+4+5 idle)
  *
- * Rationale: existing generation and deep-scrape jobs cannot be starved by Ads/SEO.
- * Ads and SEO run on idle capacity so they are not permanently starved under normal load.
+ * Rationale: existing generation, deep-scrape, Ads, and SEO jobs cannot be starved by Estimate.
+ * Ads/SEO/Estimate run on idle capacity so they are not permanently starved under normal load.
  * No second PM2 process; concurrency remains forced to 1.
  */
 import {
@@ -23,6 +24,7 @@ import {
   resetAthenaWorkerConfigCache,
 } from "@/services/generationJobs/generationJobWorkerConfig";
 import { claimAndExecuteNextAdGenerationJob } from "@/services/ads/adsGenerationJobs/adGenerationJobExecutor";
+import { claimAndExecuteNextEstimateGenerationJob } from "@/services/estimate/estimateGenerationJobs/estimateGenerationJobExecutor";
 import { claimAndExecuteNextSeoGenerationJob } from "@/services/seo/seoGenerationJobs/seoGenerationJobExecutor";
 import { logChromiumAvailabilityAtStartup } from "@/services/websiteLearning/deepScrape/crawler/chromiumCheck";
 import {
@@ -133,7 +135,19 @@ async function main(): Promise<void> {
       const didSeoWork = await seoWork;
       currentWork = null;
 
-      if (!didSeoWork) {
+      if (didSeoWork) {
+        continue;
+      }
+
+      // Athena Estimate only when generation + deep scrape + Ads + SEO queues are idle.
+      const estimateWork = claimAndExecuteNextEstimateGenerationJob(workerId, {
+        shouldStop: () => stopping,
+      });
+      currentWork = estimateWork;
+      const didEstimateWork = await estimateWork;
+      currentWork = null;
+
+      if (!didEstimateWork) {
         await sleep(config.pollIntervalMs);
       }
     } catch (error) {

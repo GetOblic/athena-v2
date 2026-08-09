@@ -3,9 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import { ESTIMATE_PRICING_METHODOLOGY_MAX_CHARS } from "@/services/estimate/athenaEstimateTypes";
 import type { ManageableAccount } from "@/services/superAdmin/superAdminAccounts";
 
-type TrendSocialPromptInstructionState = {
+type GovernedInstructionState = {
   instructionText: string;
   revisionId: string | null;
   updatedAt: string | null;
@@ -14,7 +15,8 @@ type TrendSocialPromptInstructionState = {
 
 type SuperAdminDashboardClientProps = {
   initialAccounts: ManageableAccount[];
-  initialTrendSocialPromptInstruction: TrendSocialPromptInstructionState;
+  initialTrendSocialPromptInstruction: GovernedInstructionState;
+  initialEstimatePricingMethodologyInstruction: GovernedInstructionState;
   notice?: string | null;
 };
 
@@ -23,7 +25,7 @@ type ApiErrorBody = {
   error?: { code?: string; message?: string };
 };
 
-type TrendSocialPromptApiBody = ApiErrorBody & {
+type GovernedInstructionApiBody = ApiErrorBody & {
   instruction?: {
     instructionText?: string;
     revisionId?: string | null;
@@ -53,7 +55,7 @@ async function putJson(url: string, body: Record<string, unknown>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const payload = (await response.json().catch(() => ({}))) as TrendSocialPromptApiBody;
+  const payload = (await response.json().catch(() => ({}))) as GovernedInstructionApiBody;
   if (!response.ok || payload.ok === false) {
     throw new Error(
       payload.error?.message || `Request failed (${response.status}).`,
@@ -65,6 +67,7 @@ async function putJson(url: string, body: Record<string, unknown>) {
 export function SuperAdminDashboardClient({
   initialAccounts,
   initialTrendSocialPromptInstruction,
+  initialEstimatePricingMethodologyInstruction,
   notice,
 }: SuperAdminDashboardClientProps) {
   const router = useRouter();
@@ -83,6 +86,14 @@ export function SuperAdminDashboardClient({
     revisionId: initialTrendSocialPromptInstruction.revisionId,
     updatedAt: initialTrendSocialPromptInstruction.updatedAt,
     configured: initialTrendSocialPromptInstruction.configured,
+  });
+  const [estimateMethodologyText, setEstimateMethodologyText] = useState(
+    initialEstimatePricingMethodologyInstruction.instructionText,
+  );
+  const [estimateMethodologyMeta, setEstimateMethodologyMeta] = useState({
+    revisionId: initialEstimatePricingMethodologyInstruction.revisionId,
+    updatedAt: initialEstimatePricingMethodologyInstruction.updatedAt,
+    configured: initialEstimatePricingMethodologyInstruction.configured,
   });
 
   function refresh() {
@@ -180,6 +191,35 @@ export function SuperAdminDashboardClient({
     }
   }
 
+  async function saveEstimatePricingMethodology(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setLocalNotice(null);
+    try {
+      const payload = await putJson(
+        "/api/super/estimate/pricing-methodology",
+        { instructionText: estimateMethodologyText },
+      );
+      const next = payload.instruction;
+      setEstimateMethodologyText(String(next?.instructionText ?? ""));
+      setEstimateMethodologyMeta({
+        revisionId: next?.revisionId ?? null,
+        updatedAt: next?.updatedAt ?? null,
+        configured: Boolean(next?.configured),
+      });
+      setLocalNotice(
+        "Athena Estimate pricing methodology saved. Future Estimate generations will use this instruction. Historical Ready Estimates are unchanged.",
+      );
+      refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Save Estimate pricing methodology failed.",
+      );
+    }
+  }
+
   return (
     <div className="space-y-10">
       {localNotice ? (
@@ -238,6 +278,58 @@ export function SuperAdminDashboardClient({
               className="rounded-xl bg-[var(--athena-orange)] px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
             >
               Save Trend Social Prompt
+            </button>
+          </div>
+        </form>
+      </AthenaCollapsibleSection>
+
+      <AthenaCollapsibleSection
+        eyebrow="Athena Estimate"
+        title="Athena Estimate Pricing Methodology"
+        summary="Controls the commercial pricing methodology used by future Athena Estimate generations. Historical Ready Estimates are not rewritten."
+        defaultOpen={false}
+        showToggleLabel
+      >
+        <form onSubmit={saveEstimatePricingMethodology} className="space-y-4">
+          <div>
+            <label
+              htmlFor="estimate-pricing-methodology-instruction"
+              className="text-sm font-medium text-white/80"
+            >
+              Pricing methodology instruction
+            </label>
+            <p className="mt-1 text-sm leading-6 text-white/45">
+              Commercial guidance for future Estimate generations only. Does
+              not override code-level evidence, authorization, or grounding
+              rules. Maximum {ESTIMATE_PRICING_METHODOLOGY_MAX_CHARS} characters.
+            </p>
+          </div>
+          <textarea
+            id="estimate-pricing-methodology-instruction"
+            value={estimateMethodologyText}
+            onChange={(event) => setEstimateMethodologyText(event.target.value)}
+            rows={14}
+            spellCheck={false}
+            maxLength={ESTIMATE_PRICING_METHODOLOGY_MAX_CHARS}
+            placeholder="Enter the GetOblic Athena Estimate pricing methodology…"
+            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 font-mono text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
+          />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs leading-5 text-white/40">
+              {estimateMethodologyMeta.configured
+                ? `Configured · revision ${estimateMethodologyMeta.revisionId ?? "—"}`
+                : "Not configured — future Estimate generations will fail until a methodology is saved."}
+              {estimateMethodologyMeta.updatedAt
+                ? ` · updated ${new Date(estimateMethodologyMeta.updatedAt).toLocaleString()}`
+                : ""}
+              {` · ${estimateMethodologyText.length}/${ESTIMATE_PRICING_METHODOLOGY_MAX_CHARS}`}
+            </div>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="rounded-xl bg-[var(--athena-orange)] px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
+            >
+              Save Estimate Pricing Methodology
             </button>
           </div>
         </form>

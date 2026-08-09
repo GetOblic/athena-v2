@@ -22,7 +22,8 @@ export type AthenaExtendedLLMStage =
   | "ad_keyword_themes"
   | "seo_executive_assessment"
   | "seo_section_analysis"
-  | "seo_roadmap";
+  | "seo_roadmap"
+  | "estimate_package";
 
 export type LLMModelRoleConfig = {
   model: string;
@@ -104,6 +105,8 @@ const EXTENDED_STAGE_ROLE: Record<
   seo_executive_assessment: "premiumStrategicOutput",
   seo_section_analysis: "analysis",
   seo_roadmap: "premiumStrategicOutput",
+  // Licensee Athena Estimate package (V26) — additive; does not alter existing stage mappings.
+  estimate_package: "premiumStrategicOutput",
 };
 
 /** Stage used for Think Differently Deployment Assets (premium Claude family). */
