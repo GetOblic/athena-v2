@@ -1,6 +1,7 @@
 /**
- * Athena V26 Estimate types (L1 foundation).
- * Persistence / request / package contracts only — no API or orchestration.
+ * Athena Estimate types (V26 L1 foundation + V27 L13 Prospect target).
+ * Persistence / request / package / Prospect-context contracts only —
+ * no API or orchestration.
  */
 
 export const ATHENA_ESTIMATE_STATUSES = [
@@ -60,6 +61,40 @@ export const ATHENA_ESTIMATE_INSTRUCTION_CONFIG_KEY =
 export const ESTIMATE_PRICING_METHODOLOGY_MAX_CHARS = 6_000 as const;
 
 /**
+ * Frozen Prospect generation-context contract (V27).
+ * Persisted in prospect_generation_context_json at Ready — immutable thereafter.
+ */
+export const ESTIMATE_PROSPECT_CONTEXT_SCHEMA_VERSION =
+  "estimate_prospect_context_v1" as const;
+
+/** Hard maximum for composedText in EstimateProspectGenerationContextV1. */
+export const ESTIMATE_PROSPECT_CONTEXT_COMPOSED_TEXT_MAX_CHARS = 12_000 as const;
+
+/**
+ * Ready-only immutable freeze of the exact bounded Prospect generation context.
+ * Server-side provenance for later Ask Athena / regenerate — not a public DTO field.
+ */
+export type EstimateProspectGenerationContextV1 = {
+  schemaVersion: typeof ESTIMATE_PROSPECT_CONTEXT_SCHEMA_VERSION;
+  prospectId: string;
+  businessName: string;
+  capturedAt: string;
+  composedText: string;
+  available: {
+    profile: boolean;
+    notesOrAdditionalContext: boolean;
+    adsContent: boolean;
+    websiteIntelligence: boolean;
+    executiveIntelligence: boolean;
+    strategicAssetBlueprint: boolean;
+  };
+  sources: {
+    linkedDiscussionId: string | null;
+    executiveVersionId: string | null;
+  };
+};
+
+/**
  * Frozen Estimate request contract.
  * Validated/normalized before persistence in request_json.
  */
@@ -108,7 +143,8 @@ export type AthenaEstimatePackage = {
 
 /**
  * Row shape for athena_estimates (service-role persistence).
- * Ready request_json / package_json are immutable at the service layer.
+ * Ready request_json / package_json / prospect_generation_context_json are
+ * immutable at the service layer.
  */
 export type AthenaEstimate = {
   id: string;
@@ -116,6 +152,15 @@ export type AthenaEstimate = {
   organization_id: string;
   requested_by: string | null;
   organization_name_snapshot: string;
+  /** Optional commercial Prospect target; null after Prospect deletion. */
+  prospect_id: string | null;
+  /** Frozen at create; retained after Prospect rename/deletion. */
+  prospect_business_name_snapshot: string | null;
+  /**
+   * Ready-only frozen Prospect generation context.
+   * Null for org-only Estimates; not exposed on public list/detail DTOs.
+   */
+  prospect_generation_context_json: EstimateProspectGenerationContextV1 | null;
   request_json: EstimateRequest;
   status: AthenaEstimateStatus;
   generation_stage: AthenaEstimateGenerationStage | string | null;
@@ -153,7 +198,8 @@ export type AthenaEstimateMessage = {
 
 /**
  * Service-level immutability invariant for later CRUD phases.
- * Ready Estimate package/request must never be overwritten — regenerate as a new row.
+ * Ready Estimate package/request/Prospect generation context must never be
+ * overwritten — regenerate as a new row.
  */
 export class ReadyAthenaEstimateImmutableError extends Error {
   readonly code = "READY_IMMUTABLE";
@@ -163,6 +209,21 @@ export class ReadyAthenaEstimateImmutableError extends Error {
   ) {
     super(message);
     this.name = "ReadyAthenaEstimateImmutableError";
+  }
+}
+
+/**
+ * Create-time Prospect target invariant:
+ * non-null prospectId requires a non-empty business-name snapshot.
+ */
+export class AthenaEstimateProspectTargetError extends Error {
+  readonly code = "INVALID_PROSPECT_TARGET";
+
+  constructor(
+    message = "prospectBusinessNameSnapshot is required when prospectId is set.",
+  ) {
+    super(message);
+    this.name = "AthenaEstimateProspectTargetError";
   }
 }
 

@@ -104,6 +104,9 @@ function sampleEstimate(overrides?: Partial<AthenaEstimate>): AthenaEstimate {
     organization_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
     requested_by: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     organization_name_snapshot: "Acme Co",
+    prospect_id: null,
+    prospect_business_name_snapshot: null,
+    prospect_generation_context_json: null,
     request_json: {
       projectNeed: "Redesign marketing site",
       additionalContext: "Need launch in 6 weeks",
@@ -579,6 +582,11 @@ describe("Athena Estimate L11 Ask Athena backend", () => {
         organizationId: "org",
         estimateId: "est",
         frozenEstimateFacts: frozen,
+        frozenProspectGenerationContext: null,
+        frozenProspectGenerationMeta: {
+          generationTimeBusinessName: null,
+          capturedAt: null,
+        },
         methodologyBlock: methodology,
         liveIntelligenceSections: [
           {
@@ -593,6 +601,9 @@ describe("Athena Estimate L11 Ask Athena backend", () => {
         meta: {
           usedComposeEstimateOrganizationContext: false,
           includedProspectDiscussionOpportunityLibraries: false,
+          includedLiveProspectLibraries: false,
+          includedFrozenProspectGenerationContext: false,
+          frozenProspectContextSource: null,
           includedSeoPackages: false,
           includedPersonas: false,
           methodologyRevisionId: "rev-x",

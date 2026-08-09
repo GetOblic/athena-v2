@@ -5,6 +5,7 @@ import {
   normalizeEstimateRequest,
 } from "@/services/estimate/athenaEstimateRequest";
 import {
+  AthenaEstimateProspectResolutionError,
   createAthenaEstimateWithJob,
   listAthenaEstimatesForMaster,
 } from "@/services/estimate/athenaEstimateOrchestration";
@@ -72,12 +73,20 @@ export async function POST(request: Request) {
     return jsonError(400, "INVALID_JSON", "Request body must be JSON.");
   }
 
-  // Never trust client ownership / requester identity.
+  // Never trust client ownership / requester identity / Prospect snapshot fields.
   const rest = { ...body };
   delete rest.licensee_account_id;
   delete rest.licenseeAccountId;
   delete rest.requested_by;
   delete rest.requestedBy;
+  delete rest.prospectBusinessNameSnapshot;
+  delete rest.prospect_business_name_snapshot;
+  delete rest.prospectGenerationContext;
+  delete rest.prospect_generation_context_json;
+  delete rest.prospectGenerationContextJson;
+  delete rest.prospect_generation_context;
+  delete rest.organization_name_snapshot;
+  delete rest.organizationNameSnapshot;
 
   const organizationIdRaw = rest.organizationId;
   if (typeof organizationIdRaw !== "string" || !organizationIdRaw.trim()) {
@@ -96,6 +105,28 @@ export async function POST(request: Request) {
     );
   }
 
+  // Optional Prospect target — validated/resolved server-side under owned org.
+  let prospectId: string | null = null;
+  if (rest.prospectId != null && rest.prospectId !== "") {
+    if (typeof rest.prospectId !== "string" || !rest.prospectId.trim()) {
+      return jsonError(
+        400,
+        "INVALID_BODY",
+        "prospectId must be a valid UUID when provided.",
+      );
+    }
+    prospectId = rest.prospectId.trim();
+    if (!UUID_RE.test(prospectId)) {
+      return jsonError(
+        400,
+        "INVALID_BODY",
+        "prospectId must be a valid UUID when provided.",
+      );
+    }
+  }
+  delete rest.prospectId;
+  delete rest.prospect_id;
+
   try {
     const requestPayload = normalizeEstimateRequest(rest);
     const { estimate, job, relationshipConnected } =
@@ -103,6 +134,7 @@ export async function POST(request: Request) {
         masterUserId: user.id,
         organizationId,
         request: requestPayload,
+        prospectId,
       });
 
     return json(
@@ -119,6 +151,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof LicenseeAccessError) {
       return jsonError(403, error.name, error.message);
+    }
+    if (error instanceof AthenaEstimateProspectResolutionError) {
+      // Fail closed without leaking cross-org Prospect existence.
+      return jsonError(404, error.code, "Prospect target is unavailable.");
     }
     if (error instanceof EstimateRequestValidationError) {
       return jsonError(400, error.code, error.message);

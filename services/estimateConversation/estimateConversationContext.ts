@@ -3,13 +3,17 @@
  *
  * Trust classes remain semantically distinct:
  * 1. FROZEN ESTIMATE FACTS
- * 2. CURRENT TRUSTED ATHENA INTELLIGENCE
- * 3. CURRENT ESTIMATE PRICING METHODOLOGY
- * 4. CONVERSATION HISTORY (assembled by prompt builder)
- * 5. CURRENT USER QUESTION (assembled by prompt builder)
+ * 2. FROZEN PROSPECT GENERATION CONTEXT (Prospect-targeted Ready Estimates only)
+ * 3. CURRENT ESTIMATE PRICING METHODOLOGY (live-at-turn)
+ * 4. CURRENT TRUSTED ATHENA INTELLIGENCE (live-at-turn org context)
+ * 5. CONVERSATION HISTORY (assembled by prompt builder)
+ * 6. CURRENT USER QUESTION (assembled by prompt builder)
  *
  * Does NOT call composeEstimateOrganizationContext.
- * Does NOT load Prospect/Discussion/Opportunity libraries.
+ * Does NOT live-reload Prospect intelligence (Prospect identity fetchers, Current
+ * EV loaders, Blueprint loaders, Prospect website loaders, Discussion/Opportunity
+ * libraries). Frozen Prospect context comes only from
+ * athena_estimates.prospect_generation_context_json.
  * SEO/Personas excluded by default for conversation.
  */
 
@@ -20,6 +24,8 @@ import {
   formatBrainContextForPrompt,
   type PromptIdentityContext,
 } from "@/services/brain/formatBrainContextForPrompt";
+import { validateEstimateProspectGenerationContext } from "@/services/estimate/athenaEstimateProspectContext";
+import { deriveAthenaEstimateProspectRemoved } from "@/services/estimate/athenaEstimateProspectTarget";
 import type { AthenaEstimate } from "@/services/estimate/athenaEstimateTypes";
 import { ESTIMATE_PRICING_METHODOLOGY_MAX_CHARS } from "@/services/estimate/athenaEstimateTypes";
 import type { ActiveEstimatePricingMethodologyInstruction } from "@/services/estimate/estimatePricingMethodologyInstruction";
@@ -172,14 +178,27 @@ function formatDeepWebsiteHighlights(
 /**
  * Highest-priority frozen facts from the saved Ready Estimate.
  * Never drops recommended price / range / scope / core rationale unless impossible.
+ * Prospect identity/status is thin provenance only — never live Prospect names.
  */
 export function buildFrozenEstimateFactsBlock(
   estimate: AthenaEstimate,
+  options?: { hasFrozenProspectGenerationContext?: boolean },
 ): string {
   const pkg = estimate.package_json;
   const request = estimate.request_json;
+  const prospectBusinessNameSnapshot =
+    estimate.prospect_business_name_snapshot?.trim() || null;
+  const prospectId = estimate.prospect_id?.trim() || null;
+  const hasCommercialTarget = Boolean(prospectBusinessNameSnapshot);
+  const prospectRemoved = deriveAthenaEstimateProspectRemoved({
+    prospectId,
+    prospectBusinessNameSnapshot,
+  });
+  const hasFrozenProspectGenerationContext = Boolean(
+    options?.hasFrozenProspectGenerationContext,
+  );
 
-  const core = {
+  const core: Record<string, unknown> = {
     trustClass: "FROZEN_ESTIMATE_FACTS",
     note: "Immutable saved Ready Estimate. Conversation must not mutate these values.",
     estimateId: estimate.id,
@@ -219,6 +238,17 @@ export function buildFrozenEstimateFactsBlock(
     competitorQuotesFabricated: pkg?.competitorQuotesFabricated ?? false,
   };
 
+  if (hasCommercialTarget && prospectBusinessNameSnapshot) {
+    core.prospectBusinessNameSnapshot = prospectBusinessNameSnapshot;
+    core.prospectId = prospectId;
+    core.prospectRemoved = prospectRemoved;
+    core.hasFrozenProspectGenerationContext = hasFrozenProspectGenerationContext;
+    core.commercialTarget = prospectBusinessNameSnapshot;
+    core.prospectTargetStatus = prospectRemoved
+      ? "Prospect removed"
+      : "Active";
+  }
+
   let serialized = JSON.stringify(core, null, 2);
   const max = ESTIMATE_CONVERSATION_LIMITS.maxFrozenEstimateFactsChars;
   if (serialized.length <= max) {
@@ -228,26 +258,91 @@ export function buildFrozenEstimateFactsBlock(
   // Prefer trimming longer narrative fields first; keep price/range/scope/rationale.
   const trimmed = {
     ...core,
-    keyPriceDrivers: (core.keyPriceDrivers ?? []).slice(0, 6),
-    risksAndAssumptions: (core.risksAndAssumptions ?? []).slice(0, 6),
+    keyPriceDrivers: ((core.keyPriceDrivers as string[]) ?? []).slice(0, 6),
+    risksAndAssumptions: ((core.risksAndAssumptions as string[]) ?? []).slice(
+      0,
+      6,
+    ),
     suggestedClientPositioning: core.suggestedClientPositioning
-      ? truncateText(core.suggestedClientPositioning, 1_200)
+      ? truncateText(String(core.suggestedClientPositioning), 1_200)
       : null,
     pricingRationale: core.pricingRationale
-      ? truncateText(core.pricingRationale, 2_400)
+      ? truncateText(String(core.pricingRationale), 2_400)
       : null,
     scopeInterpretation: core.scopeInterpretation
-      ? truncateText(core.scopeInterpretation, 2_400)
+      ? truncateText(String(core.scopeInterpretation), 2_400)
       : null,
     request: {
-      ...core.request,
-      additionalContext: core.request.additionalContext
-        ? truncateText(core.request.additionalContext, 800)
-        : null,
+      ...(core.request as Record<string, unknown>),
+      additionalContext:
+        (core.request as { additionalContext?: string | null })
+          .additionalContext
+          ? truncateText(
+              String(
+                (core.request as { additionalContext?: string | null })
+                  .additionalContext,
+              ),
+              800,
+            )
+          : null,
     },
   };
   serialized = JSON.stringify(trimmed, null, 2);
   return clamp(serialized, max);
+}
+
+/**
+ * Resolve frozen Prospect generation context from the Estimate row only.
+ * Re-validates; returns exact validated composedText (defensively capped);
+ * never invents; never live-reloads Prospect libraries.
+ */
+export function buildFrozenProspectGenerationContextBlock(
+  estimate: AthenaEstimate,
+): {
+  block: string | null;
+  included: boolean;
+  unavailable: boolean;
+  generationTimeBusinessName: string | null;
+  capturedAt: string | null;
+} {
+  const raw = estimate.prospect_generation_context_json;
+  if (raw == null) {
+    return {
+      block: null,
+      included: false,
+      unavailable: false,
+      generationTimeBusinessName: null,
+      capturedAt: null,
+    };
+  }
+
+  try {
+    const validated = validateEstimateProspectGenerationContext(raw);
+    const composedText =
+      validated.composedText.length >
+      ESTIMATE_CONVERSATION_LIMITS.maxFrozenProspectContextChars
+        ? clamp(
+            validated.composedText,
+            ESTIMATE_CONVERSATION_LIMITS.maxFrozenProspectContextChars,
+          )
+        : validated.composedText;
+    return {
+      block: composedText,
+      included: true,
+      unavailable: false,
+      generationTimeBusinessName: validated.businessName,
+      capturedAt: validated.capturedAt,
+    };
+  } catch {
+    // Fail open for the conversation turn: keep Estimate facts + live org/methodology.
+    return {
+      block: null,
+      included: false,
+      unavailable: true,
+      generationTimeBusinessName: null,
+      capturedAt: null,
+    };
+  }
 }
 
 export function buildCurrentMethodologyBlock(
@@ -281,6 +376,12 @@ export type EstimateConversationAssembledContext = {
   organizationId: string;
   estimateId: string;
   frozenEstimateFacts: string;
+  /** Exact frozen Prospect generation composedText; null when absent/unavailable. */
+  frozenProspectGenerationContext: string | null;
+  frozenProspectGenerationMeta: {
+    generationTimeBusinessName: string | null;
+    capturedAt: string | null;
+  };
   methodologyBlock: string;
   liveIntelligenceSections: AthenaConversationContextSection[];
   liveIntelligenceCharCount: number;
@@ -288,6 +389,9 @@ export type EstimateConversationAssembledContext = {
   meta: {
     usedComposeEstimateOrganizationContext: false;
     includedProspectDiscussionOpportunityLibraries: false;
+    includedLiveProspectLibraries: false;
+    includedFrozenProspectGenerationContext: boolean;
+    frozenProspectContextSource: "frozen_estimate_row" | null;
     includedSeoPackages: false;
     includedPersonas: false;
     methodologyRevisionId: string | null;
@@ -301,7 +405,8 @@ export type ComposeEstimateConversationContextDeps = {
 
 /**
  * Assemble bounded conversation context AFTER relationship authorization.
- * Live intelligence loaders are read-only.
+ * Live intelligence loaders are read-only organization loaders only.
+ * Prospect context is read solely from the Estimate row freeze.
  */
 export async function composeEstimateConversationContext(input: {
   estimate: AthenaEstimate;
@@ -312,7 +417,17 @@ export async function composeEstimateConversationContext(input: {
   const missingNotes: string[] = [];
   const liveIntelligenceSections: AthenaConversationContextSection[] = [];
 
-  const frozenEstimateFacts = buildFrozenEstimateFactsBlock(input.estimate);
+  const frozenProspect = buildFrozenProspectGenerationContextBlock(
+    input.estimate,
+  );
+  if (frozenProspect.unavailable) {
+    missingNotes.push(
+      "Frozen Prospect generation context was unavailable for this Estimate.",
+    );
+  }
+  const frozenEstimateFacts = buildFrozenEstimateFactsBlock(input.estimate, {
+    hasFrozenProspectGenerationContext: frozenProspect.included,
+  });
   const methodologyBlock = buildCurrentMethodologyBlock(input.methodology);
 
   const buildBrain = input.deps?.buildBrain ?? defaultBuildBrain;
@@ -430,6 +545,11 @@ export async function composeEstimateConversationContext(input: {
     organizationId,
     estimateId: input.estimate.id,
     frozenEstimateFacts,
+    frozenProspectGenerationContext: frozenProspect.block,
+    frozenProspectGenerationMeta: {
+      generationTimeBusinessName: frozenProspect.generationTimeBusinessName,
+      capturedAt: frozenProspect.capturedAt,
+    },
     methodologyBlock,
     liveIntelligenceSections: liveIntelligenceSections.filter((s) =>
       s.content.trim(),
@@ -442,6 +562,11 @@ export async function composeEstimateConversationContext(input: {
     meta: {
       usedComposeEstimateOrganizationContext: false,
       includedProspectDiscussionOpportunityLibraries: false,
+      includedLiveProspectLibraries: false,
+      includedFrozenProspectGenerationContext: frozenProspect.included,
+      frozenProspectContextSource: frozenProspect.included
+        ? "frozen_estimate_row"
+        : null,
       includedSeoPackages: false,
       includedPersonas: false,
       methodologyRevisionId: input.methodology.revisionId,

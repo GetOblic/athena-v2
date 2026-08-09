@@ -11,6 +11,11 @@ export function buildEstimateUserPrompt(input: {
   methodologyRevisionId: string | null;
   geoCurrency: EstimateGeoCurrencyResult;
   request: EstimateRequest;
+  /**
+   * Exact Prospect commercial-target block when Estimate is Prospect-targeted.
+   * Omit / null / empty for org-only — do not emit an empty Prospect heading.
+   */
+  prospectCommercialTargetIntelligence?: string | null;
 }): string {
   const currencyCode = input.geoCurrency.currencyCode;
   const currencyResolution = input.geoCurrency.currencyResolution;
@@ -18,6 +23,12 @@ export function buildEstimateUserPrompt(input: {
     input.geoCurrency.geographyLabel == null
       ? "null"
       : JSON.stringify(input.geoCurrency.geographyLabel);
+
+  const prospectBlock =
+    typeof input.prospectCommercialTargetIntelligence === "string" &&
+    input.prospectCommercialTargetIntelligence.trim()
+      ? `\n${input.prospectCommercialTargetIntelligence.trim()}\n`
+      : "";
 
   return `
 OBJECTIVE:
@@ -45,9 +56,9 @@ GETOBLIC ESTIMATE PRICING METHODOLOGY
 ${input.methodologyInstructionText}
 
 TRUSTED ATHENA EVIDENCE
-(Business intelligence Athena knows about the selected client.)
+(Business intelligence Athena knows about the selected client / Licensee sub-account.)
 ${input.trustedContext}
-
+${prospectBlock}
 ${input.operatorGuidanceBlock}
 
 NORMALIZED REQUEST SUMMARY:

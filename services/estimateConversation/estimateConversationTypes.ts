@@ -30,6 +30,11 @@ export const ESTIMATE_CONVERSATION_LIMITS = {
   maxConcurrentPerUserScope: ATHENA_CONVERSATION_LIMITS.maxConcurrentPerUserScope,
   /** Frozen Ready Estimate facts block. */
   maxFrozenEstimateFactsChars: 8_000,
+  /**
+   * Frozen Prospect generation-context block (Prospect-targeted Estimates only).
+   * Separate from frozen Estimate facts / live org intelligence / methodology budgets.
+   */
+  maxFrozenProspectContextChars: 12_000,
   /** Compact Brain / identity summary. */
   maxBrainChars: 3_000,
   /** Identity Executive Intelligence. */

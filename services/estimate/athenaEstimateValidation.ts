@@ -56,6 +56,10 @@ const FORBIDDEN_CLAIM_PATTERNS: RegExp[] = [
   /\bcompetitor\s+quot(e|ation)s?\s+(were\s+)?(obtained|collected|gathered)\b/i,
   /\bobtained\s+real\s+competitor\b/i,
   /\bfabricated\s+competitor\s+quot(e|ation)s?\b/i,
+  // Ask Athena: do not claim live Prospect reloads when only frozen generation context exists.
+  /\b(i|we)\s+checked\s+(the\s+)?prospect'?s?\s+current\s+website\b/i,
+  /\b(i|we)\s+reviewed\s+(their|the)\s+latest\s+crm(\s+record)?\b/i,
+  /\b(i|we)\s+(pulled|loaded|fetched)\s+(the\s+)?(prospect'?s?\s+)?(current\s+)?(crm|executive\s+intelligence|blueprint)\b/i,
 ];
 
 function requireNonEmptyString(

@@ -8,16 +8,20 @@ export const ESTIMATE_SHARED_CONSTRAINTS_VERSION = "estimate_shared_constraints_
  */
 export const ESTIMATE_GROUNDING_RULES = `
 INPUT CLASSES (mandatory distinction):
-1. TRUSTED ATHENA EVIDENCE — facts Athena knows about the selected client organization.
-2. OPERATOR PROJECT GUIDANCE — Licensee-entered project description. May describe requested work; must NOT silently become trusted business fact.
-3. GETOBLIC ESTIMATE PRICING METHODOLOGY — commercial reasoning instructions. Not client evidence.
+1. TRUSTED ATHENA EVIDENCE — facts Athena knows about the selected client organization (Licensee sub-account).
+2. PROSPECT COMMERCIAL TARGET INTELLIGENCE (when present) — trusted Athena evidence about the entity for whom the Estimate is being prepared. Supplements organization evidence; does NOT replace it. Distinct trust class from organization Brain/SEO/persona aggregates.
+3. OPERATOR PROJECT GUIDANCE — Licensee-entered project description. May describe requested work; must NOT silently become trusted business fact.
+4. GETOBLIC ESTIMATE PRICING METHODOLOGY — commercial reasoning instructions. Not client evidence.
 
 GROUNDING RULES:
-- Client/business facts may only come from TRUSTED ATHENA EVIDENCE.
+- Organization/client facts may only come from TRUSTED ATHENA EVIDENCE.
+- Prospect/commercial-target facts may only come from PROSPECT COMMERCIAL TARGET INTELLIGENCE when that block is present.
 - Project scope may come from OPERATOR PROJECT GUIDANCE.
 - Pricing philosophy may come from GETOBLIC ESTIMATE PRICING METHODOLOGY.
 - General pricing/market priors may come from model knowledge.
-- Never fabricate missing client facts.
+- Never fabricate missing client or Prospect facts.
+- Never infer that optional Prospect intelligence exists when omitted from the Prospect block.
+- Never treat Prospect contact details or mutable CRM metadata as pricing evidence unless explicitly included in the approved Prospect block.
 - Never fabricate competitor quotes.
 - Never fabricate agency surveys.
 - Never claim a pricing database was queried.

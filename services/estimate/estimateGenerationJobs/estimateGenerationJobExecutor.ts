@@ -1,5 +1,5 @@
 /**
- * Execute a claimed Athena Estimate generation job (V26 L5).
+ * Execute a claimed Athena Estimate generation job (V26 L5 / V27 L15).
  *
  * Does NOT integrate into the worker claim loop yet.
  * Caller supplies a claimed job + claim token (tests / future worker wiring).
@@ -7,7 +7,19 @@
  * Flow:
  * load Estimate → consistency checks → Ready short-circuit →
  * resolve Master → assertLicenseeOwnsSubAccount → load methodology →
- * pipeline (compose → OpenRouter → validate) → complete RPC
+ * (L15) Prospect target re-fetch + bounded composition when targeted →
+ * pipeline (compose org context → OpenRouter → validate) →
+ * complete RPC (package + optional frozen Prospect generation context)
+ *
+ * Org-only (prospect_id null AND prospect_business_name_snapshot null):
+ * V26 path unchanged; prospect_generation_context_json stays null.
+ *
+ * Prospect-targeted: re-fetch with estimate.organization_id, compose bounded
+ * Prospect Commercial Target Intelligence, inject into the same generation
+ * prompt, freeze exact composedText atomically with package_json.
+ *
+ * Removed Prospect (prospect_id null AND snapshot non-null): fail closed —
+ * never silently degrade to org-only generation.
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -15,7 +27,10 @@ import {
   getAthenaEstimateByIdForLicenseeIncludingHidden,
   type AthenaEstimate,
 } from "@/services/estimate/athenaEstimateService";
+import { validateEstimateProspectGenerationContext } from "@/services/estimate/athenaEstimateProspectContext";
+import { isRemovedAthenaEstimateProspectTarget } from "@/services/estimate/athenaEstimateProspectTarget";
 import type { AthenaEstimateGenerationStage } from "@/services/estimate/athenaEstimateTypes";
+import type { EstimateProspectGenerationContextV1 } from "@/services/estimate/athenaEstimateTypes";
 import {
   EstimateGenerationPipelineError,
   runEstimateGenerationPipeline,
@@ -28,6 +43,11 @@ import {
   heartbeatEstimateGenerationJob,
 } from "@/services/estimate/estimateGenerationJobs/estimateGenerationJobService";
 import type { AthenaEstimateGenerationJob } from "@/services/estimate/estimateGenerationJobs/estimateGenerationJobTypes";
+import {
+  composeEstimateProspectGenerationContext,
+  EstimateProspectContextCompositionError,
+  type ComposeEstimateProspectContextDeps,
+} from "@/services/estimate/estimateProspectContextComposer";
 import {
   ESTIMATE_INSTRUCTION_NOT_CONFIGURED,
   getActiveEstimatePricingMethodologyInstruction,
@@ -60,6 +80,9 @@ export type EstimateExecutorDeps = {
   }) => Promise<string>;
   pipelineDeps?: EstimateGenerationPipelineDeps;
   runPipeline?: typeof runEstimateGenerationPipeline;
+  /** L15 Prospect composition seams. */
+  composeProspectContext?: typeof composeEstimateProspectGenerationContext;
+  prospectContextDeps?: ComposeEstimateProspectContextDeps;
   /** Test seam — defaults to Estimate job RPC wrappers. */
   jobOps?: EstimateJobOps;
 };
@@ -95,6 +118,15 @@ function classifyEstimateError(error: unknown): {
   retryable: boolean;
   stage: AthenaEstimateGenerationStage | string;
 } {
+  if (error instanceof EstimateProspectContextCompositionError) {
+    return {
+      code: error.code,
+      message: error.message,
+      retryable: false,
+      stage: "assembling_context",
+    };
+  }
+
   if (error instanceof EstimateGenerationPipelineError) {
     return {
       code: error.code,
@@ -134,6 +166,67 @@ function classifyEstimateError(error: unknown): {
     message: message.slice(0, 1000),
     retryable,
     stage: "failed",
+  };
+}
+
+/**
+ * Resolve Prospect generation freeze for a loaded Estimate.
+ * Org-only → null. Removed target → fail closed. Targeted → compose + validate.
+ */
+async function resolveProspectGenerationFreeze(
+  estimate: AthenaEstimate,
+  deps: EstimateExecutorDeps,
+): Promise<{
+  prospectCommercialTargetIntelligence: string | null;
+  frozenContext: EstimateProspectGenerationContextV1 | null;
+}> {
+  const prospectId =
+    typeof estimate.prospect_id === "string" && estimate.prospect_id.trim()
+      ? estimate.prospect_id.trim()
+      : null;
+  const snapshot =
+    typeof estimate.prospect_business_name_snapshot === "string" &&
+    estimate.prospect_business_name_snapshot.trim()
+      ? estimate.prospect_business_name_snapshot.trim()
+      : null;
+
+  if (
+    isRemovedAthenaEstimateProspectTarget({
+      prospectId,
+      prospectBusinessNameSnapshot: snapshot,
+    })
+  ) {
+    throw new EstimateProspectContextCompositionError(
+      "Prospect target was removed before Estimate generation.",
+    );
+  }
+
+  if (!prospectId) {
+    // Org-only: both null. Do not fetch Prospect; do not emit Prospect block.
+    return {
+      prospectCommercialTargetIntelligence: null,
+      frozenContext: null,
+    };
+  }
+
+  const compose =
+    deps.composeProspectContext ?? composeEstimateProspectGenerationContext;
+  const composed = await compose({
+    prospectId,
+    organizationId: estimate.organization_id,
+    deps: deps.prospectContextDeps,
+  });
+
+  // Validate again before completion RPC (L13 audit: RPC accepts JSONB).
+  const frozenContext = validateEstimateProspectGenerationContext(
+    composed.frozenContext,
+  );
+
+  // Snapshot column is creation-time identity — never rewrite here.
+  // frozenContext.businessName is live generation-time Prospect name.
+  return {
+    prospectCommercialTargetIntelligence: composed.composedText,
+    frozenContext,
   };
 }
 
@@ -268,6 +361,12 @@ export async function executeClaimedEstimateGenerationJob(
           string,
           unknown
         >,
+        // Preserve existing Ready freeze; RPC Ready immutability also protects it.
+        prospectGenerationContextJson:
+          (estimate.prospect_generation_context_json as unknown as Record<
+            string,
+            unknown
+          > | null) ?? null,
       });
       return "completed";
     }
@@ -323,10 +422,16 @@ export async function executeClaimedEstimateGenerationJob(
       });
     }
 
+    currentStage = "assembling_context";
+    await renewLease(currentStage);
+    const prospectFreeze = await resolveProspectGenerationFreeze(estimate, deps);
+
     const result = await runPipeline({
       organizationId: estimate.organization_id,
       request: estimate.request_json,
       methodology,
+      prospectCommercialTargetIntelligence:
+        prospectFreeze.prospectCommercialTargetIntelligence,
       onStage: async (stage) => {
         currentStage = stage;
         const renewed = await renewLease(stage);
@@ -357,11 +462,36 @@ export async function executeClaimedEstimateGenerationJob(
       return claimLost ? "claim_lost" : "retryable";
     }
 
+    // Freeze must equal the Prospect block supplied to generation (no recompute).
+    let prospectGenerationContextJson: Record<string, unknown> | null = null;
+    if (prospectFreeze.frozenContext) {
+      const validated = validateEstimateProspectGenerationContext(
+        prospectFreeze.frozenContext,
+      );
+      if (
+        validated.composedText !==
+        prospectFreeze.prospectCommercialTargetIntelligence
+      ) {
+        throw new EstimateGenerationPipelineError({
+          code: "ESTIMATE_PROSPECT_CONTEXT_MISMATCH",
+          message:
+            "Frozen Prospect generation context does not match the generation prompt block.",
+          stage: "validating",
+          retryable: false,
+        });
+      }
+      prospectGenerationContextJson = validated as unknown as Record<
+        string,
+        unknown
+      >;
+    }
+
     stopHeartbeat();
     const completed = await jobOps.complete({
       jobId: job.id,
       claimToken,
       packageJson: result.package as unknown as Record<string, unknown>,
+      prospectGenerationContextJson,
     });
 
     if (!completed) {
@@ -376,6 +506,7 @@ export async function executeClaimedEstimateGenerationJob(
       workerId,
       jobId: job.id,
       estimateId: job.estimate_id,
+      prospectTargeted: Boolean(prospectGenerationContextJson),
     });
     return "completed";
   } catch (error) {

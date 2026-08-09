@@ -3,12 +3,14 @@
  */
 
 import { normalizeEstimateRequest } from "@/services/estimate/athenaEstimateRequest";
+import { validateEstimateProspectGenerationContext } from "@/services/estimate/athenaEstimateProspectContext";
 import {
   isAthenaEstimateCurrencyResolution,
   isAthenaEstimateStatus,
   type AthenaEstimate,
   type AthenaEstimatePackage,
   type AthenaEstimateStatus,
+  type EstimateProspectGenerationContextV1,
   type EstimateRequest,
 } from "@/services/estimate/athenaEstimateTypes";
 import { validateAthenaEstimatePackage } from "@/services/estimate/athenaEstimateValidation";
@@ -43,6 +45,24 @@ function mapPackage(
   }
 }
 
+function mapProspectGenerationContext(
+  value: unknown,
+): EstimateProspectGenerationContextV1 | null {
+  if (value == null) return null;
+  try {
+    return validateEstimateProspectGenerationContext(value);
+  } catch {
+    return null;
+  }
+}
+
+function mapNullableTrimmedString(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
 export function mapAthenaEstimateRow(
   row: Record<string, unknown>,
 ): AthenaEstimate {
@@ -72,6 +92,13 @@ export function mapAthenaEstimateRow(
     requested_by: (row.requested_by as string | null) ?? null,
     organization_name_snapshot: String(
       row.organization_name_snapshot ?? "Organization",
+    ),
+    prospect_id: mapNullableTrimmedString(row.prospect_id),
+    prospect_business_name_snapshot: mapNullableTrimmedString(
+      row.prospect_business_name_snapshot,
+    ),
+    prospect_generation_context_json: mapProspectGenerationContext(
+      row.prospect_generation_context_json,
     ),
     request_json: mapRequest(row.request_json),
     status,

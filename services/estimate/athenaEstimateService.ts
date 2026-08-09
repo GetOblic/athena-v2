@@ -5,6 +5,7 @@
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { mapAthenaEstimateRow } from "@/services/estimate/athenaEstimateMappers";
+import { normalizeAthenaEstimateProspectTarget } from "@/services/estimate/athenaEstimateProspectTarget";
 import type {
   AthenaEstimate,
   EstimateRequest,
@@ -12,6 +13,16 @@ import type {
 import { resolveLicenseeSubAccountTitle } from "@/services/licensee/licenseeSubAccountTypes";
 
 export type { AthenaEstimate } from "@/services/estimate/athenaEstimateTypes";
+export {
+  AthenaEstimateProspectTargetError,
+} from "@/services/estimate/athenaEstimateTypes";
+export {
+  AthenaEstimateProspectResolutionError,
+  deriveAthenaEstimateProspectRemoved,
+  isRemovedAthenaEstimateProspectTarget,
+  normalizeAthenaEstimateProspectTarget,
+  resolveAthenaEstimateProspectTarget,
+} from "@/services/estimate/athenaEstimateProspectTarget";
 export { mapAthenaEstimateRow } from "@/services/estimate/athenaEstimateMappers";
 
 export class AthenaEstimateNotFoundError extends Error {
@@ -297,8 +308,16 @@ export async function createQueuedAthenaEstimate(input: {
   requestedBy: string | null;
   organizationNameSnapshot: string;
   request: EstimateRequest;
+  /** Optional commercial Prospect target (V27). Org-only when omitted/null. */
+  prospectId?: string | null;
+  /** Required (non-empty) when prospectId is set. Frozen at create. */
+  prospectBusinessNameSnapshot?: string | null;
 }): Promise<AthenaEstimate> {
   const now = touch();
+  const prospectTarget = normalizeAthenaEstimateProspectTarget({
+    prospectId: input.prospectId,
+    prospectBusinessNameSnapshot: input.prospectBusinessNameSnapshot,
+  });
 
   const { data, error } = await supabaseAdmin
     .from("athena_estimates")
@@ -307,6 +326,10 @@ export async function createQueuedAthenaEstimate(input: {
       organization_id: input.organizationId,
       requested_by: input.requestedBy,
       organization_name_snapshot: input.organizationNameSnapshot,
+      prospect_id: prospectTarget.prospectId,
+      prospect_business_name_snapshot:
+        prospectTarget.prospectBusinessNameSnapshot,
+      prospect_generation_context_json: null,
       request_json: input.request,
       status: "Queued",
       generation_stage: null,

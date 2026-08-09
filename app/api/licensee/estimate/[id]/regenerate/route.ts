@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   AthenaEstimateOrchestrationNotFoundError,
+  AthenaEstimateProspectResolutionError,
   regenerateAthenaEstimate,
 } from "@/services/estimate/athenaEstimateOrchestration";
 import { toPublicAthenaEstimateDetail } from "@/services/estimate/athenaEstimatePublic";
@@ -67,6 +68,14 @@ export async function POST(
     }
     if (error instanceof AthenaEstimateOrchestrationNotFoundError) {
       return jsonError(404, "NOT_FOUND", "Estimate not found.");
+    }
+    if (error instanceof AthenaEstimateProspectResolutionError) {
+      // Removed / missing / wrong-org Prospect — fail closed; no new Estimate.
+      return jsonError(
+        409,
+        error.code,
+        "Prospect target is unavailable for regenerate.",
+      );
     }
     console.error("[LICENSEE_ESTIMATE_API] regenerate_failed", error);
     return jsonError(

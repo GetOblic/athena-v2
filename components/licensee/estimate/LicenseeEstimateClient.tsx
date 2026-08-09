@@ -11,13 +11,19 @@ import {
 } from "react";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { EstimateAskAthenaPanel } from "@/components/licensee/estimate/EstimateAskAthenaPanel";
+import { EstimateProspectSelect } from "@/components/licensee/estimate/EstimateProspectSelect";
 import {
   ESTIMATE_POLL_INTERVAL_MS,
   ESTIMATE_PROJECT_NEED_MIN_LENGTH,
+  ESTIMATE_PROSPECT_REMOVED_LABEL,
+  ESTIMATE_PROSPECT_REMOVED_REGENERATE_MESSAGE,
+  ESTIMATE_PROSPECT_UNAVAILABLE_REGENERATE_MESSAGE,
   ESTIMATE_REQUEST_FIELD_LIMITS,
   ESTIMATE_TIMEFRAME_OPTIONS,
+  estimateHasProspectTarget,
   estimateStageLabel,
   formatEstimateDate,
+  formatEstimateHistoryPrimaryLabel,
   formatEstimateMoney,
   truncateProjectNeed,
 } from "@/components/licensee/estimate/estimateUiHelpers";
@@ -90,6 +96,8 @@ export function LicenseeEstimateClient({
   const [organizationId, setOrganizationId] = useState(
     subAccounts[0]?.organizationId ?? "",
   );
+  /** Optional commercial Prospect target for create — id only; server resolves snapshot. */
+  const [prospectId, setProspectId] = useState<string | null>(null);
   const [projectNeed, setProjectNeed] = useState("");
   const [additionalContext, setAdditionalContext] = useState("");
   const [timeframe, setTimeframe] = useState<"" | AthenaEstimateTimeframe>("");
@@ -246,6 +254,7 @@ export function LicenseeEstimateClient({
   }, [activeEstimate, startPolling, stopPolling]);
 
   function resetFormFields() {
+    setProspectId(null);
     setProjectNeed("");
     setAdditionalContext("");
     setTimeframe("");
@@ -304,6 +313,7 @@ export function LicenseeEstimateClient({
       projectNeed: string;
       additionalContext?: string;
       timeframe?: AthenaEstimateTimeframe;
+      prospectId?: string;
     } = {
       organizationId,
       projectNeed: projectNeed.trim(),
@@ -311,6 +321,8 @@ export function LicenseeEstimateClient({
     const context = additionalContext.trim();
     if (context) body.additionalContext = context;
     if (timeframe) body.timeframe = timeframe;
+    // Org-only: omit prospectId entirely (V26-compatible). Never send snapshots/context.
+    if (prospectId) body.prospectId = prospectId;
 
     try {
       const response = await fetch("/api/licensee/estimate", {
@@ -370,6 +382,10 @@ export function LicenseeEstimateClient({
   async function handleRegenerate() {
     if (!activeEstimate || regenerating) return;
     if (!activeEstimate.relationshipConnected) return;
+    if (activeEstimate.prospectRemoved) {
+      setSubmitError(ESTIMATE_PROSPECT_REMOVED_REGENERATE_MESSAGE);
+      return;
+    }
 
     setRegenerating(true);
     setSubmitError(null);
@@ -380,6 +396,13 @@ export function LicenseeEstimateClient({
       );
       const payload = await parseJsonResponse<RegenerateResponse>(response);
       if (!response.ok || !payload.ok || !payload.estimate?.id) {
+        if (
+          response.status === 409 ||
+          payload.error?.code === "PROSPECT_TARGET_UNAVAILABLE"
+        ) {
+          setSubmitError(ESTIMATE_PROSPECT_UNAVAILABLE_REGENERATE_MESSAGE);
+          return;
+        }
         setSubmitError(
           payload.error?.message || "Could not regenerate Estimate.",
         );
@@ -415,6 +438,10 @@ export function LicenseeEstimateClient({
         geographyLabel: activeEstimate.geographyLabel,
         currencyResolution: activeEstimate.currencyResolution,
         recommendedClientPrice: activeEstimate.recommendedClientPrice,
+        prospectId: activeEstimate.prospectId,
+        prospectBusinessNameSnapshot:
+          activeEstimate.prospectBusinessNameSnapshot,
+        prospectRemoved: activeEstimate.prospectRemoved,
         createdAt: activeEstimate.createdAt,
         updatedAt: activeEstimate.updatedAt,
         errorCode: activeEstimate.errorCode,
@@ -562,8 +589,9 @@ export function LicenseeEstimateClient({
           Tell Athena what your client needs
         </h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-white/50">
-          Select a linked Athena sub-account. Athena already holds the client
-          profile — you only describe the project.
+          Select a linked Athena sub-account, optionally choose a Prospect
+          commercial target, then describe the project. Athena already holds the
+          client profile.
         </p>
 
         {subAccounts.length === 0 ? (
@@ -591,7 +619,10 @@ export function LicenseeEstimateClient({
                 name="organizationId"
                 required
                 value={organizationId}
-                onChange={(event) => setOrganizationId(event.target.value)}
+                onChange={(event) => {
+                  setOrganizationId(event.target.value);
+                  setProspectId(null);
+                }}
                 className="mt-2 w-full rounded-2xl border border-white/20 bg-[#161922] px-4 py-3 text-sm text-white outline-none focus:border-[var(--athena-orange)] focus:ring-2 focus:ring-[var(--athena-orange)]/30"
               >
                 {subAccounts.map((item) => (
@@ -602,6 +633,14 @@ export function LicenseeEstimateClient({
                 ))}
               </select>
             </div>
+
+            <EstimateProspectSelect
+              key={organizationId}
+              organizationId={organizationId}
+              value={prospectId}
+              onChange={setProspectId}
+              disabled={submitting}
+            />
 
             <div>
               <label
@@ -707,11 +746,42 @@ export function LicenseeEstimateClient({
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
               Estimate Result
             </div>
-            <h2 className="mt-3 text-2xl font-semibold md:text-3xl">
-              {activeEstimate
-                ? activeEstimate.organizationNameSnapshot
-                : "Your Estimate will appear here"}
-            </h2>
+            {!activeEstimate ? (
+              <h2 className="mt-3 text-2xl font-semibold md:text-3xl">
+                Your Estimate will appear here
+              </h2>
+            ) : estimateHasProspectTarget(activeEstimate) ? (
+              <div className="mt-3" data-estimate-target-display="prospect">
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/40">
+                  Estimate for
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold md:text-3xl">
+                  {activeEstimate.prospectBusinessNameSnapshot}
+                </h2>
+                <p className="mt-2 text-sm text-white/50">
+                  via{" "}
+                  <span className="font-medium text-white/75">
+                    {activeEstimate.organizationNameSnapshot}
+                  </span>
+                </p>
+                {activeEstimate.prospectRemoved ? (
+                  <p
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-white/70"
+                    data-estimate-prospect-removed="true"
+                  >
+                    <span aria-hidden="true">•</span>
+                    {ESTIMATE_PROSPECT_REMOVED_LABEL}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <h2
+                className="mt-3 text-2xl font-semibold md:text-3xl"
+                data-estimate-target-display="organization"
+              >
+                {activeEstimate.organizationNameSnapshot}
+              </h2>
+            )}
           </div>
           {activeEstimate ? (
             <div className="flex flex-wrap items-center gap-3">
@@ -735,6 +805,11 @@ export function LicenseeEstimateClient({
             </div>
           ) : null}
         </div>
+        {submitError && activeEstimate ? (
+          <p className="mt-4 text-sm text-red-300" role="alert">
+            {submitError}
+          </p>
+        ) : null}
 
         {!activeEstimate ? (
           <p className="mt-6 text-sm leading-6 text-white/45">
@@ -771,7 +846,8 @@ export function LicenseeEstimateClient({
               {activeEstimate.errorMessage?.trim() ||
                 "Something went wrong while generating this Estimate. Try again when ready."}
             </p>
-            {activeEstimate.relationshipConnected ? (
+            {activeEstimate.relationshipConnected &&
+            !activeEstimate.prospectRemoved ? (
               <button
                 type="button"
                 disabled={regenerating}
@@ -780,6 +856,14 @@ export function LicenseeEstimateClient({
               >
                 {regenerating ? "Starting…" : "Try Again (New Estimate)"}
               </button>
+            ) : null}
+            {activeEstimate.prospectRemoved ? (
+              <p
+                className="mt-5 text-sm text-white/45"
+                data-estimate-regenerate-unavailable="prospect-removed"
+              >
+                {ESTIMATE_PROSPECT_REMOVED_REGENERATE_MESSAGE}
+              </p>
             ) : null}
           </div>
         ) : null}
@@ -859,12 +943,20 @@ export function LicenseeEstimateClient({
             </p>
 
             <div className="flex flex-wrap gap-3">
-              {activeEstimate.relationshipConnected ? (
+              {activeEstimate.prospectRemoved ? (
+                <p
+                  className="text-sm text-white/40"
+                  data-estimate-regenerate-unavailable="prospect-removed"
+                >
+                  {ESTIMATE_PROSPECT_REMOVED_REGENERATE_MESSAGE}
+                </p>
+              ) : activeEstimate.relationshipConnected ? (
                 <button
                   type="button"
                   disabled={regenerating}
                   onClick={() => void handleRegenerate()}
                   className="inline-flex rounded-full border border-white/20 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
+                  data-estimate-regenerate-action="true"
                 >
                   {regenerating ? "Starting…" : "Regenerate as New Estimate"}
                 </button>
@@ -951,15 +1043,29 @@ export function LicenseeEstimateClient({
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium text-white">
-                            {item.organizationNameSnapshot}
+                            {formatEstimateHistoryPrimaryLabel(item)}
                           </span>
                           <StatusBadge status={item.status} />
+                          {item.prospectRemoved ? (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-white/70"
+                              data-estimate-prospect-removed="true"
+                            >
+                              <span aria-hidden="true">•</span>
+                              {ESTIMATE_PROSPECT_REMOVED_LABEL}
+                            </span>
+                          ) : null}
                           {!item.relationshipConnected ? (
                             <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-100">
                               No longer connected
                             </span>
                           ) : null}
                         </div>
+                        {estimateHasProspectTarget(item) ? (
+                          <p className="mt-1 text-xs text-white/40">
+                            via {item.organizationNameSnapshot}
+                          </p>
+                        ) : null}
                         <p className="mt-1 text-sm text-white/50">
                           {truncateProjectNeed(item.request.projectNeed)}
                         </p>
@@ -980,7 +1086,7 @@ export function LicenseeEstimateClient({
                   <div className="flex shrink-0 items-start pt-3 pr-3">
                     <button
                       type="button"
-                      aria-label={`Hide Estimate for ${item.organizationNameSnapshot}`}
+                      aria-label={`Hide Estimate for ${formatEstimateHistoryPrimaryLabel(item)}`}
                       data-estimate-hide-action="true"
                       disabled={hiding && hideTarget?.id === item.id}
                       onClick={(event) => {
@@ -1022,7 +1128,12 @@ export function LicenseeEstimateClient({
 
       {hideTarget ? (
         <HideEstimateConfirmDialog
-          organizationName={hideTarget.organizationNameSnapshot}
+          targetLabel={formatEstimateHistoryPrimaryLabel(hideTarget)}
+          organizationName={
+            estimateHasProspectTarget(hideTarget)
+              ? hideTarget.organizationNameSnapshot
+              : null
+          }
           pending={hiding}
           error={hideError}
           onCancel={() => {
@@ -1038,13 +1149,15 @@ export function LicenseeEstimateClient({
 }
 
 function HideEstimateConfirmDialog({
+  targetLabel,
   organizationName,
   pending,
   error,
   onCancel,
   onConfirm,
 }: {
-  organizationName: string;
+  targetLabel: string;
+  organizationName: string | null;
   pending: boolean;
   error: string | null;
   onCancel: () => void;
@@ -1069,9 +1182,12 @@ function HideEstimateConfirmDialog({
           This removes it from your Athena Estimate history but does not
           permanently delete the record.
         </p>
-        <p className="mt-2 text-sm leading-6 text-white/40">
-          {organizationName}
-        </p>
+        <p className="mt-2 text-sm leading-6 text-white/70">{targetLabel}</p>
+        {organizationName ? (
+          <p className="mt-1 text-sm leading-6 text-white/40">
+            via {organizationName}
+          </p>
+        ) : null}
         {error ? (
           <p className="mt-3 text-sm text-red-300" role="alert">
             {error}

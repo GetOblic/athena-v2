@@ -81,11 +81,20 @@ function parseJsonObject(
 /**
  * Compose context, call OpenRouter once, validate/normalize package.
  * Caller must already have asserted relationship + configured methodology.
+ *
+ * Optional prospectCommercialTargetIntelligence is the exact Prospect block
+ * composed by the executor before generation (L15). Org-only leaves it null —
+ * no empty Prospect heading is emitted.
  */
 export async function runEstimateGenerationPipeline(input: {
   organizationId: string;
   request: EstimateRequest;
   methodology: ActiveEstimatePricingMethodologyInstruction;
+  /**
+   * Exact PROSPECT COMMERCIAL TARGET INTELLIGENCE block when Prospect-targeted.
+   * Must be the same string later frozen as composedText.
+   */
+  prospectCommercialTargetIntelligence?: string | null;
   onStage?: EstimatePipelineStageCallback;
   deps?: EstimateGenerationPipelineDeps;
 }): Promise<{
@@ -135,6 +144,8 @@ export async function runEstimateGenerationPipeline(input: {
     methodologyRevisionId: input.methodology.revisionId,
     geoCurrency: context.geoCurrency,
     request: input.request,
+    prospectCommercialTargetIntelligence:
+      input.prospectCommercialTargetIntelligence ?? null,
   });
 
   let raw: string;

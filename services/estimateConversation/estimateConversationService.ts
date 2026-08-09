@@ -2,6 +2,11 @@
  * Athena Estimate Ask Athena — synchronous conversation service.
  * Durable messages; Ready Estimate remains immutable. No generation jobs/workers.
  *
+ * Prospect context (V27 L17): when present, uses ONLY the frozen
+ * prospect_generation_context_json on the Estimate row. Never live-reloads
+ * Prospect CRM / Current EV / Blueprint / website / Discussion / Opportunity
+ * libraries.
+ *
  * Message-pair persistence:
  * 1. Validate + authorize + load history + compose + call LLM
  * 2. raw provider reply

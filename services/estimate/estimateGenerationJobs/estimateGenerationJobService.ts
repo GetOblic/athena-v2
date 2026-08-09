@@ -209,6 +209,12 @@ export async function completeEstimateGenerationJobWithClaim(input: {
   jobId: string;
   claimToken: string;
   packageJson: Record<string, unknown>;
+  /**
+   * Optional validated EstimateProspectGenerationContextV1 for Prospect Estimates.
+   * Persisted atomically with package_json on Ready. Omit/null for org-only.
+   * Ready immutability: RPC never overwrites an existing Ready frozen context.
+   */
+  prospectGenerationContextJson?: Record<string, unknown> | null;
 }): Promise<AthenaEstimateGenerationJob | null> {
   const { data, error } = await supabaseAdmin.rpc(
     ESTIMATE_GENERATION_JOB_RPCS.complete,
@@ -216,6 +222,8 @@ export async function completeEstimateGenerationJobWithClaim(input: {
       p_job_id: input.jobId,
       p_claim_token: input.claimToken,
       p_package_json: input.packageJson,
+      p_prospect_generation_context_json:
+        input.prospectGenerationContextJson ?? null,
     },
   );
 

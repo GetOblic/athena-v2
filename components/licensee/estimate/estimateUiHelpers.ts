@@ -75,3 +75,36 @@ export function truncateProjectNeed(value: string, max = 120): string {
   if (trimmed.length <= max) return trimmed;
   return `${trimmed.slice(0, max - 1)}…`;
 }
+
+/** Compact default option for the Estimate Prospect selector. */
+export const ESTIMATE_PROSPECT_NONE_OPTION_LABEL =
+  "No prospect — estimate for this client" as const;
+
+export const ESTIMATE_PROSPECT_REMOVED_LABEL = "Prospect removed" as const;
+
+export const ESTIMATE_PROSPECT_REMOVED_REGENERATE_MESSAGE =
+  "This Prospect has been removed and this Estimate cannot be regenerated." as const;
+
+export const ESTIMATE_PROSPECT_UNAVAILABLE_REGENERATE_MESSAGE =
+  "This Prospect is no longer available and this Estimate cannot be regenerated." as const;
+
+/** True when a frozen Prospect business-name snapshot is present (active or removed). */
+export function estimateHasProspectTarget(input: {
+  prospectBusinessNameSnapshot?: string | null;
+}): boolean {
+  return Boolean(input.prospectBusinessNameSnapshot?.trim());
+}
+
+/**
+ * History primary title:
+ * - Prospect-targeted (active or removed): frozen Prospect business-name snapshot
+ * - Org-only: organization snapshot (V26)
+ */
+export function formatEstimateHistoryPrimaryLabel(input: {
+  organizationNameSnapshot: string;
+  prospectBusinessNameSnapshot?: string | null;
+}): string {
+  const prospect = input.prospectBusinessNameSnapshot?.trim();
+  if (prospect) return prospect;
+  return input.organizationNameSnapshot;
+}

@@ -1,6 +1,7 @@
 /**
  * Estimate Ask Athena prompt builder.
- * Keeps frozen facts, live intelligence, methodology, history, and question distinct.
+ * Keeps frozen facts, frozen Prospect context, live intelligence, methodology,
+ * history, and question distinct.
  */
 
 import {
@@ -46,6 +47,12 @@ function liveKeepPriority(type: string): number {
   }
 }
 
+/**
+ * Assemble context with trust classes distinct.
+ * When over budget, trim in deterministic priority (lowest first):
+ * live org intelligence → methodology → frozen Prospect → frozen Estimate facts.
+ * History is already bounded before this; user question always survives outside.
+ */
 function buildContextBlock(
   assembled: EstimateConversationAssembledContext,
   maxChars: number,
@@ -57,6 +64,10 @@ function buildContextBlock(
     "saved_estimate: immutable",
     `estimateId: ${assembled.estimateId}`,
     `methodologyRevisionId: ${assembled.meta.methodologyRevisionId ?? "null"}`,
+    `includedFrozenProspectGenerationContext: ${assembled.meta.includedFrozenProspectGenerationContext}`,
+    `frozenProspectContextSource: ${assembled.meta.frozenProspectContextSource ?? "null"}`,
+    `includedLiveProspectLibraries: ${assembled.meta.includedLiveProspectLibraries}`,
+    `includedProspectDiscussionOpportunityLibraries: ${assembled.meta.includedProspectDiscussionOpportunityLibraries}`,
   ].join("\n");
 
   const missing =
@@ -64,29 +75,117 @@ function buildContextBlock(
       ? `Missing or unavailable sources:\n${assembled.missingNotes.map((n) => `- ${n}`).join("\n")}`
       : "";
 
-  const frozen = wrapContext(
-    "FROZEN ESTIMATE FACTS — what the saved Ready Estimate currently says",
-    "confirmed_fact",
-    assembled.frozenEstimateFacts,
-    "FROZEN_ESTIMATE_FACTS",
-  );
+  let frozenFacts = assembled.frozenEstimateFacts;
+  let frozenProspect = assembled.frozenProspectGenerationContext;
+  let methodologyBody = assembled.methodologyBlock;
+  let liveSections = assembled.liveIntelligenceSections.map((section) => ({
+    ...section,
+  }));
 
-  const methodology = wrapContext(
-    "CURRENT GETOBLIC ESTIMATE PRICING METHODOLOGY — advisory doctrine, NOT client evidence, NOT historical provenance",
-    "metadata",
-    assembled.methodologyBlock,
-    "CURRENT_ESTIMATE_PRICING_METHODOLOGY",
-  );
+  const render = () => {
+    const frozen = wrapContext(
+      "FROZEN ESTIMATE FACTS — what the saved Ready Estimate currently says",
+      "confirmed_fact",
+      frozenFacts,
+      "FROZEN_ESTIMATE_FACTS",
+    );
 
-  const liveBlock = buildBoundedContextBlock({
-    meta: "CURRENT TRUSTED ATHENA INTELLIGENCE (live — does not rewrite Estimate provenance):",
-    missing: "",
-    sections: assembled.liveIntelligenceSections,
-    keepPriority: liveKeepPriority,
-    maxChars: ESTIMATE_CONVERSATION_LIMITS.maxLiveIntelligenceTotalChars,
-  });
+    const prospectWrapped =
+      frozenProspect && frozenProspect.trim()
+        ? wrapContext(
+            [
+              "FROZEN PROSPECT GENERATION CONTEXT — exact historical Prospect intelligence used when this Estimate was generated",
+              "NOT live CRM / website / Executive Intelligence / Blueprint data",
+              `generationTimeBusinessName: ${assembled.frozenProspectGenerationMeta.generationTimeBusinessName ?? "unknown"}`,
+              `capturedAt: ${assembled.frozenProspectGenerationMeta.capturedAt ?? "unknown"}`,
+            ].join(" | "),
+            "confirmed_fact",
+            frozenProspect,
+            "FROZEN_PROSPECT_GENERATION_CONTEXT",
+          )
+        : "";
 
-  const joined = joinPromptParts([meta, missing, frozen, methodology, liveBlock]);
+    const methodology = wrapContext(
+      "CURRENT GETOBLIC ESTIMATE PRICING METHODOLOGY — advisory doctrine, NOT client evidence, NOT historical provenance",
+      "metadata",
+      methodologyBody,
+      "CURRENT_ESTIMATE_PRICING_METHODOLOGY",
+    );
+
+    const liveBlock = buildBoundedContextBlock({
+      meta: "CURRENT TRUSTED ATHENA INTELLIGENCE (live — does not rewrite Estimate provenance):",
+      missing: "",
+      sections: liveSections,
+      keepPriority: liveKeepPriority,
+      maxChars: ESTIMATE_CONVERSATION_LIMITS.maxLiveIntelligenceTotalChars,
+    });
+
+    return joinPromptParts([
+      meta,
+      missing,
+      frozen,
+      prospectWrapped,
+      methodology,
+      liveBlock,
+    ]);
+  };
+
+  let joined = render();
+  if (joined.length <= maxChars) {
+    return joined;
+  }
+
+  // Trim live intelligence first (already priority-aware inside builder via empty sections).
+  for (const type of [
+    "DEEP_WEBSITE_HIGHLIGHTS",
+    "COMPACT_ORGANIZATION_AGGREGATES",
+    "IDENTITY_EXECUTIVE_INTELLIGENCE",
+    "COMPACT_BRAIN_IDENTITY",
+  ]) {
+    if (joined.length <= maxChars) break;
+    const index = liveSections.findIndex((section) => section.type === type);
+    if (index < 0) continue;
+    const overflow = joined.length - maxChars;
+    const current = liveSections[index];
+    const keep = Math.max(0, current.content.length - overflow - 40);
+    liveSections[index] = {
+      ...current,
+      content:
+        keep > 0 ? `${current.content.slice(0, keep)}\n\n[truncated]` : "",
+    };
+    liveSections = liveSections.filter((section) => section.content.trim());
+    joined = render();
+  }
+
+  // Then methodology.
+  if (joined.length > maxChars && methodologyBody.length > 0) {
+    const overflow = joined.length - maxChars;
+    const keep = Math.max(0, methodologyBody.length - overflow - 40);
+    methodologyBody =
+      keep > 0
+        ? `${methodologyBody.slice(0, keep)}\n\n[truncated]`
+        : "";
+    joined = render();
+  }
+
+  // Then frozen Prospect (separate budget class; still below frozen Estimate facts).
+  if (joined.length > maxChars && frozenProspect && frozenProspect.length > 0) {
+    const overflow = joined.length - maxChars;
+    const keep = Math.max(0, frozenProspect.length - overflow - 40);
+    frozenProspect =
+      keep > 0 ? `${frozenProspect.slice(0, keep)}\n\n[truncated]` : "";
+    joined = render();
+  }
+
+  // Last resort: trim frozen Estimate facts.
+  if (joined.length > maxChars && frozenFacts.length > 0) {
+    const overflow = joined.length - maxChars;
+    const keep = Math.max(0, frozenFacts.length - overflow - 40);
+    frozenFacts =
+      keep > 0 ? `${frozenFacts.slice(0, keep)}\n\n[truncated]` : frozenFacts;
+    joined = render();
+  }
+
   if (joined.length <= maxChars) {
     return joined;
   }
@@ -196,6 +295,7 @@ export function estimatePromptDistinguishesTrustClasses(
 ): boolean {
   return (
     systemPrompt.includes("FROZEN ESTIMATE FACTS") &&
+    systemPrompt.includes("FROZEN PROSPECT GENERATION CONTEXT") &&
     systemPrompt.includes("CURRENT GETOBLIC ESTIMATE PRICING METHODOLOGY") &&
     systemPrompt.includes("CURRENT TRUSTED ATHENA INTELLIGENCE") &&
     systemPrompt.includes("advisory") &&
@@ -235,5 +335,18 @@ export function estimatePromptHasDefaultLengthGuidance(
     systemPrompt.includes("Answer the user's question directly first") &&
     systemPrompt.includes("detailed breakdown") &&
     systemPrompt.includes("longer response is appropriate")
+  );
+}
+
+export function estimatePromptTreatsFrozenProspectAsHistorical(
+  systemPrompt: string,
+): boolean {
+  return (
+    systemPrompt.includes("FROZEN PROSPECT GENERATION CONTEXT CONTRACT") &&
+    systemPrompt.includes("historical generation-time evidence") &&
+    systemPrompt.includes(
+      "Do not claim a Prospect fact is current merely because it appears in frozen context",
+    ) &&
+    systemPrompt.includes("Prospect removed")
   );
 }

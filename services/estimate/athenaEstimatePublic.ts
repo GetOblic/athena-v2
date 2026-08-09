@@ -1,8 +1,14 @@
 /**
  * Public API shapes for Athena Estimates — Licensee Master scoped.
  * Never trust client ownership fields.
+ *
+ * Prospect identity/status (V27 L14) is exposed for later UI.
+ * Frozen Prospect generation context is NEVER exposed publicly.
  */
 
+import {
+  deriveAthenaEstimateProspectRemoved,
+} from "@/services/estimate/athenaEstimateProspectTarget";
 import type {
   AthenaEstimate,
   AthenaEstimateGenerationStage,
@@ -25,6 +31,15 @@ export type PublicAthenaEstimateSummary = {
   currencyResolution: AthenaEstimateCurrencyResolution | null;
   /** Ready only — for Master history list display; never expose partial packages. */
   recommendedClientPrice: EstimateMoney | null;
+  /** Optional commercial Prospect target id; null when org-only or Prospect removed. */
+  prospectId: string | null;
+  /** Frozen Prospect business name at create (retained after rename/deletion). */
+  prospectBusinessNameSnapshot: string | null;
+  /**
+   * True when historical Prospect-targeted Estimate lost its live prospect_id
+   * (ON DELETE SET NULL) but retained the business-name snapshot.
+   */
+  prospectRemoved: boolean;
   createdAt: string;
   updatedAt: string;
   errorCode: string | null;
@@ -47,6 +62,10 @@ export function toPublicAthenaEstimateSummary(
       ? estimate.package_json.recommendedClientPrice
       : null;
 
+  const prospectId = estimate.prospect_id;
+  const prospectBusinessNameSnapshot =
+    estimate.prospect_business_name_snapshot;
+
   return {
     id: estimate.id,
     organizationId: estimate.organization_id,
@@ -58,6 +77,12 @@ export function toPublicAthenaEstimateSummary(
     geographyLabel: estimate.geography_label,
     currencyResolution: estimate.currency_resolution,
     recommendedClientPrice,
+    prospectId,
+    prospectBusinessNameSnapshot,
+    prospectRemoved: deriveAthenaEstimateProspectRemoved({
+      prospectId,
+      prospectBusinessNameSnapshot,
+    }),
     createdAt: estimate.created_at,
     updatedAt: estimate.updated_at,
     errorCode: estimate.error_code,
