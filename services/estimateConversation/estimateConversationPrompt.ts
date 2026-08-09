@@ -212,3 +212,28 @@ export function estimatePromptForbidsLiveResearchClaims(
     systemPrompt.includes("Never claim web/search tools")
   );
 }
+
+export function estimatePromptRequiresPlainTextOutput(
+  systemPrompt: string,
+): boolean {
+  return (
+    systemPrompt.includes("OUTPUT FORMAT") &&
+    systemPrompt.includes("CLEAN PLAIN TEXT ONLY") &&
+    systemPrompt.includes("Markdown bold markers: **") &&
+    systemPrompt.includes("Markdown headings: # / ## / ###") &&
+    systemPrompt.includes("HTML tags") &&
+    systemPrompt.includes("Do not use Markdown")
+  );
+}
+
+export function estimatePromptHasDefaultLengthGuidance(
+  systemPrompt: string,
+): boolean {
+  return (
+    systemPrompt.includes("DEFAULT RESPONSE LENGTH") &&
+    systemPrompt.includes("3–7 short paragraphs") &&
+    systemPrompt.includes("Answer the user's question directly first") &&
+    systemPrompt.includes("detailed breakdown") &&
+    systemPrompt.includes("longer response is appropriate")
+  );
+}

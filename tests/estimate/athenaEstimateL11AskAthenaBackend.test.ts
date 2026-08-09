@@ -25,6 +25,8 @@ import {
   estimatePromptContainsImmutabilityContract,
   estimatePromptDistinguishesTrustClasses,
   estimatePromptForbidsLiveResearchClaims,
+  estimatePromptHasDefaultLengthGuidance,
+  estimatePromptRequiresPlainTextOutput,
 } from "../../services/estimateConversation/estimateConversationPrompt";
 import {
   listEstimateConversationForMaster,
@@ -712,6 +714,9 @@ describe("Athena Estimate L11 Ask Athena backend", () => {
     assert.ok(estimatePromptForbidsLiveResearchClaims(system));
     assert.match(system, /label it as advisory/);
     assert.match(system, /Never claim or imply that you changed/);
+    assert.match(system, /Regenerate or Create New Estimate/);
+    assert.match(system, /Never claim live market research/);
+    assert.match(system, /Never fabricate competitor quotes/);
 
     assert.equal(
       assistantReplyContainsForbiddenEstimateClaims(
@@ -739,6 +744,32 @@ describe("Athena Estimate L11 Ask Athena backend", () => {
       ),
       false,
     );
+  });
+
+  it("28b. prompt requires plain-text output and concise default length", () => {
+    const system = read(
+      "services/ai/prompts/estimateConversation/estimateConversationSystemPrompt.ts",
+    );
+    assert.ok(estimatePromptRequiresPlainTextOutput(system));
+    assert.ok(estimatePromptHasDefaultLengthGuidance(system));
+    assert.match(system, /CLEAN PLAIN TEXT ONLY/);
+    assert.match(system, /Markdown bold markers: \*\*/);
+    assert.match(system, /Markdown headings: # \/ ## \/ ###/);
+    assert.match(system, /HTML tags/);
+    assert.match(system, /fenced code blocks/);
+    assert.match(system, /Markdown tables/);
+    assert.doesNotMatch(system, /render Markdown|markdown parser|remark|rehype/i);
+    assert.match(system, /3–7 short paragraphs/);
+    assert.match(system, /Answer the user's question directly first/);
+    assert.match(
+      system,
+      /detailed breakdown|full analysis|exhaustive reasoning|step-by-step explanation|multiple scenarios/,
+    );
+    assert.match(system, /longer response is appropriate/);
+    // Existing contracts remain intact alongside the presentation correction.
+    assert.ok(estimatePromptContainsImmutabilityContract(system));
+    assert.match(system, /label it as advisory/);
+    assert.ok(estimatePromptForbidsLiveResearchClaims(system));
   });
 
   it("31/32/33. no web/search/FX/pricing APIs; no worker; synchronous provider route", () => {
