@@ -33,6 +33,7 @@ export async function listAthenaEstimatesForLicensee(
     .from("athena_estimates")
     .select("*")
     .eq("licensee_account_id", licenseeAccountId)
+    .is("hidden_at", null)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -48,6 +49,9 @@ export async function listAthenaEstimatesForLicensee(
   );
 }
 
+/**
+ * Normal Licensee detail/history lookup — soft-hidden Estimates are absent.
+ */
 export async function getAthenaEstimateByIdForLicensee(
   id: string,
   licenseeAccountId: string,
@@ -57,6 +61,7 @@ export async function getAthenaEstimateByIdForLicensee(
     .select("*")
     .eq("id", id)
     .eq("licensee_account_id", licenseeAccountId)
+    .is("hidden_at", null)
     .maybeSingle();
 
   if (error) {
@@ -69,6 +74,68 @@ export async function getAthenaEstimateByIdForLicensee(
   }
   if (!data) return null;
   return mapAthenaEstimateRow(data as Record<string, unknown>);
+}
+
+/**
+ * Internal generation-job load — includes soft-hidden rows.
+ * Hide must not cancel in-flight generation; Licensee UX must use
+ * getAthenaEstimateByIdForLicensee (visible-only).
+ */
+export async function getAthenaEstimateByIdForLicenseeIncludingHidden(
+  id: string,
+  licenseeAccountId: string,
+): Promise<AthenaEstimate | null> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_estimates")
+    .select("*")
+    .eq("id", id)
+    .eq("licensee_account_id", licenseeAccountId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[ATHENA_ESTIMATE] get_including_hidden_failed", {
+      id,
+      licenseeAccountId,
+      error: error.message,
+    });
+    return null;
+  }
+  if (!data) return null;
+  return mapAthenaEstimateRow(data as Record<string, unknown>);
+}
+
+/**
+ * Soft-hide an Estimate owned by the authorized licensee account.
+ * Sets server-generated hidden_at only. Never deletes. Idempotent hide
+ * (already hidden) is treated as not addressable (same as not found).
+ */
+export async function hideAthenaEstimateForLicensee(input: {
+  licenseeAccountId: string;
+  estimateId: string;
+}): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_estimates")
+    .update({
+      hidden_at: touch(),
+    })
+    .eq("id", input.estimateId)
+    .eq("licensee_account_id", input.licenseeAccountId)
+    .is("hidden_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.error("[ATHENA_ESTIMATE] hide_failed", {
+      estimateId: input.estimateId,
+      licenseeAccountId: input.licenseeAccountId,
+      error: error.message,
+    });
+    throw new Error("Failed to hide Estimate.");
+  }
+
+  if (!data) {
+    throw new AthenaEstimateNotFoundError();
+  }
 }
 
 /**

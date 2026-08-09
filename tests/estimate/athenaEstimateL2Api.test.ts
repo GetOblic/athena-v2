@@ -350,6 +350,10 @@ describe("Athena Estimate L2 Master API contracts", () => {
       ),
       true,
     );
+    assert.equal(
+      existsSync(join(ROOT, "app/api/licensee/estimate/[id]/hide/route.ts")),
+      true,
+    );
   });
 
   it("job service exposes enqueue/read and L5 lease wrappers for worker claim path", () => {

@@ -133,6 +133,25 @@ export type AthenaEstimate = {
 };
 
 /**
+ * Ask Athena message role for athena_estimate_messages.
+ */
+export type AthenaEstimateMessageRole = "user" | "assistant";
+
+/**
+ * Ask Athena durable message shape.
+ * One logical conversation thread per Estimate (messages-only; no thread table).
+ */
+export type AthenaEstimateMessage = {
+  id: string;
+  estimateId: string;
+  licenseeAccountId: string;
+  organizationId: string;
+  role: AthenaEstimateMessageRole;
+  content: string;
+  createdAt: string;
+};
+
+/**
  * Service-level immutability invariant for later CRUD phases.
  * Ready Estimate package/request must never be overwritten — regenerate as a new row.
  */

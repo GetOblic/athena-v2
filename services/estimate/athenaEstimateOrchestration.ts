@@ -13,10 +13,12 @@
 
 import { normalizeEstimateRequest } from "@/services/estimate/athenaEstimateRequest";
 import {
+  AthenaEstimateNotFoundError,
   createQueuedAthenaEstimate,
   getAthenaEstimateByIdForLicensee,
   getEstimateRelationshipConnected,
   getEstimateRelationshipConnectedMap,
+  hideAthenaEstimateForLicensee,
   listAthenaEstimatesForLicensee,
   loadOrganizationNameSnapshot,
   markAthenaEstimateEnqueueFailed,
@@ -179,4 +181,27 @@ export async function regenerateAthenaEstimate(input: {
     ...created,
     regeneratedFrom: source.id,
   };
+}
+
+/**
+ * Soft-hide a Master-owned Estimate.
+ * Current sub-account relationship is NOT required — hide manages Master history.
+ * Does not cancel generation, alter job state, or mutate package/request/provenance.
+ */
+export async function hideAthenaEstimateForMaster(input: {
+  masterUserId: string;
+  estimateId: string;
+}): Promise<void> {
+  const masterAccount = await requireLicenseeMasterAccount(input.masterUserId);
+  try {
+    await hideAthenaEstimateForLicensee({
+      licenseeAccountId: masterAccount.id,
+      estimateId: input.estimateId,
+    });
+  } catch (error) {
+    if (error instanceof AthenaEstimateNotFoundError) {
+      throw new AthenaEstimateOrchestrationNotFoundError();
+    }
+    throw error;
+  }
 }

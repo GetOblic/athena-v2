@@ -17,10 +17,16 @@ describe("Athena Estimate L2 persistence + orchestration", () => {
     assert.match(service, /export async function createQueuedAthenaEstimate/);
     assert.match(service, /export async function listAthenaEstimatesForLicensee/);
     assert.match(service, /export async function getAthenaEstimateByIdForLicensee/);
+    assert.match(
+      service,
+      /export async function getAthenaEstimateByIdForLicenseeIncludingHidden/,
+    );
+    assert.match(service, /export async function hideAthenaEstimateForLicensee/);
     assert.match(service, /export async function getEstimateRelationshipConnected/);
     assert.match(service, /export async function getEstimateRelationshipConnectedMap/);
     assert.match(service, /export async function markAthenaEstimateEnqueueFailed/);
     assert.match(service, /export async function loadOrganizationNameSnapshot/);
+    assert.match(service, /\.is\("hidden_at", null\)/);
     assert.match(service, /resolveLicenseeSubAccountTitle/);
     assert.match(service, /licenseeAccountId: string/);
     assert.match(service, /organizationId: string/);
@@ -37,6 +43,7 @@ describe("Athena Estimate L2 persistence + orchestration", () => {
     assert.match(orchestration, /export async function listAthenaEstimatesForMaster/);
     assert.match(orchestration, /export async function getAthenaEstimateDetailForMaster/);
     assert.match(orchestration, /export async function regenerateAthenaEstimate/);
+    assert.match(orchestration, /export async function hideAthenaEstimateForMaster/);
     assert.match(orchestration, /requireLicenseeMasterAccount/);
     assert.match(orchestration, /assertLicenseeOwnsSubAccount/);
     assert.match(orchestration, /markAthenaEstimateEnqueueFailed/);

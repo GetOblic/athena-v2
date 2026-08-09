@@ -12,7 +12,7 @@
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
-  getAthenaEstimateByIdForLicensee,
+  getAthenaEstimateByIdForLicenseeIncludingHidden,
   type AthenaEstimate,
 } from "@/services/estimate/athenaEstimateService";
 import type { AthenaEstimateGenerationStage } from "@/services/estimate/athenaEstimateTypes";
@@ -50,7 +50,8 @@ export type EstimateJobOps = {
 };
 
 export type EstimateExecutorDeps = {
-  getEstimate?: typeof getAthenaEstimateByIdForLicensee;
+  /** Defaults to including soft-hidden rows so hide does not abort in-flight jobs. */
+  getEstimate?: typeof getAthenaEstimateByIdForLicenseeIncludingHidden;
   assertOwnsSubAccount?: typeof assertLicenseeOwnsSubAccount;
   getMethodology?: typeof getActiveEstimatePricingMethodologyInstruction;
   resolveMasterUserId?: (input: {
@@ -147,7 +148,8 @@ export async function executeClaimedEstimateGenerationJob(
   const { job, claimToken } = claimed;
   const workerConfig = getAthenaWorkerConfig();
   const deps = options?.deps ?? {};
-  const getEstimate = deps.getEstimate ?? getAthenaEstimateByIdForLicensee;
+  const getEstimate =
+    deps.getEstimate ?? getAthenaEstimateByIdForLicenseeIncludingHidden;
   const assertOwns =
     deps.assertOwnsSubAccount ?? assertLicenseeOwnsSubAccount;
   const getMethodology =

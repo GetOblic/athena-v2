@@ -44,12 +44,18 @@ const CURRENCY_CODE_PATTERN = /^[A-Z]{3}$/;
 const FORBIDDEN_CLAIM_PATTERNS: RegExp[] = [
   /\blive\s+market\s+research\b/i,
   /\bmarket\s+research\s+(was\s+)?(conducted|performed|completed|obtained)\b/i,
-  /\bqueried\s+current\s+market\s+rates?\b/i,
+  /\b(checked|queried|looked\s+up)\s+(the\s+)?(current\s+)?market\s+rates?\b/i,
   /\bqueried\s+(a\s+)?(live|proprietary|real[- ]time)\s+(pricing\s+)?database\b/i,
+  /\b(according\s+to|from)\s+(a\s+)?live\s+pricing\s+database\b/i,
   /\bproprietary\s+(live\s+)?pricing\s+database\b/i,
+  /\bsearched\s+competitor\s+pricing\b/i,
+  /\b(i|we)\s+found\s+agencies\s+charging\b/i,
+  /\blooked\s+(this|it|that)\s+up\s+online\b/i,
+  /\b(i|we)\s+(searched|checked|looked)\s+(this\s+up\s+)?(on\s+the\s+)?(web|internet|online)\b/i,
   /\breal\s+competitor\s+quot(e|ation)s?\b/i,
   /\bcompetitor\s+quot(e|ation)s?\s+(were\s+)?(obtained|collected|gathered)\b/i,
   /\bobtained\s+real\s+competitor\b/i,
+  /\bfabricated\s+competitor\s+quot(e|ation)s?\b/i,
 ];
 
 function requireNonEmptyString(
@@ -170,6 +176,16 @@ function collectForbiddenClaims(text: string, path: string, errors: string[]) {
       break;
     }
   }
+}
+
+/**
+ * Light defensive check for Ask Athena assistant replies.
+ * Same pattern family as Ready package validation — not a broad classifier.
+ */
+export function assistantReplyContainsForbiddenEstimateClaims(
+  text: string,
+): boolean {
+  return FORBIDDEN_CLAIM_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 function validateInstructionProvenance(

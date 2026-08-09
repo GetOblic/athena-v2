@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { EstimateAskAthenaPanel } from "@/components/licensee/estimate/EstimateAskAthenaPanel";
 import {
   ESTIMATE_POLL_INTERVAL_MS,
   ESTIMATE_PROJECT_NEED_MIN_LENGTH,
@@ -59,6 +60,11 @@ type RegenerateResponse = CreateResponse & {
   regeneratedFrom?: string;
 };
 
+type HideResponse = ApiErrorBody & {
+  ok?: boolean;
+  hidden?: boolean;
+};
+
 const HOW_IT_WORKS = [
   {
     title: "Client Intelligence",
@@ -97,6 +103,10 @@ export function LicenseeEstimateClient({
   const [history, setHistory] = useState<PublicAthenaEstimateSummary[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [hideTarget, setHideTarget] =
+    useState<PublicAthenaEstimateSummary | null>(null);
+  const [hiding, setHiding] = useState(false);
+  const [hideError, setHideError] = useState<string | null>(null);
 
   const pollTimerRef = useRef<number | null>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -140,8 +150,20 @@ export function LicenseeEstimateClient({
           cache: "no-store",
         });
         const payload = await parseJsonResponse<DetailResponse>(response);
-        if (!payload.ok || !payload.estimate) return;
         if (activeIdRef.current !== estimateId) return;
+
+        // Soft-hidden / unavailable while in-flight: stop polling and drop UI.
+        if (response.status === 404 || payload.error?.code === "NOT_FOUND") {
+          stopPolling();
+          activeIdRef.current = null;
+          setHistory((prev) => prev.filter((item) => item.id !== estimateId));
+          setActiveEstimate((prev) =>
+            prev?.id === estimateId ? null : prev,
+          );
+          return;
+        }
+
+        if (!payload.ok || !payload.estimate) return;
 
         setActiveEstimate(payload.estimate);
 
@@ -373,6 +395,104 @@ export function LicenseeEstimateClient({
     }
   }
 
+  function requestHideEstimate(item: PublicAthenaEstimateSummary) {
+    setHideError(null);
+    setHideTarget(item);
+  }
+
+  function requestHideActiveEstimate() {
+    if (!activeEstimate) return;
+    const fromHistory = history.find((item) => item.id === activeEstimate.id);
+    requestHideEstimate(
+      fromHistory ?? {
+        id: activeEstimate.id,
+        organizationId: activeEstimate.organizationId,
+        organizationNameSnapshot: activeEstimate.organizationNameSnapshot,
+        request: activeEstimate.request,
+        status: activeEstimate.status,
+        generationStage: activeEstimate.generationStage,
+        currencyCode: activeEstimate.currencyCode,
+        geographyLabel: activeEstimate.geographyLabel,
+        currencyResolution: activeEstimate.currencyResolution,
+        recommendedClientPrice: activeEstimate.recommendedClientPrice,
+        createdAt: activeEstimate.createdAt,
+        updatedAt: activeEstimate.updatedAt,
+        errorCode: activeEstimate.errorCode,
+        errorMessage: activeEstimate.errorMessage,
+        relationshipConnected: activeEstimate.relationshipConnected,
+      },
+    );
+  }
+
+  function removeEstimateFromVisibleState(estimateId: string) {
+    setHistory((prev) => prev.filter((item) => item.id !== estimateId));
+    if (activeIdRef.current === estimateId) {
+      stopPolling();
+      activeIdRef.current = null;
+    }
+    setActiveEstimate((prev) => (prev?.id === estimateId ? null : prev));
+  }
+
+  async function confirmHideEstimate() {
+    if (!hideTarget || hiding) return;
+    const targetId = hideTarget.id;
+    setHiding(true);
+    setHideError(null);
+    try {
+      const response = await fetch(
+        `/api/licensee/estimate/${targetId}/hide`,
+        { method: "POST" },
+      );
+      const payload = await parseJsonResponse<HideResponse>(response);
+
+      // Already hidden / absent — treat as unavailable and drop stale UI item.
+      if (response.status === 404 || payload.error?.code === "NOT_FOUND") {
+        removeEstimateFromVisibleState(targetId);
+        setHideTarget(null);
+        return;
+      }
+
+      if (!response.ok || !payload.ok) {
+        setHideError(
+          payload.error?.message || "Could not hide this Estimate.",
+        );
+        return;
+      }
+
+      removeEstimateFromVisibleState(targetId);
+      setHideTarget(null);
+    } catch {
+      setHideError("Could not hide this Estimate.");
+    } finally {
+      setHiding(false);
+    }
+  }
+
+  async function refreshActiveEstimateDetail() {
+    const estimateId = activeIdRef.current;
+    if (!estimateId) return;
+    try {
+      const response = await fetch(`/api/licensee/estimate/${estimateId}`, {
+        cache: "no-store",
+      });
+      const payload = await parseJsonResponse<DetailResponse>(response);
+      if (response.status === 404 || payload.error?.code === "NOT_FOUND") {
+        removeEstimateFromVisibleState(estimateId);
+        setSubmitError("This Estimate is no longer available.");
+        return;
+      }
+      if (!payload.ok || !payload.estimate) return;
+      setActiveEstimate((prev) =>
+        prev?.id === estimateId ? payload.estimate! : prev,
+      );
+      if (!isInFlightStatus(payload.estimate.status)) {
+        stopPolling();
+      }
+    } catch {
+      // Transient refresh failures stay silent; composer re-enables.
+    }
+  }
+
   const pkg = activeEstimate?.package ?? null;
   const inFlight = isInFlightStatus(activeEstimate?.status);
 
@@ -594,13 +714,25 @@ export function LicenseeEstimateClient({
             </h2>
           </div>
           {activeEstimate ? (
-            <button
-              type="button"
-              onClick={handleCreateAnother}
-              className="text-sm font-medium text-[var(--athena-orange)] hover:underline"
-            >
-              Create Another Estimate
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={requestHideActiveEstimate}
+                disabled={hiding}
+                aria-label="Hide this Estimate from history"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-xs font-medium text-white/55 transition hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-50"
+              >
+                <HideTrashIcon />
+                Hide
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateAnother}
+                className="text-sm font-medium text-[var(--athena-orange)] hover:underline"
+              >
+                Create Another Estimate
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -750,6 +882,17 @@ export function LicenseeEstimateClient({
                 Create Another Estimate
               </button>
             </div>
+
+            <EstimateAskAthenaPanel
+              estimateId={activeEstimate.id}
+              relationshipConnected={activeEstimate.relationshipConnected}
+              onEstimateUnavailable={() =>
+                removeEstimateFromVisibleState(activeEstimate.id)
+              }
+              onNotReady={() => {
+                void refreshActiveEstimateDetail();
+              }}
+            />
           </div>
         ) : null}
       </section>
@@ -780,50 +923,77 @@ export function LicenseeEstimateClient({
           </p>
         ) : null}
 
+        {hideError && !hideTarget ? (
+          <p className="mt-4 text-sm text-red-300" role="alert">
+            {hideError}
+          </p>
+        ) : null}
+
         <ul className="mt-6 space-y-3">
           {history.map((item) => {
             const selected = activeEstimate?.id === item.id;
             return (
               <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => void openHistoryItem(item.id)}
-                  className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
+                <div
+                  className={`flex items-stretch gap-1 rounded-2xl border transition ${
                     selected
                       ? "border-[var(--athena-orange)]/40 bg-[var(--athena-orange)]/10"
-                      : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/5"
+                      : "border-white/10 bg-black/20 hover:border-white/20"
                   }`}
+                  data-estimate-history-row="true"
                 >
-                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-white">
-                          {item.organizationNameSnapshot}
-                        </span>
-                        <StatusBadge status={item.status} />
-                        {!item.relationshipConnected ? (
-                          <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-100">
-                            No longer connected
+                  <button
+                    type="button"
+                    onClick={() => void openHistoryItem(item.id)}
+                    className="min-w-0 flex-1 px-4 py-4 text-left transition hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+                  >
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-white">
+                            {item.organizationNameSnapshot}
                           </span>
-                        ) : null}
+                          <StatusBadge status={item.status} />
+                          {!item.relationshipConnected ? (
+                            <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-100">
+                              No longer connected
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-sm text-white/50">
+                          {truncateProjectNeed(item.request.projectNeed)}
+                        </p>
+                        <p className="mt-1 text-xs text-white/35">
+                          {formatEstimateDate(item.createdAt)}
+                        </p>
                       </div>
-                      <p className="mt-1 text-sm text-white/50">
-                        {truncateProjectNeed(item.request.projectNeed)}
-                      </p>
-                      <p className="mt-1 text-xs text-white/35">
-                        {formatEstimateDate(item.createdAt)}
-                      </p>
+                      <div className="shrink-0 text-sm font-medium text-white/80">
+                        {item.status === "Ready" && item.recommendedClientPrice
+                          ? formatEstimateMoney(
+                              item.recommendedClientPrice.amount,
+                              item.recommendedClientPrice.currencyCode,
+                            )
+                          : "—"}
+                      </div>
                     </div>
-                    <div className="shrink-0 text-sm font-medium text-white/80">
-                      {item.status === "Ready" && item.recommendedClientPrice
-                        ? formatEstimateMoney(
-                            item.recommendedClientPrice.amount,
-                            item.recommendedClientPrice.currencyCode,
-                          )
-                        : "—"}
-                    </div>
+                  </button>
+                  <div className="flex shrink-0 items-start pt-3 pr-3">
+                    <button
+                      type="button"
+                      aria-label={`Hide Estimate for ${item.organizationNameSnapshot}`}
+                      data-estimate-hide-action="true"
+                      disabled={hiding && hideTarget?.id === item.id}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        requestHideEstimate(item);
+                      }}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-transparent text-white/45 transition hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-50"
+                    >
+                      <HideTrashIcon />
+                    </button>
                   </div>
-                </button>
+                </div>
               </li>
             );
           })}
@@ -849,7 +1019,103 @@ export function LicenseeEstimateClient({
           Opens Athena Quote only — Estimate data is not transferred.
         </p>
       </section>
+
+      {hideTarget ? (
+        <HideEstimateConfirmDialog
+          organizationName={hideTarget.organizationNameSnapshot}
+          pending={hiding}
+          error={hideError}
+          onCancel={() => {
+            if (hiding) return;
+            setHideTarget(null);
+            setHideError(null);
+          }}
+          onConfirm={() => void confirmHideEstimate()}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function HideEstimateConfirmDialog({
+  organizationName,
+  pending,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  organizationName: string;
+  pending: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="hide-estimate-title"
+        className="w-full max-w-md rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6 shadow-2xl shadow-black/40"
+        data-estimate-hide-confirm="true"
+      >
+        <h2
+          id="hide-estimate-title"
+          className="text-xl font-semibold text-white"
+        >
+          Hide this Estimate from your history?
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-white/55">
+          This removes it from your Athena Estimate history but does not
+          permanently delete the record.
+        </p>
+        <p className="mt-2 text-sm leading-6 text-white/40">
+          {organizationName}
+        </p>
+        {error ? (
+          <p className="mt-3 text-sm text-red-300" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onCancel}
+            className="rounded-xl border border-[var(--athena-border)] px-4 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onConfirm}
+            className="rounded-xl border border-red-400/30 bg-red-500/15 px-4 py-2.5 text-sm font-semibold text-red-100 transition hover:bg-red-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-60"
+          >
+            {pending ? "Hiding…" : "Hide Estimate"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HideTrashIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+      className="h-4 w-4"
+    >
+      <path
+        d="M4.5 6.5h11M8 6.5V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M6.5 6.5l.6 8.2a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-8.2"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
