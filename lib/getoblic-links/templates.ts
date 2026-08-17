@@ -53,7 +53,7 @@ export const GETOBLIC_LINK_TEMPLATES: readonly GetOblicLinkTemplate[] = [
   {
     id: "custom",
     label: "Custom",
-    description: "Any approved GetOblic HTTPS destination URL.",
+    description: "Any valid HTTP or HTTPS destination URL.",
     baseUrl: null,
     fields: [],
   },
@@ -85,7 +85,18 @@ export function buildTemplateDestinationUrl(input: {
     if (!custom) {
       throw new Error("A destination URL is required for the Custom template.");
     }
-    const parsed = new URL(custom);
+    let parsed: URL;
+    try {
+      parsed = new URL(custom);
+    } catch {
+      throw new Error("Enter a valid HTTP or HTTPS URL.");
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("Enter a valid HTTP or HTTPS URL.");
+    }
+    if (!parsed.hostname) {
+      throw new Error("Enter a valid HTTP or HTTPS URL.");
+    }
     return parsed.toString();
   }
 

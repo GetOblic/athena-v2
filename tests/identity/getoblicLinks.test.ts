@@ -31,7 +31,6 @@ import {
   assertBodyWithinLimit,
   GETOBLIC_LINKS_MAX_BODY_BYTES,
   GETOBLIC_SLUG_PATTERN,
-  isApprovedGetOblicHostname,
   normalizeSlug,
   parseCreateLinkBody,
   parseUpdateLinkBody,
@@ -120,6 +119,42 @@ describe("GetOblic Links — templates", () => {
     assert.equal(destination, "https://claim.getoblic.com/path?x=1");
   });
 
+  it("accepts any HTTP or HTTPS Custom destination", () => {
+    assert.equal(
+      buildTemplateDestinationUrl({
+        templateId: "custom",
+        customUrl: "https://example.com/",
+      }),
+      "https://example.com/",
+    );
+    assert.equal(
+      buildTemplateDestinationUrl({
+        templateId: "custom",
+        customUrl: "http://example.com/page",
+      }),
+      "http://example.com/page",
+    );
+  });
+
+  it("rejects non-http(s) Custom destinations", () => {
+    assert.throws(
+      () =>
+        buildTemplateDestinationUrl({
+          templateId: "custom",
+          customUrl: "javascript:alert(1)",
+        }),
+      /valid HTTP or HTTPS URL/i,
+    );
+    assert.throws(
+      () =>
+        buildTemplateDestinationUrl({
+          templateId: "custom",
+          customUrl: "/relative/path",
+        }),
+      /valid HTTP or HTTPS URL/i,
+    );
+  });
+
   it("requires template fields", () => {
     assert.throws(
       () =>
@@ -138,7 +173,11 @@ describe("GetOblic Links — validation", () => {
     assert.equal(normalizeSlug("Tv94jPf"), "Tv94jPf");
   });
 
-  it("accepts HTTPS approved GetOblic hostnames only", () => {
+  it("accepts any valid absolute HTTP or HTTPS destination", () => {
+    assert.equal(
+      validateDestinationUrl("https://getoblic.com/example"),
+      "https://getoblic.com/example",
+    );
     assert.equal(
       validateDestinationUrl("https://claim.getoblic.com/a"),
       "https://claim.getoblic.com/a",
@@ -148,50 +187,106 @@ describe("GetOblic Links — validation", () => {
       "https://voiceai.getoblic.com/a",
     );
     assert.equal(
-      validateDestinationUrl("https://getoblic.com/a"),
-      "https://getoblic.com/a",
+      validateDestinationUrl("https://example.com/"),
+      "https://example.com/",
     );
-    assert.equal(isApprovedGetOblicHostname("getoblic.com"), true);
-    assert.equal(isApprovedGetOblicHostname("claim.getoblic.com"), true);
-    assert.equal(isApprovedGetOblicHostname("example.com"), false);
+    assert.equal(
+      validateDestinationUrl("https://www.google.com/search?q=test"),
+      "https://www.google.com/search?q=test",
+    );
+    assert.equal(
+      validateDestinationUrl("https://sub.example.org/path?a=1&b=2#section"),
+      "https://sub.example.org/path?a=1&b=2#section",
+    );
+    assert.equal(
+      validateDestinationUrl("http://example.com/page"),
+      "http://example.com/page",
+    );
+    assert.equal(
+      validateDestinationUrl("https://youtube.com/watch?v=example"),
+      "https://youtube.com/watch?v=example",
+    );
+    assert.equal(
+      validateDestinationUrl("https://linkedin.com/company/example"),
+      "https://linkedin.com/company/example",
+    );
+    assert.equal(
+      validateDestinationUrl("https://example.com:8443/path"),
+      "https://example.com:8443/path",
+    );
+    assert.equal(
+      validateDestinationUrl("http://example.com:8080/path"),
+      "http://example.com:8080/path",
+    );
+    assert.equal(
+      validateDestinationUrl("https://sub.example.org:9443/a?x=1#section"),
+      "https://sub.example.org:9443/a?x=1#section",
+    );
   });
 
-  it("rejects HTTP and non-GetOblic hostnames", () => {
-    assert.throws(
-      () => validateDestinationUrl("http://claim.getoblic.com/a"),
-      /HTTPS/i,
-    );
-    assert.throws(
-      () => validateDestinationUrl("https://example.com/a"),
-      /approved GetOblic hostname/i,
-    );
-    assert.throws(
-      () => validateDestinationUrl("https://evil.getoblic.com.evil.com/a"),
-      /approved GetOblic hostname/i,
-    );
-  });
-
-  it("rejects credentials, ports, and blocked schemes", () => {
+  it("rejects non-http(s) schemes, relative URLs, and empty destinations", () => {
     assert.throws(
       () => validateDestinationUrl("javascript:alert(1)"),
-      GetOblicWorkerError,
+      /valid HTTP or HTTPS URL/i,
     );
     assert.throws(
-      () => validateDestinationUrl("data:text/html,hi"),
-      GetOblicWorkerError,
+      () => validateDestinationUrl("data:text/html,test"),
+      /valid HTTP or HTTPS URL/i,
     );
     assert.throws(
       () => validateDestinationUrl("file:///etc/passwd"),
-      GetOblicWorkerError,
+      /valid HTTP or HTTPS URL/i,
     );
+    assert.throws(
+      () => validateDestinationUrl("ftp://example.com/file"),
+      /valid HTTP or HTTPS URL/i,
+    );
+    assert.throws(
+      () => validateDestinationUrl("mailto:test@example.com"),
+      /valid HTTP or HTTPS URL/i,
+    );
+    assert.throws(
+      () => validateDestinationUrl("tel:+15555550100"),
+      /valid HTTP or HTTPS URL/i,
+    );
+    assert.throws(
+      () => validateDestinationUrl("about:blank"),
+      /valid HTTP or HTTPS URL/i,
+    );
+    assert.throws(
+      () => validateDestinationUrl("blob:https://example.com/uuid"),
+      /valid HTTP or HTTPS URL/i,
+    );
+    assert.throws(
+      () => validateDestinationUrl("/relative/path"),
+      /valid HTTP or HTTPS URL/i,
+    );
+    assert.throws(
+      () => validateDestinationUrl("example.com/path"),
+      /valid HTTP or HTTPS URL/i,
+    );
+    assert.throws(
+      () => validateDestinationUrl("https://"),
+      /valid HTTP or HTTPS URL/i,
+    );
+    assert.throws(() => validateDestinationUrl(""), /valid HTTP or HTTPS URL/i);
+    assert.throws(() => validateDestinationUrl("   "), /valid HTTP or HTTPS URL/i);
+  });
+
+  it("rejects credential-bearing destinations", () => {
     assert.throws(
       () =>
         validateDestinationUrl("https://user:pass@claim.getoblic.com/a"),
       /credentials/i,
     );
     assert.throws(
-      () => validateDestinationUrl("https://claim.getoblic.com:8443/a"),
-      /port/i,
+      () => validateDestinationUrl("https://user@example.com/path"),
+      /credentials/i,
+    );
+    assert.throws(
+      () =>
+        validateDestinationUrl("https://user:password@example.com/path"),
+      /credentials/i,
     );
   });
 
@@ -221,6 +316,22 @@ describe("GetOblic Links — validation", () => {
         slug: "demo",
       }),
       { url: "https://claim.getoblic.com/path", slug: "demo" },
+    );
+    assert.deepEqual(
+      parseCreateLinkBody({
+        url: "https://example.com/products/item?id=123&utm_source=getoblic#details",
+        slug: "ext1",
+      }),
+      {
+        url: "https://example.com/products/item?id=123&utm_source=getoblic#details",
+        slug: "ext1",
+      },
+    );
+    assert.deepEqual(
+      parseUpdateLinkBody({
+        url: "http://example.com/page",
+      }),
+      { url: "http://example.com/page" },
     );
     assert.deepEqual(parseUpdateLinkBody({ disabled: true }), {
       disabled: true,
@@ -568,6 +679,25 @@ describe("GetOblic Links — Worker client normalization", () => {
     assert.equal(mixed.short_url, "https://link.getoblic.com/DanielMix");
   });
 
+  it("preserves external destination path, query, and fragment from Worker payloads", () => {
+    const external =
+      "https://example.com/products/item?id=123&utm_source=getoblic#details";
+    const record = normalizeWorkerLink(
+      {
+        success: true,
+        slug: "ext-dest",
+        short_url: "https://link.getoblic.com/ext-dest",
+        destination_url: external,
+        created_at: "2026-07-26T00:00:00.000Z",
+        expires_at: null,
+        disabled: false,
+      },
+      "https://link.getoblic.com",
+    );
+    assert.equal(record.url, external);
+    assert.equal(record.short_url, "https://link.getoblic.com/ext-dest");
+  });
+
   it("ignores Worker-provided workers.dev short_url when building canonical URL", () => {
     const record = normalizeWorkerLink(
       {
@@ -689,6 +819,49 @@ describe("GetOblic Links — Worker client fetch", () => {
     const body = String(calls[0]?.init?.body);
     assert.match(body, /"url":"https:\/\/claim\.getoblic\.com\/new"/);
     assert.doesNotMatch(body, /"destination"/);
+  });
+
+  it("forwards an external destination to the Worker without rewriting it", async () => {
+    process.env.GETOBLIC_LINKS_BASE_URL = "https://link.getoblic.com";
+    process.env.GETOBLIC_LINKS_API_KEY = "test-secret-key";
+
+    const destination =
+      "https://example.com/products/item?id=123&utm_source=getoblic#details";
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+    globalThis.fetch = (async (input, init) => {
+      calls.push({ url: String(input), init });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          slug: "ext1",
+          short_url: "https://link.getoblic.com/ext1",
+          destination_url: destination,
+          created_at: "2026-07-26T00:00:00.000Z",
+          expires_at: null,
+          disabled: false,
+        }),
+        {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }) as typeof fetch;
+
+    const { createGetOblicLink } = await import(
+      "../../lib/getoblic-links/server"
+    );
+    const link = await createGetOblicLink({
+      url: destination,
+      slug: "ext1",
+    });
+
+    assert.equal(link.url, destination);
+    assert.equal(link.short_url, "https://link.getoblic.com/ext1");
+    const body = String(calls[0]?.init?.body);
+    assert.match(
+      body,
+      /"url":"https:\/\/example\.com\/products\/item\?id=123&utm_source=getoblic#details"/,
+    );
   });
 
   it("create normalizes short_url to public base even when Worker returns workers.dev", async () => {
@@ -888,6 +1061,19 @@ describe("GetOblic Links — API route and Identity contracts", () => {
     assert.match(server, /cache:\s*"no-store"/);
     assert.doesNotMatch(server, /body\.destination\s*=/);
     assert.doesNotMatch(server, /body\.enabled\s*=/);
+  });
+
+  it("destination validation no longer restricts GetOblic hostnames", () => {
+    const validation = read("lib/getoblic-links/validation.ts");
+    const templates = read("lib/getoblic-links/templates.ts");
+    const card = read("components/identity/GetOblicLinksCard.tsx");
+    assert.doesNotMatch(validation, /isApprovedGetOblicHostname/);
+    assert.doesNotMatch(validation, /approved GetOblic hostname/);
+    assert.doesNotMatch(validation, /HTTPS GetOblic URL/);
+    assert.match(validation, /parsed\.protocol !== "http:"/);
+    assert.match(validation, /parsed\.protocol !== "https:"/);
+    assert.doesNotMatch(templates, /approved GetOblic HTTPS/);
+    assert.match(card, /Destination URL/);
   });
 
   it("client card does not reference the Worker API key", () => {

@@ -21,12 +21,6 @@ const BLOCKED_DESTINATION_PROTOCOLS = new Set([
   "blob:",
 ]);
 
-/** Approved GetOblic hostnames: apex and any subdomain of getoblic.com. */
-export function isApprovedGetOblicHostname(hostname: string): boolean {
-  const host = hostname.trim().toLowerCase().replace(/\.$/, "");
-  return host === "getoblic.com" || host.endsWith(".getoblic.com");
-}
-
 export function assertBodyWithinLimit(
   contentLengthHeader: string | null,
   rawBody: string,
@@ -82,15 +76,15 @@ export function validateOptionalSlug(value: unknown): string | undefined {
 }
 
 /**
- * Match Worker destination rules:
- * HTTPS only, approved GetOblic hostnames, no credentials, no ports,
- * no javascript/data/file schemes.
+ * Destination rules for GetOblic Links:
+ * absolute HTTP or HTTPS URL, valid hostname, no credentials,
+ * no javascript/data/file schemes. Hostname and ports are not restricted.
  */
 export function validateDestinationUrl(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) {
     throw new GetOblicWorkerError(
       "VALIDATION",
-      "A valid HTTPS GetOblic URL is required.",
+      "Enter a valid HTTP or HTTPS URL.",
       400,
     );
   }
@@ -102,7 +96,7 @@ export function validateDestinationUrl(value: unknown): string {
     if (lower.startsWith(protocol)) {
       throw new GetOblicWorkerError(
         "VALIDATION",
-        "Destination URL scheme is not allowed.",
+        "Enter a valid HTTP or HTTPS URL.",
         400,
       );
     }
@@ -114,15 +108,15 @@ export function validateDestinationUrl(value: unknown): string {
   } catch {
     throw new GetOblicWorkerError(
       "VALIDATION",
-      "Destination URL is not a valid absolute URL.",
+      "Enter a valid HTTP or HTTPS URL.",
       400,
     );
   }
 
-  if (parsed.protocol !== "https:") {
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new GetOblicWorkerError(
       "VALIDATION",
-      "Destination URL must use HTTPS.",
+      "Enter a valid HTTP or HTTPS URL.",
       400,
     );
   }
@@ -130,7 +124,7 @@ export function validateDestinationUrl(value: unknown): string {
   if (!parsed.hostname) {
     throw new GetOblicWorkerError(
       "VALIDATION",
-      "Destination URL must include a hostname.",
+      "Enter a valid HTTP or HTTPS URL.",
       400,
     );
   }
@@ -139,22 +133,6 @@ export function validateDestinationUrl(value: unknown): string {
     throw new GetOblicWorkerError(
       "VALIDATION",
       "Destination URL must not include credentials.",
-      400,
-    );
-  }
-
-  if (parsed.port) {
-    throw new GetOblicWorkerError(
-      "VALIDATION",
-      "Destination URL must not include a port.",
-      400,
-    );
-  }
-
-  if (!isApprovedGetOblicHostname(parsed.hostname)) {
-    throw new GetOblicWorkerError(
-      "VALIDATION",
-      "Destination URL must use an approved GetOblic hostname.",
       400,
     );
   }
