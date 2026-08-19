@@ -1,0 +1,53 @@
+import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, it } from "node:test";
+import { socialPlannerGenerationModeLabel } from "../../components/socialPlanner/socialPlannerLabels";
+
+const ROOT = process.cwd();
+
+function read(relativePath: string): string {
+  return readFileSync(join(ROOT, relativePath), "utf8");
+}
+
+describe("Social Planner L9 Ask Athena UI", () => {
+  it("renders Ask Athena in the reserved slot on Ready calendars only", () => {
+    const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
+    const panel = read("components/socialPlanner/SocialPlannerAskAthenaPanel.tsx");
+    assert.match(detail, /data-ask-athena-slot/);
+    assert.match(detail, /SocialPlannerAskAthenaPanel/);
+    assert.doesNotMatch(detail, /Ask Athena About This Calendar/);
+    assert.match(panel, /Ask Athena About This Calendar/);
+    assert.match(panel, /Send/);
+    assert.match(panel, /Apply Athena&apos;s Suggestions/);
+    assert.match(panel, /messages.length > 0 && onApply/);
+    assert.doesNotMatch(panel, /sessionStorage/);
+    const processingBlock = detail.slice(
+      detail.indexOf("if (isSocialPlannerInFlight"),
+      detail.indexOf("Processing Failed"),
+    );
+    assert.doesNotMatch(processingBlock, /<SocialPlannerAskAthenaPanel/);
+  });
+
+  it("Apply posts to conversation/apply, then selects the derivative and updates ?id=", () => {
+    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const client = read("components/socialPlanner/socialPlannerClient.ts");
+    assert.match(workspace, /applySocialPlannerConversationRequest\(detail.id\)/);
+    assert.match(workspace, /selectCalendar\(created.id, nextDetail\)/);
+    assert.match(workspace, /socialPlannerWorkspacePath/);
+    assert.match(client, /\/api\/social-planner\/\$\{sourceId\}\/conversation\/apply/);
+    assert.match(client, /202/);
+    assert.doesNotMatch(workspace, /applySocialPlannerConversationRequest\(.*message/);
+  });
+
+  it("labels conversation_revision as Conversation Revision and keeps history flat", () => {
+    assert.equal(
+      socialPlannerGenerationModeLabel("conversation_revision"),
+      "Conversation Revision",
+    );
+    const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
+    assert.match(history, /socialPlannerGenerationModeLabel/);
+    assert.doesNotMatch(history, /family tree|derived from/i);
+    assert.equal(existsSync(join(ROOT, "app/social-planner/conversation")), false);
+  });
+});

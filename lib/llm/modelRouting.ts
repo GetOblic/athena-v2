@@ -23,7 +23,16 @@ export type AthenaExtendedLLMStage =
   | "seo_executive_assessment"
   | "seo_section_analysis"
   | "seo_roadmap"
-  | "estimate_package";
+  | "estimate_package"
+  | "social_calendar_strategy"
+  | "social_calendar_assets"
+  | "social_calendar_repair"
+  | "social_calendar_diversity_repair"
+  | "social_calendar_think_differently_repair"
+  | "social_calendar_conversation"
+  | "social_calendar_revision_brief"
+  | "social_calendar_conversation_revision"
+  | "social_calendar_conversation_revision_repair";
 
 export type LLMModelRoleConfig = {
   model: string;
@@ -107,6 +116,19 @@ const EXTENDED_STAGE_ROLE: Record<
   seo_roadmap: "premiumStrategicOutput",
   // Licensee Athena Estimate package (V26) — additive; does not alter existing stage mappings.
   estimate_package: "premiumStrategicOutput",
+  // Organization-level Social Planner (V29 L4) — additive; does not alter existing stage mappings.
+  social_calendar_strategy: "premiumStrategicOutput",
+  social_calendar_assets: "premiumStrategicOutput",
+  social_calendar_repair: "analysis",
+  // Organization-level Social Planner (V29 L5) — additive; does not alter existing stage mappings.
+  social_calendar_diversity_repair: "analysis",
+  // Organization-level Social Planner (V29 L8) — additive; does not alter existing stage mappings.
+  social_calendar_think_differently_repair: "analysis",
+  // Organization-level Social Planner (V29 L9) — additive; does not alter existing stage mappings.
+  social_calendar_conversation: "analysis",
+  social_calendar_revision_brief: "analysis",
+  social_calendar_conversation_revision: "premiumStrategicOutput",
+  social_calendar_conversation_revision_repair: "analysis",
 };
 
 /** Stage used for Think Differently Deployment Assets (premium Claude family). */

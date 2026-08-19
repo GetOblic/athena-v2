@@ -19,8 +19,8 @@ export async function callGeminiViaOpenRouter(input: {
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
   requestId: string;
   organizationId: string;
-  /** Conversational scopes only — Estimate uses Flash, not estimate_package. */
-  scope: "identity" | "getting-started" | "estimate";
+  /** Conversational scopes only — Estimate / Social Planner use Flash, not generation stages. */
+  scope: "identity" | "getting-started" | "estimate" | "social-planner";
   promptHash: string;
   contextHash: string;
   promptCharCount: number;
@@ -47,7 +47,9 @@ export async function callGeminiViaOpenRouter(input: {
       ? "identity_conversation"
       : input.scope === "estimate"
         ? "estimate_conversation"
-        : "getting_started_conversation";
+        : input.scope === "social-planner"
+          ? "social_planner_conversation"
+          : "getting_started_conversation";
 
   try {
     const response = await fetch(

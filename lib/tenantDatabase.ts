@@ -19,6 +19,9 @@ export const TENANT_TABLES = [
   "personas",
   "ad_campaigns",
   "seo_reports",
+  "athena_social_calendars",
+  "athena_social_calendar_generation_jobs",
+  "athena_social_calendar_messages",
 ] as const;
 
 export type TenantTable = (typeof TENANT_TABLES)[number];

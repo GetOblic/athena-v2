@@ -109,6 +109,9 @@ describe("persona stage-2 navigation", () => {
       "Discussions",
     ]);
     assert.deepEqual(labels.slice(personaIndex + 1), [
+      "Ads",
+      "SEO Intelligence",
+      "Social Planner",
       "Opportunities",
       "Briefings",
     ]);

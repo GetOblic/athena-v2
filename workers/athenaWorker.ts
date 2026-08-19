@@ -10,9 +10,11 @@
  * 4. claimAndExecuteNextAdGenerationJob — Organization Ads (only when 2+3 idle)
  * 5. claimAndExecuteNextSeoGenerationJob — Organization SEO Intelligence (only when 2+3+4 idle)
  * 6. claimAndExecuteNextEstimateGenerationJob — Licensee Athena Estimate (only when 2+3+4+5 idle)
+ * 7. claimAndExecuteNextSocialCalendarGenerationJob — Organization Social Planner (only when 2+3+4+5+6 idle)
  *
- * Rationale: existing generation, deep-scrape, Ads, and SEO jobs cannot be starved by Estimate.
- * Ads/SEO/Estimate run on idle capacity so they are not permanently starved under normal load.
+ * Rationale: existing generation, deep-scrape, Ads, SEO, and Estimate jobs cannot be starved
+ * by Social Planner. Ads/SEO/Estimate/Social Planner run on idle capacity so they are not
+ * permanently starved under normal load.
  * No second PM2 process; concurrency remains forced to 1.
  */
 import {
@@ -26,6 +28,7 @@ import {
 import { claimAndExecuteNextAdGenerationJob } from "@/services/ads/adsGenerationJobs/adGenerationJobExecutor";
 import { claimAndExecuteNextEstimateGenerationJob } from "@/services/estimate/estimateGenerationJobs/estimateGenerationJobExecutor";
 import { claimAndExecuteNextSeoGenerationJob } from "@/services/seo/seoGenerationJobs/seoGenerationJobExecutor";
+import { claimAndExecuteNextSocialCalendarGenerationJob } from "@/services/socialPlanner/socialCalendarGenerationJobs/socialCalendarGenerationJobExecutor";
 import { logChromiumAvailabilityAtStartup } from "@/services/websiteLearning/deepScrape/crawler/chromiumCheck";
 import {
   claimAndExecuteNextDeepScrapeJob,
@@ -147,7 +150,22 @@ async function main(): Promise<void> {
       const didEstimateWork = await estimateWork;
       currentWork = null;
 
-      if (!didEstimateWork) {
+      if (didEstimateWork) {
+        continue;
+      }
+
+      // Social Planner only when generation + deep scrape + Ads + SEO + Estimate queues are idle.
+      const socialPlannerWork = claimAndExecuteNextSocialCalendarGenerationJob(
+        workerId,
+        {
+          shouldStop: () => stopping,
+        },
+      );
+      currentWork = socialPlannerWork;
+      const didSocialPlannerWork = await socialPlannerWork;
+      currentWork = null;
+
+      if (!didSocialPlannerWork) {
         await sleep(config.pollIntervalMs);
       }
     } catch (error) {
