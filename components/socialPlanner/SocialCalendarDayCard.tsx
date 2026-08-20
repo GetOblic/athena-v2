@@ -2,9 +2,11 @@
 
 import { useId, useState } from "react";
 import type { SocialCalendarAssetV1 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
+import { CopyButton } from "@/components/deployment/CopyButton";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import { SocialCalendarProductionSpec, SocialPlannerCopyableField } from "@/components/socialPlanner/SocialCalendarProductionSpec";
 import { formatSocialPlannerDayHeader } from "@/components/socialPlanner/socialPlannerDates";
+import { serializeSocialCalendarAsset } from "@/components/socialPlanner/socialPlannerAssetCopyText";
 import {
   socialPlannerAssetTypeLabel,
   socialPlannerObjectiveLabel,
@@ -22,14 +24,25 @@ export function SocialCalendarDayCard({ asset }: SocialCalendarDayCardProps) {
   const selectedAnchors = asset.calendarAnchors.filter((anchor) =>
     Boolean(anchor.label?.trim()),
   );
+  const assetCopyText = serializeSocialCalendarAsset(asset);
 
   return (
     <article
       className={`min-w-0 rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5 sm:p-7`}
     >
       <header className="space-y-3">
-        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-orange)]">
-          {formatSocialPlannerDayHeader(asset.weekday, asset.date)}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-orange)]">
+            {formatSocialPlannerDayHeader(asset.weekday, asset.date)}
+          </div>
+          <div data-asset-actions="">
+            <CopyButton
+              text={assetCopyText}
+              tracking={null}
+              showContinue
+              assetType={asset.assetType}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/75">
