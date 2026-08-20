@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { SOCIAL_PLANNER_SOCIAL_MEMORY_SCHEMA_VERSION } from "../../services/socialPlanner/diversity/socialPlannerSocialMemoryTypes";
 import { SOCIAL_PLANNER_DIVERSITY_ALGORITHM_VERSION } from "../../services/socialPlanner/diversity/socialPlannerSocialMemoryTypes";
 import {
+  SocialCalendarPackageValidationError,
   SocialPlannerGenerationError,
   SocialPlannerSocialMemoryError,
 } from "../../services/socialPlanner/generation/socialPlannerGenerationErrors";
@@ -121,6 +122,19 @@ describe("Social Planner L6 executor", () => {
       ),
     );
     assert.equal(intelligence.retryable, false);
+
+    const packageValidation = classifySocialCalendarExecutorError(
+      new SocialCalendarPackageValidationError("structural", [
+        "assets[0].productionSpec.slides must be an array.",
+        "assets[0].productionSpec.visualDirection is required.",
+      ]),
+    );
+    assert.equal(packageValidation.retryable, false);
+    assert.equal(packageValidation.code, "PACKAGE_VALIDATION_FAILED");
+    assert.deepEqual(packageValidation.failures, [
+      "assets[0].productionSpec.slides must be an array.",
+      "assets[0].productionSpec.visualDirection is required.",
+    ]);
   });
 
   it("loads the calendar, composes L3, generates once, and completes with three payloads", async () => {
@@ -398,6 +412,74 @@ describe("Social Planner L6 executor", () => {
       },
     );
     assert.equal(permanent, "failed");
+  });
+
+  it("persists bounded validation failures in error_metadata and worker logs", async () => {
+    const failures = [
+      "assets[0].productionSpec.slides must be an array.",
+      "assets[0].productionSpec.visualDirection is required.",
+    ];
+    let failInput: Record<string, unknown> | null = null;
+    const logs: unknown[] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      logs.push(args);
+    };
+
+    try {
+      const status = await executeClaimedSocialCalendarGenerationJob(
+        "worker-1",
+        { job: jobRow(), claimToken: "token-1" },
+        {
+          deps: {
+            getCalendar: async () => calendarRecord(),
+            loadGeographyEvidence: async () => ({}),
+            composeIntelligence: async () => buildGenerationContext(),
+            generate: async () => {
+              throw new SocialPlannerGenerationError({
+                code: "REPAIR_VALIDATION_FAILED",
+                message: failures[0],
+                stage: "repair_validation",
+                retryable: false,
+                failures,
+              });
+            },
+            heartbeat: async () => jobRow(),
+            complete: async () => jobRow(),
+            fail: async (input) => {
+              failInput = input as unknown as Record<string, unknown>;
+              return {
+                ...jobRow(),
+                status: "failed",
+                error_code: input.errorCode,
+                error_message: input.errorMessage,
+                error_metadata: input.errorMetadata ?? null,
+              };
+            },
+          },
+        },
+      );
+
+      assert.equal(status, "failed");
+      assert.ok(failInput);
+      assert.equal(failInput.errorCode, "REPAIR_VALIDATION_FAILED");
+      assert.equal(failInput.errorMessage, failures[0]);
+      assert.deepEqual(failInput.errorMetadata, { failures });
+      const executeFailed = logs.find(
+        (entry) =>
+          Array.isArray(entry) &&
+          entry[0] === "[ATHENA_SOCIAL_PLANNER_JOBS] execute_failed",
+      ) as unknown[] | undefined;
+      assert.ok(executeFailed);
+      const payload = executeFailed[1] as Record<string, unknown>;
+      assert.equal(payload.code, "REPAIR_VALIDATION_FAILED");
+      assert.equal(payload.message, failures[0]);
+      assert.deepEqual(payload.failures, failures);
+      assert.equal("prompt" in payload, false);
+      assert.doesNotMatch(JSON.stringify(payload), /generateReview|systemPrompt/);
+    } finally {
+      console.error = originalError;
+    }
   });
 
   it("builds compact provenance without dumping L3 context or Social Memory", () => {

@@ -408,4 +408,202 @@ describe("Social Planner L4 package validation", () => {
     const asset = buildValidAsset(context, 3);
     assert.equal(asset.date, context.calendarContext.period.dates[3]);
   });
+
+  it("rejects LLM-shaped carousel productionSpec missing slides", () => {
+    const context = buildGenerationContext();
+    const raw = buildValidPackageRaw(context, {
+      0: {
+        productionSpec: {
+          kind: "carousel",
+          visualDirection: "Warm clinic photography",
+          designPrompt: "Soft daylight carousel",
+        } as never,
+      },
+    });
+    const error = expectFailure(raw, context);
+    assert.ok(
+      error.failures.some((failure) =>
+        /assets\[0\]\.productionSpec\.slides must be an array/i.test(failure),
+      ),
+    );
+  });
+
+  it("rejects LLM-shaped carousel productionSpec missing visualDirection", () => {
+    const context = buildGenerationContext();
+    const raw = buildValidPackageRaw(context, {
+      0: {
+        productionSpec: {
+          kind: "carousel",
+          designPrompt: "Soft daylight carousel",
+          slides: [
+            { index: 1, headline: "One", body: "Body one", visualNote: "Note one" },
+            { index: 2, headline: "Two", body: "Body two", visualNote: "Note two" },
+            { index: 3, headline: "Three", body: "Body three", visualNote: "Note three" },
+          ],
+        } as never,
+      },
+    });
+    const error = expectFailure(raw, context);
+    assert.ok(
+      error.failures.some((failure) =>
+        /assets\[0\]\.productionSpec\.visualDirection is required/i.test(failure),
+      ),
+    );
+  });
+
+  it("rejects LLM-shaped productionSpec kind image", () => {
+    const context = buildGenerationContext();
+    const raw = buildValidPackageRaw(context, {
+      0: {
+        productionSpec: { kind: "image", imagePrompt: "clinic photo" } as never,
+      },
+    });
+    const error = expectFailure(raw, context);
+    assert.ok(
+      error.failures.some((failure) =>
+        /kind must be carousel for asset type carousel|kind is unsupported/i.test(
+          failure,
+        ),
+      ),
+    );
+  });
+
+  it("rejects LLM-shaped video productionSpec missing shotPlan", () => {
+    const context = buildGenerationContext();
+    const raw = buildValidPackageRaw(context, {
+      1: {
+        productionSpec: {
+          kind: "video",
+          videoConcept: "Clinician to camera",
+          hook: "Open on the weekly problem",
+          environment: "Treatment room",
+          productionDirection: "Vertical handheld",
+          visualTone: "Documentary",
+        } as never,
+      },
+    });
+    const error = expectFailure(raw, context);
+    assert.ok(
+      error.failures.some((failure) =>
+        /assets\[1\]\.productionSpec\.shotPlan must be an array|must contain 2-8 shots/i.test(
+          failure,
+        ),
+      ),
+    );
+  });
+
+  it("rejects LLM-shaped document productionSpec missing sections", () => {
+    const context = buildGenerationContext();
+    const raw = buildValidPackageRaw(context, {
+      3: {
+        productionSpec: {
+          kind: "document",
+          documentConcept: "First-visit checklist",
+          designPrompt: "One-page PDF",
+        } as never,
+      },
+    });
+    const error = expectFailure(raw, context);
+    assert.ok(
+      error.failures.some((failure) =>
+        /assets\[3\]\.productionSpec\.sections must be an array|must contain 2-8 sections/i.test(
+          failure,
+        ),
+      ),
+    );
+  });
+
+  it("rejects LLM-shaped engagement poll/quiz with invalid options", () => {
+    const context = buildGenerationContext();
+    const poll = expectFailure(
+      buildValidPackageRaw(context, {
+        4: {
+          productionSpec: {
+            kind: "engagement",
+            engagementType: "poll",
+            prompt: "When is the easiest time for a cleaning?",
+            options: ["Only one choice"],
+          } as never,
+        },
+      }),
+      context,
+    );
+    assert.ok(
+      poll.failures.some((failure) =>
+        /options must contain 2-4 choices for poll/i.test(failure),
+      ),
+    );
+
+    const quiz = expectFailure(
+      buildValidPackageRaw(context, {
+        4: {
+          assetType: "quiz",
+          productionSpec: {
+            kind: "engagement",
+            engagementType: "quiz",
+            prompt: "Which sign means a cleaning is overdue?",
+            options: [],
+          } as never,
+        },
+      }),
+      context,
+    );
+    assert.ok(
+      quiz.failures.some((failure) =>
+        /options must contain 2-4 choices for quiz/i.test(failure),
+      ),
+    );
+  });
+
+  it("rejects convert/promote assets without a CTA", () => {
+    const context = buildGenerationContext();
+    const error = expectFailure(
+      buildValidPackageRaw(context, {
+        2: { primaryObjective: "convert", cta: null },
+      }),
+      context,
+    );
+    assert.ok(
+      error.failures.some((failure) =>
+        /assets\[2\]\.cta is required for convert/i.test(failure),
+      ),
+    );
+  });
+
+  it("rejects whyThisWeekWorks with an invalid sentence count", () => {
+    const context = buildGenerationContext();
+    const oneSentence = expectFailure(
+      {
+        ...buildValidPackageRaw(context),
+        whyThisWeekWorks:
+          "This week is a single run-on explanation of education, community, and one practical checklist without a second sentence.",
+      },
+      context,
+    );
+    assert.ok(
+      oneSentence.failures.some((failure) =>
+        /whyThisWeekWorks must be 2-4 concise sentences/i.test(failure),
+      ),
+    );
+  });
+
+  it("rejects calendarReason when no anchors are selected", () => {
+    const context = buildGenerationContext();
+    const error = expectFailure(
+      buildValidPackageRaw(context, {
+        0: {
+          calendarAnchors: [],
+          calendarReason: "Invented holiday relevance without a candidate.",
+        },
+      }),
+      context,
+    );
+    assert.ok(
+      error.failures.some((failure) =>
+        /calendarReason must be null when no calendar anchors are selected/i.test(
+          failure,
+        ),
+      ),
+    );
+  });
 });

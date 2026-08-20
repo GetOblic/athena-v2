@@ -19,6 +19,10 @@ export const SOCIAL_CALENDAR_GENERATION_JOB_RETRY_BACKOFF_MS = [
   30_000, 120_000,
 ] as const;
 
+/** App-side bounds for job error_metadata.failures (error_message is already left(..., 1000)). */
+export const SOCIAL_CALENDAR_ERROR_METADATA_FAILURES_MAX = 48;
+export const SOCIAL_CALENDAR_ERROR_METADATA_FAILURE_MAX_CHARS = 1000;
+
 export type AthenaSocialCalendarGenerationJob = {
   id: string;
   organization_id: string;

@@ -34,6 +34,7 @@ import type { SocialPlannerGeographyEvidence } from "@/services/socialPlanner/ge
 import { SocialCalendarContextError } from "@/services/socialPlanner/calendar/socialCalendarContextTypes";
 import { validateSocialCalendarContext } from "@/services/socialPlanner/calendar/validateSocialCalendarContext";
 import {
+  SocialCalendarPackageValidationError,
   SocialPlannerGenerationError,
   SocialPlannerSocialMemoryError,
 } from "@/services/socialPlanner/generation/socialPlannerGenerationErrors";
@@ -54,7 +55,11 @@ import {
   failSocialCalendarGenerationJobWithClaim,
   heartbeatSocialCalendarGenerationJob,
 } from "@/services/socialPlanner/socialCalendarGenerationJobs/socialCalendarGenerationJobService";
-import type { AthenaSocialCalendarGenerationJob } from "@/services/socialPlanner/socialCalendarGenerationJobs/socialCalendarGenerationJobTypes";
+import {
+  SOCIAL_CALENDAR_ERROR_METADATA_FAILURES_MAX,
+  SOCIAL_CALENDAR_ERROR_METADATA_FAILURE_MAX_CHARS,
+  type AthenaSocialCalendarGenerationJob,
+} from "@/services/socialPlanner/socialCalendarGenerationJobs/socialCalendarGenerationJobTypes";
 
 export const SOCIAL_CALENDAR_EXECUTOR_STAGES = [
   "queued",
@@ -101,11 +106,23 @@ export type SocialCalendarExecutorDeps = {
   heartbeat?: typeof heartbeatSocialCalendarGenerationJob;
 };
 
+export function boundSocialCalendarValidationFailures(
+  failures: string[],
+): string[] {
+  return failures
+    .filter((failure) => typeof failure === "string" && failure.trim())
+    .slice(0, SOCIAL_CALENDAR_ERROR_METADATA_FAILURES_MAX)
+    .map((failure) =>
+      failure.slice(0, SOCIAL_CALENDAR_ERROR_METADATA_FAILURE_MAX_CHARS),
+    );
+}
+
 export function classifySocialCalendarExecutorError(error: unknown): {
   code: string;
   message: string;
   retryable: boolean;
   stage: string;
+  failures: string[];
 } {
   if (error instanceof SocialCalendarExecutorValidationError) {
     return {
@@ -113,6 +130,16 @@ export function classifySocialCalendarExecutorError(error: unknown): {
       message: error.message.slice(0, 1000),
       retryable: false,
       stage: "failed",
+      failures: [],
+    };
+  }
+  if (error instanceof SocialCalendarPackageValidationError) {
+    return {
+      code: error.code,
+      message: error.message.slice(0, 1000),
+      retryable: false,
+      stage: "validation",
+      failures: boundSocialCalendarValidationFailures(error.failures),
     };
   }
   if (error instanceof SocialPlannerGenerationError) {
@@ -121,6 +148,7 @@ export function classifySocialCalendarExecutorError(error: unknown): {
       message: error.message.slice(0, 1000),
       retryable: error.retryable,
       stage: error.stage,
+      failures: boundSocialCalendarValidationFailures(error.failures),
     };
   }
   if (error instanceof SocialPlannerSocialMemoryError) {
@@ -129,6 +157,7 @@ export function classifySocialCalendarExecutorError(error: unknown): {
       message: error.message.slice(0, 1000),
       retryable: error.retryable,
       stage: "social_memory",
+      failures: [],
     };
   }
   if (error instanceof SocialPlannerIntelligenceError) {
@@ -137,6 +166,7 @@ export function classifySocialCalendarExecutorError(error: unknown): {
       message: error.message.slice(0, 1000),
       retryable: false,
       stage: "intelligence",
+      failures: [],
     };
   }
   if (
@@ -150,6 +180,7 @@ export function classifySocialCalendarExecutorError(error: unknown): {
       message: error.message.slice(0, 1000),
       retryable: false,
       stage: "calendar_context",
+      failures: [],
     };
   }
 
@@ -169,6 +200,7 @@ export function classifySocialCalendarExecutorError(error: unknown): {
     message: message.slice(0, 1000),
     retryable,
     stage: "failed",
+    failures: [],
   };
 }
 
@@ -645,6 +677,10 @@ export async function executeClaimedSocialCalendarGenerationJob(
       errorMessage: classified.message,
       retryable: classified.retryable,
       failedStage: classified.stage,
+      errorMetadata:
+        classified.failures.length > 0
+          ? { failures: classified.failures }
+          : null,
     });
 
     console.error("[ATHENA_SOCIAL_PLANNER_JOBS] execute_failed", {
@@ -654,6 +690,8 @@ export async function executeClaimedSocialCalendarGenerationJob(
       code: classified.code,
       retryable: classified.retryable,
       status: failed?.status ?? null,
+      message: classified.message,
+      failures: classified.failures,
     });
 
     if (failed?.status === "retryable") return "retryable";

@@ -12,6 +12,13 @@ import {
   generateSocialCalendarPackage,
   parseSocialPlannerStructuredOutput,
 } from "../../services/socialPlanner/generation/socialPlannerGenerationService";
+import {
+  buildSocialPlannerAssetPrompt,
+  buildSocialPlannerPackageOutputContract,
+  buildSocialPlannerRepairPrompt,
+} from "../../services/socialPlanner/generation/socialPlannerGenerationPrompts";
+import { validateAndNormalizeSocialCalendarPackage } from "../../services/socialPlanner/generation/validateSocialCalendarPackage";
+import { testMetadata } from "./socialPlannerGenerationFixtures";
 import { validateSocialPlannerIntelligence } from "../../services/socialPlanner/intelligence/validateSocialPlannerIntelligence";
 import {
   buildGenerationContext,
@@ -164,7 +171,10 @@ describe("Social Planner L4 generation pipeline", () => {
       SOCIAL_PLANNER_REPAIR_PROMPT_VERSION,
     );
     assert.equal(script.prompts.length, 3);
-    assert.match(script.prompts[2], /Duplicate normalized hook|Fix only these failures/i);
+    assert.match(script.prompts[2], /Duplicate normalized hook/i);
+    assert.match(script.prompts[2], /COMPLETE corrected weekly Social Calendar package/i);
+    assert.match(script.prompts[2], /visualDirection/);
+    assert.match(script.prompts[2], /shotPlan/);
   });
 
   it("throws REPAIR_VALIDATION_FAILED after one unsuccessful repair", async () => {
@@ -342,5 +352,118 @@ describe("Social Planner L4 generation pipeline", () => {
     );
     assert.doesNotMatch(service, /athena_social_calendars/);
     assert.doesNotMatch(service, /\.from\(/);
+  });
+
+  it("generation and repair prompts share the complete productionSpec contract", () => {
+    const context = buildGenerationContext();
+    const contract = buildSocialPlannerPackageOutputContract();
+    const assetPrompt = buildSocialPlannerAssetPrompt({
+      context,
+      userGuidance: null,
+      strategy: buildValidStrategyRaw(context) as never,
+    });
+    const repairPrompt = buildSocialPlannerRepairPrompt({
+      context,
+      userGuidance: null,
+      strategy: buildValidStrategyRaw(context) as never,
+      invalidPackage: { schemaVersion: "social_calendar_package_v1" },
+      failures: ["assets[0].productionSpec.slides must be an array."],
+    });
+
+    assert.ok(contract.includes('"kind": "static"'));
+    assert.ok(contract.includes('"kind": "carousel"'));
+    assert.ok(contract.includes("visualDirection"));
+    assert.ok(contract.includes("slides MUST be an array of 3-8"));
+    assert.ok(contract.includes("shotPlan MUST be an array of 2-8"));
+    assert.ok(contract.includes("sections MUST be an array of 2-8"));
+    assert.ok(contract.includes("options are REQUIRED only for poll and quiz"));
+    assert.ok(contract.includes('Never emit kind "image"'));
+    assert.ok(contract.includes("cta is REQUIRED when primaryObjective is convert or promote"));
+    assert.ok(contract.includes("whyThisWeekWorks 80-700 chars AND 2-4 concise sentences"));
+    assert.ok(contract.includes("calendarReason MUST be null or omitted when calendarAnchors is empty"));
+    assert.ok(assetPrompt.includes(contract));
+    assert.ok(repairPrompt.includes(contract));
+    assert.match(repairPrompt, /COMPLETE corrected weekly Social Calendar package/i);
+    assert.match(repairPrompt, /entire corrected package, not a patch/i);
+    assert.match(repairPrompt, /All seven assets must remain present/i);
+  });
+
+  it("repairs a production-shaped carousel contract failure into a valid package", async () => {
+    const context = buildGenerationContext();
+    const invalid = buildValidPackageRaw(context, {
+      0: {
+        productionSpec: {
+          kind: "carousel",
+          visualDirection: "Warm clinic photography",
+          designPrompt: "Soft daylight carousel",
+        } as never,
+      },
+    });
+    const script = scriptedReview([
+      JSON.stringify(buildValidStrategyRaw(context)),
+      JSON.stringify(invalid),
+      JSON.stringify(buildValidPackageRaw(context)),
+    ]);
+
+    const result = await generateSocialCalendarPackage({
+      context,
+      userGuidance: null,
+      generationMode: "standard",
+      deps: { generateReview: script.generateReview },
+    });
+
+    assert.equal(result.generationProvenance.repairUsed, true);
+    assert.equal(result.package.assets.length, 7);
+    assert.equal(result.package.assets[0].productionSpec.kind, "carousel");
+    assert.match(script.prompts[2], /slides must be an array/i);
+    assert.ok(script.prompts[2].includes(buildSocialPlannerPackageOutputContract()));
+    const validated = validateAndNormalizeSocialCalendarPackage({
+      raw: result.package as unknown as Record<string, unknown>,
+      context,
+      userGuidance: null,
+      metadata: testMetadata(),
+    });
+    assert.equal(validated.assets.length, 7);
+  });
+
+  it("throws REPAIR_VALIDATION_FAILED when repair still omits carousel slides", async () => {
+    const context = buildGenerationContext();
+    const invalid = buildValidPackageRaw(context, {
+      0: {
+        productionSpec: {
+          kind: "carousel",
+          designPrompt: "Soft daylight carousel",
+        } as never,
+      },
+    });
+    const script = scriptedReview([
+      JSON.stringify(buildValidStrategyRaw(context)),
+      JSON.stringify(invalid),
+      JSON.stringify(invalid),
+    ]);
+
+    await assert.rejects(
+      () =>
+        generateSocialCalendarPackage({
+          context,
+          userGuidance: null,
+          generationMode: "standard",
+          deps: { generateReview: script.generateReview },
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof SocialPlannerGenerationError);
+        assert.equal(error.code, "REPAIR_VALIDATION_FAILED");
+        assert.equal(error.stage, "repair_validation");
+        assert.ok(
+          error.failures.some((failure) =>
+            /productionSpec\.slides must be an array|visualDirection is required/i.test(
+              failure,
+            ),
+          ),
+        );
+        return true;
+      },
+    );
+    assert.equal(script.prompts.length, 3);
   });
 });

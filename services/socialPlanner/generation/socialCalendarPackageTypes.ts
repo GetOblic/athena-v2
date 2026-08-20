@@ -16,10 +16,10 @@ export const SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION =
   "social_calendar_package_v1" as const;
 
 export const SOCIAL_PLANNER_ASSET_PROMPT_VERSION =
-  "social_planner_assets_v1" as const;
+  "social_planner_assets_v2" as const;
 
 export const SOCIAL_PLANNER_REPAIR_PROMPT_VERSION =
-  "social_planner_repair_v1" as const;
+  "social_planner_repair_v2" as const;
 
 export const SOCIAL_PLANNER_ASSET_TYPES = [
   "image",

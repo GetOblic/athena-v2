@@ -12,10 +12,14 @@ import {
   SOCIAL_PLANNER_ASSET_PROMPT_VERSION,
   SOCIAL_PLANNER_ASSET_TYPES,
   SOCIAL_PLANNER_CONTENT_ARCHETYPES,
+  SOCIAL_PLANNER_DIVERSITY_DEFAULTS,
+  SOCIAL_PLANNER_ENGAGEMENT_TYPES,
   SOCIAL_PLANNER_OBJECTIVES,
   SOCIAL_PLANNER_PACKAGE_LIMITS,
   SOCIAL_PLANNER_PLATFORMS,
+  SOCIAL_PLANNER_PROMOTIONAL_OBJECTIVES,
   SOCIAL_PLANNER_REPAIR_PROMPT_VERSION,
+  SOCIAL_PLANNER_SOURCE_SIGNAL_TYPES,
 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
 import {
   SOCIAL_PLANNER_STRATEGY_PROMPT_VERSION,
@@ -40,8 +44,11 @@ Return strict JSON only. Do not invent calendar events, prices, statistics, or c
 export const SOCIAL_PLANNER_REPAIR_SYSTEM_PROMPT = `
 You are Athena Social Planner — a bounded repair editor.
 
-Fix only the listed validation failures in the supplied weekly package.
+Return the COMPLETE corrected weekly package as valid JSON.
+Use the listed validation failures as the defects that must be fixed.
 Preserve grounded business facts, selected calendar dates, and the required seven-day structure.
+Fixing one field must not break another validator requirement.
+All seven assets must remain present with a valid family-specific productionSpec.
 Return strict JSON only.
 `.trim();
 
@@ -208,6 +215,158 @@ INTEGRITY RULES:
 `.trim();
 }
 
+const LIMITS = SOCIAL_PLANNER_PACKAGE_LIMITS;
+
+/**
+ * Authoritative package JSON contract shared by asset generation and repair.
+ * Field names, enums, and bounds are copied from the validator/types — not invented.
+ */
+export function buildSocialPlannerPackageOutputContract(): string {
+  return `
+AUTHORITATIVE PACKAGE OUTPUT CONTRACT (validator source of truth):
+Return one JSON object. schemaVersion must be "${SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION}".
+Exactly seven assets, one per supplied calendar date, same order. Weekdays are reconstructed from Calendar Facts.
+
+{
+  "schemaVersion": "${SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION}",
+  "strategySummary": string,
+  "whyThisWeekWorks": string,
+  "assets": [
+    {
+      "date": "YYYY-MM-DD",
+      "weekday": "Monday",
+      "assetType": string,
+      "contentArchetype": string,
+      "primaryObjective": string,
+      "audience": string,
+      "personaIds": string[],
+      "topic": string,
+      "angle": string,
+      "hook": string|null,
+      "concept": string,
+      "calendarAnchors": [{"sourceCandidateId": string, "date": "YYYY-MM-DD", "label": string, "category": string, "scope": string, "reason": string}],
+      "calendarReason": string|null,
+      "productionSpec": object,
+      "socialCopy": string,
+      "cta": string|null,
+      "recommendedPlatforms": string[],
+      "sourceSignals": [{"type": string, "id": string|null}]
+    }
+  ]
+}
+
+ENUMS (exact values only):
+- assetType: ${SOCIAL_PLANNER_ASSET_TYPES.join(", ")}
+- contentArchetype: ${SOCIAL_PLANNER_CONTENT_ARCHETYPES.join(", ")}
+- primaryObjective: ${SOCIAL_PLANNER_OBJECTIVES.join(", ")}
+- recommendedPlatforms: ${SOCIAL_PLANNER_PLATFORMS.join(", ")}
+- sourceSignals.type: ${SOCIAL_PLANNER_SOURCE_SIGNAL_TYPES.join(", ")}
+- productionSpec.kind: static | carousel | video | document | engagement
+- engagementType: ${SOCIAL_PLANNER_ENGAGEMENT_TYPES.join(", ")}
+
+FIELD BUDGETS:
+- strategySummary ≤ ${LIMITS.strategySummaryMaxChars} chars
+- whyThisWeekWorks ${LIMITS.whyThisWeekWorksMinChars}-${LIMITS.whyThisWeekWorksMaxChars} chars AND ${LIMITS.whyThisWeekWorksMinSentences}-${LIMITS.whyThisWeekWorksMaxSentences} concise sentences
+- concept ≤ ${LIMITS.conceptMaxChars}; topic/angle ≤ ${LIMITS.topicMaxChars}; audience ≤ ${LIMITS.audienceMaxChars}
+- hook ≤ ${LIMITS.hookMaxChars} or null; socialCopy ≤ ${LIMITS.socialCopyMaxChars}; cta ≤ ${LIMITS.ctaMaxChars} or null
+- calendarReason ≤ ${LIMITS.calendarReasonMaxChars} or null
+- production prompts (imagePrompt, designPrompt, productionDirection, section content) ≤ ${LIMITS.productionPromptMaxChars}
+- package ≤ ${LIMITS.packageMaxChars} chars; each asset ≤ ${LIMITS.assetMaxChars} chars
+- personaIds 0-${LIMITS.personaIdsPerAssetMax} authorized IDs only
+- calendarAnchors 0-${LIMITS.anchorsPerAssetMax}; sourceSignals 0-${LIMITS.sourceSignalsMax}
+- recommendedPlatforms ${LIMITS.platformsMin}-${LIMITS.platformsMax} distinct values from the platform enum
+
+PACKAGE / ASSET INTEGRITY:
+- cta is REQUIRED when primaryObjective is ${SOCIAL_PLANNER_PROMOTIONAL_OBJECTIVES.join(" or ")}. Otherwise cta may be string or null.
+- calendarReason MUST be null or omitted when calendarAnchors is empty. Never invent a reason without a selected candidate.
+- sourceSignals must never include a Prospect id. type "prospect_portfolio" must use id null.
+- Do not invent Persona IDs or calendar opportunity IDs.
+
+PORTFOLIO (default week; user guidance may relax slightly):
+- at least ${SOCIAL_PLANNER_DIVERSITY_DEFAULTS.minDistinctAssetTypes} distinct assetType values
+- no assetType more than ${SOCIAL_PLANNER_DIVERSITY_DEFAULTS.maxRepeatsPerAssetType} times
+- at least ${SOCIAL_PLANNER_DIVERSITY_DEFAULTS.minNonStaticAssets} non-static asset (carousel, video, document, or engagement)
+- at most ${SOCIAL_PLANNER_DIVERSITY_DEFAULTS.maxPromotionalAssets} convert/promote assets
+- at least ${SOCIAL_PLANNER_DIVERSITY_DEFAULTS.minDistinctObjectives} distinct primaryObjective values
+- at least ${SOCIAL_PLANNER_DIVERSITY_DEFAULTS.minAuthorityAssets} educate/build_authority/trust/thought_leadership/community asset
+- hooks must not repeat
+
+PRODUCTION SPEC FAMILIES:
+productionSpec.kind is the family discriminator. It is NOT the same as assetType.
+Never emit kind "image". assetType "image" still requires kind "static".
+
+static — required when assetType is image, photo, branded_graphic, infographic, quote_visual, meme_or_humor, testimonial_visual, or before_after:
+{
+  "kind": "static",
+  "imagePrompt": string,
+  "composition": string,
+  "setting": string,
+  "subjects": string,
+  "visualTone": string,
+  "overlayCopyGuidance": string|null
+}
+overlayCopyGuidance is optional/nullable. Omit it or use null when there is no overlay.
+
+carousel — required when assetType is carousel, story_sequence, storyboard, comparison, or step_by_step:
+{
+  "kind": "carousel",
+  "visualDirection": string,
+  "designPrompt": string,
+  "slides": [
+    { "index": 1, "headline": string, "body": string, "visualNote": string }
+  ]
+}
+visualDirection, designPrompt, and slides are all required.
+slides MUST be an array of ${LIMITS.carouselSlidesMin}-${LIMITS.carouselSlidesMax} objects.
+Each slide requires headline (≤160), body (≤${LIMITS.carouselSlideMaxChars}), visualNote (≤${LIMITS.carouselSlideMaxChars}).
+index is 1-based sequential. slideCount is derived from slides.length; do not omit slides.
+
+video — required when assetType ends with _video (talking_head_video, explainer_video, scenario_video, skit_video, pov_video, interview_or_qa_video, testimonial_video, demonstration_video, behind_the_scenes_video, cinematic_brand_video):
+{
+  "kind": "video",
+  "videoConcept": string,
+  "hook": string,
+  "environment": string,
+  "productionDirection": string,
+  "visualTone": string,
+  "shotPlan": [
+    { "shot": 1, "action": string, "framing": string }
+  ],
+  "dialogue": string|null
+}
+videoConcept, hook, environment, productionDirection, visualTone, and shotPlan are all required.
+shotPlan MUST be an array of ${LIMITS.videoShotsMin}-${LIMITS.videoShotsMax} objects.
+Each shot requires action (≤400) and framing (≤240). shot is 1-based sequential.
+dialogue is nullable. If present it must be a string ≤ ${LIMITS.videoDialogueMaxChars} chars.
+
+document — required when assetType is pdf_guide, checklist, cheat_sheet, or mini_report:
+{
+  "kind": "document",
+  "documentConcept": string,
+  "designPrompt": string,
+  "sections": [
+    { "heading": string, "content": string }
+  ]
+}
+documentConcept, designPrompt, and sections are all required.
+sections MUST be an array of ${LIMITS.documentSectionsMin}-${LIMITS.documentSectionsMax} objects.
+Each section requires heading (≤160) and content (≤${LIMITS.productionPromptMaxChars}).
+
+engagement — required when assetType is poll, question_post, challenge, quiz, or myth_vs_fact:
+{
+  "kind": "engagement",
+  "engagementType": "poll"|"question"|"challenge"|"quiz"|"myth_vs_fact",
+  "prompt": string,
+  "options": string[]|null,
+  "visualSupport": string|null
+}
+engagementType and prompt are required. engagementType must be one of the enum values above.
+options are REQUIRED only for poll and quiz: ${LIMITS.pollOptionsMin}-${LIMITS.pollOptionsMax} non-empty strings.
+For question, challenge, and myth_vs_fact, options must be null or omitted.
+visualSupport is optional/nullable. Do not invent a static imagePrompt for text-native engagement posts.
+`.trim();
+}
+
 function trustedContextBlock(context: SocialPlannerGenerationContextV1): string {
   return `
 === TRUSTED ORGANIZATION INTELLIGENCE (BUSINESS CONTEXT / DATA) ===
@@ -352,40 +511,7 @@ ASSET RULES:
 - Do not force people into every asset. Avoid generic AI-tech imagery unless the organization context calls for it.
 - recommendedPlatforms: 1-3 of ${SOCIAL_PLANNER_PLATFORMS.join(", ")}.
 
-REQUIRED JSON SHAPE:
-{
-  "schemaVersion": "${SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION}",
-  "strategySummary": string,
-  "whyThisWeekWorks": string,
-  "assets": [
-    {
-      "date": "YYYY-MM-DD",
-      "weekday": "Monday",
-      "assetType": string,
-      "contentArchetype": string,
-      "primaryObjective": string,
-      "audience": string,
-      "personaIds": string[],
-      "topic": string,
-      "angle": string,
-      "hook": string|null,
-      "concept": string,
-      "calendarAnchors": [{"sourceCandidateId": string, "date": "YYYY-MM-DD", "label": string, "category": string, "scope": string, "reason": string}],
-      "calendarReason": string|null,
-      "productionSpec": object,
-      "socialCopy": string,
-      "cta": string|null,
-      "recommendedPlatforms": string[],
-      "sourceSignals": [{"type": string, "id": string|null}]
-    }
-  ]
-}
-
-Field budgets:
-- strategySummary ≤ ${SOCIAL_PLANNER_PACKAGE_LIMITS.strategySummaryMaxChars} chars
-- whyThisWeekWorks ${SOCIAL_PLANNER_PACKAGE_LIMITS.whyThisWeekWorksMinChars}-${SOCIAL_PLANNER_PACKAGE_LIMITS.whyThisWeekWorksMaxChars} chars
-- socialCopy ≤ ${SOCIAL_PLANNER_PACKAGE_LIMITS.socialCopyMaxChars} chars
-- production prompts ≤ ${SOCIAL_PLANNER_PACKAGE_LIMITS.productionPromptMaxChars} chars
+${buildSocialPlannerPackageOutputContract()}
 
 ${SHARED_JSON_OUTPUT_RULES}
 `.trim();
@@ -405,13 +531,17 @@ export function buildSocialPlannerRepairPrompt(input: {
     : "";
   return `
 OBJECTIVE:
-Repair the weekly Social Calendar package so it passes validation.
+Return the COMPLETE corrected weekly Social Calendar package so it passes validation.
 
 PROMPT VERSION:
 ${SOCIAL_PLANNER_REPAIR_PROMPT_VERSION}
 ${thinkDifferently}
 
-Fix only these failures:
+You receive validation failures and the invalid package. Return the entire corrected package, not a patch or a partial asset list.
+All seven assets must remain present. Every family-specific productionSpec must be valid.
+Fixing one field must not break another validator requirement.
+
+Validation failures that must be fixed:
 ${input.failures.map((failure) => `- ${failure}`).join("\n")}
 
 Do not discard grounded business context. Do not invent new calendar events.
@@ -432,8 +562,7 @@ ${userGuidanceBlock(input.userGuidance)}
 ${socialMemoryBlock(input.socialMemoryText)}
 ${integrityRules()}
 
-Return the same required package JSON shape as asset generation
-(schemaVersion ${SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION}, strategySummary, whyThisWeekWorks, assets[7]).
+${buildSocialPlannerPackageOutputContract()}
 
 ${SHARED_JSON_OUTPUT_RULES}
 `.trim();
