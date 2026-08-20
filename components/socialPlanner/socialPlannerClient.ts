@@ -61,7 +61,7 @@ export function shouldStopSocialPlannerPolling(
 
 export function socialPlannerWorkspacePath(calendarId?: string | null): string {
   if (calendarId && SOCIAL_PLANNER_CALENDAR_ID_RE.test(calendarId)) {
-    return `/social-planner?id=${calendarId}`;
+    return `/social-planner/${calendarId}`;
   }
   return "/social-planner";
 }

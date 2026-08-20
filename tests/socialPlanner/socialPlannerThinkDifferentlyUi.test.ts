@@ -17,13 +17,15 @@ function read(relativePath: string): string {
 describe("Social Planner L8 Think Differently UI", () => {
   it("shows Think Differently only on Ready calendars with a package", () => {
     const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
-    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const detailWorkspace = read(
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
+    );
     assert.match(detail, /data-ready-actions/);
     assert.match(detail, /Think Differently/);
     assert.match(detail, /Create a materially different version of this week/);
     assert.match(detail, /Create Another Week/);
     assert.match(
-      workspace,
+      detailWorkspace,
       /detail.status === "Ready" && detail.package && !detail.packageUnavailable/,
     );
     assert.doesNotMatch(detail, /Regenerate|Try Again|Alternative Version/);
@@ -57,16 +59,18 @@ describe("Social Planner L8 Think Differently UI", () => {
     assert.match(malformedBlock, /Create Another Week/);
   });
 
-  it("posts to the source id, disables only while pending, then selects the derivative", () => {
-    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+  it("posts to the source id, disables only while pending, then pushes the derivative detail route", () => {
+    const detailWorkspace = read(
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
+    );
     const client = read("components/socialPlanner/socialPlannerClient.ts");
-    assert.match(workspace, /thinkDifferentlySocialCalendarRequest\(detail.id\)/);
-    assert.match(workspace, /selectCalendar\(created.id, nextDetail\)/);
-    assert.match(workspace, /queuedDetailFromCreate/);
-    assert.match(workspace, /thinkDifferentlyPending/);
+    assert.match(detailWorkspace, /thinkDifferentlySocialCalendarRequest\(detail.id\)/);
+    assert.match(detailWorkspace, /router.push\(`\/social-planner\/\$\{created.id\}`\)/);
+    assert.doesNotMatch(detailWorkspace, /selectCalendar|queuedDetailFromCreate|\?id=/);
+    assert.match(detailWorkspace, /thinkDifferentlyPending/);
     assert.match(client, /\/api\/social-planner\/\$\{sourceId\}\/think-differently/);
     assert.match(client, /202/);
-    assert.doesNotMatch(workspace, /window.confirm/);
+    assert.doesNotMatch(detailWorkspace, /window.confirm/);
     assert.equal(
       mapSocialPlannerApiError(409, { message: "Not ready." }, ""),
       "Not ready.",
@@ -81,13 +85,14 @@ describe("Social Planner L8 Think Differently UI", () => {
     assert.equal(socialPlannerGenerationModeLabel("think_differently"), "Think Differently");
   });
 
-  it("keeps Create Another Week as an independent standard composer action", () => {
-    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
-    assert.match(workspace, /handleCreateAnotherWeek/);
-    assert.match(workspace, /composerRef.current\?\.focusComposer/);
-    assert.match(workspace, /selectCalendar\(null, null\)/);
-    assert.match(workspace, /function handleCreateAnotherWeek/);
-    assert.match(workspace, /async function handleThinkDifferently/);
+  it("keeps Create Another Week as an independent return to the library composer", () => {
+    const detailWorkspace = read(
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
+    );
+    assert.match(detailWorkspace, /function handleCreateAnotherWeek/);
+    assert.match(detailWorkspace, /router.push\("\/social-planner"\)/);
+    assert.doesNotMatch(detailWorkspace, /selectCalendar\(null|focusComposer/);
+    assert.match(detailWorkspace, /async function handleThinkDifferently/);
   });
 
   it("does not add regenerate or a second Social Planner page", () => {

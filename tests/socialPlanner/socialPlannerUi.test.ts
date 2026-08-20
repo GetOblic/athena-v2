@@ -195,31 +195,41 @@ describe("Social Planner L7 polling", () => {
     assert.equal(shouldStopSocialPlannerPolling("Processing"), false);
   });
 
-  it("202 transitions into selected polling state and writes URL id", () => {
+  it("202 navigates to the dedicated detail route without list-page detail polling", () => {
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const detailWorkspace = read(
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
+    );
     const client = read("components/socialPlanner/socialPlannerClient.ts");
     assert.match(workspace, /createSocialCalendarRequest/);
-    assert.match(workspace, /queuedDetailFromCreate/);
-    assert.match(workspace, /selectCalendar\(created.id/);
-    assert.match(workspace, /history.replaceState/);
-    assert.match(workspace, /fetchSocialCalendarDetail/);
-    assert.match(workspace, /cancelled = true/);
-    assert.match(workspace, /requestInFlight/);
-    assert.match(workspace, /Still checking your calendar/);
-    assert.match(workspace, /window.clearInterval/);
+    assert.match(workspace, /router.push\(`\/social-planner\/\$\{created.id\}`\)/);
+    assert.doesNotMatch(workspace, /queuedDetailFromCreate/);
+    assert.doesNotMatch(workspace, /selectCalendar/);
+    assert.doesNotMatch(workspace, /history.replaceState/);
+    assert.doesNotMatch(workspace, /fetchSocialCalendarDetail/);
+    assert.match(detailWorkspace, /fetchSocialCalendarDetail/);
+    assert.match(detailWorkspace, /cancelled = true/);
+    assert.match(detailWorkspace, /requestInFlight/);
+    assert.match(detailWorkspace, /Still checking your calendar/);
+    assert.match(detailWorkspace, /window.clearInterval/);
     assert.match(client, /kind: "transient"/);
-    assert.doesNotMatch(workspace, /status = "Processing Failed"/);
-    assert.equal(socialPlannerWorkspacePath("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"), "/social-planner?id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    assert.doesNotMatch(detailWorkspace, /status = "Processing Failed"/);
+    assert.equal(
+      socialPlannerWorkspacePath("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+      "/social-planner/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    );
     assert.equal(socialPlannerWorkspacePath(null), "/social-planner");
   });
 
   it("does not treat transient poll failures as persisted failure", () => {
-    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const detailWorkspace = read(
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
+    );
     const client = read("components/socialPlanner/socialPlannerClient.ts");
     assert.match(client, /return \{ kind: "transient" \}/);
-    assert.match(workspace, /result.kind === "not_found"/);
-    assert.doesNotMatch(workspace, /setDetail\(\{[\s\S]*Processing Failed/);
-    assert.match(workspace, /pollNotice/);
+    assert.match(detailWorkspace, /result.kind === "not_found"/);
+    assert.doesNotMatch(detailWorkspace, /setDetail\(\{[\s\S]*Processing Failed/);
+    assert.match(detailWorkspace, /pollNotice/);
   });
 });
 
@@ -300,6 +310,7 @@ describe("Social Planner L7 ready and production display", () => {
       "components/socialPlanner/SocialCalendarProductionSpec.tsx",
       "components/socialPlanner/SocialPlannerHistory.tsx",
       "components/socialPlanner/SocialPlannerWorkspace.tsx",
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
     ];
     for (const file of files) {
       const source = read(file);
@@ -315,17 +326,19 @@ describe("Social Planner L7 ready and production display", () => {
 });
 
 describe("Social Planner L7 history, failure, and layout", () => {
-  it("history uses API order, Ready summaries, and Open Calendar detail fetch", () => {
+  it("history uses API order, Ready summaries, and same-tab Open Calendar links", () => {
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
     assert.match(history, /Your Social Calendars/);
     assert.match(history, /Open Calendar/);
+    assert.match(history, /href=\{`\/social-planner\/\$\{calendar.id\}`\}/);
     assert.match(history, /socialPlannerHistoryStatusLabel/);
     assert.match(history, /strategySummary/);
     assert.match(history, /whyThisWeekWorks/);
     assert.match(history, /assetCount/);
     assert.doesNotMatch(history, /calendars.sort|toReversed|localeCompare/);
-    assert.match(workspace, /fetchSocialCalendarDetail\(id\)/);
+    assert.doesNotMatch(history, /selectedId|onOpen|target="_blank"/);
+    assert.doesNotMatch(workspace, /fetchSocialCalendarDetail/);
     assert.doesNotMatch(workspace, /createSocialCalendarRequest\(\{[\s\S]*onOpen/);
   });
 
@@ -338,13 +351,15 @@ describe("Social Planner L7 history, failure, and layout", () => {
 
   it("failed, malformed, and 404 states stay safe", () => {
     const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
-    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const detailWorkspace = read(
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
+    );
     const client = read("components/socialPlanner/socialPlannerClient.ts");
     assert.match(detail, /Processing Failed/);
     assert.match(detail, /Create Another Week/);
     assert.match(detail, /This calendar could not be displayed/);
     assert.match(detail, /packageUnavailable/);
-    assert.match(workspace, /This calendar could not be found/);
+    assert.match(detailWorkspace, /This calendar could not be found/);
     assert.equal(mapSocialPlannerApiError(400, { message: "Choose a week." }, ""), "Choose a week.");
     assert.equal(mapSocialPlannerApiError(404, null, ""), "This calendar could not be found.");
     assert.equal(mapSocialPlannerApiError(500, { code: "DETAIL_FAILED" }, ""), "Something went wrong. Please try again.");
@@ -352,7 +367,7 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.doesNotMatch(client, /error.code/);
   });
 
-  it("page is authenticated, one-page URL state, and mobile-safe", () => {
+  it("list page is authenticated, list-only, and mobile-safe", () => {
     const page = read("app/social-planner/page.tsx");
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
     const form = read("components/socialPlanner/SocialPlannerCreateForm.tsx");
@@ -360,12 +375,13 @@ describe("Social Planner L7 history, failure, and layout", () => {
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
     assert.match(page, /requireCurrentOrganizationContext/);
     assert.match(page, /listSocialCalendars/);
-    assert.match(page, /getSocialCalendarById/);
+    assert.doesNotMatch(page, /getSocialCalendarById/);
+    assert.doesNotMatch(page, /SocialCalendarDetail/);
     assert.match(page, /searchParams/);
     assert.match(page, /px-5 py-8/);
     assert.match(page, /sm:p-10/);
     assert.doesNotMatch(page, /locale|fr-FR|en-GB/);
-    assert.match(workspace, /replaceState/);
+    assert.doesNotMatch(workspace, /replaceState|selectCalendar|SocialCalendarDetail/);
     assert.match(form, /w-full/);
     assert.match(form, /Generate My Week/);
     assert.match(card, /min-w-0/);
@@ -442,8 +458,11 @@ describe("Social Planner L7 history, failure, and layout", () => {
       assert.doesNotMatch(source, /supabaseAdmin|createSupabaseServerClient|createBrowserClient/);
     }
     const page = read("app/social-planner/page.tsx");
+    const detailPage = read("app/social-planner/[id]/page.tsx");
     assert.doesNotMatch(page, /supabaseAdmin|from\("athena_social_calendars"\)/);
+    assert.doesNotMatch(detailPage, /supabaseAdmin|from\("athena_social_calendars"\)/);
     assert.ok(existsSync(join(ROOT, "app/social-planner/page.tsx")));
+    assert.ok(existsSync(join(ROOT, "app/social-planner/[id]/page.tsx")));
     const migrations = readdirSync(join(ROOT, "supabase/migrations")).filter((name) =>
       name.endsWith(".sql"),
     );
@@ -454,6 +473,106 @@ describe("Social Planner L7 history, failure, and layout", () => {
     ]);
     const pkg = read("package.json");
     assert.doesNotMatch(pkg, /react-day-picker|react-datepicker|@internationalized\/date/);
+  });
+});
+
+describe("Social Planner dedicated calendar detail routing", () => {
+  it("keeps /social-planner as list and create only", () => {
+    const page = read("app/social-planner/page.tsx");
+    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    assert.match(page, /SocialPlannerWorkspace/);
+    assert.match(page, /Plan your next seven social assets with one push/);
+    assert.match(workspace, /SocialPlannerCreateForm/);
+    assert.match(workspace, /SocialPlannerHistory/);
+    assert.match(workspace, /fetchSocialCalendarHistory/);
+    assert.doesNotMatch(workspace, /SocialCalendarDetail|Ask Athena|Think Differently/);
+    assert.doesNotMatch(workspace, /fetchSocialCalendarDetail|pollNotice|selectCalendar/);
+    assert.doesNotMatch(page, /SocialPlannerDetailWorkspace|SocialCalendarDetail/);
+  });
+
+  it("adds an authenticated dedicated detail route with an explicit back link", () => {
+    const page = read("app/social-planner/[id]/page.tsx");
+    assert.match(page, /requireCurrentOrganizationContext/);
+    assert.match(page, /SOCIAL_PLANNER_CALENDAR_ID_RE/);
+    assert.match(page, /getSocialCalendarById\(id, organizationId\)/);
+    assert.match(page, /toSocialCalendarDetailDto/);
+    assert.match(page, /SocialPlannerDetailWorkspace/);
+    assert.match(page, /<Link href="\/social-planner"/);
+    assert.match(page, /← Back to Social Planner/);
+    assert.doesNotMatch(page, /router\.back\(|listSocialCalendars/);
+    assert.doesNotMatch(page, /version navigator|previous version|next version/i);
+  });
+
+  it("redirects valid legacy ?id= query values to the canonical detail route", () => {
+    const page = read("app/social-planner/page.tsx");
+    assert.match(page, /searchParams/);
+    assert.match(page, /SOCIAL_PLANNER_CALENDAR_ID_RE\.test\(params.id\)/);
+    assert.match(page, /redirect\(`\/social-planner\/\$\{requestedId\}`\)/);
+    assert.doesNotMatch(page, /getSocialCalendarById|toSocialCalendarDetailDto/);
+  });
+
+  it("history Open Calendar stays in the same tab", () => {
+    const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
+    assert.match(history, /<Link/);
+    assert.match(history, /href=\{`\/social-planner\/\$\{calendar.id\}`\}/);
+    assert.doesNotMatch(history, /target="_blank"|onOpen|selectedId|\?id=/);
+  });
+
+  it("detail owns Queued\/Processing polling and stops on Ready or failed", () => {
+    const detailWorkspace = read(
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
+    );
+    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    assert.match(detailWorkspace, /isSocialPlannerInFlight\(detailStatus\)/);
+    assert.match(detailWorkspace, /fetchSocialCalendarDetail\(calendarId\)/);
+    assert.match(detailWorkspace, /SOCIAL_PLANNER_DETAIL_POLL_MS/);
+    assert.doesNotMatch(detailWorkspace, /fetchSocialCalendarHistory/);
+    assert.doesNotMatch(workspace, /fetchSocialCalendarDetail/);
+    assert.equal(shouldStopSocialPlannerPolling("Ready"), true);
+    assert.equal(shouldStopSocialPlannerPolling("Processing Failed"), true);
+  });
+
+  it("Create Another Week and Back share the Social Planner library destination", () => {
+    const detailWorkspace = read(
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
+    );
+    const page = read("app/social-planner/[id]/page.tsx");
+    assert.match(detailWorkspace, /function handleCreateAnotherWeek/);
+    assert.match(detailWorkspace, /router.push\("\/social-planner"\)/);
+    assert.doesNotMatch(detailWorkspace, /selectCalendar\(null|focusComposer|\?focus=/);
+    assert.match(page, /<Link href="\/social-planner"/);
+  });
+
+  it("preserves Ready L1 Copy/Continue, L2 Discuss, and L3 interactions", () => {
+    const card = read("components/socialPlanner/SocialCalendarDayCard.tsx");
+    const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
+    const panel = read("components/socialPlanner/SocialPlannerAskAthenaPanel.tsx");
+    const serializer = read("components/socialPlanner/socialPlannerAssetCopyText.ts");
+    assert.match(card, /serializeSocialCalendarAsset/);
+    assert.match(card, /<CopyButton/);
+    assert.match(card, /showContinue/);
+    assert.match(card, /Discuss with Athena/);
+    assert.match(detail, /SocialPlannerAskAthenaPanel/);
+    assert.match(detail, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
+    assert.match(panel, /Ask Athena About This Calendar/);
+    assert.match(detail, /buildSocialCalendarAssetInteractionType/);
+    assert.match(detail, /initiallyDone=\{Boolean\(doneByAssetType\[interactionKey\]\)\}/);
+    assert.match(serializer, /export function serializeSocialCalendarAsset/);
+  });
+
+  it("does not add a version navigator, \/social-planner\/new, or API surface", () => {
+    const detailWorkspace = read(
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
+    );
+    const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
+    const detailPage = read("app/social-planner/[id]/page.tsx");
+    for (const source of [detailWorkspace, history, detailPage]) {
+      assert.doesNotMatch(source, /sibling version|lineage tree|previous\/next version/i);
+      assert.doesNotMatch(source, /Version navigator|version dropdown/i);
+    }
+    assert.equal(existsSync(join(ROOT, "app/social-planner/new")), false);
+    assert.ok(existsSync(join(ROOT, "app/api/social-planner/route.ts")));
+    assert.ok(existsSync(join(ROOT, "app/api/social-planner/[id]/route.ts")));
   });
 });
 

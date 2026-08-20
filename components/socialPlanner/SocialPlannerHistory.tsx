@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { SocialCalendarListItemDto } from "@/services/socialPlanner/socialCalendarDto";
 import { ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS } from "@/components/ui/athenaIntelligenceRow";
 import {
@@ -15,8 +16,6 @@ import { isSocialPlannerInFlight } from "@/components/socialPlanner/socialPlanne
 
 type SocialPlannerHistoryProps = {
   calendars: SocialCalendarListItemDto[];
-  selectedId: string | null;
-  onOpen: (id: string) => void;
 };
 
 function statusTone(status: string): string {
@@ -31,8 +30,6 @@ function statusTone(status: string): string {
 
 export function SocialPlannerHistory({
   calendars,
-  selectedId,
-  onOpen,
 }: SocialPlannerHistoryProps) {
   if (calendars.length === 0) {
     return null;
@@ -52,7 +49,6 @@ export function SocialPlannerHistory({
       <div className="space-y-3">
         {calendars.map((calendar) => {
           const statusLabel = socialPlannerHistoryStatusLabel(calendar.status);
-          const selected = calendar.id === selectedId;
           const typeSummary = calendar.assetTypes
             .slice(0, 4)
             .map(socialPlannerAssetTypeLabel)
@@ -61,9 +57,7 @@ export function SocialPlannerHistory({
           return (
             <article
               key={calendar.id}
-              className={`${ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS} flex flex-col gap-4 rounded-[24px] bg-[var(--athena-card)] p-5 ${
-                selected ? "border-[var(--athena-orange)]/50" : ""
-              }`}
+              className={`${ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS} flex flex-col gap-4 rounded-[24px] bg-[var(--athena-card)] p-5`}
             >
               <div className="min-w-0 flex-1 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -131,13 +125,12 @@ export function SocialPlannerHistory({
               </div>
 
               <div>
-                <button
-                  type="button"
-                  onClick={() => onOpen(calendar.id)}
-                  className="w-full rounded-2xl border border-white/15 px-4 py-2 text-sm text-white/80 transition hover:border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] sm:w-auto"
+                <Link
+                  href={`/social-planner/${calendar.id}`}
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 px-4 py-2 text-sm text-white/80 transition hover:border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] sm:w-auto"
                 >
                   Open Calendar
-                </button>
+                </Link>
               </div>
             </article>
           );

@@ -1,17 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { SocialPlannerWorkspace } from "@/components/socialPlanner/SocialPlannerWorkspace";
 import { SOCIAL_PLANNER_CALENDAR_ID_RE } from "@/components/socialPlanner/socialPlannerClient";
-import {
-  toSocialCalendarDetailDto,
-  toSocialCalendarListItemDto,
-} from "@/services/socialPlanner/socialCalendarDto";
-import {
-  getSocialCalendarById,
-  listSocialCalendars,
-} from "@/services/socialPlanner/socialCalendarService";
+import { toSocialCalendarListItemDto } from "@/services/socialPlanner/socialCalendarDto";
+import { listSocialCalendars } from "@/services/socialPlanner/socialCalendarService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 export default async function SocialPlannerPage({
@@ -26,10 +21,12 @@ export default async function SocialPlannerPage({
       ? params.id
       : null;
 
+  if (requestedId) {
+    redirect(`/social-planner/${requestedId}`);
+  }
+
   let calendars: ReturnType<typeof toSocialCalendarListItemDto>[] = [];
   let loadError: string | null = null;
-  let initialDetail: ReturnType<typeof toSocialCalendarDetailDto> | null = null;
-  let initialDetailError: "not_found" | "load_failed" | null = null;
 
   try {
     calendars = (await listSocialCalendars(organizationId)).map(
@@ -38,20 +35,6 @@ export default async function SocialPlannerPage({
   } catch (error) {
     console.error("[ATHENA_SOCIAL_PLANNER] library_load_failed", error);
     loadError = "Failed to load Social Calendars for this organization.";
-  }
-
-  if (requestedId) {
-    try {
-      const calendar = await getSocialCalendarById(requestedId, organizationId);
-      if (!calendar) {
-        initialDetailError = "not_found";
-      } else {
-        initialDetail = toSocialCalendarDetailDto(calendar);
-      }
-    } catch (error) {
-      console.error("[ATHENA_SOCIAL_PLANNER] detail_load_failed", error);
-      initialDetailError = "load_failed";
-    }
   }
 
   return (
@@ -76,9 +59,6 @@ export default async function SocialPlannerPage({
 
       <SocialPlannerWorkspace
         initialCalendars={calendars}
-        initialDetail={initialDetail}
-        initialSelectedId={requestedId}
-        initialDetailError={initialDetailError}
         loadError={loadError}
       />
     </main>

@@ -36,15 +36,17 @@ describe("Social Planner L9 Ask Athena UI", () => {
     assert.doesNotMatch(panel, /key=\{.*assetReference/);
   });
 
-  it("Apply posts to conversation/apply, then selects the derivative and updates ?id=", () => {
-    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+  it("Apply posts to conversation/apply, then pushes the revision detail route", () => {
+    const detailWorkspace = read(
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
+    );
     const client = read("components/socialPlanner/socialPlannerClient.ts");
-    assert.match(workspace, /applySocialPlannerConversationRequest\(detail.id\)/);
-    assert.match(workspace, /selectCalendar\(created.id, nextDetail\)/);
-    assert.match(workspace, /socialPlannerWorkspacePath/);
+    assert.match(detailWorkspace, /applySocialPlannerConversationRequest\(detail.id\)/);
+    assert.match(detailWorkspace, /router.push\(`\/social-planner\/\$\{created.id\}`\)/);
+    assert.doesNotMatch(detailWorkspace, /selectCalendar|\?id=|history.replaceState/);
     assert.match(client, /\/api\/social-planner\/\$\{sourceId\}\/conversation\/apply/);
     assert.match(client, /202/);
-    assert.doesNotMatch(workspace, /applySocialPlannerConversationRequest\(.*message/);
+    assert.doesNotMatch(detailWorkspace, /applySocialPlannerConversationRequest\(.*message/);
   });
 
   it("labels conversation_revision as Conversation Revision and keeps history flat", () => {
