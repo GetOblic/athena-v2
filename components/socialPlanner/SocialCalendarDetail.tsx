@@ -1,9 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import type { SocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
+import type { SocialPlannerConversationAssetReference } from "@/services/socialPlanner/conversation/socialPlannerConversationTypes";
 import { SocialCalendarDayCard } from "@/components/socialPlanner/SocialCalendarDayCard";
 import { SocialPlannerStatus } from "@/components/socialPlanner/SocialPlannerStatus";
-import { formatSocialPlannerPeriodLabel } from "@/components/socialPlanner/socialPlannerDates";
+import {
+  formatSocialPlannerDayHeader,
+  formatSocialPlannerPeriodLabel,
+} from "@/components/socialPlanner/socialPlannerDates";
+import { socialPlannerAssetTypeLabel } from "@/components/socialPlanner/socialPlannerLabels";
 import { isSocialPlannerInFlight } from "@/components/socialPlanner/socialPlannerClient";
 import { SocialPlannerAskAthenaPanel } from "@/components/socialPlanner/SocialPlannerAskAthenaPanel";
 
@@ -88,8 +94,69 @@ export function SocialCalendarDetail({
     );
   }
 
+  return (
+    <SocialCalendarReadyDetail
+      key={calendar.id}
+      calendar={{ ...calendar, package: calendar.package }}
+      thinkDifferentlyPending={thinkDifferentlyPending}
+      thinkDifferentlyError={thinkDifferentlyError}
+      applyPending={applyPending}
+      applyError={applyError}
+      onCreateAnotherWeek={onCreateAnotherWeek}
+      onThinkDifferently={onThinkDifferently}
+      onApplySuggestions={onApplySuggestions}
+    />
+  );
+}
+
+function SocialCalendarReadyDetail({
+  calendar,
+  thinkDifferentlyPending,
+  thinkDifferentlyError,
+  applyPending,
+  applyError,
+  onCreateAnotherWeek,
+  onThinkDifferently,
+  onApplySuggestions,
+}: {
+  calendar: SocialCalendarDetailDto & {
+    package: NonNullable<SocialCalendarDetailDto["package"]>;
+  };
+  thinkDifferentlyPending: boolean;
+  thinkDifferentlyError: string | null;
+  applyPending: boolean;
+  applyError: string | null;
+  onCreateAnotherWeek: () => void;
+  onThinkDifferently?: () => void;
+  onApplySuggestions?: () => void;
+}) {
+  const periodLabel = formatSocialPlannerPeriodLabel(
+    calendar.periodStart,
+    calendar.periodEnd,
+  );
   const socialPackage = calendar.package;
   const assets = socialPackage.assets.slice(0, 7);
+  const [discussAssetReference, setDiscussAssetReference] =
+    useState<SocialPlannerConversationAssetReference | null>(null);
+
+  function handleDiscussWithAthena(reference: SocialPlannerConversationAssetReference) {
+    setDiscussAssetReference({ date: reference.date });
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        document
+          .getElementById("social-planner-conversation")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById("social-planner-conversation-input")?.focus();
+      }, 0);
+    }
+  }
+
+  const selectedAsset = discussAssetReference
+    ? assets.find((asset) => asset.date === discussAssetReference.date) ?? null
+    : null;
+  const discussFocusLabel = selectedAsset
+    ? `Discussing: ${formatSocialPlannerDayHeader(selectedAsset.weekday, selectedAsset.date)} — ${socialPlannerAssetTypeLabel(selectedAsset.assetType)}`
+    : null;
 
   return (
     <section className="space-y-8">
@@ -146,6 +213,7 @@ export function SocialCalendarDetail({
           <SocialCalendarDayCard
             key={`${asset.date}-${asset.assetType}`}
             asset={asset}
+            onDiscussWithAthena={handleDiscussWithAthena}
           />
         ))}
       </div>
@@ -153,6 +221,9 @@ export function SocialCalendarDetail({
       <div data-ask-athena-slot="">
         <SocialPlannerAskAthenaPanel
           calendarId={calendar.id}
+          assetReference={discussAssetReference}
+          onAssetReferenceChange={setDiscussAssetReference}
+          discussFocusLabel={discussFocusLabel}
           applyPending={applyPending}
           applyError={applyError}
           onApply={onApplySuggestions}

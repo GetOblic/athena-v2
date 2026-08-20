@@ -53,11 +53,19 @@ describe("Social Planner L9 conversation API", () => {
     assert.doesNotMatch(apply, /requireLicensee|licensee_account_id/);
   });
 
-  it("POST conversation accepts only message and rejects browser authority", () => {
+  it("POST conversation accepts message and optional date-only assetReference", () => {
     const request = validateSocialPlannerConversationRequest({
       message: "Why is Monday a carousel?",
     });
     assert.equal(request.message, "Why is Monday a carousel?");
+    assert.equal(request.assetReference, undefined);
+
+    const targeted = validateSocialPlannerConversationRequest({
+      message: "Critique this asset.",
+      assetReference: { date: "2026-05-10" },
+    });
+    assert.deepEqual(targeted.assetReference, { date: "2026-05-10" });
+
     assert.throws(
       () => validateSocialPlannerConversationRequest({ message: "" }),
       SocialPlannerConversationError,
@@ -70,9 +78,23 @@ describe("Social Planner L9 conversation API", () => {
         }),
       SocialPlannerConversationError,
     );
+    assert.throws(
+      () =>
+        validateSocialPlannerConversationRequest({
+          message: "ok",
+          assetReference: { date: "2026-05-10", socialCopy: "client body" },
+        }),
+      SocialPlannerConversationError,
+    );
     assert.ok(SOCIAL_PLANNER_CONVERSATION_FORBIDDEN_KEYS.includes("package"));
     assert.ok(SOCIAL_PLANNER_CONVERSATION_FORBIDDEN_KEYS.includes("intelligence"));
     assert.ok(SOCIAL_PLANNER_CONVERSATION_FORBIDDEN_KEYS.includes("role"));
+    assert.equal(
+      (SOCIAL_PLANNER_CONVERSATION_FORBIDDEN_KEYS as readonly string[]).includes(
+        "assetReference",
+      ),
+      false,
+    );
   });
 
   it("Apply rejects browser-supplied revision fields", () => {

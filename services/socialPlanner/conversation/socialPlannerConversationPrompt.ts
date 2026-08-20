@@ -58,6 +58,12 @@ function buildContextBlock(
     "mode: advisory_read_only_social_calendar",
     "saved_calendar: immutable",
     `calendarId: ${assembled.calendarId}`,
+    assembled.selectedDailyAssetDate
+      ? `focus: daily_asset`
+      : "focus: calendar",
+    assembled.selectedDailyAssetDate
+      ? `selectedDailyAssetDate: ${assembled.selectedDailyAssetDate}`
+      : "selectedDailyAssetDate: none",
   ].join("\n");
 
   const missing =
@@ -66,6 +72,7 @@ function buildContextBlock(
       : "";
 
   let frozenPackage = assembled.frozenPackage;
+  let selectedDailyAsset = assembled.selectedDailyAsset ?? "";
   let frozenContext = assembled.frozenCalendarContext;
   let trendSocial = assembled.trendSocialPrompt;
   let liveSections = assembled.liveIntelligenceSections.map((section) => ({
@@ -79,6 +86,14 @@ function buildContextBlock(
       frozenPackage,
       "FROZEN_SOCIAL_CALENDAR_PACKAGE",
     );
+    const selectedFocus = selectedDailyAsset
+      ? wrapContext(
+          "SELECTED DAILY ASSET FOCUS — current-turn focus within the immutable saved calendar. This is not an edit and does not replace the frozen week.",
+          "confirmed_fact",
+          selectedDailyAsset,
+          "SELECTED_DAILY_ASSET_FOCUS",
+        )
+      : "";
     const calendar = wrapContext(
       "FROZEN CALENDAR CONTEXT — generation-time week / geography / holiday snapshot",
       "confirmed_fact",
@@ -98,7 +113,15 @@ function buildContextBlock(
       keepPriority: liveKeepPriority,
       maxChars: SOCIAL_PLANNER_CONVERSATION_LIMITS.maxLiveIntelligenceTotalChars,
     });
-    return joinPromptParts([meta, missing, frozen, calendar, trend, liveBlock]);
+    return joinPromptParts([
+      meta,
+      missing,
+      frozen,
+      selectedFocus,
+      calendar,
+      trend,
+      liveBlock,
+    ]);
   };
 
   let joined = render();
@@ -147,6 +170,16 @@ function buildContextBlock(
     const keep = Math.max(0, frozenPackage.length - overflow - 40);
     frozenPackage =
       keep > 0 ? `${frozenPackage.slice(0, keep)}\n\n[truncated]` : frozenPackage;
+    joined = render();
+  }
+
+  if (joined.length > maxChars && selectedDailyAsset.length > 0) {
+    const overflow = joined.length - maxChars;
+    const keep = Math.max(0, selectedDailyAsset.length - overflow - 40);
+    selectedDailyAsset =
+      keep > 0
+        ? `${selectedDailyAsset.slice(0, keep)}\n\n[truncated]`
+        : selectedDailyAsset;
     joined = render();
   }
 

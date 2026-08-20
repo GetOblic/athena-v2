@@ -27,6 +27,13 @@ describe("Social Planner L9 Ask Athena UI", () => {
       detail.indexOf("Processing Failed"),
     );
     assert.doesNotMatch(processingBlock, /<SocialPlannerAskAthenaPanel/);
+    assert.match(detail, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
+    assert.match(panel, /data-social-planner-discuss-focus/);
+    assert.match(panel, /id="social-planner-conversation"/);
+    assert.match(panel, /id="social-planner-conversation-input"/);
+    assert.match(panel, /assetReference: \{ date: assetReference\.date \}/);
+    assert.match(panel, /key=\{props\.calendarId\}/);
+    assert.doesNotMatch(panel, /key=\{.*assetReference/);
   });
 
   it("Apply posts to conversation/apply, then selects the derivative and updates ?id=", () => {

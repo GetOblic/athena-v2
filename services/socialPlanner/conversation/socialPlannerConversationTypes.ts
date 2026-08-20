@@ -23,6 +23,7 @@ export const SOCIAL_PLANNER_CONVERSATION_LIMITS = {
   maxAssistantMessageLength: 8_000,
   maxFrozenPackageChars: 10_000,
   maxFrozenCalendarContextChars: 4_000,
+  maxSelectedDailyAssetChars: 4_500,
   maxTrendSocialChars: 3_500,
   maxLiveIntelligenceTotalChars: 12_000,
 } as const;
@@ -41,8 +42,14 @@ export type SocialPlannerConversationMessage = {
   createdAt: string;
 };
 
+/** Trusted daily-asset reference — date only; server resolves frozen package content. */
+export type SocialPlannerConversationAssetReference = {
+  date: string;
+};
+
 export type SocialPlannerConversationRequest = {
   message: string;
+  assetReference?: SocialPlannerConversationAssetReference;
 };
 
 export type SocialPlannerConversationHistoryMessage =
@@ -74,6 +81,7 @@ export type SocialPlannerConversationErrorCode =
   | "UNAUTHORIZED"
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
+  | "ASSET_NOT_FOUND"
   | "NOT_READY"
   | "TIMEOUT"
   | "RATE_LIMITED"

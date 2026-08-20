@@ -378,7 +378,7 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.match(todayLocalCalendarDate(), /^\d{4}-\d{2}-\d{2}$/);
   });
 
-  it("adds whole-asset Copy and Continue without changing field Copy or Discuss", () => {
+  it("adds whole-asset Copy and Continue without changing field Copy", () => {
     const card = read("components/socialPlanner/SocialCalendarDayCard.tsx");
     const spec = read("components/socialPlanner/SocialCalendarProductionSpec.tsx");
     const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
@@ -393,7 +393,6 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.doesNotMatch(card, /showContinue=\{false\}/);
     assert.doesNotMatch(card, /initiallyDone|initiallyTags/);
     assert.doesNotMatch(card, /AssetUsageTagControls/);
-    assert.doesNotMatch(card, /Discuss with Athena/);
     assert.doesNotMatch(card, /\/api\/asset-interactions/);
     assert.doesNotMatch(card, /package_json/);
 
@@ -405,7 +404,6 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.match(detail, /data-ask-athena-slot/);
     assert.match(detail, /SocialPlannerAskAthenaPanel/);
     assert.match(panel, /Ask Athena About This Calendar/);
-    assert.doesNotMatch(detail, /Discuss with Athena/);
 
     assert.match(serializer, /export function serializeSocialCalendarAsset/);
     assert.doesNotMatch(serializer, /fetch\(|supabase|package_json/);

@@ -31,6 +31,7 @@ import {
 } from "@/services/socialPlanner/socialCalendarPersistedPackage";
 import { getSocialCalendarById } from "@/services/socialPlanner/socialCalendarService";
 import type { SocialCalendar } from "@/services/socialPlanner/socialCalendarTypes";
+import { resolveSocialPlannerConversationDailyAsset } from "@/services/socialPlanner/conversation/socialPlannerConversationAssetResolve";
 import { composeSocialPlannerConversationContext } from "@/services/socialPlanner/conversation/socialPlannerConversationContext";
 import { buildSocialPlannerConversationPrompt } from "@/services/socialPlanner/conversation/socialPlannerConversationPrompt";
 import {
@@ -247,11 +248,19 @@ export async function sendSocialPlannerConversation(input: {
       calendarContext,
     });
 
+    const selectedDailyAsset = request.assetReference
+      ? resolveSocialPlannerConversationDailyAsset({
+          socialPackage,
+          assetReference: request.assetReference,
+        })
+      : null;
+
     const assembled = composeSocialPlannerConversationContext({
       calendarId: calendar.id,
       socialPackage,
       calendarContext,
       intelligence,
+      selectedDailyAsset,
     });
 
     const built = buildSocialPlannerConversationPrompt({

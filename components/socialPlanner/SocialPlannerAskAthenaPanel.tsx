@@ -12,6 +12,7 @@ import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { ATHENA_REQUEST_ID_HEADER } from "@/services/athenaConversation/athenaConversationTypes";
 import {
   SOCIAL_PLANNER_CONVERSATION_LIMITS,
+  type SocialPlannerConversationAssetReference,
   type SocialPlannerConversationPublicMessage,
 } from "@/services/socialPlanner/conversation/socialPlannerConversationTypes";
 
@@ -31,6 +32,11 @@ type SendResponse = {
 
 type SocialPlannerAskAthenaPanelProps = {
   calendarId: string;
+  assetReference?: SocialPlannerConversationAssetReference | null;
+  onAssetReferenceChange?: (
+    next: SocialPlannerConversationAssetReference | null,
+  ) => void;
+  discussFocusLabel?: string | null;
   applyPending?: boolean;
   applyError?: string | null;
   onApply?: () => void;
@@ -47,12 +53,14 @@ function ThinkingIndicator() {
 
 function SocialPlannerAskAthenaPanelInner({
   calendarId,
+  assetReference = null,
+  onAssetReferenceChange,
+  discussFocusLabel = null,
   applyPending = false,
   applyError = null,
   onApply,
 }: SocialPlannerAskAthenaPanelProps) {
   const messagesRegionId = useId();
-  const inputId = useId();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const sendSeqRef = useRef(0);
   const inFlightRef = useRef(false);
@@ -146,7 +154,12 @@ function SocialPlannerAskAthenaPanelInner({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: trimmed }),
+          body: JSON.stringify({
+            message: trimmed,
+            ...(assetReference
+              ? { assetReference: { date: assetReference.date } }
+              : {}),
+          }),
         },
       );
       const requestId = response.headers.get(ATHENA_REQUEST_ID_HEADER);
@@ -194,7 +207,8 @@ function SocialPlannerAskAthenaPanelInner({
 
   return (
     <section
-      className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-7"
+      id="social-planner-conversation"
+      className="scroll-mt-24 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-7"
       data-social-planner-ask-athena=""
     >
       <h3 className="text-xl font-semibold">{SOCIAL_PLANNER_ASK_ATHENA_TITLE}</h3>
@@ -202,6 +216,24 @@ function SocialPlannerAskAthenaPanelInner({
         Conversation does not change this saved week. Use Apply Athena&apos;s
         Suggestions when you want a new revised calendar.
       </p>
+
+      {discussFocusLabel ? (
+        <div
+          className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70"
+          data-social-planner-discuss-focus=""
+        >
+          <span>{discussFocusLabel}</span>
+          {onAssetReferenceChange ? (
+            <button
+              type="button"
+              onClick={() => onAssetReferenceChange(null)}
+              className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-white/60 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+            >
+              Clear target
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div
         id={messagesRegionId}
@@ -246,11 +278,13 @@ function SocialPlannerAskAthenaPanelInner({
       ) : null}
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-3">
-        <label htmlFor={inputId} className="sr-only">
-          Ask Athena about this calendar
+        <label htmlFor="social-planner-conversation-input" className="sr-only">
+          {assetReference
+            ? "Ask Athena about this day's asset"
+            : "Ask Athena about this calendar"}
         </label>
         <textarea
-          id={inputId}
+          id="social-planner-conversation-input"
           ref={inputRef}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -258,7 +292,11 @@ function SocialPlannerAskAthenaPanelInner({
           disabled={composerDisabled}
           rows={3}
           maxLength={SOCIAL_PLANNER_CONVERSATION_LIMITS.maxMessageChars}
-          placeholder="Ask Athena about this calendar…"
+          placeholder={
+            assetReference
+              ? "Ask Athena about this day's asset…"
+              : "Ask Athena about this calendar…"
+          }
           className="w-full min-w-0 resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white placeholder:text-white/30 focus:border-[var(--athena-orange)]/50 focus:outline-none disabled:opacity-60"
         />
         <div className="flex flex-wrap items-center justify-between gap-3">

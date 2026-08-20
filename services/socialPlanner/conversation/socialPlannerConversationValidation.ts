@@ -1,11 +1,14 @@
 /**
  * Request validation for Social Planner Ask Athena.
- * Client may supply message only — history/package/intelligence are server-owned.
+ * Client may supply message and an optional date-only asset reference.
+ * History / package / intelligence / asset bodies are server-owned.
  */
 
+import { parseSocialCalendarDate } from "@/services/socialPlanner/socialCalendarTypes";
 import {
   SOCIAL_PLANNER_CONVERSATION_LIMITS,
   SocialPlannerConversationError,
+  type SocialPlannerConversationAssetReference,
   type SocialPlannerConversationRequest,
 } from "@/services/socialPlanner/conversation/socialPlannerConversationTypes";
 
@@ -88,7 +91,67 @@ export function validateSocialPlannerConversationRequest(
     );
   }
 
-  return { message };
+  const assetReference = parseOptionalAssetReference(record.assetReference);
+
+  return assetReference ? { message, assetReference } : { message };
+}
+
+function parseOptionalAssetReference(
+  value: unknown,
+): SocialPlannerConversationAssetReference | undefined {
+  if (value == null) {
+    return undefined;
+  }
+
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new SocialPlannerConversationError(
+      "VALIDATION_ERROR",
+      "assetReference must be an object.",
+      400,
+    );
+  }
+
+  const ref = value as Record<string, unknown>;
+  if (
+    "content" in ref ||
+    "title" in ref ||
+    "body" in ref ||
+    "socialCopy" in ref ||
+    "productionSpec" in ref
+  ) {
+    throw new SocialPlannerConversationError(
+      "VALIDATION_ERROR",
+      "assetReference may not include content or title.",
+      400,
+    );
+  }
+
+  const extraKeys = Object.keys(ref).filter((key) => key !== "date");
+  if (extraKeys.length > 0) {
+    throw new SocialPlannerConversationError(
+      "VALIDATION_ERROR",
+      `assetReference may not include ${extraKeys[0]}.`,
+      400,
+    );
+  }
+
+  if (typeof ref.date !== "string" || !ref.date.trim()) {
+    throw new SocialPlannerConversationError(
+      "VALIDATION_ERROR",
+      "assetReference.date must be a non-empty ISO calendar date (YYYY-MM-DD).",
+      400,
+    );
+  }
+
+  try {
+    return { date: parseSocialCalendarDate(ref.date) };
+  } catch {
+    throw new SocialPlannerConversationError(
+      "VALIDATION_ERROR",
+      "assetReference.date must be an ISO calendar date (YYYY-MM-DD).",
+      400,
+    );
+  }
 }
 
 export function normalizeConversationApplyRequest(

@@ -16,9 +16,13 @@ import { previewSocialCopy } from "@/components/socialPlanner/socialPlannerClien
 
 type SocialCalendarDayCardProps = {
   asset: SocialCalendarAssetV1;
+  onDiscussWithAthena?: (reference: { date: string }) => void;
 };
 
-export function SocialCalendarDayCard({ asset }: SocialCalendarDayCardProps) {
+export function SocialCalendarDayCard({
+  asset,
+  onDiscussWithAthena,
+}: SocialCalendarDayCardProps) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const selectedAnchors = asset.calendarAnchors.filter((anchor) =>
@@ -35,7 +39,16 @@ export function SocialCalendarDayCard({ asset }: SocialCalendarDayCardProps) {
           <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-orange)]">
             {formatSocialPlannerDayHeader(asset.weekday, asset.date)}
           </div>
-          <div data-asset-actions="">
+          <div className="flex flex-wrap items-center gap-2" data-asset-actions="">
+            {onDiscussWithAthena ? (
+              <button
+                type="button"
+                onClick={() => onDiscussWithAthena({ date: asset.date })}
+                className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-white/65 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+              >
+                Discuss with Athena
+              </button>
+            ) : null}
             <CopyButton
               text={assetCopyText}
               tracking={null}
