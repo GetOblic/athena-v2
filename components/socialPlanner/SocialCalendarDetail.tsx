@@ -257,6 +257,36 @@ function SocialCalendarReadyDetail({
         <p className="text-sm text-rose-100/80">{thinkDifferentlyError}</p>
       ) : null}
 
+      <nav
+        data-day-navigation=""
+        aria-label="Jump to day"
+        className="overflow-x-auto"
+      >
+        <div className="flex flex-nowrap gap-2">
+          {assets.map((asset) => {
+            const label = formatSocialPlannerDayHeader(asset.weekday, asset.date);
+            return (
+              <button
+                key={asset.date}
+                type="button"
+                aria-label={`Jump to ${label}`}
+                onClick={() => {
+                  document
+                    .getElementById(`social-planner-day-${asset.date}`)
+                    ?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    });
+                }}
+                className="shrink-0 whitespace-nowrap rounded-2xl border border-white/15 px-3 py-2 text-xs font-semibold text-white/80 transition hover:border-[var(--athena-orange)]/40 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-7">
         {socialPackage.strategySummary ? (
           <p className="text-sm leading-7 text-white/50">

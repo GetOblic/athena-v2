@@ -42,7 +42,8 @@ export function SocialCalendarDayCard({
 
   return (
     <article
-      className={`min-w-0 rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5 sm:p-7`}
+      id={`social-planner-day-${asset.date}`}
+      className={`scroll-mt-8 min-w-0 rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5 sm:p-7`}
     >
       <header className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">

@@ -576,6 +576,121 @@ describe("Social Planner dedicated calendar detail routing", () => {
   });
 });
 
+describe("Social Planner 7-day quick navigation", () => {
+  it("renders Ready-only day navigation between the week header and Why This Week Works", () => {
+    const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
+    const readyStart = detail.indexOf("function SocialCalendarReadyDetail");
+    assert.ok(readyStart >= 0);
+    const beforeReady = detail.slice(0, readyStart);
+    const ready = detail.slice(readyStart);
+    const headerIdx = ready.indexOf("Your Social Week");
+    const navIdx = ready.indexOf("data-day-navigation");
+    const whyIdx = ready.indexOf("Why This Week Works");
+
+    assert.match(ready, /data-day-navigation/);
+    assert.match(ready, /aria-label="Jump to day"/);
+    assert.ok(headerIdx >= 0 && navIdx >= 0 && whyIdx >= 0);
+    assert.ok(headerIdx < navIdx && navIdx < whyIdx);
+    assert.doesNotMatch(beforeReady, /data-day-navigation/);
+    assert.doesNotMatch(beforeReady, /social-planner-day-/);
+    assert.doesNotMatch(beforeReady, /Jump to day/);
+  });
+
+  it("renders one date-based navigation button per daily asset and scrolls smoothly", () => {
+    const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
+    const card = read("components/socialPlanner/SocialCalendarDayCard.tsx");
+    const ready = detail.slice(detail.indexOf("function SocialCalendarReadyDetail"));
+    const nav = ready.slice(
+      ready.indexOf("data-day-navigation"),
+      ready.indexOf("Why This Week Works"),
+    );
+
+    assert.match(nav, /assets\.map\(\(asset\) => \{/);
+    assert.match(nav, /formatSocialPlannerDayHeader\(asset\.weekday, asset\.date\)/);
+    assert.match(nav, /type="button"/);
+    assert.match(nav, /aria-label=\{`Jump to \$\{label\}`\}/);
+    assert.match(
+      nav,
+      /getElementById\(`social-planner-day-\$\{asset\.date\}`\)/,
+    );
+    assert.match(
+      nav,
+      /scrollIntoView\(\{\s*behavior: "smooth",\s*block: "start",\s*\}\)/,
+    );
+    assert.match(nav, /overflow-x-auto/);
+    assert.match(nav, /flex flex-nowrap/);
+    assert.match(nav, /whitespace-nowrap/);
+    assert.doesNotMatch(nav, /flex-wrap/);
+    assert.doesNotMatch(nav, /history\.|router\.|replaceState|#social-planner-day/);
+    assert.doesNotMatch(nav, /setDiscussAssetReference|onThinkDifferently|onApply/);
+
+    assert.match(card, /id=\{`social-planner-day-\$\{asset\.date\}`\}/);
+    assert.match(card, /scroll-mt-8/);
+    assert.doesNotMatch(card, /id=\{`social-planner-day-\$\{.*index/);
+  });
+
+  it("does not render day navigation for Queued, Processing, Failed, or unavailable packages", () => {
+    const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
+    const status = read("components/socialPlanner/SocialPlannerStatus.tsx");
+    const inFlight = detail.slice(
+      detail.indexOf("if (isSocialPlannerInFlight"),
+      detail.indexOf("Processing Failed"),
+    );
+    const failed = detail.slice(
+      detail.indexOf("if (calendar.status === \"Processing Failed\")"),
+      detail.indexOf("packageUnavailable"),
+    );
+    const unavailable = detail.slice(
+      detail.indexOf("if (calendar.packageUnavailable"),
+      detail.indexOf("return (\n    <SocialCalendarReadyDetail"),
+    );
+
+    assert.doesNotMatch(inFlight, /data-day-navigation|social-planner-day-/);
+    assert.doesNotMatch(failed, /data-day-navigation|social-planner-day-/);
+    assert.doesNotMatch(unavailable, /data-day-navigation|social-planner-day-/);
+    assert.doesNotMatch(status, /data-day-navigation|social-planner-day-/);
+  });
+
+  it("keeps Open Asset, L1 Copy/Continue, L2 Discuss, and L3 Ask Athena intact", () => {
+    const card = read("components/socialPlanner/SocialCalendarDayCard.tsx");
+    const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
+    const panel = read("components/socialPlanner/SocialPlannerAskAthenaPanel.tsx");
+
+    assert.match(card, /Open Asset/);
+    assert.match(card, /aria-expanded=\{open\}/);
+    assert.match(card, /<CopyButton/);
+    assert.match(card, /showContinue/);
+    assert.match(card, /Discuss with Athena/);
+    assert.match(detail, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
+    assert.match(detail, /data-ask-athena-slot/);
+    assert.match(detail, /SocialPlannerAskAthenaPanel/);
+    assert.match(detail, /Think Differently/);
+    assert.match(panel, /Ask Athena About This Calendar/);
+    assert.match(panel, /Clear target/);
+    assert.match(panel, /Apply Athena&apos;s Suggestions/);
+    assert.doesNotMatch(card, /setDiscussAssetReference|usageTag/);
+    assert.doesNotMatch(card, /\bSelected\b|\bScheduled\b|\bPublished\b|\bUsed\b/);
+  });
+
+  it("does not change APIs, schema, worker, or package.json", () => {
+    const api = read("app/api/social-planner/[id]/route.ts");
+    const conversation = read("app/api/social-planner/[id]/conversation/route.ts");
+    const pkg = read("package.json");
+    const migrations = readdirSync(join(ROOT, "supabase/migrations")).filter((name) =>
+      name.endsWith(".sql"),
+    );
+    const socialMigrations = migrations.filter((name) => name.includes("social_calendar"));
+
+    assert.doesNotMatch(api, /data-day-navigation|social-planner-day-/);
+    assert.doesNotMatch(conversation, /data-day-navigation|social-planner-day-/);
+    assert.doesNotMatch(pkg, /data-day-navigation|social-planner-day-/);
+    assert.deepEqual(socialMigrations, [
+      "20260819000001_create_athena_social_calendars.sql",
+      "20260820000001_create_athena_social_calendar_conversation.sql",
+    ]);
+  });
+});
+
 describe("Social Planner L7 non-interference", () => {
   it("does not change Ads, SEO, Licensee, or Super Admin workspace behavior", () => {
     assert.match(read("app/ads/page.tsx"), /AdsLibraryClient/);
