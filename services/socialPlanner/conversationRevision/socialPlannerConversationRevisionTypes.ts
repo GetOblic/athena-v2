@@ -25,7 +25,7 @@ export const SOCIAL_PLANNER_CONVERSATION_REVISION_PROMPT_VERSION =
   "social_planner_conversation_revision_v1" as const;
 
 export const SOCIAL_PLANNER_CONVERSATION_REVISION_REPAIR_PROMPT_VERSION =
-  "social_planner_conversation_revision_repair_v1" as const;
+  "social_planner_conversation_revision_repair_v2" as const;
 
 export const SOCIAL_PLANNER_REVISION_SATISFACTION_ALGORITHM_VERSION =
   "social_planner_revision_satisfaction_v1" as const;

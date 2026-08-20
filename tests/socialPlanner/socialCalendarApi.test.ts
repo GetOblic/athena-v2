@@ -255,6 +255,19 @@ describe("Social Planner L6 API contracts", () => {
       /productionSpec|slides must be an array|failures/i,
     );
     assert.equal("error_metadata" in validationFailed, false);
+
+    const revisionFailed = toSocialCalendarDetailDto(
+      calendarRow({
+        status: "Processing Failed",
+        error_code: "CONVERSATION_REVISION_REPAIR_FAILED",
+        error_message: "assets[0].audience is required.",
+      }),
+    );
+    assert.deepEqual(revisionFailed.error, SOCIAL_CALENDAR_PUBLIC_FAILURE);
+    assert.doesNotMatch(
+      JSON.stringify(revisionFailed),
+      /audience is required|productionSpec|failures/i,
+    );
   });
 
   it("malformed Ready packages fail safely", () => {

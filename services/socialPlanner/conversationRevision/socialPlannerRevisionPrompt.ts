@@ -5,11 +5,8 @@
 
 import { SHARED_JSON_OUTPUT_RULES } from "@/services/ai/prompts/sharedPromptConstraints";
 import type { SocialPlannerGenerationContextV1 } from "@/services/socialPlanner/intelligence/socialPlannerIntelligenceTypes";
-import {
-  SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION,
-  SOCIAL_PLANNER_PACKAGE_LIMITS,
-} from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
 import type { SocialCalendarPackageV1 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
+import { buildSocialPlannerPackageOutputContract } from "@/services/socialPlanner/generation/socialPlannerGenerationPrompts";
 import {
   SOCIAL_PLANNER_CONVERSATION_REVISION_PROMPT_VERSION,
   SOCIAL_PLANNER_CONVERSATION_REVISION_REPAIR_PROMPT_VERSION,
@@ -78,6 +75,31 @@ function compactSourceWeek(sourcePackage: SocialCalendarPackageV1): string {
   );
 }
 
+function compactCurrentCandidate(currentPackage: SocialCalendarPackageV1): string {
+  return JSON.stringify({
+    strategySummary: currentPackage.strategySummary,
+    whyThisWeekWorks: currentPackage.whyThisWeekWorks,
+    assets: currentPackage.assets.map((asset) => ({
+      date: asset.date,
+      assetType: asset.assetType,
+      contentArchetype: asset.contentArchetype,
+      primaryObjective: asset.primaryObjective,
+      audience: asset.audience,
+      personaIds: asset.personaIds,
+      topic: asset.topic,
+      angle: asset.angle,
+      hook: asset.hook,
+      concept: asset.concept,
+      calendarAnchors: asset.calendarAnchors,
+      calendarReason: asset.calendarReason,
+      productionSpec: asset.productionSpec,
+      socialCopy: asset.socialCopy,
+      cta: asset.cta,
+      recommendedPlatforms: asset.recommendedPlatforms,
+    })),
+  });
+}
+
 export function buildConversationRevisionPromptExtras(input: {
   revisionContext: SocialPlannerConversationRevisionContextV1;
   sourcePackage: SocialCalendarPackageV1;
@@ -123,6 +145,8 @@ PROMPT VERSION:
 ${SOCIAL_PLANNER_CONVERSATION_REVISION_REPAIR_PROMPT_VERSION}
 
 Change only what the satisfaction violations require. Do not lose grounded content.
+Return the COMPLETE corrected weekly Social Calendar package, not a patch or a partial asset list.
+All seven assets must remain present. Every family-specific productionSpec must be valid.
 Keep exactly seven assets on these dates in order: ${dates.join(", ")}.
 
 SATISFACTION VIOLATIONS:
@@ -134,35 +158,14 @@ ${buildConversationRevisionPromptExtras({
 })}
 
 === CURRENT CANDIDATE PACKAGE ===
-${JSON.stringify({
-  strategySummary: input.currentPackage.strategySummary,
-  whyThisWeekWorks: input.currentPackage.whyThisWeekWorks,
-  assets: input.currentPackage.assets.map((asset) => ({
-    date: asset.date,
-    assetType: asset.assetType,
-    contentArchetype: asset.contentArchetype,
-    primaryObjective: asset.primaryObjective,
-    topic: asset.topic,
-    angle: asset.angle,
-    hook: asset.hook,
-    concept: asset.concept,
-    socialCopy: asset.socialCopy,
-    cta: asset.cta,
-    recommendedPlatforms: asset.recommendedPlatforms,
-  })),
-})}
+${compactCurrentCandidate(input.currentPackage)}
 
 === USER GUIDANCE ===
 ${GUIDANCE_OPEN}
 ${guidance}
 ${GUIDANCE_CLOSE}
 ${memory}
-Return the same required package JSON shape as asset generation
-(schemaVersion ${SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION}, strategySummary, whyThisWeekWorks, assets[7]).
-
-Field budgets:
-- strategySummary ≤ ${SOCIAL_PLANNER_PACKAGE_LIMITS.strategySummaryMaxChars} chars
-- whyThisWeekWorks ${SOCIAL_PLANNER_PACKAGE_LIMITS.whyThisWeekWorksMinChars}-${SOCIAL_PLANNER_PACKAGE_LIMITS.whyThisWeekWorksMaxChars} chars
+${buildSocialPlannerPackageOutputContract()}
 
 ${SHARED_JSON_OUTPUT_RULES}
 `.trim();
