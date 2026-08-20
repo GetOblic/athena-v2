@@ -388,10 +388,8 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.match(card, /data-asset-actions/);
     assert.match(card, /serializeSocialCalendarAsset/);
     assert.match(card, /<CopyButton/);
-    assert.match(card, /tracking=\{null\}/);
     assert.match(card, /showContinue/);
     assert.doesNotMatch(card, /showContinue=\{false\}/);
-    assert.doesNotMatch(card, /initiallyDone|initiallyTags/);
     assert.doesNotMatch(card, /AssetUsageTagControls/);
     assert.doesNotMatch(card, /\/api\/asset-interactions/);
     assert.doesNotMatch(card, /package_json/);

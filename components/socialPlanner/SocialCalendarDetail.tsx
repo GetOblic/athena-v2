@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
 import type { SocialPlannerConversationAssetReference } from "@/services/socialPlanner/conversation/socialPlannerConversationTypes";
 import { SocialCalendarDayCard } from "@/components/socialPlanner/SocialCalendarDayCard";
@@ -12,6 +12,12 @@ import {
 import { socialPlannerAssetTypeLabel } from "@/components/socialPlanner/socialPlannerLabels";
 import { isSocialPlannerInFlight } from "@/components/socialPlanner/socialPlannerClient";
 import { SocialPlannerAskAthenaPanel } from "@/components/socialPlanner/SocialPlannerAskAthenaPanel";
+import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { buildSocialCalendarAssetInteractionType } from "@/services/assetInteractions/assetInteractionKeys";
+import {
+  isAssetUsageTag,
+  type AssetUsageTag,
+} from "@/services/assetInteractions/assetUsageTags";
 
 type SocialCalendarDetailProps = {
   calendar: SocialCalendarDetailDto;
@@ -138,6 +144,61 @@ function SocialCalendarReadyDetail({
   const assets = socialPackage.assets.slice(0, 7);
   const [discussAssetReference, setDiscussAssetReference] =
     useState<SocialPlannerConversationAssetReference | null>(null);
+  const [doneByAssetType, setDoneByAssetType] = useState<
+    Record<string, boolean>
+  >({});
+  const [tagsByAssetType, setTagsByAssetType] = useState<
+    Record<string, AssetUsageTag[]>
+  >({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInteractionState() {
+      setDoneByAssetType({});
+      setTagsByAssetType({});
+      const params = new URLSearchParams({
+        sourceType: "social_calendar",
+        sourceId: calendar.id,
+      });
+
+      try {
+        const response = await fetch(`/api/asset-interactions?${params}`);
+        const payload = await parseJsonResponse<{
+          interactions?: Record<
+            string,
+            { done?: boolean; tags?: string[] }
+          >;
+        }>(response);
+        if (cancelled || !response.ok) {
+          return;
+        }
+
+        const nextDone: Record<string, boolean> = {};
+        const nextTags: Record<string, AssetUsageTag[]> = {};
+        for (const [assetType, interaction] of Object.entries(
+          payload.interactions ?? {},
+        )) {
+          if (interaction?.done) {
+            nextDone[assetType] = true;
+          }
+          const tags = (interaction?.tags ?? []).filter(isAssetUsageTag);
+          if (tags.length > 0) {
+            nextTags[assetType] = tags;
+          }
+        }
+        setDoneByAssetType(nextDone);
+        setTagsByAssetType(nextTags);
+      } catch (error) {
+        console.error("[ASSET_COPY] load_done_state_failed", error);
+      }
+    }
+
+    void loadInteractionState();
+    return () => {
+      cancelled = true;
+    };
+  }, [calendar.id]);
 
   function handleDiscussWithAthena(reference: SocialPlannerConversationAssetReference) {
     setDiscussAssetReference({ date: reference.date });
@@ -209,13 +270,26 @@ function SocialCalendarReadyDetail({
       </div>
 
       <div className="space-y-5">
-        {assets.map((asset) => (
-          <SocialCalendarDayCard
-            key={`${asset.date}-${asset.assetType}`}
-            asset={asset}
-            onDiscussWithAthena={handleDiscussWithAthena}
-          />
-        ))}
+        {assets.map((asset) => {
+          const interactionKey = buildSocialCalendarAssetInteractionType(
+            asset.date,
+          );
+          return (
+            <SocialCalendarDayCard
+              key={`${asset.date}-${asset.assetType}`}
+              asset={asset}
+              onDiscussWithAthena={handleDiscussWithAthena}
+              tracking={{
+                sourceType: "social_calendar",
+                sourceId: calendar.id,
+                executiveVersionId: null,
+                assetType: interactionKey,
+              }}
+              initiallyDone={Boolean(doneByAssetType[interactionKey])}
+              initiallyTags={tagsByAssetType[interactionKey] ?? []}
+            />
+          );
+        })}
       </div>
 
       <div data-ask-athena-slot="">

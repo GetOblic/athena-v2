@@ -3,10 +3,17 @@
  * Never use UI labels or full content as database keys.
  */
 
+import { parseSocialCalendarDate } from "@/services/socialPlanner/socialCalendarTypes";
+
 export const LIVE_EXECUTIVE_VERSION_SENTINEL =
   "00000000-0000-0000-0000-000000000000";
 
-export type AssetInteractionSourceType = "discussion" | "prospect";
+export type AssetInteractionSourceType =
+  | "discussion"
+  | "prospect"
+  | "social_calendar";
+
+const SOCIAL_CALENDAR_ASSET_INTERACTION_PREFIX = "social_day_";
 
 export const DEPLOYMENT_ASSET_TYPE_BY_LABEL: Record<string, string> = {
   COMMUNITY_REPLY: "community_reply",
@@ -81,9 +88,31 @@ const SUPPORTED_ASSET_INTERACTION_TYPES = new Set<string>([
   PERSONA_ANALYSIS_OBJECTION_HANDLING_ASSET_TYPE,
 ]);
 
+export function buildSocialCalendarAssetInteractionType(date: string): string {
+  return `${SOCIAL_CALENDAR_ASSET_INTERACTION_PREFIX}${parseSocialCalendarDate(date)}`;
+}
+
+export function parseSocialCalendarAssetInteractionType(
+  value: unknown,
+): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith(SOCIAL_CALENDAR_ASSET_INTERACTION_PREFIX)) {
+    return null;
+  }
+  const datePart = trimmed.slice(SOCIAL_CALENDAR_ASSET_INTERACTION_PREFIX.length);
+  try {
+    return parseSocialCalendarDate(datePart);
+  } catch {
+    return null;
+  }
+}
+
 export function isSupportedAssetInteractionType(assetType: string): boolean {
   const key = assetType.trim().toLowerCase();
-  return Boolean(key) && SUPPORTED_ASSET_INTERACTION_TYPES.has(key);
+  if (!key) return false;
+  if (SUPPORTED_ASSET_INTERACTION_TYPES.has(key)) return true;
+  return parseSocialCalendarAssetInteractionType(key) !== null;
 }
 
 export function canonicalDeploymentAssetType(label: string): string {

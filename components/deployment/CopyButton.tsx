@@ -9,7 +9,7 @@ import type { AiWorkspacePreferences } from "@/services/assetContinuation/destin
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 
 export type AssetCopyTrackingContext = {
-  sourceType: "discussion" | "prospect";
+  sourceType: "discussion" | "prospect" | "social_calendar";
   sourceId: string;
   executiveVersionId: string | null;
   assetType: string;

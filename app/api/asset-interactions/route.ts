@@ -8,8 +8,14 @@ import {
 import {
   isSupportedAssetInteractionType,
   LIVE_EXECUTIVE_VERSION_SENTINEL,
+  parseSocialCalendarAssetInteractionType,
   type AssetInteractionSourceType,
 } from "@/services/assetInteractions/assetInteractionKeys";
+import {
+  authorizeSocialCalendarInteractionAsset,
+  authorizeSocialCalendarInteractionSource,
+  isAllowedSocialCalendarExecutiveVersionId,
+} from "@/services/assetInteractions/socialCalendarAssetInteractionAccess";
 import { parseAssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 import { getDiscussionById } from "@/services/discussionService";
 import { getExecutiveVersionById } from "@/services/executiveVersions/executiveVersionService";
@@ -30,8 +36,29 @@ function json(data: unknown, status = 200) {
 }
 
 function parseSourceType(value: unknown): AssetInteractionSourceType | null {
-  if (value === "discussion" || value === "prospect") return value;
+  if (
+    value === "discussion" ||
+    value === "prospect" ||
+    value === "social_calendar"
+  ) {
+    return value;
+  }
   return null;
+}
+
+function socialCalendarDeniedJson(denial: {
+  status: number;
+  code: string;
+  message: string;
+}) {
+  return json(
+    {
+      ok: false,
+      success: false,
+      error: { code: denial.code, message: denial.message },
+    },
+    denial.status,
+  );
 }
 
 async function resolveDiscussionIdForSource(input: {
@@ -47,8 +74,16 @@ async function resolveDiscussionIdForSource(input: {
     return discussion?.id ?? null;
   }
 
-  const prospect = await getProspectById(input.sourceId, input.organizationId);
-  return prospect?.linked_discussion_id ?? null;
+  if (input.sourceType === "prospect") {
+    const prospect = await getProspectById(input.sourceId, input.organizationId);
+    return prospect?.linked_discussion_id ?? null;
+  }
+
+  if (input.sourceType === "social_calendar") {
+    return null;
+  }
+
+  return null;
 }
 
 async function assertSourceAccess(input: {
@@ -63,8 +98,14 @@ async function assertSourceAccess(input: {
     );
     return Boolean(discussion);
   }
-  const prospect = await getProspectById(input.sourceId, input.organizationId);
-  return Boolean(prospect);
+  if (input.sourceType === "prospect") {
+    const prospect = await getProspectById(input.sourceId, input.organizationId);
+    return Boolean(prospect);
+  }
+  if (input.sourceType === "social_calendar") {
+    return false;
+  }
+  return false;
 }
 
 async function assertExecutiveVersionAccess(input: {
@@ -73,6 +114,10 @@ async function assertExecutiveVersionAccess(input: {
   sourceId: string;
   executiveVersionId: string | null;
 }): Promise<boolean> {
+  if (input.sourceType === "social_calendar") {
+    return isAllowedSocialCalendarExecutiveVersionId(input.executiveVersionId);
+  }
+
   const versionId = input.executiveVersionId?.trim() || null;
   if (!versionId || versionId === LIVE_EXECUTIVE_VERSION_SENTINEL) {
     return true;
@@ -129,6 +174,45 @@ export async function GET(request: Request) {
         },
         400,
       );
+    }
+
+    if (sourceType === "social_calendar") {
+      if (!isAllowedSocialCalendarExecutiveVersionId(executiveVersionId)) {
+        return json(
+          {
+            ok: false,
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message:
+                "Social Calendar interactions do not accept an Executive Version.",
+            },
+          },
+          400,
+        );
+      }
+
+      const access = await authorizeSocialCalendarInteractionSource({
+        organizationId,
+        sourceId,
+      });
+      if (!access.ok) {
+        return socialCalendarDeniedJson(access);
+      }
+
+      const interactions = await listAssetInteractions({
+        organizationId,
+        userId,
+        sourceType,
+        sourceId,
+        executiveVersionId,
+      });
+
+      return json({
+        ok: true,
+        success: true,
+        interactions,
+      });
     }
 
     const allowed = await assertSourceAccess({
@@ -254,18 +338,54 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!isSupportedAssetInteractionType(assetType)) {
-      return json(
-        {
-          ok: false,
-          success: false,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: "Unsupported asset type.",
+    if (sourceType === "social_calendar") {
+      if (!isAllowedSocialCalendarExecutiveVersionId(executiveVersionId)) {
+        return json(
+          {
+            ok: false,
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message:
+                "Social Calendar interactions do not accept an Executive Version.",
+            },
           },
-        },
-        400,
-      );
+          400,
+        );
+      }
+
+      const access = await authorizeSocialCalendarInteractionSource({
+        organizationId,
+        sourceId,
+      });
+      if (!access.ok) {
+        return socialCalendarDeniedJson(access);
+      }
+
+      const assetAccess = authorizeSocialCalendarInteractionAsset({
+        socialPackage: access.socialPackage,
+        assetType,
+      });
+      if (!assetAccess.ok) {
+        return socialCalendarDeniedJson(assetAccess);
+      }
+    } else {
+      if (
+        parseSocialCalendarAssetInteractionType(assetType) ||
+        !isSupportedAssetInteractionType(assetType)
+      ) {
+        return json(
+          {
+            ok: false,
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "Unsupported asset type.",
+            },
+          },
+          400,
+        );
+      }
     }
 
     if (body.usageTag != null && body.usageTag !== "" && !usageTag) {
@@ -282,40 +402,42 @@ export async function POST(request: Request) {
       );
     }
 
-    const allowed = await assertSourceAccess({
-      organizationId,
-      sourceType,
-      sourceId,
-    });
-    if (!allowed) {
-      return json(
-        {
-          ok: false,
-          success: false,
-          error: { code: "NOT_FOUND", message: "Source not found." },
-        },
-        404,
-      );
-    }
-
-    const versionAllowed = await assertExecutiveVersionAccess({
-      organizationId,
-      sourceType,
-      sourceId,
-      executiveVersionId,
-    });
-    if (!versionAllowed) {
-      return json(
-        {
-          ok: false,
-          success: false,
-          error: {
-            code: "NOT_FOUND",
-            message: "Executive Version not found.",
+    if (sourceType !== "social_calendar") {
+      const allowed = await assertSourceAccess({
+        organizationId,
+        sourceType,
+        sourceId,
+      });
+      if (!allowed) {
+        return json(
+          {
+            ok: false,
+            success: false,
+            error: { code: "NOT_FOUND", message: "Source not found." },
           },
-        },
-        404,
-      );
+          404,
+        );
+      }
+
+      const versionAllowed = await assertExecutiveVersionAccess({
+        organizationId,
+        sourceType,
+        sourceId,
+        executiveVersionId,
+      });
+      if (!versionAllowed) {
+        return json(
+          {
+            ok: false,
+            success: false,
+            error: {
+              code: "NOT_FOUND",
+              message: "Executive Version not found.",
+            },
+          },
+          404,
+        );
+      }
     }
 
     // Usage-tag path — never creates/toggles copied.

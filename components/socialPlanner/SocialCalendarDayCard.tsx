@@ -2,7 +2,10 @@
 
 import { useId, useState } from "react";
 import type { SocialCalendarAssetV1 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
-import { CopyButton } from "@/components/deployment/CopyButton";
+import {
+  CopyButton,
+  type AssetCopyTrackingContext,
+} from "@/components/deployment/CopyButton";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import { SocialCalendarProductionSpec, SocialPlannerCopyableField } from "@/components/socialPlanner/SocialCalendarProductionSpec";
 import { formatSocialPlannerDayHeader } from "@/components/socialPlanner/socialPlannerDates";
@@ -13,15 +16,22 @@ import {
   socialPlannerPlatformLabel,
 } from "@/components/socialPlanner/socialPlannerLabels";
 import { previewSocialCopy } from "@/components/socialPlanner/socialPlannerClient";
+import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 
 type SocialCalendarDayCardProps = {
   asset: SocialCalendarAssetV1;
   onDiscussWithAthena?: (reference: { date: string }) => void;
+  tracking: AssetCopyTrackingContext;
+  initiallyDone?: boolean;
+  initiallyTags?: AssetUsageTag[];
 };
 
 export function SocialCalendarDayCard({
   asset,
   onDiscussWithAthena,
+  tracking,
+  initiallyDone = false,
+  initiallyTags = [],
 }: SocialCalendarDayCardProps) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -51,7 +61,9 @@ export function SocialCalendarDayCard({
             ) : null}
             <CopyButton
               text={assetCopyText}
-              tracking={null}
+              tracking={tracking}
+              initiallyDone={initiallyDone}
+              initiallyTags={initiallyTags}
               showContinue
               assetType={asset.assetType}
             />
