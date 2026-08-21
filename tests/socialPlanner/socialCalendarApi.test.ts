@@ -68,7 +68,7 @@ describe("Social Planner L6 API contracts", () => {
     assert.match(route, /requireCurrentOrganizationContext/);
     assert.match(route, /normalizeSocialCalendarCreateRequest/);
     assert.match(route, /createSocialCalendarWithJob/);
-    assert.match(route, /listSocialCalendars\(organizationId\)/);
+    assert.match(route, /listSocialCalendars\(organizationId,/);
     assert.match(route, /202/);
     const request = read("services/socialPlanner/socialCalendarRequest.ts");
     assert.match(request, /organization_id: _organizationId/);
@@ -205,12 +205,22 @@ describe("Social Planner L6 API contracts", () => {
     assert.ok((item.whyThisWeekWorks ?? "").length <= 181);
   });
 
-  it("history orders contract newest-first with a bounded limit", () => {
+  it("history orders newest-first with offset pagination instead of a 50-row cap", () => {
     const service = read("services/socialPlanner/socialCalendarService.ts");
+    const route = read("app/api/social-planner/route.ts");
     assert.match(service, /order\("created_at", \{ ascending: false \}\)/);
-    assert.match(service, /SOCIAL_CALENDAR_HISTORY_LIMIT = 50/);
+    assert.match(service, /order\("id", \{ ascending: false \}\)/);
+    assert.match(service, /SOCIAL_CALENDAR_HISTORY_PAGE_SIZE/);
+    assert.match(service, /SOCIAL_CALENDAR_HISTORY_MAX_LIMIT/);
     assert.match(service, /\.eq\("organization_id", organizationId\)/);
-    assert.match(service, /\.limit\(limit\)/);
+    assert.match(service, /\.range\(/);
+    assert.doesNotMatch(service, /SOCIAL_CALENDAR_HISTORY_LIMIT = 50/);
+    assert.match(route, /searchParams\.get\("search"\)/);
+    assert.match(route, /searchParams\.get\("page"\)/);
+    assert.match(route, /searchParams\.get\("limit"\)/);
+    assert.match(route, /pagination: result\.pagination/);
+    assert.doesNotMatch(route, /searchParams\.get\("organizationId"\)|searchParams\.get\("organization_id"\)/);
+    assert.match(route, /export async function POST\(request: Request\)/);
   });
 
   it("detail Ready returns a validated package; queued has none; failed is sanitized", () => {

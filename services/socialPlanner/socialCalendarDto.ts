@@ -14,6 +14,17 @@ export const SOCIAL_CALENDAR_PUBLIC_FAILURE = {
   message: "Generation failed. Please try again.",
 } as const;
 
+export const SOCIAL_CALENDAR_HISTORY_PAGE_SIZE = 25 as const;
+export const SOCIAL_CALENDAR_HISTORY_MAX_LIMIT = 50 as const;
+
+export type SocialCalendarHistoryPaginationDto = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasMore: boolean;
+};
+
 export type SocialCalendarPublicErrorDto = {
   code: typeof SOCIAL_CALENDAR_PUBLIC_FAILURE.code;
   message: typeof SOCIAL_CALENDAR_PUBLIC_FAILURE.message;

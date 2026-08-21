@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { SocialCalendarListItemDto } from "@/services/socialPlanner/socialCalendarDto";
+import {
+  SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
+  type SocialCalendarHistoryPaginationDto,
+  type SocialCalendarListItemDto,
+} from "@/services/socialPlanner/socialCalendarDto";
 import { SocialPlannerCreateForm } from "@/components/socialPlanner/SocialPlannerCreateForm";
 import { SocialPlannerHistory } from "@/components/socialPlanner/SocialPlannerHistory";
 import {
@@ -16,22 +20,60 @@ import {
 
 type SocialPlannerWorkspaceProps = {
   initialCalendars: SocialCalendarListItemDto[];
+  initialPagination: SocialCalendarHistoryPaginationDto;
   loadError: string | null;
 };
 
 export function SocialPlannerWorkspace({
   initialCalendars,
+  initialPagination,
   loadError,
 }: SocialPlannerWorkspaceProps) {
   const router = useRouter();
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(initialPagination.page);
+  const [limit] = useState(initialPagination.limit || SOCIAL_CALENDAR_HISTORY_PAGE_SIZE);
   const [calendars, setCalendars] = useState(initialCalendars);
+  const [pagination, setPagination] = useState(initialPagination);
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const submittingRef = useRef(false);
+  const latestRequestKeyRef = useRef("");
 
   const historyHasInFlight = calendars.some((item) =>
     isSocialPlannerInFlight(item.status),
   );
+
+  const loadHistory = useCallback(
+    async (nextSearch: string, nextPage: number) => {
+      const requestKey = `${nextSearch}::${nextPage}::${limit}`;
+      latestRequestKeyRef.current = requestKey;
+      const history = await fetchSocialCalendarHistory({
+        search: nextSearch,
+        page: nextPage,
+        limit,
+      });
+      if (latestRequestKeyRef.current !== requestKey) {
+        return;
+      }
+      if (history.kind === "ok") {
+        setCalendars(history.value.calendars);
+        setPagination(history.value.pagination);
+      }
+    },
+    [limit],
+  );
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setPage(1);
+    void loadHistory(value, 1);
+  }
+
+  function handlePageChange(nextPage: number) {
+    setPage(nextPage);
+    void loadHistory(search, nextPage);
+  }
 
   useEffect(() => {
     if (!historyHasInFlight) {
@@ -48,10 +90,7 @@ export function SocialPlannerWorkspace({
       try {
         historyTicks += 1;
         if (historyTicks % SOCIAL_PLANNER_HISTORY_POLL_TICKS === 0) {
-          const history = await fetchSocialCalendarHistory();
-          if (!cancelled && history.kind === "ok") {
-            setCalendars(history.value);
-          }
+          await loadHistory(search, page);
         }
       } finally {
         requestInFlight = false;
@@ -67,7 +106,7 @@ export function SocialPlannerWorkspace({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [historyHasInFlight]);
+  }, [historyHasInFlight, search, page, limit, loadHistory]);
 
   async function handleCreate(body: SocialPlannerCreatePayload) {
     if (submittingRef.current) return;
@@ -117,7 +156,24 @@ export function SocialPlannerWorkspace({
         onSubmit={(body) => void handleCreate(body)}
       />
 
-      <SocialPlannerHistory calendars={calendars} />
+      {loadError ? null : (
+        <label className="block text-sm text-white/50">
+          Search
+          <input
+            value={search}
+            onChange={(event) => handleSearchChange(event.target.value)}
+            placeholder="Search calendars, dates, strategy, asset types..."
+            className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
+          />
+        </label>
+      )}
+
+      <SocialPlannerHistory
+        calendars={calendars}
+        pagination={pagination}
+        search={search}
+        onPageChange={handlePageChange}
+      />
     </div>
   );
 }

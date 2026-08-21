@@ -5,7 +5,12 @@ import { redirect } from "next/navigation";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { SocialPlannerWorkspace } from "@/components/socialPlanner/SocialPlannerWorkspace";
 import { SOCIAL_PLANNER_CALENDAR_ID_RE } from "@/components/socialPlanner/socialPlannerClient";
-import { toSocialCalendarListItemDto } from "@/services/socialPlanner/socialCalendarDto";
+import {
+  SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
+  toSocialCalendarListItemDto,
+  type SocialCalendarHistoryPaginationDto,
+  type SocialCalendarListItemDto,
+} from "@/services/socialPlanner/socialCalendarDto";
 import { listSocialCalendars } from "@/services/socialPlanner/socialCalendarService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
@@ -25,13 +30,24 @@ export default async function SocialPlannerPage({
     redirect(`/social-planner/${requestedId}`);
   }
 
-  let calendars: ReturnType<typeof toSocialCalendarListItemDto>[] = [];
+  let calendars: SocialCalendarListItemDto[] = [];
+  let pagination: SocialCalendarHistoryPaginationDto = {
+    page: 1,
+    limit: SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
+    total: 0,
+    totalPages: 0,
+    hasMore: false,
+  };
   let loadError: string | null = null;
 
   try {
-    calendars = (await listSocialCalendars(organizationId)).map(
-      toSocialCalendarListItemDto,
-    );
+    const result = await listSocialCalendars(organizationId, {
+      search: "",
+      page: 1,
+      limit: SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
+    });
+    calendars = result.calendars.map(toSocialCalendarListItemDto);
+    pagination = result.pagination;
   } catch (error) {
     console.error("[ATHENA_SOCIAL_PLANNER] library_load_failed", error);
     loadError = "Failed to load Social Calendars for this organization.";
@@ -59,6 +75,7 @@ export default async function SocialPlannerPage({
 
       <SocialPlannerWorkspace
         initialCalendars={calendars}
+        initialPagination={pagination}
         loadError={loadError}
       />
     </main>

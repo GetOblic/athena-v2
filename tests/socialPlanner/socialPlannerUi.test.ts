@@ -346,7 +346,29 @@ describe("Social Planner L7 history, failure, and layout", () => {
     const page = read("app/social-planner/page.tsx");
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
     assert.match(page, /Plan your next seven social assets with one push/);
-    assert.match(history, /if \(calendars.length === 0\) \{\s*return null;/);
+    assert.match(
+      history,
+      /if \(!hasSearch && pagination\.total === 0 && calendars\.length === 0\) \{\s*return null;/,
+    );
+  });
+
+  it("adds Prospects-style search between create and history without extra filters", () => {
+    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
+    const createIdx = workspace.indexOf("<SocialPlannerCreateForm");
+    const searchIdx = workspace.indexOf(
+      "Search calendars, dates, strategy, asset types",
+    );
+    const historyIdx = workspace.indexOf("<SocialPlannerHistory");
+    assert.ok(createIdx >= 0 && searchIdx > createIdx && historyIdx > searchIdx);
+    assert.match(workspace, /setPage\(1\)/);
+    assert.match(workspace, /void loadHistory\(value, 1\)/);
+    assert.match(history, /Showing \{rangeStart\}–\{rangeEnd\} of \{pagination\.total\}/);
+    assert.match(history, />\s*Previous\s*</);
+    assert.match(history, />\s*Next\s*</);
+    assert.match(history, /No calendars match your search/);
+    assert.doesNotMatch(workspace, /Import Prospects|All statuses|Opportunity Score/);
+    assert.doesNotMatch(history, /Import Prospects|All statuses|infinite scroll/);
   });
 
   it("failed, malformed, and 404 states stay safe", () => {

@@ -22,11 +22,53 @@ import {
   isPostgresUniqueViolation,
 } from "@/services/socialPlanner/thinkDifferently/socialPlannerThinkDifferentlyTypes";
 import type { SocialPlannerConversationRevisionContextV1 } from "@/services/socialPlanner/conversationRevision/socialPlannerConversationRevisionTypes";
+import {
+  SOCIAL_CALENDAR_HISTORY_MAX_LIMIT,
+  SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
+  toSocialCalendarListItemDto,
+  type SocialCalendarHistoryPaginationDto,
+} from "@/services/socialPlanner/socialCalendarDto";
+import {
+  filterSocialCalendarsByHistorySearch,
+  paginateSocialCalendarHistoryItems,
+} from "@/services/socialPlanner/socialCalendarHistorySearch";
 
 export type { SocialCalendar };
+export {
+  SOCIAL_CALENDAR_HISTORY_MAX_LIMIT,
+  SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
+};
 
-export const SOCIAL_CALENDAR_HISTORY_LIMIT = 50 as const;
 export const SOCIAL_CALENDAR_TABLE = "athena_social_calendars" as const;
+
+export const SOCIAL_CALENDAR_LIBRARY_SELECT = [
+  "id",
+  "organization_id",
+  "period_start",
+  "period_end",
+  "generation_mode",
+  "generation_stage",
+  "version_number",
+  "source_calendar_id",
+  "root_calendar_id",
+  "status",
+  "package_json",
+  "error_code",
+  "error_message",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+export type SocialCalendarHistoryListQuery = {
+  search?: string | number | null;
+  page?: string | number | null;
+  limit?: string | number | null;
+};
+
+export type SocialCalendarHistoryResult = {
+  calendars: SocialCalendar[];
+  pagination: SocialCalendarHistoryPaginationDto;
+};
 
 export class SocialCalendarNotFoundError extends Error {
   readonly code = "NOT_FOUND";
@@ -40,16 +82,93 @@ function touch(): string {
   return new Date().toISOString();
 }
 
-export async function listSocialCalendars(
-  organizationId: string,
-  limit = SOCIAL_CALENDAR_HISTORY_LIMIT,
-): Promise<SocialCalendar[]> {
-  const { data, error } = await supabaseAdmin
-    .from(SOCIAL_CALENDAR_TABLE)
-    .select("*")
+function parsePositiveInt(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.floor(value);
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseInt(value.trim(), 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+export function normalizeSocialCalendarHistorySearch(
+  value: unknown,
+): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function normalizeSocialCalendarHistoryPage(value: unknown): number {
+  const parsed = parsePositiveInt(value);
+  if (parsed == null || parsed < 1) return 1;
+  return parsed;
+}
+
+export function normalizeSocialCalendarHistoryLimit(value: unknown): number {
+  const parsed = parsePositiveInt(value);
+  if (parsed == null || parsed < 1) return SOCIAL_CALENDAR_HISTORY_PAGE_SIZE;
+  return Math.min(parsed, SOCIAL_CALENDAR_HISTORY_MAX_LIMIT);
+}
+
+export function normalizeSocialCalendarHistoryQuery(
+  query: SocialCalendarHistoryListQuery = {},
+): { search: string; page: number; limit: number } {
+  return {
+    search: normalizeSocialCalendarHistorySearch(query.search),
+    page: normalizeSocialCalendarHistoryPage(query.page),
+    limit: normalizeSocialCalendarHistoryLimit(query.limit),
+  };
+}
+
+export function buildSocialCalendarHistoryPagination(
+  page: number,
+  limit: number,
+  total: number,
+): SocialCalendarHistoryPaginationDto {
+  const safeTotal = Math.max(0, total);
+  const totalPages = safeTotal === 0 ? 0 : Math.ceil(safeTotal / limit);
+  return {
+    page,
+    limit,
+    total: safeTotal,
+    totalPages,
+    hasMore: page < totalPages,
+  };
+}
+
+function mapLibraryRows(rows: unknown[] | null): SocialCalendar[] {
+  return (rows ?? []).map((row) =>
+    mapSocialCalendarRow(row as Record<string, unknown>),
+  );
+}
+
+function libraryQuery(organizationId: string, countExact: boolean) {
+  const select = countExact
+    ? supabaseAdmin
+        .from(SOCIAL_CALENDAR_TABLE)
+        .select(SOCIAL_CALENDAR_LIBRARY_SELECT, { count: "exact" })
+    : supabaseAdmin
+        .from(SOCIAL_CALENDAR_TABLE)
+        .select(SOCIAL_CALENDAR_LIBRARY_SELECT);
+
+  return select
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .order("id", { ascending: false });
+}
+
+async function listSocialCalendarsPage(
+  organizationId: string,
+  page: number,
+  limit: number,
+): Promise<SocialCalendarHistoryResult> {
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+  const { data, error, count } = await libraryQuery(organizationId, true).range(
+    from,
+    to,
+  );
 
   if (error) {
     console.error("[ATHENA_SOCIAL_PLANNER] list_failed", {
@@ -59,9 +178,57 @@ export async function listSocialCalendars(
     throw new Error("Failed to load Social Calendars.");
   }
 
-  return (data ?? []).map((row) =>
-    mapSocialCalendarRow(row as Record<string, unknown>),
+  return {
+    calendars: mapLibraryRows(data),
+    pagination: buildSocialCalendarHistoryPagination(
+      page,
+      limit,
+      count ?? data?.length ?? 0,
+    ),
+  };
+}
+
+async function searchSocialCalendars(
+  organizationId: string,
+  search: string,
+  page: number,
+  limit: number,
+): Promise<SocialCalendarHistoryResult> {
+  const { data, error } = await libraryQuery(organizationId, false);
+
+  if (error) {
+    console.error("[ATHENA_SOCIAL_PLANNER] search_failed", {
+      organizationId,
+      error: error.message,
+    });
+    throw new Error("Failed to load Social Calendars.");
+  }
+
+  const calendars = mapLibraryRows(data);
+  const matched = filterSocialCalendarsByHistorySearch(
+    calendars.map(toSocialCalendarListItemDto),
+    search,
   );
+  const matchedIds = new Set(matched.map((item) => item.id));
+  const orderedMatches = calendars.filter((calendar) =>
+    matchedIds.has(calendar.id),
+  );
+
+  return {
+    calendars: paginateSocialCalendarHistoryItems(orderedMatches, page, limit),
+    pagination: buildSocialCalendarHistoryPagination(page, limit, matched.length),
+  };
+}
+
+export async function listSocialCalendars(
+  organizationId: string,
+  query: SocialCalendarHistoryListQuery = {},
+): Promise<SocialCalendarHistoryResult> {
+  const { search, page, limit } = normalizeSocialCalendarHistoryQuery(query);
+  if (search) {
+    return searchSocialCalendars(organizationId, search, page, limit);
+  }
+  return listSocialCalendarsPage(organizationId, page, limit);
 }
 
 export async function getSocialCalendarById(

@@ -3,10 +3,12 @@
  * No Supabase access. Server remains integrity authority.
  */
 
-import type {
-  CreateSocialCalendarResponse,
-  SocialCalendarDetailDto,
-  SocialCalendarListItemDto,
+import {
+  SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
+  type CreateSocialCalendarResponse,
+  type SocialCalendarDetailDto,
+  type SocialCalendarHistoryPaginationDto,
+  type SocialCalendarListItemDto,
 } from "@/services/socialPlanner/socialCalendarDto";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
@@ -159,7 +161,19 @@ type ListResponse = {
   ok?: boolean;
   success?: boolean;
   calendars?: SocialCalendarListItemDto[];
+  pagination?: SocialCalendarHistoryPaginationDto;
   error?: SocialPlannerApiError;
+};
+
+export type SocialCalendarHistoryFetchQuery = {
+  search?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type SocialCalendarHistoryPage = {
+  calendars: SocialCalendarListItemDto[];
+  pagination: SocialCalendarHistoryPaginationDto;
 };
 
 type DetailResponse = {
@@ -349,17 +363,41 @@ export async function applySocialPlannerConversationRequest(
   }
 }
 
-export async function fetchSocialCalendarHistory(): Promise<
-  SocialPlannerFetchResult<SocialCalendarListItemDto[]>
-> {
+export async function fetchSocialCalendarHistory(
+  query: SocialCalendarHistoryFetchQuery = {},
+): Promise<SocialPlannerFetchResult<SocialCalendarHistoryPage>> {
   try {
-    const response = await fetch("/api/social-planner", { cache: "no-store" });
+    const params = new URLSearchParams();
+    const search = query.search?.trim() ?? "";
+    if (search) params.set("search", search);
+    if (query.page != null) params.set("page", String(query.page));
+    if (query.limit != null) params.set("limit", String(query.limit));
+    const qs = params.toString();
+    const response = await fetch(
+      qs ? `/api/social-planner?${qs}` : "/api/social-planner",
+      { cache: "no-store" },
+    );
     const payload = await parseJsonResponse<ListResponse>(response, {
       unexpectedMessage: "Something went wrong. Please try again.",
     });
     if (response.status === 401) return { kind: "auth" };
     if (response.ok && Array.isArray(payload.calendars)) {
-      return { kind: "ok", value: payload.calendars };
+      const limit = query.limit ?? SOCIAL_CALENDAR_HISTORY_PAGE_SIZE;
+      const page = query.page ?? 1;
+      const pagination = payload.pagination ?? {
+        page,
+        limit,
+        total: payload.calendars.length,
+        totalPages: payload.calendars.length === 0 ? 0 : 1,
+        hasMore: false,
+      };
+      return {
+        kind: "ok",
+        value: {
+          calendars: payload.calendars,
+          pagination,
+        },
+      };
     }
     return { kind: "transient" };
   } catch {

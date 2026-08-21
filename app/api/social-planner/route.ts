@@ -29,14 +29,20 @@ function json(data: unknown, status = 200) {
   });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const { organizationId } = await requireCurrentOrganizationContext();
-    const calendars = await listSocialCalendars(organizationId);
+    const url = new URL(request.url);
+    const result = await listSocialCalendars(organizationId, {
+      search: url.searchParams.get("search"),
+      page: url.searchParams.get("page"),
+      limit: url.searchParams.get("limit"),
+    });
     return json({
       ok: true,
       success: true,
-      calendars: calendars.map(toSocialCalendarListItemDto),
+      calendars: result.calendars.map(toSocialCalendarListItemDto),
+      pagination: result.pagination,
     });
   } catch (error) {
     if (error instanceof OrganizationAccessError) {

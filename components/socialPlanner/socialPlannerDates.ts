@@ -171,3 +171,47 @@ export function formatSocialPlannerMonthCaption(iso: string): string {
   if (!parts) return "";
   return `${MONTH_LONG[parts.month - 1]} ${parts.year}`;
 }
+
+function dateSearchAliasesFromParts(parts: CalendarDateParts): string[] {
+  const monthShort = MONTH_SHORT[parts.month - 1];
+  const monthLong = MONTH_LONG[parts.month - 1];
+  if (!monthShort || !monthLong) return [];
+
+  const year = String(parts.year);
+  const day = String(parts.day);
+  const iso = `${year}-${String(parts.month).padStart(2, "0")}-${day.padStart(2, "0")}`;
+
+  return [
+    iso,
+    monthLong,
+    monthShort,
+    day,
+    year,
+    `${monthShort} ${day}`,
+    `${monthLong} ${day}`,
+    `${monthLong} ${day} ${year}`,
+    `${monthShort} ${day} ${year}`,
+    `${monthLong} ${day}, ${year}`,
+    `${monthShort} ${day}, ${year}`,
+  ];
+}
+
+/**
+ * Deterministic date aliases for Social Planner library search.
+ * Calendar YYYY-MM-DD values stay timezone-stable; timestamps use UTC parts.
+ */
+export function buildSocialPlannerDateSearchAliases(value: string): string[] {
+  const calendar = parseCalendarDateParts(value);
+  if (calendar) {
+    return dateSearchAliasesFromParts(calendar);
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return [];
+
+  return dateSearchAliasesFromParts({
+    year: parsed.getUTCFullYear(),
+    month: parsed.getUTCMonth() + 1,
+    day: parsed.getUTCDate(),
+  });
+}
