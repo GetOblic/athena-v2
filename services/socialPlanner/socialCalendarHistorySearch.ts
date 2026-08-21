@@ -56,6 +56,9 @@ export function buildSocialCalendarHistorySearchCorpus(
   if (item.whyThisWeekWorks) {
     parts.push(item.whyThisWeekWorks);
   }
+  if (item.modelsUsed) {
+    parts.push(item.modelsUsed);
+  }
 
   if (item.status === "Ready") {
     parts.push(`${item.assetCount} assets`);

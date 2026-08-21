@@ -34,6 +34,13 @@ function statusTone(status: string): string {
   return "border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 text-[var(--athena-orange)]";
 }
 
+function generationModeBadgeClass(generationMode: string): string {
+  if (generationMode === "think_differently") {
+    return "inline-flex rounded-full border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--athena-success)]";
+  }
+  return "inline-flex rounded-full border border-white/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/50";
+}
+
 export function SocialPlannerHistory({
   calendars,
   pagination,
@@ -101,7 +108,11 @@ export function SocialPlannerHistory({
                     </span>
                     {calendar.generationMode !== "standard" ||
                     calendar.versionNumber > 1 ? (
-                      <span className="inline-flex rounded-full border border-white/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/50">
+                      <span
+                        className={generationModeBadgeClass(
+                          calendar.generationMode,
+                        )}
+                      >
                         {[
                           calendar.generationMode !== "standard"
                             ? socialPlannerGenerationModeLabel(
@@ -139,13 +150,20 @@ export function SocialPlannerHistory({
                     </p>
                   ) : null}
 
-                  <div className="text-xs leading-5 text-white/35">
-                    {formatSocialPlannerCreatedDate(calendar.createdAt)}
-                    {calendar.status === "Ready"
-                      ? ` · ${calendar.assetCount} assets${
+                  <div className="space-y-1 text-xs leading-5">
+                    <div className="text-white/35">
+                      {formatSocialPlannerCreatedDate(calendar.createdAt)}
+                    </div>
+                    {calendar.modelsUsed ? (
+                      <div className="text-white/55">{calendar.modelsUsed}</div>
+                    ) : null}
+                    {calendar.status === "Ready" ? (
+                      <div className="text-white/35">
+                        {`${calendar.assetCount} assets${
                           typeSummary ? ` · ${typeSummary}` : ""
-                        }`
-                      : ""}
+                        }`}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 

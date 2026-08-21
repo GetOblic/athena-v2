@@ -85,6 +85,74 @@ describe("Social Planner L8 Think Differently UI", () => {
     assert.equal(socialPlannerGenerationModeLabel("think_differently"), "Think Differently");
   });
 
+  it("uses Prospect Think Differently green on the Ready-detail action only", () => {
+    const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
+    const prospect = read("components/prospects/ProspectRefreshIntelligenceButton.tsx");
+    const thinkStart = detail.indexOf("Think Differently");
+    const thinkBlock = detail.slice(
+      detail.lastIndexOf("<button", thinkStart),
+      detail.indexOf("</button>", thinkStart),
+    );
+    const createAnother = detail.slice(
+      detail.indexOf("Create Another Week") - 400,
+      detail.indexOf("Create Another Week") + 80,
+    );
+
+    assert.match(prospect, /border-\[var\(--athena-success\)\]\/30/);
+    assert.match(prospect, /bg-\[var\(--athena-success\)\]\/15/);
+    assert.match(prospect, /text-\[var\(--athena-success\)\]/);
+    assert.match(thinkBlock, /border-\[var\(--athena-success\)\]\/30/);
+    assert.match(thinkBlock, /bg-\[var\(--athena-success\)\]\/15/);
+    assert.match(thinkBlock, /text-\[var\(--athena-success\)\]/);
+    assert.match(thinkBlock, /hover:border-\[var\(--athena-success\)\]\/45/);
+    assert.match(thinkBlock, /hover:bg-\[var\(--athena-success\)\]\/25/);
+    assert.match(thinkBlock, /focus-visible:ring-\[var\(--athena-success\)\]\/50/);
+    assert.doesNotMatch(thinkBlock, /athena-orange/);
+    assert.doesNotMatch(createAnother, /athena-success/);
+    assert.match(detail, /onClick=\{onThinkDifferently\}/);
+    assert.match(detail, /disabled=\{thinkDifferentlyPending\}/);
+    const createForm = read("components/socialPlanner/SocialPlannerCreateForm.tsx");
+    assert.match(createForm, /Generate My Week/);
+    assert.match(createForm, /bg-\[var\(--athena-orange\)\]/);
+    assert.doesNotMatch(createForm, /Think Differently|athena-success/);
+  });
+
+  it("history Think Differently badge is green; Conversation Revision and Ready stay unchanged", () => {
+    const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
+    const prospectWorkspace = read(
+      "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
+    );
+    const helperStart = history.indexOf("function generationModeBadgeClass");
+    const helper = history.slice(
+      helperStart,
+      history.indexOf("export function SocialPlannerHistory"),
+    );
+    const thinkBranch = helper.slice(
+      helper.indexOf('generationMode === "think_differently"'),
+      helper.indexOf("return \"inline-flex rounded-full border border-white/15"),
+    );
+    const otherBranch = helper.slice(
+      helper.indexOf("return \"inline-flex rounded-full border border-white/15"),
+    );
+
+    assert.match(
+      prospectWorkspace,
+      /border-\[var\(--athena-success\)\]\/30 bg-\[var\(--athena-success\)\]\/10[\s\S]*text-\[var\(--athena-success\)\]/,
+    );
+    assert.match(thinkBranch, /border-\[var\(--athena-success\)\]\/30/);
+    assert.match(thinkBranch, /bg-\[var\(--athena-success\)\]\/10/);
+    assert.match(thinkBranch, /text-\[var\(--athena-success\)\]/);
+    assert.doesNotMatch(otherBranch, /athena-success/);
+    assert.match(otherBranch, /border-white\/15/);
+    assert.match(otherBranch, /text-white\/50/);
+    assert.match(
+      history,
+      /border-emerald-400\/25 bg-emerald-400\/10 text-emerald-200/,
+    );
+    assert.match(history, /generationMode !== "standard"/);
+    assert.doesNotMatch(history, /confirm\(|Regenerate/);
+  });
+
   it("keeps Create Another Week as an independent return to the library composer", () => {
     const detailWorkspace = read(
       "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",

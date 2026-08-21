@@ -4,6 +4,7 @@
 
 import type { SocialCalendarPackageV1 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
 import type { SocialCalendar } from "@/services/socialPlanner/socialCalendarTypes";
+import { deriveSocialCalendarModelsUsed } from "@/services/socialPlanner/socialCalendarModelsUsed";
 import {
   summarizePersistedSocialCalendarPackage,
   tryParsePersistedSocialCalendarPackage,
@@ -45,6 +46,7 @@ export type SocialCalendarListItemDto = {
   assetCount: number;
   assetTypes: string[];
   families: string[];
+  modelsUsed: string | null;
   createdAt: string;
   updatedAt: string;
   error: SocialCalendarPublicErrorDto | null;
@@ -128,6 +130,9 @@ export function toSocialCalendarListItemDto(
     assetCount: summary.assetCount,
     assetTypes: summary.assetTypes,
     families: summary.families,
+    modelsUsed: isReady
+      ? deriveSocialCalendarModelsUsed(calendar.package_json)
+      : null,
     createdAt: calendar.created_at,
     updatedAt: calendar.updated_at,
     error: publicError(calendar),

@@ -60,6 +60,7 @@ function listItem(
       "poll",
     ],
     families: ["secret-family-xyz"],
+    modelsUsed: null,
     createdAt: "2026-08-20T00:00:00.000Z",
     updatedAt: "2026-08-20T00:00:00.000Z",
     error: null,
@@ -497,6 +498,36 @@ describe("Social Planner searchable corpus", () => {
     assert.equal(socialCalendarMatchesHistorySearch(ready, "source-secret-id"), false);
     assert.equal(socialCalendarMatchesHistorySearch(ready, "secret-family-xyz"), false);
     assert.equal(socialCalendarMatchesHistorySearch(ready, "secret-generation-stage"), false);
+  });
+
+  it("searches the visible modelsUsed display string and not raw model IDs", () => {
+    const withModels = listItem({
+      modelsUsed: "Claude Sonnet 4 + Gemini 2.5 Flash",
+    });
+    assert.equal(socialCalendarMatchesHistorySearch(withModels, "Claude Sonnet 4"), true);
+    assert.equal(socialCalendarMatchesHistorySearch(withModels, "Gemini 2.5 Flash"), true);
+    assert.equal(
+      socialCalendarMatchesHistorySearch(withModels, "Claude Sonnet 4 + Gemini 2.5 Flash"),
+      true,
+    );
+    assert.equal(
+      socialCalendarMatchesHistorySearch(withModels, "anthropic/claude-sonnet-4"),
+      false,
+    );
+    assert.equal(
+      socialCalendarMatchesHistorySearch(withModels, "google/gemini-2.5-flash"),
+      false,
+    );
+
+    const omitted = listItem({ modelsUsed: null });
+    assert.equal(socialCalendarMatchesHistorySearch(omitted, "Claude Sonnet 4"), false);
+    assert.equal(socialCalendarMatchesHistorySearch(omitted, "Gemini 2.5 Flash"), false);
+    const corpus = buildSocialCalendarHistorySearchCorpus(omitted);
+    assert.doesNotMatch(corpus, /Claude Sonnet 4|Gemini 2.5 Flash|anthropic\/|google\//);
+    assert.doesNotMatch(
+      read("services/socialPlanner/socialCalendarHistorySearch.ts"),
+      /generationMetadata|athenaStage|resolveModelForStage/,
+    );
   });
 
   it("searches the card whyThisWeekWorks excerpt, not the truncated tail", () => {

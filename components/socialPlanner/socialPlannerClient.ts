@@ -138,6 +138,7 @@ export function listItemFromCreate(
     assetCount: 0,
     assetTypes: [],
     families: [],
+    modelsUsed: null,
     createdAt: created.createdAt,
     updatedAt: created.createdAt,
     error: null,

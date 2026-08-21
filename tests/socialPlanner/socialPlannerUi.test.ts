@@ -336,6 +336,11 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.match(history, /strategySummary/);
     assert.match(history, /whyThisWeekWorks/);
     assert.match(history, /assetCount/);
+    assert.match(history, /calendar.modelsUsed \? \(/);
+    assert.match(history, /\{calendar.modelsUsed\}/);
+    assert.match(history, /text-white\/55/);
+    assert.doesNotMatch(history, /Unknown|N\/A|Athena model/);
+    assert.doesNotMatch(history, /Claude Sonnet 4\.5|resolveModelForStage/);
     assert.doesNotMatch(history, /calendars.sort|toReversed|localeCompare/);
     assert.doesNotMatch(history, /selectedId|onOpen|target="_blank"/);
     assert.doesNotMatch(workspace, /fetchSocialCalendarDetail/);

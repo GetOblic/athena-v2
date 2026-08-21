@@ -200,6 +200,7 @@ describe("Social Planner L6 API contracts", () => {
     );
     assert.equal(item.assetCount, 7);
     assert.equal(typeof item.strategySummary, "string");
+    assert.equal(typeof item.modelsUsed === "string" || item.modelsUsed === null, true);
     assert.equal(item.error, null);
     assert.equal("package" in item, false);
     assert.ok((item.whyThisWeekWorks ?? "").length <= 181);
