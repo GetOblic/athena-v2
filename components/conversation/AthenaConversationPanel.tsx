@@ -21,6 +21,30 @@ import {
   type AthenaConversationHistoryMessage,
 } from "@/services/athenaConversation/athenaConversationTypes";
 
+export type AthenaConversationChrome = {
+  you: string;
+  athena: string;
+  copy: string;
+  copied: string;
+  thinking: string;
+  retry: string;
+  asking: string;
+  enterToSend: string;
+  supportReference: string;
+};
+
+const DEFAULT_CONVERSATION_CHROME: AthenaConversationChrome = {
+  you: "You",
+  athena: "Athena",
+  copy: "Copy",
+  copied: "Copied",
+  thinking: "Athena is thinking…",
+  retry: "Retry",
+  asking: "Asking…",
+  enterToSend: "Enter to send · Shift+Enter for a new line",
+  supportReference: "Support reference:",
+};
+
 export type AthenaConversationPanelProps = {
   title: string;
   description: string;
@@ -41,6 +65,7 @@ export type AthenaConversationPanelProps = {
   clearLabel?: string;
   submitLabel?: string;
   emptyStateTitle?: string;
+  chrome?: AthenaConversationChrome;
 };
 
 function ThinkingIndicator() {
@@ -67,6 +92,7 @@ function AthenaConversationPanelInner({
   clearLabel = "Clear conversation",
   submitLabel = "Ask Athena",
   emptyStateTitle = "Try asking",
+  chrome = DEFAULT_CONVERSATION_CHROME,
 }: AthenaConversationPanelProps) {
   const messagesRegionId = useId();
   const generatedInputId = useId();
@@ -300,7 +326,7 @@ function AthenaConversationPanelInner({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-                        {isUser ? "You" : "Athena"}
+                        {isUser ? chrome.you : chrome.athena}
                       </div>
                       {!isUser ? (
                         <button
@@ -310,7 +336,7 @@ function AthenaConversationPanelInner({
                           }
                           className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-white/50 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
                         >
-                          {copyAck === key ? "Copied" : "Copy"}
+                          {copyAck === key ? chrome.copied : chrome.copy}
                         </button>
                       ) : null}
                     </div>
@@ -327,12 +353,12 @@ function AthenaConversationPanelInner({
                 >
                   <div className="flex items-center gap-2">
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-                      Athena
+                      {chrome.athena}
                     </div>
                     <ThinkingIndicator />
                   </div>
                   <p className="mt-2 text-sm leading-7 text-white/65">
-                    Athena is thinking…
+                    {chrome.thinking}
                   </p>
                 </div>
               ) : null}
@@ -348,7 +374,7 @@ function AthenaConversationPanelInner({
             <div>{error.message}</div>
             {error.requestId ? (
               <div className="mt-1 text-xs text-red-100/55">
-                Support reference: {error.requestId}
+                {chrome.supportReference} {error.requestId}
               </div>
             ) : null}
             {error.retryMessage ? (
@@ -358,7 +384,7 @@ function AthenaConversationPanelInner({
                 onClick={() => void sendMessage(error.retryMessage!)}
                 className="mt-2 rounded-lg border border-red-200/30 px-3 py-1.5 text-xs font-medium transition hover:bg-red-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-50"
               >
-                Retry
+                {chrome.retry}
               </button>
             ) : null}
           </div>
@@ -382,7 +408,7 @@ function AthenaConversationPanelInner({
           />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-white/30">
-              Enter to send · Shift+Enter for a new line
+              {chrome.enterToSend}
             </p>
             <div className="flex flex-wrap gap-2">
               <button
@@ -398,7 +424,7 @@ function AthenaConversationPanelInner({
                 disabled={busy || !draft.trim()}
                 className="rounded-xl border border-[var(--athena-orange)]/40 bg-[var(--athena-orange)]/15 px-4 py-2 text-sm font-semibold text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-40"
               >
-                {busy ? "Asking…" : submitLabel}
+                {busy ? chrome.asking : submitLabel}
               </button>
             </div>
           </div>

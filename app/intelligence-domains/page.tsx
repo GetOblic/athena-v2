@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { CreateIntelligenceDomainForm } from "@/components/intelligenceDomains/CreateIntelligenceDomainForm";
 import { IntelligenceDomainCard } from "@/components/intelligenceDomains/IntelligenceDomainRowActions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -58,18 +59,27 @@ export default async function IntelligenceDomainsPage({
 
   const params = await searchParams;
   const { organizationId } = await requireCurrentOrganizationContext();
-  const [domains, discussionCounts] = await Promise.all([
+  const [domains, discussionCounts, { messages }] = await Promise.all([
     getIntelligenceDomains(organizationId),
     getIntelligenceDomainDiscussionCounts(organizationId),
+    getTenantLocalization(),
   ]);
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] text-white">
       <div className="flex min-h-screen">
-        <DashboardSidebar activeHref="/intelligence-domains" />
+        <DashboardSidebar
+          activeHref="/intelligence-domains"
+          messages={messages}
+        />
 
         <section className="min-w-0 flex-1 p-6 lg:p-10">
-          <AthenaBrandLink className="mb-8 md:hidden" />
+          <AthenaBrandLink
+            className="mb-8 md:hidden"
+            tagline={messages.chrome.tagline}
+            logoutLabel={messages.chrome.logOut}
+            sessionActionsLabel={messages.chrome.sessionActions}
+          />
 
           <div className="mb-10">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">

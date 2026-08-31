@@ -64,6 +64,24 @@ describe("V31 L3.1 tenant i18n — surface isolation", () => {
   });
 });
 
+describe("V31 L3.2 tenant chrome — shared-component isolation", () => {
+  it("cross-surface shared components do not import tenantI18n", () => {
+    const shared = [
+      "components/branding/AthenaBrandLink.tsx",
+      "components/auth/AthenaHeaderActions.tsx",
+      "components/auth/LogoutCta.tsx",
+      "components/ui/AthenaCollapsibleSection.tsx",
+      "components/licensee/BackToMasterCta.tsx",
+    ];
+    for (const file of shared) {
+      const source = read(file);
+      assert.doesNotMatch(source, /tenantI18n|lib\/tenantI18n/);
+      assert.doesNotMatch(source, /getTenantLocalization|getTenantMessages/);
+      assert.doesNotMatch(source, /resolveOrganizationLanguage/);
+    }
+  });
+});
+
 describe("V31 L3.1 tenant i18n — generated content isolation", () => {
   it("documents that tenant i18n is presentation-only", () => {
     const types = read("lib/tenantI18n/types.ts");

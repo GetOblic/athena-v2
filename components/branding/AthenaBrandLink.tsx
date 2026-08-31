@@ -6,9 +6,17 @@ import { AthenaHeaderActions } from "@/components/auth/AthenaHeaderActions";
 
 type AthenaBrandLinkProps = {
   className?: string;
+  tagline?: string;
+  logoutLabel?: string;
+  sessionActionsLabel?: string;
 };
 
-export function AthenaBrandLink({ className = "" }: AthenaBrandLinkProps) {
+export function AthenaBrandLink({
+  className = "",
+  tagline = "Intelligence OS",
+  logoutLabel,
+  sessionActionsLabel,
+}: AthenaBrandLinkProps) {
   const pathname = usePathname();
   const isLicenseePath = pathname === "/licensee" || pathname.startsWith("/licensee/");
   const isSuperPath = pathname === "/super" || pathname.startsWith("/super/");
@@ -23,7 +31,7 @@ export function AthenaBrandLink({ className = "" }: AthenaBrandLinkProps) {
   const brand = (
     <>
       <div className="text-3xl font-bold tracking-tight">ATHENA</div>
-      <div className="mt-2 text-sm text-white/45">Intelligence OS</div>
+      <div className="mt-2 text-sm text-white/45">{tagline}</div>
     </>
   );
 
@@ -45,7 +53,10 @@ export function AthenaBrandLink({ className = "" }: AthenaBrandLinkProps) {
           {brand}
         </Link>
       </div>
-      <AthenaHeaderActions />
+      <AthenaHeaderActions
+        logoutLabel={logoutLabel}
+        sessionActionsLabel={sessionActionsLabel}
+      />
     </div>
   );
 }

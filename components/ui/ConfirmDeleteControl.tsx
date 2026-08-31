@@ -4,6 +4,22 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
+export type ConfirmDeleteChrome = {
+  delete: string;
+  cancel: string;
+  confirmDelete: string;
+  deleting: string;
+  confirmDeletion: string;
+};
+
+const DEFAULT_DELETE_CHROME: ConfirmDeleteChrome = {
+  delete: "Delete",
+  cancel: "Cancel",
+  confirmDelete: "Confirm Delete",
+  deleting: "Deleting...",
+  confirmDeletion: "Confirm deletion",
+};
+
 export type ConfirmDeleteControlProps = {
   confirmMessage: string;
   deleteUrl: string;
@@ -13,6 +29,7 @@ export type ConfirmDeleteControlProps = {
   errorFallback: string;
   /** Change to force-close the confirm panel (e.g. when Edit opens). */
   dismissKey?: number | string | boolean;
+  chrome?: ConfirmDeleteChrome;
 };
 
 /**
@@ -26,6 +43,7 @@ export function ConfirmDeleteControl({
   isSuccessPayload,
   errorFallback,
   dismissKey,
+  chrome = DEFAULT_DELETE_CHROME,
 }: ConfirmDeleteControlProps) {
   const router = useRouter();
   const confirmId = useId();
@@ -87,14 +105,14 @@ export function ConfirmDeleteControl({
         aria-controls={confirmId}
         className="rounded-full border border-red-500/30 px-6 py-3 text-sm font-semibold text-red-300 transition hover:border-red-400/50 hover:text-red-200"
       >
-        Delete
+        {chrome.delete}
       </button>
 
       {showDeleteConfirm && (
         <div
           id={confirmId}
           role="group"
-          aria-label="Confirm deletion"
+          aria-label={chrome.confirmDeletion}
           className="w-full max-w-md rounded-2xl border border-red-500/20 bg-black/30 p-5 sm:text-right lg:text-right"
         >
           <p className="text-sm leading-6 text-white/70">{confirmMessage}</p>
@@ -109,7 +127,7 @@ export function ConfirmDeleteControl({
               disabled={isDeleting}
               className="rounded-full border border-white/15 px-5 py-2 text-sm text-white/70 disabled:opacity-50"
             >
-              Cancel
+              {chrome.cancel}
             </button>
             <button
               type="button"
@@ -118,7 +136,7 @@ export function ConfirmDeleteControl({
               aria-busy={isDeleting}
               className="rounded-full bg-red-500/20 px-5 py-2 text-sm font-semibold text-red-200 disabled:opacity-50"
             >
-              {isDeleting ? "Deleting..." : "Confirm Delete"}
+              {isDeleting ? chrome.deleting : chrome.confirmDelete}
             </button>
           </div>
         </div>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { GettingStartedConversationPanel } from "@/components/getting-started/GettingStartedConversationPanel";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -33,13 +34,20 @@ export default async function GettingStartedPage() {
     redirect("/login");
   }
 
+  const { messages } = await getTenantLocalization();
+
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] text-white">
       <div className="flex min-h-screen">
-        <DashboardSidebar activeHref="/getting-started" />
+        <DashboardSidebar activeHref="/getting-started" messages={messages} />
 
         <section className="flex-1 p-10">
-          <AthenaBrandLink className="mb-8 md:hidden" />
+          <AthenaBrandLink
+            className="mb-8 md:hidden"
+            tagline={messages.chrome.tagline}
+            logoutLabel={messages.chrome.logOut}
+            sessionActionsLabel={messages.chrome.sessionActions}
+          />
 
           <div className="mb-12 max-w-4xl">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">

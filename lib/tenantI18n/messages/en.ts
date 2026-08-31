@@ -15,9 +15,15 @@ export const en = {
     edit: "Edit",
     delete: "Delete",
     back: "Back",
+    confirmDelete: "Confirm Delete",
+    deleting: "Deleting...",
+    confirmDeletion: "Confirm deletion",
   },
   chrome: {
     poweredByGetOblic: "Powered by GetOblic",
+    tagline: "Intelligence OS",
+    logOut: "Log out",
+    sessionActions: "Session actions",
   },
   nav: {
     dashboard: "Dashboard",
@@ -49,6 +55,8 @@ export const en = {
     thinking: "Athena is thinking…",
     tryAsking: "Try asking",
     asking: "Asking…",
+    enterToSend: "Enter to send · Shift+Enter for a new line",
+    supportReference: "Support reference:",
   },
   errors: {
     somethingWentWrong: "Something went wrong. Please try again.",

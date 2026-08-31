@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { TodaysIntelligence } from "@/components/dashboard/TodaysIntelligence";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDashboardStats } from "@/services/dashboardService";
@@ -28,10 +29,11 @@ export default async function Home() {
 
   const { organizationId, userId } = await requireTenantContext();
 
-  const [identity, stats, todaysIntelligence] = await Promise.all([
+  const [identity, stats, todaysIntelligence, { messages }] = await Promise.all([
     getAthenaIdentityByUserId(userId, organizationId),
     getDashboardStats(organizationId),
     getTodaysIntelligence(organizationId),
+    getTenantLocalization(),
   ]);
 
   const name = identity?.greeting_name?.trim() || "there";
@@ -40,10 +42,15 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] text-white">
       <div className="flex min-h-screen">
-        <DashboardSidebar activeHref="/" />
+        <DashboardSidebar activeHref="/" messages={messages} />
 
         <section className="flex-1 p-10">
-          <AthenaBrandLink className="mb-8 md:hidden" />
+          <AthenaBrandLink
+            className="mb-8 md:hidden"
+            tagline={messages.chrome.tagline}
+            logoutLabel={messages.chrome.logOut}
+            sessionActionsLabel={messages.chrome.sessionActions}
+          />
 
           <div className="mb-12">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">

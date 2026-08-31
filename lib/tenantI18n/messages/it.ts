@@ -12,9 +12,15 @@ export const it: TenantMessages = {
     edit: "Modifica",
     delete: "Elimina",
     back: "Indietro",
+    confirmDelete: "Conferma eliminazione",
+    deleting: "Eliminazione…",
+    confirmDeletion: "Conferma dell’eliminazione",
   },
   chrome: {
     poweredByGetOblic: "Con tecnologia GetOblic",
+    tagline: "Intelligence OS",
+    logOut: "Esci",
+    sessionActions: "Azioni della sessione",
   },
   nav: {
     dashboard: "Pannello",
@@ -46,6 +52,8 @@ export const it: TenantMessages = {
     thinking: "Athena sta pensando…",
     tryAsking: "Prova a chiedere",
     asking: "Richiesta in corso…",
+    enterToSend: "Invio per inviare · Maiusc+Invio per una nuova riga",
+    supportReference: "Riferimento di supporto:",
   },
   errors: {
     somethingWentWrong: "Qualcosa è andato storto. Riprova.",
