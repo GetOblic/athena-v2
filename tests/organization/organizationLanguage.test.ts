@@ -441,6 +441,7 @@ describe("V31 L1 organization language — Brain display and isolation", () => {
       "services/superAdmin/superAdminAccounts.ts",
       "app/identity/page.tsx",
       "app/licensee/sub-accounts/new/page.tsx",
+      "lib/tenantI18n/getTenantLocalization.ts",
       "tests/organization/organizationLanguage.test.ts",
     ]);
     const hits: string[] = [];

@@ -1,0 +1,55 @@
+import type { TenantMessages } from "../types";
+
+export const fr: TenantMessages = {
+  common: {
+    save: "Enregistrer",
+    cancel: "Annuler",
+    loading: "Chargement…",
+    retry: "Réessayer",
+    close: "Fermer",
+    copy: "Copier",
+    copied: "Copié",
+    edit: "Modifier",
+    delete: "Supprimer",
+    back: "Retour",
+  },
+  chrome: {
+    poweredByGetOblic: "Propulsé par GetOblic",
+  },
+  nav: {
+    dashboard: "Tableau de bord",
+    gettingStarted: "Premiers pas",
+    athenaBrain: "Athena Brain",
+    intelligenceDomains: "Intelligence Domains",
+    inbox: "Boîte de réception",
+    discussions: "Discussions",
+    prospects: "Prospects",
+    personas: "Personas",
+    ads: "Publicités",
+    seoIntelligence: "Intelligence SEO",
+    socialPlanner: "Social Planner",
+    opportunities: "Opportunités",
+    briefings: "Briefings",
+  },
+  status: {
+    new: "Nouveau",
+    draft: "Brouillon",
+    completed: "Terminé",
+    failed: "Échec",
+    inProgress: "En cours",
+  },
+  conversation: {
+    askAthena: "Ask Athena",
+    clearConversation: "Effacer la conversation",
+    you: "Vous",
+    athena: "Athena",
+    thinking: "Athena réfléchit…",
+    tryAsking: "Essayez de demander",
+    asking: "Demande en cours…",
+  },
+  errors: {
+    somethingWentWrong: "Une erreur s’est produite. Veuillez réessayer.",
+    tryAgain: "Veuillez réessayer.",
+    unableToLoad: "Impossible de charger",
+  },
+};
