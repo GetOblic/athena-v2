@@ -10,6 +10,13 @@ import {
   LicenseeSubAccountCreateError,
   createLicenseeSubAccount,
 } from "@/services/licensee/licenseeSubAccounts";
+import {
+  DEFAULT_ORGANIZATION_LANGUAGE,
+  ORGANIZATION_LANGUAGES,
+  ORGANIZATION_LANGUAGE_LABELS,
+  isOrganizationLanguage,
+  parseOrganizationLanguage,
+} from "@/services/organizationLanguage";
 import { isAccountAccessActive } from "@/services/superAdmin/accountAccessStatus";
 
 export default async function CreateLicenseeSubAccountPage({
@@ -19,6 +26,7 @@ export default async function CreateLicenseeSubAccountPage({
     message?: string;
     email?: string;
     businessName?: string;
+    language?: string;
     confirm?: string;
   }>;
 }) {
@@ -58,7 +66,24 @@ export default async function CreateLicenseeSubAccountPage({
 
     const businessName = String(formData.get("businessName") || "");
     const accountEmail = String(formData.get("accountEmail") || "");
+    const accountLanguageRaw = String(formData.get("accountLanguage") || "");
     const confirmLinkExisting = formData.get("confirmLinkExisting") === "1";
+
+    const formQuery = (message: string) =>
+      `/licensee/sub-accounts/new?email=${encodeURIComponent(
+        accountEmail.trim().toLowerCase(),
+      )}&businessName=${encodeURIComponent(
+        businessName.trim(),
+      )}&language=${encodeURIComponent(accountLanguageRaw)}&message=${encodeURIComponent(
+        message,
+      )}`;
+
+    let accountLanguage;
+    try {
+      accountLanguage = parseOrganizationLanguage(accountLanguageRaw);
+    } catch {
+      redirect(formQuery("A supported Account Language is required."));
+    }
 
     try {
       const result = await createLicenseeSubAccount({
@@ -66,6 +91,7 @@ export default async function CreateLicenseeSubAccountPage({
         businessName,
         accountEmail,
         confirmLinkExisting,
+        language: accountLanguage,
       });
 
       if (result.linkedExisting) {
@@ -91,9 +117,11 @@ export default async function CreateLicenseeSubAccountPage({
         redirect(
           `/licensee/sub-accounts/new?confirm=1&email=${encodeURIComponent(
             accountEmail.trim().toLowerCase(),
-          )}&businessName=${encodeURIComponent(businessName.trim())}&message=${encodeURIComponent(
-            error.message,
-          )}`,
+          )}&businessName=${encodeURIComponent(
+            businessName.trim(),
+          )}&language=${encodeURIComponent(
+            accountLanguageRaw,
+          )}&message=${encodeURIComponent(error.message)}`,
         );
       }
 
@@ -101,18 +129,15 @@ export default async function CreateLicenseeSubAccountPage({
         error instanceof Error
           ? error.message
           : "Could not create sub-account.";
-      redirect(
-        `/licensee/sub-accounts/new?email=${encodeURIComponent(
-          accountEmail.trim().toLowerCase(),
-        )}&businessName=${encodeURIComponent(businessName.trim())}&message=${encodeURIComponent(
-          message,
-        )}`,
-      );
+      redirect(formQuery(message));
     }
   }
 
   const params = searchParams ? await searchParams : {};
   const needsConfirm = params.confirm === "1";
+  const selectedLanguage = isOrganizationLanguage(params.language)
+    ? params.language
+    : DEFAULT_ORGANIZATION_LANGUAGE;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] px-6 py-10 text-white">
@@ -164,6 +189,25 @@ export default async function CreateLicenseeSubAccountPage({
             />
             <span className="block text-sm leading-6 text-white/40">
               This is the email associated with this Athena sub-account and usable for direct Athena access.
+            </span>
+          </label>
+
+          <label className="block space-y-2">
+            <span className="text-sm text-white/70">Account Language</span>
+            <select
+              name="accountLanguage"
+              required
+              defaultValue={selectedLanguage}
+              className="w-full rounded-2xl border border-white/10 bg-black/30 px-5 py-4 text-white outline-none focus:border-[var(--athena-orange)]"
+            >
+              {ORGANIZATION_LANGUAGES.map((code) => (
+                <option key={code} value={code} className="bg-black text-white">
+                  {ORGANIZATION_LANGUAGE_LABELS[code]}
+                </option>
+              ))}
+            </select>
+            <span className="block text-sm leading-6 text-white/40">
+              Sets the language Athena will use for this account.
             </span>
           </label>
 

@@ -417,10 +417,15 @@ describe("V31 L1 organization language — Brain display and isolation", () => {
       org.indexOf("async function createOrganizationForUser"),
       org.indexOf("export async function getOrganizationMembership"),
     );
-    assert.match(createFn, /\.insert\(\{/);
+    assert.match(createFn, /\.insert\(/);
     assert.match(createFn, /name: organizationName/);
-    assert.match(createFn, /slug,/);
-    assert.doesNotMatch(createFn, /language:/);
+    assert.match(createFn, /slug/);
+    assert.match(createFn, /options\?\.language/);
+    assert.doesNotMatch(createFn, /language:\s*["']en["']/);
+    assert.doesNotMatch(
+      createFn,
+      /navigator\.language|accept-language|geographic_reach|html_language/i,
+    );
 
     const saas = read(
       "supabase/migrations/20260710000001_saas_tenant_provisioning.sql",
@@ -432,7 +437,10 @@ describe("V31 L1 organization language — Brain display and isolation", () => {
     const allowlisted = new Set([
       "services/organizationLanguage.ts",
       "services/organizationService.ts",
+      "services/licensee/licenseeSubAccounts.ts",
+      "services/superAdmin/superAdminAccounts.ts",
       "app/identity/page.tsx",
+      "app/licensee/sub-accounts/new/page.tsx",
       "tests/organization/organizationLanguage.test.ts",
     ]);
     const hits: string[] = [];

@@ -29,6 +29,11 @@ import {
   isGetOblicSuperAdminUser,
 } from "@/services/superAdmin/superAdminIdentity";
 import {
+  OrganizationLanguageInvalidError,
+  parseOrganizationLanguage,
+  type OrganizationLanguage,
+} from "@/services/organizationLanguage";
+import {
   getOrganizationMembership,
   provisionTenantForAuthenticatedUser,
 } from "@/services/organizationService";
@@ -741,6 +746,8 @@ export async function createLicenseeSubAccount(input: {
   businessName: string;
   accountEmail: string;
   confirmLinkExisting?: boolean;
+  /** Validated and persisted only when a new organization is created. */
+  language?: unknown;
 }): Promise<CreateLicenseeSubAccountResult> {
   const licenseeAccount = await requireLicenseeMasterAccount(input.masterUserId);
   const businessName = normalizeBusinessName(input.businessName);
@@ -765,6 +772,25 @@ export async function createLicenseeSubAccount(input: {
       "MASTER_EMAIL_REJECTED",
       "A Master email cannot be used as a sub-account email.",
     );
+  }
+
+  let organizationLanguage: OrganizationLanguage | undefined;
+  if (
+    input.language !== undefined &&
+    input.language !== null &&
+    String(input.language).trim() !== ""
+  ) {
+    try {
+      organizationLanguage = parseOrganizationLanguage(input.language);
+    } catch (error) {
+      if (error instanceof OrganizationLanguageInvalidError) {
+        throw new LicenseeSubAccountCreateError(
+          "INVALID_LANGUAGE",
+          "A supported Account Language is required.",
+        );
+      }
+      throw error;
+    }
   }
 
   let authUser = await findAuthUserByEmail(accountEmail);
@@ -870,7 +896,12 @@ export async function createLicenseeSubAccount(input: {
         organizationId = await provisionTenantForAuthenticatedUser(
           authUser.id,
           accountEmail,
-          { organizationName: businessName },
+          {
+            organizationName: businessName,
+            ...(organizationLanguage
+              ? { language: organizationLanguage }
+              : {}),
+          },
         );
       } catch (provisionError) {
         const message =

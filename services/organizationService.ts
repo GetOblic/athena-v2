@@ -96,6 +96,12 @@ function slugifyOrganizationName(value: string): string {
 export type ProvisionTenantOptions = {
   /** Optional organization display name (Master Create Sub-account Business Name). */
   organizationName?: string | null;
+  /**
+   * Optional organization language at creation time.
+   * When omitted, the organizations.language database default ('en') applies.
+   * Callers that accept form/API input must validate before supplying this field.
+   */
+  language?: OrganizationLanguage;
 };
 
 async function createOrganizationForUser(
@@ -110,12 +116,22 @@ async function createOrganizationForUser(
   const baseSlug = slugifyOrganizationName(baseName);
   const slug = `${baseSlug}-${userId.slice(0, 8)}`;
 
+  const insertRow: {
+    name: string;
+    slug: string;
+    language?: OrganizationLanguage;
+  } = {
+    name: organizationName,
+    slug,
+  };
+
+  if (options?.language !== undefined) {
+    insertRow.language = parseOrganizationLanguage(options.language);
+  }
+
   const { data: organization, error: organizationError } = await supabaseAdmin
     .from("organizations")
-    .insert({
-      name: organizationName,
-      slug,
-    })
+    .insert(insertRow)
     .select("*")
     .single();
 

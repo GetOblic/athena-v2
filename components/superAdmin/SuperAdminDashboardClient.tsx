@@ -4,6 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { ESTIMATE_PRICING_METHODOLOGY_MAX_CHARS } from "@/services/estimate/athenaEstimateTypes";
+import {
+  DEFAULT_ORGANIZATION_LANGUAGE,
+  ORGANIZATION_LANGUAGES,
+  ORGANIZATION_LANGUAGE_LABELS,
+  isOrganizationLanguage,
+  type OrganizationLanguage,
+} from "@/services/organizationLanguage";
 import type { ManageableAccount } from "@/services/superAdmin/superAdminAccounts";
 
 type GovernedInstructionState = {
@@ -77,6 +84,9 @@ export function SuperAdminDashboardClient({
 
   const [athenaEmail, setAthenaEmail] = useState("");
   const [athenaOrgName, setAthenaOrgName] = useState("");
+  const [athenaLanguage, setAthenaLanguage] = useState<OrganizationLanguage>(
+    DEFAULT_ORGANIZATION_LANGUAGE,
+  );
   const [licenseeEmail, setLicenseeEmail] = useState("");
   const [licenseeName, setLicenseeName] = useState("");
   const [trendSocialPromptText, setTrendSocialPromptText] = useState(
@@ -110,9 +120,11 @@ export function SuperAdminDashboardClient({
       await postJson("/api/super/accounts/athena", {
         email: athenaEmail,
         organizationName: athenaOrgName,
+        language: athenaLanguage,
       });
       setAthenaEmail("");
       setAthenaOrgName("");
+      setAthenaLanguage(DEFAULT_ORGANIZATION_LANGUAGE);
       setLocalNotice("Normal Athena account created.");
       refresh();
     } catch (err) {
@@ -363,6 +375,29 @@ export function SuperAdminDashboardClient({
             placeholder="Organization / business name"
             className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
           />
+          <label className="block space-y-2">
+            <span className="text-sm text-white/70">Account Language</span>
+            <select
+              required
+              value={athenaLanguage}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (isOrganizationLanguage(next)) {
+                  setAthenaLanguage(next);
+                }
+              }}
+              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-[var(--athena-orange)]"
+            >
+              {ORGANIZATION_LANGUAGES.map((code) => (
+                <option key={code} value={code} className="bg-black text-white">
+                  {ORGANIZATION_LANGUAGE_LABELS[code]}
+                </option>
+              ))}
+            </select>
+            <span className="block text-sm leading-6 text-white/40">
+              Sets the language Athena will use for this account.
+            </span>
+          </label>
           <button
             type="submit"
             disabled={isPending}

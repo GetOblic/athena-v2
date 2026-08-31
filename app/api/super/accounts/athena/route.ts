@@ -17,7 +17,8 @@ function jsonError(status: number, code: string, message: string) {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { email?: string; organizationName?: string } = {};
+  let body: { email?: string; organizationName?: string; language?: unknown } =
+    {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
       actorUserId: user.id,
       email: String(body.email || ""),
       organizationName: String(body.organizationName || ""),
+      language: body.language,
     });
 
     return NextResponse.json(

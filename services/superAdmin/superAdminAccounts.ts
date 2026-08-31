@@ -20,6 +20,11 @@ import {
   requireGetOblicSuperAdmin,
 } from "@/services/superAdmin/superAdminIdentity";
 import {
+  OrganizationLanguageInvalidError,
+  parseOrganizationLanguage,
+  type OrganizationLanguage,
+} from "@/services/organizationLanguage";
+import {
   getOrganizationMembership,
   provisionTenantForAuthenticatedUserDetailed,
 } from "@/services/organizationService";
@@ -168,6 +173,7 @@ export async function createAthenaAccountAsSuperAdmin(input: {
   actorUserId: string;
   email: string;
   organizationName: string;
+  language?: unknown;
 }): Promise<CreateAthenaAccountResult> {
   const actor = await requireGetOblicSuperAdmin(input.actorUserId);
   const email = normalizeEmail(input.email);
@@ -185,6 +191,25 @@ export async function createAthenaAccountAsSuperAdmin(input: {
       "INVALID_ORGANIZATION_NAME",
       "Organization / business name is required.",
     );
+  }
+
+  let language: OrganizationLanguage | undefined;
+  if (
+    input.language !== undefined &&
+    input.language !== null &&
+    String(input.language).trim() !== ""
+  ) {
+    try {
+      language = parseOrganizationLanguage(input.language);
+    } catch (error) {
+      if (error instanceof OrganizationLanguageInvalidError) {
+        throw new SuperAdminOperationError(
+          "INVALID_LANGUAGE",
+          "A supported Account Language is required.",
+        );
+      }
+      throw error;
+    }
   }
 
   let authUser: { id: string; email: string } | null =
@@ -219,7 +244,10 @@ export async function createAthenaAccountAsSuperAdmin(input: {
     const provisioned = await provisionTenantForAuthenticatedUserDetailed(
       authUser.id,
       email,
-      { organizationName },
+      {
+        organizationName,
+        ...(language ? { language } : {}),
+      },
     );
     organizationId = provisioned.organizationId;
     organizationCreated = provisioned.organizationCreated;
