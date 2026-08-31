@@ -20,6 +20,9 @@ import {
   todayLocalCalendarDate,
 } from "@/components/socialPlanner/socialPlannerDates";
 import { buildSocialCalendarCreateBody } from "@/components/socialPlanner/socialPlannerClient";
+import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
+import { en } from "@/lib/tenantI18n/messages/en";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 export type SocialPlannerCreateFormHandle = {
   focusComposer: () => void;
@@ -29,12 +32,18 @@ type SocialPlannerCreateFormProps = {
   submitting: boolean;
   error: string | null;
   onSubmit: (body: ReturnType<typeof buildSocialCalendarCreateBody>) => void;
+  messages?: TenantMessages;
+  locale?: TenantFormattingLocale;
 };
 
 export const SocialPlannerCreateForm = forwardRef<
   SocialPlannerCreateFormHandle,
   SocialPlannerCreateFormProps
->(function SocialPlannerCreateForm({ submitting, error, onSubmit }, ref) {
+>(function SocialPlannerCreateForm(
+  { submitting, error, onSubmit, messages, locale = "en-US" },
+  ref,
+) {
+  const copy = (messages ?? en).socialPlanner;
   const [periodStart, setPeriodStart] = useState(todayLocalCalendarDate);
   const [guidance, setGuidance] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -55,14 +64,14 @@ export const SocialPlannerCreateForm = forwardRef<
       return {
         start,
         end,
-        preview: formatWeekRangePreview(start, end),
+        preview: formatWeekRangePreview(start, end, locale),
         dates: listSocialPlannerPeriodDates(start),
-        monthCaption: formatSocialPlannerMonthCaption(start),
+        monthCaption: formatSocialPlannerMonthCaption(start, locale),
       };
     } catch {
       return null;
     }
-  }, [periodStart]);
+  }, [periodStart, locale]);
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -70,7 +79,7 @@ export const SocialPlannerCreateForm = forwardRef<
     setLocalError(null);
 
     if (!periodStart.trim()) {
-      setLocalError("Choose a start date for your week.");
+      setLocalError(copy.chooseStartDate);
       dateInputRef.current?.focus();
       return;
     }
@@ -86,7 +95,7 @@ export const SocialPlannerCreateForm = forwardRef<
         }),
       );
     } catch {
-      setLocalError("Choose a valid start date for your week.");
+      setLocalError(copy.chooseValidStartDate);
       dateInputRef.current?.focus();
     }
   }
@@ -101,16 +110,16 @@ export const SocialPlannerCreateForm = forwardRef<
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <h2 className="text-2xl font-semibold">Select a week</h2>
+          <h2 className="text-2xl font-semibold">{copy.selectWeek}</h2>
           <p className="mt-2 text-sm leading-6 text-white/50">
-            Pick the first day. Athena plans the next six days with it.
+            {copy.selectWeekHelp}
           </p>
         </div>
 
         <div className="space-y-3">
           <label className="block space-y-2" htmlFor="social-planner-week-start">
             <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-              Week starts
+              {copy.weekStarts}
             </span>
             <input
               ref={dateInputRef}
@@ -143,7 +152,7 @@ export const SocialPlannerCreateForm = forwardRef<
 
         <label className="block space-y-2" htmlFor="social-planner-guidance">
           <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-            Optional direction
+            {copy.optionalDirection}
           </span>
           <textarea
             id="social-planner-guidance"
@@ -156,13 +165,10 @@ export const SocialPlannerCreateForm = forwardRef<
             maxLength={SOCIAL_CALENDAR_USER_GUIDANCE_MAX_CHARS}
             rows={5}
             className="min-h-[140px] w-full min-w-0 resize-y rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
-            placeholder="Campaign, offer, theme, event, audience, tone, or anything Athena should keep in mind. Leave blank and Athena will decide."
+            placeholder={copy.guidancePlaceholder}
           />
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <p className="text-xs leading-5 text-white/40">
-              Athena decides the week&apos;s strategy from everything it knows
-              about the business.
-            </p>
+            <p className="text-xs leading-5 text-white/40">{copy.guidanceHelp}</p>
             {guidance.length > 0 ? (
               <p className="shrink-0 text-xs tabular-nums text-white/35">
                 {guidance.length} / {SOCIAL_CALENDAR_USER_GUIDANCE_MAX_CHARS}
@@ -182,7 +188,7 @@ export const SocialPlannerCreateForm = forwardRef<
           disabled={submitting}
           className="w-full rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
         >
-          {submitting ? "Starting…" : "Generate My Week"}
+          {submitting ? copy.starting : copy.generateMyWeek}
         </button>
       </form>
     </section>

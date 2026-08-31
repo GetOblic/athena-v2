@@ -75,7 +75,7 @@ describe("Social Planner L7 form and week selection", () => {
     const form = read("components/socialPlanner/SocialPlannerCreateForm.tsx");
     assert.match(form, /type="date"/);
     assert.match(form, /required/);
-    assert.match(form, /Week starts/);
+    assert.match(form, /copy\.weekStarts/);
     assert.match(form, /deriveSocialPlannerPeriodEnd/);
     assert.match(form, /formatWeekRangePreview/);
     assert.equal(deriveSocialPlannerPeriodEnd("2026-08-23"), "2026-08-29");
@@ -127,10 +127,10 @@ describe("Social Planner L7 form and week selection", () => {
 
   it("treats optional guidance as blank, bound to 4,000 characters", () => {
     const form = read("components/socialPlanner/SocialPlannerCreateForm.tsx");
-    assert.match(form, /Optional direction/);
+    assert.match(form, /copy\.optionalDirection/);
     assert.match(form, /SOCIAL_CALENDAR_USER_GUIDANCE_MAX_CHARS/);
-    assert.match(form, /Leave blank and Athena will decide/);
-    assert.match(form, /Athena decides the week/);
+    assert.match(form, /copy\.guidancePlaceholder/);
+    assert.match(form, /copy\.guidanceHelp/);
     assert.match(form, /guidance.length\} \/ \{SOCIAL_CALENDAR_USER_GUIDANCE_MAX_CHARS\}/);
     const blank = buildSocialCalendarCreateBody({
       periodStart: "2026-08-23",
@@ -210,7 +210,7 @@ describe("Social Planner L7 polling", () => {
     assert.match(detailWorkspace, /fetchSocialCalendarDetail/);
     assert.match(detailWorkspace, /cancelled = true/);
     assert.match(detailWorkspace, /requestInFlight/);
-    assert.match(detailWorkspace, /Still checking your calendar/);
+    assert.match(detailWorkspace, /copy\.stillChecking/);
     assert.match(detailWorkspace, /window.clearInterval/);
     assert.match(client, /kind: "transient"/);
     assert.doesNotMatch(detailWorkspace, /status = "Processing Failed"/);
@@ -258,22 +258,22 @@ describe("Social Planner L7 ready and production display", () => {
   it("renders Why This Week Works, seven day cards, and expand/collapse", () => {
     const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
     const card = read("components/socialPlanner/SocialCalendarDayCard.tsx");
-    assert.match(detail, /Your Social Week/);
-    assert.match(detail, /Why This Week Works/);
+    assert.match(detail, /copy\.yourSocialWeek/);
+    assert.match(detail, /copy\.whyThisWeekWorks/);
     assert.match(detail, /socialPackage.assets.slice\(0, 7\)/);
-    assert.match(detail, /Create Another Week/);
+    assert.match(detail, /copy\.createAnotherWeek/);
     assert.match(detail, /data-ready-actions/);
     assert.match(detail, /data-ask-athena-slot/);
-    assert.match(detail, /Think Differently/);
+    assert.match(detail, /copy\.thinkDifferently/);
     assert.match(detail, /SocialPlannerAskAthenaPanel/);
     assert.match(
       read("components/socialPlanner/SocialPlannerAskAthenaPanel.tsx"),
-      /Ask Athena About This Calendar/,
+      /copy\.askAthenaTitle/,
     );
-    assert.match(card, /Open Asset/);
+    assert.match(card, /copy\.openAsset/);
     assert.match(card, /aria-expanded/);
     assert.match(card, /previewSocialCopy/);
-    assert.match(card, /Calendar opportunity:/);
+    assert.match(card, /formatSocialPlannerCalendarOpportunity/);
     assert.match(card, /recommendedPlatforms/);
   });
 
@@ -281,24 +281,24 @@ describe("Social Planner L7 ready and production display", () => {
     const spec = read("components/socialPlanner/SocialCalendarProductionSpec.tsx");
     const card = read("components/socialPlanner/SocialCalendarDayCard.tsx");
     assert.match(spec, /kind === "static"/);
-    assert.match(spec, /Image Prompt/);
-    assert.match(spec, /Composition/);
-    assert.match(spec, /Overlay Guidance/);
+    assert.match(spec, /copy\.imagePrompt/);
+    assert.match(spec, /copy\.composition/);
+    assert.match(spec, /copy\.overlayGuidance/);
     assert.match(spec, /kind === "carousel"/);
-    assert.match(spec, /Visual Direction/);
-    assert.match(spec, /Slide \{slide.index\}/);
+    assert.match(spec, /copy\.visualDirection/);
+    assert.match(spec, /copy\.slideN/);
     assert.match(spec, /kind === "video"/);
-    assert.match(spec, /Video Concept/);
-    assert.match(spec, /Scene \/ Shot Plan/);
-    assert.match(spec, /Production Direction/);
+    assert.match(spec, /copy\.videoConcept/);
+    assert.match(spec, /copy\.sceneShotPlan/);
+    assert.match(spec, /copy\.productionDirection/);
     assert.match(spec, /kind === "document"/);
-    assert.match(spec, /Document Concept/);
-    assert.match(spec, /Design Prompt/);
+    assert.match(spec, /copy\.documentConcept/);
+    assert.match(spec, /copy\.designPrompt/);
     assert.match(spec, /spec.prompt/);
     assert.match(spec, /CopyButton/);
     assert.match(spec, /tracking=\{null\}/);
     assert.match(spec, /showContinue=\{false\}/);
-    assert.match(card, /Social Copy/);
+    assert.match(card, /copy\.socialCopy/);
     assert.match(card, /asset.cta/);
     assert.equal(previewSocialCopy("a".repeat(200)).endsWith("…"), true);
   });
@@ -329,10 +329,10 @@ describe("Social Planner L7 history, failure, and layout", () => {
   it("history uses API order, Ready summaries, and same-tab Open Calendar links", () => {
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
-    assert.match(history, /Your Social Calendars/);
-    assert.match(history, /Open Calendar/);
+    assert.match(history, /copy\.historyTitle/);
+    assert.match(history, /copy\.openCalendar/);
     assert.match(history, /href=\{`\/social-planner\/\$\{calendar.id\}`\}/);
-    assert.match(history, /socialPlannerHistoryStatusLabel/);
+    assert.match(history, /getLocalizedSocialPlannerHistoryStatusLabel/);
     assert.match(history, /strategySummary/);
     assert.match(history, /whyThisWeekWorks/);
     assert.match(history, /assetCount/);
@@ -350,7 +350,7 @@ describe("Social Planner L7 history, failure, and layout", () => {
   it("empty state keeps generation primary", () => {
     const page = read("app/social-planner/page.tsx");
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
-    assert.match(page, /Plan your next seven social assets with one push/);
+    assert.match(page, /copy\.subtitle/);
     assert.match(
       history,
       /if \(!hasSearch && pagination\.total === 0 && calendars\.length === 0\) \{\s*return null;/,
@@ -361,17 +361,15 @@ describe("Social Planner L7 history, failure, and layout", () => {
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
     const createIdx = workspace.indexOf("<SocialPlannerCreateForm");
-    const searchIdx = workspace.indexOf(
-      "Search calendars, dates, strategy, asset types",
-    );
+    const searchIdx = workspace.indexOf("copy.searchPlaceholder");
     const historyIdx = workspace.indexOf("<SocialPlannerHistory");
     assert.ok(createIdx >= 0 && searchIdx > createIdx && historyIdx > searchIdx);
     assert.match(workspace, /setPage\(1\)/);
     assert.match(workspace, /void loadHistory\(value, 1\)/);
-    assert.match(history, /Showing \{rangeStart\}–\{rangeEnd\} of \{pagination\.total\}/);
-    assert.match(history, />\s*Previous\s*</);
-    assert.match(history, />\s*Next\s*</);
-    assert.match(history, /No calendars match your search/);
+    assert.match(history, /formatSocialPlannerShowingLabel/);
+    assert.match(history, /copy\.previous/);
+    assert.match(history, /copy\.next/);
+    assert.match(history, /copy\.noSearchMatch/);
     assert.doesNotMatch(workspace, /Import Prospects|All statuses|Opportunity Score/);
     assert.doesNotMatch(history, /Import Prospects|All statuses|infinite scroll/);
   });
@@ -383,10 +381,10 @@ describe("Social Planner L7 history, failure, and layout", () => {
     );
     const client = read("components/socialPlanner/socialPlannerClient.ts");
     assert.match(detail, /Processing Failed/);
-    assert.match(detail, /Create Another Week/);
-    assert.match(detail, /This calendar could not be displayed/);
+    assert.match(detail, /copy\.createAnotherWeek/);
+    assert.match(detail, /copy\.couldNotDisplay/);
     assert.match(detail, /packageUnavailable/);
-    assert.match(detailWorkspace, /This calendar could not be found/);
+    assert.match(detailWorkspace, /copy\.notFound/);
     assert.equal(mapSocialPlannerApiError(400, { message: "Choose a week." }, ""), "Choose a week.");
     assert.equal(mapSocialPlannerApiError(404, null, ""), "This calendar could not be found.");
     assert.equal(mapSocialPlannerApiError(500, { code: "DETAIL_FAILED" }, ""), "Something went wrong. Please try again.");
@@ -407,10 +405,11 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.match(page, /searchParams/);
     assert.match(page, /px-5 py-8/);
     assert.match(page, /sm:p-10/);
-    assert.doesNotMatch(page, /locale|fr-FR|en-GB/);
+    assert.match(page, /getTenantLocalization/);
+    assert.match(page, /locale/);
     assert.doesNotMatch(workspace, /replaceState|selectCalendar|SocialCalendarDetail/);
     assert.match(form, /w-full/);
-    assert.match(form, /Generate My Week/);
+    assert.match(form, /copy\.generateMyWeek/);
     assert.match(card, /min-w-0/);
     assert.match(card, /break-words/);
     assert.match(card, /flex-wrap/);
@@ -444,7 +443,8 @@ describe("Social Planner L7 history, failure, and layout", () => {
 
     assert.match(detail, /data-ask-athena-slot/);
     assert.match(detail, /SocialPlannerAskAthenaPanel/);
-    assert.match(panel, /Ask Athena About This Calendar/);
+    assert.match(panel, /copy\.askAthenaTitle/);
+    assert.match(panel, /SOCIAL_PLANNER_ASK_ATHENA_TITLE/);
 
     assert.match(serializer, /export function serializeSocialCalendarAsset/);
     assert.doesNotMatch(serializer, /fetch\(|supabase|package_json/);
@@ -508,7 +508,7 @@ describe("Social Planner dedicated calendar detail routing", () => {
     const page = read("app/social-planner/page.tsx");
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
     assert.match(page, /SocialPlannerWorkspace/);
-    assert.match(page, /Plan your next seven social assets with one push/);
+    assert.match(page, /copy\.subtitle/);
     assert.match(workspace, /SocialPlannerCreateForm/);
     assert.match(workspace, /SocialPlannerHistory/);
     assert.match(workspace, /fetchSocialCalendarHistory/);
@@ -524,8 +524,9 @@ describe("Social Planner dedicated calendar detail routing", () => {
     assert.match(page, /getSocialCalendarById\(id, organizationId\)/);
     assert.match(page, /toSocialCalendarDetailDto/);
     assert.match(page, /SocialPlannerDetailWorkspace/);
-    assert.match(page, /<Link href="\/social-planner"/);
-    assert.match(page, /← Back to Social Planner/);
+    assert.match(page, /TenantBackLink href="\/social-planner"/);
+    assert.match(page, /copy\.backToSocialPlanner/);
+    assert.match(page, /TenantBackLink/);
     assert.doesNotMatch(page, /router\.back\(|listSocialCalendars/);
     assert.doesNotMatch(page, /version navigator|previous version|next version/i);
   });
@@ -551,7 +552,7 @@ describe("Social Planner dedicated calendar detail routing", () => {
     );
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
     assert.match(detailWorkspace, /isSocialPlannerInFlight\(detailStatus\)/);
-    assert.match(detailWorkspace, /fetchSocialCalendarDetail\(calendarId\)/);
+    assert.match(detailWorkspace, /fetchSocialCalendarDetail\(calendarId/);
     assert.match(detailWorkspace, /SOCIAL_PLANNER_DETAIL_POLL_MS/);
     assert.doesNotMatch(detailWorkspace, /fetchSocialCalendarHistory/);
     assert.doesNotMatch(workspace, /fetchSocialCalendarDetail/);
@@ -567,7 +568,7 @@ describe("Social Planner dedicated calendar detail routing", () => {
     assert.match(detailWorkspace, /function handleCreateAnotherWeek/);
     assert.match(detailWorkspace, /router.push\("\/social-planner"\)/);
     assert.doesNotMatch(detailWorkspace, /selectCalendar\(null|focusComposer|\?focus=/);
-    assert.match(page, /<Link href="\/social-planner"/);
+    assert.match(page, /TenantBackLink href="\/social-planner"/);
   });
 
   it("preserves Ready L1 Copy/Continue, L2 Discuss, and L3 interactions", () => {
@@ -578,10 +579,10 @@ describe("Social Planner dedicated calendar detail routing", () => {
     assert.match(card, /serializeSocialCalendarAsset/);
     assert.match(card, /<CopyButton/);
     assert.match(card, /showContinue/);
-    assert.match(card, /Discuss with Athena/);
+    assert.match(card, /copy\.discussWithAthena/);
     assert.match(detail, /SocialPlannerAskAthenaPanel/);
     assert.match(detail, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
-    assert.match(panel, /Ask Athena About This Calendar/);
+    assert.match(panel, /copy\.askAthenaTitle/);
     assert.match(detail, /buildSocialCalendarAssetInteractionType/);
     assert.match(detail, /initiallyDone=\{Boolean\(doneByAssetType\[interactionKey\]\)\}/);
     assert.match(serializer, /export function serializeSocialCalendarAsset/);
@@ -610,17 +611,17 @@ describe("Social Planner 7-day quick navigation", () => {
     assert.ok(readyStart >= 0);
     const beforeReady = detail.slice(0, readyStart);
     const ready = detail.slice(readyStart);
-    const headerIdx = ready.indexOf("Your Social Week");
+    const headerIdx = ready.indexOf("copy.yourSocialWeek");
     const navIdx = ready.indexOf("data-day-navigation");
-    const whyIdx = ready.indexOf("Why This Week Works");
+    const whyIdx = ready.indexOf("copy.whyThisWeekWorks");
 
     assert.match(ready, /data-day-navigation/);
-    assert.match(ready, /aria-label="Jump to day"/);
+    assert.match(ready, /aria-label=\{copy\.jumpToDay\}/);
     assert.ok(headerIdx >= 0 && navIdx >= 0 && whyIdx >= 0);
     assert.ok(headerIdx < navIdx && navIdx < whyIdx);
     assert.doesNotMatch(beforeReady, /data-day-navigation/);
     assert.doesNotMatch(beforeReady, /social-planner-day-/);
-    assert.doesNotMatch(beforeReady, /Jump to day/);
+    assert.doesNotMatch(beforeReady, /copy\.jumpToDay/);
   });
 
   it("renders one date-based navigation button per daily asset and scrolls smoothly", () => {
@@ -629,13 +630,13 @@ describe("Social Planner 7-day quick navigation", () => {
     const ready = detail.slice(detail.indexOf("function SocialCalendarReadyDetail"));
     const nav = ready.slice(
       ready.indexOf("data-day-navigation"),
-      ready.indexOf("Why This Week Works"),
+      ready.indexOf("copy.whyThisWeekWorks"),
     );
 
     assert.match(nav, /assets\.map\(\(asset\) => \{/);
-    assert.match(nav, /formatSocialPlannerDayHeader\(asset\.weekday, asset\.date\)/);
+    assert.match(nav, /formatSocialPlannerDayHeader\(/);
     assert.match(nav, /type="button"/);
-    assert.match(nav, /aria-label=\{`Jump to \$\{label\}`\}/);
+    assert.match(nav, /formatSocialPlannerJumpToDayAria/);
     assert.match(
       nav,
       /getElementById\(`social-planner-day-\$\{asset\.date\}`\)/,
@@ -683,18 +684,18 @@ describe("Social Planner 7-day quick navigation", () => {
     const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
     const panel = read("components/socialPlanner/SocialPlannerAskAthenaPanel.tsx");
 
-    assert.match(card, /Open Asset/);
+    assert.match(card, /copy\.openAsset/);
     assert.match(card, /aria-expanded=\{open\}/);
     assert.match(card, /<CopyButton/);
     assert.match(card, /showContinue/);
-    assert.match(card, /Discuss with Athena/);
+    assert.match(card, /copy\.discussWithAthena/);
     assert.match(detail, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
     assert.match(detail, /data-ask-athena-slot/);
     assert.match(detail, /SocialPlannerAskAthenaPanel/);
-    assert.match(detail, /Think Differently/);
-    assert.match(panel, /Ask Athena About This Calendar/);
-    assert.match(panel, /Clear target/);
-    assert.match(panel, /Apply Athena&apos;s Suggestions/);
+    assert.match(detail, /copy\.thinkDifferently/);
+    assert.match(panel, /copy\.askAthenaTitle/);
+    assert.match(panel, /copy\.clearTarget/);
+    assert.match(panel, /copy\.applySuggestions/);
     assert.doesNotMatch(card, /setDiscussAssetReference|usageTag/);
     assert.doesNotMatch(card, /\bSelected\b|\bScheduled\b|\bPublished\b|\bUsed\b/);
   });
@@ -741,11 +742,11 @@ describe("Social Planner L7 non-interference", () => {
     const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
     assert.match(detail, /data-ready-actions/);
     assert.match(detail, /data-ask-athena-slot/);
-    assert.match(detail, /Think Differently/);
+    assert.match(detail, /copy\.thinkDifferently/);
     assert.match(detail, /SocialPlannerAskAthenaPanel/);
     assert.match(
       read("components/socialPlanner/SocialPlannerAskAthenaPanel.tsx"),
-      /Ask Athena About This Calendar/,
+      /copy\.askAthenaTitle/,
     );
   });
 });

@@ -9,10 +9,18 @@ import {
   formatSocialPlannerDayHeader,
   formatSocialPlannerPeriodLabel,
 } from "@/components/socialPlanner/socialPlannerDates";
-import { socialPlannerAssetTypeLabel } from "@/components/socialPlanner/socialPlannerLabels";
 import { isSocialPlannerInFlight } from "@/components/socialPlanner/socialPlannerClient";
 import { SocialPlannerAskAthenaPanel } from "@/components/socialPlanner/SocialPlannerAskAthenaPanel";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
+import { en } from "@/lib/tenantI18n/messages/en";
+import {
+  formatSocialPlannerDiscussingLabel,
+  formatSocialPlannerJumpToDayAria,
+  getLocalizedSocialPlannerAssetTypeLabel,
+} from "@/lib/tenantI18n/socialPlannerPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
+import type { OrganizationLanguage } from "@/services/organizationLanguage";
 import { buildSocialCalendarAssetInteractionType } from "@/services/assetInteractions/assetInteractionKeys";
 import {
   isAssetUsageTag,
@@ -29,6 +37,9 @@ type SocialCalendarDetailProps = {
   onCreateAnotherWeek: () => void;
   onThinkDifferently?: () => void;
   onApplySuggestions?: () => void;
+  messages?: TenantMessages;
+  language?: OrganizationLanguage;
+  locale?: TenantFormattingLocale;
 };
 
 export function SocialCalendarDetail({
@@ -41,10 +52,15 @@ export function SocialCalendarDetail({
   onCreateAnotherWeek,
   onThinkDifferently,
   onApplySuggestions,
+  messages,
+  locale = "en-US",
 }: SocialCalendarDetailProps) {
+  const dictionary = messages ?? en;
+  const copy = dictionary.socialPlanner;
   const periodLabel = formatSocialPlannerPeriodLabel(
     calendar.periodStart,
     calendar.periodEnd,
+    locale,
   );
 
   if (isSocialPlannerInFlight(calendar.status)) {
@@ -53,6 +69,7 @@ export function SocialCalendarDetail({
         status={calendar.status}
         generationStage={calendar.generationStage}
         pollNotice={pollNotice}
+        messages={dictionary}
       />
     );
   }
@@ -61,13 +78,11 @@ export function SocialCalendarDetail({
     return (
       <section className="rounded-[28px] border border-rose-400/25 bg-rose-500/10 p-6 sm:p-8">
         <div className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-200">
-          Failed
+          {copy.status.failed}
         </div>
-        <h2 className="mt-3 text-2xl font-semibold">
-          Athena could not finish this week.
-        </h2>
+        <h2 className="mt-3 text-2xl font-semibold">{copy.couldNotFinish}</h2>
         <p className="mt-3 text-sm leading-7 text-rose-100/75">
-          {calendar.error?.message || "Generation failed. Please try again."}
+          {calendar.error?.message || copy.generationFailedTryAgain}
         </p>
         <div className="mt-6" data-ready-actions="">
           <button
@@ -75,7 +90,7 @@ export function SocialCalendarDetail({
             onClick={onCreateAnotherWeek}
             className="w-full rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white sm:w-auto"
           >
-            Create Another Week
+            {copy.createAnotherWeek}
           </button>
         </div>
       </section>
@@ -85,7 +100,7 @@ export function SocialCalendarDetail({
   if (calendar.packageUnavailable || !calendar.package) {
     return (
       <section className="rounded-[28px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-8">
-        <h2 className="text-2xl font-semibold">This calendar could not be displayed.</h2>
+        <h2 className="text-2xl font-semibold">{copy.couldNotDisplay}</h2>
         <p className="mt-3 text-sm leading-7 text-white/50">{periodLabel}</p>
         <div className="mt-6" data-ready-actions="">
           <button
@@ -93,7 +108,7 @@ export function SocialCalendarDetail({
             onClick={onCreateAnotherWeek}
             className="w-full rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white sm:w-auto"
           >
-            Create Another Week
+            {copy.createAnotherWeek}
           </button>
         </div>
       </section>
@@ -111,6 +126,8 @@ export function SocialCalendarDetail({
       onCreateAnotherWeek={onCreateAnotherWeek}
       onThinkDifferently={onThinkDifferently}
       onApplySuggestions={onApplySuggestions}
+      messages={dictionary}
+      locale={locale}
     />
   );
 }
@@ -124,6 +141,8 @@ function SocialCalendarReadyDetail({
   onCreateAnotherWeek,
   onThinkDifferently,
   onApplySuggestions,
+  messages,
+  locale,
 }: {
   calendar: SocialCalendarDetailDto & {
     package: NonNullable<SocialCalendarDetailDto["package"]>;
@@ -135,10 +154,14 @@ function SocialCalendarReadyDetail({
   onCreateAnotherWeek: () => void;
   onThinkDifferently?: () => void;
   onApplySuggestions?: () => void;
+  messages: TenantMessages;
+  locale: TenantFormattingLocale;
 }) {
+  const copy = messages.socialPlanner;
   const periodLabel = formatSocialPlannerPeriodLabel(
     calendar.periodStart,
     calendar.periodEnd,
+    locale,
   );
   const socialPackage = calendar.package;
   const assets = socialPackage.assets.slice(0, 7);
@@ -216,7 +239,18 @@ function SocialCalendarReadyDetail({
     ? assets.find((asset) => asset.date === discussAssetReference.date) ?? null
     : null;
   const discussFocusLabel = selectedAsset
-    ? `Discussing: ${formatSocialPlannerDayHeader(selectedAsset.weekday, selectedAsset.date)} — ${socialPlannerAssetTypeLabel(selectedAsset.assetType)}`
+    ? formatSocialPlannerDiscussingLabel(
+        messages,
+        formatSocialPlannerDayHeader(
+          selectedAsset.weekday,
+          selectedAsset.date,
+          locale,
+        ),
+        getLocalizedSocialPlannerAssetTypeLabel(
+          messages,
+          selectedAsset.assetType,
+        ),
+      )
     : null;
 
   return (
@@ -224,10 +258,10 @@ function SocialCalendarReadyDetail({
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Ready
+            {copy.status.ready}
           </div>
           <h2 className="mt-3 text-4xl font-semibold tracking-tight">
-            Your Social Week
+            {copy.yourSocialWeek}
           </h2>
           <p className="mt-3 text-base text-white/55">{periodLabel}</p>
         </div>
@@ -235,12 +269,12 @@ function SocialCalendarReadyDetail({
           {onThinkDifferently ? (
             <button
               type="button"
-              title="Create a materially different version of this week."
+              title={copy.thinkDifferentlyTitle}
               disabled={thinkDifferentlyPending}
               onClick={onThinkDifferently}
               className="w-full rounded-2xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-5 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
             >
-              Think Differently
+              {copy.thinkDifferently}
             </button>
           ) : null}
           <button
@@ -248,7 +282,7 @@ function SocialCalendarReadyDetail({
             onClick={onCreateAnotherWeek}
             className="w-full rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/85 sm:w-auto"
           >
-            Create Another Week
+            {copy.createAnotherWeek}
           </button>
         </div>
       </div>
@@ -259,17 +293,21 @@ function SocialCalendarReadyDetail({
 
       <nav
         data-day-navigation=""
-        aria-label="Jump to day"
+        aria-label={copy.jumpToDay}
         className="overflow-x-auto"
       >
         <div className="flex flex-nowrap gap-2">
           {assets.map((asset) => {
-            const label = formatSocialPlannerDayHeader(asset.weekday, asset.date);
+            const label = formatSocialPlannerDayHeader(
+              asset.weekday,
+              asset.date,
+              locale,
+            );
             return (
               <button
                 key={asset.date}
                 type="button"
-                aria-label={`Jump to ${label}`}
+                aria-label={formatSocialPlannerJumpToDayAria(messages, label)}
                 onClick={() => {
                   document
                     .getElementById(`social-planner-day-${asset.date}`)
@@ -293,7 +331,7 @@ function SocialCalendarReadyDetail({
             {socialPackage.strategySummary}
           </p>
         ) : null}
-        <h3 className="mt-4 text-xl font-semibold">Why This Week Works</h3>
+        <h3 className="mt-4 text-xl font-semibold">{copy.whyThisWeekWorks}</h3>
         <p className="mt-3 text-sm leading-7 text-white/70">
           {socialPackage.whyThisWeekWorks}
         </p>
@@ -317,6 +355,8 @@ function SocialCalendarReadyDetail({
               }}
               initiallyDone={Boolean(doneByAssetType[interactionKey])}
               initiallyTags={tagsByAssetType[interactionKey] ?? []}
+              messages={messages}
+              locale={locale}
             />
           );
         })}
@@ -331,6 +371,7 @@ function SocialCalendarReadyDetail({
           applyPending={applyPending}
           applyError={applyError}
           onApply={onApplySuggestions}
+          messages={messages}
         />
       </div>
     </section>

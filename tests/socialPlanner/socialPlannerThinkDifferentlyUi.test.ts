@@ -21,9 +21,9 @@ describe("Social Planner L8 Think Differently UI", () => {
       "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
     );
     assert.match(detail, /data-ready-actions/);
-    assert.match(detail, /Think Differently/);
-    assert.match(detail, /Create a materially different version of this week/);
-    assert.match(detail, /Create Another Week/);
+    assert.match(detail, /copy\.thinkDifferently/);
+    assert.match(detail, /copy\.thinkDifferentlyTitle/);
+    assert.match(detail, /copy\.createAnotherWeek/);
     assert.match(
       detailWorkspace,
       /detail.status === "Ready" && detail.package && !detail.packageUnavailable/,
@@ -34,7 +34,7 @@ describe("Social Planner L8 Think Differently UI", () => {
     assert.match(detail, /data-ask-athena-slot/);
     assert.match(
       read("components/socialPlanner/SocialPlannerAskAthenaPanel.tsx"),
-      /Ask Athena About This Calendar/,
+      /copy\.askAthenaTitle/,
     );
   });
 
@@ -50,13 +50,13 @@ describe("Social Planner L8 Think Differently UI", () => {
     );
     const malformedBlock = detail.slice(
       detail.indexOf("packageUnavailable"),
-      detail.indexOf("Your Social Week"),
+      detail.indexOf("copy.yourSocialWeek"),
     );
-    assert.doesNotMatch(processingBlock, /Think Differently/);
-    assert.doesNotMatch(failedBlock, /Think Differently/);
-    assert.doesNotMatch(malformedBlock, /Think Differently/);
-    assert.match(failedBlock, /Create Another Week/);
-    assert.match(malformedBlock, /Create Another Week/);
+    assert.doesNotMatch(processingBlock, /copy\.thinkDifferently/);
+    assert.doesNotMatch(failedBlock, /copy\.thinkDifferently/);
+    assert.doesNotMatch(malformedBlock, /copy\.thinkDifferently/);
+    assert.match(failedBlock, /copy\.createAnotherWeek/);
+    assert.match(malformedBlock, /copy\.createAnotherWeek/);
   });
 
   it("posts to the source id, disables only while pending, then pushes the derivative detail route", () => {
@@ -64,7 +64,7 @@ describe("Social Planner L8 Think Differently UI", () => {
       "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
     );
     const client = read("components/socialPlanner/socialPlannerClient.ts");
-    assert.match(detailWorkspace, /thinkDifferentlySocialCalendarRequest\(detail.id\)/);
+    assert.match(detailWorkspace, /thinkDifferentlySocialCalendarRequest\(\s*detail.id/);
     assert.match(detailWorkspace, /router.push\(`\/social-planner\/\$\{created.id\}`\)/);
     assert.doesNotMatch(detailWorkspace, /selectCalendar|queuedDetailFromCreate|\?id=/);
     assert.match(detailWorkspace, /thinkDifferentlyPending/);
@@ -79,8 +79,8 @@ describe("Social Planner L8 Think Differently UI", () => {
 
   it("history shows Think Differently and Version n without a family tree", () => {
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
-    assert.match(history, /Version \$\{calendar.versionNumber\}/);
-    assert.match(history, /socialPlannerGenerationModeLabel/);
+    assert.match(history, /formatSocialPlannerVersionLabel/);
+    assert.match(history, /getLocalizedSocialPlannerGenerationModeLabel/);
     assert.doesNotMatch(history, /derived from|family tree|source version/i);
     assert.equal(socialPlannerGenerationModeLabel("think_differently"), "Think Differently");
   });
@@ -88,14 +88,14 @@ describe("Social Planner L8 Think Differently UI", () => {
   it("uses Prospect Think Differently green on the Ready-detail action only", () => {
     const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
     const prospect = read("components/prospects/ProspectRefreshIntelligenceButton.tsx");
-    const thinkStart = detail.indexOf("Think Differently");
+    const thinkStart = detail.indexOf("copy.thinkDifferentlyTitle");
     const thinkBlock = detail.slice(
       detail.lastIndexOf("<button", thinkStart),
       detail.indexOf("</button>", thinkStart),
     );
     const createAnother = detail.slice(
-      detail.indexOf("Create Another Week") - 400,
-      detail.indexOf("Create Another Week") + 80,
+      detail.indexOf("copy.createAnotherWeek") - 400,
+      detail.indexOf("copy.createAnotherWeek") + 80,
     );
 
     assert.match(prospect, /border-\[var\(--athena-success\)\]\/30/);
@@ -112,7 +112,7 @@ describe("Social Planner L8 Think Differently UI", () => {
     assert.match(detail, /onClick=\{onThinkDifferently\}/);
     assert.match(detail, /disabled=\{thinkDifferentlyPending\}/);
     const createForm = read("components/socialPlanner/SocialPlannerCreateForm.tsx");
-    assert.match(createForm, /Generate My Week/);
+    assert.match(createForm, /copy\.generateMyWeek/);
     assert.match(createForm, /bg-\[var\(--athena-orange\)\]/);
     assert.doesNotMatch(createForm, /Think Differently|athena-success/);
   });

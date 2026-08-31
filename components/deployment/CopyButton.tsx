@@ -26,6 +26,8 @@ export type CopyButtonChrome = {
   saveDoneFailed?: string;
   continue?: string;
   continueAria?: string;
+  saveTagFailed?: string;
+  usageTagLabels?: Partial<Record<AssetUsageTag, string>>;
 };
 
 type CopyButtonProps = {
@@ -58,6 +60,8 @@ function resolveCopyChrome(chrome?: CopyButtonChrome | null) {
     saveDoneFailed: chrome?.saveDoneFailed ?? "Could not save Done.",
     continue: chrome?.continue ?? "Continue",
     continueAria: chrome?.continueAria ?? "Continue in external workspace",
+    saveTagFailed: chrome?.saveTagFailed ?? "Could not save tag.",
+    usageTagLabels: chrome?.usageTagLabels,
   };
 }
 
@@ -190,6 +194,8 @@ export function CopyButton({
           tracking={tracking}
           initiallyTags={initiallyTags}
           onTagsChange={onTagsChange}
+          labels={labels.usageTagLabels}
+          saveFailed={labels.saveTagFailed}
         />
       ) : null}
       {copyError ? (

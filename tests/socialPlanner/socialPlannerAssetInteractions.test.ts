@@ -453,6 +453,8 @@ describe("Social Planner V30 L3 Copy / Done / tags UI", () => {
     assert.doesNotMatch(detail, /params\.set\("executiveVersionId"/);
 
     assert.match(copyButton, /AssetUsageTagControls/);
+    assert.match(copyButton, /labels=\{labels\.usageTagLabels\}/);
+    assert.match(copyButton, /saveFailed=\{labels\.saveTagFailed\}/);
     assert.match(controls, /ASSET_USAGE_TAGS\.map/);
     assert.deepEqual(ASSET_USAGE_TAGS, [
       "selected",
@@ -481,7 +483,7 @@ describe("Social Planner V30 L3 Copy / Done / tags UI", () => {
     assert.match(spec, /SocialPlannerCopyableField/);
     assert.match(
       spec,
-      /<CopyButton text=\{value\} tracking=\{null\} showContinue=\{false\} \/>/,
+      /<CopyButton\s+text=\{value\}\s+tracking=\{null\}\s+showContinue=\{false\}/,
     );
     assert.doesNotMatch(spec, /initiallyDone|initiallyTags/);
     assert.doesNotMatch(spec, /social_calendar/);

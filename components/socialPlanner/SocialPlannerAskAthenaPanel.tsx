@@ -9,12 +9,13 @@ import {
   type KeyboardEvent,
 } from "react";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
-import { ATHENA_REQUEST_ID_HEADER } from "@/services/athenaConversation/athenaConversationTypes";
 import {
   SOCIAL_PLANNER_CONVERSATION_LIMITS,
   type SocialPlannerConversationAssetReference,
   type SocialPlannerConversationPublicMessage,
 } from "@/services/socialPlanner/conversation/socialPlannerConversationTypes";
+import { en } from "@/lib/tenantI18n/messages/en";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 export const SOCIAL_PLANNER_ASK_ATHENA_TITLE = "Ask Athena About This Calendar";
 
@@ -40,6 +41,7 @@ type SocialPlannerAskAthenaPanelProps = {
   applyPending?: boolean;
   applyError?: string | null;
   onApply?: () => void;
+  messages?: TenantMessages;
 };
 
 function ThinkingIndicator() {
@@ -59,7 +61,10 @@ function SocialPlannerAskAthenaPanelInner({
   applyPending = false,
   applyError = null,
   onApply,
+  messages: tenantMessages,
 }: SocialPlannerAskAthenaPanelProps) {
+  const copy = (tenantMessages ?? en).socialPlanner;
+  const conversation = (tenantMessages ?? en).conversation;
   const messagesRegionId = useId();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const sendSeqRef = useRef(0);
@@ -90,7 +95,7 @@ function SocialPlannerAskAthenaPanelInner({
         if (!mountedRef.current) return;
         if (!response.ok || !payload.ok || !Array.isArray(payload.messages)) {
           setHistoryError(
-            payload.error?.message || "Could not load conversation history.",
+            payload.error?.message || copy.conversationHistoryFailed,
           );
           setMessages([]);
           return;
@@ -104,7 +109,7 @@ function SocialPlannerAskAthenaPanelInner({
         ) {
           return;
         }
-        setHistoryError("Could not load conversation history.");
+        setHistoryError(copy.conversationHistoryFailed);
         setMessages([]);
       } finally {
         if (mountedRef.current) {
@@ -119,7 +124,7 @@ function SocialPlannerAskAthenaPanelInner({
       controller.abort();
       inFlightRef.current = false;
     };
-  }, [calendarId]);
+  }, [calendarId, copy.conversationHistoryFailed]);
 
   async function refreshHistoryAfterSend(seq: number) {
     const response = await fetch(
@@ -162,26 +167,20 @@ function SocialPlannerAskAthenaPanelInner({
           }),
         },
       );
-      const requestId = response.headers.get(ATHENA_REQUEST_ID_HEADER);
       const payload = await parseJsonResponse<SendResponse>(response);
       if (!mountedRef.current || seq !== sendSeqRef.current) {
         return;
       }
       if (!response.ok || !payload.ok || !payload.message?.content) {
         setDraft(trimmed);
-        setError(
-          payload.error?.message ||
-            (requestId
-              ? "Athena could not answer right now."
-              : "Athena could not answer right now."),
-        );
+        setError(payload.error?.message || copy.couldNotAnswer);
         return;
       }
       await refreshHistoryAfterSend(seq);
     } catch {
       if (!mountedRef.current || seq !== sendSeqRef.current) return;
       setDraft(trimmed);
-      setError("Athena could not answer right now.");
+      setError(copy.couldNotAnswer);
     } finally {
       if (mountedRef.current && seq === sendSeqRef.current) {
         setBusy(false);
@@ -211,10 +210,9 @@ function SocialPlannerAskAthenaPanelInner({
       className="scroll-mt-24 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-7"
       data-social-planner-ask-athena=""
     >
-      <h3 className="text-xl font-semibold">{SOCIAL_PLANNER_ASK_ATHENA_TITLE}</h3>
+      <h3 className="text-xl font-semibold">{copy.askAthenaTitle}</h3>
       <p className="mt-2 text-sm leading-6 text-white/50">
-        Conversation does not change this saved week. Use Apply Athena&apos;s
-        Suggestions when you want a new revised calendar.
+        {copy.askAthenaDescription}
       </p>
 
       {discussFocusLabel ? (
@@ -229,7 +227,7 @@ function SocialPlannerAskAthenaPanelInner({
               onClick={() => onAssetReferenceChange(null)}
               className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-white/60 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
             >
-              Clear target
+              {copy.clearTarget}
             </button>
           ) : null}
         </div>
@@ -241,7 +239,7 @@ function SocialPlannerAskAthenaPanelInner({
         data-social-planner-conversation-history=""
       >
         {loadingHistory ? (
-          <p className="text-sm text-white/40">Loading conversation…</p>
+          <p className="text-sm text-white/40">{copy.loadingConversation}</p>
         ) : null}
         {historyError ? (
           <p className="text-sm text-rose-100/80">{historyError}</p>
@@ -253,7 +251,7 @@ function SocialPlannerAskAthenaPanelInner({
             className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3"
           >
             <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/35">
-              {message.role === "user" ? "You" : "Athena"}
+              {message.role === "user" ? conversation.you : conversation.athena}
             </div>
             <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/80">
               {message.content}
@@ -266,7 +264,7 @@ function SocialPlannerAskAthenaPanelInner({
             data-athena-pending-response=""
           >
             <ThinkingIndicator />
-            Athena is thinking…
+            {conversation.thinking}
           </div>
         ) : null}
       </div>
@@ -279,9 +277,7 @@ function SocialPlannerAskAthenaPanelInner({
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-3">
         <label htmlFor="social-planner-conversation-input" className="sr-only">
-          {assetReference
-            ? "Ask Athena about this day's asset"
-            : "Ask Athena about this calendar"}
+          {assetReference ? copy.askAboutAsset : copy.askAboutCalendar}
         </label>
         <textarea
           id="social-planner-conversation-input"
@@ -294,21 +290,19 @@ function SocialPlannerAskAthenaPanelInner({
           maxLength={SOCIAL_PLANNER_CONVERSATION_LIMITS.maxMessageChars}
           placeholder={
             assetReference
-              ? "Ask Athena about this day's asset…"
-              : "Ask Athena about this calendar…"
+              ? copy.askAboutAssetPlaceholder
+              : copy.askAboutCalendarPlaceholder
           }
           className="w-full min-w-0 resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white placeholder:text-white/30 focus:border-[var(--athena-orange)]/50 focus:outline-none disabled:opacity-60"
         />
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-white/30">
-            Enter to send · Shift+Enter for a new line
-          </p>
+          <p className="text-xs text-white/30">{conversation.enterToSend}</p>
           <button
             type="submit"
             disabled={composerDisabled || !draft.trim()}
             className="rounded-xl border border-[var(--athena-orange)]/40 bg-[var(--athena-orange)]/15 px-4 py-2 text-sm font-semibold text-[var(--athena-orange)] disabled:opacity-40"
           >
-            {busy ? "Sending…" : "Send"}
+            {busy ? copy.sending : copy.send}
           </button>
         </div>
       </form>
@@ -321,7 +315,7 @@ function SocialPlannerAskAthenaPanelInner({
             onClick={onApply}
             className="w-full rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto"
           >
-            Apply Athena&apos;s Suggestions
+            {copy.applySuggestions}
           </button>
           {applyError ? (
             <p className="mt-3 text-sm text-rose-100/80">{applyError}</p>

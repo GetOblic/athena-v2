@@ -71,7 +71,7 @@ describe("Social Planner V30 L2 daily-asset Discuss UI", () => {
     const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
     const spec = read("components/socialPlanner/SocialCalendarProductionSpec.tsx");
 
-    assert.match(card, /Discuss with Athena/);
+    assert.match(card, /copy\.discussWithAthena/);
     assert.match(card, /data-asset-actions/);
     assert.match(card, /onDiscussWithAthena\(\{ date: asset\.date \}\)/);
     assert.match(card, /<CopyButton/);
@@ -91,16 +91,16 @@ describe("Social Planner V30 L2 daily-asset Discuss UI", () => {
     assert.match(detail, /setDiscussAssetReference\(\{ date: reference\.date \}\)/);
     assert.match(detail, /social-planner-conversation/);
     assert.match(detail, /scrollIntoView/);
-    assert.match(detail, /Discussing:/);
+    assert.match(detail, /formatSocialPlannerDiscussingLabel/);
     assert.doesNotMatch(detail, /SocialPlannerDailyAsk|DiscussModal|createPortal/);
     assert.equal((detail.match(/<SocialPlannerAskAthenaPanel/g) ?? []).length, 1);
 
-    assert.match(panel, /Ask Athena About This Calendar/);
+    assert.match(panel, /copy\.askAthenaTitle/);
     assert.match(panel, /data-social-planner-discuss-focus/);
     assert.match(panel, /discussFocusLabel/);
     assert.match(panel, /id="social-planner-conversation"/);
     assert.match(panel, /id="social-planner-conversation-input"/);
-    assert.match(panel, /Clear target/);
+    assert.match(panel, /copy\.clearTarget/);
   });
 
   it("changing Discuss target does not remount the panel or clear messages", () => {

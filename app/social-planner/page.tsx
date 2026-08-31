@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
-import { redirect } from "next/navigation";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
 import { SocialPlannerWorkspace } from "@/components/socialPlanner/SocialPlannerWorkspace";
 import { SOCIAL_PLANNER_CALENDAR_ID_RE } from "@/components/socialPlanner/socialPlannerClient";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import {
   SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
   toSocialCalendarListItemDto,
@@ -13,6 +13,7 @@ import {
 } from "@/services/socialPlanner/socialCalendarDto";
 import { listSocialCalendars } from "@/services/socialPlanner/socialCalendarService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import { redirect } from "next/navigation";
 
 export default async function SocialPlannerPage({
   searchParams,
@@ -20,6 +21,8 @@ export default async function SocialPlannerPage({
   searchParams?: Promise<{ id?: string }>;
 }) {
   const { organizationId } = await requireCurrentOrganizationContext();
+  const { language, locale, messages } = await getTenantLocalization();
+  const copy = messages.socialPlanner;
   const params = searchParams ? await searchParams : {};
   const requestedId =
     typeof params.id === "string" && SOCIAL_PLANNER_CALENDAR_ID_RE.test(params.id)
@@ -50,26 +53,29 @@ export default async function SocialPlannerPage({
     pagination = result.pagination;
   } catch (error) {
     console.error("[ATHENA_SOCIAL_PLANNER] library_load_failed", error);
-    loadError = "Failed to load Social Calendars for this organization.";
+    loadError = copy.loadFailed;
   }
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] px-5 py-8 text-white sm:p-10">
-      <AthenaBrandLink className="mb-8" />
+      <AthenaBrandLink
+        className="mb-8"
+        tagline={messages.chrome.tagline}
+        logoutLabel={messages.chrome.logOut}
+        sessionActionsLabel={messages.chrome.sessionActions}
+      />
 
-      <Link href="/" className="text-sm text-[var(--athena-orange)]">
-        ← Dashboard
-      </Link>
+      <TenantBackLink href="/" label={copy.backToDashboard} />
 
       <div className="mb-10 mt-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Social Planner
+          {copy.eyebrow}
         </div>
         <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">
-          Social Planner
+          {copy.title}
         </h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Plan your next seven social assets with one push.
+          {copy.subtitle}
         </p>
       </div>
 
@@ -77,6 +83,9 @@ export default async function SocialPlannerPage({
         initialCalendars={calendars}
         initialPagination={pagination}
         loadError={loadError}
+        messages={messages}
+        language={language}
+        locale={locale}
       />
     </main>
   );

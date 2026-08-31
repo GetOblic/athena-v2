@@ -602,21 +602,21 @@ describe("Social Planner history search UI and polling", () => {
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
     const createIdx = workspace.indexOf("<SocialPlannerCreateForm");
-    const searchIdx = workspace.indexOf("Search calendars, dates, strategy, asset types");
+    const searchIdx = workspace.indexOf("copy.searchPlaceholder");
     const historyIdx = workspace.indexOf("<SocialPlannerHistory");
     assert.ok(createIdx >= 0 && searchIdx > createIdx && historyIdx > searchIdx);
     assert.match(workspace, /className="mt-2 w-full rounded-2xl border border-white\/10 bg-black\/30 px-4 py-3 text-sm text-white outline-none"/);
-    assert.match(history, /Your Social Calendars/);
-    assert.match(history, /No calendars match your search/);
+    assert.match(history, /copy\.historyTitle/);
+    assert.match(history, /copy\.noSearchMatch/);
     assert.doesNotMatch(workspace, /\bStatus\b|\bSort\b|Import/);
     assert.doesNotMatch(history, /\bStatus\b|\bSort\b|Import Prospects|infinite scroll|pageNumbers/);
   });
 
   it("uses Prospects Previous \/ Next chrome and Showing X–Y of Z", () => {
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
-    assert.match(history, /Showing \{rangeStart\}–\{rangeEnd\} of \{pagination\.total\}/);
-    assert.match(history, />\s*Previous\s*</);
-    assert.match(history, />\s*Next\s*</);
+    assert.match(history, /formatSocialPlannerShowingLabel/);
+    assert.match(history, /copy\.previous/);
+    assert.match(history, /copy\.next/);
     assert.match(history, /disabled=\{pagination\.page <= 1\}/);
     assert.match(history, /disabled=\{pagination\.page >= pagination\.totalPages\}/);
     assert.match(history, /showPagination = pagination\.total > pagination\.limit/);
@@ -630,7 +630,7 @@ describe("Social Planner history search UI and polling", () => {
     assert.match(workspace, /setPage\(1\)/);
     assert.match(workspace, /void loadHistory\(value, 1\)/);
     assert.match(history, /hasSearch = search\.trim\(\)\.length > 0/);
-    assert.match(history, /No calendars match your search/);
+    assert.match(history, /copy\.noSearchMatch/);
     assert.doesNotMatch(workspace, /useSearchParams|replaceState|searchParams\.set\("page"/);
   });
 
@@ -638,7 +638,7 @@ describe("Social Planner history search UI and polling", () => {
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
     assert.match(
       workspace,
-      /fetchSocialCalendarHistory\(\{\s*search: nextSearch,\s*page: nextPage,\s*limit,/,
+      /fetchSocialCalendarHistory\(\s*\{\s*search: nextSearch,\s*page: nextPage,\s*limit,/,
     );
     assert.match(workspace, /await loadHistory\(search, page\)/);
     assert.equal((workspace.match(/setInterval/g) || []).length, 1);

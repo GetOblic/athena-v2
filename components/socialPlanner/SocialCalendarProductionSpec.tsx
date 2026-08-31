@@ -1,14 +1,23 @@
 "use client";
 
-import { CopyButton } from "@/components/deployment/CopyButton";
+import { CopyButton, type CopyButtonChrome } from "@/components/deployment/CopyButton";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import { en } from "@/lib/tenantI18n/messages/en";
+import { getSocialPlannerCopyChrome } from "@/lib/tenantI18n/socialPlannerPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { SocialPlannerProductionSpec } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
 
 type CopyableFieldProps = {
   label: string;
   value: string | null | undefined;
+  chrome?: CopyButtonChrome | null;
 };
 
-export function SocialPlannerCopyableField({ label, value }: CopyableFieldProps) {
+export function SocialPlannerCopyableField({
+  label,
+  value,
+  chrome = null,
+}: CopyableFieldProps) {
   if (!value || !value.trim()) return null;
 
   return (
@@ -17,7 +26,12 @@ export function SocialPlannerCopyableField({ label, value }: CopyableFieldProps)
         <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
           {label}
         </div>
-        <CopyButton text={value} tracking={null} showContinue={false} />
+        <CopyButton
+          text={value}
+          tracking={null}
+          showContinue={false}
+          chrome={chrome}
+        />
       </div>
       <div className="whitespace-pre-wrap break-words rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white/80">
         {value}
@@ -48,23 +62,34 @@ function FieldBlock({
 
 type SocialCalendarProductionSpecProps = {
   spec: SocialPlannerProductionSpec;
+  messages?: TenantMessages;
 };
 
 export function SocialCalendarProductionSpec({
   spec,
+  messages,
 }: SocialCalendarProductionSpecProps) {
+  const dictionary = messages ?? en;
+  const copy = dictionary.socialPlanner;
+  const chrome = getSocialPlannerCopyChrome(dictionary);
+
   if (spec.kind === "static") {
     return (
       <div className="space-y-5">
-        <SocialPlannerCopyableField label="Image Prompt" value={spec.imagePrompt} />
-        <FieldBlock label="Composition" value={spec.composition} />
-        <FieldBlock label="Setting" value={spec.setting} />
-        <FieldBlock label="Subjects" value={spec.subjects} />
         <SocialPlannerCopyableField
-          label="Overlay Guidance"
-          value={spec.overlayCopyGuidance}
+          label={copy.imagePrompt}
+          value={spec.imagePrompt}
+          chrome={chrome}
         />
-        <FieldBlock label="Visual Tone" value={spec.visualTone} />
+        <FieldBlock label={copy.composition} value={spec.composition} />
+        <FieldBlock label={copy.setting} value={spec.setting} />
+        <FieldBlock label={copy.subjects} value={spec.subjects} />
+        <SocialPlannerCopyableField
+          label={copy.overlayGuidance}
+          value={spec.overlayCopyGuidance}
+          chrome={chrome}
+        />
+        <FieldBlock label={copy.visualTone} value={spec.visualTone} />
       </div>
     );
   }
@@ -72,11 +97,15 @@ export function SocialCalendarProductionSpec({
   if (spec.kind === "carousel") {
     return (
       <div className="space-y-5">
-        <FieldBlock label="Visual Direction" value={spec.visualDirection} />
-        <SocialPlannerCopyableField label="Design Prompt" value={spec.designPrompt} />
+        <FieldBlock label={copy.visualDirection} value={spec.visualDirection} />
+        <SocialPlannerCopyableField
+          label={copy.designPrompt}
+          value={spec.designPrompt}
+          chrome={chrome}
+        />
         <div className="space-y-3">
           <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-            Slides
+            {copy.slides}
           </div>
           <ol className="space-y-3">
             {spec.slides.map((slide) => (
@@ -86,7 +115,12 @@ export function SocialCalendarProductionSpec({
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--athena-orange)]">
-                    Slide {slide.index}
+                    {interpolateTenantMessage(
+                      copy.slideN.includes("{n}")
+                        ? copy.slideN
+                        : en.socialPlanner.slideN,
+                      { n: slide.index },
+                    )}
                   </div>
                   <CopyButton
                     text={[slide.headline, slide.body, slide.visualNote]
@@ -94,6 +128,7 @@ export function SocialCalendarProductionSpec({
                       .join("\n\n")}
                     tracking={null}
                     showContinue={false}
+                    chrome={chrome}
                   />
                 </div>
                 {slide.headline ? (
@@ -120,11 +155,15 @@ export function SocialCalendarProductionSpec({
   if (spec.kind === "video") {
     return (
       <div className="space-y-5">
-        <SocialPlannerCopyableField label="Video Concept" value={spec.videoConcept} />
-        <FieldBlock label="Hook" value={spec.hook} />
+        <SocialPlannerCopyableField
+          label={copy.videoConcept}
+          value={spec.videoConcept}
+          chrome={chrome}
+        />
+        <FieldBlock label={copy.hook} value={spec.hook} />
         <div className="space-y-3">
           <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-            Scene / Shot Plan
+            {copy.sceneShotPlan}
           </div>
           <ol className="space-y-3">
             {spec.shotPlan.map((shot) => (
@@ -133,7 +172,12 @@ export function SocialCalendarProductionSpec({
                 className="min-w-0 rounded-2xl border border-white/10 bg-black/20 px-4 py-4"
               >
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--athena-orange)]">
-                  Shot {shot.shot}
+                  {interpolateTenantMessage(
+                    copy.shotN.includes("{n}")
+                      ? copy.shotN
+                      : en.socialPlanner.shotN,
+                    { n: shot.shot },
+                  )}
                 </div>
                 {shot.action ? (
                   <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-white/75">
@@ -147,11 +191,16 @@ export function SocialCalendarProductionSpec({
             ))}
           </ol>
         </div>
-        <SocialPlannerCopyableField label="Dialogue" value={spec.dialogue} />
-        <FieldBlock label="Environment" value={spec.environment} />
         <SocialPlannerCopyableField
-          label="Production Direction"
+          label={copy.dialogue}
+          value={spec.dialogue}
+          chrome={chrome}
+        />
+        <FieldBlock label={copy.environment} value={spec.environment} />
+        <SocialPlannerCopyableField
+          label={copy.productionDirection}
           value={spec.productionDirection}
+          chrome={chrome}
         />
       </div>
     );
@@ -160,10 +209,10 @@ export function SocialCalendarProductionSpec({
   if (spec.kind === "document") {
     return (
       <div className="space-y-5">
-        <FieldBlock label="Document Concept" value={spec.documentConcept} />
+        <FieldBlock label={copy.documentConcept} value={spec.documentConcept} />
         <div className="space-y-3">
           <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-            Section / Page Structure
+            {copy.sectionPageStructure}
           </div>
           <ol className="space-y-3">
             {spec.sections.map((section, index) => (
@@ -182,23 +231,32 @@ export function SocialCalendarProductionSpec({
           </ol>
         </div>
         <SocialPlannerCopyableField
-          label="Content Instructions"
+          label={copy.contentInstructions}
           value={spec.sections
             .map((section) => `${section.heading}\n${section.content}`)
             .join("\n\n")}
+          chrome={chrome}
         />
-        <SocialPlannerCopyableField label="Design Prompt" value={spec.designPrompt} />
+        <SocialPlannerCopyableField
+          label={copy.designPrompt}
+          value={spec.designPrompt}
+          chrome={chrome}
+        />
       </div>
     );
   }
 
   return (
     <div className="space-y-5">
-      <SocialPlannerCopyableField label="Prompt" value={spec.prompt} />
+      <SocialPlannerCopyableField
+        label={copy.prompt}
+        value={spec.prompt}
+        chrome={chrome}
+      />
       {spec.options && spec.options.length > 0 ? (
         <div className="space-y-2">
           <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-            Options
+            {copy.options}
           </div>
           <ul className="space-y-2">
             {spec.options.map((option) => (
@@ -213,7 +271,7 @@ export function SocialCalendarProductionSpec({
         </div>
       ) : null}
       {spec.visualSupport ? (
-        <FieldBlock label="Visual Support" value={spec.visualSupport} />
+        <FieldBlock label={copy.visualSupport} value={spec.visualSupport} />
       ) : null}
     </div>
   );

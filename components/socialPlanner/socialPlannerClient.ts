@@ -25,6 +25,51 @@ export type SocialPlannerApiError = {
   message?: string;
 };
 
+export type SocialPlannerErrorChrome = {
+  authenticationRequired?: string;
+  notFound?: string;
+  notReadyThinkDifferently?: string;
+  checkWeek?: string;
+  somethingWentWrong?: string;
+  failedToStart?: string;
+  failedThinkDifferently?: string;
+  cannotApplyYet?: string;
+  failedApply?: string;
+};
+
+const DEFAULT_ERROR_CHROME = {
+  authenticationRequired: "Authentication required",
+  notFound: "This calendar could not be found.",
+  notReadyThinkDifferently: "This calendar is not ready for Think Differently.",
+  checkWeek: "Please check the week you selected and try again.",
+  somethingWentWrong: "Something went wrong. Please try again.",
+  failedToStart: "Failed to start Social Planner.",
+  failedThinkDifferently: "Failed to start Think Differently.",
+  cannotApplyYet: "This conversation cannot be applied yet.",
+  failedApply: "Failed to apply Athena's suggestions.",
+} as const satisfies Required<SocialPlannerErrorChrome>;
+
+function resolveErrorChrome(
+  chrome?: SocialPlannerErrorChrome,
+): Required<SocialPlannerErrorChrome> {
+  return {
+    authenticationRequired:
+      chrome?.authenticationRequired ?? DEFAULT_ERROR_CHROME.authenticationRequired,
+    notFound: chrome?.notFound ?? DEFAULT_ERROR_CHROME.notFound,
+    notReadyThinkDifferently:
+      chrome?.notReadyThinkDifferently ??
+      DEFAULT_ERROR_CHROME.notReadyThinkDifferently,
+    checkWeek: chrome?.checkWeek ?? DEFAULT_ERROR_CHROME.checkWeek,
+    somethingWentWrong:
+      chrome?.somethingWentWrong ?? DEFAULT_ERROR_CHROME.somethingWentWrong,
+    failedToStart: chrome?.failedToStart ?? DEFAULT_ERROR_CHROME.failedToStart,
+    failedThinkDifferently:
+      chrome?.failedThinkDifferently ?? DEFAULT_ERROR_CHROME.failedThinkDifferently,
+    cannotApplyYet: chrome?.cannotApplyYet ?? DEFAULT_ERROR_CHROME.cannotApplyYet,
+    failedApply: chrome?.failedApply ?? DEFAULT_ERROR_CHROME.failedApply,
+  };
+}
+
 export type SocialPlannerCreatePayload = {
   periodStart: string;
   periodEnd: string;
@@ -72,23 +117,25 @@ export function mapSocialPlannerApiError(
   status: number,
   error: SocialPlannerApiError | null | undefined,
   fallback: string,
+  chrome?: SocialPlannerErrorChrome,
 ): string {
+  const labels = resolveErrorChrome(chrome);
   if (status === 401) {
-    return "Authentication required";
+    return labels.authenticationRequired;
   }
   if (status === 404) {
-    return "This calendar could not be found.";
+    return labels.notFound;
   }
   if (status === 409) {
     const message = error?.message?.trim();
-    return message || "This calendar is not ready for Think Differently.";
+    return message || labels.notReadyThinkDifferently;
   }
   if (status === 400) {
     const message = error?.message?.trim();
-    return message || "Please check the week you selected and try again.";
+    return message || labels.checkWeek;
   }
   if (status >= 500) {
-    return "Something went wrong. Please try again.";
+    return labels.somethingWentWrong;
   }
   return fallback;
 }
@@ -194,7 +241,9 @@ export type SocialPlannerFetchResult<T> =
 
 export async function createSocialCalendarRequest(
   body: SocialPlannerCreatePayload,
+  chrome?: SocialPlannerErrorChrome,
 ): Promise<SocialPlannerFetchResult<CreateSocialCalendarResponse>> {
+  const labels = resolveErrorChrome(chrome);
   try {
     const response = await fetch("/api/social-planner", {
       method: "POST",
@@ -202,7 +251,7 @@ export async function createSocialCalendarRequest(
       body: JSON.stringify(body),
     });
     const payload = await parseJsonResponse<CreateResponse>(response, {
-      unexpectedMessage: "Something went wrong. Please try again.",
+      unexpectedMessage: labels.somethingWentWrong,
     });
     if (response.status === 401) return { kind: "auth" };
     if (response.status === 202 && payload.calendar?.id) {
@@ -211,13 +260,13 @@ export async function createSocialCalendarRequest(
     if (response.status === 400) {
       return {
         kind: "validation",
-        message: mapSocialPlannerApiError(400, payload.error, ""),
+        message: mapSocialPlannerApiError(400, payload.error, "", chrome),
       };
     }
     if (response.status >= 500) {
       return {
         kind: "error",
-        message: mapSocialPlannerApiError(500, payload.error, ""),
+        message: mapSocialPlannerApiError(500, payload.error, "", chrome),
       };
     }
     return {
@@ -225,26 +274,29 @@ export async function createSocialCalendarRequest(
       message: mapSocialPlannerApiError(
         response.status,
         payload.error,
-        "Failed to start Social Planner.",
+        labels.failedToStart,
+        chrome,
       ),
     };
   } catch {
     return {
       kind: "error",
-      message: "Something went wrong. Please try again.",
+      message: labels.somethingWentWrong,
     };
   }
 }
 
 export async function fetchSocialCalendarDetail(
   id: string,
+  chrome?: SocialPlannerErrorChrome,
 ): Promise<SocialPlannerFetchResult<SocialCalendarDetailDto>> {
+  const labels = resolveErrorChrome(chrome);
   try {
     const response = await fetch(`/api/social-planner/${id}`, {
       cache: "no-store",
     });
     const payload = await parseJsonResponse<DetailResponse>(response, {
-      unexpectedMessage: "Something went wrong. Please try again.",
+      unexpectedMessage: labels.somethingWentWrong,
     });
     if (response.status === 401) return { kind: "auth" };
     if (response.status === 404) return { kind: "not_found" };
@@ -262,7 +314,9 @@ export async function fetchSocialCalendarDetail(
 
 export async function thinkDifferentlySocialCalendarRequest(
   sourceId: string,
+  chrome?: SocialPlannerErrorChrome,
 ): Promise<SocialPlannerFetchResult<CreateSocialCalendarResponse>> {
+  const labels = resolveErrorChrome(chrome);
   try {
     const response = await fetch(
       `/api/social-planner/${sourceId}/think-differently`,
@@ -273,7 +327,7 @@ export async function thinkDifferentlySocialCalendarRequest(
       },
     );
     const payload = await parseJsonResponse<CreateResponse>(response, {
-      unexpectedMessage: "Something went wrong. Please try again.",
+      unexpectedMessage: labels.somethingWentWrong,
     });
     if (response.status === 401) return { kind: "auth" };
     if (response.status === 404) return { kind: "not_found" };
@@ -286,14 +340,15 @@ export async function thinkDifferentlySocialCalendarRequest(
         message: mapSocialPlannerApiError(
           response.status,
           payload.error,
-          "This calendar is not ready for Think Differently.",
+          labels.notReadyThinkDifferently,
+          chrome,
         ),
       };
     }
     if (response.status >= 500) {
       return {
         kind: "error",
-        message: mapSocialPlannerApiError(500, payload.error, ""),
+        message: mapSocialPlannerApiError(500, payload.error, "", chrome),
       };
     }
     return {
@@ -301,20 +356,23 @@ export async function thinkDifferentlySocialCalendarRequest(
       message: mapSocialPlannerApiError(
         response.status,
         payload.error,
-        "Failed to start Think Differently.",
+        labels.failedThinkDifferently,
+        chrome,
       ),
     };
   } catch {
     return {
       kind: "error",
-      message: "Something went wrong. Please try again.",
+      message: labels.somethingWentWrong,
     };
   }
 }
 
 export async function applySocialPlannerConversationRequest(
   sourceId: string,
+  chrome?: SocialPlannerErrorChrome,
 ): Promise<SocialPlannerFetchResult<CreateSocialCalendarResponse>> {
+  const labels = resolveErrorChrome(chrome);
   try {
     const response = await fetch(
       `/api/social-planner/${sourceId}/conversation/apply`,
@@ -325,7 +383,7 @@ export async function applySocialPlannerConversationRequest(
       },
     );
     const payload = await parseJsonResponse<CreateResponse>(response, {
-      unexpectedMessage: "Something went wrong. Please try again.",
+      unexpectedMessage: labels.somethingWentWrong,
     });
     if (response.status === 401) return { kind: "auth" };
     if (response.status === 404) return { kind: "not_found" };
@@ -338,14 +396,15 @@ export async function applySocialPlannerConversationRequest(
         message: mapSocialPlannerApiError(
           response.status,
           payload.error,
-          "This conversation cannot be applied yet.",
+          labels.cannotApplyYet,
+          chrome,
         ),
       };
     }
     if (response.status >= 500) {
       return {
         kind: "error",
-        message: mapSocialPlannerApiError(500, payload.error, ""),
+        message: mapSocialPlannerApiError(500, payload.error, "", chrome),
       };
     }
     return {
@@ -353,20 +412,23 @@ export async function applySocialPlannerConversationRequest(
       message: mapSocialPlannerApiError(
         response.status,
         payload.error,
-        "Failed to apply Athena's suggestions.",
+        labels.failedApply,
+        chrome,
       ),
     };
   } catch {
     return {
       kind: "error",
-      message: "Something went wrong. Please try again.",
+      message: labels.somethingWentWrong,
     };
   }
 }
 
 export async function fetchSocialCalendarHistory(
   query: SocialCalendarHistoryFetchQuery = {},
+  chrome?: SocialPlannerErrorChrome,
 ): Promise<SocialPlannerFetchResult<SocialCalendarHistoryPage>> {
+  const labels = resolveErrorChrome(chrome);
   try {
     const params = new URLSearchParams();
     const search = query.search?.trim() ?? "";
@@ -379,7 +441,7 @@ export async function fetchSocialCalendarHistory(
       { cache: "no-store" },
     );
     const payload = await parseJsonResponse<ListResponse>(response, {
-      unexpectedMessage: "Something went wrong. Please try again.",
+      unexpectedMessage: labels.somethingWentWrong,
     });
     if (response.status === 401) return { kind: "auth" };
     if (response.ok && Array.isArray(payload.calendars)) {

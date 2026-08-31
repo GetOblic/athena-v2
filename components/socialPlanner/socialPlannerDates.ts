@@ -108,30 +108,59 @@ function utcParts(iso: string): CalendarDateParts | null {
   return parseCalendarDateParts(iso);
 }
 
+function weekdayName(
+  parts: CalendarDateParts,
+  locale: string,
+  width: "short" | "long",
+): string {
+  if (locale === "en-US") {
+    const utc = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+    return width === "short"
+      ? WEEKDAY_SHORT[utc.getUTCDay()]
+      : WEEKDAY_LONG[utc.getUTCDay()];
+  }
+  return new Intl.DateTimeFormat(locale, {
+    weekday: width,
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(parts.year, parts.month - 1, parts.day)));
+}
+
+function monthName(
+  monthIndex: number,
+  locale: string,
+  width: "short" | "long",
+): string {
+  if (locale === "en-US") {
+    return width === "short" ? MONTH_SHORT[monthIndex] : MONTH_LONG[monthIndex];
+  }
+  return new Intl.DateTimeFormat(locale, {
+    month: width,
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(2020, monthIndex, 1)));
+}
+
 export function formatWeekRangePreview(
   periodStart: string,
   periodEnd: string,
+  locale = "en-US",
 ): string {
   const start = utcParts(periodStart);
   const end = utcParts(periodEnd);
   if (!start || !end) return "";
-  const startUtc = Date.UTC(start.year, start.month - 1, start.day);
-  const endUtc = Date.UTC(end.year, end.month - 1, end.day);
-  const startDate = new Date(startUtc);
-  const endDate = new Date(endUtc);
-  return `${WEEKDAY_SHORT[startDate.getUTCDay()]} ${MONTH_SHORT[start.month - 1]} ${start.day} → ${WEEKDAY_SHORT[endDate.getUTCDay()]} ${MONTH_SHORT[end.month - 1]} ${end.day}`;
+  return `${weekdayName(start, locale, "short")} ${monthName(start.month - 1, locale, "short")} ${start.day} → ${weekdayName(end, locale, "short")} ${monthName(end.month - 1, locale, "short")} ${end.day}`;
 }
 
 export function formatSocialPlannerPeriodLabel(
   periodStart: string,
   periodEnd: string,
+  locale = "en-US",
 ): string {
   const start = utcParts(periodStart);
   const end = utcParts(periodEnd);
   if (!start || !end) return `${periodStart} – ${periodEnd}`;
 
-  const startMonth = MONTH_LONG[start.month - 1];
-  const endMonth = MONTH_LONG[end.month - 1];
+  const startMonth = monthName(start.month - 1, locale, "long");
+  const endMonth = monthName(end.month - 1, locale, "long");
 
   if (start.year === end.year && start.month === end.month) {
     return `${startMonth} ${start.day}–${end.day}, ${start.year}`;
@@ -147,29 +176,36 @@ export function formatSocialPlannerPeriodLabel(
 export function formatSocialPlannerDayHeader(
   weekday: string,
   isoDate: string,
+  locale = "en-US",
 ): string {
   const parts = utcParts(isoDate);
-  const dayName = weekday.trim() || (parts
-    ? WEEKDAY_LONG[new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay()]
-    : "");
+  const dayName = parts
+    ? weekdayName(parts, locale, "long")
+    : weekday.trim();
   if (!parts) return dayName.toUpperCase();
-  return `${dayName.toUpperCase()} · ${MONTH_SHORT[parts.month - 1].toUpperCase()} ${parts.day}`;
+  return `${dayName.toUpperCase()} · ${monthName(parts.month - 1, locale, "short").toUpperCase()} ${parts.day}`;
 }
 
-export function formatSocialPlannerCreatedDate(value: string): string {
+export function formatSocialPlannerCreatedDate(
+  value: string,
+  locale = "en-US",
+): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString("en-US", {
+  return parsed.toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
 
-export function formatSocialPlannerMonthCaption(iso: string): string {
+export function formatSocialPlannerMonthCaption(
+  iso: string,
+  locale = "en-US",
+): string {
   const parts = utcParts(iso);
   if (!parts) return "";
-  return `${MONTH_LONG[parts.month - 1]} ${parts.year}`;
+  return `${monthName(parts.month - 1, locale, "long")} ${parts.year}`;
 }
 
 function dateSearchAliasesFromParts(parts: CalendarDateParts): string[] {

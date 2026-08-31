@@ -73,6 +73,7 @@ describe("V31 L3.2 tenant chrome — shared-component isolation", () => {
       "components/ui/AthenaCollapsibleSection.tsx",
       "components/licensee/BackToMasterCta.tsx",
       "components/deployment/CopyButton.tsx",
+      "components/deployment/AssetUsageTagControls.tsx",
       "components/deployment/ContinueButton.tsx",
       "components/assetBlueprints/CollapsiblePromptBlock.tsx",
     ];

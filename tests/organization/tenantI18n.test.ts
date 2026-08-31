@@ -125,6 +125,7 @@ describe("V31 L3.1 tenant i18n — language contract", () => {
       "lib/tenantI18n/briefingPresentation.ts",
       "lib/tenantI18n/adsPresentation.ts",
       "lib/tenantI18n/seoPresentation.ts",
+      "lib/tenantI18n/socialPlannerPresentation.ts",
       "lib/tenantI18n/intelligenceDomainStatus.ts",
       "lib/tenantI18n/messages/en.ts",
       "lib/tenantI18n/messages/fr.ts",
@@ -173,6 +174,8 @@ describe("V31 L3.1 tenant i18n — dictionaries", () => {
     const canonical = collectKeyPaths(en);
     assert.ok(canonical.includes("common.save"));
     assert.ok(canonical.includes("copyChrome.done"));
+    assert.ok(canonical.includes("copyChrome.saveTagFailed"));
+    assert.ok(canonical.includes("copyChrome.usageTags.selected"));
     assert.ok(canonical.includes("nav.dashboard"));
     assert.ok(canonical.includes("status.new"));
     for (const language of ORGANIZATION_LANGUAGES) {

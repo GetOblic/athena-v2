@@ -1,19 +1,28 @@
 "use client";
 
-import { socialPlannerStageLabel } from "@/components/socialPlanner/socialPlannerLabels";
+import { en } from "@/lib/tenantI18n/messages/en";
+import { getLocalizedSocialPlannerStageLabel } from "@/lib/tenantI18n/socialPlannerPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type SocialPlannerStatusProps = {
   status: string;
   generationStage: string | null;
   pollNotice?: string | null;
+  messages?: TenantMessages;
 };
 
 export function SocialPlannerStatus({
   status,
   generationStage,
   pollNotice = null,
+  messages,
 }: SocialPlannerStatusProps) {
-  const stageLabel = socialPlannerStageLabel(generationStage);
+  const dictionary = messages ?? en;
+  const copy = dictionary.socialPlanner;
+  const stageLabel = getLocalizedSocialPlannerStageLabel(
+    dictionary,
+    generationStage,
+  );
   const inFlight = status === "Queued" || status === "Processing";
 
   return (
@@ -23,16 +32,20 @@ export function SocialPlannerStatus({
       aria-live="polite"
     >
       <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-orange)]">
-        {inFlight ? "Generating" : status === "Processing Failed" ? "Failed" : status}
+        {inFlight
+          ? copy.status.generating
+          : status === "Processing Failed"
+            ? copy.status.failed
+            : status}
       </div>
       <h2 className="mt-3 text-2xl font-semibold sm:text-3xl">
-        Athena is planning your week…
+        {copy.planningWeek}
       </h2>
       {stageLabel ? (
         <p className="mt-3 text-sm leading-7 text-white/60">{stageLabel}</p>
       ) : (
         <p className="mt-3 text-sm leading-7 text-white/60">
-          You can leave this page and return later.
+          {copy.leaveAndReturn}
         </p>
       )}
       {pollNotice ? (

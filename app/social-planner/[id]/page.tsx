@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
 import { SocialPlannerDetailWorkspace } from "@/components/socialPlanner/SocialPlannerDetailWorkspace";
 import { SOCIAL_PLANNER_CALENDAR_ID_RE } from "@/components/socialPlanner/socialPlannerClient";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { toSocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
 import { getSocialCalendarById } from "@/services/socialPlanner/socialCalendarService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -14,6 +15,8 @@ export default async function SocialPlannerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { organizationId } = await requireCurrentOrganizationContext();
+  const { language, locale, messages } = await getTenantLocalization();
+  const copy = messages.socialPlanner;
   const { id } = await params;
 
   let initialDetail: ReturnType<typeof toSocialCalendarDetailDto> | null = null;
@@ -37,16 +40,22 @@ export default async function SocialPlannerDetailPage({
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] px-5 py-8 text-white sm:p-10">
-      <AthenaBrandLink className="mb-8" />
+      <AthenaBrandLink
+        className="mb-8"
+        tagline={messages.chrome.tagline}
+        logoutLabel={messages.chrome.logOut}
+        sessionActionsLabel={messages.chrome.sessionActions}
+      />
 
-      <Link href="/social-planner" className="text-sm text-[var(--athena-orange)]">
-        ← Back to Social Planner
-      </Link>
+      <TenantBackLink href="/social-planner" label={copy.backToSocialPlanner} />
 
       <div className="mt-10">
         <SocialPlannerDetailWorkspace
           initialDetail={initialDetail}
           initialDetailError={initialDetailError}
+          messages={messages}
+          language={language}
+          locale={locale}
         />
       </div>
     </main>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
 import { SocialCalendarDetail } from "@/components/socialPlanner/SocialCalendarDetail";
@@ -12,16 +12,33 @@ import {
   isSocialPlannerInFlight,
   thinkDifferentlySocialCalendarRequest,
 } from "@/components/socialPlanner/socialPlannerClient";
+import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
+import { en } from "@/lib/tenantI18n/messages/en";
+import { getSocialPlannerErrorChrome } from "@/lib/tenantI18n/socialPlannerPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
+import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
 type SocialPlannerDetailWorkspaceProps = {
   initialDetail: SocialCalendarDetailDto | null;
   initialDetailError: "not_found" | "load_failed" | null;
+  messages?: TenantMessages;
+  language?: OrganizationLanguage;
+  locale?: TenantFormattingLocale;
 };
 
 export function SocialPlannerDetailWorkspace({
   initialDetail,
   initialDetailError,
+  messages,
+  language = "en",
+  locale = "en-US",
 }: SocialPlannerDetailWorkspaceProps) {
+  const dictionary = messages ?? en;
+  const copy = dictionary.socialPlanner;
+  const errorChrome = useMemo(
+    () => getSocialPlannerErrorChrome(dictionary),
+    [dictionary],
+  );
   const router = useRouter();
   const [detail, setDetail] = useState(initialDetail);
   const [detailError, setDetailError] = useState<
@@ -58,7 +75,7 @@ export function SocialPlannerDetailWorkspace({
       if (cancelled || requestInFlight) return;
       requestInFlight = true;
       try {
-        const result = await fetchSocialCalendarDetail(calendarId);
+        const result = await fetchSocialCalendarDetail(calendarId, errorChrome);
         if (cancelled) return;
         if (result.kind === "ok") {
           transientFailures = 0;
@@ -73,7 +90,7 @@ export function SocialPlannerDetailWorkspace({
         } else {
           transientFailures += 1;
           if (transientFailures >= SOCIAL_PLANNER_TRANSIENT_POLL_NOTICE_AFTER) {
-            setPollNotice("Still checking your calendar…");
+            setPollNotice(copy.stillChecking);
           }
         }
       } finally {
@@ -90,7 +107,7 @@ export function SocialPlannerDetailWorkspace({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [calendarId, detailStatus, detailError]);
+  }, [calendarId, detailStatus, detailError, errorChrome, copy.stillChecking]);
 
   function handleCreateAnotherWeek() {
     router.push("/social-planner");
@@ -103,7 +120,10 @@ export function SocialPlannerDetailWorkspace({
     setThinkDifferentlyError(null);
 
     try {
-      const result = await thinkDifferentlySocialCalendarRequest(detail.id);
+      const result = await thinkDifferentlySocialCalendarRequest(
+        detail.id,
+        errorChrome,
+      );
       if (result.kind === "auth") {
         window.location.href = "/login";
         return;
@@ -113,7 +133,7 @@ export function SocialPlannerDetailWorkspace({
         return;
       }
       if (result.kind !== "ok") {
-        setThinkDifferentlyError("Something went wrong. Please try again.");
+        setThinkDifferentlyError(copy.somethingWentWrong);
         return;
       }
 
@@ -133,7 +153,10 @@ export function SocialPlannerDetailWorkspace({
     setThinkDifferentlyError(null);
 
     try {
-      const result = await applySocialPlannerConversationRequest(detail.id);
+      const result = await applySocialPlannerConversationRequest(
+        detail.id,
+        errorChrome,
+      );
       if (result.kind === "auth") {
         window.location.href = "/login";
         return;
@@ -143,7 +166,7 @@ export function SocialPlannerDetailWorkspace({
         return;
       }
       if (result.kind !== "ok") {
-        setApplyError("Something went wrong. Please try again.");
+        setApplyError(copy.somethingWentWrong);
         return;
       }
 
@@ -159,14 +182,14 @@ export function SocialPlannerDetailWorkspace({
     <div className="mx-auto w-full max-w-4xl space-y-10">
       {detailError === "not_found" ? (
         <section className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-8">
-          <h2 className="text-2xl font-semibold">This calendar could not be found.</h2>
+          <h2 className="text-2xl font-semibold">{copy.notFound}</h2>
           <div className="mt-6">
             <button
               type="button"
               onClick={handleCreateAnotherWeek}
               className="w-full rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white sm:w-auto"
             >
-              Create Another Week
+              {copy.createAnotherWeek}
             </button>
           </div>
         </section>
@@ -174,14 +197,14 @@ export function SocialPlannerDetailWorkspace({
 
       {detailError === "load_failed" ? (
         <section className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-8">
-          <h2 className="text-2xl font-semibold">This calendar could not be displayed.</h2>
+          <h2 className="text-2xl font-semibold">{copy.couldNotDisplay}</h2>
           <div className="mt-6">
             <button
               type="button"
               onClick={handleCreateAnotherWeek}
               className="w-full rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white sm:w-auto"
             >
-              Create Another Week
+              {copy.createAnotherWeek}
             </button>
           </div>
         </section>
@@ -206,6 +229,9 @@ export function SocialPlannerDetailWorkspace({
               ? () => void handleApplySuggestions()
               : undefined
           }
+          messages={dictionary}
+          language={language}
+          locale={locale}
         />
       ) : null}
     </div>

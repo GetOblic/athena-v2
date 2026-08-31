@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
@@ -17,18 +17,34 @@ import {
   isSocialPlannerInFlight,
   type SocialPlannerCreatePayload,
 } from "@/components/socialPlanner/socialPlannerClient";
+import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
+import { en } from "@/lib/tenantI18n/messages/en";
+import { getSocialPlannerErrorChrome } from "@/lib/tenantI18n/socialPlannerPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
+import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
 type SocialPlannerWorkspaceProps = {
   initialCalendars: SocialCalendarListItemDto[];
   initialPagination: SocialCalendarHistoryPaginationDto;
   loadError: string | null;
+  messages?: TenantMessages;
+  language?: OrganizationLanguage;
+  locale?: TenantFormattingLocale;
 };
 
 export function SocialPlannerWorkspace({
   initialCalendars,
   initialPagination,
   loadError,
+  messages,
+  locale = "en-US",
 }: SocialPlannerWorkspaceProps) {
+  const dictionary = messages ?? en;
+  const copy = dictionary.socialPlanner;
+  const errorChrome = useMemo(
+    () => getSocialPlannerErrorChrome(dictionary),
+    [dictionary],
+  );
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(initialPagination.page);
@@ -48,11 +64,14 @@ export function SocialPlannerWorkspace({
     async (nextSearch: string, nextPage: number) => {
       const requestKey = `${nextSearch}::${nextPage}::${limit}`;
       latestRequestKeyRef.current = requestKey;
-      const history = await fetchSocialCalendarHistory({
-        search: nextSearch,
-        page: nextPage,
-        limit,
-      });
+      const history = await fetchSocialCalendarHistory(
+        {
+          search: nextSearch,
+          page: nextPage,
+          limit,
+        },
+        errorChrome,
+      );
       if (latestRequestKeyRef.current !== requestKey) {
         return;
       }
@@ -61,7 +80,7 @@ export function SocialPlannerWorkspace({
         setPagination(history.value.pagination);
       }
     },
-    [limit],
+    [limit, errorChrome],
   );
 
   function handleSearchChange(value: string) {
@@ -115,7 +134,7 @@ export function SocialPlannerWorkspace({
     setCreateError(null);
 
     try {
-      const result = await createSocialCalendarRequest(body);
+      const result = await createSocialCalendarRequest(body, errorChrome);
       if (result.kind === "auth") {
         window.location.href = "/login";
         return;
@@ -125,7 +144,7 @@ export function SocialPlannerWorkspace({
         return;
       }
       if (result.kind !== "ok") {
-        setCreateError("Something went wrong. Please try again.");
+        setCreateError(copy.somethingWentWrong);
         return;
       }
 
@@ -142,7 +161,7 @@ export function SocialPlannerWorkspace({
       {loadError ? (
         <div className="rounded-[24px] border border-rose-400/30 bg-rose-500/10 p-8 text-center">
           <h2 className="text-2xl font-semibold text-rose-100">
-            Unable to load Social Planner
+            {copy.unableToLoad}
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-rose-100/70">
             {loadError}
@@ -154,15 +173,17 @@ export function SocialPlannerWorkspace({
         submitting={submitting}
         error={createError}
         onSubmit={(body) => void handleCreate(body)}
+        messages={dictionary}
+        locale={locale}
       />
 
       {loadError ? null : (
         <label className="block text-sm text-white/50">
-          Search
+          {copy.search}
           <input
             value={search}
             onChange={(event) => handleSearchChange(event.target.value)}
-            placeholder="Search calendars, dates, strategy, asset types..."
+            placeholder={copy.searchPlaceholder}
             className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
           />
         </label>
@@ -173,6 +194,8 @@ export function SocialPlannerWorkspace({
         pagination={pagination}
         search={search}
         onPageChange={handlePageChange}
+        messages={dictionary}
+        locale={locale}
       />
     </div>
   );

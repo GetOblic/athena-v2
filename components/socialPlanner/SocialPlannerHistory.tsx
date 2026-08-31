@@ -10,18 +10,26 @@ import {
   formatSocialPlannerCreatedDate,
   formatSocialPlannerPeriodLabel,
 } from "@/components/socialPlanner/socialPlannerDates";
-import {
-  socialPlannerAssetTypeLabel,
-  socialPlannerGenerationModeLabel,
-  socialPlannerHistoryStatusLabel,
-} from "@/components/socialPlanner/socialPlannerLabels";
 import { isSocialPlannerInFlight } from "@/components/socialPlanner/socialPlannerClient";
+import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
+import { en } from "@/lib/tenantI18n/messages/en";
+import {
+  formatSocialPlannerAssetsCount,
+  formatSocialPlannerShowingLabel,
+  formatSocialPlannerVersionLabel,
+  getLocalizedSocialPlannerAssetTypeLabel,
+  getLocalizedSocialPlannerGenerationModeLabel,
+  getLocalizedSocialPlannerHistoryStatusLabel,
+} from "@/lib/tenantI18n/socialPlannerPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type SocialPlannerHistoryProps = {
   calendars: SocialCalendarListItemDto[];
   pagination: SocialCalendarHistoryPaginationDto;
   search: string;
   onPageChange: (page: number) => void;
+  messages?: TenantMessages;
+  locale?: TenantFormattingLocale;
 };
 
 function statusTone(status: string): string {
@@ -46,7 +54,11 @@ export function SocialPlannerHistory({
   pagination,
   search,
   onPageChange,
+  messages,
+  locale = "en-US",
 }: SocialPlannerHistoryProps) {
+  const dictionary = messages ?? en;
+  const copy = dictionary.socialPlanner;
   const hasSearch = search.trim().length > 0;
   if (!hasSearch && pagination.total === 0 && calendars.length === 0) {
     return null;
@@ -64,26 +76,27 @@ export function SocialPlannerHistory({
     <section className="space-y-4">
       <div>
         <h2 className="text-3xl font-semibold tracking-tight">
-          Your Social Calendars
+          {copy.historyTitle}
         </h2>
-        <p className="mt-2 text-sm text-white/45">
-          Newest first. Open any week without regenerating it.
-        </p>
+        <p className="mt-2 text-sm text-white/45">{copy.historySubtitle}</p>
       </div>
 
       {calendars.length === 0 ? (
         <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-10 text-center">
-          <p className="text-sm leading-7 text-white/50">
-            No calendars match your search.
-          </p>
+          <p className="text-sm leading-7 text-white/50">{copy.noSearchMatch}</p>
         </div>
       ) : (
         <div className="space-y-3">
           {calendars.map((calendar) => {
-            const statusLabel = socialPlannerHistoryStatusLabel(calendar.status);
+            const statusLabel = getLocalizedSocialPlannerHistoryStatusLabel(
+              dictionary,
+              calendar.status,
+            );
             const typeSummary = calendar.assetTypes
               .slice(0, 4)
-              .map(socialPlannerAssetTypeLabel)
+              .map((type) =>
+                getLocalizedSocialPlannerAssetTypeLabel(dictionary, type),
+              )
               .join(" · ");
 
             return (
@@ -97,6 +110,7 @@ export function SocialPlannerHistory({
                       {formatSocialPlannerPeriodLabel(
                         calendar.periodStart,
                         calendar.periodEnd,
+                        locale,
                       )}
                     </h3>
                     <span
@@ -115,12 +129,16 @@ export function SocialPlannerHistory({
                       >
                         {[
                           calendar.generationMode !== "standard"
-                            ? socialPlannerGenerationModeLabel(
+                            ? getLocalizedSocialPlannerGenerationModeLabel(
+                                dictionary,
                                 calendar.generationMode,
                               )
                             : null,
                           calendar.versionNumber > 1
-                            ? `Version ${calendar.versionNumber}`
+                            ? formatSocialPlannerVersionLabel(
+                                dictionary,
+                                calendar.versionNumber,
+                              )
                             : null,
                         ]
                           .filter(Boolean)
@@ -140,28 +158,28 @@ export function SocialPlannerHistory({
                     </p>
                   ) : null}
                   {isSocialPlannerInFlight(calendar.status) ? (
-                    <p className="text-sm text-white/45">
-                      Athena is still planning this week.
-                    </p>
+                    <p className="text-sm text-white/45">{copy.stillPlanning}</p>
                   ) : null}
                   {calendar.status === "Processing Failed" ? (
                     <p className="text-sm text-rose-100/70">
-                      Generation failed. Please try again.
+                      {copy.generationFailedTryAgain}
                     </p>
                   ) : null}
 
                   <div className="space-y-1 text-xs leading-5">
                     <div className="text-white/35">
-                      {formatSocialPlannerCreatedDate(calendar.createdAt)}
+                      {formatSocialPlannerCreatedDate(calendar.createdAt, locale)}
                     </div>
                     {calendar.modelsUsed ? (
                       <div className="text-white/55">{calendar.modelsUsed}</div>
                     ) : null}
                     {calendar.status === "Ready" ? (
                       <div className="text-white/35">
-                        {`${calendar.assetCount} assets${
-                          typeSummary ? ` · ${typeSummary}` : ""
-                        }`}
+                        {formatSocialPlannerAssetsCount(
+                          dictionary,
+                          calendar.assetCount,
+                          typeSummary,
+                        )}
                       </div>
                     ) : null}
                   </div>
@@ -172,7 +190,7 @@ export function SocialPlannerHistory({
                     href={`/social-planner/${calendar.id}`}
                     className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 px-4 py-2 text-sm text-white/80 transition hover:border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] sm:w-auto"
                   >
-                    Open Calendar
+                    {copy.openCalendar}
                   </Link>
                 </div>
               </article>
@@ -184,7 +202,12 @@ export function SocialPlannerHistory({
       {showPagination ? (
         <div className="flex items-center justify-between text-sm text-white/45">
           <div>
-            Showing {rangeStart}–{rangeEnd} of {pagination.total}
+            {formatSocialPlannerShowingLabel(
+              dictionary,
+              rangeStart,
+              rangeEnd,
+              pagination.total,
+            )}
           </div>
           <div className="flex gap-3">
             <button
@@ -193,7 +216,7 @@ export function SocialPlannerHistory({
               onClick={() => onPageChange(Math.max(1, pagination.page - 1))}
               className="rounded-full border border-white/10 px-4 py-2 disabled:opacity-30"
             >
-              Previous
+              {copy.previous}
             </button>
             <button
               type="button"
@@ -205,7 +228,7 @@ export function SocialPlannerHistory({
               }
               className="rounded-full border border-white/10 px-4 py-2 disabled:opacity-30"
             >
-              Next
+              {copy.next}
             </button>
           </div>
         </div>

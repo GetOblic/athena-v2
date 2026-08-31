@@ -13,16 +13,35 @@ type AssetUsageTagControlsProps = {
   tracking: AssetCopyTrackingContext;
   initiallyTags?: AssetUsageTag[];
   onTagsChange?: (tags: AssetUsageTag[]) => void;
+  labels?: Partial<Record<AssetUsageTag, string>> | null;
+  saveFailed?: string | null;
 };
+
+function resolveTagLabel(
+  tag: AssetUsageTag,
+  labels?: Partial<Record<AssetUsageTag, string>> | null,
+): string {
+  const localized = labels?.[tag];
+  if (typeof localized === "string" && localized.trim()) {
+    return localized;
+  }
+  return ASSET_USAGE_TAG_LABELS[tag];
+}
 
 export function AssetUsageTagControls({
   tracking,
   initiallyTags = [],
   onTagsChange,
+  labels = null,
+  saveFailed = null,
 }: AssetUsageTagControlsProps) {
   const [tags, setTags] = useState<AssetUsageTag[]>(initiallyTags);
   const [error, setError] = useState<string | null>(null);
   const [pendingTag, setPendingTag] = useState<AssetUsageTag | null>(null);
+  const saveFailedLabel =
+    typeof saveFailed === "string" && saveFailed.trim()
+      ? saveFailed
+      : "Could not save tag.";
   const initiallyTagsKey = initiallyTags.join("|");
   const trackingKey = [
     tracking.sourceType,
@@ -74,7 +93,7 @@ export function AssetUsageTagControls({
       if (!response.ok || !payload.ok) {
         setTags(previous);
         onTagsChange?.(previous);
-        setError("Could not save tag.");
+        setError(saveFailedLabel);
         return;
       }
 
@@ -85,7 +104,7 @@ export function AssetUsageTagControls({
     } catch {
       setTags(previous);
       onTagsChange?.(previous);
-      setError("Could not save tag.");
+      setError(saveFailedLabel);
     } finally {
       setPendingTag(null);
     }
@@ -109,7 +128,7 @@ export function AssetUsageTagControls({
                   : "rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40 transition hover:border-white/20 hover:text-white/60 disabled:opacity-60"
               }
             >
-              {ASSET_USAGE_TAG_LABELS[tag]}
+              {resolveTagLabel(tag, labels)}
             </button>
           );
         })}

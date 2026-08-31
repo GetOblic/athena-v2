@@ -10,12 +10,17 @@ import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecu
 import { SocialCalendarProductionSpec, SocialPlannerCopyableField } from "@/components/socialPlanner/SocialCalendarProductionSpec";
 import { formatSocialPlannerDayHeader } from "@/components/socialPlanner/socialPlannerDates";
 import { serializeSocialCalendarAsset } from "@/components/socialPlanner/socialPlannerAssetCopyText";
-import {
-  socialPlannerAssetTypeLabel,
-  socialPlannerObjectiveLabel,
-  socialPlannerPlatformLabel,
-} from "@/components/socialPlanner/socialPlannerLabels";
 import { previewSocialCopy } from "@/components/socialPlanner/socialPlannerClient";
+import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
+import { en } from "@/lib/tenantI18n/messages/en";
+import {
+  formatSocialPlannerCalendarOpportunity,
+  getLocalizedSocialPlannerAssetTypeLabel,
+  getLocalizedSocialPlannerObjectiveLabel,
+  getLocalizedSocialPlannerPlatformLabel,
+  getSocialPlannerCopyChrome,
+} from "@/lib/tenantI18n/socialPlannerPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 
 type SocialCalendarDayCardProps = {
@@ -24,6 +29,8 @@ type SocialCalendarDayCardProps = {
   tracking: AssetCopyTrackingContext;
   initiallyDone?: boolean;
   initiallyTags?: AssetUsageTag[];
+  messages?: TenantMessages;
+  locale?: TenantFormattingLocale;
 };
 
 export function SocialCalendarDayCard({
@@ -32,7 +39,12 @@ export function SocialCalendarDayCard({
   tracking,
   initiallyDone = false,
   initiallyTags = [],
+  messages,
+  locale = "en-US",
 }: SocialCalendarDayCardProps) {
+  const dictionary = messages ?? en;
+  const copy = dictionary.socialPlanner;
+  const copyChrome = getSocialPlannerCopyChrome(dictionary);
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const selectedAnchors = asset.calendarAnchors.filter((anchor) =>
@@ -48,7 +60,7 @@ export function SocialCalendarDayCard({
       <header className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-orange)]">
-            {formatSocialPlannerDayHeader(asset.weekday, asset.date)}
+            {formatSocialPlannerDayHeader(asset.weekday, asset.date, locale)}
           </div>
           <div className="flex flex-wrap items-center gap-2" data-asset-actions="">
             {onDiscussWithAthena ? (
@@ -57,7 +69,7 @@ export function SocialCalendarDayCard({
                 onClick={() => onDiscussWithAthena({ date: asset.date })}
                 className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-white/65 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
               >
-                Discuss with Athena
+                {copy.discussWithAthena}
               </button>
             ) : null}
             <CopyButton
@@ -67,15 +79,19 @@ export function SocialCalendarDayCard({
               initiallyTags={initiallyTags}
               showContinue
               assetType={asset.assetType}
+              chrome={copyChrome}
             />
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/75">
-            {socialPlannerAssetTypeLabel(asset.assetType)}
+            {getLocalizedSocialPlannerAssetTypeLabel(dictionary, asset.assetType)}
           </span>
           <span className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/75">
-            {socialPlannerObjectiveLabel(asset.primaryObjective)}
+            {getLocalizedSocialPlannerObjectiveLabel(
+              dictionary,
+              asset.primaryObjective,
+            )}
           </span>
         </div>
         <h3 className="text-xl font-semibold leading-8">{asset.concept}</h3>
@@ -92,7 +108,7 @@ export function SocialCalendarDayCard({
                 key={`${anchor.sourceCandidateId}-${anchor.label}`}
                 className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/45"
               >
-                Calendar opportunity: {anchor.label}
+                {formatSocialPlannerCalendarOpportunity(dictionary, anchor.label)}
               </span>
             ))}
           </div>
@@ -112,21 +128,32 @@ export function SocialCalendarDayCard({
           aria-controls={panelId}
           className="rounded-2xl border border-white/15 px-4 py-2 text-sm font-medium text-white/80 transition hover:border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
         >
-          {open ? "Close Asset" : "Open Asset"}
+          {open ? copy.closeAsset : copy.openAsset}
         </button>
       </div>
 
       {open ? (
         <div id={panelId} className="mt-6 space-y-6 border-t border-white/10 pt-6">
-          <SocialCalendarProductionSpec spec={asset.productionSpec} />
-          <SocialPlannerCopyableField label="Social Copy" value={asset.socialCopy} />
+          <SocialCalendarProductionSpec
+            spec={asset.productionSpec}
+            messages={dictionary}
+          />
+          <SocialPlannerCopyableField
+            label={copy.socialCopy}
+            value={asset.socialCopy}
+            chrome={copyChrome}
+          />
           {asset.cta?.trim() ? (
-            <SocialPlannerCopyableField label="CTA" value={asset.cta} />
+            <SocialPlannerCopyableField
+              label={copy.cta}
+              value={asset.cta}
+              chrome={copyChrome}
+            />
           ) : null}
           {asset.recommendedPlatforms.length > 0 ? (
             <div className="space-y-2">
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-                Recommended platforms
+                {copy.recommendedPlatforms}
               </div>
               <div className="flex flex-wrap gap-2">
                 {asset.recommendedPlatforms.map((platform) => (
@@ -134,7 +161,7 @@ export function SocialCalendarDayCard({
                     key={platform}
                     className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/75"
                   >
-                    {socialPlannerPlatformLabel(platform)}
+                    {getLocalizedSocialPlannerPlatformLabel(platform)}
                   </span>
                 ))}
               </div>
