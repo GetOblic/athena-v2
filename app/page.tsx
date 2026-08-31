@@ -10,11 +10,11 @@ import { getAthenaIdentityByUserId } from "@/services/identity/identityService";
 import { requireTenantContext } from "@/services/tenantContext";
 import { getTodaysIntelligence } from "@/services/todaysIntelligenceService";
 
-function timeGreeting() {
+function timeGreetingKey(): "goodMorning" | "goodAfternoon" | "goodEvening" {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return "goodMorning";
+  if (hour < 18) return "goodAfternoon";
+  return "goodEvening";
 }
 
 export default async function Home() {
@@ -36,7 +36,7 @@ export default async function Home() {
     getTenantLocalization(),
   ]);
 
-  const name = identity?.greeting_name?.trim() || "there";
+  const name = identity?.greeting_name?.trim() || messages.dashboard.greetingFallback;
   const brainReady = identity?.brain_status === "ready";
 
   return (
@@ -54,36 +54,38 @@ export default async function Home() {
 
           <div className="mb-12">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-              Athena Dashboard
+              {messages.dashboard.eyebrow}
             </div>
 
             <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-              {timeGreeting()}, {name}.
+              {messages.dashboard[timeGreetingKey()]}, {name}.
             </h1>
 
             <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-              Athena is monitoring your market, analyzing discussions,
-              identifying opportunities and preparing reusable strategic assets.
+              {messages.dashboard.subtitle}
             </p>
           </div>
 
-          <TodaysIntelligence summary={todaysIntelligence} />
+          <TodaysIntelligence
+            summary={todaysIntelligence}
+            messages={messages.dashboard}
+          />
 
           <div className="mb-10 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="text-sm uppercase tracking-[0.25em] text-white/35">
-                  Athena Brain
+                  {messages.nav.athenaBrain}
                 </div>
                 <h2 className="mt-3 text-3xl font-semibold">
                   {brainReady
-                    ? "Your Athena Brain is trained."
-                    : "Your Athena Brain needs training."}
+                    ? messages.dashboard.brainReadyTitle
+                    : messages.dashboard.brainNeedsTitle}
                 </h2>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-white/50">
                   {brainReady
-                    ? "Athena has learned your voice, expertise, website and professional rules."
-                    : "Train Athena once so every reply, briefing and asset blueprint reflects your voice and expertise."}
+                    ? messages.dashboard.brainReadyBody
+                    : messages.dashboard.brainNeedsBody}
                 </p>
               </div>
 
@@ -91,36 +93,50 @@ export default async function Home() {
                 href="/identity"
                 className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
               >
-                {brainReady ? "Open Brain" : "Train Athena"}
+                {brainReady
+                  ? messages.dashboard.openBrain
+                  : messages.dashboard.trainAthena}
               </Link>
             </div>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
-            <Metric label="Discussions analyzed" value={stats.discussions} />
-            <Metric label="Opportunities detected" value={stats.opportunities} />
-            <Metric label="Draft briefings" value={stats.draftBriefings} />
-            <Metric label="Approved briefings" value={stats.approvedBriefings} />
             <Metric
-              label="Strategic blueprints"
+              label={messages.dashboard.metricDiscussions}
+              value={stats.discussions}
+            />
+            <Metric
+              label={messages.dashboard.metricOpportunities}
+              value={stats.opportunities}
+            />
+            <Metric
+              label={messages.dashboard.metricDraftBriefings}
+              value={stats.draftBriefings}
+            />
+            <Metric
+              label={messages.dashboard.metricApprovedBriefings}
+              value={stats.approvedBriefings}
+            />
+            <Metric
+              label={messages.dashboard.metricStrategicBlueprints}
               value={stats.strategicBlueprints}
             />
           </div>
 
           <div className="mt-10 grid gap-7 lg:grid-cols-3">
             <ActionCard
-              title="Review Opportunities"
-              description="See where Athena detected market intent and recommended action."
+              title={messages.dashboard.reviewOpportunitiesTitle}
+              description={messages.dashboard.reviewOpportunitiesDescription}
               href="/opportunities"
             />
             <ActionCard
-              title="Continue Discussions"
-              description="Open captured market conversations and review Athena's recommended replies."
+              title={messages.dashboard.continueDiscussionsTitle}
+              description={messages.dashboard.continueDiscussionsDescription}
               href="/discussions"
             />
             <ActionCard
-              title="Open Briefings"
-              description="Review executive briefings, CTAs and strategic recommendations."
+              title={messages.dashboard.openBriefingsTitle}
+              description={messages.dashboard.openBriefingsDescription}
               href="/briefings"
             />
           </div>

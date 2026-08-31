@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import {
   BRAND_FONT_OPTIONS,
@@ -12,6 +13,87 @@ import {
 
 const fieldClassName =
   "rounded-2xl border border-white/15 bg-white/[0.04] px-5 py-4 text-sm text-white/90 shadow-inner shadow-black/20 outline-none placeholder:text-white/30 focus:border-[var(--athena-orange)] focus:ring-1 focus:ring-[var(--athena-orange)]";
+
+type BrandMessages = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  logo: string;
+  logoHelp: string;
+  logoPreviewAlt: string;
+  noLogo: string;
+  uploading: string;
+  replaceLogo: string;
+  uploadLogo: string;
+  removeLogo: string;
+  removeLogoConfirm: string;
+  profilePicture: string;
+  profilePictureHelp: string;
+  profilePreviewAlt: string;
+  noPicture: string;
+  replacePicture: string;
+  uploadPicture: string;
+  removePicture: string;
+  removePictureConfirm: string;
+  colorPalette: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  colorPickerAria: string;
+  typography: string;
+  clientFont: string;
+  save: string;
+  saving: string;
+  invalidImageType: string;
+  logoTooLarge: string;
+  pictureTooLarge: string;
+  uploadLogoFailed: string;
+  removeLogoFailed: string;
+  uploadPictureFailed: string;
+  removePictureFailed: string;
+};
+
+const DEFAULT_BRAND_MESSAGES: BrandMessages = {
+  eyebrow: "Brand Identity",
+  title: "Client Brand Identity",
+  description:
+    "Store the visual identity Athena may use for future branded content and publishing workflows.",
+  logo: "Logo",
+  logoHelp: "PNG, JPEG, or WebP. Maximum 2 MB.",
+  logoPreviewAlt: "Client logo preview",
+  noLogo: "No logo",
+  uploading: "Uploading…",
+  replaceLogo: "Replace logo",
+  uploadLogo: "Upload logo",
+  removeLogo: "Remove logo",
+  removeLogoConfirm: "Remove the client logo?",
+  profilePicture: "Profile Picture",
+  profilePictureHelp: "PNG, JPEG, or WebP. Maximum 2 MB.",
+  profilePreviewAlt: "Client profile picture preview",
+  noPicture: "No picture",
+  replacePicture: "Replace picture",
+  uploadPicture: "Upload picture",
+  removePicture: "Remove picture",
+  removePictureConfirm: "Remove the profile picture?",
+  colorPalette: "Color Palette",
+  primaryColor: "Primary Color",
+  secondaryColor: "Secondary Color",
+  accentColor: "Accent Color",
+  backgroundColor: "Background Color",
+  colorPickerAria: "{label} color picker",
+  typography: "Typography",
+  clientFont: "Client Font",
+  save: "Save Brand Identity",
+  saving: "Saving…",
+  invalidImageType: "Use a PNG, JPEG, or WebP image.",
+  logoTooLarge: "Logo must be 2 MB or smaller.",
+  pictureTooLarge: "Profile picture must be 2 MB or smaller.",
+  uploadLogoFailed: "Could not upload logo.",
+  removeLogoFailed: "Could not remove logo.",
+  uploadPictureFailed: "Could not upload profile picture.",
+  removePictureFailed: "Could not remove profile picture.",
+};
 
 type BrandIdentitySectionProps = {
   initialPrimaryColor: string;
@@ -23,6 +105,7 @@ type BrandIdentitySectionProps = {
   initialProfilePicturePreviewUrl: string | null;
   saveBrandIdentity: (formData: FormData) => Promise<void>;
   brandError?: string | null;
+  messages?: BrandMessages;
 };
 
 type ColorFieldProps = {
@@ -31,9 +114,17 @@ type ColorFieldProps = {
   value: string;
   onChange: (next: string) => void;
   inputId: string;
+  pickerAria: string;
 };
 
-function ColorField({ label, name, value, onChange, inputId }: ColorFieldProps) {
+function ColorField({
+  label,
+  name,
+  value,
+  onChange,
+  inputId,
+  pickerAria,
+}: ColorFieldProps) {
   const pickerValue =
     /^#[0-9A-Fa-f]{6}$/.test(value.trim()) ? value.trim() : "#000000";
 
@@ -43,7 +134,7 @@ function ColorField({ label, name, value, onChange, inputId }: ColorFieldProps) 
       <div className="flex flex-wrap items-center gap-3">
         <input
           type="color"
-          aria-label={`${label} color picker`}
+          aria-label={pickerAria}
           value={pickerValue}
           onChange={(event) => onChange(event.target.value.toUpperCase())}
           className="h-11 w-14 cursor-pointer rounded-lg border border-white/15 bg-transparent p-1"
@@ -63,7 +154,13 @@ function ColorField({ label, name, value, onChange, inputId }: ColorFieldProps) 
   );
 }
 
-function SaveBrandButton() {
+function SaveBrandButton({
+  saveLabel,
+  savingLabel,
+}: {
+  saveLabel: string;
+  savingLabel: string;
+}) {
   const { pending } = useFormStatus();
   return (
     <button
@@ -71,7 +168,7 @@ function SaveBrandButton() {
       disabled={pending}
       className="inline-flex w-fit items-center justify-center rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
     >
-      {pending ? "Saving…" : "Save Brand Identity"}
+      {pending ? savingLabel : saveLabel}
     </button>
   );
 }
@@ -86,6 +183,7 @@ export function BrandIdentitySection({
   initialProfilePicturePreviewUrl,
   saveBrandIdentity,
   brandError = null,
+  messages = DEFAULT_BRAND_MESSAGES,
 }: BrandIdentitySectionProps) {
   const router = useRouter();
   const baseId = useId();
@@ -116,11 +214,11 @@ export function BrandIdentitySection({
         file.type as (typeof BRAND_LOGO_ALLOWED_MIME_TYPES)[number],
       )
     ) {
-      setLogoError("Use a PNG, JPEG, or WebP image.");
+      setLogoError(messages.invalidImageType);
       return;
     }
     if (file.size > BRAND_LOGO_MAX_BYTES) {
-      setLogoError("Logo must be 2 MB or smaller.");
+      setLogoError(messages.logoTooLarge);
       return;
     }
 
@@ -139,14 +237,14 @@ export function BrandIdentitySection({
       }>(response);
 
       if (!response.ok || !payload.ok) {
-        setLogoError(payload.error?.message ?? "Could not upload logo.");
+        setLogoError(payload.error?.message ?? messages.uploadLogoFailed);
         return;
       }
 
       setLogoPreviewUrl(payload.previewUrl ?? null);
       router.refresh();
     } catch {
-      setLogoError("Could not upload logo.");
+      setLogoError(messages.uploadLogoFailed);
     } finally {
       setLogoBusy(false);
     }
@@ -154,7 +252,7 @@ export function BrandIdentitySection({
 
   async function handleLogoRemove() {
     if (!logoPreviewUrl) return;
-    const confirmed = window.confirm("Remove the client logo?");
+    const confirmed = window.confirm(messages.removeLogoConfirm);
     if (!confirmed) return;
 
     setLogoError(null);
@@ -169,14 +267,14 @@ export function BrandIdentitySection({
       }>(response);
 
       if (!response.ok || !payload.ok) {
-        setLogoError(payload.error?.message ?? "Could not remove logo.");
+        setLogoError(payload.error?.message ?? messages.removeLogoFailed);
         return;
       }
 
       setLogoPreviewUrl(null);
       router.refresh();
     } catch {
-      setLogoError("Could not remove logo.");
+      setLogoError(messages.removeLogoFailed);
     } finally {
       setLogoBusy(false);
     }
@@ -191,11 +289,11 @@ export function BrandIdentitySection({
         file.type as (typeof BRAND_LOGO_ALLOWED_MIME_TYPES)[number],
       )
     ) {
-      setProfilePictureError("Use a PNG, JPEG, or WebP image.");
+      setProfilePictureError(messages.invalidImageType);
       return;
     }
     if (file.size > BRAND_LOGO_MAX_BYTES) {
-      setProfilePictureError("Profile picture must be 2 MB or smaller.");
+      setProfilePictureError(messages.pictureTooLarge);
       return;
     }
 
@@ -215,7 +313,7 @@ export function BrandIdentitySection({
 
       if (!response.ok || !payload.ok) {
         setProfilePictureError(
-          payload.error?.message ?? "Could not upload profile picture.",
+          payload.error?.message ?? messages.uploadPictureFailed,
         );
         return;
       }
@@ -223,7 +321,7 @@ export function BrandIdentitySection({
       setProfilePicturePreviewUrl(payload.previewUrl ?? null);
       router.refresh();
     } catch {
-      setProfilePictureError("Could not upload profile picture.");
+      setProfilePictureError(messages.uploadPictureFailed);
     } finally {
       setProfilePictureBusy(false);
     }
@@ -231,7 +329,7 @@ export function BrandIdentitySection({
 
   async function handleProfilePictureRemove() {
     if (!profilePicturePreviewUrl) return;
-    const confirmed = window.confirm("Remove the profile picture?");
+    const confirmed = window.confirm(messages.removePictureConfirm);
     if (!confirmed) return;
 
     setProfilePictureError(null);
@@ -247,7 +345,7 @@ export function BrandIdentitySection({
 
       if (!response.ok || !payload.ok) {
         setProfilePictureError(
-          payload.error?.message ?? "Could not remove profile picture.",
+          payload.error?.message ?? messages.removePictureFailed,
         );
         return;
       }
@@ -255,53 +353,54 @@ export function BrandIdentitySection({
       setProfilePicturePreviewUrl(null);
       router.refresh();
     } catch {
-      setProfilePictureError("Could not remove profile picture.");
+      setProfilePictureError(messages.removePictureFailed);
     } finally {
       setProfilePictureBusy(false);
     }
   }
 
+  function colorPickerAria(label: string) {
+    return interpolateTenantMessage(messages.colorPickerAria, { label });
+  }
+
   return (
     <section className="mt-8 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-        Brand Identity
+        {messages.eyebrow}
       </div>
       <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
-        Client Brand Identity
+        {messages.title}
       </h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-white/50">
-        Store the visual identity Athena may use for future branded content and
-        publishing workflows.
+        {messages.description}
       </p>
 
       <div className="mt-8 grid gap-10">
         <div className="grid gap-4">
-          <h3 className="text-xl font-semibold text-white">Logo</h3>
-          <p className="text-sm text-white/45">
-            PNG, JPEG, or WebP. Maximum 2 MB.
-          </p>
+          <h3 className="text-xl font-semibold text-white">{messages.logo}</h3>
+          <p className="text-sm text-white/45">{messages.logoHelp}</p>
           {logoPreviewUrl ? (
             <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30 p-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={logoPreviewUrl}
-                alt="Client logo preview"
+                alt={messages.logoPreviewAlt}
                 className="max-h-full max-w-full object-contain"
               />
             </div>
           ) : (
             <div className="flex h-28 w-28 items-center justify-center rounded-2xl border border-dashed border-white/15 bg-black/20 text-xs text-white/35">
-              No logo
+              {messages.noLogo}
             </div>
           )}
           <div className="flex flex-wrap items-center gap-3">
             <label className="inline-flex cursor-pointer items-center rounded-xl border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-4 py-2 text-sm font-medium text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/20">
               <span>
                 {logoBusy
-                  ? "Uploading…"
+                  ? messages.uploading
                   : logoPreviewUrl
-                    ? "Replace logo"
-                    : "Upload logo"}
+                    ? messages.replaceLogo
+                    : messages.uploadLogo}
               </span>
               <input
                 type="file"
@@ -322,7 +421,7 @@ export function BrandIdentitySection({
                 onClick={() => void handleLogoRemove()}
                 className="rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-white/70 transition hover:bg-white/[0.08] disabled:opacity-50"
               >
-                Remove logo
+                {messages.removeLogo}
               </button>
             ) : null}
           </div>
@@ -334,32 +433,32 @@ export function BrandIdentitySection({
         </div>
 
         <div className="grid gap-4">
-          <h3 className="text-xl font-semibold text-white">Profile Picture</h3>
-          <p className="text-sm text-white/45">
-            PNG, JPEG, or WebP. Maximum 2 MB.
-          </p>
+          <h3 className="text-xl font-semibold text-white">
+            {messages.profilePicture}
+          </h3>
+          <p className="text-sm text-white/45">{messages.profilePictureHelp}</p>
           {profilePicturePreviewUrl ? (
             <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-black/30">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={profilePicturePreviewUrl}
-                alt="Client profile picture preview"
+                alt={messages.profilePreviewAlt}
                 className="h-full w-full object-cover"
               />
             </div>
           ) : (
             <div className="flex h-28 w-28 items-center justify-center rounded-full border border-dashed border-white/15 bg-black/20 text-xs text-white/35">
-              No picture
+              {messages.noPicture}
             </div>
           )}
           <div className="flex flex-wrap items-center gap-3">
             <label className="inline-flex cursor-pointer items-center rounded-xl border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-4 py-2 text-sm font-medium text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/20">
               <span>
                 {profilePictureBusy
-                  ? "Uploading…"
+                  ? messages.uploading
                   : profilePicturePreviewUrl
-                    ? "Replace picture"
-                    : "Upload picture"}
+                    ? messages.replacePicture
+                    : messages.uploadPicture}
               </span>
               <input
                 type="file"
@@ -380,7 +479,7 @@ export function BrandIdentitySection({
                 onClick={() => void handleProfilePictureRemove()}
                 className="rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-white/70 transition hover:bg-white/[0.08] disabled:opacity-50"
               >
-                Remove picture
+                {messages.removePicture}
               </button>
             ) : null}
           </div>
@@ -393,44 +492,52 @@ export function BrandIdentitySection({
 
         <form action={saveBrandIdentity} className="grid gap-8">
           <div className="grid gap-4">
-            <h3 className="text-xl font-semibold text-white">Color Palette</h3>
+            <h3 className="text-xl font-semibold text-white">
+              {messages.colorPalette}
+            </h3>
             <div className="grid gap-5 sm:grid-cols-2">
               <ColorField
-                label="Primary Color"
+                label={messages.primaryColor}
                 name="brand_primary_color"
                 value={primaryColor}
                 onChange={setPrimaryColor}
                 inputId={`${baseId}-primary`}
+                pickerAria={colorPickerAria(messages.primaryColor)}
               />
               <ColorField
-                label="Secondary Color"
+                label={messages.secondaryColor}
                 name="brand_secondary_color"
                 value={secondaryColor}
                 onChange={setSecondaryColor}
                 inputId={`${baseId}-secondary`}
+                pickerAria={colorPickerAria(messages.secondaryColor)}
               />
               <ColorField
-                label="Accent Color"
+                label={messages.accentColor}
                 name="brand_accent_color"
                 value={accentColor}
                 onChange={setAccentColor}
                 inputId={`${baseId}-accent`}
+                pickerAria={colorPickerAria(messages.accentColor)}
               />
               <ColorField
-                label="Background Color"
+                label={messages.backgroundColor}
                 name="brand_background_color"
                 value={backgroundColor}
                 onChange={setBackgroundColor}
                 inputId={`${baseId}-background`}
+                pickerAria={colorPickerAria(messages.backgroundColor)}
               />
             </div>
           </div>
 
           <div className="grid gap-4">
-            <h3 className="text-xl font-semibold text-white">Typography</h3>
+            <h3 className="text-xl font-semibold text-white">
+              {messages.typography}
+            </h3>
             <label className="grid gap-2" htmlFor={`${baseId}-font`}>
               <span className="text-sm font-medium text-white/80">
-                Client Font
+                {messages.clientFont}
               </span>
               <select
                 id={`${baseId}-font`}
@@ -454,7 +561,10 @@ export function BrandIdentitySection({
             </p>
           ) : null}
 
-          <SaveBrandButton />
+          <SaveBrandButton
+            saveLabel={messages.save}
+            savingLabel={messages.saving}
+          />
         </form>
       </div>
     </section>

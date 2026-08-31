@@ -99,8 +99,14 @@ describe("seo workspace UI", () => {
 
     const identity = read("components/identity/IdentityExecutiveIntelligence.tsx");
     assert.match(identity, /WebsiteAnalyzedPagesList/);
-    assert.match(identity, /Analyzed source pages/);
-    assert.match(identity, /Website Intelligence Coverage/);
+    assert.match(identity, /messages\.analyzedSourcePages/);
+    assert.match(identity, /messages\.websiteCoverageEyebrow/);
+    const dictionary = read("lib/tenantI18n/messages/en.ts");
+    assert.match(dictionary, /analyzedSourcePages: "Analyzed source pages"/);
+    assert.match(
+      dictionary,
+      /websiteCoverageEyebrow: "Website Intelligence Coverage"/,
+    );
 
     const status = read("components/seo/SeoReportStatusPanel.tsx");
     assert.match(status, /Assembling organization intelligence/);

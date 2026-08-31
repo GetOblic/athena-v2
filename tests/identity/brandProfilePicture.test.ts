@@ -77,9 +77,9 @@ describe("Sprint 5 — Client Profile Picture", () => {
     assert.match(section, /rounded-full/);
     assert.match(section, /\/api\/identity\/profile-picture/);
 
-    const logoIdx = section.indexOf(">Logo</");
-    const pictureIdx = section.indexOf(">Profile Picture</");
-    const paletteIdx = section.indexOf(">Color Palette</");
+    const logoIdx = section.indexOf("{messages.logo}");
+    const pictureIdx = section.indexOf("{messages.profilePicture}");
+    const paletteIdx = section.indexOf("{messages.colorPalette}");
     assert.ok(logoIdx > 0 && pictureIdx > logoIdx && paletteIdx > pictureIdx);
   });
 

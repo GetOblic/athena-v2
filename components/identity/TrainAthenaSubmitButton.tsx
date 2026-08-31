@@ -108,7 +108,13 @@ export function TrainAthenaForm({
   );
 }
 
-export function TrainAthenaSubmitButton() {
+export function TrainAthenaSubmitButton({
+  label = "Train Athena",
+  pendingLabel = "Training Athena...",
+}: {
+  label?: string;
+  pendingLabel?: string;
+}) {
   const { pending } = useFormStatus();
 
   return (
@@ -118,7 +124,7 @@ export function TrainAthenaSubmitButton() {
       aria-busy={pending}
       className="w-fit rounded-full bg-[var(--athena-orange)] px-8 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
     >
-      {pending ? "Training Athena..." : "Train Athena"}
+      {pending ? pendingLabel : label}
     </button>
   );
 }

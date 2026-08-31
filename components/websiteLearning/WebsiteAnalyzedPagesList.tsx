@@ -12,11 +12,13 @@ export type WebsiteAnalyzedPageListItem = {
 type WebsiteAnalyzedPagesListProps = {
   pages: WebsiteAnalyzedPageListItem[];
   emptyMessage?: string;
+  untitledLabel?: string;
 };
 
 export function WebsiteAnalyzedPagesList({
   pages,
   emptyMessage = "No website pages were available as evidence.",
+  untitledLabel = "Untitled page",
 }: WebsiteAnalyzedPagesListProps) {
   if (pages.length === 0) {
     return (
@@ -34,7 +36,7 @@ export function WebsiteAnalyzedPagesList({
           className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
         >
           <div className="text-sm font-medium text-white/80">
-            {page.title?.trim() || "Untitled page"}
+            {page.title?.trim() || untitledLabel}
           </div>
           <a
             href={page.url}

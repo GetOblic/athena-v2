@@ -1,53 +1,62 @@
 import Link from "next/link";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { TodaysIntelligence } from "@/services/todaysIntelligenceService";
 
 type TodaysIntelligenceProps = {
   summary: TodaysIntelligence;
+  messages: TenantMessages["dashboard"];
 };
 
-export function TodaysIntelligence({ summary }: TodaysIntelligenceProps) {
+export function TodaysIntelligence({
+  summary,
+  messages,
+}: TodaysIntelligenceProps) {
   return (
     <div className="mb-10 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
       <div className="mb-6">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Today&apos;s Intelligence
+          {messages.todaysEyebrow}
         </div>
-        <h2 className="mt-3 text-3xl font-semibold">Your executive snapshot</h2>
+        <h2 className="mt-3 text-3xl font-semibold">{messages.todaysTitle}</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-white/45">
-          What needs attention right now across discussions, opportunities,
-          briefings, and strategic blueprints.
+          {messages.todaysSubtitle}
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <SummaryTile
-          label="New discussions"
+          label={messages.newDiscussions}
           value={summary.newDiscussions}
           href="/discussions"
-          hint="Threads awaiting first analysis"
+          hint={messages.newDiscussionsHint}
         />
         <SummaryTile
-          label="Immediate action"
+          label={messages.immediateAction}
           value={summary.immediateActionOpportunities}
           href="/opportunities"
-          hint="High-intent opportunities to pursue"
+          hint={messages.immediateActionHint}
         />
         <SummaryTile
-          label="Briefings awaiting approval"
+          label={messages.briefingsAwaiting}
           value={summary.briefingsAwaitingApproval}
           href="/briefings"
-          hint="Executive memos needing review"
+          hint={messages.briefingsAwaitingHint}
         />
         <SummaryTile
-          label="Strategic blueprints"
+          label={messages.strategicBlueprints}
           value={summary.strategicBlueprints}
           href="/briefings"
-          hint="Canonical strategic asset specifications"
+          hint={messages.strategicBlueprintsHint}
         />
-        <HighestOpportunityTile opportunity={summary.highestOpportunity} />
+        <HighestOpportunityTile
+          opportunity={summary.highestOpportunity}
+          messages={messages}
+        />
         <ConfidenceTile
           confidence={summary.knowledgeConfidence}
           delta={summary.knowledgeConfidenceDelta}
+          messages={messages}
         />
       </div>
     </div>
@@ -85,17 +94,19 @@ function SummaryTile({
 
 function HighestOpportunityTile({
   opportunity,
+  messages,
 }: {
   opportunity: TodaysIntelligence["highestOpportunity"];
+  messages: TenantMessages["dashboard"];
 }) {
   if (!opportunity) {
     return (
       <div className="rounded-[22px] border border-white/10 bg-black/20 p-5">
         <div className="text-xs uppercase tracking-[0.2em] text-white/40">
-          Highest opportunity
+          {messages.highestOpportunity}
         </div>
         <div className="mt-3 text-sm text-white/45">
-          No opportunities detected yet.
+          {messages.noOpportunities}
         </div>
       </div>
     );
@@ -107,13 +118,15 @@ function HighestOpportunityTile({
       className="group rounded-[22px] border border-white/10 bg-black/20 p-5 transition hover:-translate-y-0.5 hover:border-[var(--athena-orange)]/40 hover:bg-white/[0.03]"
     >
       <div className="text-xs uppercase tracking-[0.2em] text-white/40">
-        Highest opportunity
+        {messages.highestOpportunity}
       </div>
       <div className="mt-3 line-clamp-2 text-lg font-semibold text-white group-hover:text-[var(--athena-orange)]">
         {opportunity.title}
       </div>
       <div className="mt-2 text-sm text-[var(--athena-orange)]">
-        Score {opportunity.score}
+        {interpolateTenantMessage(messages.scoreLabel, {
+          score: opportunity.score,
+        })}
       </div>
     </Link>
   );
@@ -122,25 +135,32 @@ function HighestOpportunityTile({
 function ConfidenceTile({
   confidence,
   delta,
+  messages,
 }: {
   confidence: number | null;
   delta: number | null;
+  messages: TenantMessages["dashboard"];
 }) {
+  const signedDelta =
+    delta == null ? null : `${delta >= 0 ? "+" : ""}${delta}`;
+
   return (
     <Link
       href="/intelligence-domains"
       className="group rounded-[22px] border border-white/10 bg-black/20 p-5 transition hover:-translate-y-0.5 hover:border-[var(--athena-orange)]/40 hover:bg-white/[0.03]"
     >
       <div className="text-xs uppercase tracking-[0.2em] text-white/40">
-        Knowledge confidence
+        {messages.knowledgeConfidence}
       </div>
       <div className="mt-3 text-4xl font-semibold tabular-nums text-white group-hover:text-[var(--athena-orange)]">
-        {confidence != null ? `${confidence}%` : "Learning"}
+        {confidence != null ? `${confidence}%` : messages.learning}
       </div>
       <div className="mt-2 text-sm text-white/45 group-hover:text-white/55">
-        {delta != null
-          ? `${delta >= 0 ? "+" : ""}${delta}% since last intelligence refresh`
-          : "Confidence movement will appear as Athena learns."}
+        {signedDelta != null
+          ? interpolateTenantMessage(messages.confidenceDelta, {
+              delta: signedDelta,
+            })
+          : messages.confidenceDeltaEmpty}
       </div>
     </Link>
   );

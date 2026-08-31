@@ -2,27 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
-import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { GettingStartedConversationPanel } from "@/components/getting-started/GettingStartedConversationPanel";
+import { tenantConversationWrapperChrome } from "@/lib/tenantI18n/conversationChrome";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-const workflowSteps = [
-  "Conversation",
-  "Athena Analysis",
-  "Opportunity Detection",
-  "Executive Intelligence",
-  "Deployment Assets",
-  "Strategic Asset Blueprint",
-  "Business Growth",
-];
-
-const bestPractices = [
-  "Train Athena before importing discussions.",
-  "Review Opportunities daily.",
-  "Use Deployment Assets instead of writing manually.",
-  "Reuse Strategic Asset Blueprints across channels.",
-  "Keep feeding Athena new conversations.",
-];
 
 export default async function GettingStartedPage() {
   const supabase = await createSupabaseServerClient();
@@ -35,6 +19,24 @@ export default async function GettingStartedPage() {
   }
 
   const { messages } = await getTenantLocalization();
+  const copy = messages.gettingStarted;
+  const conversationChrome = tenantConversationWrapperChrome(messages);
+  const workflowSteps = [
+    copy.workflowConversation,
+    copy.workflowAnalysis,
+    copy.workflowOpportunity,
+    copy.workflowExecutiveIntelligence,
+    copy.workflowDeploymentAssets,
+    copy.workflowBlueprints,
+    copy.workflowGrowth,
+  ];
+  const bestPractices = [
+    copy.practice1,
+    copy.practice2,
+    copy.practice3,
+    copy.practice4,
+    copy.practice5,
+  ];
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] text-white">
@@ -51,88 +53,98 @@ export default async function GettingStartedPage() {
 
           <div className="mb-12 max-w-4xl">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-              Getting Started
+              {copy.eyebrow}
             </div>
 
             <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-              Welcome to Athena
+              {copy.title}
             </h1>
 
-            <p className="mt-3 text-xl text-white/70">
-              Your AI Market Intelligence Partner
-            </p>
+            <p className="mt-3 text-xl text-white/70">{copy.tagline}</p>
 
-            <p className="mt-6 text-base leading-7 text-white/50">
-              Import the conversations that matter to your business, and Athena
-              analyzes them to identify opportunities, generate intelligence,
-              and prepare strategic assets. Think of Athena as your intelligent
-              teammate that helps you analyze important business conversations
-              and turn them into actionable intelligence.
-            </p>
+            <p className="mt-6 text-base leading-7 text-white/50">{copy.intro}</p>
           </div>
 
-          <GettingStartedConversationPanel />
+          <GettingStartedConversationPanel
+            title={copy.conversationTitle}
+            description={copy.conversationDescription}
+            placeholder={copy.conversationPlaceholder}
+            inputLabel={copy.conversationInputLabel}
+            examplePrompts={[
+              copy.example1,
+              copy.example2,
+              copy.example3,
+              copy.example4,
+              copy.example5,
+              copy.example6,
+            ]}
+            chrome={conversationChrome.chrome}
+            clearLabel={conversationChrome.clearLabel}
+            submitLabel={conversationChrome.submitLabel}
+            emptyStateTitle={conversationChrome.emptyStateTitle}
+            readOnlyNotice={conversationChrome.readOnlyNotice}
+          />
 
           <div className="max-w-4xl space-y-6">
             <GuideCard
-              step="Step 1"
-              title="Train Athena Brain"
-              description="Start by teaching Athena your voice, expertise, website and business rules. This helps every reply, briefing and asset sound like you — not a generic assistant."
-              buttonLabel="Open Athena Brain"
+              step={interpolateTenantMessage(copy.stepLabel, { n: 1 })}
+              title={copy.step1Title}
+              description={copy.step1Description}
+              buttonLabel={copy.step1Cta}
               href="/identity"
             />
 
             <GuideCard
-              step="Step 2"
-              title="Add Conversations"
-              description="Bring in discussions from Facebook, Instagram, Reddit, LinkedIn, email, support conversations, interviews, or meeting notes. The more real market conversations Athena sees, the smarter your insights become."
-              buttonLabel="Open Inbox"
+              step={interpolateTenantMessage(copy.stepLabel, { n: 2 })}
+              title={copy.step2Title}
+              description={copy.step2Description}
+              buttonLabel={copy.step2Cta}
               href="/inbox"
             />
 
             <GuideCard
-              step="Step 3"
-              title="Review Discussions"
-              description="Athena analyzes each discussion and shows you intent, buyer concern, opportunity signals and recommended next steps — all in plain language."
-              buttonLabel="View Discussions"
+              step={interpolateTenantMessage(copy.stepLabel, { n: 3 })}
+              title={copy.step3Title}
+              description={copy.step3Description}
+              buttonLabel={copy.step3Cta}
               href="/discussions"
             />
 
             <GuideCard
-              step="Step 4"
-              title="Review Opportunities"
-              description="Opportunities filters the most valuable discussions so you can focus on conversations most likely to turn into business."
-              buttonLabel="View Opportunities"
+              step={interpolateTenantMessage(copy.stepLabel, { n: 4 })}
+              title={copy.step4Title}
+              description={copy.step4Description}
+              buttonLabel={copy.step4Cta}
               href="/opportunities"
             />
 
             <GuideCard
-              step="Step 5"
-              title="Read Briefings"
-              description="Briefings summarize the most important insights and strategy for each opportunity — like a concise executive summary you can act on quickly."
-              buttonLabel="Open Briefings"
+              step={interpolateTenantMessage(copy.stepLabel, { n: 5 })}
+              title={copy.step5Title}
+              description={copy.step5Description}
+              buttonLabel={copy.step5Cta}
               href="/briefings"
             />
 
             <GuideCard
-              step="Step 6"
-              title="Use Deployment Assets"
-              description="Copy-ready replies, private messages, follow-ups, calls to action and social posts — generated for you and ready to paste into your platform of choice, email or DMs."
+              step={interpolateTenantMessage(copy.stepLabel, { n: 6 })}
+              title={copy.step6Title}
+              description={copy.step6Description}
             />
 
             <GuideCard
-              step="Step 7"
-              title="Use Strategic Asset Blueprints"
-              description="Reusable asset prompts for PDFs, images, carousels, lead magnets and educational content. Create once, reuse across your marketing channels."
+              step={interpolateTenantMessage(copy.stepLabel, { n: 7 })}
+              title={copy.step7Title}
+              description={copy.step7Description}
             />
 
             <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
               <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-                How Athena Works
+                {copy.howItWorksEyebrow}
               </div>
 
               <h2 className="mt-3 text-2xl font-semibold">
-                From conversation to growth
+                {copy.howItWorksTitle}
               </h2>
 
               <div className="mt-8 flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
@@ -151,11 +163,11 @@ export default async function GettingStartedPage() {
 
             <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
               <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-                Best Practices
+                {copy.bestPracticesEyebrow}
               </div>
 
               <h2 className="mt-3 text-2xl font-semibold">
-                Get the most from Athena
+                {copy.bestPracticesTitle}
               </h2>
 
               <ul className="mt-6 space-y-4">
@@ -172,16 +184,15 @@ export default async function GettingStartedPage() {
             </section>
 
             <section className="rounded-[28px] border border-[var(--athena-orange)]/25 bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 text-center shadow-[0_0_40px_rgba(255,102,0,0.06)]">
-              <h2 className="text-3xl font-semibold">Ready to begin?</h2>
+              <h2 className="text-3xl font-semibold">{copy.readyTitle}</h2>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/50">
-                Train Athena, import relevant discussions, and let Athena
-                transform them into actionable intelligence.
+                {copy.readyBody}
               </p>
               <Link
                 href="/identity"
                 className="mt-6 inline-block rounded-full bg-[var(--athena-orange)] px-8 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
               >
-                Open Athena Brain
+                {copy.readyCta}
               </Link>
             </section>
           </div>

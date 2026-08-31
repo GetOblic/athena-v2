@@ -30,6 +30,102 @@ import type {
   GetOblicLinkTemplateId,
 } from "@/lib/getoblic-links/types";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
+
+export type GetOblicLinksMessages = TenantMessages["identity"]["getoblic"];
+
+const DEFAULT_GETOBLIC_MESSAGES: GetOblicLinksMessages = {
+  title: "GetOblic Links",
+  status: "Status",
+  checking: "Checking…",
+  healthy: "Healthy",
+  unhealthy: "Unhealthy",
+  notConfigured: "Not configured",
+  unavailable: "Unavailable",
+  createLink: "Create Link",
+  manageLinks: "Manage Links",
+  latestLink: "Latest Link",
+  emptyLatest: "No links yet. Create your first GetOblic short link.",
+  removed: "Removed",
+  copied: "Copied",
+  copy: "Copy",
+  copyShortLink: "Copy short link",
+  copiedToClipboard: "Copied to clipboard",
+  open: "Open",
+  qr: "QR",
+  createTitle: "Create GetOblic Link",
+  manageTitle: "Manage GetOblic Links",
+  detailsTitle: "Link Details",
+  closeDialog: "Close dialog",
+  close: "Close",
+  template: "Template",
+  destinationUrl: "Destination URL",
+  customSlug: "Custom slug (optional)",
+  labelOptional: "Label (optional)",
+  labelPlaceholder: "Internal note",
+  destinationPreview: "Destination preview",
+  completeFields: "Complete the fields to preview the destination.",
+  createShortLink: "Create short link",
+  creating: "Creating…",
+  shortLinkCreated: "Short link created.",
+  unexpectedResponse: "GetOblic Links returned an unexpected response.",
+  unableToCopy: "Unable to copy link.",
+  unableToBuildDestination: "Unable to build destination.",
+  fixDestination: "Fix the destination before creating a link.",
+  failedToCreate: "Failed to create link.",
+  manageHelp:
+    "Recent links are stored locally for this organization and user. The Worker has no list endpoint.",
+  search: "Search",
+  searchPlaceholder: "Slug, URL, label…",
+  searchAria: "Search links",
+  allTemplates: "All templates",
+  allStatuses: "All statuses",
+  enabled: "Enabled",
+  disabled: "Disabled",
+  shownCount: "{shown} of {total} shown",
+  refreshMetadata: "Refresh metadata",
+  refreshing: "Refreshing…",
+  emptyHistory: "No recent links yet. Create a short link to get started.",
+  noMatches: "No links match your search or filters.",
+  details: "Details",
+  clicksApprox: "~{count} clicks",
+  backToManage: "← Back to manage",
+  loadingLink: "Loading link…",
+  shortUrl: "Short URL",
+  slugLabel: "Slug:",
+  statusLabel: "Status:",
+  approximateClicks: "Approximate clicks:",
+  templateLabel: "Template:",
+  destination: "Destination",
+  saveDestination: "Save destination",
+  disable: "Disable",
+  enable: "Enable",
+  delete: "Delete",
+  qrCode: "QR Code",
+  downloadPng: "Download PNG",
+  generatingQr: "Generating QR…",
+  qrUnavailable: "QR preview unavailable.",
+  unableToGenerateQr: "Unable to generate QR code.",
+  linkNoLongerExists: "This link no longer exists on the Worker.",
+  unableToLoadDetails: "Unable to load link details.",
+  updateFailed: "Update failed.",
+  deleteFailed: "Delete failed.",
+  linkUpdated: "Link updated.",
+  linkDeleted: "Link deleted.",
+  deleteConfirm: "Delete short link “{slug}”? This cannot be undone.",
+  templateBusinessCreated: "Business Created",
+  templateBusinessCreatedHelp:
+    "Claim page for a newly created business listing.",
+  templateAiCalendar: "AI Calendar",
+  templateAiCalendarHelp: "Voice AI calendar booking page.",
+  templateCustom: "Custom",
+  templateCustomHelp: "Any valid HTTP or HTTPS destination URL.",
+  fieldContactId: "Contact ID",
+  fieldContactIdPlaceholder: "contact_…",
+  fieldBusinessName: "Business Name",
+  fieldBusinessNamePlaceholder: "Acme Salon",
+};
 
 const fieldClassName =
   "w-full rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white/90 shadow-inner shadow-black/20 outline-none placeholder:text-white/30 focus:border-[var(--athena-orange)] focus:ring-1 focus:ring-[var(--athena-orange)]";
@@ -68,13 +164,57 @@ function ButtonSpinner() {
   );
 }
 
-function templateLabel(id: GetOblicLinkTemplateId): string {
-  return getGetOblicLinkTemplate(id).label;
+function localizedTemplateLabel(
+  id: GetOblicLinkTemplateId,
+  messages: GetOblicLinksMessages,
+): string {
+  switch (id) {
+    case "business_created":
+      return messages.templateBusinessCreated;
+    case "ai_calendar":
+      return messages.templateAiCalendar;
+    case "custom":
+      return messages.templateCustom;
+  }
+}
+
+function localizedTemplateHelp(
+  id: GetOblicLinkTemplateId,
+  messages: GetOblicLinksMessages,
+): string {
+  switch (id) {
+    case "business_created":
+      return messages.templateBusinessCreatedHelp;
+    case "ai_calendar":
+      return messages.templateAiCalendarHelp;
+    case "custom":
+      return messages.templateCustomHelp;
+  }
+}
+
+function localizedFieldChrome(
+  key: string,
+  messages: GetOblicLinksMessages,
+): { label: string; placeholder: string } {
+  if (key === "contact_id") {
+    return {
+      label: messages.fieldContactId,
+      placeholder: messages.fieldContactIdPlaceholder,
+    };
+  }
+  if (key === "business_name") {
+    return {
+      label: messages.fieldBusinessName,
+      placeholder: messages.fieldBusinessNamePlaceholder,
+    };
+  }
+  return { label: key, placeholder: "" };
 }
 
 async function apiJson<T>(
   input: RequestInfo,
   init?: RequestInit,
+  unexpectedMessage = "GetOblic Links returned an unexpected response.",
 ): Promise<{ response: Response; payload: T }> {
   const response = await fetch(input, {
     ...init,
@@ -86,7 +226,7 @@ async function apiJson<T>(
     },
   });
   const payload = await parseJsonResponse<T>(response, {
-    unexpectedMessage: "GetOblic Links returned an unexpected response.",
+    unexpectedMessage,
   });
   return { response, payload };
 }
@@ -94,12 +234,14 @@ async function apiJson<T>(
 export function GetOblicLinksCard(props: {
   organizationId: string;
   userId: string;
+  messages?: GetOblicLinksMessages;
 }) {
+  const messages = props.messages ?? DEFAULT_GETOBLIC_MESSAGES;
   const titleId = useId();
   const [healthStatus, setHealthStatus] = useState<
     "loading" | "healthy" | "unhealthy" | "unconfigured" | "error"
   >("loading");
-  const [healthLabel, setHealthLabel] = useState("Checking…");
+  const [healthDetail, setHealthDetail] = useState<string | null>(null);
   // Empty on SSR/first paint to avoid hydration mismatch; rehydrate after mount.
   const [history, setHistory] = useState<GetOblicLinkHistoryEntry[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -139,36 +281,38 @@ export function GetOblicLinksCard(props: {
       try {
         const { response, payload } = await apiJson<HealthPayload>(
           "/api/getoblic-links/health",
+          undefined,
+          messages.unexpectedResponse,
         );
         if (cancelled) return;
         if (!response.ok || !payload.ok) {
           if (payload.error?.code === "CONFIG_MISSING") {
             setHealthStatus("unconfigured");
-            setHealthLabel("Not configured");
+            setHealthDetail(null);
             return;
           }
           setHealthStatus("error");
-          setHealthLabel(payload.error?.message || "Unavailable");
+          setHealthDetail(payload.error?.message || null);
           return;
         }
         if (payload.healthy) {
           setHealthStatus("healthy");
-          setHealthLabel("Healthy");
+          setHealthDetail(null);
         } else {
           setHealthStatus("unhealthy");
-          setHealthLabel(payload.status || "Unhealthy");
+          setHealthDetail(payload.status || null);
         }
       } catch {
         if (!cancelled) {
           setHealthStatus("error");
-          setHealthLabel("Unavailable");
+          setHealthDetail(null);
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [messages.unexpectedResponse]);
 
   const openDialog = (mode: DialogMode, slug?: string | null) => {
     setBanner(null);
@@ -191,9 +335,20 @@ export function GetOblicLinksCard(props: {
         setCopiedKey((current) => (current === key ? null : current));
       }, 1600);
     } catch {
-      setBanner({ tone: "error", message: "Unable to copy link." });
+      setBanner({ tone: "error", message: messages.unableToCopy });
     }
   };
+
+  const healthLabel =
+    healthStatus === "loading"
+      ? messages.checking
+      : healthStatus === "healthy"
+        ? messages.healthy
+        : healthStatus === "unconfigured"
+          ? messages.notConfigured
+          : healthStatus === "unhealthy"
+            ? healthDetail || messages.unhealthy
+            : healthDetail || messages.unavailable;
 
   const statusColor =
     healthStatus === "healthy"
@@ -206,19 +361,19 @@ export function GetOblicLinksCard(props: {
     <div className="mt-8 space-y-3">
       <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
         <div className="text-xs uppercase tracking-[0.25em] text-white/35">
-          GetOblic Links
+          {messages.title}
         </div>
 
         <div className="mt-3 flex items-center justify-between gap-3">
           <div>
             <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-              Status
+              {messages.status}
             </div>
             <div className={`mt-1 text-lg font-semibold ${statusColor}`}>
               {healthStatus === "loading" ? (
                 <span className="inline-flex items-center">
                   <ButtonSpinner />
-                  Checking…
+                  {messages.checking}
                 </span>
               ) : (
                 healthLabel
@@ -233,20 +388,20 @@ export function GetOblicLinksCard(props: {
             className={secondaryButtonClassName}
             onClick={() => openDialog("create")}
           >
-            Create Link
+            {messages.createLink}
           </button>
           <button
             type="button"
             className={secondaryButtonClassName}
             onClick={() => openDialog("manage")}
           >
-            Manage Links
+            {messages.manageLinks}
           </button>
         </div>
 
         <div className="mt-5 border-t border-white/10 pt-4">
           <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-            Latest Link
+            {messages.latestLink}
           </div>
           {latest ? (
             <div className="mt-2 space-y-3">
@@ -254,8 +409,8 @@ export function GetOblicLinksCard(props: {
                 {latest.short_url}
               </div>
               <div className="text-xs text-white/40">
-                {templateLabel(latest.template)}
-                {latest.missing ? " · Removed" : ""}
+                {localizedTemplateLabel(latest.template, messages)}
+                {latest.missing ? ` · ${messages.removed}` : ""}
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -264,11 +419,11 @@ export function GetOblicLinksCard(props: {
                   onClick={() => void copyLink(latest.short_url, "latest")}
                   aria-label={
                     copiedKey === "latest"
-                      ? "Copied to clipboard"
-                      : "Copy short link"
+                      ? messages.copiedToClipboard
+                      : messages.copyShortLink
                   }
                 >
-                  {copiedKey === "latest" ? "Copied" : "Copy"}
+                  {copiedKey === "latest" ? messages.copied : messages.copy}
                 </button>
                 <a
                   href={latest.short_url}
@@ -276,20 +431,20 @@ export function GetOblicLinksCard(props: {
                   rel="noopener noreferrer"
                   className={ghostButtonClassName}
                 >
-                  Open
+                  {messages.open}
                 </a>
                 <button
                   type="button"
                   className={ghostButtonClassName}
                   onClick={() => openDialog("details", latest.slug)}
                 >
-                  QR
+                  {messages.qr}
                 </button>
               </div>
             </div>
           ) : (
             <p className="mt-2 text-sm text-white/45">
-              No links yet. Create your first GetOblic short link.
+              {messages.emptyLatest}
             </p>
           )}
         </div>
@@ -323,6 +478,7 @@ export function GetOblicLinksCard(props: {
           onBanner={setBanner}
           copiedKey={copiedKey}
           onCopy={copyLink}
+          messages={messages}
         />
       ) : null}
     </div>
@@ -343,6 +499,7 @@ function GetOblicLinksDialog(props: {
   onBanner: (banner: { tone: "success" | "error"; message: string } | null) => void;
   copiedKey: string | null;
   onCopy: (value: string, key: string) => Promise<void>;
+  messages: GetOblicLinksMessages;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -373,10 +530,10 @@ function GetOblicLinksDialog(props: {
 
   const title =
     props.mode === "create"
-      ? "Create GetOblic Link"
+      ? props.messages.createTitle
       : props.mode === "manage"
-        ? "Manage GetOblic Links"
-        : "Link Details";
+        ? props.messages.manageTitle
+        : props.messages.detailsTitle;
 
   return (
     <div
@@ -398,7 +555,7 @@ function GetOblicLinksDialog(props: {
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-              GetOblic Links
+              {props.messages.title}
             </div>
             <h3
               id={props.titleId}
@@ -412,9 +569,9 @@ function GetOblicLinksDialog(props: {
             type="button"
             onClick={props.onClose}
             className={ghostButtonClassName}
-            aria-label="Close dialog"
+            aria-label={props.messages.closeDialog}
           >
-            Close
+            {props.messages.close}
           </button>
         </div>
 
@@ -429,6 +586,7 @@ function GetOblicLinksDialog(props: {
                 props.onSelectSlug(slug);
                 props.onModeChange("details");
               }}
+              messages={props.messages}
             />
           ) : null}
 
@@ -446,6 +604,7 @@ function GetOblicLinksDialog(props: {
               }}
               copiedKey={props.copiedKey}
               onCopy={props.onCopy}
+              messages={props.messages}
             />
           ) : null}
 
@@ -460,6 +619,7 @@ function GetOblicLinksDialog(props: {
               onBack={() => props.onModeChange("manage")}
               copiedKey={props.copiedKey}
               onCopy={props.onCopy}
+              messages={props.messages}
             />
           ) : null}
         </div>
@@ -474,6 +634,7 @@ function CreateLinkForm(props: {
   onHistoryChange: (entries: GetOblicLinkHistoryEntry[]) => void;
   onBanner: (banner: { tone: "success" | "error"; message: string } | null) => void;
   onCreated: (slug: string) => void;
+  messages: GetOblicLinksMessages;
 }) {
   const [templateId, setTemplateId] =
     useState<GetOblicLinkTemplateId>("business_created");
@@ -506,10 +667,10 @@ function CreateLinkForm(props: {
         previewError:
           error instanceof Error
             ? error.message
-            : "Unable to build destination.",
+            : props.messages.unableToBuildDestination,
       };
     }
-  }, [templateId, params, customUrl]);
+  }, [templateId, params, customUrl, props.messages.unableToBuildDestination]);
   const { preview, previewError } = previewState;
 
   async function onSubmit(event: FormEvent) {
@@ -518,7 +679,7 @@ function CreateLinkForm(props: {
     setSuccess(null);
 
     if (!preview) {
-      setFormError(previewError || "Fix the destination before creating a link.");
+      setFormError(previewError || props.messages.fixDestination);
       return;
     }
 
@@ -536,10 +697,11 @@ function CreateLinkForm(props: {
           method: "POST",
           body: JSON.stringify(body),
         },
+        props.messages.unexpectedResponse,
       );
 
       if (!response.ok || !payload.ok || !payload.link) {
-        setFormError(payload.error?.message || "Failed to create link.");
+        setFormError(payload.error?.message || props.messages.failedToCreate);
         return;
       }
 
@@ -561,12 +723,12 @@ function CreateLinkForm(props: {
         entry,
       );
       props.onHistoryChange(next);
-      setSuccess("Short link created.");
-      props.onBanner({ tone: "success", message: "Short link created." });
+      setSuccess(props.messages.shortLinkCreated);
+      props.onBanner({ tone: "success", message: props.messages.shortLinkCreated });
       props.onCreated(payload.link.slug);
     } catch (error) {
       setFormError(
-        error instanceof Error ? error.message : "Failed to create link.",
+        error instanceof Error ? error.message : props.messages.failedToCreate,
       );
     } finally {
       setSubmitting(false);
@@ -576,7 +738,9 @@ function CreateLinkForm(props: {
   return (
     <form className="grid gap-5" onSubmit={(event) => void onSubmit(event)}>
       <fieldset className="grid gap-3">
-        <legend className="text-sm font-medium text-white/80">Template</legend>
+        <legend className="text-sm font-medium text-white/80">
+          {props.messages.template}
+        </legend>
         <div className="grid gap-2 sm:grid-cols-3">
           {GETOBLIC_LINK_TEMPLATES.map((option) => {
             const selected = option.id === templateId;
@@ -592,9 +756,11 @@ function CreateLinkForm(props: {
                 }`}
                 aria-pressed={selected}
               >
-                <div className="font-semibold">{option.label}</div>
+                <div className="font-semibold">
+                  {localizedTemplateLabel(option.id, props.messages)}
+                </div>
                 <div className="mt-1 text-xs text-white/45">
-                  {option.description}
+                  {localizedTemplateHelp(option.id, props.messages)}
                 </div>
               </button>
             );
@@ -605,7 +771,7 @@ function CreateLinkForm(props: {
       {template.id === "custom" ? (
         <label className="grid gap-2">
           <span className="text-sm font-medium text-white/80">
-            Destination URL
+            {props.messages.destinationUrl}
           </span>
           <input
             className={fieldClassName}
@@ -617,31 +783,34 @@ function CreateLinkForm(props: {
           />
         </label>
       ) : (
-        template.fields.map((field) => (
-          <label key={field.key} className="grid gap-2">
-            <span className="text-sm font-medium text-white/80">
-              {field.label}
-              {field.required ? " *" : ""}
-            </span>
-            <input
-              className={fieldClassName}
-              value={params[field.key] ?? ""}
-              onChange={(event) =>
-                setParams((current) => ({
-                  ...current,
-                  [field.key]: event.target.value,
-                }))
-              }
-              placeholder={field.placeholder}
-              required={field.required}
-            />
-          </label>
-        ))
+        template.fields.map((field) => {
+          const fieldChrome = localizedFieldChrome(field.key, props.messages);
+          return (
+            <label key={field.key} className="grid gap-2">
+              <span className="text-sm font-medium text-white/80">
+                {fieldChrome.label}
+                {field.required ? " *" : ""}
+              </span>
+              <input
+                className={fieldClassName}
+                value={params[field.key] ?? ""}
+                onChange={(event) =>
+                  setParams((current) => ({
+                    ...current,
+                    [field.key]: event.target.value,
+                  }))
+                }
+                placeholder={fieldChrome.placeholder}
+                required={field.required}
+              />
+            </label>
+          );
+        })
       )}
 
       <label className="grid gap-2">
         <span className="text-sm font-medium text-white/80">
-          Custom slug (optional)
+          {props.messages.customSlug}
         </span>
         <input
           className={fieldClassName}
@@ -655,25 +824,25 @@ function CreateLinkForm(props: {
 
       <label className="grid gap-2">
         <span className="text-sm font-medium text-white/80">
-          Label (optional)
+          {props.messages.labelOptional}
         </span>
         <input
           className={fieldClassName}
           value={label}
           onChange={(event) => setLabel(event.target.value)}
-          placeholder="Internal note"
+          placeholder={props.messages.labelPlaceholder}
         />
       </label>
 
       <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
         <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-          Destination preview
+          {props.messages.destinationPreview}
         </div>
         {preview ? (
           <p className="mt-2 break-all text-sm text-white/75">{preview}</p>
         ) : (
           <p className="mt-2 text-sm text-white/45">
-            {previewError || "Complete the fields to preview the destination."}
+            {previewError || props.messages.completeFields}
           </p>
         )}
       </div>
@@ -701,7 +870,7 @@ function CreateLinkForm(props: {
         disabled={submitting || !preview}
       >
         {submitting ? <ButtonSpinner /> : null}
-        {submitting ? "Creating…" : "Create short link"}
+        {submitting ? props.messages.creating : props.messages.createShortLink}
       </button>
     </form>
   );
@@ -716,6 +885,7 @@ function ManageLinksPanel({
   onOpenDetails,
   copiedKey,
   onCopy,
+  messages,
 }: {
   organizationId: string;
   userId: string;
@@ -726,6 +896,7 @@ function ManageLinksPanel({
   onOpenDetails: (slug: string) => void;
   copiedKey: string | null;
   onCopy: (value: string, key: string) => Promise<void>;
+  messages: GetOblicLinksMessages;
 }) {
   const [query, setQuery] = useState("");
   const [templateFilter, setTemplateFilter] = useState<
@@ -757,6 +928,8 @@ function ManageLinksPanel({
           try {
             const { response, payload } = await apiJson<LinkPayload>(
               `/api/getoblic-links/${encodeURIComponent(entry.slug)}`,
+              undefined,
+              messages.unexpectedResponse,
             );
             if (response.status === 404 || payload.error?.code === "NOT_FOUND") {
               markGetOblicLinkHistoryMissing(
@@ -787,7 +960,7 @@ function ManageLinksPanel({
         setRefreshing(false);
       }
     },
-    [organizationId, userId, onHistoryChange],
+    [organizationId, userId, onHistoryChange, messages.unexpectedResponse],
   );
 
   useEffect(() => {
@@ -804,34 +977,33 @@ function ManageLinksPanel({
     <div className="grid gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-white/50">
-          Recent links are stored locally for this organization and user. The
-          Worker has no list endpoint.
+          {messages.manageHelp}
         </p>
         <button
           type="button"
           className={primaryButtonClassName}
           onClick={onCreate}
         >
-          Create Link
+          {messages.createLink}
         </button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="grid gap-2 sm:col-span-1">
           <span className="text-xs uppercase tracking-[0.2em] text-white/35">
-            Search
+            {messages.search}
           </span>
           <input
             className={fieldClassName}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Slug, URL, label…"
-            aria-label="Search links"
+            placeholder={messages.searchPlaceholder}
+            aria-label={messages.searchAria}
           />
         </label>
         <label className="grid gap-2">
           <span className="text-xs uppercase tracking-[0.2em] text-white/35">
-            Template
+            {messages.template}
           </span>
           <select
             className={fieldClassName}
@@ -842,17 +1014,17 @@ function ManageLinksPanel({
               )
             }
           >
-            <option value="all">All templates</option>
+            <option value="all">{messages.allTemplates}</option>
             {GETOBLIC_LINK_TEMPLATES.map((template) => (
               <option key={template.id} value={template.id}>
-                {template.label}
+                {localizedTemplateLabel(template.id, messages)}
               </option>
             ))}
           </select>
         </label>
         <label className="grid gap-2">
           <span className="text-xs uppercase tracking-[0.2em] text-white/35">
-            Status
+            {messages.status}
           </span>
           <select
             className={fieldClassName}
@@ -863,17 +1035,20 @@ function ManageLinksPanel({
               )
             }
           >
-            <option value="all">All statuses</option>
-            <option value="enabled">Enabled</option>
-            <option value="disabled">Disabled</option>
-            <option value="missing">Removed</option>
+            <option value="all">{messages.allStatuses}</option>
+            <option value="enabled">{messages.enabled}</option>
+            <option value="disabled">{messages.disabled}</option>
+            <option value="missing">{messages.removed}</option>
           </select>
         </label>
       </div>
 
       <div className="flex items-center justify-between gap-3 text-sm text-white/45">
         <span>
-          {filtered.length} of {history.length} shown
+          {interpolateTenantMessage(messages.shownCount, {
+            shown: filtered.length,
+            total: history.length,
+          })}
         </span>
         <button
           type="button"
@@ -882,17 +1057,17 @@ function ManageLinksPanel({
           disabled={refreshing || history.length === 0}
         >
           {refreshing ? <ButtonSpinner /> : null}
-          {refreshing ? "Refreshing…" : "Refresh metadata"}
+          {refreshing ? messages.refreshing : messages.refreshMetadata}
         </button>
       </div>
 
       {history.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-white/15 bg-black/20 p-6 text-center text-sm text-white/50">
-          No recent links yet. Create a short link to get started.
+          {messages.emptyHistory}
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-black/20 p-6 text-center text-sm text-white/50">
-          No links match your search or filters.
+          {messages.noMatches}
         </div>
       ) : (
         <ul className="grid gap-3">
@@ -907,15 +1082,17 @@ function ManageLinksPanel({
                     {entry.short_url}
                   </div>
                   <div className="mt-1 text-xs text-white/40">
-                    {templateLabel(entry.template)}
+                    {localizedTemplateLabel(entry.template, messages)}
                     {entry.label ? ` · ${entry.label}` : ""}
                     {entry.missing
-                      ? " · Removed"
+                      ? ` · ${messages.removed}`
                       : entry.disabled === true
-                        ? " · Disabled"
-                        : " · Enabled"}
+                        ? ` · ${messages.disabled}`
+                        : ` · ${messages.enabled}`}
                     {typeof entry.click_count === "number"
-                      ? ` · ~${entry.click_count} clicks`
+                      ? ` · ${interpolateTenantMessage(messages.clicksApprox, {
+                          count: entry.click_count,
+                        })}`
                       : ""}
                   </div>
                   <div className="mt-2 break-all text-xs text-white/35">
@@ -928,7 +1105,7 @@ function ManageLinksPanel({
                     className={ghostButtonClassName}
                     onClick={() => void onCopy(entry.short_url, entry.slug)}
                   >
-                    {copiedKey === entry.slug ? "Copied" : "Copy"}
+                    {copiedKey === entry.slug ? messages.copied : messages.copy}
                   </button>
                   <a
                     href={entry.short_url}
@@ -936,14 +1113,14 @@ function ManageLinksPanel({
                     rel="noopener noreferrer"
                     className={ghostButtonClassName}
                   >
-                    Open
+                    {messages.open}
                   </a>
                   <button
                     type="button"
                     className={ghostButtonClassName}
                     onClick={() => onOpenDetails(entry.slug)}
                   >
-                    Details
+                    {messages.details}
                   </button>
                 </div>
               </div>
@@ -965,6 +1142,7 @@ function LinkDetailsPanel(props: {
   onBack: () => void;
   copiedKey: string | null;
   onCopy: (value: string, key: string) => Promise<void>;
+  messages: GetOblicLinksMessages;
 }) {
   const historyEntry =
     props.history.find((entry) => entry.slug === props.slug) ?? null;
@@ -987,6 +1165,8 @@ function LinkDetailsPanel(props: {
       try {
         const { response, payload } = await apiJson<LinkPayload>(
           `/api/getoblic-links/${encodeURIComponent(props.slug)}`,
+          undefined,
+          props.messages.unexpectedResponse,
         );
         if (cancelled) return;
 
@@ -998,11 +1178,11 @@ function LinkDetailsPanel(props: {
           );
           props.onHistoryChange(next);
           setLink(null);
-          setError("This link no longer exists on the Worker.");
+          setError(props.messages.linkNoLongerExists);
           return;
         }
         if (!response.ok || !payload.ok || !payload.link) {
-          setError(payload.error?.message || "Unable to load link details.");
+          setError(payload.error?.message || props.messages.unableToLoadDetails);
           return;
         }
         setLink(payload.link);
@@ -1035,7 +1215,7 @@ function LinkDetailsPanel(props: {
           setError(
             loadError instanceof Error
               ? loadError.message
-              : "Unable to load link details.",
+              : props.messages.unableToLoadDetails,
           );
         }
       } finally {
@@ -1070,13 +1250,13 @@ function LinkDetailsPanel(props: {
       .catch(() => {
         if (!cancelled) {
           setQrDataUrl(null);
-          setQrError("Unable to generate QR code.");
+          setQrError(props.messages.unableToGenerateQr);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [shortUrlForQr]);
+  }, [shortUrlForQr, props.messages.unableToGenerateQr]);
 
   const qrPreviewUrl = shortUrlForQr ? qrDataUrl : null;
 
@@ -1090,9 +1270,10 @@ function LinkDetailsPanel(props: {
           method: "PATCH",
           body: JSON.stringify(body),
         },
+        props.messages.unexpectedResponse,
       );
       if (!response.ok || !payload.ok || !payload.link) {
-        setError(payload.error?.message || "Update failed.");
+        setError(payload.error?.message || props.messages.updateFailed);
         return;
       }
       setLink(payload.link);
@@ -1109,10 +1290,12 @@ function LinkDetailsPanel(props: {
           }),
         );
       }
-      props.onBanner({ tone: "success", message: "Link updated." });
+      props.onBanner({ tone: "success", message: props.messages.linkUpdated });
     } catch (patchError) {
       setError(
-        patchError instanceof Error ? patchError.message : "Update failed.",
+        patchError instanceof Error
+          ? patchError.message
+          : props.messages.updateFailed,
       );
     } finally {
       setBusyAction(null);
@@ -1121,7 +1304,9 @@ function LinkDetailsPanel(props: {
 
   async function onDelete() {
     const confirmed = window.confirm(
-      `Delete short link “${props.slug}”? This cannot be undone.`,
+      interpolateTenantMessage(props.messages.deleteConfirm, {
+        slug: props.slug,
+      }),
     );
     if (!confirmed) return;
     setBusyAction("delete");
@@ -1130,9 +1315,10 @@ function LinkDetailsPanel(props: {
       const { response, payload } = await apiJson<ApiErrorPayload>(
         `/api/getoblic-links/${encodeURIComponent(props.slug)}`,
         { method: "DELETE" },
+        props.messages.unexpectedResponse,
       );
       if (!response.ok || !payload.ok) {
-        setError(payload.error?.message || "Delete failed.");
+        setError(payload.error?.message || props.messages.deleteFailed);
         return;
       }
       props.onHistoryChange(
@@ -1142,11 +1328,13 @@ function LinkDetailsPanel(props: {
           props.slug,
         ),
       );
-      props.onBanner({ tone: "success", message: "Link deleted." });
+      props.onBanner({ tone: "success", message: props.messages.linkDeleted });
       props.onBack();
     } catch (deleteError) {
       setError(
-        deleteError instanceof Error ? deleteError.message : "Delete failed.",
+        deleteError instanceof Error
+          ? deleteError.message
+          : props.messages.deleteFailed,
       );
     } finally {
       setBusyAction(null);
@@ -1167,13 +1355,13 @@ function LinkDetailsPanel(props: {
   return (
     <div className="grid gap-5">
       <button type="button" className={ghostButtonClassName} onClick={props.onBack}>
-        ← Back to manage
+        {props.messages.backToManage}
       </button>
 
       {loading ? (
         <div className="inline-flex items-center text-sm text-white/55">
           <ButtonSpinner />
-          Loading link…
+          {props.messages.loadingLink}
         </div>
       ) : null}
 
@@ -1188,7 +1376,7 @@ function LinkDetailsPanel(props: {
 
       <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
         <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-          Short URL
+          {props.messages.shortUrl}
         </div>
         <div className="mt-2 break-all text-sm text-white/85">
           {shortUrl || "—"}
@@ -1200,7 +1388,9 @@ function LinkDetailsPanel(props: {
             disabled={!shortUrl}
             onClick={() => void props.onCopy(shortUrl, `details:${props.slug}`)}
           >
-            {props.copiedKey === `details:${props.slug}` ? "Copied" : "Copy"}
+            {props.copiedKey === `details:${props.slug}`
+              ? props.messages.copied
+              : props.messages.copy}
           </button>
           {shortUrl ? (
             <a
@@ -1209,26 +1399,27 @@ function LinkDetailsPanel(props: {
               rel="noopener noreferrer"
               className={ghostButtonClassName}
             >
-              Open
+              {props.messages.open}
             </a>
           ) : null}
         </div>
         <div className="mt-4 grid gap-2 text-sm text-white/50">
           <div>
-            Slug: <span className="text-white/80">{props.slug}</span>
+            {props.messages.slugLabel}{" "}
+            <span className="text-white/80">{props.slug}</span>
           </div>
           <div>
-            Status:{" "}
+            {props.messages.statusLabel}{" "}
             <span className="text-white/80">
               {historyEntry?.missing
-                ? "Removed"
+                ? props.messages.removed
                 : enabled
-                  ? "Enabled"
-                  : "Disabled"}
+                  ? props.messages.enabled
+                  : props.messages.disabled}
             </span>
           </div>
           <div>
-            Approximate clicks:{" "}
+            {props.messages.approximateClicks}{" "}
             <span className="text-white/80">
               {typeof link?.click_count === "number"
                 ? `~${link.click_count}`
@@ -1237,9 +1428,9 @@ function LinkDetailsPanel(props: {
           </div>
           {historyEntry ? (
             <div>
-              Template:{" "}
+              {props.messages.templateLabel}{" "}
               <span className="text-white/80">
-                {templateLabel(historyEntry.template)}
+                {localizedTemplateLabel(historyEntry.template, props.messages)}
               </span>
             </div>
           ) : null}
@@ -1247,7 +1438,9 @@ function LinkDetailsPanel(props: {
       </div>
 
       <label className="grid gap-2">
-        <span className="text-sm font-medium text-white/80">Destination</span>
+        <span className="text-sm font-medium text-white/80">
+          {props.messages.destination}
+        </span>
         <input
           className={fieldClassName}
           value={destination}
@@ -1265,7 +1458,7 @@ function LinkDetailsPanel(props: {
           onClick={() => void patchLink({ url: destination }, "save")}
         >
           {busyAction === "save" ? <ButtonSpinner /> : null}
-          Save destination
+          {props.messages.saveDestination}
         </button>
         <button
           type="button"
@@ -1281,7 +1474,7 @@ function LinkDetailsPanel(props: {
           {busyAction === "disable" || busyAction === "enable" ? (
             <ButtonSpinner />
           ) : null}
-          {enabled ? "Disable" : "Enable"}
+          {enabled ? props.messages.disable : props.messages.enable}
         </button>
         <button
           type="button"
@@ -1290,13 +1483,13 @@ function LinkDetailsPanel(props: {
           onClick={() => void onDelete()}
         >
           {busyAction === "delete" ? <ButtonSpinner /> : null}
-          Delete
+          {props.messages.delete}
         </button>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
         <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-          QR Code
+          {props.messages.qrCode}
         </div>
         {qrPreviewUrl ? (
           <div className="mt-4 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
@@ -1315,13 +1508,15 @@ function LinkDetailsPanel(props: {
                 downloadDataUrlPng(qrPreviewUrl, `getoblic-${props.slug}.png`)
               }
             >
-              Download PNG
+              {props.messages.downloadPng}
             </button>
           </div>
         ) : (
           <p className="mt-3 text-sm text-white/45">
             {qrError ||
-              (shortUrlForQr ? "Generating QR…" : "QR preview unavailable.")}
+              (shortUrlForQr
+                ? props.messages.generatingQr
+                : props.messages.qrUnavailable)}
           </p>
         )}
       </div>

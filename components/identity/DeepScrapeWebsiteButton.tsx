@@ -3,7 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
+import {
+  localizeDeepScrapeStage,
+  type DeepScrapeProgressMessages,
+} from "@/lib/tenantI18n/deepScrapeProgress";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
 
 type DeepScrapeStatusPayload = {
   ok?: boolean;
@@ -15,12 +21,48 @@ type DeepScrapeStatusPayload = {
     stage: string;
     label: string;
     pagesAnalyzed?: number;
+    pagesCrawled?: number;
+    pagesTarget?: number | null;
+    pagesRendered?: number | null;
+    phase?: string | null;
     completedAt?: string | null;
+    errorCode?: string | null;
     errorMessage?: string | null;
   } | null;
   lastDeepScrapeAt?: string | null;
   lastDeepScrapePages?: number | null;
   error?: { message?: string };
+};
+
+type DeepScrapeMessages = DeepScrapeProgressMessages;
+
+const DEFAULT_DEEP_SCRAPE_MESSAGES: DeepScrapeMessages = {
+  button: "Deep Scrape Website",
+  lastTitle: "Last Deep Scrape",
+  pagesAnalyzed: "Pages analyzed: {count}",
+  queueFailed: "Failed to queue deep scrape.",
+  queued: "Queued",
+  failed: "Failed",
+  completed: "Completed",
+  awaitingFollowOn: "Generating Executive Intelligence",
+  discovering: "Discovering Website",
+  crawling: "Crawling candidate pages",
+  crawlingWithCount: "Crawling {crawled} candidate pages",
+  crawlingWithTarget: "Crawling {crawled} of {target} candidate pages",
+  rendering: "Rendering JavaScript page {rendered}",
+  renderingWithTarget: "Rendering JavaScript page {rendered} of {target}",
+  synthesizing: "Synthesizing Website Intelligence",
+  retraining: "Retraining Athena Brain",
+  regenerating: "Generating Executive Intelligence",
+  genericError: "Deep website scrape failed. Please try again later.",
+};
+
+const DATETIME_FORMAT: Intl.DateTimeFormatOptions = {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
 };
 
 function ButtonSpinner() {
@@ -36,7 +78,11 @@ export function DeepScrapeWebsiteButton(props: {
   initiallyAvailable: boolean;
   initialLastDeepScrapeAt?: string | null;
   initialLastDeepScrapePages?: number | null;
+  messages?: DeepScrapeMessages;
+  locale?: TenantFormattingLocale;
 }) {
+  const messages = props.messages ?? DEFAULT_DEEP_SCRAPE_MESSAGES;
+  const locale = props.locale ?? "en-US";
   const router = useRouter();
   const completionSound = useBackgroundActionCompletionSound();
   const [available, setAvailable] = useState(props.initiallyAvailable);
@@ -74,7 +120,11 @@ export function DeepScrapeWebsiteButton(props: {
       }
       setAvailable(Boolean(payload.available));
       setIsActive(Boolean(payload.isActive));
-      setLabel(payload.isActive ? payload.job?.label ?? "Queued" : null);
+      setLabel(
+        payload.isActive
+          ? localizeDeepScrapeStage(payload.job, messages)
+          : null,
+      );
       setLastAt(payload.lastDeepScrapeAt ?? null);
       setLastPages(
         typeof payload.lastDeepScrapePages === "number"
@@ -84,8 +134,8 @@ export function DeepScrapeWebsiteButton(props: {
       if (payload.job?.status) {
         completionSound.observe(payload.job.status);
       }
-      if (payload.job?.status === "failed" && payload.job.errorMessage) {
-        setError(payload.job.errorMessage);
+      if (payload.job?.status === "failed") {
+        setError(payload.job.errorMessage?.trim() || messages.genericError);
       } else if (payload.job?.status === "completed") {
         setError(null);
         router.refresh();
@@ -93,7 +143,7 @@ export function DeepScrapeWebsiteButton(props: {
     } catch {
       // ignore transient poll errors
     }
-  }, [completionSound, router]);
+  }, [completionSound, messages, router]);
 
   useEffect(() => {
     if (!available) return;
@@ -129,21 +179,28 @@ export function DeepScrapeWebsiteButton(props: {
       });
       const payload = await parseJsonResponse<{
         ok?: boolean;
+        stage?: string;
+        status?: string;
         label?: string;
         error?: { message?: string };
       }>(response);
       if (!response.ok || !payload.ok) {
-        setError(payload.error?.message || "Failed to queue deep scrape.");
+        setError(payload.error?.message || messages.queueFailed);
         return;
       }
       setIsActive(true);
-      setLabel(payload.label ?? "Queued");
+      setLabel(
+        localizeDeepScrapeStage(
+          { status: payload.status, stage: payload.stage },
+          messages,
+        ),
+      );
       void refreshStatus();
     } catch (startError) {
       setError(
         startError instanceof Error
           ? startError.message
-          : "Failed to queue deep scrape.",
+          : messages.queueFailed,
       );
     } finally {
       setQueuing(false);
@@ -165,7 +222,7 @@ export function DeepScrapeWebsiteButton(props: {
         className="inline-flex w-full items-center justify-center rounded-full border border-[var(--athena-orange)]/40 bg-black/20 px-6 py-3 text-sm font-semibold text-white transition hover:bg-black/30 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {busy ? <ButtonSpinner /> : null}
-        {busy ? label || "Deep Scrape Website" : "Deep Scrape Website"}
+        {busy ? label || messages.button : messages.button}
       </button>
       {busy && label ? (
         <p className="text-sm text-white/55">{label}</p>
@@ -173,14 +230,18 @@ export function DeepScrapeWebsiteButton(props: {
       {lastAt ? (
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/50">
           <div className="text-xs uppercase tracking-[0.25em] text-white/35">
-            Last Deep Scrape
+            {messages.lastTitle}
           </div>
           <div className="mt-2 text-white/70">
-            {new Date(lastAt).toLocaleString()}
+            {new Intl.DateTimeFormat(locale, DATETIME_FORMAT).format(
+              new Date(lastAt),
+            )}
           </div>
           {typeof lastPages === "number" ? (
             <div className="mt-1 text-white/50">
-              Pages analyzed: {lastPages}
+              {interpolateTenantMessage(messages.pagesAnalyzed, {
+                count: lastPages,
+              })}
             </div>
           ) : null}
         </div>

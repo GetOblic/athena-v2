@@ -73,7 +73,7 @@ describe("getting started conversation UI", () => {
     assert.doesNotMatch(page, /organizationId|userId/);
 
     const panelIndex = page.indexOf("<GettingStartedConversationPanel");
-    const firstGuideIndex = page.indexOf('title="Train Athena Brain"');
+    const firstGuideIndex = page.indexOf("<GuideCard");
     assert.ok(panelIndex > 0);
     assert.ok(firstGuideIndex > panelIndex);
   });
@@ -88,11 +88,13 @@ describe("getting started conversation UI", () => {
     assert.doesNotMatch(page, /watch your market/i);
     assert.doesNotMatch(page, /automatically monitors/i);
     assert.doesNotMatch(page, /continuously monitors/i);
+    assert.match(page, /copy\.intro/);
+    const dictionary = read("lib/tenantI18n/messages/en.ts");
     assert.match(
-      page,
-      /Import the conversations that matter to your business/i,
+      dictionary,
+      /Import the conversations that matter to your business/,
     );
-    assert.match(page, /Athena\s+analyzes them/i);
+    assert.match(dictionary, /Athena analyzes them/);
   });
 
   it("authenticated page rendering path does not invoke organization service", async () => {

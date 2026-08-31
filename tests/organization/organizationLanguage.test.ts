@@ -375,10 +375,10 @@ describe("V31 L1 organization language — Brain display and isolation", () => {
   it("Identity displays Account Language as read-only account configuration", () => {
     const page = read("app/identity/page.tsx");
     assert.match(page, /requireCurrentOrganizationContext/);
-    assert.match(page, /resolveOrganizationLanguage\(organizationId\)/);
-    assert.match(page, /Account Language/);
-    assert.match(page, /Configured for this Athena account/);
+    assert.match(page, /getTenantLocalization/);
     assert.match(page, /organizationLanguageLabel/);
+    assert.match(page, /copy\.accountLanguage/);
+    assert.doesNotMatch(page, /resolveOrganizationLanguage/);
     assert.doesNotMatch(page, /name=["']account_language["']/);
     assert.doesNotMatch(page, /<select[^>]*language/i);
     assert.doesNotMatch(page, /updateOrganizationLanguage/);

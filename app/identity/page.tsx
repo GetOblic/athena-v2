@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { redirect } from "next/navigation";
 import { AiWorkspacePreferencesSection } from "@/components/identity/AiWorkspacePreferencesSection";
@@ -10,6 +9,12 @@ import {
   TrainAthenaForm,
   TrainAthenaSubmitButton,
 } from "@/components/identity/TrainAthenaSubmitButton";
+import { IdentityConversationPanel } from "@/components/identity/IdentityConversationPanel";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
+import { getLocalizedBrainStatus } from "@/lib/tenantI18n/brainStatus";
+import { tenantConversationWrapperChrome } from "@/lib/tenantI18n/conversationChrome";
+import { formatTenantDateTime } from "@/lib/tenantI18n/format";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   isAiWorkspaceId,
@@ -27,16 +32,12 @@ import {
   resolveOrganizationBrandProfilePicturePreviewUrl,
   updateOrganizationBrandIdentity,
 } from "@/services/identity/brandIdentityService";
-import { IdentityConversationPanel } from "@/components/identity/IdentityConversationPanel";
 import {
   getAthenaIdentityByUserId,
   upsertAthenaIdentity,
 } from "@/services/identity/identityService";
 import { organizationLanguageLabel } from "@/services/organizationLanguage";
-import {
-  requireCurrentOrganizationContext,
-  resolveOrganizationLanguage,
-} from "@/services/organizationService";
+import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { buildConversationScopeFingerprint } from "@/services/athenaConversation/athenaConversationScope";
 
 const fieldClassName =
@@ -92,13 +93,13 @@ async function saveBrandIdentity(formData: FormData) {
       font: String(formData.get("brand_font") ?? ""),
     });
   } catch (error) {
-    const message =
+    const code =
       error instanceof OrganizationBrandNotFoundError
-        ? "Organization not found."
+        ? "not_found"
         : error instanceof Error
           ? error.message
-          : "Could not save brand identity.";
-    redirect(`/identity?brandError=${encodeURIComponent(message)}`);
+          : "save_failed";
+    redirect(`/identity?brandError=${encodeURIComponent(code)}`);
   }
 
   redirect("/identity?brandSaved=true");
@@ -128,9 +129,7 @@ async function saveAiWorkspacePreferences(formData: FormData) {
     !isAiWorkspaceId(preferredAiWorkspace) ||
     !isImageGeneratorId(preferredImageGenerator)
   ) {
-    redirect(
-      `/identity?workspaceError=${encodeURIComponent("Invalid AI workspace preferences.")}`,
-    );
+    redirect("/identity?workspaceError=invalid");
   }
 
   try {
@@ -140,16 +139,25 @@ async function saveAiWorkspacePreferences(formData: FormData) {
       preferredImageGenerator,
     });
   } catch (error) {
-    const message =
+    const code =
       error instanceof AiWorkspacePreferencesNotFoundError
-        ? "Organization not found."
+        ? "not_found"
         : error instanceof Error
           ? error.message
-          : "Could not save AI workspace preferences.";
-    redirect(`/identity?workspaceError=${encodeURIComponent(message)}`);
+          : "save_failed";
+    redirect(`/identity?workspaceError=${encodeURIComponent(code)}`);
   }
 
   redirect("/identity?workspaceSaved=true");
+}
+
+function localizeFlashError(
+  raw: string | undefined,
+  known: Record<string, string>,
+): string | null {
+  if (!raw?.trim()) return null;
+  const decoded = decodeURIComponent(raw);
+  return known[decoded] ?? decoded;
 }
 
 export default async function IdentityPage({
@@ -174,13 +182,15 @@ export default async function IdentityPage({
 
   const params = await searchParams;
   const { organizationId, userId } = await requireCurrentOrganizationContext();
+  const { language, locale, messages } = await getTenantLocalization();
+  const copy = messages.identity;
+  const conversationChrome = tenantConversationWrapperChrome(messages);
   const identity = await getAthenaIdentityByUserId(userId, organizationId);
   const organizationBrand =
     await getOrganizationBrandIdentity(organizationId);
   const aiWorkspacePreferences =
     await getOrganizationAiWorkspacePreferences(organizationId);
-  const accountLanguage = await resolveOrganizationLanguage(organizationId);
-  const accountLanguageLabel = organizationLanguageLabel(accountLanguage);
+  const accountLanguageLabel = organizationLanguageLabel(language);
   const logoPreviewUrl = await resolveOrganizationBrandLogoPreviewUrl(
     organizationBrand,
     organizationId,
@@ -195,46 +205,55 @@ export default async function IdentityPage({
   const hasExpertise = Boolean(identity?.expertise?.trim());
   const hasWebsite = Boolean(identity?.website?.trim());
   const hasMasterProfile = Boolean(identity?.master_profile);
-  const brandError = params.brandError?.trim()
-    ? decodeURIComponent(params.brandError)
-    : null;
-  const workspaceError = params.workspaceError?.trim()
-    ? decodeURIComponent(params.workspaceError)
-    : null;
+  const brandError = localizeFlashError(params.brandError, {
+    not_found: copy.flashBrandNotFound,
+    save_failed: copy.flashBrandSaveFailed,
+    "Organization not found.": copy.flashBrandNotFound,
+    "Could not save brand identity.": copy.flashBrandSaveFailed,
+  });
+  const workspaceError = localizeFlashError(params.workspaceError, {
+    invalid: copy.flashWorkspaceInvalid,
+    not_found: copy.flashWorkspaceNotFound,
+    save_failed: copy.flashWorkspaceSaveFailed,
+    "Invalid AI workspace preferences.": copy.flashWorkspaceInvalid,
+    "Organization not found.": copy.flashWorkspaceNotFound,
+    "Could not save AI workspace preferences.": copy.flashWorkspaceSaveFailed,
+  });
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink className="mb-8" />
+      <AthenaBrandLink
+        className="mb-8"
+        tagline={messages.chrome.tagline}
+        logoutLabel={messages.chrome.logOut}
+        sessionActionsLabel={messages.chrome.sessionActions}
+      />
 
-      <Link href="/" className="text-sm text-[var(--athena-orange)]">
-        ← Dashboard
-      </Link>
+      <TenantBackLink href="/" label={copy.backToDashboard} />
 
       <div className="mb-10 mt-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Athena Brain
+          {copy.eyebrow}
         </div>
 
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          Train Your Athena Brain
+          {copy.title}
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Teach Athena your voice, expertise, business knowledge and professional
-          rules. Athena will use this when generating replies, CTAs, briefings
-          and strategic asset blueprints.
+          {copy.subtitle}
         </p>
       </div>
 
       {params.saved === "true" && (
         <div className="mb-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
-          Athena Brain trained successfully.
+          {copy.flashSaved}
         </div>
       )}
 
       {params.brandSaved === "true" && (
         <div className="mb-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
-          Brand Identity saved successfully.
+          {copy.flashBrandSaved}
         </div>
       )}
 
@@ -244,6 +263,23 @@ export default async function IdentityPage({
           organizationId,
           userId,
         })}
+        title={copy.conversationTitle}
+        description={copy.conversationDescription}
+        placeholder={copy.conversationPlaceholder}
+        inputLabel={copy.conversationInputLabel}
+        examplePrompts={[
+          copy.example1,
+          copy.example2,
+          copy.example3,
+          copy.example4,
+          copy.example5,
+          copy.example6,
+        ]}
+        chrome={conversationChrome.chrome}
+        clearLabel={conversationChrome.clearLabel}
+        submitLabel={conversationChrome.submitLabel}
+        emptyStateTitle={conversationChrome.emptyStateTitle}
+        readOnlyNotice={conversationChrome.readOnlyNotice}
       />
 
       <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
@@ -253,110 +289,111 @@ export default async function IdentityPage({
         >
           <div className="grid gap-8">
             <label className="grid gap-3">
-              <span className="text-xl font-semibold">
-                What should Athena call you?
-              </span>
+              <span className="text-xl font-semibold">{copy.greetingLabel}</span>
               <span className="max-w-3xl text-sm leading-6 text-white/45">
-                This name is used across your dashboard experience. Examples:
-                Laurent, Liana, Dr. Smith, Coach Sarah.
+                {copy.greetingHelp}
               </span>
               <input
                 name="greeting_name"
                 defaultValue={identity?.greeting_name ?? ""}
                 className={fieldClassName}
-                placeholder="Liana"
+                placeholder={copy.greetingPlaceholder}
               />
             </label>
 
             <label className="grid gap-3">
-              <span className="text-xl font-semibold">Your Voice</span>
+              <span className="text-xl font-semibold">{copy.voiceLabel}</span>
               <span className="max-w-3xl text-sm leading-6 text-white/45">
-                Help Athena understand how you naturally communicate. Example:
-                &ldquo;I&apos;m a PMU educator with 12 years of experience. I believe
-                education should come before selling. My communication style is
-                warm, reassuring and professional.&rdquo;
+                {copy.voiceHelp}
               </span>
               <textarea
                 name="about_you"
                 rows={8}
                 defaultValue={identity?.about_you ?? ""}
                 className={`resize-y leading-6 ${fieldClassName}`}
-                placeholder="Tell Athena how you think, speak, teach and guide people..."
+                placeholder={copy.voicePlaceholder}
               />
             </label>
 
             <label className="grid gap-3">
               <span className="text-xl font-semibold">
-                Your Business Knowledge
+                {copy.knowledgeLabel}
               </span>
               <span className="max-w-3xl text-sm leading-6 text-white/45">
-                Teach Athena your expertise, methodology, terminology and
-                professional rules. Example: &ldquo;My training follows a five-step
-                methodology: consultation, theory, hands-on practice,
-                supervised work and business launch.&rdquo;
+                {copy.knowledgeHelp}
               </span>
               <textarea
                 name="expertise"
                 rows={10}
                 defaultValue={identity?.expertise ?? ""}
                 className={`resize-y leading-6 ${fieldClassName}`}
-                placeholder="Teach Athena your methodology, frameworks, FAQs, terminology, offers and rules..."
+                placeholder={copy.knowledgePlaceholder}
               />
             </label>
 
             <label className="grid gap-3">
-              <span className="text-xl font-semibold">Business Website</span>
+              <span className="text-xl font-semibold">{copy.websiteLabel}</span>
               <span className="max-w-3xl text-sm leading-6 text-white/45">
-                Athena studies your homepage during Train Athena. After training,
-                use Deep Scrape Website for autonomous multi-page learning.
+                {copy.websiteHelp}
               </span>
               <input
                 name="website"
                 defaultValue={identity?.website ?? ""}
                 className={fieldClassName}
-                placeholder="https://yourcompany.com"
+                placeholder={copy.websitePlaceholder}
               />
             </label>
 
-            <TrainAthenaSubmitButton />
+            <TrainAthenaSubmitButton
+              label={copy.trainAthena}
+              pendingLabel={copy.trainingAthena}
+            />
           </div>
         </TrainAthenaForm>
 
         <aside className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-          <h2 className="text-xl font-semibold">Brain Status</h2>
+          <h2 className="text-xl font-semibold">{copy.brainStatus}</h2>
 
           <div className="mt-6 space-y-5 text-sm leading-6 text-white/55">
-            <div>{hasVoice ? "✓" : "○"} Voice learned</div>
-            <div>{hasExpertise ? "✓" : "○"} Expertise learned</div>
-            <div>{hasWebsite ? "✓" : "○"} Homepage learned</div>
-            <div>{hasMasterProfile ? "✓" : "○"} Professional terminology learned</div>
-            <div>✓ Continuous learning enabled</div>
+            <div>
+              {hasVoice ? "✓" : "○"} {copy.voiceLearned}
+            </div>
+            <div>
+              {hasExpertise ? "✓" : "○"} {copy.expertiseLearned}
+            </div>
+            <div>
+              {hasWebsite ? "✓" : "○"} {copy.homepageLearned}
+            </div>
+            <div>
+              {hasMasterProfile ? "✓" : "○"} {copy.terminologyLearned}
+            </div>
+            <div>✓ {copy.continuousLearning}</div>
           </div>
 
           <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-5">
             <div className="text-xs uppercase tracking-[0.25em] text-white/35">
-              Account Language
+              {copy.accountLanguage}
             </div>
             <div className="mt-3 text-lg font-semibold text-white">
               {accountLanguageLabel}
             </div>
             <div className="mt-2 text-sm text-white/40">
-              Configured for this Athena account.
+              {copy.accountLanguageHelp}
             </div>
           </div>
 
           <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-5">
             <div className="text-xs uppercase tracking-[0.25em] text-white/35">
-              Status
+              {copy.status}
             </div>
             <div className="mt-3 text-lg font-semibold text-[var(--athena-orange)]">
-              {identity?.brain_status ?? "pending"}
+              {getLocalizedBrainStatus(messages, identity?.brain_status)}
             </div>
             <div className="mt-2 text-sm text-white/40">
-              Last trained:{" "}
+              {copy.lastTrained}{" "}
               {identity?.brain_last_updated
-                ? new Date(identity.brain_last_updated).toLocaleString()
-                : "Not yet trained"}
+                ? formatTenantDateTime(identity.brain_last_updated, language)
+                : copy.notYetTrained}
             </div>
           </div>
 
@@ -370,11 +407,14 @@ export default async function IdentityPage({
                 ? identity.last_deep_scrape_pages
                 : null
             }
+            messages={copy.deepScrape}
+            locale={locale}
           />
 
           <GetOblicLinksCard
             organizationId={organizationId}
             userId={userId}
+            messages={copy.getoblic}
           />
         </aside>
       </div>
@@ -401,6 +441,7 @@ export default async function IdentityPage({
         initialProfilePicturePreviewUrl={profilePicturePreviewUrl}
         saveBrandIdentity={saveBrandIdentity}
         brandError={brandError}
+        messages={copy.brand}
       />
 
       <AiWorkspacePreferencesSection
@@ -413,9 +454,14 @@ export default async function IdentityPage({
         saveAiWorkspacePreferences={saveAiWorkspacePreferences}
         saved={params.workspaceSaved === "true"}
         error={workspaceError}
+        messages={copy.workspace}
       />
 
-      <IdentityExecutiveIntelligence identity={identity} />
+      <IdentityExecutiveIntelligence
+        identity={identity}
+        messages={copy}
+        language={language}
+      />
     </main>
   );
 }

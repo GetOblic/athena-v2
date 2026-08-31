@@ -13,6 +13,7 @@ import {
   toFormattingLocale,
 } from "../../lib/tenantI18n/format";
 import { getTenantMessages } from "../../lib/tenantI18n/getTenantMessages";
+import { getLocalizedBrainStatus } from "../../lib/tenantI18n/brainStatus";
 import { getLocalizedStatusLabel } from "../../lib/tenantI18n/statusLabels";
 import { de } from "../../lib/tenantI18n/messages/de";
 import { en } from "../../lib/tenantI18n/messages/en";
@@ -115,6 +116,8 @@ describe("V31 L3.1 tenant i18n — language contract", () => {
       "lib/tenantI18n/getTenantLocalization.ts",
       "lib/tenantI18n/format.ts",
       "lib/tenantI18n/statusLabels.ts",
+      "lib/tenantI18n/brainStatus.ts",
+      "lib/tenantI18n/deepScrapeProgress.ts",
       "lib/tenantI18n/messages/en.ts",
       "lib/tenantI18n/messages/fr.ts",
       "lib/tenantI18n/messages/es.ts",
@@ -270,6 +273,28 @@ describe("V31 L3.1 tenant i18n — status presentation", () => {
     };
     assert.equal(getLocalizedStatusLabel(missing, "draft"), "Draft");
     assert.notEqual(getLocalizedStatusLabel(missing, "draft"), "draft");
+  });
+
+  it("does not add Brain stored tokens to the generic status dictionary", () => {
+    assert.equal("ready" in en.status, false);
+    assert.equal("pending" in en.status, false);
+    assert.equal("processing" in en.status, false);
+  });
+});
+
+describe("V31 L3.3 tenant i18n — Brain status presentation", () => {
+  it("keeps the stored ready token and localizes presentation per language", () => {
+    const stored = "ready";
+    assert.equal(getLocalizedBrainStatus(en, stored), "Ready");
+    assert.equal(stored, "ready");
+    assert.equal(getLocalizedBrainStatus(fr, stored), "Prêt");
+    assert.equal(getLocalizedBrainStatus(es, stored), "Listo");
+    assert.equal(getLocalizedBrainStatus(itMessages, stored), "Pronto");
+    assert.equal(getLocalizedBrainStatus(de, stored), "Bereit");
+    assert.equal(getLocalizedBrainStatus(pt, stored), "Pronto");
+    assert.equal(stored, "ready");
+    assert.notEqual(getLocalizedBrainStatus(en, stored), "ready");
+    assert.notEqual(getLocalizedBrainStatus(en, "pending"), "pending");
   });
 });
 

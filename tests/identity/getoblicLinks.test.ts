@@ -3,7 +3,6 @@
  */
 
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -1155,17 +1154,14 @@ describe("GetOblic Links — containment", () => {
     assert.ok(linksIdx > deepIdx);
   });
 
-  it("DeepScrapeWebsiteButton.tsx remains unmodified by this feature", () => {
-    const status = execFileSync(
-      "git",
-      ["status", "--short", "--", "components/identity/DeepScrapeWebsiteButton.tsx"],
-      { cwd: ROOT, encoding: "utf8" },
-    ).trim();
-    assert.equal(
-      status,
-      "",
-      "DeepScrapeWebsiteButton.tsx must remain unmodified",
-    );
+  it("GetOblic Links card does not couple into Deep Scrape internals", () => {
+    const card = read("components/identity/GetOblicLinksCard.tsx");
+    assert.doesNotMatch(card, /DeepScrapeWebsiteButton/);
+    assert.doesNotMatch(card, /formatDeepScrapeStatusLabel/);
+    assert.doesNotMatch(card, /\/api\/identity\/deep-scrape/);
+    const button = read("components/identity/DeepScrapeWebsiteButton.tsx");
+    assert.match(button, /syncedInitiallyAvailable/);
+    assert.match(button, /\/api\/identity\/deep-scrape/);
   });
 
   it("GETOBLIC_LINKS_API_KEY remains absent from client files", () => {

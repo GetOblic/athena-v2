@@ -261,12 +261,16 @@ describe("Identity Executive Intelligence — website coverage", () => {
       "components/websiteLearning/WebsiteAnalyzedPagesList.tsx",
     );
     assert.match(identityUi, /WebsiteAnalyzedPagesList/);
-    assert.match(identityUi, /Analyzed source pages/);
+    assert.match(identityUi, /messages\.analyzedSourcePages/);
     assert.match(identityUi, /buildIdentityWebsiteCoverageView/);
     assert.doesNotMatch(identityUi, /services\/seo/);
     assert.match(shared, /target="_blank"/);
     assert.match(shared, /rel="noopener noreferrer"/);
     assert.match(shared, /Untitled page/);
+    assert.match(
+      read("lib/tenantI18n/messages/en.ts"),
+      /analyzedSourcePages: "Analyzed source pages"/,
+    );
   });
 
   it("7+9+10) source URLs from persisted pages; dedupe; missing titles safe", () => {
@@ -349,8 +353,14 @@ describe("Identity Executive Intelligence — website coverage", () => {
 describe("Identity Executive Intelligence — UI and safety", () => {
   it("11) legacy Brain without EI renders a safe Update Athena message", () => {
     const ui = read("components/identity/IdentityExecutiveIntelligence.tsx");
-    assert.match(ui, /trained before Executive Intelligence was available/);
-    assert.match(ui, /Train\s*\n\s*Athena to generate this section/);
+    assert.match(ui, /copy\.legacyBody/);
+    assert.match(ui, /messages\.executive/);
+    const dictionary = read("lib/tenantI18n/messages/en.ts");
+    assert.match(
+      dictionary,
+      /trained before Executive Intelligence was available/,
+    );
+    assert.match(dictionary, /Train Athena to generate this section/);
   });
 
   it("13+14+15+16) confidence, signals, calibration, and non-verbatim rules", () => {
