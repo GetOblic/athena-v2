@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { formatIntelligenceDomainStatus } from "@/lib/intelligenceDomainStatus";
 import { IntelligenceDomainStatusBadge } from "@/components/intelligenceDomains/IntelligenceDomainStatusBadge";
+import { normalizeIntelligenceDomainStatus } from "@/lib/intelligenceDomainStatus";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 export const INTELLIGENCE_DOMAIN_PRIORITY_HELPER = "Use 1 for highest priority.";
 
@@ -17,6 +19,8 @@ type DomainRecord = {
   priority: number;
 };
 
+type IntelligenceDomainMessages = TenantMessages["intelligenceDomains"];
+
 const fieldClassName =
   "w-full rounded-2xl border border-white/10 bg-[#0d0d12] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]";
 
@@ -25,12 +29,14 @@ const compactButtonClassName =
 
 type IntelligenceDomainEditPanelProps = {
   domain: DomainRecord;
+  messages: IntelligenceDomainMessages;
   onCancel: () => void;
   onSaved: () => void;
 };
 
 function IntelligenceDomainEditPanel({
   domain,
+  messages,
   onCancel,
   onSaved,
 }: IntelligenceDomainEditPanelProps) {
@@ -65,7 +71,7 @@ function IntelligenceDomainEditPanel({
       const payload = await response.json();
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to update Intelligence Domain.");
+        throw new Error(payload.error || messages.updateFailed);
       }
 
       onSaved();
@@ -74,7 +80,7 @@ function IntelligenceDomainEditPanel({
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Failed to update Intelligence Domain.",
+          : messages.updateFailed,
       );
     } finally {
       setIsSaving(false);
@@ -86,15 +92,13 @@ function IntelligenceDomainEditPanel({
       onSubmit={handleSave}
       className="rounded-[18px] border border-white/10 bg-[#111116] p-5 shadow-xl shadow-black/40"
     >
-      <h3 className="text-lg font-semibold text-white">Edit Intelligence Domain</h3>
-      <p className="mt-1 text-sm text-white/45">
-        Update this domain&apos;s market context and admin settings.
-      </p>
+      <h3 className="text-lg font-semibold text-white">{messages.editTitle}</h3>
+      <p className="mt-1 text-sm text-white/45">{messages.editHelp}</p>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <label className="grid gap-2 sm:col-span-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Name
+            {messages.name}
           </span>
           <input
             value={name}
@@ -106,19 +110,19 @@ function IntelligenceDomainEditPanel({
 
         <label className="grid gap-2 sm:col-span-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Market / Niche
+            {messages.marketNiche}
           </span>
           <input
             value={market}
             onChange={(event) => setMarket(event.target.value)}
-            placeholder="e.g. B2B SaaS founders"
+            placeholder={messages.marketPlaceholder}
             className={fieldClassName}
           />
         </label>
 
         <label className="grid gap-2 sm:col-span-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Description
+            {messages.description}
           </span>
           <textarea
             value={description}
@@ -130,21 +134,21 @@ function IntelligenceDomainEditPanel({
 
         <label className="grid gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Status
+            {messages.status}
           </span>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value)}
             className={fieldClassName}
           >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
+            <option value="active">{messages.statusActive}</option>
+            <option value="inactive">{messages.statusInactive}</option>
           </select>
         </label>
 
         <label className="grid gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Priority
+            {messages.priority}
           </span>
           <input
             value={priority}
@@ -156,7 +160,7 @@ function IntelligenceDomainEditPanel({
             className={fieldClassName}
           />
           <span className="text-xs leading-5 text-white/40">
-            {INTELLIGENCE_DOMAIN_PRIORITY_HELPER}
+            {messages.priorityHelp}
           </span>
         </label>
       </div>
@@ -170,14 +174,14 @@ function IntelligenceDomainEditPanel({
           disabled={isSaving}
           className="rounded-full border border-white/15 px-5 py-2.5 text-sm font-semibold text-white/70 transition hover:text-white disabled:opacity-50"
         >
-          Cancel
+          {messages.cancel}
         </button>
         <button
           type="submit"
           disabled={isSaving}
           className="rounded-full bg-[var(--athena-orange)] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 disabled:opacity-50"
         >
-          {isSaving ? "Saving..." : "Save Changes"}
+          {isSaving ? messages.saving : messages.saveChanges}
         </button>
       </div>
     </form>
@@ -187,11 +191,13 @@ function IntelligenceDomainEditPanel({
 type IntelligenceDomainCardProps = {
   domain: DomainRecord;
   discussionCount: number;
+  messages: IntelligenceDomainMessages;
 };
 
 export function IntelligenceDomainCard({
   domain,
   discussionCount,
+  messages,
 }: IntelligenceDomainCardProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -202,6 +208,10 @@ export function IntelligenceDomainCard({
   const [message, setMessage] = useState<string | null>(null);
 
   const isActive = domain.status === "active";
+  const statusLabel =
+    normalizeIntelligenceDomainStatus(domain.status) === "active"
+      ? messages.statusActive
+      : messages.statusInactive;
 
   async function toggleStatus() {
     setIsToggling(true);
@@ -219,20 +229,18 @@ export function IntelligenceDomainCard({
       const payload = await response.json();
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to update domain status.");
+        throw new Error(payload.error || messages.statusUpdateFailed);
       }
 
       setMessage(
-        nextStatus === "active"
-          ? "Intelligence Domain enabled."
-          : "Intelligence Domain disabled.",
+        nextStatus === "active" ? messages.enabledFlash : messages.disabledFlash,
       );
       router.refresh();
     } catch (toggleError) {
       setError(
         toggleError instanceof Error
           ? toggleError.message
-          : "Failed to update domain status.",
+          : messages.statusUpdateFailed,
       );
     } finally {
       setIsToggling(false);
@@ -252,17 +260,17 @@ export function IntelligenceDomainCard({
       const payload = await response.json();
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to delete Intelligence Domain.");
+        throw new Error(payload.error || messages.deleteFailed);
       }
 
       setShowDeleteConfirm(false);
-      setMessage(payload.message || "Intelligence Domain removed.");
+      setMessage(payload.message || messages.removedFlash);
       router.refresh();
     } catch (deleteError) {
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Failed to delete Intelligence Domain.",
+          : messages.deleteFailed,
       );
     } finally {
       setIsDeleting(false);
@@ -274,13 +282,14 @@ export function IntelligenceDomainCard({
       <article className="overflow-hidden rounded-[20px] border border-white/10 bg-[#111116] p-1">
         <IntelligenceDomainEditPanel
           domain={domain}
+          messages={messages}
           onCancel={() => {
             setIsEditing(false);
             setError(null);
           }}
           onSaved={() => {
             setIsEditing(false);
-            setMessage("Intelligence Domain updated.");
+            setMessage(messages.updatedFlash);
           }}
         />
       </article>
@@ -306,12 +315,15 @@ export function IntelligenceDomainCard({
 
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-white/45">
             <span className="max-w-full truncate">
-              Market:{" "}
+              {messages.marketLabel}{" "}
               <span className="text-white/70">{domain.niche || "—"}</span>
             </span>
-            <IntelligenceDomainStatusBadge status={domain.status} />
+            <IntelligenceDomainStatusBadge
+              status={domain.status}
+              label={statusLabel}
+            />
             <span>
-              Priority:{" "}
+              {messages.priorityLabel}{" "}
               <span className="font-semibold text-[var(--athena-orange)]">
                 {domain.priority}
               </span>
@@ -330,7 +342,7 @@ export function IntelligenceDomainCard({
             }}
             className={`${compactButtonClassName} border-white/15 text-white/80 hover:border-[var(--athena-orange)]/40 hover:text-white`}
           >
-            Edit
+            {messages.edit}
           </button>
 
           <button
@@ -339,14 +351,14 @@ export function IntelligenceDomainCard({
             disabled={isToggling}
             className={`${compactButtonClassName} border-white/15 text-white/80 hover:border-[var(--athena-orange)]/40 hover:text-white disabled:opacity-50`}
           >
-            {isToggling ? "..." : isActive ? "Disable" : "Enable"}
+            {isToggling ? "..." : isActive ? messages.disable : messages.enable}
           </button>
 
           <Link
             href={`/communities/${domain.id}`}
             className={`${compactButtonClassName} border-white/15 text-white/70 hover:text-white`}
           >
-            Open
+            {messages.open}
           </Link>
 
           <button
@@ -357,7 +369,7 @@ export function IntelligenceDomainCard({
             }}
             className={`${compactButtonClassName} border-red-500/30 text-red-300 hover:border-red-400/50`}
           >
-            {discussionCount > 0 ? "Remove" : "Delete"}
+            {discussionCount > 0 ? messages.remove : messages.delete}
           </button>
         </div>
       </div>
@@ -366,8 +378,13 @@ export function IntelligenceDomainCard({
         <div className="mt-4 rounded-2xl border border-red-500/20 bg-[#0d0d12] p-4">
           <p className="text-xs leading-6 text-white/70">
             {discussionCount > 0
-              ? `This domain has ${discussionCount} linked discussion${discussionCount === 1 ? "" : "s"}. Athena will disable it instead of deleting historical intelligence.`
-              : "Delete this Intelligence Domain permanently? This cannot be undone."}
+              ? interpolateTenantMessage(
+                  discussionCount === 1
+                    ? messages.disableConfirmOne
+                    : messages.disableConfirmMany,
+                  { count: discussionCount },
+                )
+              : messages.deleteConfirmEmpty}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
@@ -375,7 +392,7 @@ export function IntelligenceDomainCard({
               onClick={() => setShowDeleteConfirm(false)}
               className={`${compactButtonClassName} border-white/15 text-white/70`}
             >
-              Cancel
+              {messages.cancel}
             </button>
             <button
               type="button"
@@ -384,10 +401,10 @@ export function IntelligenceDomainCard({
               className={`${compactButtonClassName} border-red-500/30 bg-red-500/10 text-red-200 disabled:opacity-50`}
             >
               {isDeleting
-                ? "Working..."
+                ? messages.working
                 : discussionCount > 0
-                  ? "Confirm Disable"
-                  : "Confirm Delete"}
+                  ? messages.confirmDisable
+                  : messages.confirmDelete}
             </button>
           </div>
         </div>

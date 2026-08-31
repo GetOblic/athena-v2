@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type IntelligenceDomainOption = {
   id: string;
@@ -10,6 +11,7 @@ type IntelligenceDomainOption = {
 
 type CaptureDiscussionFormProps = {
   intelligenceDomains: IntelligenceDomainOption[];
+  messages: TenantMessages["inbox"];
 };
 
 type ImportResponse = {
@@ -27,7 +29,10 @@ type ImportResponse = {
 const fieldClassName =
   "rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25";
 
-function errorMessageFromPayload(payload: ImportResponse): string {
+function errorMessageFromPayload(
+  payload: ImportResponse,
+  fallback: string,
+): string {
   if (typeof payload.error === "string" && payload.error.trim()) {
     return payload.error;
   }
@@ -38,11 +43,12 @@ function errorMessageFromPayload(payload: ImportResponse): string {
   ) {
     return payload.error.message;
   }
-  return "Failed to import discussion.";
+  return fallback;
 }
 
 export function CaptureDiscussionForm({
   intelligenceDomains,
+  messages,
 }: CaptureDiscussionFormProps) {
   const [domainId, setDomainId] = useState("");
   const [platform, setPlatform] = useState("");
@@ -91,26 +97,23 @@ export function CaptureDiscussionForm({
       });
 
       const payload = await parseJsonResponse<ImportResponse>(response, {
-        unexpectedMessage:
-          "Athena received an unexpected server response while queuing this discussion.",
+        unexpectedMessage: messages.unexpectedResponse,
       });
 
       const discussionId =
         payload.discussionId ?? payload.discussion?.id ?? undefined;
 
       if (!response.ok || (!payload.success && !payload.ok)) {
-        throw new Error(errorMessageFromPayload(payload));
+        throw new Error(errorMessageFromPayload(payload, messages.importFailed));
       }
 
       if (!discussionId) {
-        throw new Error("Discussion was queued but no discussion id was returned.");
+        throw new Error(messages.missingId);
       }
 
       setResult({
         ok: true,
-        message:
-          payload.message ??
-          "Discussion imported. Athena is processing intelligence in the background — you can open it now.",
+        message: payload.message ?? messages.importSuccess,
         discussionId,
       });
 
@@ -123,7 +126,7 @@ export function CaptureDiscussionForm({
       setResult({
         ok: false,
         message:
-          error instanceof Error ? error.message : "Failed to import discussion.",
+          error instanceof Error ? error.message : messages.importFailed,
       });
     } finally {
       setIsSubmitting(false);
@@ -138,14 +141,14 @@ export function CaptureDiscussionForm({
       <div className="grid gap-5">
         <label className="grid gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Intelligence Domain
+            {messages.domainLabel}
           </span>
           <select
             value={domainId}
             onChange={(event) => setDomainId(event.target.value)}
             className={fieldClassName}
           >
-            <option value="">No Intelligence Domain selected</option>
+            <option value="">{messages.domainNone}</option>
             {intelligenceDomains.map((domain) => (
               <option key={domain.id} value={domain.id}>
                 {domain.name}
@@ -153,61 +156,60 @@ export function CaptureDiscussionForm({
             ))}
           </select>
           <span className="text-xs leading-5 text-white/40">
-            Choose the market this discussion belongs to. Athena will use that
-            domain&apos;s knowledge when analyzing it.
+            {messages.domainHelp}
           </span>
         </label>
 
         <div className="grid gap-5 md:grid-cols-2">
           <label className="grid gap-2">
             <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-              Platform
+              {messages.platform}
             </span>
             <input
               value={platform}
               onChange={(event) => setPlatform(event.target.value)}
               required
-              placeholder="Instagram, Facebook, Reddit, LinkedIn, Email..."
+              placeholder={messages.platformPlaceholder}
               className={fieldClassName}
             />
           </label>
 
           <label className="grid gap-2">
             <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-              Title
+              {messages.titleField}
             </span>
             <input
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               required
-              placeholder="Discussion title"
+              placeholder={messages.titlePlaceholder}
               className={fieldClassName}
             />
           </label>
 
           <label className="grid gap-2">
             <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-              Author
+              {messages.author}
             </span>
             <input
               value={author}
               onChange={(event) => setAuthor(event.target.value)}
               required
-              placeholder="Author name"
+              placeholder={messages.authorPlaceholder}
               className={fieldClassName}
             />
           </label>
 
           <label className="grid gap-2">
             <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-              Source URL
+              {messages.sourceUrl}
             </span>
             <input
               value={url}
               onChange={(event) => setUrl(event.target.value)}
               required
               type="url"
-              placeholder="https://..."
+              placeholder={messages.urlPlaceholder}
               className={fieldClassName}
             />
           </label>
@@ -215,14 +217,14 @@ export function CaptureDiscussionForm({
 
         <label className="grid gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Discussion
+            {messages.discussion}
           </span>
           <textarea
             value={body}
             onChange={(event) => setBody(event.target.value)}
             required
             rows={14}
-            placeholder="Paste the discussion here. Athena will normalize it into the intelligence pipeline."
+            placeholder={messages.discussionPlaceholder}
             className={`resize-y leading-6 ${fieldClassName}`}
           />
         </label>
@@ -233,7 +235,7 @@ export function CaptureDiscussionForm({
             disabled={isSubmitting || !canSubmit}
             className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isSubmitting ? "Importing..." : "Import Discussion"}
+            {isSubmitting ? messages.importing : messages.importCta}
           </button>
 
           {result && (
@@ -250,7 +252,7 @@ export function CaptureDiscussionForm({
                     href={`/discussions/${result.discussionId}`}
                     className="text-[var(--athena-orange)] underline"
                   >
-                    Open discussion
+                    {messages.openDiscussion}
                   </a>
                 </>
               ) : null}

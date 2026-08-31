@@ -1,6 +1,7 @@
-import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { CaptureDiscussionForm } from "@/components/inbox/CaptureDiscussionForm";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import {
   getIntelligenceDomainName,
   getActiveIntelligenceDomains,
@@ -9,29 +10,34 @@ import { requireCurrentOrganizationContext } from "@/services/organizationServic
 
 export default async function InboxPage() {
   const { organizationId } = await requireCurrentOrganizationContext();
-  const domains = await getActiveIntelligenceDomains(organizationId);
+  const [{ messages }, domains] = await Promise.all([
+    getTenantLocalization(),
+    getActiveIntelligenceDomains(organizationId),
+  ]);
+  const copy = messages.inbox;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink className="mb-8" />
+      <AthenaBrandLink
+        className="mb-8"
+        tagline={messages.chrome.tagline}
+        logoutLabel={messages.chrome.logOut}
+        sessionActionsLabel={messages.chrome.sessionActions}
+      />
 
-      <Link href="/" className="text-sm text-[var(--athena-orange)]">
-        ← Dashboard
-      </Link>
+      <TenantBackLink href="/" label={copy.backToDashboard} />
 
       <div className="mb-10 mt-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Athena Inbox
+          {copy.eyebrow}
         </div>
 
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          Capture Discussion
+          {copy.title}
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Paste a discussion from any source. Athena will normalize the
-          conversation, understand its context, and generate market intelligence,
-          opportunities, executive briefings and reusable assets.
+          {copy.subtitle}
         </p>
       </div>
 
@@ -40,6 +46,7 @@ export default async function InboxPage() {
           id: domain.id,
           name: getIntelligenceDomainName(domain),
         }))}
+        messages={copy}
       />
     </main>
   );

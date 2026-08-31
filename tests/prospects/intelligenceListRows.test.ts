@@ -28,7 +28,9 @@ describe("Standardized clickable intelligence rows", () => {
       source,
       /href=\{`\/discussions\/\$\{discussion\.id\}`\}/,
     );
-    assert.match(source, /ariaLabel=\{`Open discussion/);
+    assert.match(source, /ariaLabel=\{interpolateTenantMessage\(/);
+    assert.match(source, /copy\.openDiscussionAria/);
+    assert.match(source, /title: discussion\.title/);
   });
 
   it("Briefing rows are fully clickable", () => {
@@ -58,7 +60,7 @@ describe("Standardized clickable intelligence rows", () => {
     const briefings = read("app/briefings/page.tsx");
     const opportunities = read("app/opportunities/page.tsx");
 
-    assert.match(discussions, /getDiscussionActionLabel/);
+    assert.match(discussions, /getLocalizedDiscussionActionLabel/);
     assert.match(
       discussions,
       /<Link[\s\S]*href=\{`\/discussions\/\$\{discussion\.id\}`\}[\s\S]*<\/Link>/,

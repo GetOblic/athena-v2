@@ -64,6 +64,7 @@ export default async function IntelligenceDomainsPage({
     getIntelligenceDomainDiscussionCounts(organizationId),
     getTenantLocalization(),
   ]);
+  const copy = messages.intelligenceDomains;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] text-white">
@@ -83,30 +84,27 @@ export default async function IntelligenceDomainsPage({
 
           <div className="mb-10">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-              Market Context
+              {copy.eyebrow}
             </div>
 
             <h1 className="mt-4 text-4xl font-semibold tracking-tight lg:text-5xl">
-              Intelligence Domains
+              {copy.title}
             </h1>
 
             <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-              Define the markets Athena should understand — each domain tells
-              Athena which expertise, terminology and business context to apply
-              when analyzing discussions.
+              {copy.subtitle}
             </p>
           </div>
 
           {params.created === "true" && (
             <div className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-300">
-              Intelligence Domain created successfully.
+              {copy.created}
             </div>
           )}
 
           {params.error === "create_failed" && (
             <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm text-red-300">
-              Could not create Intelligence Domain. Please check the name and try
-              again.
+              {copy.createFailed}
             </div>
           )}
 
@@ -114,8 +112,7 @@ export default async function IntelligenceDomainsPage({
             <div className="min-w-0 overflow-hidden rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-4 sm:p-6">
               {domains.length === 0 ? (
                 <div className="p-6 text-center text-white/40">
-                  No Intelligence Domains yet. Create your first domain to tell
-                  Athena which market context to use.
+                  {copy.empty}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -124,13 +121,14 @@ export default async function IntelligenceDomainsPage({
                       key={domain.id}
                       domain={domain}
                       discussionCount={discussionCounts.get(domain.id) ?? 0}
+                      messages={copy}
                     />
                   ))}
                 </div>
               )}
             </div>
 
-            <CreateIntelligenceDomainForm action={createDomain} />
+            <CreateIntelligenceDomainForm action={createDomain} messages={copy} />
           </div>
         </section>
       </div>

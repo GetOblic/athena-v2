@@ -601,9 +601,7 @@ describe("V31 L3.3 tenant page body — boundaries", () => {
     assert.deepEqual(clientHits, []);
   });
 
-  it("does not localize Licensee, Super Admin, login, or Intelligence Domains body", () => {
-    const domains = read("app/intelligence-domains/page.tsx");
-    assert.doesNotMatch(domains, /messages\.(dashboard|gettingStarted|identity)/);
+  it("does not localize Licensee, Super Admin, or login", () => {
     for (const file of [
       "app/login/page.tsx",
       "app/licensee/page.tsx",
@@ -624,6 +622,9 @@ describe("V31 L3.3 tenant page body — boundaries", () => {
     assert.ok(canonical.includes("identity.deepScrape.crawlingWithTarget"));
     assert.ok(canonical.includes("identity.deepScrape.renderingWithTarget"));
     assert.ok(canonical.includes("conversation.readOnlyNotice"));
+    assert.ok(canonical.includes("intelligenceDomains.title"));
+    assert.ok(canonical.includes("inbox.title"));
+    assert.ok(canonical.includes("discussions.queueInReview"));
     for (const language of ORGANIZATION_LANGUAGES) {
       const paths = collectKeyPaths(DICTIONARIES[language]);
       assert.deepEqual(
