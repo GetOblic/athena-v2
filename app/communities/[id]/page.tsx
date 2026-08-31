@@ -8,6 +8,11 @@ import { DomainIntelligenceSections } from "@/components/intelligenceDomains/Dom
 import { DomainLearningEmptyState } from "@/components/intelligenceDomains/DomainLearningEmptyState";
 import { IntelligenceDomainStatusBadge } from "@/components/intelligenceDomains/IntelligenceDomainStatusBadge";
 import { LearningTimeline } from "@/components/intelligenceDomains/LearningTimeline";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import { getLocalizedDomainHealthLabel } from "@/lib/tenantI18n/intelligenceDomainPresentation";
+import { getLocalizedIntelligenceDomainStatus } from "@/lib/tenantI18n/intelligenceDomainStatus";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { getCommunityById } from "@/services/communityService";
 import {
   getCommunityIntelligenceHistory,
@@ -31,18 +36,25 @@ export default async function CommunityDetailsPage({
 }) {
   const { id } = await params;
   const { organizationId } = await requireCurrentOrganizationContext();
-  const community = await getCommunityById(id, organizationId);
+  const [{ language, locale, messages }, community] = await Promise.all([
+    getTenantLocalization(),
+    getCommunityById(id, organizationId),
+  ]);
+  const copy = messages.intelligenceDomains.detail;
 
   if (!community) {
     return (
       <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-        <AthenaBrandLink className="mb-8" />
+        <AthenaBrandLink
+          className="mb-8"
+          tagline={messages.chrome.tagline}
+          logoutLabel={messages.chrome.logOut}
+          sessionActionsLabel={messages.chrome.sessionActions}
+        />
 
-        <Link href="/intelligence-domains" className="text-sm text-[var(--athena-orange)]">
-          ← Back to Intelligence Domains
-        </Link>
+        <TenantBackLink href="/intelligence-domains" label={copy.backToDomains} />
 
-        <h1 className="mt-8 text-4xl font-semibold">Intelligence Domain not found</h1>
+        <h1 className="mt-8 text-4xl font-semibold">{copy.notFound}</h1>
       </main>
     );
   }
@@ -70,19 +82,26 @@ export default async function CommunityDetailsPage({
 
   const hasDiscussions = discussions.length > 0;
   const hasAnalyzedDiscussions = stats.discussionsAnalyzed > 0;
+  const capturedHelp =
+    stats.discussionsCaptured === 1
+      ? copy.discussionsCapturedHelpOne
+      : copy.discussionsCapturedHelpMany;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink className="mb-8" />
+      <AthenaBrandLink
+        className="mb-8"
+        tagline={messages.chrome.tagline}
+        logoutLabel={messages.chrome.logOut}
+        sessionActionsLabel={messages.chrome.sessionActions}
+      />
 
-      <Link href="/intelligence-domains" className="text-sm text-[var(--athena-orange)]">
-        ← Back to Intelligence Domains
-      </Link>
+      <TenantBackLink href="/intelligence-domains" label={copy.backToDomains} />
 
       <div className="mt-10 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Intelligence Domain
+            {copy.eyebrow}
           </div>
 
           <h1 className="mt-4 text-5xl font-semibold tracking-tight">
@@ -90,7 +109,7 @@ export default async function CommunityDetailsPage({
           </h1>
 
           <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-            Executive intelligence for this monitored market domain.
+            {copy.subtitle}
           </p>
         </div>
 
@@ -98,49 +117,72 @@ export default async function CommunityDetailsPage({
           <IntelligenceDomainHeaderActions
             domain={community}
             discussionCount={discussionCount}
+            messages={messages.intelligenceDomains}
           />
           <div className="w-full xl:flex xl:justify-end">
-            <GenerateCommunityIntelligenceButton communityId={community.id} />
+            <GenerateCommunityIntelligenceButton
+              communityId={community.id}
+              chrome={{
+                refreshIntelligence: copy.refreshIntelligence,
+                refreshingIntelligence: copy.refreshingIntelligence,
+                refreshFailed: copy.refreshFailed,
+                unknownError: copy.unknownError,
+              }}
+            />
           </div>
         </div>
       </div>
 
       <div className="mt-10 grid gap-4 md:grid-cols-3 xl:grid-cols-7">
-        <StatCard label="Discussions captured" value={stats.discussionsCaptured} />
-        <StatCard label="Discussions analyzed" value={stats.discussionsAnalyzed} />
-        <StatCard label="High-intent discussions" value={stats.highIntentDiscussions} />
-        <StatCard label="Opportunities detected" value={stats.opportunitiesDetected} />
-        <StatCard label="Briefings generated" value={stats.briefingsGenerated} />
-        <StatCard label="Asset blueprints" value={stats.assetBlueprintsGenerated} />
+        <StatCard label={copy.statDiscussionsCaptured} value={stats.discussionsCaptured} />
+        <StatCard label={copy.statDiscussionsAnalyzed} value={stats.discussionsAnalyzed} />
+        <StatCard label={copy.statHighIntent} value={stats.highIntentDiscussions} />
+        <StatCard label={copy.statOpportunities} value={stats.opportunitiesDetected} />
+        <StatCard label={copy.statBriefings} value={stats.briefingsGenerated} />
+        <StatCard label={copy.statAssetBlueprints} value={stats.assetBlueprintsGenerated} />
         <StatCard
-          label="Knowledge confidence"
+          label={copy.statKnowledgeConfidence}
           value={
             stats.knowledgeConfidence != null
               ? `${stats.knowledgeConfidence}%`
-              : "Learning"
+              : getLocalizedDomainHealthLabel(messages, "Learning")
           }
         />
       </div>
 
       <div className="mt-8">
-        <DomainHealthCard health={domainHealth} />
+        <DomainHealthCard
+          health={domainHealth}
+          copy={copy}
+          healthLabel={getLocalizedDomainHealthLabel(
+            messages,
+            domainHealth.healthLabel,
+          )}
+        />
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
-        <Metric label="Platform" value={community.platform} />
-        <Metric label="Status">
-          <IntelligenceDomainStatusBadge status={community.status} size="lg" />
+        <Metric label={copy.labelPlatform} value={community.platform} />
+        <Metric label={messages.intelligenceDomains.status}>
+          <IntelligenceDomainStatusBadge
+            status={community.status}
+            size="lg"
+            label={getLocalizedIntelligenceDomainStatus(messages, community.status)}
+          />
         </Metric>
-        <Metric label="Priority" value={String(community.priority)} />
+        <Metric
+          label={messages.intelligenceDomains.priority}
+          value={String(community.priority)}
+        />
       </div>
 
       <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <h2 className="text-xl font-semibold">Athena&apos;s Understanding</h2>
+          <h2 className="text-xl font-semibold">{copy.understandingTitle}</h2>
 
           {latestIntelligence && (
             <div className="text-sm text-white/40">
-              Confidence:{" "}
+              {copy.confidenceLabel}{" "}
               <span className="text-[var(--athena-orange)]">
                 {latestIntelligence.confidence}%
               </span>
@@ -154,34 +196,36 @@ export default async function CommunityDetailsPage({
               {latestIntelligence.executive_summary}
             </div>
           ) : (
-            <div className="mt-6 text-white/50">
-              No executive summary yet. Generate domain intelligence to help Athena
-              understand this market.
-            </div>
+            <div className="mt-6 text-white/50">{copy.noExecutiveSummary}</div>
           )
         ) : hasDiscussions ? (
           <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/60">
-            {stats.discussionsCaptured} discussion
-            {stats.discussionsCaptured === 1 ? "" : "s"} captured for this domain.
-            Run Athena analysis on each thread, then refresh intelligence to build
-            executive understanding.
+            {interpolateTenantMessage(capturedHelp, {
+              count: stats.discussionsCaptured,
+            })}
           </div>
         ) : (
-          <DomainLearningEmptyState />
+          <DomainLearningEmptyState copy={copy} />
         )}
 
-        <DomainIntelligenceSections intelligence={latestIntelligence} />
+        <DomainIntelligenceSections
+          intelligence={latestIntelligence}
+          messages={messages}
+        />
       </div>
 
-      <LearningTimeline events={learningTimeline} />
+      <LearningTimeline
+        events={learningTimeline}
+        messages={messages}
+        language={language}
+        locale={locale}
+      />
 
       <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <h2 className="text-xl font-semibold">Captured Discussions</h2>
+        <h2 className="text-xl font-semibold">{copy.capturedDiscussions}</h2>
 
         {discussions.length === 0 ? (
-          <div className="mt-8 text-white/50">
-            No discussions captured for this domain yet.
-          </div>
+          <div className="mt-8 text-white/50">{copy.capturedDiscussionsEmpty}</div>
         ) : (
           <div className="mt-8 space-y-4">
             {discussions.map((discussion) => (
@@ -195,7 +239,7 @@ export default async function CommunityDetailsPage({
 
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/40">
                       <span>
-                        Opportunity Score{" "}
+                        {copy.opportunityScore}{" "}
                         <span className="font-semibold text-[var(--athena-orange)]">
                           {discussion.opportunity_score}
                         </span>
@@ -210,7 +254,7 @@ export default async function CommunityDetailsPage({
                     href={`/discussions/${discussion.id}`}
                     className="shrink-0 rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
                   >
-                    Open
+                    {messages.intelligenceDomains.open}
                   </Link>
                 </div>
               </div>
@@ -220,21 +264,37 @@ export default async function CommunityDetailsPage({
       </div>
 
       <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <h2 className="text-xl font-semibold">Domain Profile</h2>
+        <h2 className="text-xl font-semibold">{copy.profileTitle}</h2>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
-          <Field label="Market / Niche" value={community.niche} />
-          <Field label="Member Count" value={community.member_count?.toString()} />
-          <Field label="Owner" value={community.owner} />
-          <Field label="URL" value={community.group_url} />
+          <Field
+            label={messages.intelligenceDomains.marketNiche}
+            value={community.niche}
+            emptyValue={copy.emptyValue}
+          />
+          <Field
+            label={copy.labelMemberCount}
+            value={community.member_count?.toString()}
+            emptyValue={copy.emptyValue}
+          />
+          <Field
+            label={copy.labelOwner}
+            value={community.owner}
+            emptyValue={copy.emptyValue}
+          />
+          <Field
+            label={copy.labelUrl}
+            value={community.group_url}
+            emptyValue={copy.emptyValue}
+          />
         </div>
       </div>
 
       <div className="mt-8 rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <h2 className="text-xl font-semibold">Notes</h2>
+        <h2 className="text-xl font-semibold">{copy.notesTitle}</h2>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/60">
-          {community.notes || "No notes yet."}
+          {community.notes || copy.notesEmpty}
         </div>
       </div>
     </main>
@@ -271,11 +331,21 @@ function Metric({
   );
 }
 
-function Field({ label, value }: { label: string; value?: string | number | null }) {
+function Field({
+  label,
+  value,
+  emptyValue,
+}: {
+  label: string;
+  value?: string | number | null;
+  emptyValue: string;
+}) {
   return (
     <div>
       <div className="text-sm text-white/40">{label}</div>
-      <div className="mt-2 text-base leading-7 text-white/80">{value || "—"}</div>
+      <div className="mt-2 text-base leading-7 text-white/80">
+        {value || emptyValue}
+      </div>
     </div>
   );
 }

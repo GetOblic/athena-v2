@@ -10,6 +10,7 @@ import {
 import {
   formatTenantDate,
   formatTenantDateTime,
+  formatTenantTimelineDateTime,
   toFormattingLocale,
 } from "../../lib/tenantI18n/format";
 import { getTenantMessages } from "../../lib/tenantI18n/getTenantMessages";
@@ -127,6 +128,7 @@ describe("V31 L3.1 tenant i18n — language contract", () => {
       "lib/tenantI18n/seoPresentation.ts",
       "lib/tenantI18n/socialPlannerPresentation.ts",
       "lib/tenantI18n/intelligenceDomainStatus.ts",
+      "lib/tenantI18n/intelligenceDomainPresentation.ts",
       "lib/tenantI18n/messages/en.ts",
       "lib/tenantI18n/messages/fr.ts",
       "lib/tenantI18n/messages/es.ts",
@@ -249,6 +251,36 @@ describe("V31 L3.1 tenant i18n — formatting", () => {
     assert.doesNotMatch(formatted, /30/);
     assert.equal(formatTenantDate("not-a-date", "fr"), "");
     assert.ok(formatTenantDateTime("2026-08-31T15:04:00.000Z", "de"));
+  });
+
+  it("formats timeline datetimes with tenant locale and no year", () => {
+    const stamp = "2026-08-20T15:04:00.000Z";
+    const options: Intl.DateTimeFormatOptions = {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    };
+    for (const language of ORGANIZATION_LANGUAGES) {
+      const locale = EXPECTED_FORMATTING_LOCALES[language];
+      const formatted = formatTenantTimelineDateTime(stamp, language);
+      assert.equal(
+        formatted,
+        new Intl.DateTimeFormat(locale, options).format(new Date(stamp)),
+      );
+      const types = new Set(
+        new Intl.DateTimeFormat(locale, options)
+          .formatToParts(new Date(stamp))
+          .map((part) => part.type),
+      );
+      assert.equal(types.has("year"), false);
+      assert.doesNotMatch(formatted, /2026/);
+    }
+    assert.notEqual(
+      formatTenantTimelineDateTime(stamp, "fr"),
+      formatTenantTimelineDateTime(stamp, "en"),
+    );
+    assert.match(formatTenantDateTime(stamp, "en"), /2026/);
   });
 });
 

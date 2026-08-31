@@ -563,6 +563,93 @@ export const fr: TenantMessages = {
     updateFailed: "Échec de la mise à jour de l’Intelligence Domain.",
     statusUpdateFailed: "Échec de la mise à jour du statut du domaine.",
     deleteFailed: "Échec de la suppression de l’Intelligence Domain.",
+    detail: {
+      backToDomains: "← Retour aux Intelligence Domains",
+      notFound: "Intelligence Domain introuvable",
+      eyebrow: "Intelligence Domain",
+      subtitle:
+        "Intelligence exécutive pour ce domaine de marché surveillé.",
+      statDiscussionsCaptured: "Discussions capturées",
+      statDiscussionsAnalyzed: "Discussions analysées",
+      statHighIntent: "Discussions à forte intention",
+      statOpportunities: "Opportunités détectées",
+      statBriefings: "Briefings générés",
+      statAssetBlueprints: "Blueprints d’assets",
+      statKnowledgeConfidence: "Confiance de connaissance",
+      labelPlatform: "Plateforme",
+      understandingTitle: "La compréhension d’Athena",
+      confidenceLabel: "Confiance :",
+      noExecutiveSummary:
+        "Aucun résumé exécutif pour le moment. Générez l’intelligence du domaine pour aider Athena à comprendre ce marché.",
+      discussionsCapturedHelpOne:
+        "{count} discussion capturée pour ce domaine. Lancez l’analyse Athena sur chaque fil, puis actualisez l’intelligence pour construire une compréhension exécutive.",
+      discussionsCapturedHelpMany:
+        "{count} discussions capturées pour ce domaine. Lancez l’analyse Athena sur chaque fil, puis actualisez l’intelligence pour construire une compréhension exécutive.",
+      capturedDiscussions: "Discussions capturées",
+      capturedDiscussionsEmpty:
+        "Aucune discussion capturée pour ce domaine pour le moment.",
+      opportunityScore: "Score d’opportunité",
+      profileTitle: "Profil du domaine",
+      labelMemberCount: "Nombre de membres",
+      labelOwner: "Propriétaire",
+      labelUrl: "URL",
+      emptyValue: "—",
+      notesTitle: "Notes",
+      notesEmpty: "Aucune note pour le moment.",
+      domainHealth: "Santé du domaine",
+      healthActiveHelp:
+        "Ce domaine est actif et alimente l’intelligence d’Athena.",
+      healthInactiveHelp:
+        "Ce domaine est inactif et masqué des workflows de capture.",
+      knowledgeConfidence: "Confiance de connaissance",
+      confidenceLearningHelp:
+        "Athena gagnera en confiance à mesure que davantage de discussions seront analysées.",
+      movement: "Évolution",
+      movementHelp:
+        "Variation depuis la précédente actualisation de l’intelligence du domaine.",
+      healthLearning: "Apprentissage",
+      healthBuilding: "Construction",
+      healthConfident: "Confiant",
+      healthMature: "Mature",
+      learningPhase: "Phase d’apprentissage",
+      learningReady: "Athena est prête à apprendre ce marché.",
+      learningHelp:
+        "Importez des discussions depuis Facebook, Reddit, LinkedIn, des sites web, des entretiens, des e-mails, des conversations de support ou des notes de réunion. Après environ 20–30 discussions de qualité, Athena commencera à identifier les points de douleur récurrents, les signaux d’achat, les tendances émergentes, les concurrents et les opportunités stratégiques.",
+      sectionTerminology: "Terminologie",
+      sectionCompetitors: "Concurrents / Alternatives",
+      sectionPeopleBrands: "Personnes / marques importantes",
+      sectionQuestions: "Questions récurrentes",
+      sectionObjections: "Objections récurrentes",
+      sectionTrends: "Tendances émergentes",
+      sectionContentAngles: "Angles de contenu recommandés",
+      sectionEmpty:
+        "Athena remplira cette section à mesure que davantage de discussions seront analysées.",
+      timelineTitle: "Chronologie d’apprentissage",
+      timelineSubtitle:
+        "Signaux récents qu’Athena a utilisés pour comprendre ce domaine.",
+      timelineEmpty:
+        "Athena remplira cette chronologie à mesure que davantage de discussions seront analysées et que l’intelligence du domaine sera actualisée.",
+      eventIntelligence: "Intelligence du domaine actualisée",
+      eventImport: "Discussion importée",
+      eventAnalysis: "Discussion analysée",
+      eventRegeneration: "Analyse IA régénérée",
+      eventUpdate: "Discussion mise à jour",
+      eventOpportunity: "Opportunité détectée",
+      eventBriefing: "Briefing généré",
+      eventBlueprint: "Asset blueprint créé",
+      refreshIntelligence: "Actualiser l’intelligence",
+      refreshingIntelligence: "Actualisation de l’intelligence…",
+      refreshFailed:
+        "Échec de la génération de l’intelligence de communauté",
+      unknownError: "Erreur inconnue",
+      editDomain: "Modifier le domaine",
+      cancelEdit: "Annuler la modification",
+      currentStatus: "Statut actuel : {status}",
+      disableConfirmLinkedOne:
+        "Ce domaine a {count} discussion liée. Athena le désactivera pour préserver l’intelligence liée.",
+      disableConfirmLinkedMany:
+        "Ce domaine a {count} discussions liées. Athena le désactivera pour préserver l’intelligence liée.",
+    },
   },
   inbox: {
     backToDashboard: "← Tableau de bord",

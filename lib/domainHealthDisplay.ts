@@ -21,7 +21,18 @@ export function formatDomainHealthState(input: {
   return "Learning";
 }
 
-export function getDomainHealthStateColor(state: DomainHealthState): string {
+export function isDomainHealthState(
+  value?: string | null,
+): value is DomainHealthState {
+  return (
+    value === "Learning" ||
+    value === "Building" ||
+    value === "Confident" ||
+    value === "Mature"
+  );
+}
+
+export function getDomainHealthStateColor(state: string): string {
   switch (state) {
     case "Mature":
       return "text-[var(--athena-success)]";

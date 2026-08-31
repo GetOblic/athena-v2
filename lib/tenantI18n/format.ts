@@ -32,6 +32,14 @@ const DATETIME_FORMAT: Intl.DateTimeFormatOptions = {
   minute: "2-digit",
 };
 
+/** Pre-L3.10.1 LearningTimeline fields: month, day, hour, minute. No year. */
+const TIMELINE_DATETIME_FORMAT: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+};
+
 export function toFormattingLocale(
   language: OrganizationLanguage,
 ): TenantFormattingLocale {
@@ -84,4 +92,33 @@ export function formatTenantDateTime(
   language: OrganizationLanguage,
 ): string {
   return formatWithLocale(value, language, DATETIME_FORMAT);
+}
+
+/**
+ * Learning Timeline presentation: tenant locale with the pre-L3.10.1
+ * information shape (month, day, hour, minute). Does not add a year and
+ * does not change stored timestamps or timezone source.
+ */
+export function formatTenantTimelineDateTime(
+  value: Date | string,
+  language: OrganizationLanguage,
+): string {
+  return formatWithLocale(value, language, TIMELINE_DATETIME_FORMAT);
+}
+
+/**
+ * Timeline presentation from an already-resolved tenant locale.
+ * Same semantic fields as formatTenantTimelineDateTime.
+ */
+export function formatTenantTimelineDateTimeLocale(
+  value: Date | string,
+  locale: TenantFormattingLocale,
+): string {
+  const date = resolveDateInput(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat(locale, TIMELINE_DATETIME_FORMAT).format(
+    date,
+  );
 }

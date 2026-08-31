@@ -2,8 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { formatIntelligenceDomainStatus } from "@/lib/intelligenceDomainStatus";
+import {
+  formatIntelligenceDomainStatus,
+  normalizeIntelligenceDomainStatus,
+} from "@/lib/intelligenceDomainStatus";
 import { INTELLIGENCE_DOMAIN_PRIORITY_HELPER } from "@/components/intelligenceDomains/IntelligenceDomainRowActions";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type IntelligenceDomainHeaderActionsProps = {
   domain: {
@@ -15,6 +20,7 @@ type IntelligenceDomainHeaderActionsProps = {
     priority: number;
   };
   discussionCount: number;
+  messages?: TenantMessages["intelligenceDomains"];
 };
 
 const headerButtonClassName =
@@ -26,6 +32,7 @@ const fieldClassName =
 export function IntelligenceDomainHeaderActions({
   domain,
   discussionCount,
+  messages,
 }: IntelligenceDomainHeaderActionsProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -33,12 +40,24 @@ export function IntelligenceDomainHeaderActions({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const updateFailed =
+    messages?.updateFailed ?? "Failed to update Intelligence Domain.";
+  const statusUpdateFailed =
+    messages?.statusUpdateFailed ?? "Failed to update domain status.";
+  const deleteFailed =
+    messages?.deleteFailed ?? "Failed to delete Intelligence Domain.";
+  const statusActive = messages?.statusActive ?? "Active";
+  const statusInactive = messages?.statusInactive ?? "Inactive";
 
   const [name, setName] = useState(domain.group_name);
   const [description, setDescription] = useState(domain.notes ?? "");
   const [market, setMarket] = useState(domain.niche ?? "");
   const [status, setStatus] = useState(domain.status || "active");
   const [priority, setPriority] = useState(String(domain.priority));
+  const currentStatusLabel =
+    normalizeIntelligenceDomainStatus(status) === "active"
+      ? statusActive
+      : statusInactive;
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,16 +80,14 @@ export function IntelligenceDomainHeaderActions({
       const payload = await response.json();
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to update Intelligence Domain.");
+        throw new Error(payload.error || updateFailed);
       }
 
       setIsEditing(false);
       router.refresh();
     } catch (saveError) {
       setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Failed to update Intelligence Domain.",
+        saveError instanceof Error ? saveError.message : updateFailed,
       );
     } finally {
       setIsSaving(false);
@@ -91,7 +108,7 @@ export function IntelligenceDomainHeaderActions({
       const payload = await response.json();
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to update domain status.");
+        throw new Error(payload.error || statusUpdateFailed);
       }
 
       router.refresh();
@@ -99,7 +116,7 @@ export function IntelligenceDomainHeaderActions({
       setError(
         toggleError instanceof Error
           ? toggleError.message
-          : "Failed to update domain status.",
+          : statusUpdateFailed,
       );
     }
   }
@@ -116,7 +133,7 @@ export function IntelligenceDomainHeaderActions({
       const payload = await response.json();
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to delete Intelligence Domain.");
+        throw new Error(payload.error || deleteFailed);
       }
 
       if (payload.softDeleted) {
@@ -129,9 +146,7 @@ export function IntelligenceDomainHeaderActions({
       router.refresh();
     } catch (deleteError) {
       setError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Failed to delete Intelligence Domain.",
+        deleteError instanceof Error ? deleteError.message : deleteFailed,
       );
       setIsDeleting(false);
       setShowDeleteConfirm(false);
@@ -150,7 +165,9 @@ export function IntelligenceDomainHeaderActions({
           }}
           className={`${headerButtonClassName} border-white/15 text-white/80 hover:border-[var(--athena-orange)]/40 hover:text-white`}
         >
-          {isEditing ? "Cancel Edit" : "Edit Domain"}
+          {isEditing
+            ? (messages?.detail.cancelEdit ?? "Cancel Edit")
+            : (messages?.detail.editDomain ?? "Edit Domain")}
         </button>
 
         <button
@@ -158,7 +175,9 @@ export function IntelligenceDomainHeaderActions({
           onClick={toggleStatus}
           className={`${headerButtonClassName} border-white/15 text-white/80 hover:border-[var(--athena-orange)]/40 hover:text-white`}
         >
-          {domain.status === "active" ? "Disable" : "Enable"}
+          {domain.status === "active"
+            ? (messages?.disable ?? "Disable")
+            : (messages?.enable ?? "Enable")}
         </button>
 
         <button
@@ -170,7 +189,7 @@ export function IntelligenceDomainHeaderActions({
           }}
           className={`${headerButtonClassName} border-red-500/30 text-red-300 hover:border-red-400/50`}
         >
-          Delete
+          {messages?.delete ?? "Delete"}
         </button>
       </div>
 
@@ -178,8 +197,16 @@ export function IntelligenceDomainHeaderActions({
         <div className="w-full max-w-md rounded-2xl border border-red-500/20 bg-black/30 p-5 lg:text-right">
           <p className="text-sm leading-6 text-white/70">
             {discussionCount > 0
-              ? `This domain has ${discussionCount} linked discussion${discussionCount === 1 ? "" : "s"}. Athena will disable it to preserve linked intelligence.`
-              : "Delete this Intelligence Domain permanently? This cannot be undone."}
+              ? interpolateTenantMessage(
+                  discussionCount === 1
+                    ? (messages?.detail.disableConfirmLinkedOne ??
+                      "This domain has {count} linked discussion. Athena will disable it to preserve linked intelligence.")
+                    : (messages?.detail.disableConfirmLinkedMany ??
+                      "This domain has {count} linked discussions. Athena will disable it to preserve linked intelligence."),
+                  { count: discussionCount },
+                )
+              : (messages?.deleteConfirmEmpty ??
+                "Delete this Intelligence Domain permanently? This cannot be undone.")}
           </p>
           <div className="mt-4 flex flex-wrap justify-end gap-3">
             <button
@@ -187,7 +214,7 @@ export function IntelligenceDomainHeaderActions({
               onClick={() => setShowDeleteConfirm(false)}
               className="rounded-full border border-white/15 px-5 py-2 text-sm text-white/70"
             >
-              Cancel
+              {messages?.cancel ?? "Cancel"}
             </button>
             <button
               type="button"
@@ -196,10 +223,10 @@ export function IntelligenceDomainHeaderActions({
               className="rounded-full bg-red-500/20 px-5 py-2 text-sm font-semibold text-red-200 disabled:opacity-50"
             >
               {isDeleting
-                ? "Working..."
+                ? (messages?.working ?? "Working...")
                 : discussionCount > 0
-                  ? "Confirm Disable"
-                  : "Confirm Delete"}
+                  ? (messages?.confirmDisable ?? "Confirm Disable")
+                  : (messages?.confirmDelete ?? "Confirm Delete")}
             </button>
           </div>
         </div>
@@ -210,12 +237,14 @@ export function IntelligenceDomainHeaderActions({
           onSubmit={handleSave}
           className="w-full max-w-3xl rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6 lg:ml-auto"
         >
-          <h2 className="text-lg font-semibold">Edit Intelligence Domain</h2>
+          <h2 className="text-lg font-semibold">
+            {messages?.editTitle ?? "Edit Intelligence Domain"}
+          </h2>
 
           <div className="mt-5 grid gap-4">
             <label className="grid gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-                Name
+                {messages?.name ?? "Name"}
               </span>
               <input
                 value={name}
@@ -227,7 +256,7 @@ export function IntelligenceDomainHeaderActions({
 
             <label className="grid gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-                Description
+                {messages?.description ?? "Description"}
               </span>
               <textarea
                 value={description}
@@ -239,7 +268,7 @@ export function IntelligenceDomainHeaderActions({
 
             <label className="grid gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-                Market / Niche
+                {messages?.marketNiche ?? "Market / Niche"}
               </span>
               <input
                 value={market}
@@ -251,21 +280,21 @@ export function IntelligenceDomainHeaderActions({
             <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-                  Status
+                  {messages?.status ?? "Status"}
                 </span>
                 <select
                   value={status}
                   onChange={(event) => setStatus(event.target.value)}
                   className={fieldClassName}
                 >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
+                  <option value="active">{statusActive}</option>
+                  <option value="inactive">{statusInactive}</option>
                 </select>
               </label>
 
               <label className="grid gap-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-                  Priority
+                  {messages?.priority ?? "Priority"}
                 </span>
                 <input
                   value={priority}
@@ -277,7 +306,7 @@ export function IntelligenceDomainHeaderActions({
                   className={fieldClassName}
                 />
                 <span className="text-xs leading-5 text-white/40">
-                  {INTELLIGENCE_DOMAIN_PRIORITY_HELPER}
+                  {messages?.priorityHelp ?? INTELLIGENCE_DOMAIN_PRIORITY_HELPER}
                 </span>
               </label>
             </div>
@@ -285,14 +314,23 @@ export function IntelligenceDomainHeaderActions({
 
           <div className="mt-5 flex items-center justify-between gap-3">
             <span className="text-xs text-white/40">
-              Current status: {formatIntelligenceDomainStatus(status)}
+              {interpolateTenantMessage(
+                messages?.detail.currentStatus ?? "Current status: {status}",
+                {
+                  status:
+                    currentStatusLabel ||
+                    formatIntelligenceDomainStatus(status),
+                },
+              )}
             </span>
             <button
               type="submit"
               disabled={isSaving}
               className="rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-50"
             >
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving
+                ? (messages?.saving ?? "Saving...")
+                : (messages?.saveChanges ?? "Save Changes")}
             </button>
           </div>
         </form>

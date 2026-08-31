@@ -1,6 +1,16 @@
 import type { CommunityIntelligence } from "@/services/communityIntelligenceService";
 
+export type DomainIntelligenceSectionKey =
+  | "terminology"
+  | "competitorsAlternatives"
+  | "importantPeopleBrands"
+  | "recurringQuestions"
+  | "recurringObjections"
+  | "emergingTrends"
+  | "recommendedContentAngles";
+
 export type DomainIntelligenceSection = {
+  key: DomainIntelligenceSectionKey;
   title: string;
   value: string | null;
 };
@@ -21,10 +31,12 @@ export function getDomainIntelligenceSections(
 ): DomainIntelligenceSection[] {
   return [
     {
+      key: "terminology",
       title: "Terminology",
       value: readRawField(intelligence, "terminology"),
     },
     {
+      key: "competitorsAlternatives",
       title: "Competitors / Alternatives",
       value:
         readRawField(intelligence, "competitors_alternatives") ??
@@ -32,22 +44,27 @@ export function getDomainIntelligenceSections(
         null,
     },
     {
+      key: "importantPeopleBrands",
       title: "Important People / Brands",
       value: readRawField(intelligence, "important_people_brands"),
     },
     {
+      key: "recurringQuestions",
       title: "Recurring Questions",
       value: intelligence?.recurring_questions ?? null,
     },
     {
+      key: "recurringObjections",
       title: "Recurring Objections",
       value: intelligence?.recurring_objections ?? null,
     },
     {
+      key: "emergingTrends",
       title: "Emerging Trends",
       value: intelligence?.market_trends ?? null,
     },
     {
+      key: "recommendedContentAngles",
       title: "Recommended Content Angles",
       value:
         intelligence?.recommended_content ??

@@ -453,13 +453,13 @@ describe("V31 L3.5 tenant discussion detail — dates and confirmations", () => 
 });
 
 describe("V31 L3.5 tenant discussion detail — boundaries", () => {
-  it("does not change Discussion list, communities, personas, prospects, or generation", () => {
+  it("does not change Discussion list, personas, prospects, or generation", () => {
     const list = read("app/discussions/page.tsx");
     assert.match(list, /getLocalizedDiscussionQueueTitle/);
     assert.doesNotMatch(list, /discussions\.detail|chrome=\{executive\}/);
     assert.equal(existsSync(join(ROOT, "app/communities/[id]/page.tsx")), true);
     const community = read("app/communities/[id]/page.tsx");
-    assert.doesNotMatch(community, /getTenantLocalization|discussions\.detail/);
+    assert.doesNotMatch(community, /discussions\.detail/);
 
     const hits: string[] = [];
     for (const dir of [
