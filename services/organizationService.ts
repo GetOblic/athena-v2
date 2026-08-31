@@ -15,6 +15,11 @@ import {
   SuperAdminProvisionBlockedError,
   isGetOblicSuperAdminUser,
 } from "@/services/superAdmin/superAdminIdentity";
+import {
+  parseOrganizationLanguage,
+  resolveOrganizationLanguageValue,
+  type OrganizationLanguage,
+} from "@/services/organizationLanguage";
 
 function isDocumentNavigationRequest(acceptHeader: string | null, secFetchDest: string | null): boolean {
   const dest = (secFetchDest || "").toLowerCase();
@@ -42,9 +47,22 @@ export type Organization = {
   ai_workspace_preferences?: Record<string, unknown> | null;
   /** Most recent human workspace visit — operational metadata only. */
   last_visited_at?: string | null;
+  /**
+   * Organization-wide operating language.
+   * Authoritative account configuration — not a user preference.
+   * Optional in-type for pre-migration / fixture compatibility; resolver falls back to English.
+   */
+  language?: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export class OrganizationLanguageNotFoundError extends Error {
+  constructor(message = "Organization not found.") {
+    super(message);
+    this.name = "OrganizationLanguageNotFoundError";
+  }
+}
 
 export type OrganizationContext = {
   organizationId: string;
@@ -413,4 +431,58 @@ export async function getOrganizationById(
   }
 
   return data as Organization | null;
+}
+
+/**
+ * Resolve the authoritative organization language from organizations.
+ * Input is organizationId only — no browser, cookie, website, Persona, or geography inference.
+ * English fallback is for pre-migration rows and legacy fixtures only.
+ */
+export async function resolveOrganizationLanguage(
+  organizationId: string,
+): Promise<OrganizationLanguage> {
+  const organization = await getOrganizationById(organizationId);
+  return resolveOrganizationLanguageValue(organization?.language);
+}
+
+/**
+ * Update only organizations.language for an already-authorized organizationId.
+ * Callers must establish server-side authorization before invoking this helper.
+ * Validates against the six supported languages and fails closed on invalid values.
+ * Does not touch athena_identity, Brain compile, Deep Scrape, generation, or workers.
+ */
+export async function updateOrganizationLanguage(input: {
+  organizationId: string;
+  language: unknown;
+}): Promise<OrganizationLanguage> {
+  const organizationId = input.organizationId.trim();
+  if (!organizationId) {
+    throw new OrganizationLanguageNotFoundError();
+  }
+
+  const language = parseOrganizationLanguage(input.language);
+
+  const existing = await getOrganizationById(organizationId);
+  if (!existing) {
+    throw new OrganizationLanguageNotFoundError();
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("organizations")
+    .update({
+      language,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", organizationId)
+    .select("language")
+    .single();
+
+  if (error || !data) {
+    console.error("[ORGANIZATION_LANGUAGE] organization_update_failed", error);
+    throw new Error("Could not save organization language.");
+  }
+
+  return resolveOrganizationLanguageValue(
+    (data as Pick<Organization, "language">).language,
+  );
 }

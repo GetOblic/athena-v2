@@ -32,7 +32,11 @@ import {
   getAthenaIdentityByUserId,
   upsertAthenaIdentity,
 } from "@/services/identity/identityService";
-import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import { organizationLanguageLabel } from "@/services/organizationLanguage";
+import {
+  requireCurrentOrganizationContext,
+  resolveOrganizationLanguage,
+} from "@/services/organizationService";
 import { buildConversationScopeFingerprint } from "@/services/athenaConversation/athenaConversationScope";
 
 const fieldClassName =
@@ -175,6 +179,8 @@ export default async function IdentityPage({
     await getOrganizationBrandIdentity(organizationId);
   const aiWorkspacePreferences =
     await getOrganizationAiWorkspacePreferences(organizationId);
+  const accountLanguage = await resolveOrganizationLanguage(organizationId);
+  const accountLanguageLabel = organizationLanguageLabel(accountLanguage);
   const logoPreviewUrl = await resolveOrganizationBrandLogoPreviewUrl(
     organizationBrand,
     organizationId,
@@ -325,6 +331,18 @@ export default async function IdentityPage({
             <div>{hasWebsite ? "✓" : "○"} Homepage learned</div>
             <div>{hasMasterProfile ? "✓" : "○"} Professional terminology learned</div>
             <div>✓ Continuous learning enabled</div>
+          </div>
+
+          <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-5">
+            <div className="text-xs uppercase tracking-[0.25em] text-white/35">
+              Account Language
+            </div>
+            <div className="mt-3 text-lg font-semibold text-white">
+              {accountLanguageLabel}
+            </div>
+            <div className="mt-2 text-sm text-white/40">
+              Configured for this Athena account.
+            </div>
           </div>
 
           <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-5">
