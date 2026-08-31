@@ -14,6 +14,7 @@ export function tenantConversationChrome(
     asking: messages.conversation.asking,
     enterToSend: messages.conversation.enterToSend,
     supportReference: messages.conversation.supportReference,
+    transportFailed: messages.conversation.transportFailed,
   };
 }
 

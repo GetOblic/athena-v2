@@ -44,7 +44,13 @@ import {
   fillChromeTemplate,
   presentAnalysisStatus,
 } from "@/lib/discussionExecutiveChrome";
+import type { DeploymentAssetsChrome } from "@/components/deployment/DeploymentAssets";
 import type { ProspectConversationChrome } from "@/components/prospects/ProspectConversationPanel";
+
+export type ExecutiveVersionLabelChrome = {
+  currentExecutiveVersion?: string;
+  archivedExecutiveVersion?: string;
+};
 
 /**
  * Persists across navigation so a regeneration that finishes after leaving
@@ -137,7 +143,12 @@ type ExecutiveIntelligenceWorkspaceProps = {
   /** UX formatting locale from the server. Does not resolve language. */
   locale?: string | null;
   /** Optional Prospect conversation chrome. English defaults remain. */
-  conversationChrome?: ProspectConversationChrome | null;
+  conversationChrome?:
+    | ProspectConversationChrome
+    | ExecutiveVersionLabelChrome
+    | null;
+  /** Optional shared Copy / Discuss / prompt-block chrome. English defaults remain. */
+  assetChrome?: DeploymentAssetsChrome | null;
 };
 
 function formatVersionGeneratedAt(
@@ -215,6 +226,7 @@ export function ExecutiveIntelligenceWorkspace({
   chrome = null,
   locale = null,
   conversationChrome = null,
+  assetChrome = null,
 }: ExecutiveIntelligenceWorkspaceProps) {
   const { isGenerating, isCompleted } = useDiscussionRegeneration();
   const isProspect = sourceKind === "prospect";
@@ -437,10 +449,12 @@ export function ExecutiveIntelligenceWorkspace({
     viewModel.executiveVersionId == null
       ? null
       : viewModel.isCurrent
-        ? "Current Executive Version"
+        ? (conversationChrome?.currentExecutiveVersion ??
+          "Current Executive Version")
         : viewModel.displayGeneratedAt
-          ? `Archived Executive Version — ${formatVersionGeneratedAt(viewModel.displayGeneratedAt, true, locale)}`
-          : "Archived Executive Version";
+          ? `${conversationChrome?.archivedExecutiveVersion ?? "Archived Executive Version"} — ${formatVersionGeneratedAt(viewModel.displayGeneratedAt, true, locale)}`
+          : (conversationChrome?.archivedExecutiveVersion ??
+            "Archived Executive Version");
 
   function handleDiscussWithAthena(payload: {
     executiveVersionId: string;
@@ -501,7 +515,7 @@ export function ExecutiveIntelligenceWorkspace({
         onAssetReferenceChange={setConversationAssetReference}
         open={conversationOpen}
         onOpenChange={setConversationOpen}
-        chrome={conversationChrome}
+        chrome={conversationChrome as ProspectConversationChrome | null}
       />
     ) : null;
 
@@ -788,6 +802,7 @@ export function ExecutiveIntelligenceWorkspace({
                 tagsByAssetType={tagsByAssetType}
                 continuationPreferences={continuationPreferences}
                 onDiscussWithAthena={handleDiscussWithAthena}
+                chrome={assetChrome}
               />
             </AthenaCollapsibleSection>
           ) : (
@@ -808,6 +823,7 @@ export function ExecutiveIntelligenceWorkspace({
                 onDiscussWithAthena={
                   isProspect ? handleDiscussWithAthena : undefined
                 }
+                chrome={assetChrome}
               />
             </AthenaCollapsibleSection>
           )
@@ -841,6 +857,7 @@ export function ExecutiveIntelligenceWorkspace({
               tagsByAssetType={tagsByAssetType}
               continuationPreferences={continuationPreferences}
               onDiscussWithAthena={handleDiscussWithAthena}
+              chrome={assetChrome}
             />
           </AthenaCollapsibleSection>
         ) : null}
@@ -862,6 +879,7 @@ export function ExecutiveIntelligenceWorkspace({
                 brandDirection={brandDirection}
                 continuationPreferences={continuationPreferences}
                 onDiscussWithAthena={handleDiscussWithAthena}
+                chrome={assetChrome}
               />
             </AthenaCollapsibleSection>
           ) : (
@@ -882,6 +900,7 @@ export function ExecutiveIntelligenceWorkspace({
                 onDiscussWithAthena={
                   isProspect ? handleDiscussWithAthena : undefined
                 }
+                chrome={assetChrome}
               />
             </AthenaCollapsibleSection>
           )

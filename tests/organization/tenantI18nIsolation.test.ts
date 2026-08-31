@@ -76,6 +76,9 @@ describe("V31 L3.2 tenant chrome — shared-component isolation", () => {
       "components/deployment/AssetUsageTagControls.tsx",
       "components/deployment/ContinueButton.tsx",
       "components/assetBlueprints/CollapsiblePromptBlock.tsx",
+      "components/conversation/AthenaConversationPanel.tsx",
+      "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
+      "services/assetContinuation/continueInExternalWorkspace.ts",
     ];
     for (const file of shared) {
       const source = read(file);

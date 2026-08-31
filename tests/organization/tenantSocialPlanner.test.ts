@@ -640,8 +640,8 @@ describe("V31 L3.9 tenant social planner — durable tag presentation", () => {
     assert.doesNotMatch(field, />Continuer</);
   });
 
-  it("leaves callers that omit tag chrome on English defaults", () => {
-    const omitted = renderToStaticMarkup(
+  it("shares usage-tag labels through getAssetCopyChrome while keeping English defaults when omitted", () => {
+    const shared = renderToStaticMarkup(
       createElement(CopyButton, {
         text: STORED_SOCIAL_COPY,
         tracking: WHOLE_ASSET_TRACKING,
@@ -649,15 +649,34 @@ describe("V31 L3.9 tenant social planner — durable tag presentation", () => {
         chrome: getAssetCopyChrome(fr),
       }),
     );
-    assert.match(omitted, />Terminé</);
+    assert.match(shared, />Terminé</);
+    assert.match(shared, />Sélectionné</);
+    assert.match(shared, />Planifié</);
+    assert.doesNotMatch(shared, />Selected</);
+
+    const omitted = renderToStaticMarkup(
+      createElement(CopyButton, {
+        text: STORED_SOCIAL_COPY,
+        tracking: WHOLE_ASSET_TRACKING,
+        initiallyDone: true,
+      }),
+    );
     assert.match(omitted, />Selected</);
     assert.match(omitted, />Scheduled</);
-    assert.doesNotMatch(omitted, />Sélectionné</);
 
-    assert.equal(getAssetCopyChrome(fr).usageTagLabels, undefined);
-    assert.equal(getAssetCopyChrome(fr).saveTagFailed, undefined);
-    assert.equal(getAdsCopyChrome(es).usageTagLabels, undefined);
-    assert.equal(getSeoCopyChrome(de).usageTagLabels, undefined);
+    assert.equal(
+      getAssetCopyChrome(fr).usageTagLabels?.selected,
+      fr.copyChrome.usageTags.selected,
+    );
+    assert.equal(getAssetCopyChrome(fr).saveTagFailed, fr.copyChrome.saveTagFailed);
+    assert.equal(
+      getAdsCopyChrome(es).usageTagLabels?.selected,
+      es.copyChrome.usageTags.selected,
+    );
+    assert.equal(
+      getSeoCopyChrome(de).usageTagLabels?.selected,
+      de.copyChrome.usageTags.selected,
+    );
     assert.equal(
       getSocialPlannerCopyChrome(fr).saveTagFailed,
       fr.copyChrome.saveTagFailed,

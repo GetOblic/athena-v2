@@ -569,7 +569,7 @@ describe("V31 L3.10.2 tenant import surfaces — shared isolation", () => {
     );
   });
 
-  it("does not start L3.10.3 conversation or remaining chrome work", () => {
+  it("does not start L3.11 regression work", () => {
     const prompt = read("components/assetBlueprints/CollapsiblePromptBlock.tsx");
     assert.doesNotMatch(prompt, /tenantI18n|lib\/tenantI18n/);
     assert.doesNotMatch(

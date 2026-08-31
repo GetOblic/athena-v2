@@ -29,6 +29,7 @@ import { fillChromeTemplate } from "@/lib/discussionExecutiveChrome";
 import { buildDiscussionWorkflowSteps } from "@/lib/discussionWorkflow";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
+import { getSharedAssetChrome } from "@/lib/tenantI18n/opportunityPresentation";
 import {
   getLocalizedProspectHomepageLearning,
   getLocalizedProspectLifecycleLabel,
@@ -384,6 +385,7 @@ export default async function ProspectDetailsPage({
               chrome={executive}
               locale={locale}
               conversationChrome={copy.conversation}
+              assetChrome={getSharedAssetChrome(messages)}
               afterBlueprint={null}
               afterDetailedReasoning={
                 <div className="mt-8">

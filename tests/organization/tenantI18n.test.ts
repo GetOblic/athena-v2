@@ -179,6 +179,9 @@ describe("V31 L3.1 tenant i18n — dictionaries", () => {
     assert.ok(canonical.includes("copyChrome.done"));
     assert.ok(canonical.includes("copyChrome.saveTagFailed"));
     assert.ok(canonical.includes("copyChrome.usageTags.selected"));
+    assert.ok(canonical.includes("copyChrome.discussWithAthena"));
+    assert.ok(canonical.includes("copyChrome.continueToasts.copiedOpening"));
+    assert.ok(canonical.includes("conversation.transportFailed"));
     assert.ok(canonical.includes("nav.dashboard"));
     assert.ok(canonical.includes("status.new"));
     for (const language of ORGANIZATION_LANGUAGES) {

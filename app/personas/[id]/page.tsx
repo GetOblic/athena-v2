@@ -48,6 +48,7 @@ import {
 import { normalizeRootWebsiteUrl } from "@/services/websiteLearning/deepScrape/urlSafety";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
+import { getSharedAssetChrome } from "@/lib/tenantI18n/opportunityPresentation";
 import {
   getLocalizedPersonaLifecycleLabel,
   getLocalizedPersonaReadinessLabel,
@@ -327,6 +328,8 @@ export default async function PersonaDetailsPage({
             continuationPreferences={continuationPreferences}
             chrome={executive}
             locale={locale}
+            conversationChrome={copy.conversation}
+            assetChrome={getSharedAssetChrome(messages)}
             afterBlueprint={null}
             afterDetailedReasoning={
               <div className="mt-8 space-y-8">

@@ -820,7 +820,7 @@ describe("V31 L3.7 tenant opportunities + briefings — asset chrome", () => {
     assert.match(briefingBlueprint, new RegExp(STORED_BLUEPRINT_TITLE));
   });
 
-  it("leaves Discussion, Persona, and Prospect callers on English defaults", () => {
+  it("does not import Opportunity/Briefing chrome builders into shared EI workspace", () => {
     const workspace = read(
       "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
     );
@@ -828,22 +828,9 @@ describe("V31 L3.7 tenant opportunities + briefings — asset chrome", () => {
     assert.doesNotMatch(workspace, /getBriefingDeploymentAssetsChrome/);
     assert.doesNotMatch(workspace, /getOpportunityStrategicAssetBlueprintChrome/);
     assert.doesNotMatch(workspace, /getBriefingStrategicAssetBlueprintChrome/);
-    assert.doesNotMatch(
-      workspace,
-      /<DeploymentAssets[\s\S]*chrome=\{/,
-    );
-    assert.doesNotMatch(
-      workspace,
-      /<StrategicAssetBlueprint[\s\S]*chrome=\{/,
-    );
-    for (const file of [
-      "app/personas/[id]/page.tsx",
-      "app/prospects/[id]/page.tsx",
-      "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
-    ]) {
-      if (!existsSync(join(ROOT, file))) continue;
-      assert.doesNotMatch(read(file), /tenantI18n\/opportunityPresentation/);
-    }
+    assert.doesNotMatch(workspace, /tenantI18n\/opportunityPresentation/);
+    assert.doesNotMatch(workspace, /getTenantLocalization|getTenantMessages/);
+    assert.match(workspace, /chrome=\{assetChrome\}/);
   });
 
   it("keeps shared asset components free of tenantI18n imports", () => {
@@ -1053,32 +1040,14 @@ describe("V31 L3.7 tenant opportunities + briefings — nested copy chrome", () 
     assert.doesNotMatch(sequence, /tenantI18n|getAssetCopyChrome/);
   });
 
-  it("leaves Discussion, Persona, and Prospect copy callers on English defaults", () => {
-    const workspace = read(
-      "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
-    );
-    assert.doesNotMatch(workspace, /getAssetCopyChrome/);
-    assert.doesNotMatch(workspace, /copyChrome/);
-    assert.doesNotMatch(
-      workspace,
-      /<DeploymentAssets[\s\S]*chrome=\{/,
-    );
-    assert.doesNotMatch(
-      workspace,
-      /<StrategicAssetBlueprint[\s\S]*chrome=\{/,
-    );
-    for (const file of [
-      "app/personas/[id]/page.tsx",
-      "app/prospects/[id]/page.tsx",
-      "app/discussions/[id]/page.tsx",
-    ]) {
-      if (!existsSync(join(ROOT, file))) continue;
-      const source = read(file);
-      assert.doesNotMatch(source, /getAssetCopyChrome/);
-      assert.doesNotMatch(source, /tenantI18n\/opportunityPresentation/);
-    }
+  it("keeps shared tag controls tenant-neutral after EI copy chrome wiring", () => {
     const tags = read("components/deployment/AssetUsageTagControls.tsx");
     assert.match(tags, /ASSET_USAGE_TAG_LABELS/);
     assert.doesNotMatch(tags, /tenantI18n|copyChrome/);
+    const workspace = read(
+      "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
+    );
+    assert.doesNotMatch(workspace, /getTenantLocalization|getTenantMessages/);
+    assert.match(workspace, /chrome=\{assetChrome\}/);
   });
 });

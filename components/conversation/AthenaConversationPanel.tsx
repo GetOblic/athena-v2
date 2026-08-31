@@ -31,6 +31,7 @@ export type AthenaConversationChrome = {
   asking: string;
   enterToSend: string;
   supportReference: string;
+  transportFailed?: string;
 };
 
 const DEFAULT_CONVERSATION_CHROME: AthenaConversationChrome = {
@@ -43,6 +44,7 @@ const DEFAULT_CONVERSATION_CHROME: AthenaConversationChrome = {
   asking: "Asking…",
   enterToSend: "Enter to send · Shift+Enter for a new line",
   supportReference: "Support reference:",
+  transportFailed: "Athena could not reach the service. Please try again.",
 };
 
 export type AthenaConversationPanelProps = {
@@ -222,7 +224,9 @@ function AthenaConversationPanelInner({
       rollbackUserTurn(trimmed);
       setError({
         code: "TRANSPORT_ERROR",
-        message: "Athena could not reach the service. Please try again.",
+        message:
+          chrome.transportFailed ??
+          "Athena could not reach the service. Please try again.",
         retryMessage: trimmed,
       });
     } finally {

@@ -5,6 +5,7 @@ import { AssetUsageTagControls } from "@/components/deployment/AssetUsageTagCont
 import { ContinueButton } from "@/components/deployment/ContinueButton";
 import { writeClipboardText } from "@/lib/clipboard";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import type { ContinueToastChrome } from "@/services/assetContinuation/continueInExternalWorkspace";
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 
@@ -28,6 +29,7 @@ export type CopyButtonChrome = {
   continueAria?: string;
   saveTagFailed?: string;
   usageTagLabels?: Partial<Record<AssetUsageTag, string>>;
+  continueToasts?: ContinueToastChrome;
 };
 
 type CopyButtonProps = {
@@ -62,6 +64,7 @@ function resolveCopyChrome(chrome?: CopyButtonChrome | null) {
     continueAria: chrome?.continueAria ?? "Continue in external workspace",
     saveTagFailed: chrome?.saveTagFailed ?? "Could not save tag.",
     usageTagLabels: chrome?.usageTagLabels,
+    continueToasts: chrome?.continueToasts,
   };
 }
 
@@ -176,6 +179,7 @@ export function CopyButton({
             preferences={continuationPreferences}
             label={labels.continue}
             ariaLabel={labels.continueAria}
+            toasts={labels.continueToasts}
           />
         ) : null}
         <button

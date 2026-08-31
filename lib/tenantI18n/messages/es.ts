@@ -33,6 +33,20 @@ export const es: TenantMessages = {
       published: "Publicado",
       used: "Usado",
     },
+    discussWithAthena: "Hablar con Athena",
+    noPromptGeneratedYet: "Aún no se ha generado ningún prompt.",
+    continueToasts: {
+      unableToOpen: "No se pudo abrir el destino.",
+      copiedTabBlocked:
+        "Contenido copiado. El navegador bloqueó la nueva pestaña.",
+      unableCopyTabBlocked:
+        "No se pudo copiar automáticamente y el navegador bloqueó la nueva pestaña.",
+      copiedUnableToOpen: "Contenido copiado. No se pudo abrir el destino.",
+      unableCopyUnableToOpen:
+        "No se pudo copiar automáticamente. No se pudo abrir el destino.",
+      copiedOpening: "Copiado al portapapeles. Abriendo {destination}...",
+      unableCopyOpened: "No se pudo copiar automáticamente. Destino abierto.",
+    },
   },
   chrome: {
     poweredByGetOblic: "Desarrollado por GetOblic",
@@ -74,6 +88,8 @@ export const es: TenantMessages = {
     supportReference: "Referencia de soporte:",
     readOnlyNotice:
       "Las respuestas de la conversación no modifican los datos de Athena.",
+    transportFailed:
+      "Athena no pudo contactar con el servicio. Inténtelo de nuevo.",
   },
   errors: {
     somethingWentWrong: "Algo salió mal. Inténtalo de nuevo.",
@@ -1220,6 +1236,8 @@ export const es: TenantMessages = {
       analysisAsset: "Activo de análisis",
       strategicBlueprint: "Strategic Blueprint",
       deploymentAsset: "Deployment Asset",
+      currentExecutiveVersion: "Versión ejecutiva actual",
+      archivedExecutiveVersion: "Versión ejecutiva archivada",
     },
     deepScrape: {
       button: "Deep Scrape sitio de referencia",

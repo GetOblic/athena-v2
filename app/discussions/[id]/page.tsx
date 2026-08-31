@@ -34,6 +34,7 @@ import {
 } from "@/lib/tenantI18n/discussionPresentation";
 import { formatTenantDateTime } from "@/lib/tenantI18n/format";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
+import { getSharedAssetChrome } from "@/lib/tenantI18n/opportunityPresentation";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
 import { getCommunityById } from "@/services/communityService";
 import { getDiscussionById } from "@/services/discussionService";
@@ -313,6 +314,7 @@ export default async function DiscussionDetailsPage({
         continuationPreferences={continuationPreferences}
         chrome={executive}
         locale={locale}
+        assetChrome={getSharedAssetChrome(messages)}
         afterBlueprint={null}
         afterDetailedReasoning={
           <div className="mt-8">

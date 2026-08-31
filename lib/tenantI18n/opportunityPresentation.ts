@@ -190,6 +190,36 @@ export function getAssetCopyChrome(
     saveDoneFailed: messages.copyChrome.saveDoneFailed,
     continue: messages.copyChrome.continue,
     continueAria: messages.copyChrome.continueInWorkspace,
+    saveTagFailed: messages.copyChrome.saveTagFailed,
+    usageTagLabels: {
+      selected: messages.copyChrome.usageTags.selected,
+      scheduled: messages.copyChrome.usageTags.scheduled,
+      sent: messages.copyChrome.usageTags.sent,
+      published: messages.copyChrome.usageTags.published,
+      used: messages.copyChrome.usageTags.used,
+    },
+    continueToasts: messages.copyChrome.continueToasts,
+  };
+}
+
+export function getPromptBlockChrome(messages: TenantMessages): {
+  discussWithAthena: string;
+  noPromptGeneratedYet: string;
+} {
+  return {
+    discussWithAthena: messages.copyChrome.discussWithAthena,
+    noPromptGeneratedYet: messages.copyChrome.noPromptGeneratedYet,
+  };
+}
+
+export function getSharedAssetChrome(messages: TenantMessages): {
+  copy: CopyButtonChrome;
+  discussWithAthena: string;
+  noPromptGeneratedYet: string;
+} {
+  return {
+    copy: getAssetCopyChrome(messages),
+    ...getPromptBlockChrome(messages),
   };
 }
 
@@ -198,7 +228,7 @@ export function getOpportunityDeploymentAssetsChrome(
 ): DeploymentAssetsChrome {
   return {
     help: messages.opportunities.detail.deploymentAssetsHelp,
-    copy: getAssetCopyChrome(messages),
+    ...getSharedAssetChrome(messages),
   };
 }
 
@@ -210,7 +240,7 @@ export function getOpportunityStrategicAssetBlueprintChrome(
       messages.opportunities.detail,
       messages.opportunities.emptyValue,
     ),
-    copy: getAssetCopyChrome(messages),
+    ...getSharedAssetChrome(messages),
   };
 }
 

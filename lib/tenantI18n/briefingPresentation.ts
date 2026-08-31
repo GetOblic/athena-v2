@@ -11,7 +11,7 @@ import {
 } from "@/lib/briefingStatus";
 import type { AthenaReview } from "@/services/reviewService";
 import {
-  getAssetCopyChrome,
+  getSharedAssetChrome,
   toStrategicAssetBlueprintChrome,
 } from "./opportunityPresentation";
 import { en } from "./messages/en";
@@ -98,7 +98,7 @@ export function getBriefingDeploymentAssetsChrome(
 ): DeploymentAssetsChrome {
   return {
     help: messages.briefings.detail.deploymentAssetsHelp,
-    copy: getAssetCopyChrome(messages),
+    ...getSharedAssetChrome(messages),
   };
 }
 
@@ -110,6 +110,6 @@ export function getBriefingStrategicAssetBlueprintChrome(
       messages.briefings.detail,
       messages.briefings.emptyValue,
     ),
-    copy: getAssetCopyChrome(messages),
+    ...getSharedAssetChrome(messages),
   };
 }

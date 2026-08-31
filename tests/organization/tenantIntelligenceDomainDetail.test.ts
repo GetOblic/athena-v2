@@ -754,7 +754,7 @@ describe("V31 L3.10.1 tenant Intelligence Domain detail — generation and bound
     assert.match(service, /kind: "import"/);
   });
 
-  it("does not start Persona import, Prospect import, L3.10.2, L3.10.3, or L3.11", () => {
+  it("does not start L3.11 and keeps import / login / Licensee isolation", () => {
     assert.doesNotMatch(
       read("app/personas/page.tsx"),
       /intelligenceDomains\.detail/,

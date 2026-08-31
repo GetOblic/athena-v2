@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { continueInExternalWorkspace } from "@/services/assetContinuation/continueInExternalWorkspace";
+import {
+  continueInExternalWorkspace,
+  type ContinueToastChrome,
+} from "@/services/assetContinuation/continueInExternalWorkspace";
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 
 type ContinueButtonProps = {
@@ -10,6 +13,7 @@ type ContinueButtonProps = {
   preferences?: AiWorkspacePreferences | null;
   label?: string;
   ariaLabel?: string;
+  toasts?: ContinueToastChrome | null;
 };
 
 const TOAST_MS = 3200;
@@ -20,6 +24,7 @@ export function ContinueButton({
   preferences = null,
   label,
   ariaLabel,
+  toasts = null,
 }: ContinueButtonProps) {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -49,6 +54,7 @@ export function ContinueButton({
       text,
       assetType,
       preferences,
+      toasts,
     });
     showToast(result.toast);
   }

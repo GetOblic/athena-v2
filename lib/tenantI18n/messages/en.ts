@@ -36,6 +36,19 @@ export const en = {
       published: "Published",
       used: "Used",
     },
+    discussWithAthena: "Discuss with Athena",
+    noPromptGeneratedYet: "No prompt generated yet.",
+    continueToasts: {
+      unableToOpen: "Unable to open destination.",
+      copiedTabBlocked: "Content copied. Your browser blocked the new tab.",
+      unableCopyTabBlocked:
+        "Unable to copy automatically, and your browser blocked the new tab.",
+      copiedUnableToOpen: "Content copied. Unable to open destination.",
+      unableCopyUnableToOpen:
+        "Unable to copy automatically. Unable to open destination.",
+      copiedOpening: "Copied to clipboard. Opening {destination}...",
+      unableCopyOpened: "Unable to copy automatically. Destination opened.",
+    },
   },
   chrome: {
     poweredByGetOblic: "Powered by GetOblic",
@@ -76,6 +89,7 @@ export const en = {
     enterToSend: "Enter to send · Shift+Enter for a new line",
     supportReference: "Support reference:",
     readOnlyNotice: "Conversation responses do not modify Athena data.",
+    transportFailed: "Athena could not reach the service. Please try again.",
   },
   errors: {
     somethingWentWrong: "Something went wrong. Please try again.",
@@ -1202,6 +1216,8 @@ export const en = {
       analysisAsset: "Analysis Asset",
       strategicBlueprint: "Strategic Blueprint",
       deploymentAsset: "Deployment Asset",
+      currentExecutiveVersion: "Current Executive Version",
+      archivedExecutiveVersion: "Archived Executive Version",
     },
     deepScrape: {
       button: "Deep Scrape Reference Website",

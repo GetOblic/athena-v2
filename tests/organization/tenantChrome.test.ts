@@ -137,6 +137,7 @@ function conversationChromeFrom(messages: TenantMessages): AthenaConversationChr
     asking: messages.conversation.asking,
     enterToSend: messages.conversation.enterToSend,
     supportReference: messages.conversation.supportReference,
+    transportFailed: messages.conversation.transportFailed,
   };
 }
 

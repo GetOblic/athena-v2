@@ -13,10 +13,63 @@ import {
 /** Features requested for the synchronous blank-tab open. */
 export const CONTINUE_BLANK_OPEN_FEATURES = "noopener,noreferrer";
 
+export type ContinueToastChrome = {
+  unableToOpen?: string;
+  copiedTabBlocked?: string;
+  unableCopyTabBlocked?: string;
+  copiedUnableToOpen?: string;
+  unableCopyUnableToOpen?: string;
+  copiedOpening?: string;
+  unableCopyOpened?: string;
+};
+
+const DEFAULT_CONTINUE_TOASTS = {
+  unableToOpen: "Unable to open destination.",
+  copiedTabBlocked: "Content copied. Your browser blocked the new tab.",
+  unableCopyTabBlocked:
+    "Unable to copy automatically, and your browser blocked the new tab.",
+  copiedUnableToOpen: "Content copied. Unable to open destination.",
+  unableCopyUnableToOpen:
+    "Unable to copy automatically. Unable to open destination.",
+  copiedOpening: "Copied to clipboard. Opening {destination}...",
+  unableCopyOpened: "Unable to copy automatically. Destination opened.",
+} as const;
+
+function resolveContinueToasts(toasts?: ContinueToastChrome | null) {
+  return {
+    unableToOpen: toasts?.unableToOpen ?? DEFAULT_CONTINUE_TOASTS.unableToOpen,
+    copiedTabBlocked:
+      toasts?.copiedTabBlocked ?? DEFAULT_CONTINUE_TOASTS.copiedTabBlocked,
+    unableCopyTabBlocked:
+      toasts?.unableCopyTabBlocked ??
+      DEFAULT_CONTINUE_TOASTS.unableCopyTabBlocked,
+    copiedUnableToOpen:
+      toasts?.copiedUnableToOpen ?? DEFAULT_CONTINUE_TOASTS.copiedUnableToOpen,
+    unableCopyUnableToOpen:
+      toasts?.unableCopyUnableToOpen ??
+      DEFAULT_CONTINUE_TOASTS.unableCopyUnableToOpen,
+    copiedOpening: toasts?.copiedOpening ?? DEFAULT_CONTINUE_TOASTS.copiedOpening,
+    unableCopyOpened:
+      toasts?.unableCopyOpened ?? DEFAULT_CONTINUE_TOASTS.unableCopyOpened,
+  };
+}
+
+function fillContinueToast(
+  template: string,
+  values: Record<string, string>,
+): string {
+  return template.replace(/\{(\w+)\}/g, (match, key: string) => {
+    const value = values[key];
+    return value === undefined ? match : value;
+  });
+}
+
 export type ContinueInExternalWorkspaceInput = {
   text: string;
   assetType?: string | null;
   preferences?: AiWorkspacePreferences | null;
+  /** Optional localized toast templates. English defaults remain. */
+  toasts?: ContinueToastChrome | null;
   /** Injected for tests; defaults to browserOpenBlankTab. */
   openWindow?: (
     url?: string | URL,
@@ -108,6 +161,7 @@ export async function continueInExternalWorkspace(
 
   const openWindow = input.openWindow ?? browserOpenBlankTab;
   const writeClipboard = input.writeClipboard ?? writeClipboardText;
+  const toasts = resolveContinueToasts(input.toasts);
 
   let destinationUrl: string;
   let destinationLabel: string;
@@ -130,7 +184,7 @@ export async function continueInExternalWorkspace(
   } catch {
     closeOpenedTabSafely(openedWindow);
     return {
-      toast: "Unable to open destination.",
+      toast: toasts.unableToOpen,
       copied: false,
       opened: false,
       openCallCount,
@@ -151,8 +205,8 @@ export async function continueInExternalWorkspace(
   if (!openedWindow) {
     return {
       toast: copied
-        ? "Content copied. Your browser blocked the new tab."
-        : "Unable to copy automatically, and your browser blocked the new tab.",
+        ? toasts.copiedTabBlocked
+        : toasts.unableCopyTabBlocked,
       copied,
       opened: false,
       openCallCount,
@@ -166,8 +220,8 @@ export async function continueInExternalWorkspace(
     closeOpenedTabSafely(openedWindow);
     return {
       toast: copied
-        ? "Content copied. Unable to open destination."
-        : "Unable to copy automatically. Unable to open destination.",
+        ? toasts.copiedUnableToOpen
+        : toasts.unableCopyUnableToOpen,
       copied,
       opened: false,
       openCallCount,
@@ -177,8 +231,10 @@ export async function continueInExternalWorkspace(
 
   return {
     toast: copied
-      ? `Copied to clipboard. Opening ${destinationLabel}...`
-      : "Unable to copy automatically. Destination opened.",
+      ? fillContinueToast(toasts.copiedOpening, {
+          destination: destinationLabel,
+        })
+      : toasts.unableCopyOpened,
     copied,
     opened: true,
     openCallCount,

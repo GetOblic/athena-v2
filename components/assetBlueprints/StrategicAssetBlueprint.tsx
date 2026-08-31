@@ -41,6 +41,8 @@ export type StrategicAssetBlueprintChrome = {
   emptyValue?: string;
   readinessLabels?: Partial<Record<string, string>>;
   copy?: CopyButtonChrome;
+  discussWithAthena?: string;
+  noPromptGeneratedYet?: string;
 };
 
 type StrategicAssetBlueprintProps = {
@@ -164,6 +166,8 @@ export function StrategicAssetBlueprint({
           assetType={BLUEPRINT_ASSET_TYPES.image_prompt}
           copyContext={copyContext}
           copyChrome={chrome?.copy}
+          discussWithAthenaLabel={chrome?.discussWithAthena}
+          emptyPromptLabel={chrome?.noPromptGeneratedYet}
           initiallyDone={Boolean(
             doneByAssetType[BLUEPRINT_ASSET_TYPES.image_prompt],
           )}
@@ -188,6 +192,8 @@ export function StrategicAssetBlueprint({
           assetType={BLUEPRINT_ASSET_TYPES.pdf_prompt}
           copyContext={copyContext}
           copyChrome={chrome?.copy}
+          discussWithAthenaLabel={chrome?.discussWithAthena}
+          emptyPromptLabel={chrome?.noPromptGeneratedYet}
           initiallyDone={Boolean(
             doneByAssetType[BLUEPRINT_ASSET_TYPES.pdf_prompt],
           )}
@@ -212,6 +218,8 @@ export function StrategicAssetBlueprint({
           assetType={BLUEPRINT_ASSET_TYPES.social_prompt}
           copyContext={copyContext}
           copyChrome={chrome?.copy}
+          discussWithAthenaLabel={chrome?.discussWithAthena}
+          emptyPromptLabel={chrome?.noPromptGeneratedYet}
           initiallyDone={Boolean(
             doneByAssetType[BLUEPRINT_ASSET_TYPES.social_prompt],
           )}
@@ -236,6 +244,8 @@ export function StrategicAssetBlueprint({
           assetType={BLUEPRINT_ASSET_TYPES.trend_social_prompt}
           copyContext={copyContext}
           copyChrome={chrome?.copy}
+          discussWithAthenaLabel={chrome?.discussWithAthena}
+          emptyPromptLabel={chrome?.noPromptGeneratedYet}
           initiallyDone={Boolean(
             doneByAssetType[BLUEPRINT_ASSET_TYPES.trend_social_prompt],
           )}
@@ -261,6 +271,8 @@ export function StrategicAssetBlueprint({
           assetType={BLUEPRINT_ASSET_TYPES.notes}
           copyContext={copyContext}
           copyChrome={chrome?.copy}
+          discussWithAthenaLabel={chrome?.discussWithAthena}
+          emptyPromptLabel={chrome?.noPromptGeneratedYet}
           initiallyDone={Boolean(doneByAssetType[BLUEPRINT_ASSET_TYPES.notes])}
           initiallyTags={tagsByAssetType[BLUEPRINT_ASSET_TYPES.notes] ?? []}
           continuationPreferences={continuationPreferences}

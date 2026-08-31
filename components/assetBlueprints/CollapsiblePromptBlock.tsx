@@ -31,6 +31,8 @@ type CollapsiblePromptBlockProps = {
   discussAssetKind?: "deployment" | "blueprint" | null;
   onDiscussWithAthena?: (payload: DiscussWithAthenaPayload) => void;
   copyChrome?: CopyButtonChrome | null;
+  discussWithAthenaLabel?: string;
+  emptyPromptLabel?: string;
 };
 
 export function CollapsiblePromptBlock({
@@ -47,6 +49,8 @@ export function CollapsiblePromptBlock({
   discussAssetKind = null,
   onDiscussWithAthena,
   copyChrome,
+  discussWithAthenaLabel = "Discuss with Athena",
+  emptyPromptLabel = "No prompt generated yet.",
 }: CollapsiblePromptBlockProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const content = text?.trim();
@@ -97,7 +101,7 @@ export function CollapsiblePromptBlock({
               }
               className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-white/65 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
             >
-              Discuss with Athena
+              {discussWithAthenaLabel}
             </button>
           ) : null}
           {hasContent && content && isOpen && (
@@ -127,7 +131,7 @@ export function CollapsiblePromptBlock({
                 hasContent ? "text-white/85" : "text-white/30"
               }`}
             >
-              {hasContent ? content : "No prompt generated yet."}
+              {hasContent ? content : emptyPromptLabel}
             </p>
           </div>
         </div>

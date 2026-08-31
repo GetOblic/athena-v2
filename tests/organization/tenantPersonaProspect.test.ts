@@ -363,6 +363,9 @@ describe("V31 L3.6 tenant personas + prospects — Executive Intelligence", () =
     assert.match(personaPage, /chrome=\{executive\}/);
     assert.match(prospectPage, /chrome=\{executive\}/);
     assert.match(prospectPage, /conversationChrome=\{copy\.conversation\}/);
+    assert.match(personaPage, /conversationChrome=\{copy\.conversation\}/);
+    assert.match(personaPage, /assetChrome=\{getSharedAssetChrome\(messages\)\}/);
+    assert.match(prospectPage, /assetChrome=\{getSharedAssetChrome\(messages\)\}/);
     assert.match(personaPage, /locale=\{locale\}/);
     assert.match(prospectPage, /locale=\{locale\}/);
     assert.equal(en.personas.executive.heading, "Executive Intelligence");

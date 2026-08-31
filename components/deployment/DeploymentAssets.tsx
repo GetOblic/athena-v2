@@ -36,6 +36,8 @@ export type DeploymentDiscussPayload = DiscussWithAthenaPayload & {
 export type DeploymentAssetsChrome = {
   help?: string;
   copy?: CopyButtonChrome;
+  discussWithAthena?: string;
+  noPromptGeneratedYet?: string;
 };
 
 type DeploymentAssetsProps = {
@@ -120,6 +122,8 @@ export function DeploymentAssets({
             assetType={card.assetType}
             copyContext={copyContext}
             copyChrome={chrome?.copy}
+            discussWithAthenaLabel={chrome?.discussWithAthena}
+            emptyPromptLabel={chrome?.noPromptGeneratedYet}
             initiallyDone={Boolean(doneByAssetType[card.assetType])}
             initiallyTags={tagsByAssetType[card.assetType] ?? []}
             continuationPreferences={continuationPreferences}

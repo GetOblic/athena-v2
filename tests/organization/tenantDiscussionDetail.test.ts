@@ -192,6 +192,7 @@ describe("V31 L3.5 tenant discussion detail — chrome", () => {
     assert.match(page, /copy\.backToDiscussions/);
     assert.match(page, /\{discussion\.title\}/);
     assert.match(page, /\{originalBody \|\| copy\.emptyBody\}/);
+    assert.match(page, /assetChrome=\{getSharedAssetChrome\(messages\)\}/);
   });
 
   it("localizes detail chrome in all five non-English languages", () => {
