@@ -13,6 +13,13 @@ import type {
   SeoRoadmapPriority,
 } from "@/services/seo/seoReportTypes";
 
+export type SeoScoreBand =
+  | "strong"
+  | "solid"
+  | "developing"
+  | "emerging"
+  | "early";
+
 export type SeoPillarScore = {
   /** 0–100 presentation strength */
   value: number;
@@ -58,12 +65,28 @@ function starsFromValue(value: number): number {
   return clamp(Math.round(value / 20), 1, 5);
 }
 
+const SCORE_BAND_ENGLISH: Record<SeoScoreBand, string> = {
+  strong: "Strong",
+  solid: "Solid",
+  developing: "Developing",
+  emerging: "Emerging",
+  early: "Early",
+};
+
+/**
+ * Structured score-band classification from the numeric pillar value.
+ * English labels are a final presentation of this band, not the authority.
+ */
+export function seoScoreBandFromValue(value: number): SeoScoreBand {
+  if (value >= 80) return "strong";
+  if (value >= 65) return "solid";
+  if (value >= 50) return "developing";
+  if (value >= 35) return "emerging";
+  return "early";
+}
+
 function labelFromValue(value: number): string {
-  if (value >= 80) return "Strong";
-  if (value >= 65) return "Solid";
-  if (value >= 50) return "Developing";
-  if (value >= 35) return "Emerging";
-  return "Early";
+  return SCORE_BAND_ENGLISH[seoScoreBandFromValue(value)];
 }
 
 function scoreFromText(text: string, baseline = 55): number {

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { dashboardNavItems } from "../../components/dashboard/DashboardSidebar";
+import { en } from "../../lib/tenantI18n/messages/en";
 
 const ROOT = process.cwd();
 
@@ -26,37 +27,64 @@ describe("seo workspace UI", () => {
 
   it("library has empty state, dual Generate CTAs, open/delete actions", () => {
     const library = read("components/seo/SeoLibraryClient.tsx");
-    assert.match(library, /No SEO reports yet/);
-    assert.match(library, /Generate SEO Intelligence/);
-    assert.match(library, /Generate Technical SEO/);
+    assert.equal(en.seo.emptyTitle, "No SEO reports yet");
+    assert.equal(en.seo.generateIntelligence, "Generate SEO Intelligence");
+    assert.equal(en.seo.generateTechnical, "Generate Technical SEO");
+    assert.equal(en.seo.actionOpen, "Open");
+    assert.match(library, /copy\.emptyTitle/);
+    assert.match(library, /copy\.generateIntelligence/);
+    assert.match(library, /copy\.generateTechnical/);
     assert.match(library, /--athena-orange/);
     assert.match(library, /--athena-success/);
-    assert.match(library, /Open/);
+    assert.match(library, /copy\.actionOpen/);
     assert.match(library, /SeoReportHeaderDeleteButton/);
   });
 
   it("new form states brief is optional and supports generation without brief", () => {
     const form = read("components/seo/SeoReportGenerateForm.tsx");
-    assert.match(form, /brief is optional/i);
-    assert.match(form, /More detail/);
-    assert.match(form, /Generate SEO Intelligence/);
-    assert.match(form, /Generate Technical SEO/);
+    assert.match(en.seo.new.briefOptional, /brief is optional/i);
+    assert.equal(en.seo.new.moreDetail, "More detail");
+    assert.equal(en.seo.new.generateIntelligence, "Generate SEO Intelligence");
+    assert.equal(en.seo.new.generateTechnical, "Generate Technical SEO");
+    assert.match(form, /copy\.briefOptional/);
+    assert.match(form, /copy\.moreDetail/);
+    assert.match(form, /copy\.generateIntelligence/);
+    assert.match(form, /copy\.generateTechnical/);
     assert.match(form, /submittingRef/);
+    assert.doesNotMatch(form, /language:/);
   });
 
   it("detail view renders executive overview and progressive disclosure sections", () => {
     const detail = read("components/seo/SeoReportDetailView.tsx");
+    assert.equal(en.seo.detail.executiveAssessment, "Executive Assessment");
+    assert.equal(
+      en.seo.detail.contentCoverageAnalysis,
+      "Content Coverage Analysis",
+    );
+    assert.equal(
+      en.seo.detail.customerIntentAnalysis,
+      "Customer Intent Analysis",
+    );
+    assert.equal(
+      en.seo.detail.commercialOpportunityAnalysis,
+      "Commercial Opportunity Analysis",
+    );
+    assert.equal(
+      en.seo.detail.trustAuthorityAnalysis,
+      "Trust & Authority Analysis",
+    );
+    assert.equal(en.seo.detail.ninetyDayRoadmap, "90-Day SEO Roadmap");
     assert.match(detail, /SeoExecutiveOverview/);
-    assert.match(detail, /Executive Assessment/);
-    assert.match(detail, /Content Coverage Analysis/);
-    assert.match(detail, /Customer Intent Analysis/);
-    assert.match(detail, /Commercial Opportunity Analysis/);
-    assert.match(detail, /Trust & Authority Analysis/);
-    assert.match(detail, /90-Day SEO Roadmap/);
+    assert.match(detail, /copy\.detail\.executiveAssessment/);
+    assert.match(detail, /copy\.detail\.contentCoverageAnalysis/);
+    assert.match(detail, /copy\.detail\.customerIntentAnalysis/);
+    assert.match(detail, /copy\.detail\.commercialOpportunityAnalysis/);
+    assert.match(detail, /copy\.detail\.trustAuthorityAnalysis/);
+    assert.match(detail, /copy\.detail\.ninetyDayRoadmap/);
     assert.match(detail, /SeoWebsitePagesAnalyzedSection/);
     assert.match(detail, /SeoRecommendationCard/);
     assert.match(detail, /SeoReportStatusPanel/);
-    assert.match(detail, /Regenerate/);
+    assert.match(detail, /copy\.detail\.regenerate/);
     assert.match(detail, /defaultOpen=\{false\}/);
 
     const overview = read("components/seo/SeoExecutiveOverview.tsx");
@@ -112,7 +140,8 @@ describe("seo workspace UI", () => {
     assert.match(status, /Assembling organization intelligence/);
     assert.match(status, /Generating executive SEO assessment/i);
     assert.match(status, /\/api\/seo\/\$\{reportId\}\/status/);
-    assert.match(status, /Regenerate as new report/);
+    assert.match(status, /copy\.regenerateAsNew/);
+    assert.equal(en.seo.statusPanel.regenerateAsNew, "Regenerate as new report");
   });
 
   it("delete uses ConfirmDeleteControl pattern", () => {

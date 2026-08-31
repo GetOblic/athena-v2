@@ -3,13 +3,15 @@ import { seoGenerationTypeLabel } from "@/services/seo/seoGenerationType";
 
 type SeoGenerationTypeBadgeProps = {
   generationType: SeoGenerationType;
+  label?: string;
 };
 
 /** Restrained badge — orange for Intelligence, success-green accent for Technical SEO. */
 export function SeoGenerationTypeBadge({
   generationType,
+  label,
 }: SeoGenerationTypeBadgeProps) {
-  const label = seoGenerationTypeLabel(generationType);
+  const resolvedLabel = label ?? seoGenerationTypeLabel(generationType);
   const isTechnical = generationType === "technical";
 
   return (
@@ -20,7 +22,7 @@ export function SeoGenerationTypeBadge({
           : "inline-flex items-center rounded-full border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--athena-orange)]"
       }
     >
-      {label}
+      {resolvedLabel}
     </span>
   );
 }

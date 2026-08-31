@@ -11,6 +11,7 @@ import {
   groupRoadmapItems,
   inferFutureActionKinds,
   priorityVisual,
+  seoScoreBandFromValue,
 } from "../../services/seo/seoReportPresentation";
 
 function samplePackage(): SeoIntelligencePackage {
@@ -142,5 +143,29 @@ describe("seo report presentation", () => {
       }).includes("generate_faq"),
     );
     assert.equal(priorityVisual("P3").label, "Long-Term Investment");
+  });
+
+  it("classifies score bands from numeric thresholds and keeps English as final label only", () => {
+    assert.equal(seoScoreBandFromValue(80), "strong");
+    assert.equal(seoScoreBandFromValue(79), "solid");
+    assert.equal(seoScoreBandFromValue(65), "solid");
+    assert.equal(seoScoreBandFromValue(64), "developing");
+    assert.equal(seoScoreBandFromValue(50), "developing");
+    assert.equal(seoScoreBandFromValue(49), "emerging");
+    assert.equal(seoScoreBandFromValue(35), "emerging");
+    assert.equal(seoScoreBandFromValue(34), "early");
+    const overview = buildSeoExecutiveOverview(samplePackage());
+    const englishFromBand = {
+      strong: "Strong",
+      solid: "Solid",
+      developing: "Developing",
+      emerging: "Emerging",
+      early: "Early",
+    } as const;
+    assert.equal(typeof overview.overallScore.value, "number");
+    assert.equal(
+      overview.overallScore.label,
+      englishFromBand[seoScoreBandFromValue(overview.overallScore.value)],
+    );
   });
 });

@@ -58,7 +58,7 @@ describe("ad campaign API contracts", () => {
     const route = read("app/api/ads/route.ts");
     assert.match(route, /normalizeAdCampaignBrief\(briefSource\)/);
     const form = read("components/ads/AdCampaignGenerateForm.tsx");
-    assert.match(form, /brief is optional/i);
-    assert.match(form, /no brief at all/i);
+    assert.match(form, /copy\.briefOptional/);
+    assert.match(form, /name: name\.trim\(\) \|\| undefined/);
   });
 });

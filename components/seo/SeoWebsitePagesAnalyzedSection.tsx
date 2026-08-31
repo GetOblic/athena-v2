@@ -5,31 +5,58 @@ import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSecti
 import type { SeoWebsitePagesAnalyzed } from "@/services/seo/seoReportTypes";
 import { emptySeoWebsitePagesAnalyzed } from "@/services/seo/seoWebsitePagesSnapshot";
 
+export type SeoWebsitePagesAnalyzedChrome = {
+  title?: string;
+  pageCountOne?: string;
+  pageCountMany?: string;
+  emptyMessage?: string;
+  untitledPage?: string;
+  expand?: string;
+  collapse?: string;
+};
+
 type SeoWebsitePagesAnalyzedSectionProps = {
   inventory: SeoWebsitePagesAnalyzed | null | undefined;
+  chrome?: SeoWebsitePagesAnalyzedChrome | null;
 };
 
 export function SeoWebsitePagesAnalyzedSection({
   inventory,
+  chrome,
 }: SeoWebsitePagesAnalyzedSectionProps) {
   const snapshot = inventory ?? emptySeoWebsitePagesAnalyzed();
   const pageCount =
     snapshot.pages.length > 0
       ? snapshot.pages.length
       : snapshot.pagesAnalyzedCount;
-  const countLabel = `${pageCount} ${pageCount === 1 ? "page" : "pages"}`;
+  const countTemplate =
+    pageCount === 1
+      ? (chrome?.pageCountOne ?? "{count} page")
+      : (chrome?.pageCountMany ?? "{count} pages");
+  const countLabel = countTemplate.includes("{count}")
+    ? countTemplate.replace("{count}", String(pageCount))
+    : `${pageCount} ${pageCount === 1 ? "page" : "pages"}`;
 
   return (
     <AthenaCollapsibleSection
-      title="Website Pages Analyzed"
+      title={chrome?.title ?? "Website Pages Analyzed"}
       defaultOpen={false}
       showToggleLabel
+      toggleLabels={
+        chrome?.expand && chrome?.collapse
+          ? { expand: chrome.expand, collapse: chrome.collapse }
+          : null
+      }
       summary={countLabel}
       contentClassName="space-y-4"
     >
       <WebsiteAnalyzedPagesList
         pages={snapshot.pages}
-        emptyMessage="No website page inventory was captured for this report. Run Website Deep Scrape on Athena Brain, then regenerate SEO Intelligence."
+        emptyMessage={
+          chrome?.emptyMessage ??
+          "No website page inventory was captured for this report. Run Website Deep Scrape on Athena Brain, then regenerate SEO Intelligence."
+        }
+        untitledLabel={chrome?.untitledPage}
       />
     </AthenaCollapsibleSection>
   );

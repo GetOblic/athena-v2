@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import {
+  getLocalizedSeoGenerationStageLabel,
+  getLocalizedSeoReportStatusLabel,
+} from "@/lib/tenantI18n/seoPresentation";
+import { en } from "@/lib/tenantI18n/messages/en";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { SeoReportGenerationStage } from "@/services/seo/seoReportTypes";
 
 const STAGE_LABELS: Record<SeoReportGenerationStage, string> = {
@@ -37,6 +44,7 @@ type SeoReportStatusPanelProps = {
   initialStatus: string;
   initialStage: SeoReportGenerationStage | null;
   initialErrorMessage?: string | null;
+  messages?: TenantMessages;
 };
 
 export function SeoReportStatusPanel({
@@ -44,7 +52,10 @@ export function SeoReportStatusPanel({
   initialStatus,
   initialStage,
   initialErrorMessage = null,
+  messages,
 }: SeoReportStatusPanelProps) {
+  const copy = messages?.seo.statusPanel ?? en.seo.statusPanel;
+  const dictionary = messages ?? en;
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [stage, setStage] = useState(initialStage);
@@ -107,15 +118,13 @@ export function SeoReportStatusPanel({
         error?: { message?: string };
       }>(response);
       if (!payload.ok || !payload.report?.id) {
-        setActionError(
-          payload.error?.message || "Failed to regenerate SEO report.",
-        );
+        setActionError(payload.error?.message || copy.regenerateFailed);
         return;
       }
       router.push(`/seo/${payload.report.id}`);
       router.refresh();
     } catch {
-      setActionError("Failed to regenerate SEO report.");
+      setActionError(copy.regenerateFailed);
     } finally {
       setRegenerating(false);
     }
@@ -138,15 +147,13 @@ export function SeoReportStatusPanel({
           await handleRegenerate();
           return;
         }
-        setActionError(
-          payload.error?.message || "Failed to retry SEO generation.",
-        );
+        setActionError(payload.error?.message || copy.retryFailed);
         return;
       }
       setStatus("Processing");
       router.refresh();
     } catch {
-      setActionError("Failed to retry SEO generation.");
+      setActionError(copy.retryFailed);
     } finally {
       setRegenerating(false);
     }
@@ -156,24 +163,34 @@ export function SeoReportStatusPanel({
     return null;
   }
 
-  const stageLabel =
-    stage && STAGE_LABELS[stage] ? STAGE_LABELS[stage] : "Queued";
+  const stageLabel = messages
+    ? getLocalizedSeoGenerationStageLabel(dictionary, stage)
+    : stage && STAGE_LABELS[stage]
+      ? STAGE_LABELS[stage]
+      : "Queued";
+
+  const leaveAndReturn = interpolateTenantMessage(
+    copy.leaveAndReturn.includes("{stage}")
+      ? copy.leaveAndReturn
+      : en.seo.statusPanel.leaveAndReturn,
+    { stage: stageLabel },
+  );
 
   return (
     <div className="mb-8 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
       <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-orange)]">
-        Generation status
+        {copy.generationStatus}
       </div>
-      <h2 className="mt-3 text-2xl font-semibold">{status}</h2>
+      <h2 className="mt-3 text-2xl font-semibold">
+        {getLocalizedSeoReportStatusLabel(dictionary, status)}
+      </h2>
       {inFlight ? (
-        <p className="mt-3 text-sm leading-7 text-white/60">
-          {stageLabel}. You can leave this page and return later.
-        </p>
+        <p className="mt-3 text-sm leading-7 text-white/60">{leaveAndReturn}</p>
       ) : null}
       {status === "Processing Failed" ? (
         <div className="mt-4 space-y-4">
           <p className="text-sm leading-7 text-rose-100/80">
-            {errorMessage || "SEO generation failed."}
+            {errorMessage || copy.generationFailed}
           </p>
           <div className="flex flex-wrap gap-3">
             <button
@@ -182,7 +199,7 @@ export function SeoReportStatusPanel({
               disabled={regenerating}
               className="rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {regenerating ? "Working…" : "Retry generation"}
+              {regenerating ? copy.working : copy.retry}
             </button>
             <button
               type="button"
@@ -190,7 +207,7 @@ export function SeoReportStatusPanel({
               disabled={regenerating}
               className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 disabled:opacity-60"
             >
-              Regenerate as new report
+              {copy.regenerateAsNew}
             </button>
           </div>
         </div>

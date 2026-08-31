@@ -1,7 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CopyButton } from "@/components/deployment/CopyButton";
+import {
+  CopyButton,
+  type CopyButtonChrome,
+} from "@/components/deployment/CopyButton";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import {
   estimateReadingMinutes,
@@ -14,6 +17,15 @@ export type SeoReportField = {
   value: string;
 };
 
+export type SeoReportSectionChrome = {
+  emptyValue?: string;
+  readingTime?: (minutes: number) => string;
+  starsAria?: (stars: number) => string;
+  expand?: string;
+  collapse?: string;
+  copy?: CopyButtonChrome | null;
+};
+
 type SeoReportSectionProps = {
   title: string;
   eyebrow?: string;
@@ -24,6 +36,7 @@ type SeoReportSectionProps = {
   summary?: string;
   stars?: number;
   readingCorpus?: string;
+  chrome?: SeoReportSectionChrome | null;
 };
 
 export function SeoReportSection({
@@ -36,6 +49,7 @@ export function SeoReportSection({
   summary,
   stars,
   readingCorpus,
+  chrome,
 }: SeoReportSectionProps) {
   const corpus =
     readingCorpus ??
@@ -43,6 +57,13 @@ export function SeoReportSection({
       .filter(Boolean)
       .join("\n");
   const readingMinutes = estimateReadingMinutes(corpus);
+  const emptyValue = chrome?.emptyValue ?? "—";
+  const readingLabel = chrome?.readingTime
+    ? chrome.readingTime(readingMinutes)
+    : formatReadingTime(readingMinutes);
+  const starsAria = chrome?.starsAria
+    ? chrome.starsAria(stars ?? 0)
+    : `${stars} of 5 stars`;
 
   return (
     <AthenaCollapsibleSection
@@ -51,17 +72,22 @@ export function SeoReportSection({
       defaultOpen={defaultOpen}
       summary={summary}
       showToggleLabel
+      toggleLabels={
+        chrome?.expand && chrome?.collapse
+          ? { expand: chrome.expand, collapse: chrome.collapse }
+          : null
+      }
       headerMeta={
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/50">
           {typeof stars === "number" ? (
             <span
               className="tracking-[0.12em] text-[var(--athena-orange)]"
-              aria-label={`${stars} of 5 stars`}
+              aria-label={starsAria}
             >
               {formatStarRating(stars)}
             </span>
           ) : null}
-          <span>{formatReadingTime(readingMinutes)}</span>
+          <span>{readingLabel}</span>
         </div>
       }
       contentClassName="space-y-5"
@@ -77,10 +103,11 @@ export function SeoReportSection({
               text={field.value}
               tracking={null}
               showContinue={false}
+              chrome={chrome?.copy}
             />
           </div>
           <div className="whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white/80">
-            {field.value || "—"}
+            {field.value || emptyValue}
           </div>
         </div>
       ))}

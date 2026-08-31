@@ -4,13 +4,22 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { en } from "@/lib/tenantI18n/messages/en";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { SeoGenerationType } from "@/services/seo/seoGenerationType";
 
 /** Athena success-green treatment — same language as ThinkDifferentlyButton. */
 const TECHNICAL_SEO_BUTTON_CLASS =
   "inline-flex items-center justify-center rounded-2xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-6 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-60";
 
-export function SeoReportGenerateForm() {
+type SeoReportGenerateFormProps = {
+  messages?: TenantMessages;
+};
+
+export function SeoReportGenerateForm({
+  messages,
+}: SeoReportGenerateFormProps) {
+  const copy = messages?.seo.new ?? en.seo.new;
   const router = useRouter();
   const submittingRef = useRef(false);
   const [name, setName] = useState("");
@@ -51,8 +60,8 @@ export function SeoReportGenerateForm() {
         setError(
           payload.error?.message ||
             (generationType === "technical"
-              ? "Failed to start Technical SEO generation."
-              : "Failed to start SEO generation."),
+              ? copy.generateTechnicalFailed
+              : copy.generateFailed),
         );
         return;
       }
@@ -62,8 +71,8 @@ export function SeoReportGenerateForm() {
     } catch {
       setError(
         generationType === "technical"
-          ? "Failed to start Technical SEO generation."
-          : "Failed to start SEO generation.",
+          ? copy.generateTechnicalFailed
+          : copy.generateFailed,
       );
     } finally {
       submittingRef.current = false;
@@ -72,6 +81,11 @@ export function SeoReportGenerateForm() {
   }
 
   const submitting = submittingType != null;
+  const extraFields = [
+    [copy.focusAreaLabel, focusArea, setFocusArea, 500],
+    [copy.geographyLabel, geography, setGeography, 200],
+    [copy.constraintsLabel, constraints, setConstraints, 1000],
+  ] as const;
 
   return (
     <form
@@ -82,53 +96,41 @@ export function SeoReportGenerateForm() {
       className="space-y-6"
     >
       <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
-        <p className="text-sm leading-7 text-white/60">
-          A brief is optional. Choose Generate SEO Intelligence for strategic
-          content and visibility opportunities from existing Brain, Deep Website
-          Intelligence, Personas, Communities, and Discussions. Choose Generate
-          Technical SEO for an evidence-backed technical package from refreshed
-          Website Intelligence.
-        </p>
+        <p className="text-sm leading-7 text-white/60">{copy.briefOptional}</p>
       </div>
 
       <label className="block space-y-2">
         <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-          Report name (optional)
+          {copy.nameLabel}
         </span>
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
           className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-          placeholder="Untitled SEO Report"
+          placeholder={copy.namePlaceholder}
           maxLength={120}
         />
       </label>
 
       <label className="block space-y-2">
         <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-          Guidance (optional)
+          {copy.guidanceLabel}
         </span>
         <textarea
           value={guidance}
           onChange={(event) => setGuidance(event.target.value)}
           className="min-h-[160px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-          placeholder="Optional freeform direction for the SEO report. Leave blank to let Athena infer the strongest opportunities."
+          placeholder={copy.guidancePlaceholder}
           maxLength={4000}
         />
       </label>
 
-      <AthenaCollapsibleSection title="More detail" defaultOpen={false}>
+      <AthenaCollapsibleSection title={copy.moreDetail} defaultOpen={false}>
         <div className="space-y-4">
-          {(
-            [
-              ["Focus area", focusArea, setFocusArea, 500],
-              ["Geography", geography, setGeography, 200],
-              ["Constraints", constraints, setConstraints, 1000],
-            ] as const
-          ).map(([label, value, setter, max]) => (
+          {extraFields.map(([label, value, setter, max]) => (
             <label key={label} className="block space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-                {label} (optional)
+                {label}
               </span>
               <textarea
                 value={value}
@@ -150,8 +152,8 @@ export function SeoReportGenerateForm() {
           className="rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
         >
           {submittingType === "intelligence"
-            ? "Starting…"
-            : "Generate SEO Intelligence"}
+            ? copy.starting
+            : copy.generateIntelligence}
         </button>
         <button
           type="button"
@@ -160,8 +162,8 @@ export function SeoReportGenerateForm() {
           className={TECHNICAL_SEO_BUTTON_CLASS}
         >
           {submittingType === "technical"
-            ? "Starting…"
-            : "Generate Technical SEO"}
+            ? copy.starting
+            : copy.generateTechnical}
         </button>
       </div>
     </form>

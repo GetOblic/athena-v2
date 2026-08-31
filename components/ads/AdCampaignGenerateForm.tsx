@@ -4,8 +4,17 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { en } from "@/lib/tenantI18n/messages/en";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 
-export function AdCampaignGenerateForm() {
+type AdCampaignGenerateFormProps = {
+  messages?: TenantMessages;
+};
+
+export function AdCampaignGenerateForm({
+  messages,
+}: AdCampaignGenerateFormProps) {
+  const copy = messages?.ads.new ?? en.ads.new;
   const router = useRouter();
   const submittingRef = useRef(false);
   const [name, setName] = useState("");
@@ -48,70 +57,67 @@ export function AdCampaignGenerateForm() {
       }>(response);
 
       if (!payload.ok || !payload.campaign?.id) {
-        setError(payload.error?.message || "Failed to start Ads generation.");
+        setError(payload.error?.message || copy.generateFailed);
         return;
       }
 
       router.push(`/ads/${payload.campaign.id}`);
       router.refresh();
     } catch {
-      setError("Failed to start Ads generation.");
+      setError(copy.generateFailed);
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
     }
   }
 
+  const extraFields = [
+    [copy.objectiveLabel, objective, setObjective, 500],
+    [copy.offerLabel, offer, setOffer, 500],
+    [copy.audienceLabel, audience, setAudience, 500],
+    [copy.geographyLabel, geography, setGeography, 200],
+    [copy.landingPageLabel, landingPage, setLandingPage, 500],
+    [copy.constraintsLabel, constraints, setConstraints, 1000],
+  ] as const;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
-        <p className="text-sm leading-7 text-white/60">
-          A brief is optional. Athena can generate a complete organization-level
-          campaign from existing intelligence with no brief at all.
-        </p>
+        <p className="text-sm leading-7 text-white/60">{copy.briefOptional}</p>
       </div>
 
       <label className="block space-y-2">
         <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-          Campaign name (optional)
+          {copy.nameLabel}
         </span>
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
           className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-          placeholder="Untitled Ad Campaign"
+          placeholder={copy.namePlaceholder}
           maxLength={120}
         />
       </label>
 
       <label className="block space-y-2">
         <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-          Guidance (optional)
+          {copy.guidanceLabel}
         </span>
         <textarea
           value={guidance}
           onChange={(event) => setGuidance(event.target.value)}
           className="min-h-[160px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-          placeholder="Optional freeform direction for the campaign. Leave blank to let Athena infer the strongest opportunity."
+          placeholder={copy.guidancePlaceholder}
           maxLength={4000}
         />
       </label>
 
-      <AthenaCollapsibleSection title="More detail" defaultOpen={false}>
+      <AthenaCollapsibleSection title={copy.moreDetail} defaultOpen={false}>
         <div className="space-y-4">
-          {(
-            [
-              ["Objective", objective, setObjective, 500],
-              ["Offer", offer, setOffer, 500],
-              ["Audience", audience, setAudience, 500],
-              ["Geography", geography, setGeography, 200],
-              ["Landing page", landingPage, setLandingPage, 500],
-              ["Constraints", constraints, setConstraints, 1000],
-            ] as const
-          ).map(([label, value, setter, max]) => (
+          {extraFields.map(([label, value, setter, max]) => (
             <label key={label} className="block space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-                {label} (optional)
+                {label}
               </span>
               <textarea
                 value={value}
@@ -131,7 +137,7 @@ export function AdCampaignGenerateForm() {
         disabled={submitting}
         className="rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
       >
-        {submitting ? "Starting…" : "Generate Ads"}
+        {submitting ? copy.starting : copy.generate}
       </button>
     </form>
   );

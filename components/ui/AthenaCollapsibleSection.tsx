@@ -18,6 +18,7 @@ type AthenaCollapsibleSectionProps = {
   headerMeta?: ReactNode;
   /** When true, toggle control shows Expand/Collapse labels beside the arrow. */
   showToggleLabel?: boolean;
+  toggleLabels?: { expand: string; collapse: string } | null;
   className?: string;
   contentClassName?: string;
   /** Keep a live processing / status badge visible in the header */
@@ -38,6 +39,7 @@ export function AthenaCollapsibleSection({
   summary,
   headerMeta,
   showToggleLabel = false,
+  toggleLabels = null,
   className = "",
   contentClassName = "",
   headerAside,
@@ -90,8 +92,8 @@ export function AthenaCollapsibleSection({
           >
             {showToggleLabel
               ? open
-                ? "▲ Collapse"
-                : "▼ Expand"
+                ? (toggleLabels?.collapse ?? "▲ Collapse")
+                : (toggleLabels?.expand ?? "▼ Expand")
               : open
                 ? "▲"
                 : "▼"}

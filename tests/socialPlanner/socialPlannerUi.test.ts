@@ -722,8 +722,8 @@ describe("Social Planner L7 non-interference", () => {
   it("does not change Ads, SEO, Licensee, or Super Admin workspace behavior", () => {
     assert.match(read("app/ads/page.tsx"), /AdsLibraryClient/);
     assert.match(read("app/seo/page.tsx"), /SeoLibraryClient/);
-    assert.match(read("components/ads/AdsLibraryClient.tsx"), /Generate Ads/);
-    assert.match(read("components/seo/SeoLibraryClient.tsx"), /Generate SEO Intelligence/);
+    assert.match(read("components/ads/AdsLibraryClient.tsx"), /copy\.generateAds/);
+    assert.match(read("components/seo/SeoLibraryClient.tsx"), /copy\.generateIntelligence/);
     assert.doesNotMatch(read("components/ads/AdsLibraryClient.tsx"), /socialPlanner|Social Planner/);
     assert.doesNotMatch(read("components/seo/SeoLibraryClient.tsx"), /socialPlanner|Social Planner/);
     assert.doesNotMatch(read("app/ads/page.tsx"), /social-planner/);

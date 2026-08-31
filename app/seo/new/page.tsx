@@ -1,37 +1,41 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
 import { SeoReportGenerateForm } from "@/components/seo/SeoReportGenerateForm";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 export default async function NewSeoReportPage() {
   await requireCurrentOrganizationContext();
+  const { messages } = await getTenantLocalization();
+  const copy = messages.seo;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink className="mb-8" />
+      <AthenaBrandLink
+        className="mb-8"
+        tagline={messages.chrome.tagline}
+        logoutLabel={messages.chrome.logOut}
+        sessionActionsLabel={messages.chrome.sessionActions}
+      />
 
-      <Link href="/seo" className="text-sm text-[var(--athena-orange)]">
-        ← SEO Intelligence
-      </Link>
+      <TenantBackLink href="/seo" label={copy.backToSeo} />
 
       <div className="mb-10 mt-10 max-w-3xl">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          SEO Workspace
+          {copy.new.eyebrow}
         </div>
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          New report
+          {copy.new.title}
         </h1>
         <p className="mt-4 text-base leading-7 text-white/50">
-          Provide optional guidance, then choose Generate SEO Intelligence for
-          strategic opportunities, or Generate Technical SEO for an
-          evidence-backed technical package from Website Intelligence.
+          {copy.new.subtitle}
         </p>
       </div>
 
       <div className="max-w-3xl">
-        <SeoReportGenerateForm />
+        <SeoReportGenerateForm messages={messages} />
       </div>
     </main>
   );

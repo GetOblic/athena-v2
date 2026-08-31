@@ -1,7 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CopyButton } from "@/components/deployment/CopyButton";
+import {
+  CopyButton,
+  type CopyButtonChrome,
+} from "@/components/deployment/CopyButton";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 
 export type AdAssetField = {
@@ -15,6 +18,8 @@ type AdAssetSectionProps = {
   fields: AdAssetField[];
   defaultOpen?: boolean;
   footer?: ReactNode;
+  emptyValue?: string;
+  copy?: CopyButtonChrome | null;
 };
 
 export function AdAssetSection({
@@ -23,6 +28,8 @@ export function AdAssetSection({
   fields,
   defaultOpen = true,
   footer,
+  emptyValue = "—",
+  copy,
 }: AdAssetSectionProps) {
   return (
     <AthenaCollapsibleSection
@@ -41,10 +48,11 @@ export function AdAssetSection({
               text={field.value}
               tracking={null}
               showContinue={false}
+              chrome={copy}
             />
           </div>
           <div className="whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white/80">
-            {field.value || "—"}
+            {field.value || emptyValue}
           </div>
         </div>
       ))}

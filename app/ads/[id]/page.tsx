@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { AdCampaignDetailView } from "@/components/ads/AdCampaignDetailView";
+import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { toPublicAdCampaignDetail } from "@/services/ads/adCampaignPublic";
 import { getAdCampaignById } from "@/services/ads/adCampaignService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -21,6 +22,7 @@ export default async function AdCampaignDetailPage({
   }
 
   const { organizationId } = await requireCurrentOrganizationContext();
+  const { messages } = await getTenantLocalization();
   const campaign = await getAdCampaignById(id, organizationId);
   if (!campaign) {
     notFound();
@@ -29,9 +31,16 @@ export default async function AdCampaignDetailPage({
   return (
     <>
       <div className="px-10 pt-10">
-        <AthenaBrandLink />
+        <AthenaBrandLink
+          tagline={messages.chrome.tagline}
+          logoutLabel={messages.chrome.logOut}
+          sessionActionsLabel={messages.chrome.sessionActions}
+        />
       </div>
-      <AdCampaignDetailView campaign={toPublicAdCampaignDetail(campaign)} />
+      <AdCampaignDetailView
+        campaign={toPublicAdCampaignDetail(campaign)}
+        messages={messages}
+      />
     </>
   );
 }

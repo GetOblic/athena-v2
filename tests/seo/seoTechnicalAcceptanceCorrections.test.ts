@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { en } from "../../lib/tenantI18n/messages/en";
 import {
   classifyRedirectInterpretation,
   analyzeTechnicalSeoEvidence,
@@ -672,21 +673,23 @@ describe("4 — evidence-backed internal linking", () => {
 describe("5 — /seo workspace positioning + dual CTAs", () => {
   it("positions workspace for both SEO Intelligence and Technical SEO", () => {
     const page = read("app/seo/page.tsx");
-    assert.match(page, /SEO Workspace/);
-    assert.match(page, /Generate SEO Intelligence/);
-    assert.match(page, /Generate Technical SEO/);
-    assert.match(page, /evidence-backed technical optimization/);
+    assert.equal(en.seo.eyebrow, "SEO Workspace");
+    assert.equal(en.seo.generateIntelligence, "Generate SEO Intelligence");
+    assert.equal(en.seo.generateTechnical, "Generate Technical SEO");
+    assert.match(en.seo.subtitle, /evidence-backed technical optimization/);
+    assert.match(page, /copy\.eyebrow/);
+    assert.match(page, /copy\.subtitle/);
     assert.doesNotMatch(page, /not a traditional crawler audit/);
   });
 
   it("exposes orange + green CTAs on library empty and populated states", () => {
     const library = read("components/seo/SeoLibraryClient.tsx");
-    assert.match(library, /Generate SEO Intelligence/);
-    assert.match(library, /Generate Technical SEO/);
+    assert.match(library, /copy\.generateIntelligence/);
+    assert.match(library, /copy\.generateTechnical/);
     assert.match(library, /--athena-orange/);
     assert.match(library, /--athena-success/);
     assert.equal(
-      (library.match(/Generate Technical SEO/g) ?? []).length >= 2,
+      (library.match(/copy\.generateTechnical/g) ?? []).length >= 2,
       true,
     );
   });

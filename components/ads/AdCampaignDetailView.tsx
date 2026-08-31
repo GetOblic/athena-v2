@@ -7,13 +7,29 @@ import { AdAssetSection } from "@/components/ads/AdAssetSection";
 import { AdCampaignHeaderDeleteButton } from "@/components/ads/AdCampaignHeaderDeleteButton";
 import { AdCampaignStatusPanel } from "@/components/ads/AdCampaignStatusPanel";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import {
+  getAdsConfirmDeleteChrome,
+  getAdsCopyChrome,
+  getLocalizedAdCampaignStatusLabel,
+} from "@/lib/tenantI18n/adsPresentation";
+import { en } from "@/lib/tenantI18n/messages/en";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { PublicAdCampaignDetail } from "@/services/ads/adCampaignPublic";
 
 type AdCampaignDetailViewProps = {
   campaign: PublicAdCampaignDetail;
+  messages?: TenantMessages;
 };
 
-export function AdCampaignDetailView({ campaign }: AdCampaignDetailViewProps) {
+export function AdCampaignDetailView({
+  campaign,
+  messages,
+}: AdCampaignDetailViewProps) {
+  const dictionary = messages ?? en;
+  const copy = dictionary.ads;
+  const emptyValue = copy.emptyValue;
+  const copyChrome = getAdsCopyChrome(dictionary);
   const router = useRouter();
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,34 +49,42 @@ export function AdCampaignDetailView({ campaign }: AdCampaignDetailViewProps) {
         error?: { message?: string };
       }>(response);
       if (!payload.ok || !payload.campaign?.id) {
-        setError(payload.error?.message || "Failed to regenerate campaign.");
+        setError(payload.error?.message || copy.detail.regenerateFailed);
         return;
       }
       router.push(`/ads/${payload.campaign.id}`);
       router.refresh();
     } catch {
-      setError("Failed to regenerate campaign.");
+      setError(copy.detail.regenerateFailed);
     } finally {
       setRegenerating(false);
     }
   }
 
+  function themeLabel(template: string, n: number) {
+    return interpolateTenantMessage(
+      template.includes("{n}") ? template : en.ads.detail.themeN,
+      { n },
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
       <Link href="/ads" className="text-sm text-[var(--athena-orange)]">
-        ← Ads
+        {copy.backToAds}
       </Link>
 
       <div className="mb-8 mt-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Organization Ads
+            {copy.detail.eyebrow}
           </div>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">
             {campaign.name}
           </h1>
           <p className="mt-3 text-sm text-white/50">
-            Status: {campaign.status}
+            {copy.detail.statusLabel}:{" "}
+            {getLocalizedAdCampaignStatusLabel(dictionary, campaign.status)}
             {campaign.objective ? ` · ${campaign.objective}` : ""}
           </p>
         </div>
@@ -73,10 +97,15 @@ export function AdCampaignDetailView({ campaign }: AdCampaignDetailViewProps) {
               disabled={regenerating}
               className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/85 disabled:opacity-60"
             >
-              {regenerating ? "Starting…" : "Regenerate"}
+              {regenerating ? copy.detail.starting : copy.detail.regenerate}
             </button>
           )}
-          <AdCampaignHeaderDeleteButton campaignId={campaign.id} />
+          <AdCampaignHeaderDeleteButton
+            campaignId={campaign.id}
+            confirmMessage={copy.delete.confirm}
+            errorFallback={copy.delete.failed}
+            chrome={getAdsConfirmDeleteChrome(dictionary)}
+          />
         </div>
       </div>
 
@@ -89,182 +118,198 @@ export function AdCampaignDetailView({ campaign }: AdCampaignDetailViewProps) {
         initialStatus={campaign.status}
         initialStage={campaign.generationStage}
         initialErrorMessage={campaign.errorMessage}
+        messages={dictionary}
       />
 
       {pkg ? (
         <div className="space-y-6">
           <AdAssetSection
-            title="Campaign Strategy"
+            title={copy.detail.campaignStrategy}
             eyebrow="1"
+            emptyValue={emptyValue}
+            copy={copyChrome}
             fields={[
-              { label: "Campaign name", value: pkg.strategy.campaignName },
-              { label: "Objective", value: pkg.strategy.objective },
-              { label: "Audience", value: pkg.strategy.audience },
+              { label: copy.detail.campaignName, value: pkg.strategy.campaignName },
+              { label: copy.detail.objective, value: pkg.strategy.objective },
+              { label: copy.detail.audience, value: pkg.strategy.audience },
               {
-                label: "Core offer / message",
+                label: copy.detail.coreOfferOrMessage,
                 value: pkg.strategy.coreOfferOrMessage,
               },
               {
-                label: "Positioning angle",
+                label: copy.detail.positioningAngle,
                 value: pkg.strategy.positioningAngle,
               },
               {
-                label: "Primary value proposition",
+                label: copy.detail.primaryValueProposition,
                 value: pkg.strategy.primaryValueProposition,
               },
-              { label: "CTA direction", value: pkg.strategy.ctaDirection },
+              { label: copy.detail.ctaDirection, value: pkg.strategy.ctaDirection },
               {
-                label: "Landing page direction",
+                label: copy.detail.landingPageDirection,
                 value: pkg.strategy.landingPageDirection,
               },
-              { label: "Rationale", value: pkg.strategy.rationale },
-              { label: "Brief mode", value: pkg.strategy.briefMode },
+              { label: copy.detail.rationale, value: pkg.strategy.rationale },
+              { label: copy.detail.briefMode, value: pkg.strategy.briefMode },
             ]}
           />
 
           <AdAssetSection
-            title="Facebook"
+            title={copy.detail.facebook}
             eyebrow="2"
+            emptyValue={emptyValue}
+            copy={copyChrome}
             fields={[
-              { label: "Primary text", value: pkg.facebook.primaryText },
-              { label: "Headline", value: pkg.facebook.headline },
-              { label: "Description", value: pkg.facebook.description },
+              { label: copy.detail.primaryText, value: pkg.facebook.primaryText },
+              { label: copy.detail.headline, value: pkg.facebook.headline },
+              { label: copy.detail.description, value: pkg.facebook.description },
               {
-                label: "CTA recommendation",
+                label: copy.detail.ctaRecommendation,
                 value: pkg.facebook.ctaRecommendation,
               },
               {
-                label: "Audience direction",
+                label: copy.detail.audienceDirection,
                 value: pkg.facebook.audienceDirection,
               },
               {
-                label: "Creative concept",
+                label: copy.detail.creativeConcept,
                 value: pkg.facebook.creativeConcept,
               },
-              { label: "Image prompt", value: pkg.facebook.imagePrompt },
+              { label: copy.detail.imagePrompt, value: pkg.facebook.imagePrompt },
             ]}
           />
 
           <AdAssetSection
-            title="Instagram"
+            title={copy.detail.instagram}
             eyebrow="3"
+            emptyValue={emptyValue}
+            copy={copyChrome}
             fields={[
-              { label: "Feed caption", value: pkg.instagram.feedCaption },
-              { label: "Opening hook", value: pkg.instagram.openingHook },
+              { label: copy.detail.feedCaption, value: pkg.instagram.feedCaption },
+              { label: copy.detail.openingHook, value: pkg.instagram.openingHook },
               {
-                label: "Reel / story script",
+                label: copy.detail.reelOrStoryScript,
                 value: pkg.instagram.reelOrStoryScript,
               },
-              { label: "On-screen text", value: pkg.instagram.onScreenText },
-              { label: "CTA", value: pkg.instagram.cta },
+              { label: copy.detail.onScreenText, value: pkg.instagram.onScreenText },
+              { label: copy.detail.cta, value: pkg.instagram.cta },
               {
-                label: "Hashtag direction",
-                value: pkg.instagram.hashtagDirection ?? "—",
+                label: copy.detail.hashtagDirection,
+                value: pkg.instagram.hashtagDirection ?? emptyValue,
               },
               {
-                label: "Creative concept",
+                label: copy.detail.creativeConcept,
                 value: pkg.instagram.creativeConcept,
               },
               {
-                label: "Image / short video prompt",
+                label: copy.detail.imageOrShortVideoPrompt,
                 value: pkg.instagram.imageOrShortVideoPrompt,
               },
             ]}
           />
 
           <AdAssetSection
-            title="TikTok"
+            title={copy.detail.tiktok}
             eyebrow="4"
+            emptyValue={emptyValue}
+            copy={copyChrome}
             fields={[
-              { label: "Opening hook", value: pkg.tiktok.openingHook },
+              { label: copy.detail.openingHook, value: pkg.tiktok.openingHook },
               {
-                label: "Short video script",
+                label: copy.detail.shortVideoScript,
                 value: pkg.tiktok.shortVideoScript,
               },
-              { label: "Scene direction", value: pkg.tiktok.sceneDirection },
-              { label: "On-screen text", value: pkg.tiktok.onScreenText },
-              { label: "Caption", value: pkg.tiktok.caption },
-              { label: "CTA", value: pkg.tiktok.cta },
+              { label: copy.detail.sceneDirection, value: pkg.tiktok.sceneDirection },
+              { label: copy.detail.onScreenText, value: pkg.tiktok.onScreenText },
+              { label: copy.detail.caption, value: pkg.tiktok.caption },
+              { label: copy.detail.cta, value: pkg.tiktok.cta },
               {
-                label: "Creator / production direction",
+                label: copy.detail.creatorOrProductionDirection,
                 value: pkg.tiktok.creatorOrProductionDirection,
               },
             ]}
           />
 
           <AdAssetSection
-            title="Google Search Ads"
+            title={copy.detail.googleSearchAds}
             eyebrow="5"
+            emptyValue={emptyValue}
+            copy={copyChrome}
             fields={[
               {
-                label: "Campaign theme",
+                label: copy.detail.campaignTheme,
                 value: pkg.googleSearch.campaignTheme,
               },
               {
-                label: "Ad group themes",
+                label: copy.detail.adGroupThemes,
                 value: pkg.googleSearch.adGroupThemes.join("\n"),
               },
               {
-                label: "Headlines",
+                label: copy.detail.headlines,
                 value: pkg.googleSearch.headlines.join("\n"),
               },
               {
-                label: "Descriptions",
+                label: copy.detail.descriptions,
                 value: pkg.googleSearch.descriptions.join("\n"),
               },
               {
-                label: "Sitelink ideas",
+                label: copy.detail.sitelinkIdeas,
                 value: pkg.googleSearch.sitelinkIdeas.join("\n"),
               },
               {
-                label: "Callout ideas",
+                label: copy.detail.calloutIdeas,
                 value: pkg.googleSearch.calloutIdeas.join("\n"),
               },
               {
-                label: "Structured snippet ideas",
+                label: copy.detail.structuredSnippetIdeas,
                 value: pkg.googleSearch.structuredSnippetIdeas.join("\n"),
               },
               {
-                label: "Negative keyword suggestions",
+                label: copy.detail.negativeKeywordSuggestions,
                 value: pkg.googleSearch.negativeKeywordSuggestions.join("\n"),
               },
               {
-                label: "Landing page direction",
+                label: copy.detail.landingPageDirection,
                 value: pkg.googleSearch.landingPageDirection,
               },
             ]}
           />
 
           <AdAssetSection
-            title="Recommended Keyword Themes"
+            title={copy.detail.recommendedKeywordThemes}
             eyebrow="6"
+            emptyValue={emptyValue}
+            copy={copyChrome}
             fields={[
-              { label: "Label", value: pkg.keywordThemes.label },
-              { label: "Disclaimer", value: pkg.keywordThemes.disclaimer },
+              { label: copy.detail.keywordLabel, value: pkg.keywordThemes.label },
+              {
+                label: copy.detail.keywordDisclaimer,
+                value: pkg.keywordThemes.disclaimer,
+              },
               ...pkg.keywordThemes.themes.flatMap((theme, index) => [
                 {
-                  label: `Theme ${index + 1}`,
+                  label: themeLabel(copy.detail.themeN, index + 1),
                   value: theme.theme,
                 },
                 {
-                  label: `Theme ${index + 1} intent`,
+                  label: themeLabel(copy.detail.themeNIntent, index + 1),
                   value: theme.intentClassification,
                 },
                 {
-                  label: `Theme ${index + 1} audience relevance`,
+                  label: themeLabel(copy.detail.themeNAudience, index + 1),
                   value: theme.audienceRelevance,
                 },
                 {
-                  label: `Theme ${index + 1} message angle`,
+                  label: themeLabel(copy.detail.themeNMessage, index + 1),
                   value: theme.suggestedMessageAngle,
                 },
                 {
-                  label: `Theme ${index + 1} landing page`,
+                  label: themeLabel(copy.detail.themeNLanding, index + 1),
                   value: theme.suggestedLandingPageDirection,
                 },
                 {
-                  label: `Theme ${index + 1} negative theme`,
-                  value: theme.negativeKeywordTheme ?? "—",
+                  label: themeLabel(copy.detail.themeNNegative, index + 1),
+                  value: theme.negativeKeywordTheme ?? emptyValue,
                 },
               ]),
             ]}

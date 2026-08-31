@@ -10,6 +10,17 @@ import { SeoReportSection } from "@/components/seo/SeoReportSection";
 import { SeoReportStatusPanel } from "@/components/seo/SeoReportStatusPanel";
 import { SeoWebsitePagesAnalyzedSection } from "@/components/seo/SeoWebsitePagesAnalyzedSection";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import { en } from "@/lib/tenantI18n/messages/en";
+import {
+  getLocalizedSeoGenerationTypeLabel,
+  getLocalizedSeoReportStatusLabel,
+  getLocalizedSeoTechnicalPriorityLabel,
+  getSeoConfirmDeleteChrome,
+  getSeoReportSectionChrome,
+  getSeoWebsitePagesChrome,
+} from "@/lib/tenantI18n/seoPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { PublicSeoReportDetail } from "@/services/seo/seoReportPublic";
 import {
   isSeoTechnicalPackage,
@@ -19,6 +30,7 @@ import {
 
 type SeoTechnicalReportDetailViewProps = {
   report: PublicSeoReportDetail;
+  messages?: TenantMessages;
 };
 
 function priorityClass(priority: SeoTechnicalPriority): string {
@@ -31,11 +43,29 @@ function priorityClass(priority: SeoTechnicalPriority): string {
   return "border-[var(--athena-success)]/30 bg-[var(--athena-success)]/10 text-[var(--athena-success)]";
 }
 
-function joinLines(values: string[]): string {
-  return values.length ? values.map((item) => `• ${item}`).join("\n") : "—";
+function joinLines(values: string[], emptyValue: string): string {
+  return values.length ? values.map((item) => `• ${item}`).join("\n") : emptyValue;
 }
 
-function TechnicalCoveragePanel({ pkg }: { pkg: SeoTechnicalPackage }) {
+function field(
+  template: string,
+  fallback: string,
+  value: string,
+): string {
+  return interpolateTenantMessage(
+    template.includes("{value}") ? template : fallback,
+    { value },
+  );
+}
+
+function TechnicalCoveragePanel({
+  pkg,
+  messages,
+}: {
+  pkg: SeoTechnicalPackage;
+  messages: TenantMessages;
+}) {
+  const copy = messages.seo.technical;
   const coverage = pkg.technicalCoverage.coverage;
   const pageTypes = Object.entries(
     pkg.technicalCoverage.crawl.pageTypeDistribution,
@@ -44,47 +74,56 @@ function TechnicalCoveragePanel({ pkg }: { pkg: SeoTechnicalPackage }) {
   return (
     <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
       <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-success)]">
-        Technical Coverage
+        {copy.technicalCoverage}
       </div>
       <p className="mt-3 text-sm text-white/55">
-        {pkg.technicalCoverage.analyzedPageCount} pages analyzed from Website
-        Intelligence technical evidence.
+        {interpolateTenantMessage(
+          copy.pagesAnalyzedFromEvidence.includes("{count}")
+            ? copy.pagesAnalyzedFromEvidence
+            : en.seo.technical.pagesAnalyzedFromEvidence,
+          { count: pkg.technicalCoverage.analyzedPageCount },
+        )}
       </p>
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <SeoCoverageMeter
-          label="Title coverage"
+          label={copy.titleCoverage}
           percent={coverage.titleCoveragePercent}
         />
         <SeoCoverageMeter
-          label="Meta description"
+          label={copy.metaDescription}
           percent={coverage.descriptionCoveragePercent}
         />
         <SeoCoverageMeter
-          label="H1 coverage"
+          label={copy.h1Coverage}
           percent={coverage.h1CoveragePercent}
         />
         <SeoCoverageMeter
-          label="Canonical coverage"
+          label={copy.canonicalCoverage}
           percent={coverage.canonicalCoveragePercent}
         />
         <SeoCoverageMeter
-          label="Schema coverage"
+          label={copy.schemaCoverage}
           percent={coverage.schemaCoveragePercent}
         />
         <SeoCoverageMeter
-          label="Image alt coverage"
+          label={copy.imageAltCoverage}
           percent={coverage.imageAltCoveragePercent}
           detail={
             pkg.technicalCoverage.images.totalImages > 0
-              ? `${pkg.technicalCoverage.images.imagesMissingAlt} images missing alt`
-              : "No image alt evidence captured"
+              ? interpolateTenantMessage(
+                  copy.imagesMissingAlt.includes("{count}")
+                    ? copy.imagesMissingAlt
+                    : en.seo.technical.imagesMissingAlt,
+                  { count: pkg.technicalCoverage.images.imagesMissingAlt },
+                )
+              : copy.noImageAltEvidence
           }
         />
       </div>
       {pageTypes.length > 0 ? (
         <div className="mt-6">
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-            Page-type distribution
+            {copy.pageTypeDistribution}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {pageTypes.map(([type, count]) => (
@@ -104,7 +143,13 @@ function TechnicalCoveragePanel({ pkg }: { pkg: SeoTechnicalPackage }) {
 
 export function SeoTechnicalReportDetailView({
   report,
+  messages,
 }: SeoTechnicalReportDetailViewProps) {
+  const dictionary = messages ?? en;
+  const copy = dictionary.seo;
+  const technical = copy.technical;
+  const emptyValue = copy.emptyValue;
+  const sectionChrome = getSeoReportSectionChrome(dictionary);
   const router = useRouter();
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,13 +172,13 @@ export function SeoTechnicalReportDetailView({
         error?: { message?: string };
       }>(response);
       if (!payload.ok || !payload.report?.id) {
-        setError(payload.error?.message || "Failed to regenerate SEO report.");
+        setError(payload.error?.message || copy.detail.regenerateFailed);
         return;
       }
       router.push(`/seo/${payload.report.id}`);
       router.refresh();
     } catch {
-      setError("Failed to regenerate SEO report.");
+      setError(copy.detail.regenerateFailed);
     } finally {
       setRegenerating(false);
     }
@@ -142,22 +187,26 @@ export function SeoTechnicalReportDetailView({
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
       <Link href="/seo" className="text-sm text-[var(--athena-orange)]">
-        ← SEO Intelligence
+        {copy.backToSeo}
       </Link>
 
       <div className="mb-8 mt-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-success)]">
-              Technical SEO
+              {technical.eyebrow}
             </div>
-            <SeoGenerationTypeBadge generationType="technical" />
+            <SeoGenerationTypeBadge
+              generationType="technical"
+              label={getLocalizedSeoGenerationTypeLabel(dictionary, "technical")}
+            />
           </div>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">
             {report.name}
           </h1>
           <p className="mt-3 text-sm text-white/50">
-            Status: {report.status}
+            {copy.detail.statusLabel}:{" "}
+            {getLocalizedSeoReportStatusLabel(dictionary, report.status)}
             {report.summary ? ` · ${report.summary}` : ""}
           </p>
         </div>
@@ -170,10 +219,15 @@ export function SeoTechnicalReportDetailView({
               disabled={regenerating}
               className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/85 disabled:opacity-60"
             >
-              {regenerating ? "Starting…" : "Regenerate"}
+              {regenerating ? copy.detail.starting : copy.detail.regenerate}
             </button>
           )}
-          <SeoReportHeaderDeleteButton reportId={report.id} />
+          <SeoReportHeaderDeleteButton
+            reportId={report.id}
+            confirmMessage={copy.delete.confirm}
+            errorFallback={copy.delete.failed}
+            chrome={getSeoConfirmDeleteChrome(dictionary)}
+          />
         </div>
       </div>
 
@@ -186,106 +240,176 @@ export function SeoTechnicalReportDetailView({
         initialStatus={report.status}
         initialStage={report.generationStage}
         initialErrorMessage={report.errorMessage}
+        messages={dictionary}
       />
 
       {pkg ? (
         <div className="mt-6 space-y-6">
-          <TechnicalCoveragePanel pkg={pkg} />
+          <TechnicalCoveragePanel pkg={pkg} messages={dictionary} />
 
           <SeoReportSection
-            title="Executive Evaluation"
+            title={technical.executiveEvaluation}
             eyebrow="A"
             defaultOpen
+            chrome={sectionChrome}
             summary={pkg.executiveEvaluation.summary}
             fields={[
               {
-                label: "Overall assessment",
+                label: technical.overallAssessment,
                 value: pkg.executiveEvaluation.overallAssessment,
               },
               {
-                label: "Strengths",
-                value: joinLines(pkg.executiveEvaluation.strengths),
+                label: technical.strengths,
+                value: joinLines(pkg.executiveEvaluation.strengths, emptyValue),
               },
               {
-                label: "Critical issues",
-                value: joinLines(pkg.executiveEvaluation.criticalIssues),
+                label: technical.criticalIssues,
+                value: joinLines(
+                  pkg.executiveEvaluation.criticalIssues,
+                  emptyValue,
+                ),
               },
               {
-                label: "Warnings",
-                value: joinLines(pkg.executiveEvaluation.warnings),
+                label: technical.warnings,
+                value: joinLines(pkg.executiveEvaluation.warnings, emptyValue),
               },
               {
-                label: "Remediation priorities",
-                value: joinLines(pkg.executiveEvaluation.remediationPriorities),
+                label: technical.remediationPriorities,
+                value: joinLines(
+                  pkg.executiveEvaluation.remediationPriorities,
+                  emptyValue,
+                ),
               },
             ]}
           />
 
           <SeoReportSection
-            title="Page-Level Metadata"
+            title={technical.pageLevelMetadata}
             eyebrow="C"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={
               pkg.pageMetadata.length
-                ? `${pkg.pageMetadata.length} analyzed page(s) · ${
-                    pkg.pageMetadata.filter(
-                      (page) =>
-                        page.recommendedTitle ||
-                        page.recommendedDescription ||
-                        page.recommendedH1,
-                    ).length
-                  } with AI recommendations`
-                : "No analyzed pages in metadata matrix"
+                ? interpolateTenantMessage(
+                    technical.analyzedPagesWithRecommendations.includes(
+                      "{pages}",
+                    )
+                      ? technical.analyzedPagesWithRecommendations
+                      : en.seo.technical.analyzedPagesWithRecommendations,
+                    {
+                      pages: pkg.pageMetadata.length,
+                      recommended: pkg.pageMetadata.filter(
+                        (page) =>
+                          page.recommendedTitle ||
+                          page.recommendedDescription ||
+                          page.recommendedH1,
+                      ).length,
+                    },
+                  )
+                : technical.noAnalyzedPagesMatrix
             }
             fields={
               pkg.pageMetadata.length === 0
                 ? [
                     {
-                      label: "Notes",
-                      value:
-                        "No analyzed pages were available for the metadata matrix.",
+                      label: technical.notes,
+                      value: technical.noAnalyzedPagesNotes,
                     },
                   ]
                 : pkg.pageMetadata.map((page) => ({
                     label: page.url,
                     value: [
-                      `HTTP status: ${page.httpStatus ?? "—"}`,
-                      `Current title: ${page.currentTitle ?? "—"}`,
-                      `Recommended title: ${page.recommendedTitle ?? "— (healthy / no rewrite)"}`,
-                      `Current description: ${page.currentDescription ?? "—"}`,
-                      `Recommended description: ${page.recommendedDescription ?? "— (healthy / no rewrite)"}`,
-                      `H1: ${page.h1Observation ?? "—"}`,
-                      `Recommended H1: ${page.recommendedH1 ?? "— (healthy / no rewrite)"}`,
-                      `Canonical: ${page.canonicalObservation ?? "—"}`,
-                      `Robots: ${page.robotsObservation ?? "—"}`,
+                      field(
+                        technical.httpStatus,
+                        en.seo.technical.httpStatus,
+                        page.httpStatus == null
+                          ? emptyValue
+                          : String(page.httpStatus),
+                      ),
+                      field(
+                        technical.currentTitle,
+                        en.seo.technical.currentTitle,
+                        page.currentTitle ?? emptyValue,
+                      ),
+                      field(
+                        technical.recommendedTitle,
+                        en.seo.technical.recommendedTitle,
+                        page.recommendedTitle ?? technical.healthyNoRewrite,
+                      ),
+                      field(
+                        technical.currentDescription,
+                        en.seo.technical.currentDescription,
+                        page.currentDescription ?? emptyValue,
+                      ),
+                      field(
+                        technical.recommendedDescription,
+                        en.seo.technical.recommendedDescription,
+                        page.recommendedDescription ??
+                          technical.healthyNoRewrite,
+                      ),
+                      field(
+                        technical.h1,
+                        en.seo.technical.h1,
+                        page.h1Observation ?? emptyValue,
+                      ),
+                      field(
+                        technical.recommendedH1,
+                        en.seo.technical.recommendedH1,
+                        page.recommendedH1 ?? technical.healthyNoRewrite,
+                      ),
+                      field(
+                        technical.canonical,
+                        en.seo.technical.canonical,
+                        page.canonicalObservation ?? emptyValue,
+                      ),
+                      field(
+                        technical.robots,
+                        en.seo.technical.robots,
+                        page.robotsObservation ?? emptyValue,
+                      ),
                       page.issueFlags && page.issueFlags.length > 0
-                        ? `Issue flags: ${page.issueFlags.join(", ")}`
-                        : "Issue flags: none",
+                        ? interpolateTenantMessage(
+                            technical.issueFlags.includes("{flags}")
+                              ? technical.issueFlags
+                              : en.seo.technical.issueFlags,
+                            { flags: page.issueFlags.join(", ") },
+                          )
+                        : technical.issueFlagsNone,
                     ].join("\n"),
                   }))
             }
           />
 
           <SeoReportSection
-            title="Site Architecture & Internal Linking"
+            title={technical.siteArchitecture}
             eyebrow="D"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.siteArchitecture.summary}
             fields={[
               {
-                label: "Architecture findings",
-                value: joinLines(pkg.siteArchitecture.architectureFindings),
+                label: technical.architectureFindings,
+                value: joinLines(
+                  pkg.siteArchitecture.architectureFindings,
+                  emptyValue,
+                ),
               },
               {
-                label: "Linking evidence",
-                value: joinLines(pkg.siteArchitecture.linkingEvidence),
+                label: technical.linkingEvidence,
+                value: joinLines(
+                  pkg.siteArchitecture.linkingEvidence,
+                  emptyValue,
+                ),
               },
               {
-                label: "Weakly linked candidates",
-                value: joinLines(pkg.siteArchitecture.weaklyLinkedCandidates),
+                label: technical.weaklyLinkedCandidates,
+                value: joinLines(
+                  pkg.siteArchitecture.weaklyLinkedCandidates,
+                  emptyValue,
+                ),
               },
               {
-                label: "Recommended links",
+                label: technical.recommendedLinks,
                 value: pkg.siteArchitecture.recommendedLinks.length
                   ? pkg.siteArchitecture.recommendedLinks
                       .map(
@@ -293,119 +417,143 @@ export function SeoTechnicalReportDetailView({
                           `• ${link.fromUrl} → ${link.toUrl} (“${link.recommendedAnchor}”) — ${link.rationale}`,
                       )
                       .join("\n")
-                  : "—",
+                  : emptyValue,
               },
             ]}
           />
 
           <SeoReportSection
-            title="Content / HTML Findings"
+            title={technical.contentHtmlFindings}
             eyebrow="E"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.contentHtmlFindings.summary}
             fields={[
               {
-                label: "Heading findings",
-                value: joinLines(pkg.contentHtmlFindings.headingFindings),
+                label: technical.headingFindings,
+                value: joinLines(
+                  pkg.contentHtmlFindings.headingFindings,
+                  emptyValue,
+                ),
               },
               {
-                label: "Metadata findings",
-                value: joinLines(pkg.contentHtmlFindings.metadataFindings),
+                label: technical.metadataFindings,
+                value: joinLines(
+                  pkg.contentHtmlFindings.metadataFindings,
+                  emptyValue,
+                ),
               },
               {
-                label: "Content-size findings",
-                value: joinLines(pkg.contentHtmlFindings.contentSizeFindings),
+                label: technical.contentSizeFindings,
+                value: joinLines(
+                  pkg.contentHtmlFindings.contentSizeFindings,
+                  emptyValue,
+                ),
               },
               {
-                label: "Structural recommendations",
+                label: technical.structuralRecommendations,
                 value: joinLines(
                   pkg.contentHtmlFindings.structuralRecommendations,
+                  emptyValue,
                 ),
               },
             ]}
           />
 
           <SeoReportSection
-            title="Structured Data"
+            title={technical.structuredData}
             eyebrow="F"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.structuredData.summary}
             fields={[
               {
-                label: "Opportunity assessment",
+                label: technical.opportunityAssessment,
                 value: pkg.structuredData.missingOpportunityAssessment,
               },
               {
-                label: "Detected schema evidence",
-                value: joinLines(pkg.structuredData.detectedSchemaEvidence),
+                label: technical.detectedSchemaEvidence,
+                value: joinLines(
+                  pkg.structuredData.detectedSchemaEvidence,
+                  emptyValue,
+                ),
               },
               {
-                label: "Recommended schema types",
-                value: joinLines(pkg.structuredData.recommendedSchemaTypes),
+                label: technical.recommendedSchemaTypes,
+                value: joinLines(
+                  pkg.structuredData.recommendedSchemaTypes,
+                  emptyValue,
+                ),
               },
               {
-                label: "Implementation guidance",
-                value: joinLines(pkg.structuredData.implementationGuidance),
+                label: technical.implementationGuidance,
+                value: joinLines(
+                  pkg.structuredData.implementationGuidance,
+                  emptyValue,
+                ),
               },
               {
-                label: "Example snippets",
+                label: technical.exampleSnippets,
                 value: pkg.structuredData.exampleSnippets.length
                   ? pkg.structuredData.exampleSnippets.join("\n\n")
-                  : "—",
+                  : emptyValue,
               },
             ]}
           />
 
           <SeoReportSection
-            title="Image SEO"
+            title={technical.imageSeo}
             eyebrow="G"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.imageSeo.summary}
             fields={[
               {
-                label: "Alt coverage",
+                label: technical.altCoverage,
                 value: pkg.imageSeo.altCoverageSummary,
               },
               {
-                label: "Missing-alt findings",
-                value: joinLines(pkg.imageSeo.missingAltFindings),
+                label: technical.missingAltFindings,
+                value: joinLines(pkg.imageSeo.missingAltFindings, emptyValue),
               },
               {
-                label: "Remediation guidance",
-                value: joinLines(pkg.imageSeo.remediationGuidance),
+                label: technical.remediationGuidance,
+                value: joinLines(pkg.imageSeo.remediationGuidance, emptyValue),
               },
             ]}
           />
 
           <SeoReportSection
-            title="Crawl Findings"
+            title={technical.crawlFindings}
             eyebrow="H"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.crawlFindings.summary}
             fields={[
               {
-                label: "Status findings",
-                value: joinLines(pkg.crawlFindings.statusFindings),
+                label: technical.statusFindings,
+                value: joinLines(pkg.crawlFindings.statusFindings, emptyValue),
               },
               {
-                label: "Redirect findings",
-                value: joinLines(pkg.crawlFindings.redirectFindings),
+                label: technical.redirectFindings,
+                value: joinLines(pkg.crawlFindings.redirectFindings, emptyValue),
               },
               {
-                label: "Canonical findings",
-                value: joinLines(pkg.crawlFindings.canonicalFindings),
+                label: technical.canonicalFindings,
+                value: joinLines(pkg.crawlFindings.canonicalFindings, emptyValue),
               },
               {
-                label: "Robots findings",
-                value: joinLines(pkg.crawlFindings.robotsFindings),
+                label: technical.robotsFindings,
+                value: joinLines(pkg.crawlFindings.robotsFindings, emptyValue),
               },
             ]}
           />
 
           <SeoReportSection
-            title="Technical SEO Action Plan"
+            title={technical.actionPlan}
             eyebrow="I"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.actionPlan.overview}
           >
             <div className="space-y-3">
@@ -418,20 +566,35 @@ export function SeoTechnicalReportDetailView({
                     <span
                       className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${priorityClass(item.priority)}`}
                     >
-                      {item.priority}
+                      {getLocalizedSeoTechnicalPriorityLabel(
+                        dictionary,
+                        item.priority,
+                      )}
                     </span>
                     <div className="text-sm font-semibold">{item.title}</div>
                   </div>
                   <p className="mt-3 text-sm text-white/70">{item.reason}</p>
                   <p className="mt-2 text-sm text-white/55">
-                    Evidence: {item.evidence}
+                    {field(
+                      technical.evidence,
+                      en.seo.technical.evidence,
+                      item.evidence,
+                    )}
                   </p>
                   <p className="mt-2 text-sm text-white/80">
-                    Action: {item.recommendedAction}
+                    {field(
+                      technical.action,
+                      en.seo.technical.action,
+                      item.recommendedAction,
+                    )}
                   </p>
                   {item.affectedPages.length > 0 ? (
                     <p className="mt-2 text-xs text-white/40">
-                      Pages: {item.affectedPages.join(", ")}
+                      {field(
+                        technical.pages,
+                        en.seo.technical.pages,
+                        item.affectedPages.join(", "),
+                      )}
                     </p>
                   ) : null}
                 </div>
@@ -440,37 +603,45 @@ export function SeoTechnicalReportDetailView({
           </SeoReportSection>
 
           <SeoReportSection
-            title="Implementation Assets"
+            title={technical.implementationAssets}
             eyebrow="J"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.implementationAssets.metadataTableNotes}
             fields={[
               {
-                label: "Heading recommendations",
+                label: technical.headingRecommendations,
                 value: joinLines(
                   pkg.implementationAssets.headingRecommendations,
+                  emptyValue,
                 ),
               },
               {
-                label: "Internal-link plan",
-                value: joinLines(pkg.implementationAssets.internalLinkPlan),
+                label: technical.internalLinkPlan,
+                value: joinLines(
+                  pkg.implementationAssets.internalLinkPlan,
+                  emptyValue,
+                ),
               },
               {
-                label: "Schema recommendations",
+                label: technical.schemaRecommendations,
                 value: joinLines(
                   pkg.implementationAssets.schemaRecommendations,
+                  emptyValue,
                 ),
               },
               {
-                label: "Redirect recommendations",
+                label: technical.redirectRecommendations,
                 value: joinLines(
                   pkg.implementationAssets.redirectRecommendations,
+                  emptyValue,
                 ),
               },
               {
-                label: "Developer remediation instructions",
+                label: technical.developerRemediation,
                 value: joinLines(
                   pkg.implementationAssets.developerRemediationInstructions,
+                  emptyValue,
                 ),
               },
             ]}
@@ -478,6 +649,7 @@ export function SeoTechnicalReportDetailView({
 
           <SeoWebsitePagesAnalyzedSection
             inventory={pkg.websitePagesAnalyzed}
+            chrome={getSeoWebsitePagesChrome(dictionary)}
           />
 
           <p className="text-xs leading-6 text-white/35">{pkg.disclaimer}</p>

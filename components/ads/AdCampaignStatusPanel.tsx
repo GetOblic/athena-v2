@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import {
+  getLocalizedAdCampaignStatusLabel,
+  getLocalizedAdGenerationStageLabel,
+} from "@/lib/tenantI18n/adsPresentation";
+import { en } from "@/lib/tenantI18n/messages/en";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { AdCampaignGenerationStage } from "@/services/ads/adCampaignTypes";
 
 const STAGE_LABELS: Record<AdCampaignGenerationStage, string> = {
@@ -33,6 +40,7 @@ type AdCampaignStatusPanelProps = {
   initialStatus: string;
   initialStage: AdCampaignGenerationStage | null;
   initialErrorMessage?: string | null;
+  messages?: TenantMessages;
 };
 
 export function AdCampaignStatusPanel({
@@ -40,7 +48,10 @@ export function AdCampaignStatusPanel({
   initialStatus,
   initialStage,
   initialErrorMessage = null,
+  messages,
 }: AdCampaignStatusPanelProps) {
+  const copy = messages?.ads.statusPanel ?? en.ads.statusPanel;
+  const dictionary = messages ?? en;
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [stage, setStage] = useState(initialStage);
@@ -103,15 +114,13 @@ export function AdCampaignStatusPanel({
         error?: { message?: string };
       }>(response);
       if (!payload.ok || !payload.campaign?.id) {
-        setActionError(
-          payload.error?.message || "Failed to regenerate ad campaign.",
-        );
+        setActionError(payload.error?.message || copy.regenerateFailed);
         return;
       }
       router.push(`/ads/${payload.campaign.id}`);
       router.refresh();
     } catch {
-      setActionError("Failed to regenerate ad campaign.");
+      setActionError(copy.regenerateFailed);
     } finally {
       setRegenerating(false);
     }
@@ -135,15 +144,13 @@ export function AdCampaignStatusPanel({
           await handleRegenerate();
           return;
         }
-        setActionError(
-          payload.error?.message || "Failed to retry Ads generation.",
-        );
+        setActionError(payload.error?.message || copy.retryFailed);
         return;
       }
       setStatus("Processing");
       router.refresh();
     } catch {
-      setActionError("Failed to retry Ads generation.");
+      setActionError(copy.retryFailed);
     } finally {
       setRegenerating(false);
     }
@@ -153,24 +160,34 @@ export function AdCampaignStatusPanel({
     return null;
   }
 
-  const stageLabel =
-    stage && STAGE_LABELS[stage] ? STAGE_LABELS[stage] : "Queued";
+  const stageLabel = messages
+    ? getLocalizedAdGenerationStageLabel(dictionary, stage)
+    : stage && STAGE_LABELS[stage]
+      ? STAGE_LABELS[stage]
+      : "Queued";
+
+  const leaveAndReturn = interpolateTenantMessage(
+    copy.leaveAndReturn.includes("{stage}")
+      ? copy.leaveAndReturn
+      : en.ads.statusPanel.leaveAndReturn,
+    { stage: stageLabel },
+  );
 
   return (
     <div className="mb-8 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
       <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-orange)]">
-        Generation status
+        {copy.generationStatus}
       </div>
-      <h2 className="mt-3 text-2xl font-semibold">{status}</h2>
+      <h2 className="mt-3 text-2xl font-semibold">
+        {getLocalizedAdCampaignStatusLabel(dictionary, status)}
+      </h2>
       {inFlight ? (
-        <p className="mt-3 text-sm leading-7 text-white/60">
-          {stageLabel}. You can leave this page and return later.
-        </p>
+        <p className="mt-3 text-sm leading-7 text-white/60">{leaveAndReturn}</p>
       ) : null}
       {status === "Processing Failed" ? (
         <div className="mt-4 space-y-4">
           <p className="text-sm leading-7 text-rose-100/80">
-            {errorMessage || "Ads generation failed."}
+            {errorMessage || copy.generationFailed}
           </p>
           <div className="flex flex-wrap gap-3">
             <button
@@ -179,7 +196,7 @@ export function AdCampaignStatusPanel({
               disabled={regenerating}
               className="rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {regenerating ? "Working…" : "Retry generation"}
+              {regenerating ? copy.working : copy.retry}
             </button>
             <button
               type="button"
@@ -187,7 +204,7 @@ export function AdCampaignStatusPanel({
               disabled={regenerating}
               className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 disabled:opacity-60"
             >
-              Regenerate as new campaign
+              {copy.regenerateAsNew}
             </button>
           </div>
         </div>

@@ -123,6 +123,8 @@ describe("V31 L3.1 tenant i18n — language contract", () => {
       "lib/tenantI18n/prospectPresentation.ts",
       "lib/tenantI18n/opportunityPresentation.ts",
       "lib/tenantI18n/briefingPresentation.ts",
+      "lib/tenantI18n/adsPresentation.ts",
+      "lib/tenantI18n/seoPresentation.ts",
       "lib/tenantI18n/intelligenceDomainStatus.ts",
       "lib/tenantI18n/messages/en.ts",
       "lib/tenantI18n/messages/fr.ts",

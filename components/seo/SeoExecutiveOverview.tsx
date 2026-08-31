@@ -3,8 +3,22 @@ import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecu
 import type { SeoExecutiveOverviewModel } from "@/services/seo/seoReportPresentation";
 import { formatStarRating } from "@/services/seo/seoReportPresentation";
 
+export type SeoExecutiveOverviewChrome = {
+  eyebrow?: string;
+  atAGlance?: string;
+  overallScore?: string;
+  commercialReadiness?: string;
+  contentCoverage?: string;
+  trustAuthority?: string;
+  biggestOpportunity?: string;
+  biggestRisk?: string;
+  fastestWin?: string;
+  recommendedNextAction?: string;
+};
+
 type SeoExecutiveOverviewProps = {
   model: SeoExecutiveOverviewModel;
+  chrome?: SeoExecutiveOverviewChrome | null;
 };
 
 function InsightCell({
@@ -32,7 +46,10 @@ function InsightCell({
   );
 }
 
-export function SeoExecutiveOverview({ model }: SeoExecutiveOverviewProps) {
+export function SeoExecutiveOverview({
+  model,
+  chrome,
+}: SeoExecutiveOverviewProps) {
   return (
     <section
       className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] px-6 py-6 sm:px-8 sm:py-7`}
@@ -40,10 +57,10 @@ export function SeoExecutiveOverview({ model }: SeoExecutiveOverviewProps) {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Executive Overview
+            {chrome?.eyebrow ?? "Executive Overview"}
           </div>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-            SEO Intelligence at a glance
+            {chrome?.atAGlance ?? "SEO Intelligence at a glance"}
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-white/55">
             {model.summary}
@@ -51,7 +68,7 @@ export function SeoExecutiveOverview({ model }: SeoExecutiveOverviewProps) {
         </div>
         <div className="rounded-2xl border border-[rgba(255,102,0,0.28)] bg-[rgba(255,102,0,0.08)] px-5 py-4 text-right">
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
-            Overall SEO Intelligence Score
+            {chrome?.overallScore ?? "Overall SEO Intelligence Score"}
           </div>
           <div className="mt-2 text-4xl font-semibold tabular-nums text-[var(--athena-orange)]">
             {model.overallScore.value}
@@ -67,29 +84,36 @@ export function SeoExecutiveOverview({ model }: SeoExecutiveOverviewProps) {
 
       <div className="mt-6 grid gap-3 md:grid-cols-3">
         <SeoStrengthIndicator
-          label="Commercial Readiness"
+          label={chrome?.commercialReadiness ?? "Commercial Readiness"}
           score={model.commercialReadiness}
         />
         <SeoStrengthIndicator
-          label="Content Coverage"
+          label={chrome?.contentCoverage ?? "Content Coverage"}
           score={model.contentCoverage}
         />
         <SeoStrengthIndicator
-          label="Trust & Authority"
+          label={chrome?.trustAuthority ?? "Trust & Authority"}
           score={model.trustAuthority}
         />
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <InsightCell
-          label="Biggest Opportunity"
+          label={chrome?.biggestOpportunity ?? "Biggest Opportunity"}
           value={model.biggestOpportunity}
           accent
         />
-        <InsightCell label="Biggest Risk" value={model.biggestRisk} />
-        <InsightCell label="Fastest Win" value={model.fastestWin} accent />
         <InsightCell
-          label="Recommended Next Action"
+          label={chrome?.biggestRisk ?? "Biggest Risk"}
+          value={model.biggestRisk}
+        />
+        <InsightCell
+          label={chrome?.fastestWin ?? "Fastest Win"}
+          value={model.fastestWin}
+          accent
+        />
+        <InsightCell
+          label={chrome?.recommendedNextAction ?? "Recommended Next Action"}
           value={model.recommendedNextAction}
           accent
         />

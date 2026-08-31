@@ -11,6 +11,21 @@ import { SeoReportStatusPanel } from "@/components/seo/SeoReportStatusPanel";
 import { SeoStrengthIndicator } from "@/components/seo/SeoStrengthIndicator";
 import { SeoWebsitePagesAnalyzedSection } from "@/components/seo/SeoWebsitePagesAnalyzedSection";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import { en } from "@/lib/tenantI18n/messages/en";
+import {
+  getLocalizedSeoEffortLabel,
+  getLocalizedSeoGenerationTypeLabel,
+  getLocalizedSeoReportStatusLabel,
+  getSeoConfirmDeleteChrome,
+  getSeoExecutiveOverviewChrome,
+  getSeoRecommendationCardChrome,
+  getSeoReportSectionChrome,
+  getSeoWebsitePagesChrome,
+  localizeSeoExecutiveOverview,
+  localizeSeoPriorityVisual,
+} from "@/lib/tenantI18n/seoPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import {
   buildSeoExecutiveOverview,
   createEvidenceDeduper,
@@ -26,6 +41,7 @@ import { isSeoTechnicalPackage } from "@/services/seo/seoReportTypes";
 
 type SeoReportDetailViewProps = {
   report: PublicSeoReportDetail;
+  messages?: TenantMessages;
 };
 
 function joinLines(values: string[]): string {
@@ -69,19 +85,29 @@ function buildPresentation(
   };
 }
 
-export function SeoReportDetailView({ report }: SeoReportDetailViewProps) {
+export function SeoReportDetailView({
+  report,
+  messages,
+}: SeoReportDetailViewProps) {
   if (
     report.generationType === "technical" ||
     isSeoTechnicalPackage(report.package)
   ) {
-    return <SeoTechnicalReportDetailView report={report} />;
+    return (
+      <SeoTechnicalReportDetailView report={report} messages={messages} />
+    );
   }
-  return <SeoIntelligenceReportDetailView report={report} />;
+  return <SeoIntelligenceReportDetailView report={report} messages={messages} />;
 }
 
 function SeoIntelligenceReportDetailView({
   report,
+  messages,
 }: SeoReportDetailViewProps) {
+  const dictionary = messages ?? en;
+  const copy = dictionary.seo;
+  const sectionChrome = getSeoReportSectionChrome(dictionary);
+  const cardChrome = getSeoRecommendationCardChrome(dictionary);
   const router = useRouter();
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +116,9 @@ function SeoIntelligenceReportDetailView({
       ? report.package
       : null;
   const presentation = pkg ? buildPresentation(pkg) : null;
+  const overview = presentation
+    ? localizeSeoExecutiveOverview(dictionary, presentation.overview)
+    : null;
 
   async function handleRegenerate() {
     if (regenerating) return;
@@ -105,13 +134,13 @@ function SeoIntelligenceReportDetailView({
         error?: { message?: string };
       }>(response);
       if (!payload.ok || !payload.report?.id) {
-        setError(payload.error?.message || "Failed to regenerate SEO report.");
+        setError(payload.error?.message || copy.detail.regenerateFailed);
         return;
       }
       router.push(`/seo/${payload.report.id}`);
       router.refresh();
     } catch {
-      setError("Failed to regenerate SEO report.");
+      setError(copy.detail.regenerateFailed);
     } finally {
       setRegenerating(false);
     }
@@ -120,22 +149,29 @@ function SeoIntelligenceReportDetailView({
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
       <Link href="/seo" className="text-sm text-[var(--athena-orange)]">
-        ← SEO Intelligence
+        {copy.backToSeo}
       </Link>
 
       <div className="mb-8 mt-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-              SEO Intelligence
+              {copy.detail.eyebrow}
             </div>
-            <SeoGenerationTypeBadge generationType="intelligence" />
+            <SeoGenerationTypeBadge
+              generationType="intelligence"
+              label={getLocalizedSeoGenerationTypeLabel(
+                dictionary,
+                "intelligence",
+              )}
+            />
           </div>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">
             {report.name}
           </h1>
           <p className="mt-3 text-sm text-white/50">
-            Status: {report.status}
+            {copy.detail.statusLabel}:{" "}
+            {getLocalizedSeoReportStatusLabel(dictionary, report.status)}
             {report.summary ? ` · ${report.summary}` : ""}
           </p>
         </div>
@@ -148,10 +184,15 @@ function SeoIntelligenceReportDetailView({
               disabled={regenerating}
               className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/85 disabled:opacity-60"
             >
-              {regenerating ? "Starting…" : "Regenerate"}
+              {regenerating ? copy.detail.starting : copy.detail.regenerate}
             </button>
           )}
-          <SeoReportHeaderDeleteButton reportId={report.id} />
+          <SeoReportHeaderDeleteButton
+            reportId={report.id}
+            confirmMessage={copy.delete.confirm}
+            errorFallback={copy.delete.failed}
+            chrome={getSeoConfirmDeleteChrome(dictionary)}
+          />
         </div>
       </div>
 
@@ -164,18 +205,23 @@ function SeoIntelligenceReportDetailView({
         initialStatus={report.status}
         initialStage={report.generationStage}
         initialErrorMessage={report.errorMessage}
+        messages={dictionary}
       />
 
-      {pkg && presentation ? (
+      {pkg && presentation && overview ? (
         <div className="space-y-6">
-          <SeoExecutiveOverview model={presentation.overview} />
+          <SeoExecutiveOverview
+            model={overview}
+            chrome={getSeoExecutiveOverviewChrome(dictionary)}
+          />
 
           <SeoReportSection
-            title="Executive Assessment"
+            title={copy.detail.executiveAssessment}
             eyebrow="1"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.executiveAssessment.summary}
-            stars={presentation.overview.overallScore.stars}
+            stars={overview.overallScore.stars}
             readingCorpus={sectionReadingCorpus([
               pkg.executiveAssessment.overallAssessment,
               pkg.executiveAssessment.summary,
@@ -186,34 +232,35 @@ function SeoIntelligenceReportDetailView({
             ])}
             fields={[
               {
-                label: "Overall assessment",
+                label: copy.detail.overallAssessment,
                 value: pkg.executiveAssessment.overallAssessment,
               },
               {
-                label: "Strengths",
+                label: copy.detail.strengths,
                 value: joinLines(pkg.executiveAssessment.strengths),
               },
               {
-                label: "Weaknesses",
+                label: copy.detail.weaknesses,
                 value: joinLines(pkg.executiveAssessment.weaknesses),
               },
               {
-                label: "SEO readiness",
+                label: copy.detail.seoReadiness,
                 value: pkg.executiveAssessment.seoReadiness,
               },
               {
-                label: "Business visibility",
+                label: copy.detail.businessVisibility,
                 value: pkg.executiveAssessment.businessVisibilityAssessment,
               },
             ]}
           />
 
           <SeoReportSection
-            title="Content Coverage Analysis"
+            title={copy.detail.contentCoverageAnalysis}
             eyebrow="2"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.contentCoverage.analysis}
-            stars={presentation.overview.contentCoverage.stars}
+            stars={overview.contentCoverage.stars}
             readingCorpus={sectionReadingCorpus([
               pkg.contentCoverage.analysis,
               ...pkg.contentCoverage.wellCoveredServices,
@@ -227,60 +274,61 @@ function SeoIntelligenceReportDetailView({
             ])}
           >
             <SeoStrengthIndicator
-              label="Coverage strength"
-              score={presentation.overview.contentCoverage}
+              label={copy.detail.coverageStrength}
+              score={overview.contentCoverage}
               compact
             />
             <div className="grid gap-4 lg:grid-cols-2">
               <NarrativeBlock
-                label="Well covered"
+                label={copy.detail.wellCovered}
                 value={joinLines(pkg.contentCoverage.wellCoveredServices)}
               />
               <NarrativeBlock
-                label="Weakly covered"
+                label={copy.detail.weaklyCovered}
                 value={joinLines(pkg.contentCoverage.weaklyCoveredServices)}
               />
               <NarrativeBlock
-                label="Missing services"
+                label={copy.detail.missingServices}
                 value={joinLines(pkg.contentCoverage.missingServices)}
               />
               <NarrativeBlock
-                label="Missing customer questions"
+                label={copy.detail.missingCustomerQuestions}
                 value={joinLines(pkg.contentCoverage.missingCustomerQuestions)}
               />
               <NarrativeBlock
-                label="Missing trust content"
+                label={copy.detail.missingTrustContent}
                 value={joinLines(pkg.contentCoverage.missingTrustContent)}
               />
               <NarrativeBlock
-                label="Missing educational content"
+                label={copy.detail.missingEducationalContent}
                 value={joinLines(
                   pkg.contentCoverage.missingEducationalContent,
                 )}
               />
               <NarrativeBlock
-                label="Missing conversion content"
+                label={copy.detail.missingConversionContent}
                 value={joinLines(pkg.contentCoverage.missingConversionContent)}
               />
             </div>
             <NarrativeBlock
-              label="Analysis"
+              label={copy.detail.analysis}
               value={pkg.contentCoverage.analysis}
             />
             {presentation.contentEvidence.length > 0 ? (
               <NarrativeBlock
-                label="Athena evidence"
+                label={copy.detail.athenaEvidence}
                 value={joinLines(presentation.contentEvidence)}
               />
             ) : null}
           </SeoReportSection>
 
           <SeoReportSection
-            title="Customer Intent Analysis"
+            title={copy.detail.customerIntentAnalysis}
             eyebrow="3"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.customerIntent.buyerIntentSummary}
-            stars={presentation.overview.commercialReadiness.stars}
+            stars={overview.commercialReadiness.stars}
             readingCorpus={sectionReadingCorpus([
               pkg.customerIntent.buyerIntentSummary,
               ...pkg.customerIntent.representedIntents,
@@ -294,15 +342,15 @@ function SeoIntelligenceReportDetailView({
             ])}
           >
             <NarrativeBlock
-              label="Buyer intent summary"
+              label={copy.detail.buyerIntentSummary}
               value={pkg.customerIntent.buyerIntentSummary}
             />
             <NarrativeBlock
-              label="Represented intents"
+              label={copy.detail.representedIntents}
               value={joinLines(pkg.customerIntent.representedIntents)}
             />
             <NarrativeBlock
-              label="Pain point gaps"
+              label={copy.detail.painPointGaps}
               value={joinLines(pkg.customerIntent.painPointGaps)}
             />
             <div className="space-y-4">
@@ -311,26 +359,33 @@ function SeoIntelligenceReportDetailView({
                   key={`${gap.intent}-${gap.source}`}
                   title={gap.recommendation}
                   why={`${gap.intent} — ${gap.websiteGap}`}
-                  meta={`Source · ${gap.source}`}
+                  meta={interpolateTenantMessage(
+                    copy.detail.sourceMeta.includes("{source}")
+                      ? copy.detail.sourceMeta
+                      : en.seo.detail.sourceMeta,
+                    { source: gap.source },
+                  )}
                   evidence={[]}
                   futureActionKinds={gap.futureActionKinds}
+                  chrome={cardChrome}
                 />
               ))}
             </div>
             {presentation.intentEvidence.length > 0 ? (
               <NarrativeBlock
-                label="Athena evidence"
+                label={copy.detail.athenaEvidence}
                 value={joinLines(presentation.intentEvidence)}
               />
             ) : null}
           </SeoReportSection>
 
           <SeoReportSection
-            title="Commercial Opportunity Analysis"
+            title={copy.detail.commercialOpportunityAnalysis}
             eyebrow="4"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.commercialOpportunities.summary}
-            stars={presentation.overview.commercialReadiness.stars}
+            stars={overview.commercialReadiness.stars}
             readingCorpus={sectionReadingCorpus([
               pkg.commercialOpportunities.summary,
               ...presentation.opportunities.flatMap((opportunity) => [
@@ -342,12 +397,12 @@ function SeoIntelligenceReportDetailView({
             ])}
           >
             <SeoStrengthIndicator
-              label="Opportunity strength"
-              score={presentation.overview.commercialReadiness}
+              label={copy.detail.opportunityStrength}
+              score={overview.commercialReadiness}
               compact
             />
             <NarrativeBlock
-              label="Summary"
+              label={copy.detail.summary}
               value={pkg.commercialOpportunities.summary}
             />
             <div className="space-y-4">
@@ -360,17 +415,19 @@ function SeoIntelligenceReportDetailView({
                   meta={opportunity.contentType}
                   evidence={opportunity.athenaEvidence}
                   futureActionKinds={opportunity.futureActionKinds}
+                  chrome={cardChrome}
                 />
               ))}
             </div>
           </SeoReportSection>
 
           <SeoReportSection
-            title="Trust & Authority Analysis"
+            title={copy.detail.trustAuthorityAnalysis}
             eyebrow="5"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.trustAndAuthority.authorityMessaging}
-            stars={presentation.overview.trustAuthority.stars}
+            stars={overview.trustAuthority.stars}
             readingCorpus={sectionReadingCorpus([
               pkg.trustAndAuthority.trustSignals,
               pkg.trustAndAuthority.testimonials,
@@ -385,41 +442,41 @@ function SeoIntelligenceReportDetailView({
             ])}
           >
             <SeoStrengthIndicator
-              label="Authority strength"
-              score={presentation.overview.trustAuthority}
+              label={copy.detail.authorityStrength}
+              score={overview.trustAuthority}
               compact
             />
             <div className="grid gap-4 lg:grid-cols-2">
               <NarrativeBlock
-                label="Trust signals"
+                label={copy.detail.trustSignals}
                 value={pkg.trustAndAuthority.trustSignals}
               />
               <NarrativeBlock
-                label="Testimonials"
+                label={copy.detail.testimonials}
                 value={pkg.trustAndAuthority.testimonials}
               />
               <NarrativeBlock
-                label="Case studies"
+                label={copy.detail.caseStudies}
                 value={pkg.trustAndAuthority.caseStudies}
               />
               <NarrativeBlock
-                label="Expert positioning"
+                label={copy.detail.expertPositioning}
                 value={pkg.trustAndAuthority.expertPositioning}
               />
               <NarrativeBlock
-                label="Authority messaging"
+                label={copy.detail.authorityMessaging}
                 value={pkg.trustAndAuthority.authorityMessaging}
               />
               <NarrativeBlock
-                label="Differentiation"
+                label={copy.detail.differentiation}
                 value={pkg.trustAndAuthority.differentiation}
               />
               <NarrativeBlock
-                label="Calls to action"
+                label={copy.detail.callsToAction}
                 value={pkg.trustAndAuthority.callsToAction}
               />
               <NarrativeBlock
-                label="Consistency"
+                label={copy.detail.consistency}
                 value={pkg.trustAndAuthority.consistency}
               />
             </div>
@@ -428,28 +485,30 @@ function SeoIntelligenceReportDetailView({
                 <SeoRecommendationCard
                   key={recommendation}
                   title={recommendation}
-                  why="Strengthens buyer confidence where proof and authority are currently thin."
+                  why={copy.detail.trustRecommendationWhy}
                   futureActionKinds={[
                     "generate_trust_page",
                     "generate_article",
                   ]}
+                  chrome={cardChrome}
                 />
               ))}
             </div>
             {presentation.trustEvidence.length > 0 ? (
               <NarrativeBlock
-                label="Athena evidence"
+                label={copy.detail.athenaEvidence}
                 value={joinLines(presentation.trustEvidence)}
               />
             ) : null}
           </SeoReportSection>
 
           <SeoReportSection
-            title="90-Day SEO Roadmap"
+            title={copy.detail.ninetyDayRoadmap}
             eyebrow="6"
             defaultOpen={false}
+            chrome={sectionChrome}
             summary={pkg.ninetyDayRoadmap.overview}
-            stars={presentation.overview.overallScore.stars}
+            stars={overview.overallScore.stars}
             readingCorpus={sectionReadingCorpus([
               pkg.ninetyDayRoadmap.overview,
               ...presentation.roadmapItems.flatMap((item) => [
@@ -462,7 +521,7 @@ function SeoIntelligenceReportDetailView({
             ])}
           >
             <NarrativeBlock
-              label="Overview"
+              label={copy.detail.overview}
               value={pkg.ninetyDayRoadmap.overview}
             />
             <div className="space-y-4">
@@ -472,18 +531,36 @@ function SeoIntelligenceReportDetailView({
                   title={item.recommendation}
                   why={item.reason}
                   impact={item.expectedBusinessImpact}
-                  priorityVisual={item.visual}
-                  meta={`Effort · ${item.estimatedEffort}`}
+                  priorityVisual={localizeSeoPriorityVisual(
+                    dictionary,
+                    item.visual,
+                  )}
+                  meta={interpolateTenantMessage(
+                    copy.detail.effortMeta.includes("{effort}")
+                      ? copy.detail.effortMeta
+                      : en.seo.detail.effortMeta,
+                    {
+                      effort: getLocalizedSeoEffortLabel(
+                        dictionary,
+                        item.estimatedEffort,
+                      ),
+                    },
+                  )}
                   evidence={item.athenaEvidence}
                   futureActionKinds={item.futureActionKinds}
+                  chrome={cardChrome}
                 />
               ))}
             </div>
-            <NarrativeBlock label="Disclaimer" value={pkg.disclaimer} />
+            <NarrativeBlock
+              label={copy.detail.disclaimer}
+              value={pkg.disclaimer}
+            />
           </SeoReportSection>
 
           <SeoWebsitePagesAnalyzedSection
             inventory={pkg.websitePagesAnalyzed}
+            chrome={getSeoWebsitePagesChrome(dictionary)}
           />
         </div>
       ) : null}
