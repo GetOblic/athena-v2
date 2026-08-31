@@ -411,20 +411,14 @@ describe("V31 L3.4 tenant list surfaces — communities list chrome", () => {
 });
 
 describe("V31 L3.4 tenant list surfaces — boundaries", () => {
-  it("does not localize Discussion detail or Discussion EI", () => {
-    const detail = read("app/discussions/[id]/page.tsx");
-    assert.doesNotMatch(detail, /getTenantLocalization|tenantI18n/);
-    assert.doesNotMatch(detail, /label=\{getLocalizedDiscussion/);
-    const lifecycleBadge = detail.match(
-      /<DiscussionLifecycleBadge[\s\S]*?\/>/,
-    )?.[0];
-    const ageBadge = detail.match(/<DiscussionAgeBadge[\s\S]*?\/>/)?.[0];
-    assert.ok(lifecycleBadge);
-    assert.ok(ageBadge);
-    assert.doesNotMatch(lifecycleBadge, /\blabel=/);
-    assert.doesNotMatch(ageBadge, /\blabel=/);
+  it("leaves shared Discussion list badges and EI components free of tenantI18n imports", () => {
+    const list = read("app/discussions/page.tsx");
+    assert.match(list, /getTenantLocalization/);
+    assert.doesNotMatch(list, /discussions\.detail|discussions\.executive/);
 
     for (const file of [
+      "components/discussions/DiscussionLifecycleBadge.tsx",
+      "components/discussions/DiscussionAgeBadge.tsx",
       "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
       "components/discussions/ExecutiveIntelligenceCard.tsx",
       "components/discussions/ExecutiveGenerationPanel.tsx",

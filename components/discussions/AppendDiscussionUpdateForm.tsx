@@ -9,9 +9,11 @@ import {
   emptyRegenerationSnapshot,
   fetchRegenerationStatus,
 } from "@/lib/discussionRegenerationStatus";
+import type { DiscussionDetailChrome } from "@/lib/discussionExecutiveChrome";
 
 type AppendDiscussionUpdateFormProps = {
   discussionId: string;
+  messages?: DiscussionDetailChrome;
 };
 
 type AppendResponse = {
@@ -26,7 +28,10 @@ type AppendResponse = {
   error?: string | { code?: string; message?: string };
 };
 
-function errorMessageFromPayload(payload: AppendResponse): string {
+function errorMessageFromPayload(
+  payload: AppendResponse,
+  fallback: string,
+): string {
   if (typeof payload.error === "string" && payload.error.trim()) {
     return payload.error;
   }
@@ -37,11 +42,12 @@ function errorMessageFromPayload(payload: AppendResponse): string {
   ) {
     return payload.error.message;
   }
-  return "Failed to append update.";
+  return fallback;
 }
 
 export function AppendDiscussionUpdateForm({
   discussionId,
+  messages,
 }: AppendDiscussionUpdateFormProps) {
   const { trackQueuedGeneration, isGenerating } = useDiscussionRegeneration();
   const [url, setUrl] = useState("");
@@ -82,17 +88,24 @@ export function AppendDiscussionUpdateForm({
 
       const payload = await parseJsonResponse<AppendResponse>(response, {
         unexpectedMessage:
+          messages?.appendUnexpected ??
           "Athena received an unexpected server response while queuing this discussion update.",
       });
 
       if (!response.ok || (!payload.success && !payload.ok)) {
-        throw new Error(errorMessageFromPayload(payload));
+        throw new Error(
+          errorMessageFromPayload(
+            payload,
+            messages?.appendFailed ?? "Failed to append update.",
+          ),
+        );
       }
 
       setResult({
         ok: true,
         message:
           payload.message ??
+          messages?.appendSuccess ??
           "Update saved. Athena is regenerating intelligence in the background. You can leave this page safely.",
       });
 
@@ -109,7 +122,7 @@ export function AppendDiscussionUpdateForm({
         message:
           error instanceof Error
             ? error.message
-            : "Failed to append discussion update.",
+            : messages?.appendFailed ?? "Failed to append discussion update.",
       });
     } finally {
       setIsSubmitting(false);
@@ -118,39 +131,44 @@ export function AppendDiscussionUpdateForm({
 
   return (
     <AthenaCollapsibleSection
-      title="Append Discussion Update"
+      title={messages?.appendTitle ?? "Append Discussion Update"}
       defaultOpen={Boolean(result)}
     >
     <form onSubmit={handleSubmit}>
       <p className="text-sm leading-6 text-white/45">
-        Paste new replies, reactions or follow-up messages from the same
-        discussion. Athena appends them to the existing thread and re-runs the
-        workflow in the background.
+        {messages?.appendHelp ??
+          "Paste new replies, reactions or follow-up messages from the same discussion. Athena appends them to the existing thread and re-runs the workflow in the background."}
       </p>
 
       <div className="mt-6 grid gap-5">
         <label className="grid gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Discussion Update
+            {messages?.appendField ?? "Discussion Update"}
           </span>
           <textarea
             value={body}
             onChange={(event) => setBody(event.target.value)}
             required
             rows={8}
-            placeholder="Paste the new thread activity here."
+            placeholder={
+              messages?.appendPlaceholder ??
+              "Paste the new thread activity here."
+            }
             className="resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25"
           />
         </label>
 
         <label className="grid gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Source URL optional
+            {messages?.appendUrlOptional ?? "Source URL optional"}
           </span>
           <input
             value={url}
             onChange={(event) => setUrl(event.target.value)}
-            placeholder="Only if this update comes from a different source"
+            placeholder={
+              messages?.appendUrlPlaceholder ??
+              "Only if this update comes from a different source"
+            }
             className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
           />
         </label>
@@ -162,10 +180,10 @@ export function AppendDiscussionUpdateForm({
             className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSubmitting
-              ? "Queuing..."
+              ? (messages?.appendQueuing ?? "Queuing...")
               : isGenerating
-                ? "Processing..."
-                : "Append & Reprocess"}
+                ? (messages?.appendProcessing ?? "Processing...")
+                : (messages?.appendCta ?? "Append & Reprocess")}
           </button>
 
           {result && (

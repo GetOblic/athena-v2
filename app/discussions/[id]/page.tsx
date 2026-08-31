@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { AppendDiscussionUpdateForm } from "@/components/discussions/AppendDiscussionUpdateForm";
@@ -12,12 +11,29 @@ import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLif
 import { DiscussionStatusControl } from "@/components/discussions/DiscussionStatusControl";
 import { DiscussionWorkflowStrip } from "@/components/discussions/DiscussionWorkflowStrip";
 import { ExecutiveIntelligenceWorkspace } from "@/components/discussions/ExecutiveIntelligenceWorkspace";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import {
   getOriginalDiscussionBody,
   getThreadUpdatesForDisplay,
 } from "@/lib/discussionContent";
+import {
+  DISCUSSION_STATUS_OPTIONS,
+  getDiscussionLifecycle,
+  type DiscussionLifecycleKey,
+  type DiscussionStatusOption,
+} from "@/lib/discussionStatus";
+import { getDiscussionAgeKey } from "@/lib/discussionAge";
 import { buildDiscussionWorkflowSteps } from "@/lib/discussionWorkflow";
+import { fillChromeTemplate } from "@/lib/discussionExecutiveChrome";
+import {
+  getLocalizedDiscussionAgeLabel,
+  getLocalizedDiscussionLifecycleLabel,
+  getLocalizedDiscussionStatusOptionLabel,
+  getLocalizedDiscussionStoredStatusLabel,
+} from "@/lib/tenantI18n/discussionPresentation";
+import { formatTenantDateTime } from "@/lib/tenantI18n/format";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
 import { getCommunityById } from "@/services/communityService";
 import { getDiscussionById } from "@/services/discussionService";
@@ -49,17 +65,25 @@ export default async function DiscussionDetailsPage({
 }) {
   const { id } = await params;
   const { organizationId } = await requireCurrentOrganizationContext();
-  const discussion = await getDiscussionById(id, organizationId);
+  const [{ language, locale, messages }, discussion] = await Promise.all([
+    getTenantLocalization(),
+    getDiscussionById(id, organizationId),
+  ]);
+  const copy = messages.discussions.detail;
+  const executive = messages.discussions.executive;
 
   if (!discussion) {
     return (
       <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-        <AthenaBrandLink className="mb-8" />
-        <Link href="/discussions" className="text-sm text-[var(--athena-orange)]">
-          ← Back to Discussions
-        </Link>
+        <AthenaBrandLink
+          className="mb-8"
+          tagline={messages.chrome.tagline}
+          logoutLabel={messages.chrome.logOut}
+          sessionActionsLabel={messages.chrome.sessionActions}
+        />
+        <TenantBackLink href="/discussions" label={copy.backToDiscussions} />
 
-        <h1 className="mt-8 text-4xl font-semibold">Discussion not found</h1>
+        <h1 className="mt-8 text-4xl font-semibold">{copy.notFound}</h1>
       </main>
     );
   }
@@ -116,6 +140,28 @@ export default async function DiscussionDetailsPage({
     assetBlueprint:
       versionState.current?.intelligence.blueprint ?? assetBlueprint,
     clientStatusLabel: discussion.status || "New",
+  }).map((step) => {
+    if (step.key === "outcome") {
+      return {
+        ...step,
+        label: fillChromeTemplate(copy.workflowCurrentStatus, {
+          status: getLocalizedDiscussionStoredStatusLabel(
+            messages,
+            discussion.status,
+          ),
+        }),
+      };
+    }
+    const workflowLabels = {
+      analysis: copy.workflowAnalysis,
+      opportunity: copy.workflowOpportunity,
+      briefing: copy.workflowBriefing,
+      assets: copy.workflowAssets,
+    } as const;
+    return {
+      ...step,
+      label: workflowLabels[step.key] ?? step.label,
+    };
   });
 
   const intelligenceDomainOptions = domains.map((domain) => ({
@@ -131,22 +177,41 @@ export default async function DiscussionDetailsPage({
     regenerationInFlight: false,
   };
 
+  const lifecycleKey = getDiscussionLifecycle(discussion, hasAnalysis).key;
+  const ageKey = getDiscussionAgeKey(discussion);
+  const lifecycleLabels = {
+    new: getLocalizedDiscussionLifecycleLabel(messages, "new"),
+    reviewing: getLocalizedDiscussionLifecycleLabel(messages, "reviewing"),
+    monitoring: getLocalizedDiscussionLifecycleLabel(messages, "monitoring"),
+    completed: getLocalizedDiscussionLifecycleLabel(messages, "completed"),
+  } satisfies Record<DiscussionLifecycleKey, string>;
+  const statusLabels = Object.fromEntries(
+    DISCUSSION_STATUS_OPTIONS.map((option) => [
+      option,
+      getLocalizedDiscussionStatusOptionLabel(messages, option),
+    ]),
+  ) as Record<DiscussionStatusOption, string>;
+
   return (
     <DiscussionRegenerationProvider
       discussionId={id}
       initialSnapshot={initialRegenerationSnapshot}
+      chrome={executive}
     >
       <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink className="mb-8" />
+      <AthenaBrandLink
+        className="mb-8"
+        tagline={messages.chrome.tagline}
+        logoutLabel={messages.chrome.logOut}
+        sessionActionsLabel={messages.chrome.sessionActions}
+      />
 
-      <Link href="/discussions" className="text-sm text-[var(--athena-orange)]">
-        ← Back to Discussions
-      </Link>
+      <TenantBackLink href="/discussions" label={copy.backToDiscussions} />
 
       <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Discussion Intelligence
+            {copy.eyebrow}
           </div>
 
           <h1 className="mt-4 max-w-5xl text-5xl font-semibold tracking-tight">
@@ -154,7 +219,7 @@ export default async function DiscussionDetailsPage({
           </h1>
 
           <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-            Executive-grade intelligence for this captured market discussion.
+            {copy.subtitle}
           </p>
         </div>
 
@@ -162,28 +227,46 @@ export default async function DiscussionDetailsPage({
           discussion={discussion}
           originalBody={originalBody}
           intelligenceDomains={intelligenceDomainOptions}
+          messages={copy}
+          deleteChrome={{
+            delete: messages.common.delete,
+            cancel: messages.common.cancel,
+            confirmDelete: messages.common.confirmDelete,
+            deleting: messages.common.deleting,
+            confirmDeletion: messages.common.confirmDeletion,
+          }}
         />
       </div>
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <HeaderMetric label="Platform" value={discussion.platform} />
-        <HeaderMetric label="Author" value={discussion.author || "—"} />
-        <HeaderMetric label="Intelligence Domain" value={community?.group_name || "—"} />
-        <HeaderMetric label="Lifecycle">
+        <HeaderMetric label={copy.labelPlatform} value={discussion.platform} />
+        <HeaderMetric
+          label={copy.labelAuthor}
+          value={discussion.author || copy.emptyValue}
+        />
+        <HeaderMetric
+          label={copy.labelDomain}
+          value={community?.group_name || copy.emptyValue}
+        />
+        <HeaderMetric label={copy.labelLifecycle}>
           <DiscussionLifecycleBadge
             discussion={discussion}
             hasAnalysis={hasAnalysis}
+            label={getLocalizedDiscussionLifecycleLabel(messages, lifecycleKey)}
           />
         </HeaderMetric>
         <HeaderMetric
-          label="Opportunity Score"
+          label={copy.labelOpportunityScore}
           value={String(discussion.opportunity_score)}
           highlight="orange"
         />
-        <HeaderMetric label="Thread Age">
-          <DiscussionAgeBadge discussion={discussion} />
+        <HeaderMetric label={copy.labelThreadAge}>
+          <DiscussionAgeBadge
+            discussion={discussion}
+            label={getLocalizedDiscussionAgeLabel(messages, ageKey)}
+          />
         </HeaderMetric>
-        <HeaderMetric label="Source URL">
+        <HeaderMetric label={copy.labelSourceUrl}>
           {discussion.url ? (
             <a
               href={discussion.url}
@@ -194,16 +277,27 @@ export default async function DiscussionDetailsPage({
               {discussion.url}
             </a>
           ) : (
-            "—"
+            copy.emptyValue
           )}
         </HeaderMetric>
       </div>
 
       <div className="mt-4 max-w-md">
-        <DiscussionStatusControl discussion={discussion} hasAnalysis={hasAnalysis} />
+        <DiscussionStatusControl
+          discussion={discussion}
+          hasAnalysis={hasAnalysis}
+          label={copy.statusControlLabel}
+          statusLabels={statusLabels}
+          lifecycleLabels={lifecycleLabels}
+          successMessage={copy.statusUpdated}
+          errorFallback={copy.statusUpdateFailed}
+        />
       </div>
 
-      <DiscussionWorkflowStrip steps={workflowSteps} />
+      <DiscussionWorkflowStrip
+        steps={workflowSteps}
+        title={copy.workflowProgress}
+      />
 
       <div className="mt-8">
         <DiscussionRegenerationProgress />
@@ -217,35 +311,61 @@ export default async function DiscussionDetailsPage({
         }
         brandDirection={brandDirection}
         continuationPreferences={continuationPreferences}
+        chrome={executive}
+        locale={locale}
         afterBlueprint={null}
         afterDetailedReasoning={
           <div className="mt-8">
-            <AppendDiscussionUpdateForm discussionId={discussion.id} />
+            <AppendDiscussionUpdateForm
+              discussionId={discussion.id}
+              messages={copy}
+            />
           </div>
         }
         originalDiscussionSection={
           <div className="space-y-8">
             <div className="grid gap-6 md:grid-cols-2">
-              <Field label="Author" value={discussion.author} />
-              <Field label="Intelligence Domain" value={community?.group_name} />
-              <Field label="Platform" value={discussion.platform} />
-              <Field label="Original Sentiment" value={discussion.sentiment} />
-              <Field label="Source URL" value={discussion.url} link={discussion.url} />
+              <Field
+                label={copy.labelAuthor}
+                value={discussion.author}
+                emptyValue={copy.emptyValue}
+              />
+              <Field
+                label={copy.labelDomain}
+                value={community?.group_name}
+                emptyValue={copy.emptyValue}
+              />
+              <Field
+                label={copy.labelPlatform}
+                value={discussion.platform}
+                emptyValue={copy.emptyValue}
+              />
+              <Field
+                label={copy.labelOriginalSentiment}
+                value={discussion.sentiment}
+                emptyValue={copy.emptyValue}
+              />
+              <Field
+                label={copy.labelSourceUrl}
+                value={discussion.url}
+                link={discussion.url}
+                emptyValue={copy.emptyValue}
+              />
             </div>
 
             <div>
-              <div className="text-sm text-white/40">Discussion</div>
+              <div className="text-sm text-white/40">{copy.labelDiscussion}</div>
               <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70">
-                {originalBody || "No body captured."}
+                {originalBody || copy.emptyBody}
               </div>
             </div>
 
             <div>
-              <h3 className="text-lg font-semibold">Thread Updates / Follow-ups</h3>
+              <h3 className="text-lg font-semibold">{copy.threadUpdatesTitle}</h3>
 
               {displayedUpdates.length === 0 ? (
                 <div className="mt-4 text-sm text-white/45">
-                  No follow-up updates captured yet.
+                  {copy.threadUpdatesEmpty}
                 </div>
               ) : (
                 <div className="mt-4 space-y-4">
@@ -256,13 +376,7 @@ export default async function DiscussionDetailsPage({
                     >
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/40">
                         <span>
-                          {new Date(update.capturedAt).toLocaleString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
+                          {formatTenantDateTime(update.capturedAt, language)}
                         </span>
                         {update.author ? <span>{update.author}</span> : null}
                         {update.url ? (
@@ -272,7 +386,7 @@ export default async function DiscussionDetailsPage({
                             target="_blank"
                             rel="noreferrer"
                           >
-                            Source URL
+                            {copy.sourceUrlLink}
                           </a>
                         ) : null}
                       </div>
@@ -324,12 +438,14 @@ function Field({
   helper,
   sublabel,
   link,
+  emptyValue = "—",
 }: {
   label: string;
   value?: string | null;
   helper?: string;
   sublabel?: string;
   link?: string | null;
+  emptyValue?: string;
 }) {
   return (
     <div>
@@ -353,7 +469,7 @@ function Field({
             {value || link}
           </a>
         ) : (
-          value || "—"
+          value || emptyValue
         )}
       </div>
     </div>

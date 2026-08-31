@@ -5,6 +5,8 @@ import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRe
 type AnalyzeDiscussionButtonProps = {
   discussionId: string;
   label?: string;
+  generatingLabel?: string;
+  completedLabel?: string;
   compact?: boolean;
 };
 
@@ -20,6 +22,8 @@ function ButtonSpinner() {
 export function AnalyzeDiscussionButton({
   discussionId: _discussionId,
   label = "Generate Intelligence",
+  generatingLabel = "Generating Intelligence…",
+  completedLabel = "✓ Intelligence Generated",
   compact = false,
 }: AnalyzeDiscussionButtonProps) {
   const {
@@ -37,9 +41,9 @@ export function AnalyzeDiscussionButton({
     isCompleted && activeGenerationKind !== "think_differently";
 
   const buttonLabel = completedThis
-    ? "✓ Intelligence Generated"
+    ? completedLabel
     : generatingThis
-      ? "Generating Intelligence…"
+      ? generatingLabel
       : label;
 
   return (

@@ -5,6 +5,9 @@ import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound
 
 type ThinkDifferentlyButtonProps = {
   compact?: boolean;
+  label?: string;
+  thinkingLabel?: string;
+  completedLabel?: string;
 };
 
 /** Athena success-green secondary action — same language as Continue. */
@@ -22,6 +25,9 @@ function ButtonSpinner() {
 
 export function ThinkDifferentlyButton({
   compact = false,
+  label = "Think Differently",
+  thinkingLabel = "Thinking Differently…",
+  completedLabel = "✓ Thought Differently",
 }: ThinkDifferentlyButtonProps) {
   const {
     isGenerating,
@@ -35,10 +41,10 @@ export function ThinkDifferentlyButton({
     isCompleted && activeGenerationKind === "think_differently";
 
   const buttonLabel = completedThink
-    ? "✓ Thought Differently"
+    ? completedLabel
     : thinking
-      ? "Thinking Differently…"
-      : "Think Differently";
+      ? thinkingLabel
+      : label;
 
   return (
     <button

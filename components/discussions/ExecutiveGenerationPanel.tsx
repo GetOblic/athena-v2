@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { REGENERATION_LONG_RUNNING_MS } from "@/lib/discussionRegenerationStatus";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import type { DiscussionExecutiveChrome } from "@/lib/discussionExecutiveChrome";
 
 type GenerationPhase = {
   id: string;
@@ -15,17 +16,21 @@ type ExecutiveGenerationPanelProps = {
   resumed?: boolean;
   duplicateNotice?: string | null;
   stillRunningAfterTimeout?: boolean;
+  chrome?: DiscussionExecutiveChrome | null;
 };
 
-function buildPhases(elapsedMs: number): GenerationPhase[] {
+function buildPhases(
+  elapsedMs: number,
+  chrome?: DiscussionExecutiveChrome | null,
+): GenerationPhase[] {
   const phaseIndex =
     elapsedMs >= 45_000 ? 3 : elapsedMs >= 20_000 ? 2 : elapsedMs >= 8_000 ? 1 : 0;
 
   const labels = [
-    "Understanding discussion",
-    "Building executive intelligence",
-    "Creating deployment assets",
-    "Preparing strategic blueprint",
+    chrome?.phaseUnderstanding ?? "Understanding discussion",
+    chrome?.phaseBuilding ?? "Building executive intelligence",
+    chrome?.phaseCreatingAssets ?? "Creating deployment assets",
+    chrome?.phasePreparingBlueprint ?? "Preparing strategic blueprint",
   ];
 
   return labels.map((label, index) => ({
@@ -62,6 +67,7 @@ export function ExecutiveGenerationPanel({
   resumed = false,
   duplicateNotice = null,
   stillRunningAfterTimeout = false,
+  chrome = null,
 }: ExecutiveGenerationPanelProps) {
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -74,7 +80,7 @@ export function ExecutiveGenerationPanel({
   }, []);
 
   const elapsedMs = Math.max(0, nowMs - startedAtMs);
-  const phases = buildPhases(elapsedMs);
+  const phases = buildPhases(elapsedMs, chrome);
   const isLongRunning =
     elapsedMs >= REGENERATION_LONG_RUNNING_MS || stillRunningAfterTimeout;
 
@@ -83,19 +89,21 @@ export function ExecutiveGenerationPanel({
       className={`rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-orange)]/[0.06] p-6 sm:p-7`}
     >
       <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
-        Executive Generation
+        {chrome?.generationEyebrow ?? "Executive Generation"}
       </div>
 
       <h3 className="mt-3 text-lg font-semibold text-white">
         {resumed
-          ? "Executive Intelligence is currently being regenerated."
-          : "Executive Intelligence is being regenerated."}
+          ? (chrome?.generatingResumed ??
+            "Executive Intelligence is currently being regenerated.")
+          : (chrome?.generating ??
+            "Executive Intelligence is being regenerated.")}
       </h3>
 
       {resumed && (
         <p className="mt-2 text-sm leading-6 text-white/55">
-          The previous analysis remains available while Athena prepares the
-          updated version.
+          {chrome?.generatingResumedHelp ??
+            "The previous analysis remains available while Athena prepares the updated version."}
         </p>
       )}
 
@@ -129,30 +137,35 @@ export function ExecutiveGenerationPanel({
         {stillRunningAfterTimeout ? (
           <>
             <p className="font-medium text-white/75">
-              Generation is still running.
+              {chrome?.stillRunning ?? "Generation is still running."}
             </p>
             <p className="mt-2">
-              Athena is waiting for the durable job to finish publishing the
-              Current Version. This page will update automatically when ready.
+              {chrome?.stillRunningHelp ??
+                "Athena is waiting for the durable job to finish publishing the Current Version. This page will update automatically when ready."}
             </p>
           </>
         ) : isLongRunning ? (
           <>
             <p className="font-medium text-white/75">
-              Athena is still generating a new executive analysis.
+              {chrome?.stillGenerating ??
+                "Athena is still generating a new executive analysis."}
             </p>
             <p className="mt-2">
-              Complex discussions occasionally require additional reasoning. You
-              may safely leave this page. Generation will continue automatically.
+              {chrome?.stillGeneratingHelp ??
+                "Complex discussions occasionally require additional reasoning. You may safely leave this page. Generation will continue automatically."}
             </p>
           </>
         ) : (
           <>
             <p>
-              <span className="text-white/70">Estimated time:</span> 30–90 seconds
+              <span className="text-white/70">
+                {chrome?.estimatedTimeLabel ?? "Estimated time:"}
+              </span>{" "}
+              {chrome?.estimatedDuration ?? "30–90 seconds"}
             </p>
             <p className="mt-2">
-              You may continue browsing Athena while generation completes.
+              {chrome?.continueBrowsing ??
+                "You may continue browsing Athena while generation completes."}
             </p>
           </>
         )}

@@ -39,6 +39,11 @@ import type {
   ProspectConversationAssetReference,
   ProspectConversationVersionState,
 } from "@/services/prospectConversation/prospectConversationTypes";
+import type { DiscussionExecutiveChrome } from "@/lib/discussionExecutiveChrome";
+import {
+  fillChromeTemplate,
+  presentAnalysisStatus,
+} from "@/lib/discussionExecutiveChrome";
 
 /**
  * Persists across navigation so a regeneration that finishes after leaving
@@ -126,10 +131,35 @@ type ExecutiveIntelligenceWorkspaceProps = {
   brandDirection?: BlueprintBrandDirectionInput | null;
   /** Org Continue destinations for Deployment Assets / Blueprint cards. */
   continuationPreferences?: AiWorkspacePreferences | null;
+  /** Optional Discussion-detail presentation chrome. English defaults remain. */
+  chrome?: DiscussionExecutiveChrome | null;
+  /** UX formatting locale from the server. Does not resolve language. */
+  locale?: string | null;
 };
 
-function formatVersionGeneratedAt(value: string, includeTime: boolean): string {
+function formatVersionGeneratedAt(
+  value: string,
+  includeTime: boolean,
+  locale?: string | null,
+): string {
   const date = new Date(value);
+  if (locale) {
+    if (includeTime) {
+      return new Intl.DateTimeFormat(locale, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(date);
+    }
+    return new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(date);
+  }
+
   if (includeTime) {
     return date.toLocaleString("en-GB", {
       day: "numeric",
@@ -151,12 +181,18 @@ function formatVersionGeneratedAt(value: string, includeTime: boolean): string {
 function versionTitle(
   summary: ExecutiveVersionSummary,
   oldestVersionNumber: number,
+  chrome?: DiscussionExecutiveChrome | null,
 ): string {
   if (summary.is_current) {
-    return "Current Version";
+    return chrome?.currentVersion ?? "Current Version";
   }
   if (summary.version_number === oldestVersionNumber) {
-    return "Original Version";
+    return chrome?.originalVersion ?? "Original Version";
+  }
+  if (chrome) {
+    return fillChromeTemplate(chrome.versionNumber, {
+      n: summary.version_number,
+    });
   }
   return `Version ${summary.version_number}`;
 }
@@ -173,12 +209,16 @@ export function ExecutiveIntelligenceWorkspace({
   sourceKind = "discussion",
   brandDirection = null,
   continuationPreferences = null,
+  chrome = null,
+  locale = null,
 }: ExecutiveIntelligenceWorkspaceProps) {
   const { isGenerating, isCompleted } = useDiscussionRegeneration();
   const isProspect = sourceKind === "prospect";
   const isPersona = sourceKind === "persona";
   const sourceContextTitle =
-    isProspect || isPersona ? "Source Context" : "Original Discussion";
+    isProspect || isPersona
+      ? "Source Context"
+      : (chrome?.originalDiscussion ?? "Original Discussion");
   // Copy/Done tracking stays on discussion|prospect only (no Persona asset-interaction source).
   const copySourceType: "discussion" | "prospect" = isProspect
     ? "prospect"
@@ -396,7 +436,7 @@ export function ExecutiveIntelligenceWorkspace({
       : viewModel.isCurrent
         ? "Current Executive Version"
         : viewModel.displayGeneratedAt
-          ? `Archived Executive Version — ${formatVersionGeneratedAt(viewModel.displayGeneratedAt, true)}`
+          ? `Archived Executive Version — ${formatVersionGeneratedAt(viewModel.displayGeneratedAt, true, locale)}`
           : "Archived Executive Version";
 
   function handleDiscussWithAthena(payload: {
@@ -449,7 +489,7 @@ export function ExecutiveIntelligenceWorkspace({
             : viewModel.isCurrent
               ? "Current Executive Version"
               : viewModel.displayGeneratedAt
-                ? `Archived Executive Version — ${formatVersionGeneratedAt(viewModel.displayGeneratedAt, true)}`
+                ? `Archived Executive Version — ${formatVersionGeneratedAt(viewModel.displayGeneratedAt, true, locale)}`
                 : "Archived Executive Version"
         }
         assetReference={conversationAssetReference}
@@ -487,16 +527,18 @@ export function ExecutiveIntelligenceWorkspace({
           className={`mt-8 rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
         >
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Executive Intelligence
+            {chrome?.heading ?? "Executive Intelligence"}
           </div>
           <p className="mt-4 text-white/50">
             {viewModel.selectionMissing
-              ? "The selected Executive Version is unavailable. Choose Current Version or another archived version."
+              ? (chrome?.selectionMissing ??
+                "The selected Executive Version is unavailable. Choose Current Version or another archived version.")
               : isProspect
                 ? "Run Athena analysis to unlock executive intelligence for this prospect."
                 : isPersona
                   ? "Run Athena analysis to unlock executive intelligence for this persona."
-                  : "Run Athena analysis to unlock executive intelligence for this discussion."}
+                  : (chrome?.emptyDiscussion ??
+                    "Run Athena analysis to unlock executive intelligence for this discussion.")}
           </p>
         </div>
         {prospectConversationSlot}
@@ -510,18 +552,20 @@ export function ExecutiveIntelligenceWorkspace({
             {originalDiscussionSection}
           </AthenaCollapsibleSection>
           <AthenaCollapsibleSection
-            title="Detailed Athena Reasoning"
+            title={chrome?.detailedReasoning ?? "Detailed Athena Reasoning"}
             defaultOpen={false}
           >
             <div className="space-y-7">
               <div className="text-white/50">
                 {viewModel.selectionMissing
-                  ? "Historical snapshot content is unavailable for this selection."
+                  ? (chrome?.historicalUnavailable ??
+                    "Historical snapshot content is unavailable for this selection.")
                   : isProspect
                     ? "No generated Athena analysis has been saved for this prospect yet. Use Generate Intelligence in the page header to generate."
                     : isPersona
                       ? "No generated Athena analysis has been saved for this persona yet. Use Generate Intelligence in the page header to generate."
-                      : "No generated Athena analysis has been saved for this discussion yet. Use Generate Intelligence in the page header to generate."}
+                      : (chrome?.reasoningEmpty ??
+                        "No generated Athena analysis has been saved for this discussion yet. Use Generate Intelligence in the page header to generate.")}
               </div>
             </div>
           </AthenaCollapsibleSection>
@@ -572,21 +616,20 @@ export function ExecutiveIntelligenceWorkspace({
     <>
       {sortedVersions.length > 0 && (
         <AthenaCollapsibleSection
-          title="Executive Versions"
+          title={chrome?.versionsTitle ?? "Executive Versions"}
           defaultOpen={Boolean(selectedVersion && !selectedVersion.is_current)}
           className="mt-8"
         >
           <p className="mb-8 max-w-2xl text-sm leading-6 text-white/45">
-            Browse Athena&apos;s complete strategic understanding over time.
-            Opening a previous version is view-only and never regenerates
-            intelligence.
+            {chrome?.versionsHelp ??
+              "Browse Athena's complete strategic understanding over time. Opening a previous version is view-only and never regenerates intelligence."}
           </p>
 
           <div className="space-y-0">
             {sortedVersions.map((version, index) => {
               const expanded = expandedVersionIds.has(version.id);
               const selected = selectedVersion?.id === version.id;
-              const title = versionTitle(version, oldestVersionNumber);
+                  const title = versionTitle(version, oldestVersionNumber, chrome);
 
               return (
                 <div key={version.id}>
@@ -604,11 +647,11 @@ export function ExecutiveIntelligenceWorkspace({
                           </h3>
                           {version.is_current ? (
                             <span className="rounded-full border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--athena-orange)]">
-                              Current ✓
+                              {chrome?.currentBadge ?? "Current ✓"}
                             </span>
                           ) : (
                             <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-white/40">
-                              Archived
+                              {chrome?.archivedBadge ?? "Archived"}
                             </span>
                           )}
                           {isThinkDifferentlyExecutiveVersion(version) ? (
@@ -620,11 +663,14 @@ export function ExecutiveIntelligenceWorkspace({
 
                         <div className="mt-3 space-y-1 text-sm text-white/45">
                           <div>
-                            <span className="text-white/30">Generated </span>
+                            <span className="text-white/30">
+                              {chrome?.generatedPrefix ?? "Generated "}
+                            </span>
                             <span className="text-white/65">
                               {formatVersionGeneratedAt(
                                 resolveExecutiveVersionDisplayTimestamp(version),
                                 true,
+                                locale,
                               )}
                             </span>
                           </div>
@@ -648,11 +694,13 @@ export function ExecutiveIntelligenceWorkspace({
                           className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/[0.06] hover:text-white"
                           aria-expanded={expanded}
                         >
-                          {expanded && selected ? "▲ Hide" : "▼ View"}
+                          {expanded && selected
+                            ? (chrome?.hide ?? "▲ Hide")
+                            : (chrome?.view ?? "▼ View")}
                         </button>
                         {selected && (
                           <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--athena-orange)]">
-                            Viewing
+                            {chrome?.viewing ?? "Viewing"}
                           </span>
                         )}
                       </div>
@@ -661,8 +709,11 @@ export function ExecutiveIntelligenceWorkspace({
                     {expanded && (
                       <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/50">
                         {version.is_current
-                          ? currentVersionExpandedCopy(sourceKind)
-                          : archivedVersionExpandedCopy()}
+                          ? (!isProspect && !isPersona && chrome
+                              ? chrome.currentVersionExpanded
+                              : currentVersionExpandedCopy(sourceKind))
+                          : (chrome?.archivedVersionExpanded ??
+                            archivedVersionExpandedCopy())}
                       </div>
                     )}
                   </div>
@@ -678,17 +729,30 @@ export function ExecutiveIntelligenceWorkspace({
       >
         {viewModel.isHistorical && viewModel.displayGeneratedAt && (
           <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
-            Viewing archived executive intelligence from{" "}
-            {formatVersionGeneratedAt(viewModel.displayGeneratedAt, true)}.
-            Athena&apos;s Current Version is unchanged.
+            {chrome
+              ? fillChromeTemplate(chrome.viewingArchived, {
+                  when: formatVersionGeneratedAt(
+                    viewModel.displayGeneratedAt,
+                    true,
+                    locale,
+                  ),
+                })
+              : `Viewing archived executive intelligence from ${formatVersionGeneratedAt(viewModel.displayGeneratedAt, true)}. Athena's Current Version is unchanged.`}
           </div>
         )}
 
         <div className="mt-8">
-          <AthenaRecommendationRibbon analysis={viewModel.analysis} />
+          <AthenaRecommendationRibbon
+            analysis={viewModel.analysis}
+            recommendationLabel={chrome?.recommendation}
+            timingLabel={chrome?.responseTiming}
+            chrome={chrome}
+          />
           <RegenerationMetadata
             analysis={viewModel.analysis}
             generatedAt={viewModel.displayGeneratedAt}
+            chrome={chrome}
+            locale={locale}
           />
         </div>
 
@@ -696,6 +760,7 @@ export function ExecutiveIntelligenceWorkspace({
           <ExecutiveIntelligenceCard
             analysis={viewModel.analysis}
             sourceKind={sourceKind}
+            chrome={chrome}
           />
         </div>
 
@@ -748,8 +813,8 @@ export function ExecutiveIntelligenceWorkspace({
           </div>
         ) : viewModel.isHistorical ? (
           <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
-            Deployment Assets are unavailable in this archived Executive Version
-            snapshot.
+            {chrome?.deploymentAssetsUnavailable ??
+              "Deployment Assets are unavailable in this archived Executive Version snapshot."}
           </div>
         ) : null}
 
@@ -811,8 +876,8 @@ export function ExecutiveIntelligenceWorkspace({
           )
         ) : viewModel.isHistorical ? (
           <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
-            Strategic Asset Blueprint is unavailable in this archived Executive
-            Version snapshot.
+            {chrome?.blueprintUnavailable ??
+              "Strategic Asset Blueprint is unavailable in this archived Executive Version snapshot."}
           </div>
         ) : null}
       </div>
@@ -829,13 +894,13 @@ export function ExecutiveIntelligenceWorkspace({
           {originalDiscussionSection}
         </AthenaCollapsibleSection>
         <AthenaCollapsibleSection
-          title="Detailed Athena Reasoning"
+          title={chrome?.detailedReasoning ?? "Detailed Athena Reasoning"}
           defaultOpen={false}
           headerAside={
             <div className="text-sm text-white/40">
-              Analysis Status:{" "}
+              {chrome?.analysisStatusLabel ?? "Analysis Status:"}{" "}
               <span className="text-[var(--athena-orange)]">
-                {intelligence.analysis.status}
+                {presentAnalysisStatus(intelligence.analysis.status, chrome)}
               </span>
             </div>
           }
@@ -847,21 +912,24 @@ export function ExecutiveIntelligenceWorkspace({
                   ? "Prospect Assessment"
                   : isPersona
                     ? "Persona Assessment"
-                    : "Summary"
+                    : (chrome?.summary ?? "Summary")
               }
               value={analysisDisplay.summary}
             />
             <DetailField
-              label="Sentiment"
+              label={chrome?.sentiment ?? "Sentiment"}
               value={analysisDisplay.sentiment}
             />
-            <DetailField label="Intent" value={analysisDisplay.intent} />
             <DetailField
-              label="Buyer Stage"
+              label={chrome?.intent ?? "Intent"}
+              value={analysisDisplay.intent}
+            />
+            <DetailField
+              label={chrome?.buyerStage ?? "Buyer Stage"}
               value={analysisDisplay.buyer_stage}
             />
             <DetailField
-              label="Pain Points"
+              label={chrome?.painPoints ?? "Pain Points"}
               value={analysisDisplay.pain_points}
             />
             <DetailField
@@ -870,10 +938,12 @@ export function ExecutiveIntelligenceWorkspace({
                   ? "Prospect Opportunity"
                   : isPersona
                     ? "Persona Opportunity"
-                    : "Opportunity"
+                    : (chrome?.opportunity ?? "Opportunity")
               }
               value={
-                intelligence.analysis.opportunity_detected ? "Yes" : "No"
+                intelligence.analysis.opportunity_detected
+                  ? (chrome?.opportunityYes ?? "Yes")
+                  : (chrome?.opportunityNo ?? "No")
               }
             />
             {(isProspect || isPersona) && (
@@ -893,7 +963,7 @@ export function ExecutiveIntelligenceWorkspace({
                   ? "Prospect Opportunity Title"
                   : isPersona
                     ? "Persona Opportunity Title"
-                    : "Opportunity Title"
+                    : (chrome?.opportunityTitle ?? "Opportunity Title")
               }
               value={analysisDisplay.opportunity_title}
             />
@@ -903,7 +973,7 @@ export function ExecutiveIntelligenceWorkspace({
                   ? "Prospect Opportunity Reason"
                   : isPersona
                     ? "Persona Opportunity Reason"
-                    : "Opportunity Reason"
+                    : (chrome?.opportunityReason ?? "Opportunity Reason")
               }
               value={analysisDisplay.opportunity_reason}
             />
@@ -913,18 +983,22 @@ export function ExecutiveIntelligenceWorkspace({
                   ? "Outreach Strategy"
                   : isPersona
                     ? "Engagement Strategy"
-                    : "Strategic Recommendation"
+                    : (chrome?.strategicRecommendation ??
+                      "Strategic Recommendation")
               }
-              sublabel="Recommended Action"
+              sublabel={chrome?.recommendedAction ?? "Recommended Action"}
               value={analysisDisplay.recommended_action}
-              helper="Guidance for internal decision-making."
+              helper={
+                chrome?.recommendationHelper ??
+                "Guidance for internal decision-making."
+              }
             />
             <DetailField
-              label="Risk Level"
+              label={chrome?.riskLevel ?? "Risk Level"}
               value={analysisDisplay.risk_level}
             />
             <DetailField
-              label="Confidence"
+              label={chrome?.confidence ?? "Confidence"}
               value={`${analysisDisplay.confidence}%`}
             />
           </div>

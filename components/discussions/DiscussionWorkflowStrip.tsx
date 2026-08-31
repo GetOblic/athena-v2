@@ -3,17 +3,19 @@ import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecu
 
 type DiscussionWorkflowStripProps = {
   steps: DiscussionWorkflowStep[];
+  title?: string;
 };
 
 export function DiscussionWorkflowStrip({
   steps,
+  title = "Workflow Progress",
 }: DiscussionWorkflowStripProps) {
   return (
     <div
       className={`mt-8 rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-6`}
     >
       <div className="mb-4 text-xs font-semibold uppercase tracking-[0.3em] text-white/35">
-        Workflow Progress
+        {title}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

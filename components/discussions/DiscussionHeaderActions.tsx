@@ -4,8 +4,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnalyzeDiscussionButton } from "@/components/discussions/AnalyzeDiscussionButton";
 import { ThinkDifferentlyButton } from "@/components/discussions/ThinkDifferentlyButton";
-import { ConfirmDeleteControl } from "@/components/ui/ConfirmDeleteControl";
+import {
+  ConfirmDeleteControl,
+  type ConfirmDeleteChrome,
+} from "@/components/ui/ConfirmDeleteControl";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import type { DiscussionDetailChrome } from "@/lib/discussionExecutiveChrome";
 
 type IntelligenceDomainOption = {
   id: string;
@@ -27,6 +31,8 @@ type DiscussionHeaderActionsProps = {
   discussion: DiscussionRecord;
   originalBody: string;
   intelligenceDomains: IntelligenceDomainOption[];
+  messages?: DiscussionDetailChrome;
+  deleteChrome?: ConfirmDeleteChrome;
 };
 
 const fieldClassName =
@@ -36,6 +42,8 @@ export function DiscussionHeaderActions({
   discussion,
   originalBody,
   intelligenceDomains,
+  messages,
+  deleteChrome,
 }: DiscussionHeaderActionsProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -71,7 +79,9 @@ export function DiscussionHeaderActions({
       const payload = await response.json();
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to update discussion.");
+        throw new Error(
+          payload.error || messages?.updateFailed || "Failed to update discussion.",
+        );
       }
 
       setIsEditing(false);
@@ -80,7 +90,7 @@ export function DiscussionHeaderActions({
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Failed to update discussion.",
+          : messages?.updateFailed || "Failed to update discussion.",
       );
     }
   }
@@ -90,11 +100,18 @@ export function DiscussionHeaderActions({
       <div className="flex flex-wrap items-center justify-end gap-3">
         <AnalyzeDiscussionButton
           discussionId={discussion.id}
-          label="Generate Intelligence"
+          label={messages?.generateIntelligence ?? "Generate Intelligence"}
+          generatingLabel={messages?.generatingIntelligence}
+          completedLabel={messages?.intelligenceGenerated}
           compact
         />
 
-        <ThinkDifferentlyButton compact />
+        <ThinkDifferentlyButton
+          compact
+          label={messages?.thinkDifferently}
+          thinkingLabel={messages?.thinkingDifferently}
+          completedLabel={messages?.thoughtDifferently}
+        />
 
         <button
           type="button"
@@ -104,16 +121,24 @@ export function DiscussionHeaderActions({
           }}
           className="rounded-full border border-white/15 px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-[var(--athena-orange)]/40 hover:text-white"
         >
-          {isEditing ? "Cancel Edit" : "Edit Discussion"}
+          {isEditing
+            ? (messages?.cancelEdit ?? "Cancel Edit")
+            : (messages?.editDiscussion ?? "Edit Discussion")}
         </button>
 
         <ConfirmDeleteControl
-          confirmMessage="Delete this discussion permanently? This cannot be undone."
+          confirmMessage={
+            messages?.deleteConfirm ??
+            "Delete this discussion permanently? This cannot be undone."
+          }
           deleteUrl={`/api/discussions/${discussion.id}`}
           redirectTo="/discussions"
           isSuccessPayload={(payload) => Boolean(payload.success)}
-          errorFallback="Failed to delete discussion."
+          errorFallback={
+            messages?.deleteFailed ?? "Failed to delete discussion."
+          }
           dismissKey={isEditing}
+          chrome={deleteChrome}
         />
       </div>
 
@@ -122,12 +147,14 @@ export function DiscussionHeaderActions({
           onSubmit={handleSave}
           className={`w-full max-w-3xl rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-6 lg:ml-auto`}
         >
-          <h2 className="text-lg font-semibold">Edit Discussion</h2>
+          <h2 className="text-lg font-semibold">
+            {messages?.editDiscussion ?? "Edit Discussion"}
+          </h2>
 
           <div className="mt-5 grid gap-4">
             <label className="grid gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-                Platform
+                {messages?.labelPlatform ?? "Platform"}
               </span>
               <input
                 value={platform}
@@ -139,14 +166,17 @@ export function DiscussionHeaderActions({
 
             <label className="grid gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-                Intelligence Domain
+                {messages?.labelDomain ?? "Intelligence Domain"}
               </span>
               <select
                 value={communityId}
                 onChange={(event) => setCommunityId(event.target.value)}
                 className={fieldClassName}
               >
-                <option value="">No Intelligence Domain selected</option>
+                <option value="">
+                  {messages?.noDomainSelected ??
+                    "No Intelligence Domain selected"}
+                </option>
                 {intelligenceDomains.map((domain) => (
                   <option key={domain.id} value={domain.id}>
                     {domain.name}
@@ -157,7 +187,7 @@ export function DiscussionHeaderActions({
 
             <label className="grid gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-                Title
+                {messages?.labelTitle ?? "Title"}
               </span>
               <input
                 value={title}
@@ -170,7 +200,7 @@ export function DiscussionHeaderActions({
             <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-                  Author
+                  {messages?.labelAuthor ?? "Author"}
                 </span>
                 <input
                   value={author}
@@ -182,7 +212,7 @@ export function DiscussionHeaderActions({
 
               <label className="grid gap-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-                  Source URL
+                  {messages?.labelSourceUrl ?? "Source URL"}
                 </span>
                 <input
                   value={url}
@@ -196,7 +226,7 @@ export function DiscussionHeaderActions({
 
             <label className="grid gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-                Original Discussion
+                {messages?.labelOriginalDiscussion ?? "Original Discussion"}
               </span>
               <textarea
                 value={body}
@@ -213,7 +243,7 @@ export function DiscussionHeaderActions({
               type="submit"
               className="rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
             >
-              Save Changes
+              {messages?.saveChanges ?? "Save Changes"}
             </button>
           </div>
         </form>

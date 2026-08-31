@@ -4,12 +4,20 @@ type RegenerationCompleteToastProps = {
   visible: boolean;
   onViewAnalysis: () => void;
   onDismiss: () => void;
+  title?: string;
+  body?: string;
+  viewLabel?: string;
+  dismissLabel?: string;
 };
 
 export function RegenerationCompleteToast({
   visible,
   onViewAnalysis,
   onDismiss,
+  title = "Executive Intelligence Ready",
+  body = "Your discussion has been regenerated using the latest market reasoning.",
+  viewLabel = "View Updated Analysis",
+  dismissLabel = "Dismiss",
 }: RegenerationCompleteToastProps) {
   if (!visible) {
     return null;
@@ -26,11 +34,10 @@ export function RegenerationCompleteToast({
           <div className="mt-0.5 text-lg text-emerald-400">✓</div>
           <div className="min-w-0 flex-1">
             <div className="text-base font-semibold text-white">
-              Executive Intelligence Ready
+              {title}
             </div>
             <p className="mt-1 text-sm leading-6 text-white/60">
-              Your discussion has been regenerated using the latest market
-              reasoning.
+              {body}
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
@@ -38,14 +45,14 @@ export function RegenerationCompleteToast({
                 onClick={onViewAnalysis}
                 className="rounded-full bg-[var(--athena-orange)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
               >
-                View Updated Analysis
+                {viewLabel}
               </button>
               <button
                 type="button"
                 onClick={onDismiss}
                 className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/70 transition hover:border-white/25 hover:text-white"
               >
-                Dismiss
+                {dismissLabel}
               </button>
             </div>
           </div>

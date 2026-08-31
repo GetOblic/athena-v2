@@ -4,9 +4,13 @@ import { useState } from "react";
 
 type WhyAthenaMattersProps = {
   bullets: string[];
+  title?: string;
 };
 
-export function WhyAthenaMatters({ bullets }: WhyAthenaMattersProps) {
+export function WhyAthenaMatters({
+  bullets,
+  title = "Why Athena thinks this matters",
+}: WhyAthenaMattersProps) {
   const [open, setOpen] = useState(false);
 
   if (bullets.length === 0) {
@@ -21,7 +25,7 @@ export function WhyAthenaMatters({ bullets }: WhyAthenaMattersProps) {
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
       >
         <span className="text-sm font-medium text-white/70">
-          Why Athena thinks this matters
+          {title}
         </span>
         <span className="text-sm text-white/35">{open ? "−" : "+"}</span>
       </button>

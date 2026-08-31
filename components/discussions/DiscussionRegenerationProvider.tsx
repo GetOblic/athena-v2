@@ -26,6 +26,7 @@ import {
   type RegenerationStatusSnapshot,
   writeRegenerationSession,
 } from "@/lib/discussionRegenerationStatus";
+import type { DiscussionExecutiveChrome } from "@/lib/discussionExecutiveChrome";
 
 type AnalyzeResponse = {
   success?: boolean;
@@ -62,6 +63,7 @@ type DiscussionRegenerationContextValue = {
     kind?: ActiveGenerationKind,
   ) => void;
   scrollToUpdatedAnalysis: () => void;
+  chrome: DiscussionExecutiveChrome | null;
 };
 
 const DiscussionRegenerationContext =
@@ -83,12 +85,14 @@ type DiscussionRegenerationProviderProps = {
   discussionId: string;
   initialSnapshot: RegenerationStatusSnapshot;
   children: ReactNode;
+  chrome?: DiscussionExecutiveChrome | null;
 };
 
 export function DiscussionRegenerationProvider({
   discussionId,
   initialSnapshot,
   children,
+  chrome = null,
 }: DiscussionRegenerationProviderProps) {
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -208,7 +212,10 @@ export function DiscussionRegenerationProvider({
           setStillRunningAfterTimeout(false);
           setActiveGenerationKind(null);
           activeKindRef.current = null;
-          setError("Generation failed. Athena could not complete this run.");
+          setError(
+            chrome?.generationFailed ??
+              "Generation failed. Athena could not complete this run.",
+          );
           completionSound.observe("failed");
           router.refresh();
           return;
@@ -238,7 +245,7 @@ export function DiscussionRegenerationProvider({
 
       pollCleanupRef.current = finish;
     },
-    [completionSound, discussionId, markCompleted, router, stopPolling],
+    [chrome, completionSound, discussionId, markCompleted, router, stopPolling],
   );
 
   const beginGeneration = useCallback(
@@ -331,7 +338,9 @@ export function DiscussionRegenerationProvider({
   const queueGeneration = useCallback(
     async (endpoint: string, kind: ActiveGenerationKind) => {
       if (isGenerating) {
-        setDuplicateNotice("Generation already in progress.");
+        setDuplicateNotice(
+          chrome?.generationInProgress ?? "Generation already in progress.",
+        );
         return;
       }
 
@@ -363,7 +372,8 @@ export function DiscussionRegenerationProvider({
           data = JSON.parse(text) as AnalyzeResponse;
         } catch {
           throw new Error(
-            "Athena received an unexpected server response while queuing generation.",
+            chrome?.generationUnexpected ??
+              "Athena received an unexpected server response while queuing generation.",
           );
         }
 
@@ -371,7 +381,9 @@ export function DiscussionRegenerationProvider({
           const message =
             typeof data.error === "string"
               ? data.error
-              : data.error?.message || "Generation failed. Please check logs.";
+              : data.error?.message ||
+                chrome?.generationFailedLogs ||
+                "Generation failed. Please check logs.";
           throw new Error(message);
         }
 
@@ -389,7 +401,9 @@ export function DiscussionRegenerationProvider({
             session?.baseline ?? current ?? baseline,
             session?.startedAtMs ?? queuedAtMs,
             {
-              duplicateNotice: "Generation already in progress.",
+              duplicateNotice:
+                chrome?.generationInProgress ??
+                "Generation already in progress.",
               resumed: true,
               kind,
             },
@@ -402,10 +416,14 @@ export function DiscussionRegenerationProvider({
         setIsGenerating(false);
         setActiveGenerationKind(null);
         activeKindRef.current = null;
-        setError(err instanceof Error ? err.message : "Unknown error");
+        setError(
+          err instanceof Error
+            ? err.message
+            : chrome?.generationUnknown ?? "Unknown error",
+        );
       }
     },
-    [beginGeneration, completionSound, discussionId, isGenerating, stopPolling],
+    [beginGeneration, chrome, completionSound, discussionId, isGenerating, stopPolling],
   );
 
   const startRegeneration = useCallback(async () => {
@@ -450,6 +468,7 @@ export function DiscussionRegenerationProvider({
         startThinkDifferently,
         trackQueuedGeneration,
         scrollToUpdatedAnalysis,
+        chrome,
       }}
     >
       {children}
@@ -458,6 +477,10 @@ export function DiscussionRegenerationProvider({
         visible={showToast}
         onViewAnalysis={scrollToUpdatedAnalysis}
         onDismiss={() => setShowToast(false)}
+        title={chrome?.toastTitle}
+        body={chrome?.toastBody}
+        viewLabel={chrome?.toastView}
+        dismissLabel={chrome?.toastDismiss}
       />
     </DiscussionRegenerationContext.Provider>
   );
@@ -470,6 +493,7 @@ export function DiscussionRegenerationProgress() {
     resumed,
     duplicateNotice,
     stillRunningAfterTimeout,
+    chrome,
   } = useDiscussionRegeneration();
 
   if (!isGenerating || startedAtMs === null) {
@@ -482,6 +506,7 @@ export function DiscussionRegenerationProgress() {
       resumed={resumed}
       duplicateNotice={duplicateNotice}
       stillRunningAfterTimeout={stillRunningAfterTimeout}
+      chrome={chrome}
     />
   );
 }

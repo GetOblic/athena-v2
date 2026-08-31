@@ -6,53 +6,115 @@ import {
 } from "@/lib/confidenceDisplay";
 import { WhyAthenaMatters } from "@/components/discussions/WhyAthenaMatters";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import type { DiscussionExecutiveChrome } from "@/lib/discussionExecutiveChrome";
+import { fillChromeTemplate } from "@/lib/discussionExecutiveChrome";
 import { normalizeAnalysisForDisplay } from "@/services/executiveVersions/analysisNormalization";
 
 type ExecutiveIntelligenceCardProps = {
   analysis: DiscussionAnalysis;
   /** Isolated source wording. Defaults to discussion labels. */
   sourceKind?: "discussion" | "prospect" | "persona";
+  chrome?: DiscussionExecutiveChrome | null;
 };
+
+function localizedConfidenceLabel(
+  confidence: number,
+  chrome?: DiscussionExecutiveChrome | null,
+): string {
+  const token = formatConfidenceLabel(confidence);
+  if (!chrome) {
+    return token;
+  }
+  if (token === "High") return chrome.confidenceHigh;
+  if (token === "Medium") return chrome.confidenceMedium;
+  return chrome.confidenceLow;
+}
+
+function localizedWhyBullets(
+  analysis: DiscussionAnalysis,
+  chrome: DiscussionExecutiveChrome,
+): string[] {
+  const bullets: string[] = [];
+  if (analysis.buyer_stage?.trim()) {
+    bullets.push(
+      fillChromeTemplate(chrome.whyBuyerStage, {
+        value: analysis.buyer_stage,
+      }),
+    );
+  }
+  if (analysis.pain_points?.trim()) {
+    bullets.push(
+      fillChromeTemplate(chrome.whyPrimaryConcern, {
+        value: analysis.pain_points.trim(),
+      }),
+    );
+  }
+  if (analysis.opportunity_reason?.trim()) {
+    bullets.push(
+      fillChromeTemplate(chrome.whyOpportunitySignal, {
+        value: analysis.opportunity_reason.trim(),
+      }),
+    );
+  }
+  if (analysis.risk_level?.trim()) {
+    bullets.push(
+      fillChromeTemplate(chrome.whyRiskLevel, {
+        value: analysis.risk_level,
+      }),
+    );
+  }
+  if (analysis.confidence != null) {
+    bullets.push(
+      fillChromeTemplate(chrome.whyConfidence, {
+        value: analysis.confidence,
+      }),
+    );
+  }
+  return bullets.slice(0, 5);
+}
 
 export function ExecutiveIntelligenceCard({
   analysis,
   sourceKind = "discussion",
+  chrome = null,
 }: ExecutiveIntelligenceCardProps) {
   const display = normalizeAnalysisForDisplay(analysis);
   const confidence = Math.max(0, Math.min(100, display.confidence ?? 0));
-  const confidenceLabel = formatConfidenceLabel(confidence);
-  const whyBullets = buildWhyAthenaBullets({
-    ...analysis,
-    ...display,
-  });
+  const confidenceLabel = localizedConfidenceLabel(confidence, chrome);
+  const whyBullets = chrome
+    ? localizedWhyBullets({ ...analysis, ...display }, chrome)
+    : buildWhyAthenaBullets({
+        ...analysis,
+        ...display,
+      });
   const isProspect = sourceKind === "prospect";
   const isPersona = sourceKind === "persona";
   const assessmentLabel = isProspect
     ? "Prospect Assessment"
     : isPersona
       ? "Persona Assessment"
-      : "Executive Insight";
+      : (chrome?.executiveInsight ?? "Executive Insight");
   const concernLabel = isProspect
     ? "Primary Business Concern"
     : isPersona
       ? "Primary Persona Concern"
-      : "Primary Buyer Concern";
+      : (chrome?.primaryBuyerConcern ?? "Primary Buyer Concern");
   const strategyLabel = isProspect
     ? "Outreach Strategy"
     : isPersona
       ? "Engagement Strategy"
-      : "Recommended Strategy";
+      : (chrome?.recommendedStrategy ?? "Recommended Strategy");
 
   return (
     <section
       className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8 lg:p-10`}
     >
       <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-        Executive Intelligence
+        {chrome?.heading ?? "Executive Intelligence"}
       </div>
 
       <h2 className="mt-3 text-2xl font-semibold tracking-tight">
-        What matters in 30 seconds
+        {chrome?.whatMatters ?? "What matters in 30 seconds"}
       </h2>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
@@ -72,7 +134,7 @@ export function ExecutiveIntelligenceCard({
         <div className="space-y-5">
           <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
             <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-              Confidence
+              {chrome?.confidence ?? "Confidence"}
             </div>
             <div className="mt-3 flex items-end justify-between gap-4">
               <span className="text-4xl font-semibold tabular-nums text-[var(--athena-orange)]">
@@ -90,14 +152,26 @@ export function ExecutiveIntelligenceCard({
             </div>
           </div>
 
-          <StatPill label="Buyer Stage" value={display.buyer_stage} />
-          <StatPill label="Intent" value={display.intent} />
-          <StatPill label="Risk" value={display.risk_level} />
+          <StatPill
+            label={chrome?.buyerStage ?? "Buyer Stage"}
+            value={display.buyer_stage}
+          />
+          <StatPill
+            label={chrome?.intent ?? "Intent"}
+            value={display.intent}
+          />
+          <StatPill
+            label={chrome?.risk ?? "Risk"}
+            value={display.risk_level}
+          />
         </div>
       </div>
 
       <div className="mt-8">
-        <WhyAthenaMatters bullets={whyBullets} />
+        <WhyAthenaMatters
+          bullets={whyBullets}
+          title={chrome?.whyMatters}
+        />
       </div>
     </section>
   );

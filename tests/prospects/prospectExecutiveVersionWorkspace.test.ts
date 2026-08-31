@@ -257,7 +257,7 @@ describe("Prospect production path — ExecutiveIntelligenceWorkspace", () => {
     const workspace = read(
       "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
     );
-    assert.match(workspace, /title="Executive Versions"/);
+    assert.match(workspace, /Executive Versions/);
     assert.match(workspace, /Current Version/);
     assert.match(workspace, /▲ Hide|▼ View/);
     assert.match(workspace, /Viewing/);

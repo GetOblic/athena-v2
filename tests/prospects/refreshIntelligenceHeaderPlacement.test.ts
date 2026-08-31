@@ -14,7 +14,7 @@ describe("Generate Intelligence header placement", () => {
     const header = read("components/discussions/DiscussionHeaderActions.tsx");
     assert.match(header, /AnalyzeDiscussionButton/);
     assert.match(header, /ThinkDifferentlyButton/);
-    assert.match(header, /label="Generate Intelligence"/);
+    assert.match(header, /Generate Intelligence/);
     assert.match(header, /compact/);
 
     const page = read("app/discussions/[id]/page.tsx");

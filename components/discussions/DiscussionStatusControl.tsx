@@ -6,6 +6,8 @@ import {
   DISCUSSION_STATUS_OPTIONS,
   formatDiscussionLifecycle,
   getDiscussionLifecycle,
+  type DiscussionLifecycleKey,
+  type DiscussionStatusOption,
 } from "@/lib/discussionStatus";
 import type { Discussion } from "@/services/discussionService";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
@@ -13,11 +15,21 @@ import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecu
 type DiscussionStatusControlProps = {
   discussion: Discussion;
   hasAnalysis: boolean;
+  label?: string;
+  statusLabels?: Partial<Record<DiscussionStatusOption, string>>;
+  lifecycleLabels?: Partial<Record<DiscussionLifecycleKey, string>>;
+  successMessage?: string;
+  errorFallback?: string;
 };
 
 export function DiscussionStatusControl({
   discussion,
   hasAnalysis,
+  label = "Discussion Status",
+  statusLabels,
+  lifecycleLabels,
+  successMessage = "Discussion status updated.",
+  errorFallback = "Failed to update discussion status.",
 }: DiscussionStatusControlProps) {
   const router = useRouter();
   const [status, setStatus] = useState(discussion.status || "New");
@@ -25,7 +37,10 @@ export function DiscussionStatusControl({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const lifecycle = getDiscussionLifecycle(discussion, hasAnalysis);
+  const lifecycle = getDiscussionLifecycle(
+    { ...discussion, status },
+    hasAnalysis,
+  );
 
   async function handleChange(nextStatus: string) {
     setStatus(nextStatus);
@@ -43,17 +58,15 @@ export function DiscussionStatusControl({
       const payload = await response.json();
 
       if (!response.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to update discussion status.");
+        throw new Error(payload.error || errorFallback);
       }
 
-      setSuccess("Discussion status updated.");
+      setSuccess(successMessage);
       router.refresh();
     } catch (saveError) {
       setStatus(discussion.status || "New");
       setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Failed to update discussion status.",
+        saveError instanceof Error ? saveError.message : errorFallback,
       );
     } finally {
       setIsSaving(false);
@@ -65,7 +78,7 @@ export function DiscussionStatusControl({
       className={`rounded-[20px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5`}
     >
       <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-        Discussion Status
+        {label}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -77,16 +90,17 @@ export function DiscussionStatusControl({
         >
           {DISCUSSION_STATUS_OPTIONS.map((option) => (
             <option key={option} value={option}>
-              {option}
+              {statusLabels?.[option] ?? option}
             </option>
           ))}
         </select>
 
         <span className={`text-sm font-medium ${lifecycle.colorClass}`}>
-          {formatDiscussionLifecycle(
-            { ...discussion, status },
-            hasAnalysis,
-          )}
+          {lifecycleLabels?.[lifecycle.key] ??
+            formatDiscussionLifecycle(
+              { ...discussion, status },
+              hasAnalysis,
+            )}
         </span>
       </div>
 

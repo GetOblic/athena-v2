@@ -4,9 +4,15 @@ import {
   getResponseTiming,
   type AthenaVerdict,
 } from "@/lib/discussionExecutiveIntel";
+import type { DiscussionExecutiveChrome } from "@/lib/discussionExecutiveChrome";
 
 type AthenaRecommendationRibbonProps = {
   analysis: DiscussionAnalysis;
+  recommendationLabel?: string;
+  timingLabel?: string;
+  verdictLabel?: string;
+  timingValue?: string;
+  chrome?: DiscussionExecutiveChrome | null;
 };
 
 const verdictStyles: Record<
@@ -32,10 +38,33 @@ const verdictStyles: Record<
 
 export function AthenaRecommendationRibbon({
   analysis,
+  recommendationLabel = "Athena Recommendation",
+  timingLabel = "Recommended response timing",
+  verdictLabel,
+  timingValue,
+  chrome = null,
 }: AthenaRecommendationRibbonProps) {
   const verdict = getAthenaVerdict(analysis);
   const timing = getResponseTiming(analysis);
   const styles = verdictStyles[verdict];
+  const presentedVerdict =
+    verdictLabel ??
+    (chrome
+      ? verdict === "Worth pursuing"
+        ? chrome.verdictWorthPursuing
+        : verdict === "Monitor"
+          ? chrome.verdictMonitor
+          : chrome.verdictLowPriority
+      : verdict);
+  const presentedTiming =
+    timingValue ??
+    (chrome
+      ? timing === "Respond within 12 hours"
+        ? chrome.timingWithin12Hours
+        : timing === "Respond today"
+          ? chrome.timingRespondToday
+          : chrome.timingMonitor
+      : timing);
 
   return (
     <div
@@ -43,18 +72,20 @@ export function AthenaRecommendationRibbon({
     >
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.25em] text-white/40">
-          Athena Recommendation
+          {recommendationLabel}
         </div>
         <div className={`mt-2 text-xl font-semibold ${styles.text}`}>
-          {verdict}
+          {presentedVerdict}
         </div>
       </div>
 
       <div className="sm:text-right">
         <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-          Recommended response timing
+          {timingLabel}
         </div>
-        <div className="mt-1 text-sm font-medium text-white/75">{timing}</div>
+        <div className="mt-1 text-sm font-medium text-white/75">
+          {presentedTiming}
+        </div>
       </div>
     </div>
   );

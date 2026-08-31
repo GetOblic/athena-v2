@@ -1,4 +1,6 @@
 import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
+import type { DiscussionExecutiveChrome } from "@/lib/discussionExecutiveChrome";
+import { fillChromeTemplate } from "@/lib/discussionExecutiveChrome";
 
 type RegenerationMetadataProps = {
   analysis: DiscussionAnalysis;
@@ -7,11 +9,16 @@ type RegenerationMetadataProps = {
    * Prefer this over analysis.created_at — Think Differently reuses analysis.
    */
   generatedAt?: string | null;
+  chrome?: DiscussionExecutiveChrome | null;
+  locale?: string | null;
 };
 
-function formatModelLabel(model: string | null | undefined): string {
+function formatModelLabel(
+  model: string | null | undefined,
+  fallback: string,
+): string {
   if (!model?.trim()) {
-    return "Athena model";
+    return fallback;
   }
 
   const normalized = model.toLowerCase();
@@ -40,24 +47,30 @@ function formatModelLabel(model: string | null | undefined): string {
     .join(" ");
 }
 
-function formatGeneratedAt(createdAt: string): string {
+function formatGeneratedAt(
+  createdAt: string,
+  locale: string | null | undefined,
+  chrome?: DiscussionExecutiveChrome | null,
+): string {
   const created = new Date(createdAt);
   const now = new Date();
   const sameDay =
     created.getFullYear() === now.getFullYear() &&
     created.getMonth() === now.getMonth() &&
     created.getDate() === now.getDate();
+  const resolvedLocale = locale || "en-US";
 
-  const timeLabel = created.toLocaleTimeString("en-US", {
+  const timeLabel = created.toLocaleTimeString(resolvedLocale, {
     hour: "numeric",
     minute: "2-digit",
   });
 
   if (sameDay) {
-    return `Today • ${timeLabel}`;
+    const template = chrome?.todayAt ?? "Today • {time}";
+    return fillChromeTemplate(template, { time: timeLabel });
   }
 
-  return created.toLocaleString("en-US", {
+  return created.toLocaleString(resolvedLocale, {
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -65,38 +78,57 @@ function formatGeneratedAt(createdAt: string): string {
   });
 }
 
-function formatGenerationTime(generationTimeMs: number | null | undefined): string {
+function formatGenerationTime(
+  generationTimeMs: number | null | undefined,
+  chrome?: DiscussionExecutiveChrome | null,
+): string {
   if (!generationTimeMs || generationTimeMs <= 0) {
     return "—";
   }
 
   const seconds = Math.max(1, Math.round(generationTimeMs / 1000));
+  if (chrome) {
+    return fillChromeTemplate(
+      seconds === 1 ? chrome.secondsOne : chrome.secondsMany,
+      { n: seconds },
+    );
+  }
   return `${seconds} second${seconds === 1 ? "" : "s"}`;
 }
 
 export function RegenerationMetadata({
   analysis,
   generatedAt = null,
+  chrome = null,
+  locale = null,
 }: RegenerationMetadataProps) {
   const generatedTimestamp = generatedAt?.trim() || analysis.created_at;
 
   return (
     <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm text-white/45">
       <div>
-        <span className="text-white/30">Generated: </span>
+        <span className="text-white/30">
+          {chrome?.generatedLabel ?? "Generated:"}{" "}
+        </span>
         <span className="text-white/65">
-          {formatGeneratedAt(generatedTimestamp)}
+          {formatGeneratedAt(generatedTimestamp, locale, chrome)}
         </span>
       </div>
       <div>
-        <span className="text-white/30">Generation Time: </span>
+        <span className="text-white/30">
+          {chrome?.generationTimeLabel ?? "Generation Time:"}{" "}
+        </span>
         <span className="text-white/65">
-          {formatGenerationTime(analysis.generation_time_ms)}
+          {formatGenerationTime(analysis.generation_time_ms, chrome)}
         </span>
       </div>
       <div>
-        <span className="text-white/30">Model: </span>
-        <span className="text-white/65">{formatModelLabel(analysis.model)}</span>
+        <span className="text-white/30">
+          {chrome?.modelLabel ?? "Model:"}{" "}
+        </span>
+        <span className="text-white/65">
+          {formatModelLabel(analysis.model, chrome?.athenaModel ?? "Athena model")}
+        </span>
       </div>
     </div>
   );

@@ -277,7 +277,7 @@ describe("Think Differently Phase 2 — UI", () => {
     const header = read("components/discussions/DiscussionHeaderActions.tsx");
     assert.match(header, /AnalyzeDiscussionButton/);
     assert.match(header, /ThinkDifferentlyButton/);
-    assert.match(header, /label="Generate Intelligence"/);
+    assert.match(header, /Generate Intelligence/);
 
     const provider = read(
       "components/discussions/DiscussionRegenerationProvider.tsx",
