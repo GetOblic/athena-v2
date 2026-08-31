@@ -1233,6 +1233,8 @@ export const es: TenantMessages = {
       send: "Enviar",
       sending: "Enviando…",
       clear: "Borrar",
+      transportFailed:
+        "Athena no pudo contactar con el servicio. Inténtelo de nuevo.",
       analysisAsset: "Activo de análisis",
       strategicBlueprint: "Strategic Blueprint",
       deploymentAsset: "Deployment Asset",

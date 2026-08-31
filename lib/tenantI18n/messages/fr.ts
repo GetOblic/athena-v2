@@ -1236,6 +1236,8 @@ export const fr: TenantMessages = {
       send: "Envoyer",
       sending: "Envoi…",
       clear: "Effacer",
+      transportFailed:
+        "Athena n’a pas pu joindre le service. Veuillez réessayer.",
       analysisAsset: "Actif d’analyse",
       strategicBlueprint: "Strategic Blueprint",
       deploymentAsset: "Deployment Asset",

@@ -33,6 +33,9 @@ export type PersonaConversationClientOutcome =
       failure: PersonaConversationClientFailure;
     };
 
+export const PERSONA_CONVERSATION_NETWORK_FALLBACK =
+  "Network error talking to Athena.";
+
 function readRequestId(response: Response): string | null {
   const value = response.headers.get(ATHENA_REQUEST_ID_HEADER);
   return value?.trim() || null;
@@ -171,7 +174,7 @@ export async function postPersonaConversation(input: {
           message:
             error instanceof Error
               ? error.message
-              : "Network error talking to Athena.",
+              : PERSONA_CONVERSATION_NETWORK_FALLBACK,
           retryable: true,
           requestId: null,
         },

@@ -613,6 +613,7 @@ describe("V31 L3.6 tenant personas + prospects — boundaries", () => {
     assert.ok(canonical.includes("personas.list.createCta"));
     assert.ok(canonical.includes("personas.detail.generateIntelligence"));
     assert.ok(canonical.includes("personas.conversation.example1"));
+    assert.ok(canonical.includes("personas.conversation.transportFailed"));
     assert.ok(canonical.includes("personas.deepScrape.button"));
     assert.ok(canonical.includes("personas.executive.analysisAssetsTitle"));
     assert.ok(canonical.includes("prospects.list.importCta"));

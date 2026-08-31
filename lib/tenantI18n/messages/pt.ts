@@ -1236,6 +1236,8 @@ export const pt: TenantMessages = {
       send: "Enviar",
       sending: "A enviar…",
       clear: "Limpar",
+      transportFailed:
+        "A Athena não conseguiu contactar o serviço. Tente novamente.",
       analysisAsset: "Ativo de análise",
       strategicBlueprint: "Strategic Blueprint",
       deploymentAsset: "Deployment Asset",

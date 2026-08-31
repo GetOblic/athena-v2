@@ -344,6 +344,7 @@ describe("V31 L3.10.3 shared chrome — dictionary and isolation", () => {
     assert.ok(canonical.includes("copyChrome.noPromptGeneratedYet"));
     assert.ok(canonical.includes("copyChrome.continueToasts.copiedOpening"));
     assert.ok(canonical.includes("conversation.transportFailed"));
+    assert.ok(canonical.includes("personas.conversation.transportFailed"));
     assert.ok(
       canonical.includes("personas.conversation.currentExecutiveVersion"),
     );

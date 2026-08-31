@@ -1213,6 +1213,7 @@ export const en = {
       send: "Send",
       sending: "Sending…",
       clear: "Clear",
+      transportFailed: "Athena could not reach the service. Please try again.",
       analysisAsset: "Analysis Asset",
       strategicBlueprint: "Strategic Blueprint",
       deploymentAsset: "Deployment Asset",

@@ -10,7 +10,10 @@ import {
 } from "react";
 import { usePersonaDiscussContext } from "@/components/personas/personaDiscussContext";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
-import { postPersonaConversation } from "@/services/personaConversation/personaConversationClient";
+import {
+  PERSONA_CONVERSATION_NETWORK_FALLBACK,
+  postPersonaConversation,
+} from "@/services/personaConversation/personaConversationClient";
 import {
   clearPersonaConversationSession,
   readPersonaConversationSession,
@@ -237,7 +240,13 @@ function PersonaConversationPanelInner({
     setBusy(false);
     if (!outcome.ok) {
       if (outcome.failure.kind === "lifecycle_abort") return;
-      setError(outcome.failure.message);
+      const fallback = chrome?.transportFailed ?? PERSONA_CONVERSATION_NETWORK_FALLBACK;
+      setError(
+        outcome.failure.kind === "transport" &&
+          outcome.failure.message === PERSONA_CONVERSATION_NETWORK_FALLBACK
+          ? fallback
+          : outcome.failure.message,
+      );
       return;
     }
 
