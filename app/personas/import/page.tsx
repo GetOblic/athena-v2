@@ -1,35 +1,38 @@
-import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
 import { PersonaImportForms } from "@/components/personas/PersonaImportForms";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 export default async function PersonaImportPage() {
   await requireCurrentOrganizationContext();
+  const { messages } = await getTenantLocalization();
+  const copy = messages.personas;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink className="mb-8" />
+      <AthenaBrandLink
+        className="mb-8"
+        tagline={messages.chrome.tagline}
+        logoutLabel={messages.chrome.logOut}
+        sessionActionsLabel={messages.chrome.sessionActions}
+      />
 
-      <Link href="/personas" className="text-sm text-[var(--athena-orange)]">
-        ← Personas
-      </Link>
+      <TenantBackLink href="/personas" label={copy.backToPersonas} />
 
       <div className="mb-10 mt-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Persona Intelligence
+          {copy.eyebrow}
         </div>
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          Create or Import Personas
+          {copy.list.createCta}
         </h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Manual and CSV imports create Persona records immediately. Generate
-          Persona drafts a review candidate from Athena Brain first — nothing is
-          saved until you confirm. Incomplete profiles are welcome — only
-          completely blank Personas are rejected.
+          {copy.import.subtitle}
         </p>
       </div>
 
-      <PersonaImportForms />
+      <PersonaImportForms messages={messages} />
     </main>
   );
 }

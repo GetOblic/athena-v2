@@ -70,7 +70,7 @@ describe("Prospect WhatsApp Number field", () => {
     assert.match(importForms, /WhatsApp Number/);
     assert.match(details, /whatsapp_number/);
     assert.match(details, /Open WhatsApp/);
-    assert.match(page, /WhatsApp Number/);
+    assert.match(page, /copy\.detail\.whatsappNumber/);
     assert.match(page, /prospect\.whatsapp_number/);
     assert.match(patchRoute, /whatsapp_number:\s*optionalString/);
     assert.match(createRoute, /whatsapp_number:/);

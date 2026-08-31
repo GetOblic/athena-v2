@@ -1,33 +1,38 @@
-import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
 import { ProspectImportForms } from "@/components/prospects/ProspectImportForms";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 export default async function ProspectImportPage() {
   await requireCurrentOrganizationContext();
+  const { messages } = await getTenantLocalization();
+  const copy = messages.prospects;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink className="mb-8" />
+      <AthenaBrandLink
+        className="mb-8"
+        tagline={messages.chrome.tagline}
+        logoutLabel={messages.chrome.logOut}
+        sessionActionsLabel={messages.chrome.sessionActions}
+      />
 
-      <Link href="/prospects" className="text-sm text-[var(--athena-orange)]">
-        ← Prospects
-      </Link>
+      <TenantBackLink href="/prospects" label={copy.backToProspects} />
 
       <div className="mb-10 mt-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Prospect Intelligence
+          {copy.eyebrow}
         </div>
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          Import Prospects
+          {copy.list.importCta}
         </h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Manual and CSV imports create Prospect records immediately and queue
-          asynchronous generation. Incomplete records remain analyzable.
+          {copy.import.subtitle}
         </p>
       </div>
 
-      <ProspectImportForms />
+      <ProspectImportForms messages={messages} />
     </main>
   );
 }

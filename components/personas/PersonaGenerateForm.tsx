@@ -10,6 +10,11 @@ import {
   personaCandidateToFormState,
 } from "@/components/personas/personaFormFields";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  getLocalizedPersonaImportFieldLabel,
+  getLocalizedPersonaImportGroupTitle,
+} from "@/lib/tenantI18n/importPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type CreateResult = {
@@ -48,8 +53,14 @@ function candidateHasMeaningfulContent(
   return Object.values(values).some((value) => value.trim().length > 0);
 }
 
-export function PersonaGenerateForm() {
+type PersonaGenerateFormProps = {
+  messages: TenantMessages;
+};
+
+export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
   const router = useRouter();
+  const copy = messages.personas.import;
+  const meta = messages.personas.metadata;
   const requestLockRef = useRef(false);
   const [instruction, setInstruction] = useState("");
   const [phase, setPhase] = useState<GeneratePhase>("idle");
@@ -121,10 +132,7 @@ export function PersonaGenerateForm() {
           setPhase("idle");
         }
         setGenerateError(
-          extractErrorMessage(
-            payload,
-            "Athena could not generate a Persona candidate.",
-          ),
+          extractErrorMessage(payload, copy.generateFailed),
         );
         return;
       }
@@ -148,9 +156,7 @@ export function PersonaGenerateForm() {
         setPhase("idle");
       }
       setGenerateError(
-        error instanceof Error
-          ? error.message
-          : "Athena could not generate a Persona candidate.",
+        error instanceof Error ? error.message : copy.generateFailed,
       );
     } finally {
       requestLockRef.current = false;
@@ -163,8 +169,7 @@ export function PersonaGenerateForm() {
     if (!candidateHasMeaningfulContent(candidate)) {
       setCreateResult({
         ok: false,
-        message:
-          "Add at least one descriptive field before creating this Persona.",
+        message: copy.validationEmpty,
       });
       return;
     }
@@ -192,11 +197,10 @@ export function PersonaGenerateForm() {
         error?: string | { message?: string };
       }>(response);
 
-      const errorMessage = extractErrorMessage(payload, "Create failed.");
+      const errorMessage = extractErrorMessage(payload, copy.createFailed);
       const warning =
         payload.ok && payload.personaId && payload.queued === false
-          ? payload.queueError ||
-            "Persona was created, but intelligence generation must be retried from the detail page."
+          ? payload.queueError || copy.queueRetryWarning
           : null;
 
       setCreateResult({
@@ -214,7 +218,7 @@ export function PersonaGenerateForm() {
     } catch (error) {
       setCreateResult({
         ok: false,
-        message: error instanceof Error ? error.message : "Create failed.",
+        message: error instanceof Error ? error.message : copy.createFailed,
       });
       setPhase("review");
     } finally {
@@ -224,23 +228,19 @@ export function PersonaGenerateForm() {
 
   return (
     <PersonaCreationBlock
-      title="Generate Persona"
+      title={copy.generateTitle}
       panelId="persona-creation-generate"
-      summary="Use Athena Brain and your existing business knowledge to generate a new, relevant Persona."
+      summary={copy.generateSummary}
     >
       <div className="space-y-4">
         <label className="block text-sm text-white/50">
-          What kind of Persona would you like Athena to generate? (Optional)
+          {copy.instructionLabel}
           <textarea
             value={instruction}
             onChange={(event) => setInstruction(event.target.value)}
             disabled={busy}
             rows={5}
-            placeholder={`Examples:
-- Generate a skeptical buyer.
-- Generate someone likely to purchase premium services.
-- Generate a clinic owner in California.
-- Surprise me with an underserved audience.`}
+            placeholder={copy.instructionPlaceholder}
             className={`mt-2 w-full ${PERSONA_FORM_FIELD_CLASS}`}
           />
         </label>
@@ -253,7 +253,7 @@ export function PersonaGenerateForm() {
             aria-busy={phase === "generating"}
             className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
           >
-            {phase === "generating" ? "Athena is generating…" : "Generate Persona"}
+            {phase === "generating" ? copy.generating : copy.generateCta}
           </button>
         )}
 
@@ -263,8 +263,7 @@ export function PersonaGenerateForm() {
             aria-live="polite"
             className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65"
           >
-            Athena is evaluating portfolio coverage, then generating one candidate
-            from your Brain, market context, and existing Personas…
+            {copy.generatingHelp}
           </div>
         )}
 
@@ -280,21 +279,19 @@ export function PersonaGenerateForm() {
 
       {candidate && phase !== "idle" && (
         <div className="mt-10 border-t border-white/10 pt-8">
-          <h3 className="text-lg font-semibold text-white">Review candidate</h3>
+          <h3 className="text-lg font-semibold text-white">{copy.reviewTitle}</h3>
           <p className="mt-2 text-sm leading-6 text-white/45">
-            Edit any field before creating. Nothing is saved until you confirm.
-            {phase === "generating"
-              ? " Athena is generating another candidate — the current one stays until a new response succeeds."
-              : ""}
+            {copy.reviewHelp}
+            {phase === "generating" ? ` ${copy.reviewGeneratingNote}` : ""}
           </p>
 
           {portfolioCoverageInsight && (
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
               <h4 className="text-sm font-semibold text-white">
-                Portfolio Coverage Insight
+                {copy.portfolioInsightTitle}
               </h4>
               <p className="mt-2 text-sm leading-6 text-white/60">
-                Athena selected this Persona because:
+                {copy.portfolioInsightLead}
               </p>
               <p className="mt-2 text-sm leading-6 text-white/80 whitespace-pre-wrap">
                 {portfolioCoverageInsight}
@@ -304,7 +301,7 @@ export function PersonaGenerateForm() {
 
           <div className="mt-8 space-y-4">
             <label className="block text-sm text-white/50">
-              Persona Name
+              {meta.personaName}
               <input
                 value={candidate.persona_name ?? ""}
                 onChange={(event) =>
@@ -316,7 +313,7 @@ export function PersonaGenerateForm() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Short Description
+              {meta.shortDescription}
               <input
                 value={candidate.short_description ?? ""}
                 onChange={(event) =>
@@ -328,7 +325,7 @@ export function PersonaGenerateForm() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Additional Context
+              {meta.additionalContext}
               <textarea
                 value={candidate.additional_context ?? ""}
                 onChange={(event) =>
@@ -341,7 +338,7 @@ export function PersonaGenerateForm() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Reference Website
+              {meta.referenceWebsite}
               <input
                 value={candidate.reference_website ?? ""}
                 onChange={(event) =>
@@ -353,7 +350,7 @@ export function PersonaGenerateForm() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Notes
+              {meta.notes}
               <textarea
                 value={candidate.notes ?? ""}
                 onChange={(event) =>
@@ -366,7 +363,7 @@ export function PersonaGenerateForm() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Ads Content
+              {meta.adsContent}
               <textarea
                 value={candidate.ads_content ?? ""}
                 onChange={(event) =>
@@ -379,7 +376,7 @@ export function PersonaGenerateForm() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Category
+              {meta.category}
               <input
                 value={candidate.category ?? ""}
                 onChange={(event) =>
@@ -394,13 +391,16 @@ export function PersonaGenerateForm() {
               {PERSONA_ADVANCED_FIELD_GROUPS.map((group) => (
                 <AthenaCollapsibleSection
                   key={group.title}
-                  title={group.title}
+                  title={getLocalizedPersonaImportGroupTitle(
+                    messages,
+                    group.title,
+                  )}
                   defaultOpen={false}
                 >
                   <div className="grid gap-4">
-                    {group.fields.map(([key, label]) => (
+                    {group.fields.map(([key]) => (
                       <label key={key} className="block text-sm text-white/50">
-                        {label}
+                        {getLocalizedPersonaImportFieldLabel(messages, key)}
                         <input
                           value={candidate[key] ?? ""}
                           onChange={(event) =>
@@ -423,7 +423,7 @@ export function PersonaGenerateForm() {
                 disabled={busy}
                 className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
               >
-                {phase === "creating" ? "Creating…" : "Create Persona"}
+                {phase === "creating" ? copy.creating : copy.createCta}
               </button>
               <button
                 type="button"
@@ -431,7 +431,7 @@ export function PersonaGenerateForm() {
                 disabled={busy}
                 className="rounded-full border border-white/15 px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
               >
-                {phase === "generating" ? "Athena is generating…" : "Generate Again"}
+                {phase === "generating" ? copy.generating : copy.generateAgain}
               </button>
               <button
                 type="button"
@@ -439,7 +439,7 @@ export function PersonaGenerateForm() {
                 disabled={busy}
                 className="rounded-full border border-white/10 px-7 py-4 text-sm font-semibold text-white/70 disabled:opacity-40"
               >
-                Clear Candidate
+                {copy.clearCandidate}
               </button>
             </div>
           </div>
@@ -455,7 +455,7 @@ export function PersonaGenerateForm() {
                 href={`/personas/${createResult.personaId}`}
                 className="text-[var(--athena-orange)] underline"
               >
-                Open Persona
+                    {copy.openPersona}
               </Link>
             </div>
           )}

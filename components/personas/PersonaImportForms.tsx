@@ -12,6 +12,11 @@ import {
   PERSONA_FORM_FIELD_CLASS,
 } from "@/components/personas/personaFormFields";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  getLocalizedPersonaImportFieldLabel,
+  getLocalizedPersonaImportGroupTitle,
+} from "@/lib/tenantI18n/importPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type ManualResult = {
@@ -20,8 +25,14 @@ type ManualResult = {
   personaId?: string;
 };
 
-export function PersonaImportForms() {
+type PersonaImportFormsProps = {
+  messages: TenantMessages;
+};
+
+export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
   const router = useRouter();
+  const copy = messages.personas.import;
+  const meta = messages.personas.metadata;
 
   const [manual, setManual] = useState<Record<string, string>>(
     emptyPersonaFormState,
@@ -65,8 +76,7 @@ export function PersonaImportForms() {
 
       const warning =
         payload.ok && payload.personaId && payload.queued === false
-          ? payload.queueError ||
-            "Persona was created, but intelligence generation must be retried from the detail page."
+          ? payload.queueError || copy.queueRetryWarning
           : null;
 
       setManualResult({
@@ -75,7 +85,7 @@ export function PersonaImportForms() {
           warning ||
           payload.message ||
           errorMessage ||
-          "Create finished.",
+          copy.createFinished,
         personaId: payload.personaId,
       });
 
@@ -85,7 +95,7 @@ export function PersonaImportForms() {
     } catch (error) {
       setManualResult({
         ok: false,
-        message: error instanceof Error ? error.message : "Create failed.",
+        message: error instanceof Error ? error.message : copy.createFailed,
       });
     } finally {
       setManualSubmitting(false);
@@ -96,15 +106,15 @@ export function PersonaImportForms() {
     <div className="space-y-8">
       <div className="grid gap-8 lg:grid-cols-2">
         <PersonaCreationBlock
-          title="Manual Create"
+          title={copy.manualTitle}
           panelId="persona-creation-manual"
-          summary="Create a single Persona. Incomplete information is fine — only a completely blank Persona is rejected."
+          summary={copy.manualSummary}
         >
           <form onSubmit={submitManual} className="space-y-4">
             <label className="block text-sm text-white/50">
-              Persona Name
+              {meta.personaName}
               <span className="mt-1 block text-xs leading-5 text-white/35">
-                Optional working name for this clientele type or audience.
+                {copy.helpPersonaName}
               </span>
               <input
                 value={manual.persona_name ?? ""}
@@ -114,9 +124,9 @@ export function PersonaImportForms() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Short Description
+              {meta.shortDescription}
               <span className="mt-1 block text-xs leading-5 text-white/35">
-                A concise summary of who this Persona represents.
+                {copy.helpShortDescription}
               </span>
               <input
                 value={manual.short_description ?? ""}
@@ -128,11 +138,9 @@ export function PersonaImportForms() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Additional Context
+              {meta.additionalContext}
               <span className="mt-1 block text-xs leading-5 text-white/35">
-                Describe everything you know or intuit about this Persona —
-                patterns, motivations, contradictions, language, lifestyle,
-                sensitivities, and behavior. Incomplete information is fine.
+                {copy.helpAdditionalContext}
               </span>
               <textarea
                 value={manual.additional_context ?? ""}
@@ -145,10 +153,9 @@ export function PersonaImportForms() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Reference Website
+              {meta.referenceWebsite}
               <span className="mt-1 block text-xs leading-5 text-white/35">
-                Optional research URL about this segment, community, audience, or
-                market. It is not assumed to be the Persona’s own website.
+                {copy.helpReferenceWebsite}
               </span>
               <input
                 value={manual.reference_website ?? ""}
@@ -160,9 +167,9 @@ export function PersonaImportForms() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Notes
+              {meta.notes}
               <span className="mt-1 block text-xs leading-5 text-white/35">
-                Internal operator notes.
+                {copy.helpNotes}
               </span>
               <textarea
                 value={manual.notes ?? ""}
@@ -173,10 +180,9 @@ export function PersonaImportForms() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Ads Content
+              {meta.adsContent}
               <span className="mt-1 block text-xs leading-5 text-white/35">
-                Paste advertising, creative, messaging, or examples that target or
-                appear to resonate with this Persona.
+                {copy.helpAdsContent}
               </span>
               <textarea
                 value={manual.ads_content ?? ""}
@@ -187,7 +193,7 @@ export function PersonaImportForms() {
             </label>
 
             <label className="block text-sm text-white/50">
-              Category
+              {meta.category}
               <input
                 value={manual.category ?? ""}
                 onChange={(event) => setField("category", event.target.value)}
@@ -199,13 +205,16 @@ export function PersonaImportForms() {
               {PERSONA_ADVANCED_FIELD_GROUPS.map((group) => (
                 <AthenaCollapsibleSection
                   key={group.title}
-                  title={group.title}
+                  title={getLocalizedPersonaImportGroupTitle(
+                    messages,
+                    group.title,
+                  )}
                   defaultOpen={false}
                 >
                   <div className="grid gap-4">
-                    {group.fields.map(([key, label]) => (
+                    {group.fields.map(([key]) => (
                       <label key={key} className="block text-sm text-white/50">
-                        {label}
+                        {getLocalizedPersonaImportFieldLabel(messages, key)}
                         <input
                           value={manual[key] ?? ""}
                           onChange={(event) => setField(key, event.target.value)}
@@ -223,7 +232,7 @@ export function PersonaImportForms() {
               disabled={manualSubmitting}
               className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
             >
-              {manualSubmitting ? "Creating…" : "Create Persona"}
+              {manualSubmitting ? copy.creating : copy.createCta}
             </button>
           </form>
 
@@ -236,7 +245,7 @@ export function PersonaImportForms() {
                     href={`/personas/${manualResult.personaId}`}
                     className="text-[var(--athena-orange)] underline"
                   >
-                    Open Persona
+                    {copy.openPersona}
                   </Link>
                 </div>
               )}
@@ -244,10 +253,10 @@ export function PersonaImportForms() {
           )}
         </PersonaCreationBlock>
 
-        <PersonaGenerateForm />
+        <PersonaGenerateForm messages={messages} />
       </div>
 
-      <PersonaCsvImport />
+      <PersonaCsvImport messages={messages} />
     </div>
   );
 }

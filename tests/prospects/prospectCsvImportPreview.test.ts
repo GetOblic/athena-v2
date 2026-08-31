@@ -711,21 +711,21 @@ describe("prospect CSV UI extraction contracts", () => {
     );
 
     assert.match(parent, /ProspectCsvImport/);
-    assert.match(parent, /Manual Import/);
+    assert.match(parent, /copy\.manualTitle/);
     assert.match(parent, /External Contact ID/);
     assert.match(parent, /First Name/);
     assert.match(parent, /Last Name/);
     assert.match(parent, /Timezone/);
-    assert.doesNotMatch(parent, /Review CSV/);
-    assert.match(csv, /Download CSV Template/);
+    assert.doesNotMatch(parent, /copy\.reviewCta/);
+    assert.match(csv, /copy\.downloadTemplate/);
     assert.match(csv, /download="Athena_Prospect_Import_Template\.csv"/);
-    assert.match(csv, /Review CSV/);
-    assert.match(csv, /Recognized:/);
-    assert.match(csv, /Ignored:/);
-    assert.match(csv, /Warnings/);
+    assert.match(csv, /copy\.reviewCta/);
+    assert.match(csv, /copy\.recognizedLabel/);
+    assert.match(csv, /copy\.ignoredLabel/);
+    assert.match(csv, /copy\.warnings/);
     assert.match(csv, /preview\.ignoredColumns\.length > 0/);
-    assert.match(csv, /Maximum 500 Prospects per CSV/);
-    assert.match(csv, /Open Prospect Library/);
+    assert.match(csv, /copy\.guideMaxRows/);
+    assert.match(csv, /copy\.openLibrary/);
     assert.doesNotMatch(csv, />Import CSV</);
   });
 

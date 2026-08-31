@@ -1023,11 +1023,11 @@ describe("persona generation — route and UI contracts", () => {
     assert.match(form, /\/api\/personas\/generate/);
     assert.match(form, /\/api\/personas"/);
     assert.match(form, /source:\s*"generated"/);
-    assert.match(form, /Generate Again/);
-    assert.match(form, /Clear Candidate/);
-    assert.match(form, /Create Persona/);
-    assert.match(form, /Portfolio Coverage Insight/);
-    assert.match(form, /Athena selected this Persona because:/);
+    assert.match(form, /copy\.generateAgain/);
+    assert.match(form, /copy\.clearCandidate/);
+    assert.match(form, /copy\.createCta/);
+    assert.match(form, /copy\.portfolioInsightTitle/);
+    assert.match(form, /copy\.portfolioInsightLead/);
     assert.match(form, /portfolioCoverageInsight/);
     assert.match(form, /body: JSON\.stringify\(\{\s*instruction,/);
     assert.match(form, /candidateHasMeaningfulContent/);
@@ -1049,7 +1049,7 @@ describe("persona generation — route and UI contracts", () => {
 
   it("review form keeps Reference Website editable; create posts candidate edits", () => {
     const form = read("components/personas/PersonaGenerateForm.tsx");
-    assert.match(form, /Reference Website/);
+    assert.match(form, /meta\.referenceWebsite/);
     assert.match(
       form,
       /setCandidateField\("reference_website", event\.target\.value\)/,
@@ -1073,7 +1073,7 @@ describe("persona generation — route and UI contracts", () => {
 
   it("import page keeps Manual Create and CSV Import unchanged in behavior contracts", () => {
     const forms = read("components/personas/PersonaImportForms.tsx");
-    assert.match(forms, /Manual Create/);
+    assert.match(forms, /copy\.manualTitle/);
     assert.match(forms, /PersonaCsvImport/);
     assert.match(forms, /PersonaGenerateForm/);
     assert.match(forms, /fetch\("\/api\/personas"/);
@@ -1134,15 +1134,15 @@ describe("persona creation blocks — collapsible layout and state", () => {
     const generate = read("components/personas/PersonaGenerateForm.tsx");
     const csv = read("components/personas/PersonaCsvImport.tsx");
 
-    assert.match(forms, /title="Manual Create"/);
+    assert.match(forms, /title=\{copy\.manualTitle\}/);
     assert.match(forms, /panelId="persona-creation-manual"/);
     assert.doesNotMatch(forms, /defaultOpen=\{true\}/);
 
-    assert.match(generate, /title="Generate Persona"/);
+    assert.match(generate, /title=\{copy\.generateTitle\}/);
     assert.match(generate, /panelId="persona-creation-generate"/);
     assert.doesNotMatch(generate, /defaultOpen=\{true\}/);
 
-    assert.match(csv, /title="CSV Import"/);
+    assert.match(csv, /title=\{copy\.csvTitle\}/);
     assert.match(csv, /panelId="persona-creation-csv"/);
     assert.doesNotMatch(csv, /defaultOpen=\{true\}/);
   });
@@ -1175,9 +1175,9 @@ describe("persona creation blocks — collapsible layout and state", () => {
     const forms = read("components/personas/PersonaImportForms.tsx");
     assert.match(
       forms,
-      /grid gap-8 lg:grid-cols-2[\s\S]*Manual Create[\s\S]*PersonaGenerateForm[\s\S]*PersonaCsvImport/,
+      /grid gap-8 lg:grid-cols-2[\s\S]*copy\.manualTitle[\s\S]*PersonaGenerateForm[\s\S]*PersonaCsvImport/,
     );
-    const manualIndex = forms.indexOf('title="Manual Create"');
+    const manualIndex = forms.indexOf("title={copy.manualTitle}");
     const generateIndex = forms.indexOf("<PersonaGenerateForm");
     const csvIndex = forms.indexOf("<PersonaCsvImport");
     assert.ok(manualIndex > 0);

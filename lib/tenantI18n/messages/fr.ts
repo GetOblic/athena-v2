@@ -938,6 +938,101 @@ export const fr: TenantMessages = {
       previous: "Précédent",
       next: "Suivant",
     },
+    import: {
+      subtitle:
+        "Les imports manuels et CSV créent les fiches Persona immédiatement. Générer une Persona prépare d’abord un candidat à relire depuis Athena Brain — rien n’est enregistré tant que vous n’avez pas confirmé. Les profils incomplets sont acceptés — seules les Personas entièrement vides sont rejetées.",
+      manualTitle: "Création manuelle",
+      manualSummary:
+        "Créez une Persona unique. Les informations incomplètes conviennent — seule une Persona entièrement vide est rejetée.",
+      helpPersonaName:
+        "Nom de travail facultatif pour ce type de clientèle ou ce public.",
+      helpShortDescription:
+        "Un résumé concis de ce que cette Persona représente.",
+      helpAdditionalContext:
+        "Décrivez tout ce que vous savez ou intuitez sur cette Persona — schémas, motivations, contradictions, langage, mode de vie, sensibilités et comportements. Les informations incomplètes conviennent.",
+      helpReferenceWebsite:
+        "URL de recherche facultative sur ce segment, cette communauté, ce public ou ce marché. Elle n’est pas considérée comme le site propre de la Persona.",
+      helpNotes: "Notes internes de l’opérateur.",
+      helpAdsContent:
+        "Collez des publicités, créations, messages ou exemples qui ciblent cette Persona ou semblent lui parler.",
+      createCta: "Créer la Persona",
+      creating: "Création…",
+      openPersona: "Ouvrir la Persona",
+      createFinished: "Création terminée.",
+      createFailed: "La création a échoué.",
+      queueRetryWarning:
+        "La Persona a été créée, mais la génération d’intelligence doit être relancée depuis la page de détail.",
+      groupFamilyHousehold: "Famille et foyer",
+      groupFinancial: "Profil financier",
+      groupEducationProfessional: "Formation et contexte professionnel",
+      groupLifestyleBehavior: "Mode de vie et comportement",
+      groupValuesAesthetics: "Valeurs et esthétique",
+      generateTitle: "Générer une Persona",
+      generateSummary:
+        "Utilisez Athena Brain et votre connaissance métier existante pour générer une Persona nouvelle et pertinente.",
+      instructionLabel:
+        "Quel type de Persona souhaitez-vous qu’Athena génère ? (Facultatif)",
+      instructionPlaceholder:
+        "Exemples :\n- Générer un acheteur sceptique.\n- Générer quelqu’un susceptible d’acheter des services premium.\n- Générer un propriétaire de clinique en Californie.\n- Surprenez-moi avec un public mal desservi.",
+      generateCta: "Générer une Persona",
+      generating: "Athena génère…",
+      generatingHelp:
+        "Athena évalue la couverture du portefeuille, puis génère un candidat à partir de votre Brain, du contexte de marché et des Personas existantes…",
+      generateFailed: "Athena n’a pas pu générer de candidat Persona.",
+      reviewTitle: "Relire le candidat",
+      reviewHelp:
+        "Modifiez n’importe quel champ avant de créer. Rien n’est enregistré tant que vous n’avez pas confirmé.",
+      reviewGeneratingNote:
+        "Athena génère un autre candidat — le candidat actuel reste jusqu’à ce qu’une nouvelle réponse aboutisse.",
+      portfolioInsightTitle: "Aperçu de la couverture du portefeuille",
+      portfolioInsightLead: "Athena a choisi cette Persona parce que :",
+      generateAgain: "Générer à nouveau",
+      clearCandidate: "Effacer le candidat",
+      validationEmpty:
+        "Ajoutez au moins un champ descriptif avant de créer cette Persona.",
+      csvTitle: "Import CSV",
+      csvSummary:
+        "Téléversez un CSV pour prévisualiser comment Athena interprète chaque ligne. Aucune fiche Persona n’est créée tant que vous n’avez pas relu et confirmé l’import.",
+      downloadTemplate: "Télécharger le modèle CSV",
+      guideTitle: "Guide d’import",
+      guideOnePerRow: "Une Persona par ligne.",
+      guideOptionalColumns: "Toutes les colonnes de contenu sont facultatives.",
+      guideBlankInvalid: "Une ligne entièrement vide est invalide.",
+      guideRecognized:
+        "Les noms de colonnes courants sont reconnus automatiquement.",
+      guideUnknownIgnored:
+        "Les colonnes inconnues sont ignorées et signalées dans l’aperçu.",
+      guideDuplicates: "Les doublons sont ignorés.",
+      guideMaxRows: "Maximum 500 Personas par CSV.",
+      csvFile: "Fichier CSV",
+      reviewCta: "Relire le CSV",
+      reviewing: "Relecture…",
+      previewSummary: "Résumé de l’aperçu",
+      rowsDetected: "Lignes détectées",
+      readyToImport: "Prêtes à importer",
+      duplicatesSkipped: "Doublons ignorés",
+      invalidRows: "Lignes invalides",
+      warnings: "Avertissements",
+      recognizedCount: "Reconnues : {count} colonnes",
+      ignoredCount: "Ignorées : {count} colonnes",
+      columnDetails: "Détail des colonnes",
+      recognizedLabel: "Reconnues :",
+      ignoredLabel: "Ignorées :",
+      colRow: "Ligne",
+      showingSubset:
+        "Affichage des {displayed} premières lignes sur {total}.",
+      chooseAnotherFile: "Choisir un autre fichier",
+      confirmImport: "Confirmer l’import",
+      importing: "Import…",
+      openLibrary: "Ouvrir la bibliothèque Persona",
+      previewFailed: "L’aperçu CSV a échoué.",
+      importFinished: "Import CSV terminé.",
+      importFailed: "L’import CSV a échoué.",
+      statusReady: "Prêt",
+      statusDuplicate: "Doublon",
+      statusWarning: "Avertissement",
+      statusInvalid: "Invalide",
+    },
     detail: {
       eyebrow: "Persona",
       summary: "Résumé",
@@ -1321,6 +1416,77 @@ export const fr: TenantMessages = {
       showing: "Affichage de {start}–{end} sur {total}",
       previous: "Précédent",
       next: "Suivant",
+    },
+    import: {
+      subtitle:
+        "Les imports manuels et CSV créent les fiches Prospect immédiatement et mettent en file la génération asynchrone. Les fiches incomplètes restent analysables.",
+      manualTitle: "Import manuel",
+      manualSummary:
+        "Créez un Prospect unique. Le nom de l’entreprise est fortement recommandé ; les Prospects incomplets restent analysables.",
+      importCta: "Importer le Prospect",
+      importing: "Import…",
+      openProspect: "Ouvrir le Prospect",
+      importFinished: "Import terminé.",
+      importFailed: "L’import a échoué.",
+      linkedinUrl: "URL LinkedIn",
+      facebookUrl: "URL Facebook",
+      instagramUrl: "URL Instagram",
+      csvTitle: "Import CSV",
+      csvSummary:
+        "Téléversez un CSV pour prévisualiser comment Athena interprète chaque ligne. Aucune fiche Prospect n’est créée tant que vous n’avez pas relu et confirmé l’import.",
+      downloadTemplate: "Télécharger le modèle CSV",
+      guideTitle: "Guide d’import",
+      guideOnePerRow: "Un Prospect par ligne.",
+      guideBusinessName: "Le nom de l’entreprise est recommandé.",
+      guideWebsite:
+        "Le site web et les champs d’enrichissement améliorent la qualité de l’intelligence.",
+      guideRecognized:
+        "Les noms de colonnes courants sont reconnus automatiquement.",
+      guideUnknownIgnored:
+        "Les colonnes inconnues sont ignorées et signalées dans l’aperçu.",
+      guideDuplicates: "Les doublons sont ignorés.",
+      guideMaxRows: "Maximum 500 Prospects par CSV.",
+      guideBackground:
+        "L’apprentissage du site et l’Executive Intelligence s’exécutent en arrière-plan après confirmation.",
+      requiredTitle: "Obligatoire ou recommandé",
+      requiredFields:
+        "Nom de l’entreprise, Site web, Décideur, E-mail, Téléphone, Numéro WhatsApp, Secteur, Localisation",
+      optionalTitle: "Enrichissement facultatif",
+      optionalFields:
+        "Profils sociaux, URL Google Business, taille et chiffre d’affaires de l’entreprise, technologies, points de douleur, notes et contexte supplémentaire, contenu publicitaire, source",
+      csvFile: "Fichier CSV",
+      reviewCta: "Relire le CSV",
+      reviewing: "Relecture…",
+      previewSummary: "Résumé de l’aperçu",
+      rowsDetected: "Lignes détectées",
+      readyToImport: "Prêts à importer",
+      duplicatesSkipped: "Doublons ignorés",
+      invalidRows: "Lignes invalides",
+      invalidWebsites: "Sites web invalides",
+      withoutWebsite: "Sans site web",
+      recognizedCount: "Reconnues : {count} colonnes",
+      ignoredCount: "Ignorées : {count} colonnes",
+      columnDetails: "Détail des colonnes",
+      recognizedLabel: "Reconnues :",
+      ignoredLabel: "Ignorées :",
+      ignoredWarningOne:
+        "{count} colonne ignorée ne sera pas importée : {columns}",
+      ignoredWarningMany:
+        "{count} colonnes ignorées ne seront pas importées : {columns}",
+      colRow: "Ligne",
+      warnings: "Avertissements",
+      showingSubset:
+        "Affichage des {displayed} premières lignes sur {total}.",
+      chooseAnotherFile: "Choisir un autre fichier",
+      confirmImport: "Confirmer l’import",
+      openLibrary: "Ouvrir la bibliothèque Prospect",
+      previewFailed: "L’aperçu CSV a échoué.",
+      importCsvFinished: "Import CSV terminé.",
+      importCsvFailed: "L’import CSV a échoué.",
+      statusReady: "Prêt",
+      statusDuplicate: "Doublon",
+      statusWarning: "Avertissement",
+      statusInvalid: "Invalide",
     },
     detail: {
       eyebrow: "Intelligence Prospect",

@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useId, useRef, useState } from "react";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import { getLocalizedImportPreviewStatus } from "@/lib/tenantI18n/importPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type PreviewRow = {
@@ -40,13 +43,6 @@ const STATUS_STYLES: Record<PreviewRow["status"], string> = {
   invalid: "text-rose-300/90",
 };
 
-const STATUS_LABELS: Record<PreviewRow["status"], string> = {
-  ready: "Ready",
-  duplicate: "Duplicate",
-  warning: "Warning",
-  invalid: "Invalid",
-};
-
 function extractErrorMessage(
   payload: { error?: string | { message?: string }; message?: string },
   fallback: string,
@@ -57,13 +53,30 @@ function extractErrorMessage(
   return fallback;
 }
 
-function previewRowWarningText(row: PreviewRow): string {
+function previewRowWarningText(
+  row: PreviewRow,
+  emptyValue: string,
+): string {
   if (row.warnings.length > 0) return row.warnings[0];
   if (row.reason) return row.reason;
-  return "—";
+  return emptyValue;
 }
 
-export function ProspectCsvImport() {
+type ProspectCsvImportProps = {
+  messages: TenantMessages;
+};
+
+export function ProspectCsvImport({ messages }: ProspectCsvImportProps) {
+  const copy = messages.prospects.import;
+  const list = messages.prospects.list;
+  const meta = messages.prospects.metadata;
+  const emptyValue = messages.prospects.emptyValue;
+  const statusLabels = {
+    ready: copy.statusReady,
+    duplicate: copy.statusDuplicate,
+    warning: copy.statusWarning,
+    invalid: copy.statusInvalid,
+  };
   const csvInputId = useId();
   const csvFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -122,14 +135,14 @@ export function ProspectCsvImport() {
       }>(response);
 
       if (!response.ok || !payload.ok || !payload.preview) {
-        setCsvError(extractErrorMessage(payload, "CSV preview failed."));
+        setCsvError(extractErrorMessage(payload, copy.previewFailed));
         return;
       }
 
       setPreview(payload.preview);
     } catch (error) {
       setCsvError(
-        error instanceof Error ? error.message : "CSV preview failed.",
+        error instanceof Error ? error.message : copy.previewFailed,
       );
     } finally {
       setPreviewing(false);
@@ -158,13 +171,13 @@ export function ProspectCsvImport() {
         error?: string | { message?: string };
       }>(response);
 
-      const message = extractErrorMessage(payload, "CSV import finished.");
+      const message = extractErrorMessage(payload, copy.importCsvFinished);
       setImportMessage(message);
       setImportSucceeded(Boolean(payload.ok));
     } catch (error) {
       setImportSucceeded(false);
       setImportMessage(
-        error instanceof Error ? error.message : "CSV import failed.",
+        error instanceof Error ? error.message : copy.importCsvFailed,
       );
     } finally {
       setImporting(false);
@@ -181,11 +194,8 @@ export function ProspectCsvImport() {
 
   return (
     <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-      <h2 className="text-2xl font-semibold">CSV Import</h2>
-      <p className="mt-3 text-sm leading-6 text-white/45">
-        Upload a CSV to preview how Athena interprets each row. No Prospect
-        records are created until you review and confirm the import.
-      </p>
+      <h2 className="text-2xl font-semibold">{copy.csvTitle}</h2>
+      <p className="mt-3 text-sm leading-6 text-white/45">{copy.csvSummary}</p>
 
       <div className="mt-6">
         <a
@@ -193,41 +203,31 @@ export function ProspectCsvImport() {
           download="Athena_Prospect_Import_Template.csv"
           className="inline-flex rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:border-[var(--athena-orange)]/50 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
         >
-          Download CSV Template
+          {copy.downloadTemplate}
         </a>
       </div>
 
       <div className="mt-6 space-y-3 text-sm leading-6 text-white/40">
-        <p className="font-medium text-white/55">Import guide</p>
+        <p className="font-medium text-white/55">{copy.guideTitle}</p>
         <ul className="list-disc space-y-1 pl-5">
-          <li>One Prospect per row.</li>
-          <li>Business Name is recommended.</li>
-          <li>Website and enrichment fields improve intelligence quality.</li>
-          <li>Common column names are recognized automatically.</li>
-          <li>Unknown columns are ignored and reported in preview.</li>
-          <li>Duplicates are skipped.</li>
-          <li>Maximum 500 Prospects per CSV.</li>
-          <li>
-            Website learning and Executive Intelligence run in the background
-            after confirmation.
-          </li>
+          <li>{copy.guideOnePerRow}</li>
+          <li>{copy.guideBusinessName}</li>
+          <li>{copy.guideWebsite}</li>
+          <li>{copy.guideRecognized}</li>
+          <li>{copy.guideUnknownIgnored}</li>
+          <li>{copy.guideDuplicates}</li>
+          <li>{copy.guideMaxRows}</li>
+          <li>{copy.guideBackground}</li>
         </ul>
 
         <div className="grid gap-4 pt-2 sm:grid-cols-2">
           <div>
-            <p className="font-medium text-white/55">Required or recommended</p>
-            <p className="mt-1 text-white/35">
-              Business Name, Website, Decision Maker, Email, Phone,
-              WhatsApp Number, Industry, Location
-            </p>
+            <p className="font-medium text-white/55">{copy.requiredTitle}</p>
+            <p className="mt-1 text-white/35">{copy.requiredFields}</p>
           </div>
           <div>
-            <p className="font-medium text-white/55">Optional enrichment</p>
-            <p className="mt-1 text-white/35">
-              Social profiles, Google Business URL, company size and revenue,
-              technologies, pain points, notes and additional context,
-              advertising content, source
-            </p>
+            <p className="font-medium text-white/55">{copy.optionalTitle}</p>
+            <p className="mt-1 text-white/35">{copy.optionalFields}</p>
           </div>
         </div>
       </div>
@@ -235,7 +235,7 @@ export function ProspectCsvImport() {
       {!preview ? (
         <form onSubmit={reviewCsv} className="mt-8 space-y-4">
           <label htmlFor={csvInputId} className="block text-sm text-white/50">
-            CSV file
+            {copy.csvFile}
             <input
               id={csvInputId}
               ref={csvFileInputRef}
@@ -254,7 +254,7 @@ export function ProspectCsvImport() {
             aria-busy={previewing}
             className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
           >
-            {previewing ? "Reviewing…" : "Review CSV"}
+            {previewing ? copy.reviewing : copy.reviewCta}
           </button>
         </form>
       ) : (
@@ -264,41 +264,43 @@ export function ProspectCsvImport() {
             aria-live="polite"
           >
             <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-white/45">
-              Preview summary
+              {copy.previewSummary}
             </h3>
             <dl className="mt-4 grid gap-3 sm:grid-cols-2">
               <div>
-                <dt className="text-xs text-white/40">Rows detected</dt>
+                <dt className="text-xs text-white/40">{copy.rowsDetected}</dt>
                 <dd className="mt-1 text-lg font-semibold text-white">
                   {preview.totalRows}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-white/40">Ready to import</dt>
+                <dt className="text-xs text-white/40">{copy.readyToImport}</dt>
                 <dd className="mt-1 text-lg font-semibold text-emerald-300/90">
                   {preview.importableRows}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-white/40">Duplicates skipped</dt>
+                <dt className="text-xs text-white/40">
+                  {copy.duplicatesSkipped}
+                </dt>
                 <dd className="mt-1 text-lg font-semibold text-amber-200/80">
                   {preview.duplicateRows}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-white/40">Invalid rows</dt>
+                <dt className="text-xs text-white/40">{copy.invalidRows}</dt>
                 <dd className="mt-1 text-lg font-semibold text-rose-300/90">
                   {preview.invalidRows}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-white/40">Invalid websites</dt>
+                <dt className="text-xs text-white/40">{copy.invalidWebsites}</dt>
                 <dd className="mt-1 text-lg font-semibold text-orange-300/90">
                   {preview.invalidWebsiteRows}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-white/40">Without website</dt>
+                <dt className="text-xs text-white/40">{copy.withoutWebsite}</dt>
                 <dd className="mt-1 text-lg font-semibold text-white/80">
                   {preview.withoutWebsiteRows}
                 </dd>
@@ -308,27 +310,30 @@ export function ProspectCsvImport() {
 
           <div className="space-y-3">
             <p className="text-sm font-medium text-white/55">
-              Recognized: {preview.recognizedColumns.length} columns
-              {preview.ignoredColumns.length > 0
-                ? ` · Ignored: ${preview.ignoredColumns.length} columns`
-                : " · Ignored: 0 columns"}
+              {interpolateTenantMessage(copy.recognizedCount, {
+                count: preview.recognizedColumns.length,
+              })}
+              {" · "}
+              {interpolateTenantMessage(copy.ignoredCount, {
+                count: preview.ignoredColumns.length,
+              })}
             </p>
             <details className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-white/40">
               <summary className="cursor-pointer text-white/55">
-                Column details
+                {copy.columnDetails}
               </summary>
               <div className="mt-3 space-y-2 leading-6">
                 <p>
-                  <span className="text-white/50">Recognized: </span>
+                  <span className="text-white/50">{copy.recognizedLabel} </span>
                   {preview.recognizedColumns.length > 0
                     ? preview.recognizedColumns.join(", ")
-                    : "—"}
+                    : emptyValue}
                 </p>
                 <p>
-                  <span className="text-white/50">Ignored: </span>
+                  <span className="text-white/50">{copy.ignoredLabel} </span>
                   {preview.ignoredColumns.length > 0
                     ? preview.ignoredColumns.join(", ")
-                    : "—"}
+                    : emptyValue}
                 </p>
               </div>
             </details>
@@ -337,9 +342,15 @@ export function ProspectCsvImport() {
                 className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm text-amber-100/80"
                 role="status"
               >
-                {preview.ignoredColumns.length} ignored column
-                {preview.ignoredColumns.length === 1 ? "" : "s"} will not be
-                imported: {preview.ignoredColumns.join(", ")}
+                {interpolateTenantMessage(
+                  preview.ignoredColumns.length === 1
+                    ? copy.ignoredWarningOne
+                    : copy.ignoredWarningMany,
+                  {
+                    count: preview.ignoredColumns.length,
+                    columns: preview.ignoredColumns.join(", "),
+                  },
+                )}
               </div>
             )}
           </div>
@@ -349,28 +360,28 @@ export function ProspectCsvImport() {
               <thead className="bg-black/30 text-xs uppercase tracking-[0.12em] text-white/40">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Row
+                    {copy.colRow}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Business Name
+                    {list.colBusinessName}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Website
+                    {list.colWebsite}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Decision Maker
+                    {list.colDecisionMaker}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Industry
+                    {meta.industry}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    City
+                    {meta.city}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Status
+                    {list.colStatus}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Warnings
+                    {copy.warnings}
                   </th>
                 </tr>
               </thead>
@@ -382,27 +393,30 @@ export function ProspectCsvImport() {
                   >
                     <td className="px-4 py-3 text-white/50">{row.rowNumber}</td>
                     <td className="px-4 py-3 text-white/80">
-                      {row.businessName ?? "—"}
+                      {row.businessName ?? emptyValue}
                     </td>
                     <td className="px-4 py-3 text-white/60">
-                      {row.normalizedWebsite ?? row.websiteInput ?? "—"}
+                      {row.normalizedWebsite ?? row.websiteInput ?? emptyValue}
                     </td>
                     <td className="px-4 py-3 text-white/60">
-                      {row.decisionMaker ?? "—"}
+                      {row.decisionMaker ?? emptyValue}
                     </td>
                     <td className="px-4 py-3 text-white/60">
-                      {row.industry ?? "—"}
+                      {row.industry ?? emptyValue}
                     </td>
                     <td className="px-4 py-3 text-white/60">
-                      {row.city ?? "—"}
+                      {row.city ?? emptyValue}
                     </td>
                     <td
                       className={`px-4 py-3 font-medium ${STATUS_STYLES[row.status]}`}
                     >
-                      {STATUS_LABELS[row.status]}
+                      {getLocalizedImportPreviewStatus(
+                        statusLabels,
+                        row.status,
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs leading-5 text-white/45">
-                      {previewRowWarningText(row)}
+                      {previewRowWarningText(row, emptyValue)}
                     </td>
                   </tr>
                 ))}
@@ -412,8 +426,10 @@ export function ProspectCsvImport() {
 
           {preview.showingSubset && (
             <p className="text-xs text-white/35">
-              Showing the first {preview.displayedRows} of{" "}
-              {preview.totalPreparedRows} rows.
+              {interpolateTenantMessage(copy.showingSubset, {
+                displayed: preview.displayedRows,
+                total: preview.totalPreparedRows,
+              })}
             </p>
           )}
 
@@ -424,7 +440,7 @@ export function ProspectCsvImport() {
               disabled={importing}
               className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
             >
-              Choose Another File
+              {copy.chooseAnotherFile}
             </button>
             <button
               type="button"
@@ -433,7 +449,7 @@ export function ProspectCsvImport() {
               aria-busy={importing}
               className="rounded-full bg-[var(--athena-orange)] px-7 py-3 text-sm font-semibold text-white disabled:opacity-40"
             >
-              {importing ? "Importing…" : "Confirm Import"}
+              {importing ? copy.importing : copy.confirmImport}
             </button>
           </div>
         </div>
@@ -460,7 +476,7 @@ export function ProspectCsvImport() {
                 href="/prospects"
                 className="inline-flex rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
               >
-                Open Prospect Library
+                {copy.openLibrary}
               </Link>
             </div>
           )}

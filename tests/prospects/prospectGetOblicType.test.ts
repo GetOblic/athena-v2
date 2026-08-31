@@ -80,10 +80,10 @@ describe("V6 Sprint 1 — Prospect GetOblic Type", () => {
 
   it("Manual Import form renders GetOblic Type dropdown and submits it", () => {
     const importForms = read("components/prospects/ProspectImportForms.tsx");
-    assert.match(importForms, /GetOblic Type/);
+    assert.match(importForms, /meta\.getoblicType/);
     assert.match(importForms, /PROSPECT_GETOBLIC_TYPES/);
     assert.match(importForms, /getoblic_type/);
-    assert.match(importForms, /Not set/);
+    assert.match(importForms, /meta\.notSet/);
     assert.match(importForms, /JSON\.stringify\(manual\)/);
   });
 

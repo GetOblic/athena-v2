@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useId, useRef, useState } from "react";
 import { PersonaCreationBlock } from "@/components/personas/PersonaCreationBlock";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import { getLocalizedImportPreviewStatus } from "@/lib/tenantI18n/importPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type PreviewRow = {
@@ -39,13 +42,6 @@ const STATUS_STYLES: Record<PreviewRow["status"], string> = {
   invalid: "text-rose-300/90",
 };
 
-const STATUS_LABELS: Record<PreviewRow["status"], string> = {
-  ready: "Ready",
-  duplicate: "Duplicate",
-  warning: "Warning",
-  invalid: "Invalid",
-};
-
 function extractErrorMessage(
   payload: { error?: string | { message?: string }; message?: string },
   fallback: string,
@@ -56,13 +52,30 @@ function extractErrorMessage(
   return fallback;
 }
 
-function previewRowWarningText(row: PreviewRow): string {
+function previewRowWarningText(
+  row: PreviewRow,
+  emptyValue: string,
+): string {
   if (row.warnings.length > 0) return row.warnings[0];
   if (row.reason) return row.reason;
-  return "—";
+  return emptyValue;
 }
 
-export function PersonaCsvImport() {
+type PersonaCsvImportProps = {
+  messages: TenantMessages;
+};
+
+export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
+  const copy = messages.personas.import;
+  const list = messages.personas.list;
+  const meta = messages.personas.metadata;
+  const emptyValue = messages.personas.emptyValue;
+  const statusLabels = {
+    ready: copy.statusReady,
+    duplicate: copy.statusDuplicate,
+    warning: copy.statusWarning,
+    invalid: copy.statusInvalid,
+  };
   const csvInputId = useId();
   const csvFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -121,14 +134,14 @@ export function PersonaCsvImport() {
       }>(response);
 
       if (!response.ok || !payload.ok || !payload.preview) {
-        setCsvError(extractErrorMessage(payload, "CSV preview failed."));
+        setCsvError(extractErrorMessage(payload, copy.previewFailed));
         return;
       }
 
       setPreview(payload.preview);
     } catch (error) {
       setCsvError(
-        error instanceof Error ? error.message : "CSV preview failed.",
+        error instanceof Error ? error.message : copy.previewFailed,
       );
     } finally {
       setPreviewing(false);
@@ -157,13 +170,13 @@ export function PersonaCsvImport() {
         error?: string | { message?: string };
       }>(response);
 
-      const message = extractErrorMessage(payload, "CSV import finished.");
+      const message = extractErrorMessage(payload, copy.importFinished);
       setImportMessage(message);
       setImportSucceeded(Boolean(payload.ok));
     } catch (error) {
       setImportSucceeded(false);
       setImportMessage(
-        error instanceof Error ? error.message : "CSV import failed.",
+        error instanceof Error ? error.message : copy.importFailed,
       );
     } finally {
       setImporting(false);
@@ -180,9 +193,9 @@ export function PersonaCsvImport() {
 
   return (
     <PersonaCreationBlock
-      title="CSV Import"
+      title={copy.csvTitle}
       panelId="persona-creation-csv"
-      summary="Upload a CSV to preview how Athena interprets each row. No Persona records are created until you review and confirm the import."
+      summary={copy.csvSummary}
     >
       <div>
         <a
@@ -190,27 +203,27 @@ export function PersonaCsvImport() {
           download="Athena_Persona_Import_Template.csv"
           className="inline-flex rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:border-[var(--athena-orange)]/50 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
         >
-          Download CSV Template
+          {copy.downloadTemplate}
         </a>
       </div>
 
       <div className="mt-6 space-y-3 text-sm leading-6 text-white/40">
-        <p className="font-medium text-white/55">Import guide</p>
+        <p className="font-medium text-white/55">{copy.guideTitle}</p>
         <ul className="list-disc space-y-1 pl-5">
-          <li>One Persona per row.</li>
-          <li>All content columns are optional.</li>
-          <li>A completely blank row is invalid.</li>
-          <li>Common column names are recognized automatically.</li>
-          <li>Unknown columns are ignored and reported in preview.</li>
-          <li>Duplicates are skipped.</li>
-          <li>Maximum 500 Personas per CSV.</li>
+          <li>{copy.guideOnePerRow}</li>
+          <li>{copy.guideOptionalColumns}</li>
+          <li>{copy.guideBlankInvalid}</li>
+          <li>{copy.guideRecognized}</li>
+          <li>{copy.guideUnknownIgnored}</li>
+          <li>{copy.guideDuplicates}</li>
+          <li>{copy.guideMaxRows}</li>
         </ul>
       </div>
 
       {!preview ? (
         <form onSubmit={reviewCsv} className="mt-8 space-y-4">
           <label htmlFor={csvInputId} className="block text-sm text-white/50">
-            CSV file
+            {copy.csvFile}
             <input
               id={csvInputId}
               ref={csvFileInputRef}
@@ -229,7 +242,7 @@ export function PersonaCsvImport() {
             aria-busy={previewing}
             className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
           >
-            {previewing ? "Reviewing…" : "Review CSV"}
+            {previewing ? copy.reviewing : copy.reviewCta}
           </button>
         </form>
       ) : (
@@ -239,35 +252,37 @@ export function PersonaCsvImport() {
             aria-live="polite"
           >
             <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-white/45">
-              Preview summary
+              {copy.previewSummary}
             </h3>
             <dl className="mt-4 grid gap-3 sm:grid-cols-2">
               <div>
-                <dt className="text-xs text-white/40">Rows detected</dt>
+                <dt className="text-xs text-white/40">{copy.rowsDetected}</dt>
                 <dd className="mt-1 text-lg font-semibold text-white">
                   {preview.totalRows}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-white/40">Ready to import</dt>
+                <dt className="text-xs text-white/40">{copy.readyToImport}</dt>
                 <dd className="mt-1 text-lg font-semibold text-emerald-300/90">
                   {preview.importableRows}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-white/40">Duplicates skipped</dt>
+                <dt className="text-xs text-white/40">
+                  {copy.duplicatesSkipped}
+                </dt>
                 <dd className="mt-1 text-lg font-semibold text-amber-200/80">
                   {preview.duplicateRows}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-white/40">Invalid rows</dt>
+                <dt className="text-xs text-white/40">{copy.invalidRows}</dt>
                 <dd className="mt-1 text-lg font-semibold text-rose-300/90">
                   {preview.invalidRows}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-white/40">Warnings</dt>
+                <dt className="text-xs text-white/40">{copy.warnings}</dt>
                 <dd className="mt-1 text-lg font-semibold text-orange-300/90">
                   {preview.warningRows}
                 </dd>
@@ -277,27 +292,30 @@ export function PersonaCsvImport() {
 
           <div className="space-y-3">
             <p className="text-sm font-medium text-white/55">
-              Recognized: {preview.recognizedColumns.length} columns
-              {preview.ignoredColumns.length > 0
-                ? ` · Ignored: ${preview.ignoredColumns.length} columns`
-                : " · Ignored: 0 columns"}
+              {interpolateTenantMessage(copy.recognizedCount, {
+                count: preview.recognizedColumns.length,
+              })}
+              {" · "}
+              {interpolateTenantMessage(copy.ignoredCount, {
+                count: preview.ignoredColumns.length,
+              })}
             </p>
             <details className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-white/40">
               <summary className="cursor-pointer text-white/55">
-                Column details
+                {copy.columnDetails}
               </summary>
               <div className="mt-3 space-y-2 leading-6">
                 <p>
-                  <span className="text-white/50">Recognized: </span>
+                  <span className="text-white/50">{copy.recognizedLabel} </span>
                   {preview.recognizedColumns.length > 0
                     ? preview.recognizedColumns.join(", ")
-                    : "—"}
+                    : emptyValue}
                 </p>
                 <p>
-                  <span className="text-white/50">Ignored: </span>
+                  <span className="text-white/50">{copy.ignoredLabel} </span>
                   {preview.ignoredColumns.length > 0
                     ? preview.ignoredColumns.join(", ")
-                    : "—"}
+                    : emptyValue}
                 </p>
               </div>
             </details>
@@ -308,25 +326,25 @@ export function PersonaCsvImport() {
               <thead className="bg-black/30 text-xs uppercase tracking-[0.12em] text-white/40">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Row
+                    {copy.colRow}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Persona
+                    {list.colPersona}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Reference Website
+                    {list.colReferenceWebsite}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Category
+                    {list.colCategory}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    City
+                    {meta.city}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Status
+                    {list.colStatus}
                   </th>
                   <th scope="col" className="px-4 py-3 font-medium">
-                    Warnings
+                    {copy.warnings}
                   </th>
                 </tr>
               </thead>
@@ -343,21 +361,24 @@ export function PersonaCsvImport() {
                     <td className="px-4 py-3 text-white/60">
                       {row.normalizedReferenceWebsite ??
                         row.referenceWebsiteInput ??
-                        "—"}
+                        emptyValue}
                     </td>
                     <td className="px-4 py-3 text-white/60">
-                      {row.category ?? "—"}
+                      {row.category ?? emptyValue}
                     </td>
                     <td className="px-4 py-3 text-white/60">
-                      {row.city ?? "—"}
+                      {row.city ?? emptyValue}
                     </td>
                     <td
                       className={`px-4 py-3 font-medium ${STATUS_STYLES[row.status]}`}
                     >
-                      {STATUS_LABELS[row.status]}
+                      {getLocalizedImportPreviewStatus(
+                        statusLabels,
+                        row.status,
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs leading-5 text-white/45">
-                      {previewRowWarningText(row)}
+                      {previewRowWarningText(row, emptyValue)}
                     </td>
                   </tr>
                 ))}
@@ -367,8 +388,10 @@ export function PersonaCsvImport() {
 
           {preview.showingSubset && (
             <p className="text-xs text-white/35">
-              Showing the first {preview.displayedRows} of{" "}
-              {preview.totalPreparedRows} rows.
+              {interpolateTenantMessage(copy.showingSubset, {
+                displayed: preview.displayedRows,
+                total: preview.totalPreparedRows,
+              })}
             </p>
           )}
 
@@ -379,7 +402,7 @@ export function PersonaCsvImport() {
               disabled={importing}
               className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
             >
-              Choose Another File
+              {copy.chooseAnotherFile}
             </button>
             <button
               type="button"
@@ -388,7 +411,7 @@ export function PersonaCsvImport() {
               aria-busy={importing}
               className="rounded-full bg-[var(--athena-orange)] px-7 py-3 text-sm font-semibold text-white disabled:opacity-40"
             >
-              {importing ? "Importing…" : "Confirm Import"}
+              {importing ? copy.importing : copy.confirmImport}
             </button>
           </div>
         </div>
@@ -415,7 +438,7 @@ export function PersonaCsvImport() {
                 href="/personas"
                 className="inline-flex rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
               >
-                Open Persona Library
+                {copy.openLibrary}
               </Link>
             </div>
           )}

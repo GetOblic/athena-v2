@@ -128,7 +128,7 @@ describe("persona stage-2 containment — no Stage 5 surfaces", () => {
   it("manual import form still posts to Persona create API", () => {
     const forms = read("components/personas/PersonaImportForms.tsx");
     assert.match(forms, /\/api\/personas/);
-    assert.match(forms, /Create Persona/);
+    assert.match(forms, /copy\.createCta/);
     assert.doesNotMatch(forms, /generationJobId/);
   });
 });

@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -516,21 +515,35 @@ describe("V31 L3.10.1 tenant Intelligence Domain detail — timeline and section
     assert.match(timeline, /\{event\.detail\}/);
   });
 
-  it("identifies the pre-L3.10.1 timeline date shape from committed HEAD", () => {
-    const committed = execFileSync(
-      "git",
-      ["show", "HEAD:components/intelligenceDomains/LearningTimeline.tsx"],
-      { encoding: "utf8" },
+  it("protects the Learning Timeline date-shape contract in the current formatter", () => {
+    const formatSource = read("lib/tenantI18n/format.ts");
+    const timeline = read("components/intelligenceDomains/LearningTimeline.tsx");
+    const start = formatSource.indexOf("const TIMELINE_DATETIME_FORMAT");
+    assert.ok(start >= 0, "TIMELINE_DATETIME_FORMAT must exist");
+    const end = formatSource.indexOf("};", start);
+    const timelineFormat = formatSource.slice(start, end + 2);
+    assert.match(timelineFormat, /month:\s*"short"/);
+    assert.match(timelineFormat, /day:\s*"numeric"/);
+    assert.match(timelineFormat, /hour:\s*"numeric"/);
+    assert.match(timelineFormat, /minute:\s*"2-digit"/);
+    assert.doesNotMatch(timelineFormat, /year:/);
+    assert.doesNotMatch(timelineFormat, /weekday:/);
+    assert.doesNotMatch(timelineFormat, /timeZone:/);
+    assert.doesNotMatch(timelineFormat, /second:/);
+    const generalStart = formatSource.indexOf("const DATETIME_FORMAT");
+    const generalEnd = formatSource.indexOf("};", generalStart);
+    const generalFormat = formatSource.slice(generalStart, generalEnd + 2);
+    assert.match(generalFormat, /year:\s*"numeric"/);
+    assert.notEqual(timelineFormat.includes("year:"), true);
+    assert.match(timeline, /formatTenantTimelineDateTimeLocale/);
+    assert.match(timeline, /formatTenantTimelineDateTime/);
+    assert.match(timeline, /event\.timestamp/);
+    assert.doesNotMatch(timeline, /toLocaleString\("en-US"\)/);
+    assert.doesNotMatch(timeline, /en-US/);
+    assert.doesNotMatch(
+      read("services/intelligenceDomainService.ts"),
+      /tenantI18n/,
     );
-    assert.match(committed, /toLocaleString\("en-US"/);
-    assert.match(committed, /month:\s*"short"/);
-    assert.match(committed, /day:\s*"numeric"/);
-    assert.match(committed, /hour:\s*"numeric"/);
-    assert.match(committed, /minute:\s*"2-digit"/);
-    assert.doesNotMatch(committed, /year:/);
-    assert.doesNotMatch(committed, /weekday:/);
-    assert.doesNotMatch(committed, /timeZone:/);
-    assert.doesNotMatch(committed, /second:/);
   });
 
   it("formats timeline dates with the tenant locale and preserves month/day/time", () => {

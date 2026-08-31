@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ProspectCsvImport } from "@/components/prospects/ProspectCsvImport";
+import { getLocalizedProspectImportFieldLabel } from "@/lib/tenantI18n/importPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { PROSPECT_GETOBLIC_TYPES } from "@/services/prospects/prospectGetOblicType";
 
@@ -46,8 +48,14 @@ const MANUAL_FIELDS = [
   ["source", "Source"],
 ] as const;
 
-export function ProspectImportForms() {
+type ProspectImportFormsProps = {
+  messages: TenantMessages;
+};
+
+export function ProspectImportForms({ messages }: ProspectImportFormsProps) {
   const router = useRouter();
+  const copy = messages.prospects.import;
+  const meta = messages.prospects.metadata;
 
   const [manual, setManual] = useState<Record<string, string>>(
     Object.fromEntries([
@@ -88,7 +96,7 @@ export function ProspectImportForms() {
 
       setManualResult({
         ok: Boolean(payload.ok),
-        message: payload.message || errorMessage || "Import finished.",
+        message: payload.message || errorMessage || copy.importFinished,
         prospectId: payload.prospectId,
       });
 
@@ -98,7 +106,7 @@ export function ProspectImportForms() {
     } catch (error) {
       setManualResult({
         ok: false,
-        message: error instanceof Error ? error.message : "Import failed.",
+        message: error instanceof Error ? error.message : copy.importFailed,
       });
     } finally {
       setManualSubmitting(false);
@@ -108,16 +116,15 @@ export function ProspectImportForms() {
   return (
     <div className="grid gap-8 lg:grid-cols-2">
       <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <h2 className="text-2xl font-semibold">Manual Import</h2>
+        <h2 className="text-2xl font-semibold">{copy.manualTitle}</h2>
         <p className="mt-3 text-sm leading-6 text-white/45">
-          Create a single Prospect. Business Name is strongly recommended;
-          incomplete Prospects remain analyzable.
+          {copy.manualSummary}
         </p>
 
         <form onSubmit={submitManual} className="mt-8 space-y-4">
-          {MANUAL_FIELDS.map(([key, label]) => (
+          {MANUAL_FIELDS.map(([key]) => (
             <label key={key} className="block text-sm text-white/50">
-              {label}
+              {getLocalizedProspectImportFieldLabel(messages, key)}
               <input
                 value={manual[key] ?? ""}
                 onChange={(event) =>
@@ -132,7 +139,7 @@ export function ProspectImportForms() {
           ))}
 
           <label className="block text-sm text-white/50">
-            GetOblic Type
+            {meta.getoblicType}
             <select
               value={manual.getoblic_type ?? ""}
               onChange={(event) =>
@@ -143,7 +150,7 @@ export function ProspectImportForms() {
               }
               className={`mt-2 w-full ${fieldClassName}`}
             >
-              <option value="">Not set</option>
+              <option value="">{meta.notSet}</option>
               {PROSPECT_GETOBLIC_TYPES.map((value) => (
                 <option key={value} value={value}>
                   {value}
@@ -153,7 +160,7 @@ export function ProspectImportForms() {
           </label>
 
           <label className="block text-sm text-white/50">
-            Notes
+            {meta.notes}
             <textarea
               value={manual.notes ?? ""}
               onChange={(event) =>
@@ -168,7 +175,7 @@ export function ProspectImportForms() {
           </label>
 
           <label className="block text-sm text-white/50">
-            Additional Context
+            {meta.additionalContext}
             <textarea
               value={manual.additional_context ?? ""}
               onChange={(event) =>
@@ -183,7 +190,7 @@ export function ProspectImportForms() {
           </label>
 
           <label className="block text-sm text-white/50">
-            Ads Content
+            {meta.adsContent}
             <textarea
               value={manual.ads_content ?? ""}
               onChange={(event) =>
@@ -193,7 +200,7 @@ export function ProspectImportForms() {
                 }))
               }
               rows={5}
-              placeholder="Paste Google Ads, Meta Ads, or other observed advertising copy."
+              placeholder={meta.adsPlaceholder}
               className={`mt-2 w-full ${fieldClassName}`}
             />
           </label>
@@ -203,7 +210,7 @@ export function ProspectImportForms() {
             disabled={manualSubmitting}
             className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
           >
-            {manualSubmitting ? "Importing…" : "Import Prospect"}
+            {manualSubmitting ? copy.importing : copy.importCta}
           </button>
         </form>
 
@@ -216,7 +223,7 @@ export function ProspectImportForms() {
                   href={`/prospects/${manualResult.prospectId}`}
                   className="text-[var(--athena-orange)] underline"
                 >
-                  Open Prospect
+                  {copy.openProspect}
                 </Link>
               </div>
             )}
@@ -224,7 +231,7 @@ export function ProspectImportForms() {
         )}
       </section>
 
-      <ProspectCsvImport />
+      <ProspectCsvImport messages={messages} />
     </div>
   );
 }
