@@ -126,14 +126,20 @@ export function sortOpportunitiesByPriority(
   );
 }
 
+const DEFAULT_WHY_NOW_URGENCY_TEMPLATE = "Urgency is {value}.";
+
 export function buildWhyNowSummary(
   opportunity: Opportunity,
   briefingSummary?: string | null,
+  urgencyTemplate: string = DEFAULT_WHY_NOW_URGENCY_TEMPLATE,
 ): string | null {
   const parts: string[] = [];
 
   if (opportunity.urgency) {
-    parts.push(`Urgency is ${opportunity.urgency}.`);
+    const template = urgencyTemplate.includes("{value}")
+      ? urgencyTemplate
+      : DEFAULT_WHY_NOW_URGENCY_TEMPLATE;
+    parts.push(template.replace(/\{value\}/g, opportunity.urgency));
   }
 
   if (opportunity.recommended_action?.trim()) {

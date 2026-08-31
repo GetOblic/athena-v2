@@ -2,17 +2,19 @@ import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecu
 
 type StrategicAssetBlueprintEmptyProps = {
   message?: string;
+  eyebrow?: string;
 };
 
 export function StrategicAssetBlueprintEmpty({
   message = "No Strategic Asset Blueprint has been generated for this briefing yet.",
+  eyebrow = "Strategic Output",
 }: StrategicAssetBlueprintEmptyProps) {
   return (
     <section
       className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8 lg:p-10`}
     >
       <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-        Strategic Output
+        {eyebrow}
       </div>
 
       <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">

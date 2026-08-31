@@ -8,6 +8,8 @@ type ContinueButtonProps = {
   text: string;
   assetType?: string | null;
   preferences?: AiWorkspacePreferences | null;
+  label?: string;
+  ariaLabel?: string;
 };
 
 const TOAST_MS = 3200;
@@ -16,6 +18,8 @@ export function ContinueButton({
   text,
   assetType = null,
   preferences = null,
+  label,
+  ariaLabel,
 }: ContinueButtonProps) {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -54,11 +58,11 @@ export function ContinueButton({
       <button
         type="button"
         onClick={() => void handleContinue()}
-        aria-label="Continue in external workspace"
+        aria-label={ariaLabel ?? "Continue in external workspace"}
         className="rounded-xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-4 py-2 text-sm font-medium text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50"
         style={{ minWidth: "5.5rem" }}
       >
-        Continue
+        {label ?? "Continue"}
       </button>
       {toast ? (
         <div

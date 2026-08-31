@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   CopyButton,
   type AssetCopyTrackingContext,
+  type CopyButtonChrome,
 } from "@/components/deployment/CopyButton";
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
@@ -29,6 +30,7 @@ type CollapsiblePromptBlockProps = {
   /** Contained Discuss action — identifiers only; no asset body. */
   discussAssetKind?: "deployment" | "blueprint" | null;
   onDiscussWithAthena?: (payload: DiscussWithAthenaPayload) => void;
+  copyChrome?: CopyButtonChrome | null;
 };
 
 export function CollapsiblePromptBlock({
@@ -44,6 +46,7 @@ export function CollapsiblePromptBlock({
   continuationPreferences = null,
   discussAssetKind = null,
   onDiscussWithAthena,
+  copyChrome,
 }: CollapsiblePromptBlockProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const content = text?.trim();
@@ -110,6 +113,7 @@ export function CollapsiblePromptBlock({
               showContinue
               assetType={assetType}
               continuationPreferences={continuationPreferences}
+              chrome={copyChrome}
             />
           )}
         </div>

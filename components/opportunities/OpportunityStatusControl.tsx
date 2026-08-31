@@ -10,12 +10,24 @@ import {
   type OpportunityStatusKey,
 } from "@/lib/opportunityStatus";
 
+export type OpportunityStatusControlChrome = {
+  updateStatus: string;
+  saving: string;
+  saveChanges: string;
+  statusUpdated: string;
+  statusUpdateFailed: string;
+  unknownError: string;
+  statusLabels: Record<OpportunityStatusKey, string>;
+};
+
 export function OpportunityStatusControl({
   opportunityId,
   currentStatus,
+  chrome,
 }: {
   opportunityId: string;
   currentStatus: string;
+  chrome?: OpportunityStatusControlChrome | null;
 }) {
   const router = useRouter();
   const normalizedStatus = normalizeOpportunityStatus(currentStatus);
@@ -63,14 +75,22 @@ export function OpportunityStatusControl({
       };
 
       if (!response.ok || !data.success || !data.opportunity?.status) {
-        throw new Error(data.error || "Failed to update sales status");
+        throw new Error(
+          data.error ||
+            chrome?.statusUpdateFailed ||
+            "Failed to update sales status",
+        );
       }
 
       setStatus(normalizeOpportunityStatus(data.opportunity.status));
-      setSuccess("Sales status updated.");
+      setSuccess(chrome?.statusUpdated ?? "Sales status updated.");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(
+        err instanceof Error
+          ? err.message
+          : (chrome?.unknownError ?? "Unknown error"),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -79,13 +99,20 @@ export function OpportunityStatusControl({
   return (
     <div className="space-y-4">
       <div>
-        <OpportunityStatusBadge status={status} size="lg" />
+        <OpportunityStatusBadge
+          status={status}
+          size="lg"
+          label={
+            chrome?.statusLabels[status] ??
+            getOpportunityStatusPresentation(status).label
+          }
+        />
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <label className="flex-1">
           <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-white/35">
-            Update status
+            {chrome?.updateStatus ?? "Update status"}
           </span>
           <select
             value={status}
@@ -97,7 +124,8 @@ export function OpportunityStatusControl({
           >
             {OPPORTUNITY_STATUS_ORDER.map((option) => (
               <option key={option} value={option}>
-                {getOpportunityStatusPresentation(option).label}
+                {chrome?.statusLabels[option] ??
+                  getOpportunityStatusPresentation(option).label}
               </option>
             ))}
           </select>
@@ -109,7 +137,9 @@ export function OpportunityStatusControl({
           disabled={isSaving || status === normalizedStatus}
           className="rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {isSaving ? "Saving..." : "Save Changes"}
+          {isSaving
+            ? (chrome?.saving ?? "Saving...")
+            : (chrome?.saveChanges ?? "Save Changes")}
         </button>
       </div>
 

@@ -224,7 +224,7 @@ describe("V25 — Trend Social Prompt", () => {
     assert.match(service, /createAssetBlueprintForBriefing/);
     assert.match(service, /createAssetBlueprintForDiscussionAnalysis/);
     assert.match(service, /trend_social_prompt/);
-    assert.match(ui, /label="Trend Social Prompt"/);
+    assert.match(ui, /label=\{chrome\?\.trendSocialPrompt \?\? "Trend Social Prompt"\}/);
     assert.match(ui, /blueprint\.trend_social_prompt/);
     assert.match(prospectResolve, /trend_social_prompt/);
     assert.match(personaResolve, /trend_social_prompt/);

@@ -72,7 +72,9 @@ describe("Multi-tag API / service contracts", () => {
 
   it("2/3. Copy records copied only and does not auto-select usage tags", () => {
     const copyButton = read("components/deployment/CopyButton.tsx");
-    assert.match(copyButton, /copied \? "Copied" : "Copy"/);
+    assert.match(copyButton, /copied \? labels\.copied : labels\.copy/);
+    assert.match(copyButton, /copy: chrome\?\.copy \?\? "Copy"/);
+    assert.match(copyButton, /copied: chrome\?\.copied \?\? "Copied"/);
     assert.match(copyButton, /ACK_MS = 2000|2000/);
     assert.doesNotMatch(
       copyButton,

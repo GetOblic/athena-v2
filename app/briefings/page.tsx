@@ -3,9 +3,16 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { BriefingStatusBadge } from "@/components/briefings/BriefingStatusBadge";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
 import { AthenaIntelligenceListRow } from "@/components/ui/AthenaIntelligenceListRow";
-import { getBriefingListSummary } from "@/lib/briefingDisplay";
+import {
+  getLocalizedBriefingListSummary,
+  getLocalizedBriefingQueueTitle,
+  getLocalizedBriefingStatusLabel,
+} from "@/lib/tenantI18n/briefingPresentation";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { getBriefingQueues } from "@/services/queueService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
@@ -14,7 +21,11 @@ const listGridClass =
 
 export default async function BriefingsPage() {
   const { organizationId } = await requireCurrentOrganizationContext();
-  const queues = await getBriefingQueues(organizationId);
+  const [queues, { messages }] = await Promise.all([
+    getBriefingQueues(organizationId),
+    getTenantLocalization(),
+  ]);
+  const copy = messages.briefings;
   const totalCount = queues.reduce(
     (count, section) => count + section.items.length,
     0,
@@ -22,43 +33,44 @@ export default async function BriefingsPage() {
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink className="mb-8" />
+      <AthenaBrandLink
+        className="mb-8"
+        tagline={messages.chrome.tagline}
+        logoutLabel={messages.chrome.logOut}
+        sessionActionsLabel={messages.chrome.sessionActions}
+      />
 
-      <Link href="/" className="text-sm text-[var(--athena-orange)]">
-        ← Dashboard
-      </Link>
+      <TenantBackLink href="/" label={copy.backToDashboard} />
 
       <div className="mb-10 mt-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Editorial Review
+          {copy.eyebrow}
         </div>
 
         <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          Briefings
+          {copy.title}
         </h1>
 
         <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          Executive review queue grouped by editorial status — sorted by
-          confidence and recency.
+          {copy.subtitle}
         </p>
       </div>
 
       {totalCount === 0 ? (
         <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-14 text-center">
           <h2 className="text-2xl font-semibold">
-            No briefings generated yet.
+            {copy.emptyTitle}
           </h2>
 
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/40">
-            Executive briefings will appear here after Athena analyzes
-            opportunities.
+            {copy.emptyBody}
           </p>
 
           <Link
             href="/opportunities"
             className="mt-8 inline-block rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
           >
-            View Opportunities
+            {copy.emptyCta}
           </Link>
         </div>
       ) : (
@@ -66,10 +78,10 @@ export default async function BriefingsPage() {
           <div
             className={`${listGridClass} border-b border-[var(--athena-border)] px-6 py-4 text-xs uppercase tracking-[0.25em] text-white/35`}
           >
-            <div className="pr-4">Summary</div>
-            <div>Status</div>
-            <div>Confidence</div>
-            <div>Action</div>
+            <div className="pr-4">{copy.colSummary}</div>
+            <div>{copy.colStatus}</div>
+            <div>{copy.colConfidence}</div>
+            <div>{copy.colAction}</div>
           </div>
 
           {queues.map((section) => {
@@ -80,39 +92,55 @@ export default async function BriefingsPage() {
             return (
               <div key={section.key}>
                 <QueueSectionHeader
-                  title={section.title}
+                  title={getLocalizedBriefingQueueTitle(messages, section.key)}
                   count={section.items.length}
                 />
 
-                {section.items.map((briefing) => (
-                  <AthenaIntelligenceListRow
-                    key={briefing.id}
-                    href={`/briefings/${briefing.id}`}
-                    ariaLabel={`Open briefing ${getBriefingListSummary(briefing)}`}
-                    className={`${listGridClass} px-6 py-5 text-sm transition hover:bg-white/[0.03]`}
-                  >
-                    <div className="line-clamp-2 pr-4 font-medium leading-6 text-white">
-                      {getBriefingListSummary(briefing)}
-                    </div>
+                {section.items.map((briefing) => {
+                  const summary = getLocalizedBriefingListSummary(
+                    briefing,
+                    copy.untitled,
+                  );
 
-                    <div>
-                      <BriefingStatusBadge status={briefing.status} />
-                    </div>
+                  return (
+                    <AthenaIntelligenceListRow
+                      key={briefing.id}
+                      href={`/briefings/${briefing.id}`}
+                      ariaLabel={interpolateTenantMessage(
+                        copy.openBriefingAria,
+                        { summary },
+                      )}
+                      className={`${listGridClass} px-6 py-5 text-sm transition hover:bg-white/[0.03]`}
+                    >
+                      <div className="line-clamp-2 pr-4 font-medium leading-6 text-white">
+                        {summary}
+                      </div>
 
-                    <div className="font-semibold text-[var(--athena-orange)]">
-                      {briefing.confidence}%
-                    </div>
+                      <div>
+                        <BriefingStatusBadge
+                          status={briefing.status}
+                          label={getLocalizedBriefingStatusLabel(
+                            messages,
+                            briefing.status,
+                          )}
+                        />
+                      </div>
 
-                    <div>
-                      <Link
-                        href={`/briefings/${briefing.id}`}
-                        className="inline-flex rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
-                      >
-                        Open Briefing
-                      </Link>
-                    </div>
-                  </AthenaIntelligenceListRow>
-                ))}
+                      <div className="font-semibold text-[var(--athena-orange)]">
+                        {briefing.confidence}%
+                      </div>
+
+                      <div>
+                        <Link
+                          href={`/briefings/${briefing.id}`}
+                          className="inline-flex rounded-full bg-[var(--athena-orange)] px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
+                        >
+                          {copy.actionOpen}
+                        </Link>
+                      </div>
+                    </AthenaIntelligenceListRow>
+                  );
+                })}
               </div>
             );
           })}

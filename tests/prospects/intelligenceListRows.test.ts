@@ -37,7 +37,9 @@ describe("Standardized clickable intelligence rows", () => {
     const source = read("app/briefings/page.tsx");
     assert.match(source, /AthenaIntelligenceListRow/);
     assert.match(source, /href=\{`\/briefings\/\$\{briefing\.id\}`\}/);
-    assert.match(source, /ariaLabel=\{`Open briefing/);
+    assert.match(source, /ariaLabel=\{interpolateTenantMessage\(/);
+    assert.match(source, /copy\.openBriefingAria/);
+    assert.match(source, /summary/);
   });
 
   it("Opportunity rows are fully clickable", () => {
@@ -47,7 +49,9 @@ describe("Standardized clickable intelligence rows", () => {
       source,
       /href=\{`\/opportunities\/\$\{opportunity\.id\}`\}/,
     );
-    assert.match(source, /ariaLabel=\{`Open opportunity/);
+    assert.match(source, /ariaLabel=\{interpolateTenantMessage\(/);
+    assert.match(source, /copy\.openOpportunityAria/);
+    assert.match(source, /title: opportunity\.title/);
     // Title is plain text — avoids nested links inside the row.
     assert.doesNotMatch(
       source,
@@ -65,8 +69,8 @@ describe("Standardized clickable intelligence rows", () => {
       discussions,
       /<Link[\s\S]*href=\{`\/discussions\/\$\{discussion\.id\}`\}[\s\S]*<\/Link>/,
     );
-    assert.match(briefings, /Open Briefing/);
-    assert.match(opportunities, />\s*Open\s*</);
+    assert.match(briefings, /copy\.actionOpen/);
+    assert.match(opportunities, /copy\.actionOpen/);
   });
 
   it("Interactive child clicks do not cause duplicate navigation", () => {

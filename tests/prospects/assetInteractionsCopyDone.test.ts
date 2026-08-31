@@ -74,7 +74,9 @@ describe("Asset interaction keys and version scope", () => {
 describe("Copy / Copied / Done UI and API contracts", () => {
   it("1/2. CopyButton shows Copied then resets via timer", () => {
     const source = read("components/deployment/CopyButton.tsx");
-    assert.match(source, /copied \? "Copied" : "Copy"/);
+    assert.match(source, /copied \? labels\.copied : labels\.copy/);
+    assert.match(source, /copy: chrome\?\.copy \?\? "Copy"/);
+    assert.match(source, /copied: chrome\?\.copied \?\? "Copied"/);
     assert.match(source, /ACK_MS = 2000|2000/);
     assert.match(source, /setTimeout/);
   });

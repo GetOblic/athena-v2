@@ -121,6 +121,8 @@ describe("V31 L3.1 tenant i18n — language contract", () => {
       "lib/tenantI18n/discussionPresentation.ts",
       "lib/tenantI18n/personaPresentation.ts",
       "lib/tenantI18n/prospectPresentation.ts",
+      "lib/tenantI18n/opportunityPresentation.ts",
+      "lib/tenantI18n/briefingPresentation.ts",
       "lib/tenantI18n/intelligenceDomainStatus.ts",
       "lib/tenantI18n/messages/en.ts",
       "lib/tenantI18n/messages/fr.ts",
@@ -168,6 +170,7 @@ describe("V31 L3.1 tenant i18n — dictionaries", () => {
   it("requires identical nested key structure with no missing or extra keys", () => {
     const canonical = collectKeyPaths(en);
     assert.ok(canonical.includes("common.save"));
+    assert.ok(canonical.includes("copyChrome.done"));
     assert.ok(canonical.includes("nav.dashboard"));
     assert.ok(canonical.includes("status.new"));
     for (const language of ORGANIZATION_LANGUAGES) {

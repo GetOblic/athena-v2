@@ -203,7 +203,7 @@ describe("Blueprint brand direction wiring", () => {
       "components/assetBlueprints/StrategicAssetBlueprint.tsx",
     );
     const socialBlock = blueprint.slice(
-      blueprint.indexOf('label="Social Prompt"'),
+      blueprint.indexOf('chrome?.socialPrompt ?? "Social Prompt"'),
     );
     assert.match(socialBlock, /text=\{blueprint\.social_prompt\}/);
     assert.doesNotMatch(
@@ -258,7 +258,9 @@ describe("Blueprint brand direction wiring", () => {
     assert.match(block, /initiallyDone/);
     assert.match(block, /initiallyTags/);
     const copy = read("components/deployment/CopyButton.tsx");
-    assert.match(copy, /copied \? "Copied" : "Copy"/);
+    assert.match(copy, /copied \? labels\.copied : labels\.copy/);
+    assert.match(copy, /copy: chrome\?\.copy \?\? "Copy"/);
+    assert.match(copy, /copied: chrome\?\.copied \?\? "Copied"/);
     assert.match(copy, /\bDone\b/);
   });
 

@@ -4,7 +4,10 @@ import {
   CollapsiblePromptBlock,
   type DiscussWithAthenaPayload,
 } from "@/components/assetBlueprints/CollapsiblePromptBlock";
-import type { AssetCopyTrackingContext } from "@/components/deployment/CopyButton";
+import type {
+  AssetCopyTrackingContext,
+  CopyButtonChrome,
+} from "@/components/deployment/CopyButton";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
@@ -30,6 +33,11 @@ export type DeploymentDiscussPayload = DiscussWithAthenaPayload & {
   executiveVersionId: string;
 };
 
+export type DeploymentAssetsChrome = {
+  help?: string;
+  copy?: CopyButtonChrome;
+};
+
 type DeploymentAssetsProps = {
   assets: DeploymentAsset[];
   /**
@@ -43,6 +51,7 @@ type DeploymentAssetsProps = {
   continuationPreferences?: AiWorkspacePreferences | null;
   /** Identifiers only — never pass asset body/title as trusted input. */
   onDiscussWithAthena?: (payload: DeploymentDiscussPayload) => void;
+  chrome?: DeploymentAssetsChrome | null;
 };
 
 /**
@@ -78,6 +87,7 @@ export function DeploymentAssets({
   tagsByAssetType = {},
   continuationPreferences = null,
   onDiscussWithAthena,
+  chrome,
 }: DeploymentAssetsProps) {
   const cards = buildDeploymentAssetCards(assets, executiveVersionId);
 
@@ -95,7 +105,8 @@ export function DeploymentAssets({
       </h2>
 
       <p className="mt-2 max-w-2xl text-base text-white/50">
-        Ready-to-use content generated from Athena&apos;s analysis.
+        {chrome?.help ??
+          "Ready-to-use content generated from Athena's analysis."}
       </p>
 
       <div className="mt-8 grid gap-5 lg:grid-cols-2">
@@ -108,6 +119,7 @@ export function DeploymentAssets({
             defaultOpen={false}
             assetType={card.assetType}
             copyContext={copyContext}
+            copyChrome={chrome?.copy}
             initiallyDone={Boolean(doneByAssetType[card.assetType])}
             initiallyTags={tagsByAssetType[card.assetType] ?? []}
             continuationPreferences={continuationPreferences}

@@ -15,6 +15,19 @@ export type AssetCopyTrackingContext = {
   assetType: string;
 };
 
+export type CopyButtonChrome = {
+  copy?: string;
+  copied?: string;
+  done?: string;
+  copyAria?: string;
+  copiedAria?: string;
+  doneAria?: string;
+  copyFailed?: string;
+  saveDoneFailed?: string;
+  continue?: string;
+  continueAria?: string;
+};
+
 type CopyButtonProps = {
   text: string;
   /** When provided, durable Done is recorded after successful clipboard copy. */
@@ -30,7 +43,23 @@ type CopyButtonProps = {
   /** Asset type for Continue destination routing (falls back to tracking.assetType). */
   assetType?: string | null;
   continuationPreferences?: AiWorkspacePreferences | null;
+  chrome?: CopyButtonChrome | null;
 };
+
+function resolveCopyChrome(chrome?: CopyButtonChrome | null) {
+  return {
+    copy: chrome?.copy ?? "Copy",
+    copied: chrome?.copied ?? "Copied",
+    done: chrome?.done ?? "Done",
+    copyAria: chrome?.copyAria ?? "Copy to clipboard",
+    copiedAria: chrome?.copiedAria ?? "Copied to clipboard",
+    doneAria: chrome?.doneAria ?? "Copied at least once",
+    copyFailed: chrome?.copyFailed ?? "Copy failed",
+    saveDoneFailed: chrome?.saveDoneFailed ?? "Could not save Done.",
+    continue: chrome?.continue ?? "Continue",
+    continueAria: chrome?.continueAria ?? "Continue in external workspace",
+  };
+}
 
 const ACK_MS = 2000;
 
@@ -44,7 +73,9 @@ export function CopyButton({
   showContinue = true,
   assetType = null,
   continuationPreferences = null,
+  chrome,
 }: CopyButtonProps) {
+  const labels = resolveCopyChrome(chrome);
   const [copied, setCopied] = useState(false);
   const [done, setDone] = useState(initiallyDone);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -110,15 +141,15 @@ export function CopyButton({
           onDoneChange?.(true);
         } else {
           console.error("[ASSET_COPY] persistence_failed", payload);
-          setCopyError("Could not save Done.");
+          setCopyError(labels.saveDoneFailed);
         }
       } catch (persistError) {
         console.error("[ASSET_COPY] persistence_error", persistError);
-        setCopyError("Could not save Done.");
+        setCopyError(labels.saveDoneFailed);
       }
     } catch {
       setCopied(false);
-      setCopyError("Copy failed");
+      setCopyError(labels.copyFailed);
     }
   }
 
@@ -128,10 +159,10 @@ export function CopyButton({
         {done ? (
           <span
             className="inline-flex items-center gap-1 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-300/90"
-            aria-label="Copied at least once"
+            aria-label={labels.doneAria}
           >
             <span aria-hidden="true">✓</span>
-            Done
+            {labels.done}
           </span>
         ) : null}
         {showContinue ? (
@@ -139,17 +170,19 @@ export function CopyButton({
             text={text}
             assetType={assetType ?? tracking?.assetType ?? null}
             preferences={continuationPreferences}
+            label={labels.continue}
+            ariaLabel={labels.continueAria}
           />
         ) : null}
         <button
           type="button"
           onClick={() => void handleCopy()}
           aria-live="polite"
-          aria-label={copied ? "Copied to clipboard" : "Copy to clipboard"}
+          aria-label={copied ? labels.copiedAria : labels.copyAria}
           className="rounded-xl border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-4 py-2 text-sm font-medium text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/20"
           style={{ minWidth: "5.5rem" }}
         >
-          {copied ? "Copied" : "Copy"}
+          {copied ? labels.copied : labels.copy}
         </button>
       </div>
       {tracking ? (

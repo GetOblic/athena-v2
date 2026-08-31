@@ -4,7 +4,10 @@ import {
   CollapsiblePromptBlock,
   type DiscussWithAthenaPayload,
 } from "@/components/assetBlueprints/CollapsiblePromptBlock";
-import type { AssetCopyTrackingContext } from "@/components/deployment/CopyButton";
+import type {
+  AssetCopyTrackingContext,
+  CopyButtonChrome,
+} from "@/components/deployment/CopyButton";
 import { formatBlueprintReadiness } from "@/lib/blueprintReadiness";
 import { BLUEPRINT_ASSET_TYPES } from "@/services/assetInteractions/assetInteractionKeys";
 import type { AthenaAssetBlueprint } from "@/services/assetBlueprints/assetBlueprintService";
@@ -20,6 +23,26 @@ export type BlueprintDiscussPayload = DiscussWithAthenaPayload & {
   executiveVersionId: string;
 };
 
+export type StrategicAssetBlueprintChrome = {
+  eyebrow?: string;
+  help?: string;
+  readyToProduce?: string;
+  assetOverview?: string;
+  untitledAsset?: string;
+  businessGoal?: string;
+  targetAudience?: string;
+  priority?: string;
+  estimatedReuse?: string;
+  imagePrompt?: string;
+  pdfPrompt?: string;
+  socialPrompt?: string;
+  trendSocialPrompt?: string;
+  notes?: string;
+  emptyValue?: string;
+  readinessLabels?: Partial<Record<string, string>>;
+  copy?: CopyButtonChrome;
+};
+
 type StrategicAssetBlueprintProps = {
   blueprint: AthenaAssetBlueprint;
   copyContext?: Omit<AssetCopyTrackingContext, "assetType"> | null;
@@ -30,6 +53,7 @@ type StrategicAssetBlueprintProps = {
   continuationPreferences?: AiWorkspacePreferences | null;
   /** Identifiers only — blueprint body is resolved server-side. */
   onDiscussWithAthena?: (payload: BlueprintDiscussPayload) => void;
+  chrome?: StrategicAssetBlueprintChrome | null;
 };
 
 export function StrategicAssetBlueprint({
@@ -40,10 +64,15 @@ export function StrategicAssetBlueprint({
   brandDirection = null,
   continuationPreferences = null,
   onDiscussWithAthena,
+  chrome,
 }: StrategicAssetBlueprintProps) {
   const executiveVersionId = copyContext?.executiveVersionId?.trim() || null;
   const discussEnabled = Boolean(executiveVersionId && onDiscussWithAthena);
-  const readinessBadges = formatBlueprintReadiness(blueprint);
+  const emptyValue = chrome?.emptyValue ?? "—";
+  const readinessBadges = formatBlueprintReadiness(blueprint).map((badge) => ({
+    ...badge,
+    label: chrome?.readinessLabels?.[badge.key] ?? badge.label,
+  }));
   const imagePromptText = composeBlueprintPromptWithBrandDirection(
     blueprint.image_prompt,
     brandDirection,
@@ -58,7 +87,7 @@ export function StrategicAssetBlueprint({
       className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 shadow-[0_0_40px_rgba(255,102,0,0.06)] lg:p-10`}
     >
       <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-        Strategic Output
+        {chrome?.eyebrow ?? "Strategic Output"}
       </div>
 
       <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
@@ -66,14 +95,14 @@ export function StrategicAssetBlueprint({
       </h2>
 
       <p className="mt-2 max-w-2xl text-base text-white/50">
-        Reusable strategic asset specification — prompts ready for image, PDF,
-        and social production.
+        {chrome?.help ??
+          "Reusable strategic asset specification — prompts ready for image, PDF, and social production."}
       </p>
 
       {readinessBadges.length > 0 && (
         <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
           <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/35">
-            Ready to Produce
+            {chrome?.readyToProduce ?? "Ready to Produce"}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {readinessBadges.map((badge) => (
@@ -90,36 +119,51 @@ export function StrategicAssetBlueprint({
 
       <div className="mt-8 rounded-2xl border border-white/10 bg-black/25 p-6">
         <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--athena-orange)]">
-          Asset Overview
+          {chrome?.assetOverview ?? "Asset Overview"}
         </div>
         <h3 className="mt-3 text-2xl font-semibold text-white">
-          {blueprint.asset_title || "Untitled Asset"}
+          {blueprint.asset_title || chrome?.untitledAsset || "Untitled Asset"}
         </h3>
         <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.15em] text-white/55">
-          {blueprint.asset_type || "—"}
+          {blueprint.asset_type || emptyValue}
         </div>
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetaField label="Business goal" value={blueprint.business_goal} />
-        <MetaField label="Target audience" value={blueprint.target_audience} />
-        <MetaField label="Priority" value={blueprint.priority} highlight />
         <MetaField
-          label="Estimated reuse"
+          label={chrome?.businessGoal ?? "Business goal"}
+          value={blueprint.business_goal}
+          emptyValue={emptyValue}
+        />
+        <MetaField
+          label={chrome?.targetAudience ?? "Target audience"}
+          value={blueprint.target_audience}
+          emptyValue={emptyValue}
+        />
+        <MetaField
+          label={chrome?.priority ?? "Priority"}
+          value={blueprint.priority}
+          emptyValue={emptyValue}
+          highlight
+        />
+        <MetaField
+          label={chrome?.estimatedReuse ?? "Estimated reuse"}
           value={
             blueprint.estimated_reuse != null
               ? `${blueprint.estimated_reuse} / 5`
               : null
           }
+          emptyValue={emptyValue}
         />
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <CollapsiblePromptBlock
-          label="Image Prompt"
+          label={chrome?.imagePrompt ?? "Image Prompt"}
           text={imagePromptText}
           assetType={BLUEPRINT_ASSET_TYPES.image_prompt}
           copyContext={copyContext}
+          copyChrome={chrome?.copy}
           initiallyDone={Boolean(
             doneByAssetType[BLUEPRINT_ASSET_TYPES.image_prompt],
           )}
@@ -139,10 +183,11 @@ export function StrategicAssetBlueprint({
           }
         />
         <CollapsiblePromptBlock
-          label="PDF Prompt"
+          label={chrome?.pdfPrompt ?? "PDF Prompt"}
           text={pdfPromptText}
           assetType={BLUEPRINT_ASSET_TYPES.pdf_prompt}
           copyContext={copyContext}
+          copyChrome={chrome?.copy}
           initiallyDone={Boolean(
             doneByAssetType[BLUEPRINT_ASSET_TYPES.pdf_prompt],
           )}
@@ -162,10 +207,11 @@ export function StrategicAssetBlueprint({
           }
         />
         <CollapsiblePromptBlock
-          label="Social Prompt"
+          label={chrome?.socialPrompt ?? "Social Prompt"}
           text={blueprint.social_prompt}
           assetType={BLUEPRINT_ASSET_TYPES.social_prompt}
           copyContext={copyContext}
+          copyChrome={chrome?.copy}
           initiallyDone={Boolean(
             doneByAssetType[BLUEPRINT_ASSET_TYPES.social_prompt],
           )}
@@ -185,10 +231,11 @@ export function StrategicAssetBlueprint({
           }
         />
         <CollapsiblePromptBlock
-          label="Trend Social Prompt"
+          label={chrome?.trendSocialPrompt ?? "Trend Social Prompt"}
           text={blueprint.trend_social_prompt}
           assetType={BLUEPRINT_ASSET_TYPES.trend_social_prompt}
           copyContext={copyContext}
+          copyChrome={chrome?.copy}
           initiallyDone={Boolean(
             doneByAssetType[BLUEPRINT_ASSET_TYPES.trend_social_prompt],
           )}
@@ -208,11 +255,12 @@ export function StrategicAssetBlueprint({
           }
         />
         <CollapsiblePromptBlock
-          label="Notes"
+          label={chrome?.notes ?? "Notes"}
           text={blueprint.notes}
           fullWidth
           assetType={BLUEPRINT_ASSET_TYPES.notes}
           copyContext={copyContext}
+          copyChrome={chrome?.copy}
           initiallyDone={Boolean(doneByAssetType[BLUEPRINT_ASSET_TYPES.notes])}
           initiallyTags={tagsByAssetType[BLUEPRINT_ASSET_TYPES.notes] ?? []}
           continuationPreferences={continuationPreferences}
@@ -236,10 +284,12 @@ function MetaField({
   label,
   value,
   highlight,
+  emptyValue = "—",
 }: {
   label: string;
   value?: string | null;
   highlight?: boolean;
+  emptyValue?: string;
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -251,7 +301,7 @@ function MetaField({
           highlight ? "font-semibold text-[var(--athena-orange)]" : "text-white/85"
         }`}
       >
-        {value?.trim() || "—"}
+        {value?.trim() || emptyValue}
       </div>
     </div>
   );

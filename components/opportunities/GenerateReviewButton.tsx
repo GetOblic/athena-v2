@@ -4,7 +4,21 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
 
-export function GenerateReviewButton({ opportunityId }: { opportunityId: string }) {
+export type GenerateReviewButtonChrome = {
+  help: string;
+  refresh: string;
+  refreshing: string;
+  refreshFailed: string;
+  unknownError: string;
+};
+
+export function GenerateReviewButton({
+  opportunityId,
+  chrome,
+}: {
+  opportunityId: string;
+  chrome?: GenerateReviewButtonChrome | null;
+}) {
   const router = useRouter();
   const completionSound = useBackgroundActionCompletionSound();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -24,14 +38,22 @@ export function GenerateReviewButton({ opportunityId }: { opportunityId: string 
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to generate review");
+        throw new Error(
+          data.error ||
+            chrome?.refreshFailed ||
+            "Failed to generate review",
+        );
       }
 
       completionSound.observe("completed");
       router.refresh();
     } catch (err) {
       completionSound.observe("failed");
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(
+        err instanceof Error
+          ? err.message
+          : (chrome?.unknownError ?? "Unknown error"),
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -40,8 +62,8 @@ export function GenerateReviewButton({ opportunityId }: { opportunityId: string 
   return (
     <div>
       <p className="mb-4 max-w-md text-sm leading-6 text-white/40">
-        Regenerates the current executive briefing from this opportunity. The
-        latest briefing fields will be replaced with a fresh pass.
+        {chrome?.help ??
+          "Regenerates the current executive briefing from this opportunity. The latest briefing fields will be replaced with a fresh pass."}
       </p>
 
       <button
@@ -49,7 +71,9 @@ export function GenerateReviewButton({ opportunityId }: { opportunityId: string 
         disabled={isGenerating}
         className="rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isGenerating ? "Refreshing Executive Briefing..." : "Refresh Executive Briefing"}
+        {isGenerating
+          ? (chrome?.refreshing ?? "Refreshing Executive Briefing...")
+          : (chrome?.refresh ?? "Refresh Executive Briefing")}
       </button>
 
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}

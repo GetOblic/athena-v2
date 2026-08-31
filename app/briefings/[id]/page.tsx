@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { notFound } from "next/navigation";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
@@ -8,7 +7,14 @@ import { StrategicAssetBlueprintEmpty } from "@/components/assetBlueprints/Strat
 import { BriefingStatusPanel } from "@/components/briefings/BriefingStatusPanel";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { EntityNavigationCard } from "@/components/navigation/EntityNavigationCard";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
 import { buildBriefingDeploymentAssets } from "@/lib/deploymentAssets";
+import {
+  getBriefingDeploymentAssetsChrome,
+  getBriefingStatusLabelMap,
+  getBriefingStrategicAssetBlueprintChrome,
+} from "@/lib/tenantI18n/briefingPresentation";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { getDisplayAssetBlueprintForBriefing } from "@/services/assetBlueprints/assetBlueprintService";
 import { getOrganizationAiWorkspacePreferences } from "@/services/identity/aiWorkspacePreferences";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -24,11 +30,17 @@ export default async function BriefingPage({ params }: Props) {
   const { id } = await params;
   const { organizationId } = await requireCurrentOrganizationContext();
 
-  const review = await getReviewById(id, organizationId);
+  const [review, { messages }] = await Promise.all([
+    getReviewById(id, organizationId),
+    getTenantLocalization(),
+  ]);
 
   if (!review) {
     notFound();
   }
+
+  const copy = messages.briefings;
+  const detail = copy.detail;
 
   const deploymentAssets = buildBriefingDeploymentAssets(review);
   const [assetBlueprint, continuationPreferences] = await Promise.all([
@@ -42,30 +54,50 @@ export default async function BriefingPage({ params }: Props) {
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">
-      <AthenaBrandLink className="mb-8" />
+      <AthenaBrandLink
+        className="mb-8"
+        tagline={messages.chrome.tagline}
+        logoutLabel={messages.chrome.logOut}
+        sessionActionsLabel={messages.chrome.sessionActions}
+      />
 
-      <Link href="/briefings" className="text-sm text-[var(--athena-orange)]">
-        ← Back to Briefings
-      </Link>
+      <TenantBackLink href="/briefings" label={copy.backToBriefings} />
 
       <div className="mt-10">
         <div className="text-xs uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Executive Briefing
+          {detail.eyebrow}
         </div>
 
-        <h1 className="mt-4 text-5xl font-semibold">Executive Briefing</h1>
+        <h1 className="mt-4 text-5xl font-semibold">{detail.title}</h1>
 
         <p className="mt-4 max-w-3xl text-white/50">
-          Executive decision memo supporting the linked opportunity — strategic
-          understanding and approval controls live here.
+          {detail.subtitle}
         </p>
       </div>
 
       <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        <BriefingStatusPanel reviewId={review.id} initialStatus={review.status} />
-        <MetricCard label="Buyer Stage" value={review.buyer_stage || "—"} />
+        <BriefingStatusPanel
+          reviewId={review.id}
+          initialStatus={review.status}
+          chrome={{
+            status: detail.status,
+            approve: detail.approve,
+            approved: detail.approved,
+            requestRevision: detail.requestRevision,
+            revisionRequested: detail.revisionRequested,
+            approvedSuccess: detail.approvedSuccess,
+            revisionSuccess: detail.revisionSuccess,
+            statusUpdateFailed: detail.statusUpdateFailed,
+            unknownError: detail.unknownError,
+            statusLabels: getBriefingStatusLabelMap(messages),
+          }}
+        />
         <MetricCard
-          label="Confidence"
+          label={detail.buyerStage}
+          value={review.buyer_stage || copy.emptyValue}
+        />
+        <MetricCard
+          label={detail.confidence}
           value={`${review.confidence}%`}
           highlight="orange"
         />
@@ -75,15 +107,15 @@ export default async function BriefingPage({ params }: Props) {
         <div className="mt-8 grid gap-4 md:grid-cols-2">
           {review.discussion_id && (
             <EntityNavigationCard
-              title="Linked Discussion"
-              description="Open original discussion →"
+              title={detail.linkedDiscussion}
+              description={detail.openDiscussion}
               href={`/discussions/${review.discussion_id}`}
             />
           )}
           {review.opportunity_id && (
             <EntityNavigationCard
-              title="Linked Opportunity"
-              description="Open opportunity →"
+              title={detail.linkedOpportunity}
+              description={detail.openOpportunity}
               href={`/opportunities/${review.opportunity_id}`}
             />
           )}
@@ -95,20 +127,33 @@ export default async function BriefingPage({ params }: Props) {
           <DeploymentAssets
             assets={deploymentAssets}
             continuationPreferences={continuationPreferences}
+            chrome={getBriefingDeploymentAssetsChrome(messages)}
           />
         </div>
       )}
 
       <div className="mt-8 rounded-3xl border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-        <h2 className="mb-2 text-3xl font-semibold">Executive Briefing</h2>
+        <h2 className="mb-2 text-3xl font-semibold">{detail.sectionTitle}</h2>
         <p className="mb-8 text-sm text-white/45">
-          Decision support — strategic context for operator review.
+          {detail.sectionHelp}
         </p>
 
         <div className="space-y-8">
-          <Field label="Executive Summary" value={review.summary} />
-          <Field label="Pain Points" value={review.pain_points} />
-          <Field label="Buyer Stage" value={review.buyer_stage} />
+          <Field
+            label={detail.executiveSummary}
+            value={review.summary}
+            emptyValue={copy.emptyValue}
+          />
+          <Field
+            label={detail.painPoints}
+            value={review.pain_points}
+            emptyValue={copy.emptyValue}
+          />
+          <Field
+            label={detail.buyerStage}
+            value={review.buyer_stage}
+            emptyValue={copy.emptyValue}
+          />
         </div>
       </div>
 
@@ -117,9 +162,13 @@ export default async function BriefingPage({ params }: Props) {
           <StrategicAssetBlueprint
             blueprint={assetBlueprint}
             continuationPreferences={continuationPreferences}
+            chrome={getBriefingStrategicAssetBlueprintChrome(messages)}
           />
         ) : (
-          <StrategicAssetBlueprintEmpty />
+          <StrategicAssetBlueprintEmpty
+            eyebrow={detail.blueprintEmptyEyebrow}
+            message={detail.blueprintEmptyMessage}
+          />
         )}
       </div>
     </main>
@@ -149,14 +198,16 @@ function MetricCard({
 function Field({
   label,
   value,
+  emptyValue = "—",
 }: {
   label: string;
   value?: string | null;
+  emptyValue?: string;
 }) {
   return (
     <div>
       <div className="mb-2 text-white/40">{label}</div>
-      <p className="leading-7 text-white/80">{value || "—"}</p>
+      <p className="leading-7 text-white/80">{value || emptyValue}</p>
     </div>
   );
 }

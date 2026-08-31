@@ -78,7 +78,7 @@ describe("Analysis-driven Social Prompt contract", () => {
     const blueprint = read(
       "components/assetBlueprints/StrategicAssetBlueprint.tsx",
     );
-    assert.match(blueprint, /label="Social Prompt"/);
+    assert.match(blueprint, /label=\{chrome\?\.socialPrompt \?\? "Social Prompt"\}/);
     assert.match(blueprint, /text=\{blueprint\.social_prompt\}/);
     assert.match(blueprint, /BLUEPRINT_ASSET_TYPES\.social_prompt/);
     assert.equal(
