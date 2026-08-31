@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { getLocalizedPersonaReadinessLabel } from "@/lib/tenantI18n/personaPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type PersonaGenerationProgressProps = {
   personaId: string;
   initialStatus?: string | null;
+  messages?: TenantMessages;
 };
 
 const ACTIVE_STATUSES = new Set([
@@ -17,6 +20,7 @@ const ACTIVE_STATUSES = new Set([
 export function PersonaGenerationProgress({
   personaId,
   initialStatus = null,
+  messages,
 }: PersonaGenerationProgressProps) {
   const [status, setStatus] = useState(initialStatus);
   const [inFlight, setInFlight] = useState(
@@ -73,7 +77,7 @@ export function PersonaGenerationProgress({
   return (
     <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 px-5 py-4">
       <div className="text-xs uppercase tracking-[0.16em] text-white/35">
-        Generation status
+        {messages?.personas.generation.statusLabel ?? "Generation status"}
       </div>
       <div
         className={`mt-2 text-sm font-medium ${
@@ -84,12 +88,14 @@ export function PersonaGenerationProgress({
               : "text-white/75"
         }`}
       >
-        {status}
+        {messages
+          ? getLocalizedPersonaReadinessLabel(messages, status)
+          : status}
       </div>
       {inFlight ? (
         <p className="mt-2 text-sm leading-6 text-white/45">
-          Athena is generating Persona Executive Intelligence in the background.
-          Blueprint and Deployment Assets publish when the run completes.
+          {messages?.personas.generation.inFlightHelp ??
+            "Athena is generating Persona Executive Intelligence in the background. Blueprint and Deployment Assets publish when the run completes."}
         </p>
       ) : null}
     </div>

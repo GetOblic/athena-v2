@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantBackLink } from "@/components/navigation/TenantBackLink";
 import {
   DiscussionRegenerationProgress,
   DiscussionRegenerationProvider,
@@ -25,7 +25,17 @@ import {
 } from "@/services/prospects/prospectDisplay";
 import { normalizeProspectLifecycleStatus } from "@/services/prospects/prospectLifecycle";
 import { getActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
+import { fillChromeTemplate } from "@/lib/discussionExecutiveChrome";
 import { buildDiscussionWorkflowSteps } from "@/lib/discussionWorkflow";
+import { formatTenantDate } from "@/lib/tenantI18n/format";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
+import {
+  getLocalizedProspectHomepageLearning,
+  getLocalizedProspectLifecycleLabel,
+  getLocalizedProspectReadinessLabel,
+  getLocalizedProspectVerdict,
+  resolveProspectHomepageLearningKey,
+} from "@/lib/tenantI18n/prospectPresentation";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDiscussionById } from "@/services/discussionService";
@@ -51,16 +61,24 @@ export default async function ProspectDetailsPage({
 }) {
   const { id } = await params;
   const { organizationId } = await requireCurrentOrganizationContext();
-  const prospect = await getProspectById(id, organizationId);
+  const [{ language, locale, messages }, prospect] = await Promise.all([
+    getTenantLocalization(),
+    getProspectById(id, organizationId),
+  ]);
+  const copy = messages.prospects;
+  const executive = messages.prospects.executive;
 
   if (!prospect) {
     return (
       <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-        <AthenaBrandLink className="mb-8" />
-        <Link href="/prospects" className="text-sm text-[var(--athena-orange)]">
-          ← Prospects
-        </Link>
-        <h1 className="mt-8 text-4xl font-semibold">Prospect not found</h1>
+        <AthenaBrandLink
+          className="mb-8"
+          tagline={messages.chrome.tagline}
+          logoutLabel={messages.chrome.logOut}
+          sessionActionsLabel={messages.chrome.sessionActions}
+        />
+        <TenantBackLink href="/prospects" label={copy.backToProspects} />
+        <h1 className="mt-8 text-4xl font-semibold">{copy.notFound}</h1>
       </main>
     );
   }
@@ -121,6 +139,25 @@ export default async function ProspectDetailsPage({
     assetBlueprint:
       versionState.current?.intelligence.blueprint ?? assetBlueprint,
     clientStatusLabel: lifecycleStatus,
+  }).map((step) => {
+    if (step.key === "outcome") {
+      return {
+        ...step,
+        label: fillChromeTemplate(copy.detail.workflowCurrentStatus, {
+          status: getLocalizedProspectLifecycleLabel(messages, lifecycleStatus),
+        }),
+      };
+    }
+    const workflowLabels = {
+      analysis: copy.detail.workflowAnalysis,
+      opportunity: copy.detail.workflowOpportunity,
+      briefing: copy.detail.workflowBriefing,
+      assets: copy.detail.workflowAssets,
+    } as const;
+    return {
+      ...step,
+      label: workflowLabels[step.key] ?? step.label,
+    };
   });
 
   const initialRegenerationSnapshot = {
@@ -156,13 +193,14 @@ export default async function ProspectDetailsPage({
     score: currentVersionScore,
     recommendation: currentRecommendation,
   });
-  const scrapeStatus = !prospect.website
-    ? "No website provided"
-    : typeof websiteIntel.error === "string" && websiteIntel.error
-      ? "Homepage learning incomplete — generation continued with available fields"
-      : typeof websiteIntel.scraped_at === "string"
-        ? "Homepage learned"
-        : "Homepage learning pending";
+  const scrapeStatus = getLocalizedProspectHomepageLearning(
+    messages,
+    resolveProspectHomepageLearningKey({
+      website: prospect.website,
+      websiteError: websiteIntel.error,
+      scrapedAt: websiteIntel.scraped_at,
+    }),
+  );
   const websiteHref = normalizeWebsiteUrl(prospect.website);
   const linkedinHref = normalizeWebsiteUrl(prospect.linkedin);
 
@@ -170,23 +208,27 @@ export default async function ProspectDetailsPage({
     <DiscussionRegenerationProvider
       discussionId={discussion?.id ?? prospect.id}
       initialSnapshot={initialRegenerationSnapshot}
+      chrome={executive}
     >
       <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-        <AthenaBrandLink className="mb-8" />
-        <Link href="/prospects" className="text-sm text-[var(--athena-orange)]">
-          ← Prospects
-        </Link>
+        <AthenaBrandLink
+          className="mb-8"
+          tagline={messages.chrome.tagline}
+          logoutLabel={messages.chrome.logOut}
+          sessionActionsLabel={messages.chrome.sessionActions}
+        />
+        <TenantBackLink href="/prospects" label={copy.backToProspects} />
 
         <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-              Prospect Intelligence
+              {copy.detail.eyebrow}
             </div>
             <h1 className="mt-4 max-w-5xl text-5xl font-semibold tracking-tight">
               {prospect.business_name}
             </h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-              Executive-grade intelligence for this prospect relationship.
+              {copy.detail.subtitle}
             </p>
           </div>
 
@@ -197,20 +239,26 @@ export default async function ProspectDetailsPage({
                 discussionId={
                   discussion?.id ?? prospect.linked_discussion_id ?? null
                 }
+                chrome={copy.detail}
               />
               <ProspectDeepScrapeWebsiteButton
                 prospectId={prospect.id}
-                initiallyAvailable={
-                  hasCurrentVersion && Boolean(prospect.website)
-                }
+                initiallyAvailable={hasCurrentVersion && Boolean(prospect.website)}
+                messages={copy.deepScrape}
+                locale={locale}
               />
-              <ProspectHeaderDeleteButton prospectId={prospect.id} />
+              <ProspectHeaderDeleteButton
+                prospectId={prospect.id}
+                confirmMessage={copy.detail.deleteConfirm}
+                errorFallback={copy.detail.deleteFailed}
+                chrome={messages.common}
+              />
             </div>
           </div>
         </div>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <HeaderMetric label="Website">
+          <HeaderMetric label={copy.detail.website}>
             {websiteHref ? (
               <a
                 href={websiteHref}
@@ -221,46 +269,67 @@ export default async function ProspectDetailsPage({
                 {prospect.website}
               </a>
             ) : (
-              prospect.website || "—"
+              prospect.website || copy.emptyValue
             )}
           </HeaderMetric>
-          <HeaderMetric label="Category" value={prospect.category || "—"} />
           <HeaderMetric
-            label="Decision Maker"
-            value={prospect.decision_maker || "—"}
+            label={copy.detail.category}
+            value={prospect.category || copy.emptyValue}
           />
-          <HeaderMetric label="Job Title" value={prospect.job_title || "—"} />
-          <HeaderMetric label="Email" value={prospect.email || "—"} />
-          <HeaderMetric label="Phone" value={prospect.phone || "—"} />
           <HeaderMetric
-            label="WhatsApp Number"
-            value={prospect.whatsapp_number || "—"}
+            label={copy.detail.decisionMaker}
+            value={prospect.decision_maker || copy.emptyValue}
           />
-          <HeaderMetric label="Prospect Status" value={lifecycleStatus} />
           <HeaderMetric
-            label="Intelligence"
-            value={intelligenceReadiness}
+            label={copy.detail.jobTitle}
+            value={prospect.job_title || copy.emptyValue}
           />
-          <HeaderMetric label="Opportunity Score" highlight="orange">
+          <HeaderMetric
+            label={copy.detail.email}
+            value={prospect.email || copy.emptyValue}
+          />
+          <HeaderMetric
+            label={copy.detail.phone}
+            value={prospect.phone || copy.emptyValue}
+          />
+          <HeaderMetric
+            label={copy.detail.whatsappNumber}
+            value={prospect.whatsapp_number || copy.emptyValue}
+          />
+          <HeaderMetric
+            label={copy.detail.prospectStatus}
+            value={getLocalizedProspectLifecycleLabel(messages, lifecycleStatus)}
+          />
+          <HeaderMetric
+            label={copy.detail.intelligence}
+            value={getLocalizedProspectReadinessLabel(
+              messages,
+              intelligenceReadiness,
+            )}
+          />
+          <HeaderMetric label={copy.detail.opportunityScore} highlight="orange">
             <div>
               <div>{scorePresentation.scoreLabel}</div>
               {scorePresentation.recommendation &&
                 scorePresentation.scoreLabel !== "—" && (
                   <div className="mt-1 text-sm font-medium text-white/55">
-                    {scorePresentation.recommendation}
+                    {getLocalizedProspectVerdict(
+                      messages,
+                      scorePresentation.recommendation,
+                    )}
                   </div>
                 )}
             </div>
           </HeaderMetric>
           <HeaderMetric
-            label="Created"
-            value={new Date(prospect.created_at).toLocaleDateString("en-US")}
+            label={copy.detail.created}
+            value={formatTenantDate(prospect.created_at, language)}
           />
           <HeaderMetric
-            label="Updated"
-            value={new Date(prospect.updated_at).toLocaleDateString("en-US")}
+            label={copy.detail.updated}
+            value={formatTenantDate(prospect.updated_at, language)}
           />
-          <HeaderMetric label="LinkedIn">
+          <HeaderMetric label={copy.detail.linkedin}>
             {linkedinHref ? (
               <a
                 href={linkedinHref}
@@ -271,21 +340,33 @@ export default async function ProspectDetailsPage({
                 {prospect.linkedin}
               </a>
             ) : (
-              prospect.linkedin || "—"
+              prospect.linkedin || copy.emptyValue
             )}
           </HeaderMetric>
-          <HeaderMetric label="Source" value={prospect.source || "—"} />
-          <HeaderMetric label="Homepage Learning" value={scrapeStatus} />
+          <HeaderMetric
+            label={copy.detail.source}
+            value={prospect.source || copy.emptyValue}
+          />
+          <HeaderMetric
+            label={copy.detail.homepageLearning}
+            value={scrapeStatus}
+          />
         </div>
 
         <div className="mt-4 max-w-md">
-          <ProspectLifecycleStatusControl prospect={prospect} />
+          <ProspectLifecycleStatusControl
+            prospect={prospect}
+            messages={messages}
+          />
         </div>
 
         {discussion ? (
           <>
             <div className="mt-8">
-              <DiscussionWorkflowStrip steps={workflowSteps} />
+              <DiscussionWorkflowStrip
+                steps={workflowSteps}
+                title={copy.detail.workflowProgress}
+              />
             </div>
             <div className="mt-8">
               <DiscussionRegenerationProgress />
@@ -300,25 +381,29 @@ export default async function ProspectDetailsPage({
               }
               brandDirection={brandDirection}
               continuationPreferences={continuationPreferences}
+              chrome={executive}
+              locale={locale}
+              conversationChrome={copy.conversation}
               afterBlueprint={null}
               afterDetailedReasoning={
                 <div className="mt-8">
                   <AppendProspectInformationForm
                     prospectId={prospect.id}
                     discussionId={discussion.id}
+                    chrome={copy.append}
                   />
                 </div>
               }
               originalDiscussionSection={
                 <div className="space-y-4">
                   <p className="text-sm leading-6 text-white/45">
-                    Homepage Intelligence and Ads Content captured for this
-                    Prospect. Profile fields are managed in Prospect Details
-                    below.
+                    {copy.detail.sourceContextHelp}
                   </p>
                   {prospect.ads_content?.trim() ? (
                     <div>
-                      <div className="text-sm text-white/40">Ads Content</div>
+                      <div className="text-sm text-white/40">
+                        {copy.detail.adsContent}
+                      </div>
                       <div className="mt-2 whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70">
                         {prospect.ads_content}
                       </div>
@@ -327,6 +412,7 @@ export default async function ProspectDetailsPage({
                   <ProspectHomepageIntelligence
                     websiteIntelligence={prospect.website_intelligence}
                     scrapeStatus={scrapeStatus}
+                    chrome={copy.homepage}
                   />
                 </div>
               }
@@ -334,8 +420,7 @@ export default async function ProspectDetailsPage({
           </>
         ) : (
           <div className="mt-8 rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-10 text-white/50">
-            Prospect Intelligence has not been queued yet. Use Refresh
-            Intelligence in the page header to start asynchronous generation.
+            {copy.detail.noDiscussion}
           </div>
         )}
 
@@ -343,6 +428,8 @@ export default async function ProspectDetailsPage({
           <ProspectMetadataEditor
             prospect={prospect}
             discussionId={discussion?.id ?? null}
+            chrome={copy.metadata}
+            emptyValue={copy.emptyValue}
           />
         </div>
       </main>

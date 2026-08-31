@@ -209,12 +209,13 @@ describe("page structure contracts", () => {
     assert.match(source, /Strategic Asset Blueprint/);
     assert.match(
       source,
-      /title="Deployment Assets"\s*defaultOpen=\{false\}/,
+      /chrome\?\.deploymentAssetsTitle \?\? "Deployment Assets"/,
     );
     assert.match(
       source,
-      /title="Strategic Asset Blueprint"\s*defaultOpen=\{false\}/,
+      /chrome\?\.strategicBlueprintTitle \?\? "Strategic Asset Blueprint"/,
     );
+    assert.match(source, /defaultOpen=\{false\}/);
     assert.doesNotMatch(
       source,
       /title="Strategic Asset Blueprint"\s*defaultOpen=\{!isProspect\}/,
@@ -273,7 +274,7 @@ describe("page structure contracts", () => {
       join(ROOT, "components/prospects/ProspectsLibraryClient.tsx"),
       "utf8",
     );
-    assert.match(source, />Category</);
+    assert.match(source, /list\?\.colCategory \?\? "Category"/);
     assert.doesNotMatch(source, />Industry</);
     assert.match(source, /display_lifecycle_status/);
     assert.match(source, /prospect\.category/);

@@ -1,7 +1,20 @@
 import { interpolateTenantMessage } from "./interpolate";
-import type { TenantMessages } from "./types";
 
-export type DeepScrapeProgressMessages = TenantMessages["identity"]["deepScrape"];
+export type DeepScrapeProgressMessages = {
+  queued: string;
+  failed: string;
+  completed: string;
+  awaitingFollowOn: string;
+  discovering: string;
+  crawling: string;
+  crawlingWithCount: string;
+  crawlingWithTarget: string;
+  rendering: string;
+  renderingWithTarget: string;
+  synthesizing: string;
+  retraining: string;
+  regenerating: string;
+};
 
 export type DeepScrapeProgressJob = {
   status?: string;

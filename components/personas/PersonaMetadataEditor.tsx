@@ -6,12 +6,17 @@ import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSecti
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { normalizeWebsiteUrl } from "@/services/personas/personaUtils";
 import type { Persona } from "@/services/personas/personaService";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
+
+type PersonaMetadataChrome = TenantMessages["personas"]["metadata"];
 
 const fieldClassName =
   "w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none";
 
 type PersonaMetadataEditorProps = {
   persona: Persona;
+  chrome?: PersonaMetadataChrome | null;
+  emptyValue?: string;
 };
 
 const FIELD_GROUPS: Array<{
@@ -115,6 +120,77 @@ const LONG_TEXT_FIELDS = [
   ["ads_content", "Ads Content"],
 ] as const;
 
+const GROUP_CHROME_KEYS: Record<string, keyof PersonaMetadataChrome> = {
+  Identity: "groupIdentity",
+  Demographics: "groupDemographics",
+  "Geography and Language": "groupGeography",
+  "Family and Financial Context": "groupFamily",
+  "Professional Context": "groupProfessional",
+  "Lifestyle and Values": "groupLifestyle",
+  "Needs and Motivations": "groupNeeds",
+  "Buying Behavior": "groupBuying",
+  Communication: "groupCommunication",
+  "Reference Research": "groupResearch",
+};
+
+const FIELD_CHROME_KEYS: Record<string, keyof PersonaMetadataChrome> = {
+  persona_name: "personaName",
+  short_description: "shortDescription",
+  category: "category",
+  gender_identity: "genderIdentity",
+  age_range: "ageRange",
+  birth_year_approx: "birthYearApprox",
+  generation: "generation",
+  cultural_background: "culturalBackground",
+  country: "country",
+  state: "state",
+  city: "city",
+  location_summary: "locationSummary",
+  languages: "languages",
+  relationship_status: "relationshipStatus",
+  household: "household",
+  income_range: "incomeRange",
+  purchasing_power: "purchasingPower",
+  education: "education",
+  occupation: "occupation",
+  seniority: "seniority",
+  industry_context: "industryContext",
+  lifestyle: "lifestyle",
+  interests: "interests",
+  digital_behavior: "digitalBehavior",
+  brands_influences: "brandsInfluences",
+  values_text: "valuesText",
+  aesthetic_preferences: "aestheticPreferences",
+  preferred_imagery: "preferredImagery",
+  goals: "goals",
+  needs: "needs",
+  pain_points: "painPoints",
+  fears: "fears",
+  motivations: "motivations",
+  objections: "objections",
+  buying_triggers: "buyingTriggers",
+  decision_criteria: "decisionCriteria",
+  purchase_behavior: "purchaseBehavior",
+  typical_concerns: "typicalConcerns",
+  communication_style: "communicationStyle",
+  preferred_channels: "preferredChannels",
+  reference_website: "referenceWebsite",
+  additional_context: "additionalContext",
+  notes: "notes",
+  ads_content: "adsContent",
+};
+
+function chromeLabel(
+  chrome: PersonaMetadataChrome | null | undefined,
+  key: string,
+  fallback: string,
+): string {
+  const mapped = FIELD_CHROME_KEYS[key] ?? GROUP_CHROME_KEYS[key];
+  if (!chrome || !mapped) return fallback;
+  const value = chrome[mapped];
+  return typeof value === "string" ? value : fallback;
+}
+
 type FormState = Record<string, string>;
 
 function formFromPersona(persona: Persona): FormState {
@@ -131,10 +207,16 @@ function formFromPersona(persona: Persona): FormState {
   return form;
 }
 
-function ExternalValueLink({ value }: { value: string }) {
+function ExternalValueLink({
+  value,
+  emptyValue,
+}: {
+  value: string;
+  emptyValue: string;
+}) {
   const href = normalizeWebsiteUrl(value);
   if (!href) {
-    return <span className="text-white/75">{value || "—"}</span>;
+    return <span className="text-white/75">{value || emptyValue}</span>;
   }
   return (
     <a
@@ -150,6 +232,8 @@ function ExternalValueLink({ value }: { value: string }) {
 
 export function PersonaMetadataEditor({
   persona,
+  chrome = null,
+  emptyValue = "—",
 }: PersonaMetadataEditorProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -194,7 +278,7 @@ export function PersonaMetadataEditor({
           : payload.error?.message;
 
       if (!response.ok || !payload.ok) {
-        setError(errorMessage || "Save failed.");
+        setError(errorMessage || (chrome?.saveFailed ?? "Save failed."));
         return;
       }
 
@@ -202,10 +286,14 @@ export function PersonaMetadataEditor({
       setSavedForm(nextSaved);
       setForm(nextSaved);
       setIsEditing(false);
-      setMessage(payload.message || "Persona metadata saved.");
+      setMessage(payload.message || (chrome?.saved ?? "Persona metadata saved."));
       router.refresh();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Save failed.");
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : (chrome?.saveFailed ?? "Save failed."),
+      );
     } finally {
       setSaving(false);
     }
@@ -215,16 +303,22 @@ export function PersonaMetadataEditor({
 
   return (
     <AthenaCollapsibleSection
-      title={isEditing ? "Edit metadata" : "Persona Details"}
-      eyebrow="Persona Details"
+      title={
+        isEditing
+          ? (chrome?.titleEdit ?? "Edit metadata")
+          : (chrome?.title ?? "Persona Details")
+      }
+      eyebrow={chrome?.eyebrow ?? "Persona Details"}
       defaultOpen={false}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="max-w-2xl text-sm text-white/40">
             {isEditing
-              ? "Update Persona metadata. Changes are saved immediately and do not trigger generation."
-              : "Review Persona fields in read-only mode. Edit to update source data."}
+              ? (chrome?.helpEdit ??
+                "Update Persona metadata. Changes are saved immediately and do not trigger generation.")
+              : (chrome?.helpRead ??
+                "Review Persona fields in read-only mode. Edit to update source data.")}
           </p>
         </div>
 
@@ -235,7 +329,7 @@ export function PersonaMetadataEditor({
               onClick={beginEdit}
               className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-[var(--athena-orange)]/40 hover:text-white"
             >
-              Edit metadata
+              {chrome?.edit ?? "Edit metadata"}
             </button>
           ) : (
             <>
@@ -245,7 +339,7 @@ export function PersonaMetadataEditor({
                 disabled={saving}
                 className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 disabled:opacity-40"
               >
-                Cancel
+                {chrome?.cancel ?? "Cancel"}
               </button>
               <button
                 type="button"
@@ -253,7 +347,9 @@ export function PersonaMetadataEditor({
                 disabled={saving}
                 className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
               >
-                {saving ? "Saving…" : "Save"}
+                {saving
+                  ? (chrome?.saving ?? "Saving…")
+                  : (chrome?.save ?? "Save")}
               </button>
             </>
           )}
@@ -265,12 +361,12 @@ export function PersonaMetadataEditor({
           {FIELD_GROUPS.map((group) => (
             <div key={group.title} className="mt-8">
               <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-white/35">
-                {group.title}
+                {chromeLabel(chrome, group.title, group.title)}
               </h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 {group.fields.map(([key, label]) => (
                   <label key={key} className="block text-sm text-white/45">
-                    {label}
+                    {chromeLabel(chrome, key, label)}
                     <input
                       value={form[key] ?? ""}
                       onChange={(event) =>
@@ -290,7 +386,7 @@ export function PersonaMetadataEditor({
           <div className="mt-8 space-y-4">
             {LONG_TEXT_FIELDS.map(([key, label]) => (
               <label key={key} className="block text-sm text-white/45">
-                {label}
+                {chromeLabel(chrome, key, label)}
                 <textarea
                   value={form[key] ?? ""}
                   onChange={(event) =>
@@ -316,17 +412,20 @@ export function PersonaMetadataEditor({
             return (
               <div key={group.title}>
                 <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-white/35">
-                  {group.title}
+                  {chromeLabel(chrome, group.title, group.title)}
                 </h3>
                 <dl className="mt-4 grid gap-4 md:grid-cols-2">
                   {filled.map(([key, label]) => (
                     <div key={key}>
                       <dt className="text-xs uppercase tracking-[0.14em] text-white/35">
-                        {label}
+                        {chromeLabel(chrome, key, label)}
                       </dt>
                       <dd className="mt-2 text-sm leading-6 text-white/75">
                         {key === "reference_website" ? (
-                          <ExternalValueLink value={display[key]} />
+                          <ExternalValueLink
+                            value={display[key]}
+                            emptyValue={emptyValue}
+                          />
                         ) : (
                           display[key]
                         )}
@@ -344,7 +443,7 @@ export function PersonaMetadataEditor({
             return (
               <div key={key}>
                 <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-white/35">
-                  {label}
+                  {chromeLabel(chrome, key, label)}
                 </h3>
                 <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/70">
                   {value}

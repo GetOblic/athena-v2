@@ -119,6 +119,8 @@ describe("V31 L3.1 tenant i18n — language contract", () => {
       "lib/tenantI18n/brainStatus.ts",
       "lib/tenantI18n/deepScrapeProgress.ts",
       "lib/tenantI18n/discussionPresentation.ts",
+      "lib/tenantI18n/personaPresentation.ts",
+      "lib/tenantI18n/prospectPresentation.ts",
       "lib/tenantI18n/intelligenceDomainStatus.ts",
       "lib/tenantI18n/messages/en.ts",
       "lib/tenantI18n/messages/fr.ts",

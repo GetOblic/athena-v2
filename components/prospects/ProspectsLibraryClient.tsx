@@ -5,25 +5,39 @@ import { useMemo, useState } from "react";
 import { ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS } from "@/components/ui/athenaIntelligenceRow";
 import { PROSPECT_LIFECYCLE_STATUSES } from "@/services/prospects/prospectLifecycle";
 import type { ProspectLibraryRow } from "@/services/prospects/prospectLibraryEnrichment";
+import { formatTenantDate } from "@/lib/tenantI18n/format";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import {
+  getLocalizedProspectLifecycleLabel,
+  getLocalizedProspectReadinessLabel,
+} from "@/lib/tenantI18n/prospectPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
+import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
 type ProspectsLibraryClientProps = {
   prospects: ProspectLibraryRow[];
+  messages?: TenantMessages;
+  language?: OrganizationLanguage;
 };
 
 const PAGE_SIZE = 25;
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+function formatDate(
+  value: string | null | undefined,
+  language: OrganizationLanguage,
+  emptyValue: string,
+) {
+  if (!value) return emptyValue;
+  return formatTenantDate(value, language) || emptyValue;
 }
 
 export function ProspectsLibraryClient({
   prospects,
+  messages,
+  language = "en",
 }: ProspectsLibraryClientProps) {
+  const list = messages?.prospects.list;
+  const emptyValue = messages?.prospects.emptyValue ?? "—";
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState<"updated" | "created" | "score" | "name">(
@@ -102,19 +116,22 @@ export function ProspectsLibraryClient({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="grid flex-1 gap-3 md:grid-cols-3">
           <label className="block text-sm text-white/50">
-            Search
+            {list?.search ?? "Search"}
             <input
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
                 setPage(1);
               }}
-              placeholder="Business, website, decision maker, category…"
+              placeholder={
+                list?.searchPlaceholder ??
+                "Business, website, decision maker, category…"
+              }
               className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
             />
           </label>
           <label className="block text-sm text-white/50">
-            Status
+            {list?.status ?? "Status"}
             <select
               value={status}
               onChange={(event) => {
@@ -125,13 +142,17 @@ export function ProspectsLibraryClient({
             >
               {statuses.map((value) => (
                 <option key={value} value={value}>
-                  {value === "all" ? "All statuses" : value}
+                  {value === "all"
+                    ? (list?.allStatuses ?? "All statuses")
+                    : messages
+                      ? getLocalizedProspectLifecycleLabel(messages, value)
+                      : value}
                 </option>
               ))}
             </select>
           </label>
           <label className="block text-sm text-white/50">
-            Sort
+            {list?.sort ?? "Sort"}
             <select
               value={sort}
               onChange={(event) =>
@@ -139,10 +160,12 @@ export function ProspectsLibraryClient({
               }
               className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
             >
-              <option value="updated">Updated</option>
-              <option value="created">Created</option>
-              <option value="score">Opportunity Score</option>
-              <option value="name">Business Name</option>
+              <option value="updated">{list?.sortUpdated ?? "Updated"}</option>
+              <option value="created">{list?.sortCreated ?? "Created"}</option>
+              <option value="score">
+                {list?.sortScore ?? "Opportunity Score"}
+              </option>
+              <option value="name">{list?.sortName ?? "Business Name"}</option>
             </select>
           </label>
         </div>
@@ -151,28 +174,31 @@ export function ProspectsLibraryClient({
           href="/prospects/import"
           className="inline-flex items-center justify-center rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
         >
-          Import Prospects
+          {list?.importCta ?? "Import Prospects"}
         </Link>
       </div>
 
       {filtered.length === 0 ? (
         <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-14 text-center">
-          <h2 className="text-2xl font-semibold">No prospects found.</h2>
+          <h2 className="text-2xl font-semibold">
+            {list?.emptyTitle ?? "No prospects found."}
+          </h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/40">
-            Import a business manually or via CSV to start Prospect Intelligence.
+            {list?.emptyBody ??
+              "Import a business manually or via CSV to start Prospect Intelligence."}
           </p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)]">
           <div className="grid min-w-[1100px] grid-cols-[1.4fr_1.2fr_1fr_1fr_160px_120px_110px_110px] gap-4 border-b border-white/10 px-6 py-4 text-xs uppercase tracking-[0.2em] text-white/35">
-            <div>Business Name</div>
-            <div>Website</div>
-            <div>Decision Maker</div>
-            <div>Category</div>
-            <div>Status</div>
-            <div>Opportunity Score</div>
-            <div>Created</div>
-            <div>Updated</div>
+            <div>{list?.colBusinessName ?? "Business Name"}</div>
+            <div>{list?.colWebsite ?? "Website"}</div>
+            <div>{list?.colDecisionMaker ?? "Decision Maker"}</div>
+            <div>{list?.colCategory ?? "Category"}</div>
+            <div>{list?.colStatus ?? "Status"}</div>
+            <div>{list?.colScore ?? "Opportunity Score"}</div>
+            <div>{list?.colCreated ?? "Created"}</div>
+            <div>{list?.colUpdated ?? "Updated"}</div>
           </div>
 
           {pageRows.map((prospect) => (
@@ -185,26 +211,38 @@ export function ProspectsLibraryClient({
                 {prospect.business_name}
               </div>
               <div className="truncate text-white/55">
-                {prospect.website || "—"}
+                {prospect.website || emptyValue}
               </div>
               <div className="text-white/55">
-                {prospect.decision_maker || "—"}
+                {prospect.decision_maker || emptyValue}
               </div>
-              <div className="text-white/55">{prospect.category || "—"}</div>
+              <div className="text-white/55">
+                {prospect.category || emptyValue}
+              </div>
               <div>
                 <div className="text-[var(--athena-orange)]">
-                  {prospect.display_lifecycle_status}
+                  {messages
+                    ? getLocalizedProspectLifecycleLabel(
+                        messages,
+                        prospect.display_lifecycle_status,
+                      )
+                    : prospect.display_lifecycle_status}
                 </div>
                 <div className="mt-1 text-xs text-white/35">
-                  {prospect.display_status}
+                  {messages
+                    ? getLocalizedProspectReadinessLabel(
+                        messages,
+                        prospect.display_status,
+                      )
+                    : prospect.display_status}
                 </div>
               </div>
               <div>{prospect.display_opportunity_score_label}</div>
               <div className="text-white/45">
-                {formatDate(prospect.created_at)}
+                {formatDate(prospect.created_at, language, emptyValue)}
               </div>
               <div className="text-white/45">
-                {formatDate(prospect.updated_at)}
+                {formatDate(prospect.updated_at, language, emptyValue)}
               </div>
             </Link>
           ))}
@@ -214,9 +252,14 @@ export function ProspectsLibraryClient({
       {filtered.length > PAGE_SIZE && (
         <div className="flex items-center justify-between text-sm text-white/45">
           <div>
-            Showing {(currentPage - 1) * PAGE_SIZE + 1}–
-            {Math.min(currentPage * PAGE_SIZE, filtered.length)} of{" "}
-            {filtered.length}
+            {interpolateTenantMessage(
+              list?.showing ?? "Showing {start}–{end} of {total}",
+              {
+                start: (currentPage - 1) * PAGE_SIZE + 1,
+                end: Math.min(currentPage * PAGE_SIZE, filtered.length),
+                total: filtered.length,
+              },
+            )}
           </div>
           <div className="flex gap-3">
             <button
@@ -225,7 +268,7 @@ export function ProspectsLibraryClient({
               onClick={() => setPage((value) => Math.max(1, value - 1))}
               className="rounded-full border border-white/10 px-4 py-2 disabled:opacity-30"
             >
-              Previous
+              {list?.previous ?? "Previous"}
             </button>
             <button
               type="button"
@@ -235,7 +278,7 @@ export function ProspectsLibraryClient({
               }
               className="rounded-full border border-white/10 px-4 py-2 disabled:opacity-30"
             >
-              Next
+              {list?.next ?? "Next"}
             </button>
           </div>
         </div>

@@ -57,7 +57,22 @@ export async function GET(
               source_type: "persona",
             }),
             pagesAnalyzed: latest.pages_analyzed,
-            pagesCrawled: latest.pages_crawled,
+            pagesCrawled:
+              typeof latest.progress?.pagesCrawled === "number"
+                ? latest.progress.pagesCrawled
+                : latest.pages_crawled,
+            pagesTarget:
+              typeof latest.progress?.pagesTarget === "number"
+                ? latest.progress.pagesTarget
+                : null,
+            pagesRendered:
+              typeof latest.progress?.pagesRendered === "number"
+                ? latest.progress.pagesRendered
+                : null,
+            phase:
+              typeof latest.progress?.phase === "string"
+                ? latest.progress.phase
+                : null,
             completedAt: latest.completed_at,
             resultExecutiveVersionId: latest.result_executive_version_id,
             errorCode: latest.error_code,

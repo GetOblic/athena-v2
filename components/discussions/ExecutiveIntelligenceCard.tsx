@@ -89,21 +89,27 @@ export function ExecutiveIntelligenceCard({
       });
   const isProspect = sourceKind === "prospect";
   const isPersona = sourceKind === "persona";
-  const assessmentLabel = isProspect
-    ? "Prospect Assessment"
-    : isPersona
-      ? "Persona Assessment"
-      : (chrome?.executiveInsight ?? "Executive Insight");
-  const concernLabel = isProspect
-    ? "Primary Business Concern"
-    : isPersona
-      ? "Primary Persona Concern"
-      : (chrome?.primaryBuyerConcern ?? "Primary Buyer Concern");
-  const strategyLabel = isProspect
-    ? "Outreach Strategy"
-    : isPersona
-      ? "Engagement Strategy"
-      : (chrome?.recommendedStrategy ?? "Recommended Strategy");
+  const assessmentLabel =
+    chrome?.executiveInsight ??
+    (isProspect
+      ? "Prospect Assessment"
+      : isPersona
+        ? "Persona Assessment"
+        : "Executive Insight");
+  const concernLabel =
+    chrome?.primaryBuyerConcern ??
+    (isProspect
+      ? "Primary Business Concern"
+      : isPersona
+        ? "Primary Persona Concern"
+        : "Primary Buyer Concern");
+  const strategyLabel =
+    chrome?.recommendedStrategy ??
+    (isProspect
+      ? "Outreach Strategy"
+      : isPersona
+        ? "Engagement Strategy"
+        : "Recommended Strategy");
 
   return (
     <section

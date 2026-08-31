@@ -10,13 +10,17 @@ import {
 } from "@/services/personas/personaLifecycle";
 import type { Persona } from "@/services/personas/personaService";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import { getLocalizedPersonaLifecycleLabel } from "@/lib/tenantI18n/personaPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type PersonaLifecycleStatusControlProps = {
   persona: Persona;
+  messages?: TenantMessages;
 };
 
 export function PersonaLifecycleStatusControl({
   persona,
+  messages,
 }: PersonaLifecycleStatusControlProps) {
   const router = useRouter();
   const [lifecycleStatus, setLifecycleStatus] = useState<PersonaLifecycleStatus>(
@@ -51,11 +55,15 @@ export function PersonaLifecycleStatusControl({
         const message =
           typeof payload.error === "string"
             ? payload.error
-            : payload.error?.message || "Failed to update Persona status.";
+            : payload.error?.message ||
+              (messages?.personas.lifecycle.updateFailed ??
+                "Failed to update Persona status.");
         throw new Error(message);
       }
 
-      setSuccess("Persona status updated.");
+      setSuccess(
+        messages?.personas.lifecycle.updated ?? "Persona status updated.",
+      );
       router.refresh();
     } catch (saveError) {
       setLifecycleStatus(
@@ -64,7 +72,8 @@ export function PersonaLifecycleStatusControl({
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Failed to update Persona status.",
+          : (messages?.personas.lifecycle.updateFailed ??
+            "Failed to update Persona status."),
       );
     } finally {
       setIsSaving(false);
@@ -76,7 +85,7 @@ export function PersonaLifecycleStatusControl({
       className={`rounded-[20px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5`}
     >
       <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-        Persona Status
+        {messages?.personas.lifecycle.label ?? "Persona Status"}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -88,7 +97,9 @@ export function PersonaLifecycleStatusControl({
         >
           {PERSONA_LIFECYCLE_STATUSES.map((option) => (
             <option key={option} value={option}>
-              {option}
+              {messages
+                ? getLocalizedPersonaLifecycleLabel(messages, option)
+                : option}
             </option>
           ))}
         </select>
@@ -96,7 +107,9 @@ export function PersonaLifecycleStatusControl({
         <span
           className={`text-sm font-medium ${getPersonaLifecycleColor(lifecycleStatus)}`}
         >
-          {lifecycleStatus}
+          {messages
+            ? getLocalizedPersonaLifecycleLabel(messages, lifecycleStatus)
+            : lifecycleStatus}
         </span>
       </div>
 

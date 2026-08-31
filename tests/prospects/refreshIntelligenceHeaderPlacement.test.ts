@@ -158,7 +158,8 @@ describe("Generate Intelligence header placement", () => {
 
     const deleteControl = read("components/ui/ConfirmDeleteControl.tsx");
     assert.match(deleteControl, /method: "DELETE"/);
-    assert.match(deleteControl, />\s*Delete\s*</);
+    assert.match(deleteControl, /delete: "Delete"/);
+    assert.match(deleteControl, /\{chrome\.delete\}/);
   });
 
   it("20/21. Prospect Details and Detailed Athena Reasoning remain otherwise intact", () => {

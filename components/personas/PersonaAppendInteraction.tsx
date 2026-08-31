@@ -10,6 +10,20 @@ import {
   fetchRegenerationStatus,
 } from "@/lib/discussionRegenerationStatus";
 
+type PersonaAppendChrome = {
+  title: string;
+  help: string;
+  currentNotes: string;
+  field: string;
+  placeholder: string;
+  cta: string;
+  appending: string;
+  failed: string;
+  unexpected: string;
+  success: string;
+  partialSuccess: string;
+};
+
 type PersonaAppendInteractionProps = {
   personaId: string;
   discussionId: string | null;
@@ -20,6 +34,7 @@ type PersonaAppendInteractionProps = {
     blueprintUpdatedAt: string | null;
   }) => void;
   isGenerating?: boolean;
+  chrome?: PersonaAppendChrome | null;
 };
 
 type AppendResponse = {
@@ -33,7 +48,10 @@ type AppendResponse = {
   error?: string | { code?: string; message?: string };
 };
 
-function errorMessageFromPayload(payload: AppendResponse): string {
+function errorMessageFromPayload(
+  payload: AppendResponse,
+  fallback: string,
+): string {
   if (typeof payload.error === "string" && payload.error.trim()) {
     return payload.error;
   }
@@ -44,7 +62,7 @@ function errorMessageFromPayload(payload: AppendResponse): string {
   ) {
     return payload.error.message;
   }
-  return "Failed to append interaction.";
+  return fallback;
 }
 
 export function PersonaAppendInteraction({
@@ -53,6 +71,7 @@ export function PersonaAppendInteraction({
   initialNotes,
   onQueued,
   isGenerating = false,
+  chrome = null,
 }: PersonaAppendInteractionProps) {
   const router = useRouter();
   const [interaction, setInteraction] = useState("");
@@ -86,13 +105,17 @@ export function PersonaAppendInteraction({
 
       const payload = await parseJsonResponse<AppendResponse>(response, {
         unexpectedMessage:
+          chrome?.unexpected ??
           "Athena received an unexpected server response while appending this interaction.",
       });
 
       if (!response.ok || !payload.ok) {
         setResult({
           ok: false,
-          message: errorMessageFromPayload(payload),
+          message: errorMessageFromPayload(
+            payload,
+            chrome?.failed ?? "Failed to append interaction.",
+          ),
           persistenceOk: false,
         });
         return;
@@ -109,7 +132,8 @@ export function PersonaAppendInteraction({
           persistenceOk: true,
           message:
             payload.message ||
-            "Interaction appended, but regeneration could not be queued. Use Generate Intelligence to recover.",
+            (chrome?.partialSuccess ??
+              "Interaction appended, but regeneration could not be queued. Use Generate Intelligence to recover."),
         });
         router.refresh();
         return;
@@ -123,7 +147,8 @@ export function PersonaAppendInteraction({
         persistenceOk: true,
         message:
           payload.message ||
-          "Interaction appended. Intelligence regeneration queued.",
+          (chrome?.success ??
+            "Interaction appended. Intelligence regeneration queued."),
       });
       router.refresh();
     } catch (error) {
@@ -133,7 +158,7 @@ export function PersonaAppendInteraction({
         message:
           error instanceof Error
             ? error.message
-            : "Failed to append interaction.",
+            : (chrome?.failed ?? "Failed to append interaction."),
       });
     } finally {
       setIsSubmitting(false);
@@ -142,21 +167,19 @@ export function PersonaAppendInteraction({
 
   return (
     <AthenaCollapsibleSection
-      title="Append Interaction"
+      title={chrome?.title ?? "Append Interaction"}
       defaultOpen={Boolean(result)}
     >
       <form onSubmit={handleSubmit}>
         <p className="text-sm leading-6 text-white/45">
-          Capture a real-world interaction — conversation, interview, feedback,
-          objection, or observed behavior. Athena appends it to Notes without
-          overwriting prior notes, then regenerates a new Current Executive
-          Version.
+          {chrome?.help ??
+            "Capture a real-world interaction — conversation, interview, feedback, objection, or observed behavior. Athena appends it to Notes without overwriting prior notes, then regenerates a new Current Executive Version."}
         </p>
 
         {notes.trim() ? (
           <div className="mt-6">
             <div className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-              Current Notes
+              {chrome?.currentNotes ?? "Current Notes"}
             </div>
             <div className="mt-2 whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70">
               {notes}
@@ -166,7 +189,7 @@ export function PersonaAppendInteraction({
 
         <label className="mt-6 grid gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-            Interaction
+            {chrome?.field ?? "Interaction"}
           </span>
           <textarea
             value={interaction}
@@ -175,7 +198,10 @@ export function PersonaAppendInteraction({
             rows={6}
             disabled={isSubmitting || isGenerating}
             className="min-h-[140px] rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none ring-[var(--athena-orange)]/40 placeholder:text-white/25 focus:ring-2 disabled:opacity-50"
-            placeholder="Describe the interaction, observation, or feedback…"
+            placeholder={
+              chrome?.placeholder ??
+              "Describe the interaction, observation, or feedback…"
+            }
           />
         </label>
 
@@ -186,8 +212,8 @@ export function PersonaAppendInteraction({
             className="inline-flex items-center justify-center rounded-full border border-[var(--athena-orange)]/40 bg-black/20 px-6 py-3 text-sm font-semibold text-white transition hover:bg-black/30 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isSubmitting
-              ? "Appending…"
-              : "Append Interaction and Regenerate"}
+              ? (chrome?.appending ?? "Appending…")
+              : (chrome?.cta ?? "Append Interaction and Regenerate")}
           </button>
           {result ? (
             <p

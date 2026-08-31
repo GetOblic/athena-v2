@@ -3,6 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
+import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
+import {
+  localizeDeepScrapeStage,
+  type DeepScrapeProgressMessages,
+} from "@/lib/tenantI18n/deepScrapeProgress";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type DeepScrapeStatusPayload = {
@@ -15,12 +21,53 @@ type DeepScrapeStatusPayload = {
     stage: string;
     label: string;
     pagesAnalyzed?: number;
+    pagesCrawled?: number;
+    pagesTarget?: number | null;
+    pagesRendered?: number | null;
+    phase?: string | null;
     completedAt?: string | null;
     errorMessage?: string | null;
   } | null;
   lastDeepScrapeAt?: string | null;
   lastDeepScrapePages?: number | null;
   error?: { message?: string };
+};
+
+type ProspectDeepScrapeMessages = DeepScrapeProgressMessages & {
+  button: string;
+  lastTitle: string;
+  pagesAnalyzed: string;
+  queueFailed: string;
+  genericError: string;
+};
+
+const DEFAULT_MESSAGES: ProspectDeepScrapeMessages = {
+  button: "Deep Scrape Website",
+  lastTitle: "Last Deep Scrape",
+  pagesAnalyzed: "Pages analyzed: {count}",
+  queueFailed: "Failed to queue deep scrape.",
+  queued: "Queued",
+  failed: "Failed",
+  completed: "Completed",
+  awaitingFollowOn: "Generating Executive Intelligence",
+  discovering: "Discovering Website",
+  crawling: "Crawling candidate pages",
+  crawlingWithCount: "Crawling {crawled} candidate pages",
+  crawlingWithTarget: "Crawling {crawled} of {target} candidate pages",
+  rendering: "Rendering JavaScript page {rendered}",
+  renderingWithTarget: "Rendering JavaScript page {rendered} of {target}",
+  synthesizing: "Synthesizing Website Intelligence",
+  retraining: "Retraining Athena Brain",
+  regenerating: "Generating Executive Intelligence",
+  genericError: "Deep website scrape failed. Please try again later.",
+};
+
+const DATETIME_FORMAT: Intl.DateTimeFormatOptions = {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
 };
 
 function ButtonSpinner() {
@@ -35,7 +82,11 @@ function ButtonSpinner() {
 export function ProspectDeepScrapeWebsiteButton(props: {
   prospectId: string;
   initiallyAvailable: boolean;
+  messages?: ProspectDeepScrapeMessages;
+  locale?: TenantFormattingLocale;
 }) {
+  const messages = props.messages ?? DEFAULT_MESSAGES;
+  const locale = props.locale ?? "en-US";
   const router = useRouter();
   const completionSound = useBackgroundActionCompletionSound();
   const [available, setAvailable] = useState(props.initiallyAvailable);
@@ -70,7 +121,11 @@ export function ProspectDeepScrapeWebsiteButton(props: {
       }
       setAvailable(Boolean(payload.available));
       setIsActive(Boolean(payload.isActive));
-      setLabel(payload.isActive ? payload.job?.label ?? "Queued" : null);
+      setLabel(
+        payload.isActive
+          ? localizeDeepScrapeStage(payload.job, messages)
+          : null,
+      );
       setLastAt(payload.lastDeepScrapeAt ?? null);
       setLastPages(
         typeof payload.lastDeepScrapePages === "number"
@@ -80,8 +135,8 @@ export function ProspectDeepScrapeWebsiteButton(props: {
       if (payload.job?.status) {
         completionSound.observe(payload.job.status);
       }
-      if (payload.job?.status === "failed" && payload.job.errorMessage) {
-        setError(payload.job.errorMessage);
+      if (payload.job?.status === "failed") {
+        setError(payload.job.errorMessage?.trim() || messages.genericError);
       } else if (payload.job?.status === "completed") {
         setError(null);
         router.refresh();
@@ -89,7 +144,7 @@ export function ProspectDeepScrapeWebsiteButton(props: {
     } catch {
       // ignore transient poll errors
     }
-  }, [completionSound, props.prospectId, router]);
+  }, [completionSound, messages, props.prospectId, router]);
 
   useEffect(() => {
     if (!available) return;
@@ -126,21 +181,28 @@ export function ProspectDeepScrapeWebsiteButton(props: {
       );
       const payload = await parseJsonResponse<{
         ok?: boolean;
+        status?: string;
+        stage?: string;
         label?: string;
         error?: { message?: string };
       }>(response);
       if (!response.ok || !payload.ok) {
-        setError(payload.error?.message || "Failed to queue deep scrape.");
+        setError(payload.error?.message || messages.queueFailed);
         return;
       }
       setIsActive(true);
-      setLabel(payload.label ?? "Queued");
+      setLabel(
+        localizeDeepScrapeStage(
+          { status: payload.status, stage: payload.stage },
+          messages,
+        ),
+      );
       void refreshStatus();
     } catch (startError) {
       setError(
         startError instanceof Error
           ? startError.message
-          : "Failed to queue deep scrape.",
+          : messages.queueFailed,
       );
     } finally {
       setQueuing(false);
@@ -162,16 +224,25 @@ export function ProspectDeepScrapeWebsiteButton(props: {
         className="inline-flex items-center justify-center rounded-full border border-[var(--athena-orange)]/40 bg-black/20 px-6 py-3 text-sm font-semibold text-white transition hover:bg-black/30 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {busy ? <ButtonSpinner /> : null}
-        {busy ? label || "Deep Scrape Website" : "Deep Scrape Website"}
+        {busy ? label || messages.button : messages.button}
       </button>
       {busy && label ? (
         <p className="text-sm text-white/60 sm:text-right">{label}</p>
       ) : null}
       {lastAt ? (
         <div className="text-sm text-white/45 sm:text-right">
-          <div>Last Deep Scrape: {new Date(lastAt).toLocaleString()}</div>
+          <div>
+            {messages.lastTitle}:{" "}
+            {new Intl.DateTimeFormat(locale, DATETIME_FORMAT).format(
+              new Date(lastAt),
+            )}
+          </div>
           {typeof lastPages === "number" ? (
-            <div>Pages analyzed: {lastPages}</div>
+            <div>
+              {interpolateTenantMessage(messages.pagesAnalyzed, {
+                count: lastPages,
+              })}
+            </div>
           ) : null}
         </div>
       ) : null}

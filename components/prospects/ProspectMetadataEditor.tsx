@@ -14,6 +14,9 @@ import { PROSPECT_GETOBLIC_TYPES } from "@/services/prospects/prospectGetOblicTy
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 import { buildWhatsAppMeUrl } from "@/services/prospects/prospectWhatsApp";
 import type { Prospect } from "@/services/prospects/prospectService";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
+
+type ProspectMetadataChrome = TenantMessages["prospects"]["metadata"];
 
 const fieldClassName =
   "w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none";
@@ -21,6 +24,8 @@ const fieldClassName =
 type ProspectMetadataEditorProps = {
   prospect: Prospect;
   discussionId?: string | null;
+  chrome?: ProspectMetadataChrome | null;
+  emptyValue?: string;
 };
 
 const TEXT_FIELDS = [
@@ -51,6 +56,48 @@ const TEXT_FIELDS = [
   ["instagram", "Instagram"],
   ["google_business_url", "Google Business URL"],
 ] as const;
+
+const FIELD_CHROME_KEYS: Record<string, keyof ProspectMetadataChrome> = {
+  business_name: "businessName",
+  website: "website",
+  decision_maker: "decisionMaker",
+  first_name: "firstName",
+  last_name: "lastName",
+  external_contact_id: "externalContactId",
+  timezone: "timezone",
+  job_title: "jobTitle",
+  email: "email",
+  phone: "phone",
+  whatsapp_number: "whatsappNumber",
+  industry: "industry",
+  category: "category",
+  country: "country",
+  state: "state",
+  city: "city",
+  address: "address",
+  company_size: "companySize",
+  revenue: "revenue",
+  employee_count: "employeeCount",
+  technologies: "technologies",
+  pain_points: "painPoints",
+  linkedin: "linkedin",
+  facebook: "facebook",
+  instagram: "instagram",
+  google_business_url: "googleBusinessUrl",
+  notes: "notes",
+  additional_context: "additionalContext",
+  ads_content: "adsContent",
+};
+
+function chromeLabel(
+  chrome: ProspectMetadataChrome | null | undefined,
+  key: string,
+  fallback: string,
+): string {
+  const mapped = FIELD_CHROME_KEYS[key];
+  if (!chrome || !mapped) return fallback;
+  return chrome[mapped] ?? fallback;
+}
 
 /** Hide empty CRM/contact split fields in read-only view. */
 const OPTIONAL_DISPLAY_FIELDS = new Set([
@@ -140,13 +187,15 @@ function formFromProspect(prospect: Prospect): FormState {
 function ExternalValueLink({
   label,
   value,
+  emptyFallback = "—",
 }: {
   label: string;
   value: string;
+  emptyFallback?: string;
 }) {
   const href = normalizeWebsiteUrl(value);
   if (!href) {
-    return <span className="text-white/75">{value || "—"}</span>;
+    return <span className="text-white/75">{value || emptyFallback}</span>;
   }
 
   return (
@@ -161,7 +210,13 @@ function ExternalValueLink({
   );
 }
 
-function WhatsAppDisplayValue({ value }: { value: string }) {
+function WhatsAppDisplayValue({
+  value,
+  openLabel,
+}: {
+  value: string;
+  openLabel: string;
+}) {
   const href = buildWhatsAppMeUrl(value);
   return (
     <div className="space-y-2">
@@ -174,7 +229,7 @@ function WhatsAppDisplayValue({ value }: { value: string }) {
             rel="noopener noreferrer"
             className="text-sm font-medium text-[var(--athena-orange)] underline underline-offset-2"
           >
-            Open WhatsApp
+            {openLabel}
           </a>
         </div>
       ) : null}
@@ -185,6 +240,8 @@ function WhatsAppDisplayValue({ value }: { value: string }) {
 export function ProspectMetadataEditor({
   prospect,
   discussionId,
+  chrome = null,
+  emptyValue = "—",
 }: ProspectMetadataEditorProps) {
   const router = useRouter();
   const { trackQueuedGeneration } = useDiscussionRegeneration();
@@ -239,7 +296,7 @@ export function ProspectMetadataEditor({
           : payload.error?.message;
 
       if (!response.ok || !payload.ok) {
-        setError(errorMessage || "Save failed.");
+        setError(errorMessage || (chrome?.saveFailed ?? "Save failed."));
         return;
       }
 
@@ -247,7 +304,7 @@ export function ProspectMetadataEditor({
       setSavedForm(nextSaved);
       setForm(nextSaved);
       setIsEditing(false);
-      setMessage(payload.message || "Prospect metadata saved.");
+      setMessage(payload.message || (chrome?.saved ?? "Prospect metadata saved."));
 
       if (payload.regenerationQueued) {
         trackQueuedGeneration(baseline);
@@ -255,7 +312,11 @@ export function ProspectMetadataEditor({
 
       router.refresh();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Save failed.");
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : (chrome?.saveFailed ?? "Save failed."),
+      );
     } finally {
       setSaving(false);
     }
@@ -265,16 +326,22 @@ export function ProspectMetadataEditor({
 
   return (
     <AthenaCollapsibleSection
-      title={isEditing ? "Edit profile" : "Prospect Details"}
-      eyebrow="Prospect Details"
+      title={
+        isEditing
+          ? (chrome?.titleEdit ?? "Edit profile")
+          : (chrome?.title ?? "Prospect Details")
+      }
+      eyebrow={chrome?.eyebrow ?? "Prospect Details"}
       defaultOpen={false}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="max-w-2xl text-sm text-white/40">
             {isEditing
-              ? "Save meaningful source changes to queue asynchronous regeneration. Historical Executive Versions remain immutable."
-              : "Review prospect fields in read-only mode. Edit to update source data. Use Generate Intelligence in the page header to regenerate."}
+              ? (chrome?.helpEdit ??
+                "Save meaningful source changes to queue asynchronous regeneration. Historical Executive Versions remain immutable.")
+              : (chrome?.helpRead ??
+                "Review prospect fields in read-only mode. Edit to update source data. Use Generate Intelligence in the page header to regenerate.")}
           </p>
         </div>
 
@@ -285,7 +352,7 @@ export function ProspectMetadataEditor({
               onClick={beginEdit}
               className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-[var(--athena-orange)]/40 hover:text-white"
             >
-              Edit
+              {chrome?.edit ?? "Edit"}
             </button>
           ) : (
             <>
@@ -295,7 +362,7 @@ export function ProspectMetadataEditor({
                 disabled={saving}
                 className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 disabled:opacity-40"
               >
-                Cancel
+                {chrome?.cancel ?? "Cancel"}
               </button>
               <button
                 type="button"
@@ -303,7 +370,9 @@ export function ProspectMetadataEditor({
                 disabled={saving}
                 className="rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
               >
-                {saving ? "Saving…" : "Save"}
+                {saving
+                  ? (chrome?.saving ?? "Saving…")
+                  : (chrome?.save ?? "Save")}
               </button>
             </>
           )}
@@ -315,7 +384,7 @@ export function ProspectMetadataEditor({
           <div className="mt-8 grid gap-4 md:grid-cols-2">
             {TEXT_FIELDS.map(([key, label]) => (
               <label key={key} className="block text-sm text-white/45">
-                {label}
+                {chromeLabel(chrome, key, label)}
                 <input
                   value={form[key]}
                   onChange={(event) =>
@@ -329,7 +398,7 @@ export function ProspectMetadataEditor({
               </label>
             ))}
             <label className="block text-sm text-white/45">
-              GetOblic Type
+              {chrome?.getoblicType ?? "GetOblic Type"}
               <select
                 value={form.getoblic_type}
                 onChange={(event) =>
@@ -340,7 +409,7 @@ export function ProspectMetadataEditor({
                 }
                 className={`mt-2 ${fieldClassName}`}
               >
-                <option value="">Not set</option>
+                <option value="">{chrome?.notSet ?? "Not set"}</option>
                 {PROSPECT_GETOBLIC_TYPES.map((value) => (
                   <option key={value} value={value}>
                     {value}
@@ -351,7 +420,7 @@ export function ProspectMetadataEditor({
           </div>
 
           <label className="mt-4 block text-sm text-white/45">
-            Notes
+            {chrome?.notes ?? "Notes"}
             <textarea
               value={form.notes}
               onChange={(event) =>
@@ -366,7 +435,7 @@ export function ProspectMetadataEditor({
           </label>
 
           <label className="mt-4 block text-sm text-white/45">
-            Additional Context
+            {chrome?.additionalContext ?? "Additional Context"}
             <textarea
               value={form.additional_context}
               onChange={(event) =>
@@ -381,7 +450,7 @@ export function ProspectMetadataEditor({
           </label>
 
           <label className="mt-4 block text-sm text-white/45">
-            Ads Content
+            {chrome?.adsContent ?? "Ads Content"}
             <textarea
               value={form.ads_content}
               onChange={(event) =>
@@ -391,7 +460,10 @@ export function ProspectMetadataEditor({
                 }))
               }
               rows={5}
-              placeholder="Paste Google Ads, Meta Ads, or other observed advertising copy."
+              placeholder={
+                chrome?.adsPlaceholder ??
+                "Paste Google Ads, Meta Ads, or other observed advertising copy."
+              }
               className={`mt-2 ${fieldClassName}`}
             />
           </label>
@@ -404,46 +476,63 @@ export function ProspectMetadataEditor({
                 !OPTIONAL_DISPLAY_FIELDS.has(key) || Boolean(display[key]),
             ).map(([key, label]) => (
               <div key={key}>
-                <div className="text-sm text-white/40">{label}</div>
+                <div className="text-sm text-white/40">
+                  {chromeLabel(chrome, key, label)}
+                </div>
                 <div className="mt-2 text-sm">
                   {key === "whatsapp_number" ? (
-                    <WhatsAppDisplayValue value={display[key]} />
+                    <WhatsAppDisplayValue
+                      value={display[key]}
+                      openLabel={chrome?.openWhatsApp ?? "Open WhatsApp"}
+                    />
                   ) : URL_FIELDS.has(key) ? (
-                    <ExternalValueLink label={display[key]} value={display[key]} />
+                    <ExternalValueLink
+                      label={display[key]}
+                      value={display[key]}
+                      emptyFallback={emptyValue}
+                    />
                   ) : (
                     <span className="text-white/75">
-                      {display[key] || "—"}
+                      {display[key] || emptyValue}
                     </span>
                   )}
                 </div>
               </div>
             ))}
             <div>
-              <div className="text-sm text-white/40">GetOblic Type</div>
+              <div className="text-sm text-white/40">
+                {chrome?.getoblicType ?? "GetOblic Type"}
+              </div>
               <div className="mt-2 text-sm text-white/75">
-                {display.getoblic_type || "—"}
+                {display.getoblic_type || emptyValue}
               </div>
             </div>
           </div>
 
           <div className="mt-6">
-            <div className="text-sm text-white/40">Notes</div>
+            <div className="text-sm text-white/40">
+              {chrome?.notes ?? "Notes"}
+            </div>
             <div className="mt-2 whitespace-pre-wrap text-sm text-white/75">
-              {display.notes || "—"}
+              {display.notes || emptyValue}
             </div>
           </div>
 
           <div className="mt-6">
-            <div className="text-sm text-white/40">Additional Context</div>
+            <div className="text-sm text-white/40">
+              {chrome?.additionalContext ?? "Additional Context"}
+            </div>
             <div className="mt-2 whitespace-pre-wrap text-sm text-white/75">
-              {display.additional_context || "—"}
+              {display.additional_context || emptyValue}
             </div>
           </div>
 
           <div className="mt-6">
-            <div className="text-sm text-white/40">Ads Content</div>
+            <div className="text-sm text-white/40">
+              {chrome?.adsContent ?? "Ads Content"}
+            </div>
             <div className="mt-2 whitespace-pre-wrap text-sm text-white/75">
-              {display.ads_content || "—"}
+              {display.ads_content || emptyValue}
             </div>
           </div>
         </>

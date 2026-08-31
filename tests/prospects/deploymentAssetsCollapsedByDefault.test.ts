@@ -17,8 +17,9 @@ describe("Sprint 4 — Deployment Assets collapsed by default", () => {
     assert.match(workspace, /<DeploymentAssets/);
     assert.match(
       workspace,
-      /title="Deployment Assets"\s*defaultOpen=\{false\}/,
+      /chrome\?\.deploymentAssetsTitle \?\? "Deployment Assets"/,
     );
+    assert.match(workspace, /defaultOpen=\{false\}/);
 
     const prospectPage = read("app/prospects/[id]/page.tsx");
     assert.match(prospectPage, /ExecutiveIntelligenceWorkspace/);

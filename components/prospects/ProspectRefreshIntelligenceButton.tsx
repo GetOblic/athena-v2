@@ -10,9 +10,21 @@ import {
 } from "@/lib/discussionRegenerationStatus";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
+type ProspectRefreshChrome = {
+  generateIntelligence: string;
+  generatingIntelligence: string;
+  thinkDifferently: string;
+  thinkingDifferently: string;
+  generateFailed: string;
+  thinkFailed: string;
+  refreshQueued: string;
+  thinkQueued: string;
+};
+
 type ProspectRefreshIntelligenceButtonProps = {
   prospectId: string;
   discussionId?: string | null;
+  chrome?: ProspectRefreshChrome | null;
 };
 
 function ButtonSpinner() {
@@ -32,6 +44,7 @@ type QueueKind = "generate_intelligence" | "think_differently";
 export function ProspectRefreshIntelligenceButton({
   prospectId,
   discussionId = null,
+  chrome = null,
 }: ProspectRefreshIntelligenceButtonProps) {
   const router = useRouter();
   const {
@@ -86,8 +99,8 @@ export function ProspectRefreshIntelligenceButton({
         setError(
           errorMessage ||
             (kind === "think_differently"
-              ? "Think Differently failed."
-              : "Generate Intelligence failed."),
+              ? (chrome?.thinkFailed ?? "Think Differently failed.")
+              : (chrome?.generateFailed ?? "Generate Intelligence failed.")),
         );
         return;
       }
@@ -96,8 +109,10 @@ export function ProspectRefreshIntelligenceButton({
       setMessage(
         payload.message ||
           (kind === "think_differently"
-            ? "Think Differently queued. Athena is regenerating Strategic Blueprint and Deployment Assets in the background."
-            : "Prospect intelligence refresh queued. Athena is regenerating in the background."),
+            ? (chrome?.thinkQueued ??
+              "Think Differently queued. Athena is regenerating Strategic Blueprint and Deployment Assets in the background.")
+            : (chrome?.refreshQueued ??
+              "Prospect intelligence refresh queued. Athena is regenerating in the background.")),
       );
       router.refresh();
     } catch (queueError) {
@@ -105,8 +120,8 @@ export function ProspectRefreshIntelligenceButton({
         queueError instanceof Error
           ? queueError.message
           : kind === "think_differently"
-            ? "Think Differently failed."
-            : "Generate Intelligence failed.",
+            ? (chrome?.thinkFailed ?? "Think Differently failed.")
+            : (chrome?.generateFailed ?? "Generate Intelligence failed."),
       );
     } finally {
       setQueueingKind(null);
@@ -135,8 +150,8 @@ export function ProspectRefreshIntelligenceButton({
         >
           {generatingIntelligence ? <ButtonSpinner /> : null}
           {generatingIntelligence
-            ? "Generating Intelligence…"
-            : "Generate Intelligence"}
+            ? (chrome?.generatingIntelligence ?? "Generating Intelligence…")
+            : (chrome?.generateIntelligence ?? "Generate Intelligence")}
         </button>
         <button
           type="button"
@@ -154,7 +169,9 @@ export function ProspectRefreshIntelligenceButton({
               aria-hidden="true"
             />
           ) : null}
-          {thinkingDifferently ? "Thinking Differently…" : "Think Differently"}
+          {thinkingDifferently
+            ? (chrome?.thinkingDifferently ?? "Thinking Differently…")
+            : (chrome?.thinkDifferently ?? "Think Differently")}
         </button>
       </div>
       {message ? (

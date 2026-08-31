@@ -10,13 +10,17 @@ import {
 } from "@/services/prospects/prospectLifecycle";
 import type { Prospect } from "@/services/prospects/prospectService";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import { getLocalizedProspectLifecycleLabel } from "@/lib/tenantI18n/prospectPresentation";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type ProspectLifecycleStatusControlProps = {
   prospect: Prospect;
+  messages?: TenantMessages;
 };
 
 export function ProspectLifecycleStatusControl({
   prospect,
+  messages,
 }: ProspectLifecycleStatusControlProps) {
   const router = useRouter();
   const [lifecycleStatus, setLifecycleStatus] = useState<ProspectLifecycleStatus>(
@@ -49,11 +53,15 @@ export function ProspectLifecycleStatusControl({
         const message =
           typeof payload.error === "string"
             ? payload.error
-            : payload.error?.message || "Failed to update Prospect status.";
+            : payload.error?.message ||
+              (messages?.prospects.lifecycle.updateFailed ??
+                "Failed to update Prospect status.");
         throw new Error(message);
       }
 
-      setSuccess("Prospect status updated.");
+      setSuccess(
+        messages?.prospects.lifecycle.updated ?? "Prospect status updated.",
+      );
       router.refresh();
     } catch (saveError) {
       setLifecycleStatus(
@@ -62,7 +70,8 @@ export function ProspectLifecycleStatusControl({
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Failed to update Prospect status.",
+          : (messages?.prospects.lifecycle.updateFailed ??
+            "Failed to update Prospect status."),
       );
     } finally {
       setIsSaving(false);
@@ -74,7 +83,7 @@ export function ProspectLifecycleStatusControl({
       className={`rounded-[20px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5`}
     >
       <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-        Prospect Status
+        {messages?.prospects.lifecycle.label ?? "Prospect Status"}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -86,7 +95,9 @@ export function ProspectLifecycleStatusControl({
         >
           {PROSPECT_LIFECYCLE_STATUSES.map((option) => (
             <option key={option} value={option}>
-              {option}
+              {messages
+                ? getLocalizedProspectLifecycleLabel(messages, option)
+                : option}
             </option>
           ))}
         </select>
@@ -94,7 +105,9 @@ export function ProspectLifecycleStatusControl({
         <span
           className={`text-sm font-medium ${getProspectLifecycleColor(lifecycleStatus)}`}
         >
-          {lifecycleStatus}
+          {messages
+            ? getLocalizedProspectLifecycleLabel(messages, lifecycleStatus)
+            : lifecycleStatus}
         </span>
       </div>
 

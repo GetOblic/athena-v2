@@ -14,14 +14,14 @@ describe("Persona Summary and Persona Details collapsed by default", () => {
     const page = read("app/personas/[id]/page.tsx");
     assert.match(
       page,
-      /title="Summary"\s*defaultOpen=\{false\}/,
+      /title=\{copy\.detail\.summary\}\s*defaultOpen=\{false\}/,
     );
     assert.match(page, /AthenaCollapsibleSection/);
   });
 
   it("Persona Details metadata editor defaults collapsed", () => {
     const editor = read("components/personas/PersonaMetadataEditor.tsx");
-    assert.match(editor, /eyebrow="Persona Details"/);
+    assert.match(editor, /eyebrow=\{chrome\?\.eyebrow \?\? "Persona Details"\}/);
     assert.match(editor, /defaultOpen=\{false\}/);
     assert.doesNotMatch(editor, /defaultOpen\s*\n/);
     assert.doesNotMatch(editor, /defaultOpen=\{true\}/);

@@ -34,7 +34,13 @@ type DeepScrapeStatusPayload = {
   error?: { message?: string };
 };
 
-type DeepScrapeMessages = DeepScrapeProgressMessages;
+type DeepScrapeMessages = DeepScrapeProgressMessages & {
+  button: string;
+  lastTitle: string;
+  pagesAnalyzed: string;
+  queueFailed: string;
+  genericError: string;
+};
 
 const DEFAULT_DEEP_SCRAPE_MESSAGES: DeepScrapeMessages = {
   button: "Deep Scrape Website",

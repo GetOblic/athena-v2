@@ -25,6 +25,10 @@ import type {
   PersonaConversationHistoryMessage,
   PersonaConversationVersionState,
 } from "@/services/personaConversation/personaConversationTypes";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
+
+export type PersonaConversationChrome = TenantMessages["personas"]["conversation"];
 
 type PersonaConversationPanelProps = {
   personaId: string;
@@ -38,6 +42,7 @@ type PersonaConversationPanelProps = {
   ) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  chrome?: PersonaConversationChrome | null;
 };
 
 const STARTER_QUESTIONS = [
@@ -52,22 +57,31 @@ const STARTER_QUESTIONS = [
 function versionIndicatorCopy(input: {
   versionState: PersonaConversationVersionState;
   versionLabel: string | null;
+  chrome?: PersonaConversationChrome | null;
 }): string {
   if (input.versionState === "current") {
-    return "Using Current Executive Version";
+    return input.chrome?.usingCurrent ?? "Using Current Executive Version";
   }
   if (input.versionState === "archived") {
     return input.versionLabel
-      ? `Using Archived Executive Version — ${input.versionLabel}`
-      : "Using Archived Executive Version";
+      ? interpolateTenantMessage(
+          input.chrome?.usingArchivedNamed ??
+            "Using Archived Executive Version — {label}",
+          { label: input.versionLabel },
+        )
+      : (input.chrome?.usingArchived ?? "Using Archived Executive Version");
   }
-  return "No Executive Version — using available Persona profile context";
+  return (
+    input.chrome?.usingNone ??
+    "No Executive Version — using available Persona profile context"
+  );
 }
 
 function discussingBadgeLabel(input: {
   assetReference: PersonaConversationAssetReference;
   resolvedAssetTitle: string | null;
   resolvedGroup: "deployment" | "analysis" | "blueprint" | null;
+  chrome?: PersonaConversationChrome | null;
 }): string {
   const group =
     input.resolvedGroup ??
@@ -76,8 +90,20 @@ function discussingBadgeLabel(input: {
       : isPersonaAnalysisAssetReferenceKey(input.assetReference.key)
         ? "analysis"
         : "deployment");
-  const kindLabel = describePersonaAssetKind(input.assetReference.kind, group);
-  return `Discussing: ${kindLabel} — ${input.resolvedAssetTitle ?? input.assetReference.key}`;
+  const kindLabel = input.chrome
+    ? group === "analysis"
+      ? input.chrome.analysisAsset
+      : group === "blueprint" || input.assetReference.kind === "blueprint"
+        ? input.chrome.strategicBlueprint
+        : input.chrome.deploymentAsset
+    : describePersonaAssetKind(input.assetReference.kind, group);
+  return interpolateTenantMessage(
+    input.chrome?.discussing ?? "Discussing: {kind} — {title}",
+    {
+      kind: kindLabel,
+      title: input.resolvedAssetTitle ?? input.assetReference.key,
+    },
+  );
 }
 
 function ThinkingIndicator() {
@@ -98,6 +124,7 @@ function PersonaConversationPanelInner({
   onAssetReferenceChange,
   open: openControlled,
   onOpenChange,
+  chrome = null,
 }: PersonaConversationPanelProps) {
   const discussContext = usePersonaDiscussContext();
   const messagesRegionId = useId();
@@ -264,18 +291,30 @@ function PersonaConversationPanelInner({
     setResolvedGroup(null);
   }
 
+  const starterQuestions = chrome
+    ? [
+        chrome.example1,
+        chrome.example2,
+        chrome.example3,
+        chrome.example4,
+        chrome.example5,
+        chrome.example6,
+      ]
+    : STARTER_QUESTIONS;
+
   const discussingLabel = assetReference
     ? discussingBadgeLabel({
         assetReference,
         resolvedAssetTitle,
         resolvedGroup,
+        chrome,
       })
     : null;
 
   return (
     <div id="persona-conversation" className="scroll-mt-24">
       <AthenaCollapsibleSection
-        title="Ask Athena about this Persona"
+        title={chrome?.title ?? "Ask Athena about this Persona"}
         defaultOpen
         open={open}
         onOpenChange={
@@ -285,16 +324,16 @@ function PersonaConversationPanelInner({
         }
       >
         <p className="text-sm leading-6 text-white/45">
-          Ask grounded questions about this Persona archetype using the current
-          profile, Notes, Reference Website research, and Current Executive
-          Version when available.
+          {chrome?.intro ??
+            "Ask grounded questions about this Persona archetype using the current profile, Notes, Reference Website research, and Current Executive Version when available."}
         </p>
         <p className="mt-2 text-xs uppercase tracking-[0.2em] text-white/35">
-          {versionIndicatorCopy({ versionState, versionLabel })}
+          {versionIndicatorCopy({ versionState, versionLabel, chrome })}
         </p>
 
         <p className="mt-3 text-xs leading-5 text-white/35">
-          Conversation responses do not modify Athena intelligence or assets.
+          {chrome?.readOnlyNotice ??
+            "Conversation responses do not modify Athena intelligence or assets."}
         </p>
 
         {discussingLabel ? (
@@ -305,21 +344,20 @@ function PersonaConversationPanelInner({
               onClick={clearAssetTarget}
               className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-white/60 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
             >
-              Clear target
+              {chrome?.clearTarget ?? "Clear target"}
             </button>
           </div>
         ) : null}
 
         {versionState === "none" ? (
           <p className="mt-4 text-sm leading-6 text-amber-200/80">
-            Generate Persona intelligence before asking Athena detailed strategic
-            questions. Profile-level questions can still use available source
-            fields.
+            {chrome?.noneWarning ??
+              "Generate Persona intelligence before asking Athena detailed strategic questions. Profile-level questions can still use available source fields."}
           </p>
         ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {STARTER_QUESTIONS.map((question) => (
+          {starterQuestions.map((question) => (
             <button
               key={question}
               type="button"
@@ -337,7 +375,9 @@ function PersonaConversationPanelInner({
           className="mt-6 max-h-[420px] space-y-4 overflow-y-auto rounded-2xl border border-white/10 bg-black/20 p-4"
         >
           {messages.length === 0 ? (
-            <p className="text-sm text-white/40">No questions yet.</p>
+            <p className="text-sm text-white/40">
+              {chrome?.empty ?? "No questions yet."}
+            </p>
           ) : (
             messages.map((message, index) => (
               <div
@@ -349,7 +389,9 @@ function PersonaConversationPanelInner({
                 }
               >
                 <div className="mb-1 text-[10px] uppercase tracking-[0.2em] text-white/35">
-                  {message.role === "user" ? "You" : "Athena"}
+                  {message.role === "user"
+                    ? (chrome?.you ?? "You")
+                    : (chrome?.athena ?? "Athena")}
                 </div>
                 {message.content}
               </div>
@@ -358,7 +400,7 @@ function PersonaConversationPanelInner({
           {busy ? (
             <div className="flex items-center gap-2 text-sm text-white/50">
               <ThinkingIndicator />
-              Athena is thinking…
+              {chrome?.thinking ?? "Athena is thinking…"}
             </div>
           ) : null}
         </div>
@@ -367,7 +409,7 @@ function PersonaConversationPanelInner({
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
           <label htmlFor="persona-conversation-input" className="sr-only">
-            Ask Athena about this Persona
+            {chrome?.inputLabel ?? "Ask Athena about this Persona"}
           </label>
           <textarea
             id="persona-conversation-input"
@@ -377,7 +419,9 @@ function PersonaConversationPanelInner({
             onKeyDown={handleKeyDown}
             rows={3}
             disabled={busy}
-            placeholder="Ask Athena about this Persona…"
+            placeholder={
+              chrome?.placeholder ?? "Ask Athena about this Persona…"
+            }
             className="w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-50"
           />
           <div className="flex flex-wrap items-center gap-3">
@@ -386,7 +430,9 @@ function PersonaConversationPanelInner({
               disabled={busy || !draft.trim()}
               className="rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
             >
-              {busy ? "Sending…" : "Send"}
+              {busy
+                ? (chrome?.sending ?? "Sending…")
+                : (chrome?.send ?? "Send")}
             </button>
             <button
               type="button"
@@ -394,7 +440,7 @@ function PersonaConversationPanelInner({
               disabled={busy || (messages.length === 0 && !assetReference)}
               className="rounded-full border border-white/15 px-5 py-3 text-sm text-white/70 disabled:opacity-40"
             >
-              Clear
+              {chrome?.clear ?? "Clear"}
             </button>
           </div>
         </form>

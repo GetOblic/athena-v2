@@ -139,9 +139,9 @@ describe("prospect details read-only / edit UX contracts", () => {
       "utf8",
     );
     assert.match(source, /useState\(false\)/);
-    assert.match(source, />\s*Edit\s*</);
+    assert.match(source, /chrome\?\.edit \?\? "Edit"/);
     assert.match(source, /Saving…|"Save"/);
-    assert.match(source, />\s*Cancel\s*</);
+    assert.match(source, /chrome\?\.cancel \?\? "Cancel"/);
     assert.doesNotMatch(source, />\s*Delete\s*</);
     assert.doesNotMatch(source, /Confirm Delete/);
     assert.match(source, /trackQueuedGeneration/);

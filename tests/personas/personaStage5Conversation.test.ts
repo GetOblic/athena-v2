@@ -203,7 +203,8 @@ describe("persona stage-5 Executive Version integrity and containment", () => {
     assert.doesNotMatch(worker, /personaDeepScrapeWorker|new worker/i);
 
     const page = read("app/personas/[id]/page.tsx");
-    assert.match(page, /Generate Intelligence/);
+    assert.match(page, /PersonaGenerateIntelligenceButton/);
+    assert.match(page, /chrome=\{copy\.detail\}/);
     assert.match(page, /PersonaDeepScrapeWebsiteButton/);
     assert.match(page, /PersonaAppendInteraction/);
     assert.match(page, /PersonaConversationPanel/);

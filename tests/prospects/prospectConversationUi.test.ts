@@ -90,8 +90,14 @@ describe("prospect conversation UI placement", () => {
     );
     assert.match(workspace, /DeploymentAssets/);
     assert.match(workspace, /StrategicAssetBlueprint/);
-    assert.match(workspace, /title="Deployment Assets"/);
-    assert.match(workspace, /title="Strategic Asset Blueprint"/);
+    assert.match(
+      workspace,
+      /chrome\?\.deploymentAssetsTitle \?\? "Deployment Assets"/,
+    );
+    assert.match(
+      workspace,
+      /chrome\?\.strategicBlueprintTitle \?\? "Strategic Asset Blueprint"/,
+    );
 
     const cards = buildDeploymentAssetCards(
       [

@@ -101,6 +101,11 @@ export type DiscussionExecutiveChrome = {
   generationUnexpected: string;
   generationFailedLogs: string;
   generationUnknown: string;
+  /** Optional source-specific titles. English defaults remain when omitted. */
+  deploymentAssetsTitle?: string;
+  analysisAssetsTitle?: string;
+  strategicBlueprintTitle?: string;
+  opportunityScore?: string;
 };
 
 export type DiscussionDetailChrome = {

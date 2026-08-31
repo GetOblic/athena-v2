@@ -4,12 +4,25 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
+type PersonaGenerateChrome = {
+  generateIntelligence: string;
+  generatingIntelligence: string;
+  retryGenerateIntelligence: string;
+  thinkDifferently: string;
+  thinkingDifferently: string;
+  generateFailed: string;
+  thinkFailed: string;
+  generateQueued: string;
+  thinkQueued: string;
+};
+
 type PersonaGenerateIntelligenceButtonProps = {
   personaId: string;
   initialStatus?: string | null;
   initialInFlight?: boolean;
   /** Think Differently only when a Current Executive Version exists. */
   hasCurrentExecutiveVersion?: boolean;
+  chrome?: PersonaGenerateChrome | null;
 };
 
 type PersonaStatusPayload = {
@@ -41,6 +54,7 @@ export function PersonaGenerateIntelligenceButton({
   initialStatus = null,
   initialInFlight = false,
   hasCurrentExecutiveVersion = false,
+  chrome = null,
 }: PersonaGenerateIntelligenceButtonProps) {
   const router = useRouter();
   const [queueingKind, setQueueingKind] = useState<QueueKind | null>(null);
@@ -133,8 +147,8 @@ export function PersonaGenerateIntelligenceButton({
         setError(
           errorMessage ||
             (kind === "think_differently"
-              ? "Think Differently failed."
-              : "Generate Intelligence failed."),
+              ? (chrome?.thinkFailed ?? "Think Differently failed.")
+              : (chrome?.generateFailed ?? "Generate Intelligence failed.")),
         );
         return;
       }
@@ -143,8 +157,10 @@ export function PersonaGenerateIntelligenceButton({
       setMessage(
         payload.message ||
           (kind === "think_differently"
-            ? "Think Differently queued. Athena is regenerating Strategic Blueprint and Deployment Assets in the background."
-            : "Persona intelligence generation queued. Athena is regenerating in the background."),
+            ? (chrome?.thinkQueued ??
+              "Think Differently queued. Athena is regenerating Strategic Blueprint and Deployment Assets in the background.")
+            : (chrome?.generateQueued ??
+              "Persona intelligence generation queued. Athena is regenerating in the background.")),
       );
       startPolling();
       router.refresh();
@@ -153,8 +169,8 @@ export function PersonaGenerateIntelligenceButton({
         queueError instanceof Error
           ? queueError.message
           : kind === "think_differently"
-            ? "Think Differently failed."
-            : "Generate Intelligence failed.",
+            ? (chrome?.thinkFailed ?? "Think Differently failed.")
+            : (chrome?.generateFailed ?? "Generate Intelligence failed."),
       );
     } finally {
       setQueueingKind(null);
@@ -181,10 +197,11 @@ export function PersonaGenerateIntelligenceButton({
         >
           {generatingIntelligence ? <ButtonSpinner /> : null}
           {generatingIntelligence
-            ? "Generating Intelligence…"
+            ? (chrome?.generatingIntelligence ?? "Generating Intelligence…")
             : failed
-              ? "Retry Generate Intelligence"
-              : "Generate Intelligence"}
+              ? (chrome?.retryGenerateIntelligence ??
+                "Retry Generate Intelligence")
+              : (chrome?.generateIntelligence ?? "Generate Intelligence")}
         </button>
         {canThinkDifferently ? (
           <button
@@ -200,8 +217,8 @@ export function PersonaGenerateIntelligenceButton({
               />
             ) : null}
             {thinkingDifferently
-              ? "Thinking Differently…"
-              : "Think Differently"}
+              ? (chrome?.thinkingDifferently ?? "Thinking Differently…")
+              : (chrome?.thinkDifferently ?? "Think Differently")}
           </button>
         ) : null}
       </div>

@@ -209,7 +209,7 @@ describe("persona stage-3 APIs and UI", () => {
     const page = read("app/personas/[id]/page.tsx");
     assert.match(page, /PersonaGenerateIntelligenceButton/);
     assert.match(page, /PersonaGenerationProgress/);
-    assert.match(page, /Generate Intelligence/);
+    assert.match(page, /chrome=\{copy\.detail\}/);
     assert.match(page, /ExecutiveIntelligenceWorkspace/);
     assert.match(page, /sourceKind="persona"/);
   });

@@ -21,6 +21,11 @@ import type {
   ProspectConversationHistoryMessage,
   ProspectConversationVersionState,
 } from "@/services/prospectConversation/prospectConversationTypes";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import type { TenantMessages } from "@/lib/tenantI18n/types";
+
+export type ProspectConversationChrome =
+  TenantMessages["prospects"]["conversation"];
 
 export type ProspectConversationDiscussTarget = {
   executiveVersionId: string;
@@ -40,30 +45,48 @@ type ProspectConversationPanelProps = {
   ) => void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  chrome?: ProspectConversationChrome | null;
 };
 
 function versionIndicatorCopy(input: {
   versionState: ProspectConversationVersionState;
   versionLabel: string | null;
+  chrome?: ProspectConversationChrome | null;
 }): string {
   if (input.versionState === "current") {
-    return "Using Current Executive Version";
+    return input.chrome?.usingCurrent ?? "Using Current Executive Version";
   }
   if (input.versionState === "archived") {
-    return input.versionLabel
-      ? `Using Archived Executive Version — ${input.versionLabel.replace(/^Archived Executive Version — /, "")}`
-      : "Using Archived Executive Version";
+    const rawLabel = input.versionLabel
+      ? input.versionLabel.replace(/^Archived Executive Version — /, "")
+      : "";
+    return rawLabel
+      ? interpolateTenantMessage(
+          input.chrome?.usingArchivedNamed ??
+            "Using Archived Executive Version — {label}",
+          { label: rawLabel },
+        )
+      : (input.chrome?.usingArchived ?? "Using Archived Executive Version");
   }
-  return "No Executive Version — using available prospect context";
+  return (
+    input.chrome?.usingNone ??
+    "No Executive Version — using available prospect context"
+  );
 }
 
-function examplePrompts(hasAssetsHint: boolean): string[] {
+function examplePrompts(
+  hasAssetsHint: boolean,
+  chrome?: ProspectConversationChrome | null,
+): string[] {
   const examples = [
-    "What is the strongest opportunity Athena identified?",
-    "Explain the reasoning behind the current Strategic Blueprint.",
+    chrome?.example1 ?? "What is the strongest opportunity Athena identified?",
+    chrome?.example2 ??
+      "Explain the reasoning behind the current Strategic Blueprint.",
   ];
   if (hasAssetsHint) {
-    examples.push("Rewrite the Newsletter Idea in the first person.");
+    examples.push(
+      chrome?.example3 ?? "Rewrite the Newsletter Idea in the first person.",
+    );
   }
   return examples;
 }
@@ -102,6 +125,7 @@ function ProspectConversationPanelInner({
   onAssetReferenceChange,
   open,
   onOpenChange,
+  chrome = null,
 }: ProspectConversationPanelProps) {
   const messagesRegionId = useId();
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -267,7 +291,9 @@ function ProspectConversationPanelInner({
       rollbackUserTurn(trimmed);
       setError({
         code: "TRANSPORT_ERROR",
-        message: "Athena could not reach the service. Please try again.",
+        message:
+          chrome?.transportFailed ??
+          "Athena could not reach the service. Please try again.",
         retryMessage: trimmed,
       });
     } finally {
@@ -323,22 +349,32 @@ function ProspectConversationPanelInner({
     }
   }
 
-  const examples = examplePrompts(versionState !== "none");
+  const examples = examplePrompts(versionState !== "none", chrome);
+  const discussingKind =
+    assetReference?.kind === "deployment"
+      ? (chrome?.deploymentAsset ?? "Deployment Asset")
+      : (chrome?.strategicBlueprint ?? "Strategic Blueprint");
   const discussingLabel = assetReference
-    ? `Discussing: ${assetReference.kind === "deployment" ? "Deployment Asset" : "Strategic Blueprint"} — ${resolvedAssetTitle ?? assetReference.key}`
+    ? interpolateTenantMessage(
+        chrome?.discussing ?? "Discussing: {kind} — {title}",
+        {
+          kind: discussingKind,
+          title: resolvedAssetTitle ?? assetReference.key,
+        },
+      )
     : null;
 
   return (
     <div id="prospect-conversation" className="mt-8 scroll-mt-24">
       <AthenaCollapsibleSection
-        title="Ask Athena About This Prospect"
+        title={chrome?.title ?? "Ask Athena About This Prospect"}
         defaultOpen={false}
         open={open}
         onOpenChange={onOpenChange}
       >
         <p className="max-w-2xl text-sm leading-6 text-white/45">
-          Ask questions about this prospect, its intelligence, or any visible
-          strategic and deployment asset.
+          {chrome?.intro ??
+            "Ask questions about this prospect, its intelligence, or any visible strategic and deployment asset."}
         </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.15em] text-white/40">
@@ -351,12 +387,13 @@ function ProspectConversationPanelInner({
                   : "rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-semibold text-white/40"
             }
           >
-            {versionIndicatorCopy({ versionState, versionLabel })}
+            {versionIndicatorCopy({ versionState, versionLabel, chrome })}
           </span>
         </div>
 
         <p className="mt-3 text-xs leading-5 text-white/35">
-          Conversation responses do not modify Athena intelligence or assets.
+          {chrome?.readOnlyNotice ??
+            "Conversation responses do not modify Athena intelligence or assets."}
         </p>
 
         {discussingLabel ? (
@@ -367,7 +404,7 @@ function ProspectConversationPanelInner({
               onClick={clearAssetTarget}
               className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-white/60 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
             >
-              Clear target
+              {chrome?.clearTarget ?? "Clear target"}
             </button>
           </div>
         ) : null}
@@ -382,7 +419,7 @@ function ProspectConversationPanelInner({
           {messages.length === 0 && !pendingResponse ? (
             <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/35">
-                Try asking
+                {chrome?.tryAsking ?? "Try asking"}
               </div>
               <ul className="mt-3 space-y-2">
                 {examples.map((example) => (
@@ -418,7 +455,9 @@ function ProspectConversationPanelInner({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-                        {isUser ? "You" : "Athena"}
+                        {isUser
+                          ? (chrome?.you ?? "You")
+                          : (chrome?.athena ?? "Athena")}
                       </div>
                       {!isUser ? (
                         <button
@@ -428,7 +467,9 @@ function ProspectConversationPanelInner({
                           }
                           className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-white/50 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
                         >
-                          {copyAck === key ? "Copied" : "Copy"}
+                          {copyAck === key
+                            ? (chrome?.copied ?? "Copied")
+                            : (chrome?.copy ?? "Copy")}
                         </button>
                       ) : null}
                     </div>
@@ -445,12 +486,12 @@ function ProspectConversationPanelInner({
                 >
                   <div className="flex items-center gap-2">
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-                      Athena
+                      {chrome?.athena ?? "Athena"}
                     </div>
                     <ThinkingIndicator />
                   </div>
                   <p className="mt-2 text-sm leading-7 text-white/65">
-                    Athena is thinking…
+                    {chrome?.thinking ?? "Athena is thinking…"}
                   </p>
                 </div>
               ) : null}
@@ -466,7 +507,8 @@ function ProspectConversationPanelInner({
             <div>{error.message}</div>
             {error.requestId ? (
               <div className="mt-1 text-xs text-red-100/55">
-                Support reference: {error.requestId}
+                {chrome?.supportReference ?? "Support reference:"}{" "}
+                {error.requestId}
               </div>
             ) : null}
             {error.retryMessage ? (
@@ -476,7 +518,7 @@ function ProspectConversationPanelInner({
                 onClick={() => void sendMessage(error.retryMessage!)}
                 className="mt-2 rounded-lg border border-red-200/30 px-3 py-1.5 text-xs font-medium transition hover:bg-red-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-50"
               >
-                Retry
+                {chrome?.retry ?? "Retry"}
               </button>
             ) : null}
           </div>
@@ -484,7 +526,7 @@ function ProspectConversationPanelInner({
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-3">
           <label htmlFor="prospect-conversation-input" className="sr-only">
-            Ask Athena about this prospect
+            {chrome?.inputLabel ?? "Ask Athena about this prospect"}
           </label>
           <textarea
             id="prospect-conversation-input"
@@ -494,12 +536,15 @@ function ProspectConversationPanelInner({
             onKeyDown={handleKeyDown}
             disabled={busy}
             rows={3}
-            placeholder="Ask Athena about this prospect…"
+            placeholder={
+              chrome?.placeholder ?? "Ask Athena about this prospect…"
+            }
             className="w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white placeholder:text-white/30 focus:border-[var(--athena-orange)]/50 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-60"
           />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-white/30">
-              Enter to send · Shift+Enter for a new line
+              {chrome?.enterToSend ??
+                "Enter to send · Shift+Enter for a new line"}
             </p>
             <div className="flex flex-wrap gap-2">
               <button
@@ -508,14 +553,16 @@ function ProspectConversationPanelInner({
                 disabled={busy || (messages.length === 0 && !assetReference)}
                 className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/60 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-40"
               >
-                Clear conversation
+                {chrome?.clearConversation ?? "Clear conversation"}
               </button>
               <button
                 type="submit"
                 disabled={busy || !draft.trim()}
                 className="rounded-xl border border-[var(--athena-orange)]/40 bg-[var(--athena-orange)]/15 px-4 py-2 text-sm font-semibold text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-40"
               >
-                {busy ? "Asking…" : "Ask Athena"}
+                {busy
+                  ? (chrome?.asking ?? "Asking…")
+                  : (chrome?.askAthena ?? "Ask Athena")}
               </button>
             </div>
           </div>

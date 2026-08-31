@@ -10,9 +10,23 @@ import {
   fetchRegenerationStatus,
 } from "@/lib/discussionRegenerationStatus";
 
+type ProspectAppendChrome = {
+  title: string;
+  help: string;
+  field: string;
+  placeholder: string;
+  cta: string;
+  queuing: string;
+  processing: string;
+  success: string;
+  failed: string;
+  unexpected: string;
+};
+
 type AppendProspectInformationFormProps = {
   prospectId: string;
   discussionId: string;
+  chrome?: ProspectAppendChrome | null;
 };
 
 type AppendResponse = {
@@ -23,7 +37,10 @@ type AppendResponse = {
   error?: string | { code?: string; message?: string };
 };
 
-function errorMessageFromPayload(payload: AppendResponse): string {
+function errorMessageFromPayload(
+  payload: AppendResponse,
+  fallback: string,
+): string {
   if (typeof payload.error === "string" && payload.error.trim()) {
     return payload.error;
   }
@@ -34,12 +51,13 @@ function errorMessageFromPayload(payload: AppendResponse): string {
   ) {
     return payload.error.message;
   }
-  return "Failed to append information.";
+  return fallback;
 }
 
 export function AppendProspectInformationForm({
   prospectId,
   discussionId,
+  chrome = null,
 }: AppendProspectInformationFormProps) {
   const { trackQueuedGeneration, isGenerating } = useDiscussionRegeneration();
   const [body, setBody] = useState("");
@@ -69,11 +87,18 @@ export function AppendProspectInformationForm({
 
       const payload = await parseJsonResponse<AppendResponse>(response, {
         unexpectedMessage:
+          chrome?.unexpected ??
           "Athena received an unexpected server response while queuing this update.",
       });
 
       if (!response.ok || !payload.ok) {
-        setResult({ ok: false, message: errorMessageFromPayload(payload) });
+        setResult({
+          ok: false,
+          message: errorMessageFromPayload(
+            payload,
+            chrome?.failed ?? "Failed to append information.",
+          ),
+        });
         return;
       }
 
@@ -83,7 +108,8 @@ export function AppendProspectInformationForm({
         ok: true,
         message:
           payload.message ||
-          "Information appended. Intelligence regeneration queued.",
+          (chrome?.success ??
+            "Information appended. Intelligence regeneration queued."),
       });
     } catch (error) {
       setResult({
@@ -91,7 +117,7 @@ export function AppendProspectInformationForm({
         message:
           error instanceof Error
             ? error.message
-            : "Failed to append information.",
+            : (chrome?.failed ?? "Failed to append information."),
       });
     } finally {
       setIsSubmitting(false);
@@ -100,26 +126,28 @@ export function AppendProspectInformationForm({
 
   return (
     <AthenaCollapsibleSection
-      title="Append Information"
+      title={chrome?.title ?? "Append Information"}
       defaultOpen={Boolean(result)}
     >
     <form onSubmit={handleSubmit}>
       <p className="text-sm leading-6 text-white/45">
-        Add new notes or context without replacing imported fields. Athena
-        preserves history and regenerates a new Current Executive Version in the
-        background.
+        {chrome?.help ??
+          "Add new notes or context without replacing imported fields. Athena preserves history and regenerates a new Current Executive Version in the background."}
       </p>
 
       <label className="mt-6 grid gap-2">
         <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/35">
-          Additional Information
+          {chrome?.field ?? "Additional Information"}
         </span>
         <textarea
           value={body}
           onChange={(event) => setBody(event.target.value)}
           required
           rows={8}
-          placeholder="Paste new context or intelligence about this prospect."
+          placeholder={
+            chrome?.placeholder ??
+            "Paste new context or intelligence about this prospect."
+          }
           className="resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-4 text-sm leading-6 text-white outline-none placeholder:text-white/25"
         />
       </label>
@@ -131,10 +159,10 @@ export function AppendProspectInformationForm({
           className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
         >
           {isSubmitting
-            ? "Queuing..."
+            ? (chrome?.queuing ?? "Queuing...")
             : isGenerating
-              ? "Processing..."
-              : "Append & Reprocess"}
+              ? (chrome?.processing ?? "Processing...")
+              : (chrome?.cta ?? "Append & Reprocess")}
         </button>
         {result && (
           <div
