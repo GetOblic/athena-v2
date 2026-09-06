@@ -8,6 +8,14 @@ import { join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { TENANT_TABLES } from "../lib/tenantDatabase";
 
+const TENANT_IDENTITY_COLUMN: Partial<Record<(typeof TENANT_TABLES)[number], string>> = {
+  athena_getoblic_directory_settings: "organization_id",
+};
+
+function tenantIdentityColumn(table: (typeof TENANT_TABLES)[number]): string {
+  return TENANT_IDENTITY_COLUMN[table] ?? "id";
+}
+
 const root = join(process.cwd(), "services");
 
 const forbiddenPatterns = [
@@ -198,7 +206,7 @@ async function assertTenantColumnsPopulated(
 
     const { count, error } = await supabase
       .from(table)
-      .select("id", { count: "exact", head: true })
+      .select(tenantIdentityColumn(table), { count: "exact", head: true })
       .is("organization_id", null);
 
     if (error?.message.includes("Could not find the table")) {
@@ -225,7 +233,7 @@ async function assertTenantColumnsPopulatedWithoutRpc(
   for (const table of TENANT_TABLES) {
     const { count, error } = await supabase
       .from(table)
-      .select("id", { count: "exact", head: true })
+      .select(tenantIdentityColumn(table), { count: "exact", head: true })
       .is("organization_id", null);
 
     if (error?.message.includes("Could not find the table")) {
@@ -274,9 +282,10 @@ async function assertNoCrossTenantLeaks(
   const orgB = organizations[1].id;
 
   for (const table of TENANT_TABLES) {
+    const identityColumn = tenantIdentityColumn(table);
     const { data: orgARows, error: orgAError } = await supabase
       .from(table)
-      .select("id")
+      .select(identityColumn)
       .eq("organization_id", orgA)
       .limit(1);
 
@@ -292,12 +301,12 @@ async function assertNoCrossTenantLeaks(
       continue;
     }
 
-    const sampleId = orgARows[0].id;
+    const sampleId = (orgARows[0] as Record<string, unknown>)[identityColumn];
 
     const { data: leakedRows, error: leakError } = await supabase
       .from(table)
-      .select("id")
-      .eq("id", sampleId)
+      .select(identityColumn)
+      .eq(identityColumn, sampleId)
       .eq("organization_id", orgB);
 
     if (leakError) {

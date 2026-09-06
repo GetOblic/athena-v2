@@ -4,6 +4,8 @@
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getOblicListingActiveClaimError } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
+import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { normalizeOptionalProspectGetOblicType } from "@/services/prospects/prospectGetOblicType";
 import { normalizeProspectLifecycleStatus } from "@/services/prospects/prospectLifecycle";
 import {
@@ -473,9 +475,14 @@ export async function updateProspect(
  * Also removes the temporary Discussion compatibility bridge (and its cascaded
  * generation jobs / executive versions) via the existing deleteDiscussion path.
  *
- * Bridge cleanup runs first (FK is ON DELETE SET NULL). That avoids reporting
- * success while leaving known orphaned intelligence, and keeps the Prospect
- * row available for retry if bridge cleanup fails.
+ * An active GetOblic Directory claim (claiming / linked / remote_missing)
+ * blocks hard delete before any cleanup. The mapping is not deleted, released,
+ * or refunded.
+ *
+ * If no active claim exists, bridge cleanup runs next (FK is ON DELETE SET
+ * NULL). That avoids reporting success while leaving known orphaned
+ * intelligence, and keeps the Prospect row available for retry if bridge
+ * cleanup fails.
  */
 export async function deleteProspect(
   id: string,
@@ -484,6 +491,14 @@ export async function deleteProspect(
   const existing = await getProspectById(id, organizationId);
   if (!existing) {
     return false;
+  }
+
+  const activeGetOblicClaim = await getActiveGetOblicLinkForProspect(
+    organizationId,
+    id,
+  );
+  if (activeGetOblicClaim) {
+    throw getOblicListingActiveClaimError();
   }
 
   const bridgeDiscussionId = existing.linked_discussion_id;

@@ -7,6 +7,7 @@ import {
 import { ensureProspectGenerationQueued } from "@/services/prospects/prospectImporter";
 import { toPublicProspect } from "@/services/prospects/prospectPublic";
 import { hasMeaningfulProspectEdit } from "@/services/prospects/prospectUtils";
+import { GetOblicDirectoryError } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -238,6 +239,23 @@ export async function DELETE(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (
+      error instanceof GetOblicDirectoryError &&
+      error.code === "GETOBLIC_LISTING_ACTIVE_CLAIM"
+    ) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: {
+            code: error.code,
+            message: error.message,
+          },
+        },
+        409,
       );
     }
 

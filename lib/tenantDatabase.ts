@@ -22,6 +22,13 @@ export const TENANT_TABLES = [
   "athena_social_calendars",
   "athena_social_calendar_generation_jobs",
   "athena_social_calendar_messages",
+  // GetOblic Directory tables are organization-owned tenant artifacts.
+  // Ordinary reads/writes must include organization_id. The one intentional
+  // exception is the internal global active-listing conflict check, which
+  // classifies exclusivity without returning another tenant's row to callers.
+  "athena_getoblic_listing_links",
+  "athena_getoblic_directory_settings",
+  "athena_getoblic_listing_allocation_events",
 ] as const;
 
 export type TenantTable = (typeof TENANT_TABLES)[number];
