@@ -3,6 +3,7 @@
  *
  * Phase 2A does not reserve claims, call WordPress, write ledger events,
  * push Knowledge Base content, or transition relationship_status to released.
+ * Phase 2C claim writers live in getoblicDirectoryClaimService.
  *
  * Future Phase 2C transaction boundaries (do not invent a single atomic
  * reservation+remote+ledger transaction in this phase):
@@ -19,6 +20,7 @@
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { GetOblicDirectoryError } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
 import {
   ACTIVE_GETOBLIC_RELATIONSHIP_STATUSES,
   classifyGetOblicListingClaimAvailability,
@@ -90,6 +92,33 @@ export async function getActiveGetOblicLinkForProspect(
   if (error) {
     console.error("Error fetching active GetOblic listing link:", error);
     return null;
+  }
+
+  return data ? mapListingLinkRow(data as Record<string, unknown>) : null;
+}
+
+/**
+ * Internal global active listing row lookup.
+ * Intentionally not organization-scoped: exclusivity is global.
+ * Do not return this object from browser-facing APIs.
+ */
+export async function getActiveGetOblicListingLinkByWordPressListingId(
+  wordpressListingId: number,
+): Promise<GetOblicListingLink | null> {
+  const { data, error } = await supabaseAdmin
+    .from(GETOBLIC_LISTING_LINKS_TABLE)
+    .select("*")
+    .eq("wordpress_listing_id", wordpressListingId)
+    .in("relationship_status", ACTIVE_STATUS_LIST)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching active GetOblic listing link by listing:", error);
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_CONCURRENCY_CONFLICT",
+      "GetOblic Directory could not complete this claim safely.",
+      503,
+    );
   }
 
   return data ? mapListingLinkRow(data as Record<string, unknown>) : null;
@@ -241,7 +270,7 @@ function mapDirectorySettingsRow(
   };
 }
 
-function mapListingLinkRow(row: Record<string, unknown>): GetOblicListingLink | null {
+export function mapListingLinkRow(row: Record<string, unknown>): GetOblicListingLink | null {
   const id = readString(row.id);
   const organizationId = readString(row.organization_id);
   const prospectId = readString(row.prospect_id);
