@@ -50,10 +50,10 @@ if (!fs.existsSync(nextBin)) {
 module.exports = {
   apps: [
     {
-      name: "athena",
+      name: "athena-v2",
       cwd: appPath,
       script: "node_modules/next/dist/bin/next",
-      args: "start -p 3000",
+      args: "start -p 3002",
       instances: 1,
       exec_mode: "fork",
       env: {
@@ -62,7 +62,7 @@ module.exports = {
       },
     },
     {
-      name: "athena-worker",
+      name: "athena-v2-worker",
       cwd: appPath,
       script: "dist/worker/athenaWorker.js",
       instances: 1,

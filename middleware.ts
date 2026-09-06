@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 const CLOUDWAYS_HOST = "phpstack-1560927-6533124.cloudwaysapps.com";
-const CANONICAL_HOST = "athena.getoblic.com";
+const CANONICAL_HOST = "athena-v2.getoblic.com";
 
 export async function middleware(request: NextRequest) {
   const host =
