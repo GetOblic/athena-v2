@@ -94,16 +94,12 @@ describe("Think Differently Phase 2B — button styling", () => {
     const prospectButton = read(
       "components/prospects/ProspectRefreshIntelligenceButton.tsx",
     );
-    assert.match(
-      prospectButton,
-      /bg-\[var\(--athena-orange\)\][\s\S]*Generate Intelligence/,
-    );
-    assert.match(
-      prospectButton,
-      /border-\[var\(--athena-success\)\]\/30[\s\S]*Think Differently/,
-    );
+    assert.match(prospectButton, /bg-\[var\(--athena-orange\)\]/);
+    assert.match(prospectButton, /Generate prospect intelligence/);
+    assert.match(prospectButton, /border-\[var\(--athena-success\)\]\/30/);
+    assert.match(prospectButton, /Try another approach/);
     assert.match(prospectButton, /disabled=\{busy\}/);
-    assert.match(prospectButton, /Thinking Differently/);
+    assert.match(prospectButton, /Trying another approach/);
   });
 });
 

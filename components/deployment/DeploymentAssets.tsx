@@ -38,6 +38,7 @@ export type DeploymentAssetsChrome = {
   copy?: CopyButtonChrome;
   discussWithAthena?: string;
   noPromptGeneratedYet?: string;
+  heading?: string;
 };
 
 type DeploymentAssetsProps = {
@@ -103,7 +104,7 @@ export function DeploymentAssets({
       className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 shadow-[0_0_40px_rgba(255,102,0,0.06)] lg:p-10`}
     >
       <h2 className="text-3xl font-semibold tracking-tight text-[var(--athena-orange)]">
-        Deployment Assets
+        {chrome?.heading ?? "Deployment Assets"}
       </h2>
 
       <p className="mt-2 max-w-2xl text-base text-white/50">
