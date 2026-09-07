@@ -194,4 +194,104 @@ describe("GetOblic WordPress client operations", () => {
     );
     assert.match(String(calls[0]?.init?.body), /"email":"owner@example.com"/);
   });
+
+  it("GETs listings/search with only the accepted query fields", async () => {
+    process.env.ATHENA_V2_DIRECTORY_API_KEY = "test-directory-key";
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+    globalThis.fetch = (async (input, init) => {
+      calls.push({ url: String(input), init });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          query: {
+            keywords: "hair salons in Dallas",
+            listing_type: "getoblic_global_search_engine",
+            page: 0,
+            per_page: 6,
+          },
+          results: [
+            {
+              wordpress_listing_id: 683539,
+              title: "Uptown Dallas Barber",
+              permalink: "https://getoblic.com/listing/uptown",
+              status: "publish",
+              listing_type: "barbershop",
+              category: [
+                { term_id: 50466, slug: "barbershop-cst", name: "Barbershop CST" },
+              ],
+              location_display: "Dallas, TX",
+              lat: 32.79,
+              lng: -96.81,
+              image: null,
+              google_id: null,
+            },
+          ],
+          pagination: {
+            page: 0,
+            per_page: 6,
+            found_posts: 16,
+            max_num_pages: 3,
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    const { searchWordpressListings } = await import(
+      "../../services/getoblicDirectory/getoblicWordpressClient"
+    );
+    const result = await searchWordpressListings({
+      keywords: "hair salons in Dallas",
+      listing_type: "getoblic_global_search_engine",
+      page: 0,
+      per_page: 6,
+    });
+    assert.equal(result.results[0]?.wordpress_listing_id, 683539);
+    assert.equal(result.pagination.found_posts, 16);
+    const url = new URL(calls[0]?.url ?? "");
+    assert.equal(url.origin + url.pathname, "https://getoblic.com/wp-json/athena/v1/listings/search");
+    assert.equal(url.searchParams.get("keywords"), "hair salons in Dallas");
+    assert.equal(url.searchParams.get("listing_type"), "getoblic_global_search_engine");
+    assert.equal(url.searchParams.get("page"), "0");
+    assert.equal(url.searchParams.get("per_page"), "6");
+    assert.equal(url.searchParams.has("query"), false);
+    assert.equal(url.searchParams.has("ep_integrate"), false);
+    assert.equal(url.searchParams.has("organization_id"), false);
+    const headers = new Headers(calls[0]?.init?.headers);
+    assert.equal(headers.get("x-api-key"), "test-directory-key");
+    assert.equal(calls[0]?.init?.method, "GET");
+  });
+
+  it("rejects empty keywords before calling WordPress", async () => {
+    process.env.ATHENA_V2_DIRECTORY_API_KEY = "test-directory-key";
+    let called = false;
+    globalThis.fetch = (async () => {
+      called = true;
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    const { searchWordpressListings } = await import(
+      "../../services/getoblicDirectory/getoblicWordpressClient"
+    );
+    const { GetOblicWordpressError } = await import(
+      "../../services/getoblicDirectory/getoblicWordpressTypes"
+    );
+
+    await assert.rejects(
+      () =>
+        searchWordpressListings({
+          keywords: "   ",
+          listing_type: "getoblic_global_search_engine",
+          page: 0,
+          per_page: 6,
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicWordpressError);
+        assert.equal(error.code, "VALIDATION");
+        assert.equal(error.remoteCode, "KEYWORDS_REQUIRED");
+        return true;
+      },
+    );
+    assert.equal(called, false);
+  });
 });

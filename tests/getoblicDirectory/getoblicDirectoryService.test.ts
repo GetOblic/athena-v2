@@ -6,6 +6,7 @@ import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import {
   determineGetOblicListingClaimAvailability,
   getActiveGetOblicClaimByWordPressListingId,
+  getActiveGetOblicClaimOrganizationIdsByWordPressListingIds,
   getActiveGetOblicLinkForProspect,
   getGetOblicAllocationUsage,
   getGetOblicDirectorySettings,
@@ -420,5 +421,48 @@ describe("GetOblic claim lookup and availability (service)", () => {
     assert.deepEqual(Object.keys(result), ["availability"]);
     assert.doesNotMatch(JSON.stringify(result), new RegExp(ORG_B));
     assert.doesNotMatch(JSON.stringify(result), new RegExp(PROSPECT_B));
+  });
+
+  it("batches active claim organization IDs without scoping to the caller org", async () => {
+    const { calls } = installFixture({
+      links: [
+        completeLink({
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 100,
+          relationship_status: "linked",
+        }),
+        completeLink({
+          id: "link-b",
+          organization_id: ORG_B,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 200,
+          relationship_status: "claiming",
+        }),
+        completeLink({
+          id: "link-released",
+          organization_id: ORG_B,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 300,
+          relationship_status: "released",
+        }),
+      ],
+    });
+
+    const claims = await getActiveGetOblicClaimOrganizationIdsByWordPressListingIds([
+      100,
+      200,
+      300,
+      400,
+    ]);
+    assert.equal(claims.get(100), ORG_A);
+    assert.equal(claims.get(200), ORG_B);
+    assert.equal(claims.has(300), false);
+    assert.equal(claims.has(400), false);
+    const lookup = calls.find(
+      (call) => call.table === "athena_getoblic_listing_links",
+    );
+    assert.ok(lookup);
+    assert.equal("organization_id" in (lookup?.filters ?? {}), false);
   });
 });

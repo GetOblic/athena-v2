@@ -64,3 +64,41 @@ export type GetOblicWordpressKnowledgeBaseUpdate = {
   sha256: string | null;
   changed: boolean;
 };
+
+export type GetOblicWordpressSearchRequest = {
+  keywords: string;
+  listing_type: string;
+  page: number;
+  per_page: number;
+};
+
+export type GetOblicWordpressSearchCategory = {
+  term_id: number;
+  slug: string;
+  name: string;
+};
+
+export type GetOblicWordpressSearchHit = {
+  wordpress_listing_id: number;
+  title: string | null;
+  permalink: string | null;
+  status: string | null;
+  listing_type: string | null;
+  category: GetOblicWordpressSearchCategory[];
+  location_display: string | null;
+  lat: number | null;
+  lng: number | null;
+  image: string | null;
+  google_id: string | null;
+};
+
+export type GetOblicWordpressSearchResponse = {
+  query: GetOblicWordpressSearchRequest;
+  results: GetOblicWordpressSearchHit[];
+  pagination: {
+    page: number;
+    per_page: number;
+    found_posts: number;
+    max_num_pages: number;
+  };
+};

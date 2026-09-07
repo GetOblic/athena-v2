@@ -103,6 +103,7 @@ export const GETOBLIC_DIRECTORY_ERROR_CODES = [
   "GETOBLIC_KNOWLEDGE_BASE_ASSET_MISSING",
   "GETOBLIC_WORDPRESS_KB_WRITE_FAILED",
   "GETOBLIC_KB_SYNC_PERSISTENCE_FAILED",
+  "GETOBLIC_SEARCH_INVALID_REQUEST",
 ] as const;
 
 export type GetOblicDirectoryErrorCode =
@@ -190,6 +191,40 @@ export function isActiveGetOblicRelationshipStatus(
   return (ACTIVE_GETOBLIC_RELATIONSHIP_STATUSES as readonly string[]).includes(
     status,
   );
+}
+
+export const GETOBLIC_DIRECTORY_SEARCH_CLAIM_STATUSES = [
+  "AVAILABLE",
+  "OWNED_BY_THIS_ORG",
+  "UNAVAILABLE",
+] as const;
+
+export type GetOblicDirectorySearchClaimStatus =
+  (typeof GETOBLIC_DIRECTORY_SEARCH_CLAIM_STATUSES)[number];
+
+export const GETOBLIC_DIRECTORY_SEARCH_DEFAULT_LISTING_TYPE =
+  "getoblic_global_search_engine" as const;
+export const GETOBLIC_DIRECTORY_SEARCH_KEYWORDS_MAX = 200;
+export const GETOBLIC_DIRECTORY_SEARCH_DEFAULT_PAGE = 0;
+export const GETOBLIC_DIRECTORY_SEARCH_DEFAULT_PER_PAGE = 6;
+export const GETOBLIC_DIRECTORY_SEARCH_MIN_PER_PAGE = 1;
+export const GETOBLIC_DIRECTORY_SEARCH_MAX_PER_PAGE = 20;
+
+/**
+ * Generic directory search has no Prospect authority.
+ * Do not emit OWNED_BY_THIS_PROSPECT from this classifier.
+ */
+export function classifyGetOblicDirectorySearchClaimStatus(
+  organizationId: string,
+  claimOrganizationId: string | null,
+): GetOblicDirectorySearchClaimStatus {
+  if (!claimOrganizationId) {
+    return "AVAILABLE";
+  }
+  if (claimOrganizationId === organizationId) {
+    return "OWNED_BY_THIS_ORG";
+  }
+  return "UNAVAILABLE";
 }
 
 export function classifyGetOblicListingClaimAvailability(

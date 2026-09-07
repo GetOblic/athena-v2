@@ -184,6 +184,54 @@ export async function determineGetOblicListingClaimAvailability(
   );
 }
 
+/**
+ * Internal batch active-claim lookup for search overlay.
+ * Intentionally not organization-scoped: exclusivity is global.
+ * Returns only listing ID → organization_id. Do not serialize this map.
+ */
+export async function getActiveGetOblicClaimOrganizationIdsByWordPressListingIds(
+  wordpressListingIds: number[],
+): Promise<Map<number, string>> {
+  const uniqueIds = [
+    ...new Set(
+      wordpressListingIds.filter(
+        (id) => Number.isInteger(id) && id > 0,
+      ),
+    ),
+  ];
+  const claims = new Map<number, string>();
+  if (uniqueIds.length === 0) {
+    return claims;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from(GETOBLIC_LISTING_LINKS_TABLE)
+    .select("wordpress_listing_id, organization_id")
+    .in("wordpress_listing_id", uniqueIds)
+    .in("relationship_status", ACTIVE_STATUS_LIST);
+
+  if (error) {
+    console.error("Error batch-looking up GetOblic listing claims:", error);
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_CONCURRENCY_CONFLICT",
+      "GetOblic Directory could not complete this search safely.",
+      503,
+    );
+  }
+
+  for (const row of data ?? []) {
+    const record = row as Record<string, unknown>;
+    const listingId = readInteger(record.wordpress_listing_id);
+    const organizationId = readString(record.organization_id);
+    if (listingId == null || listingId <= 0 || !organizationId) {
+      continue;
+    }
+    claims.set(listingId, organizationId);
+  }
+
+  return claims;
+}
+
 export async function getGetOblicAllocationUsage(
   organizationId: string,
   now: Date = new Date(),

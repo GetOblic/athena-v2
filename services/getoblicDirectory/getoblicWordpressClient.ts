@@ -12,8 +12,19 @@ import {
   type GetOblicWordpressErrorCode,
   type GetOblicWordpressKnowledgeBaseUpdate,
   type GetOblicWordpressListing,
+  type GetOblicWordpressSearchHit,
+  type GetOblicWordpressSearchRequest,
+  type GetOblicWordpressSearchResponse,
   type GetOblicWordpressUserResolution,
 } from "@/services/getoblicDirectory/getoblicWordpressTypes";
+import {
+  GETOBLIC_DIRECTORY_SEARCH_DEFAULT_LISTING_TYPE,
+  GETOBLIC_DIRECTORY_SEARCH_DEFAULT_PAGE,
+  GETOBLIC_DIRECTORY_SEARCH_DEFAULT_PER_PAGE,
+  GETOBLIC_DIRECTORY_SEARCH_KEYWORDS_MAX,
+  GETOBLIC_DIRECTORY_SEARCH_MAX_PER_PAGE,
+  GETOBLIC_DIRECTORY_SEARCH_MIN_PER_PAGE,
+} from "@/services/getoblicDirectory/getoblicDirectoryTypes";
 
 type WordpressConfig = {
   baseUrl: string;
@@ -241,6 +252,270 @@ function parseAuthorAssignment(
   };
 }
 
+function readNullableNumber(
+  record: Record<string, unknown>,
+  key: string,
+): number | null {
+  if (!(key in record) || record[key] === null) {
+    return null;
+  }
+  const value = record[key];
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && /^-?\d+(?:\.\d+)?$/.test(value.trim())) {
+    return Number(value.trim());
+  }
+  return null;
+}
+
+function parseSearchCategory(
+  value: unknown,
+): GetOblicWordpressSearchHit["category"][number] | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  const termId = readInteger(record, "term_id");
+  const slug = readString(record, "slug");
+  const name = readString(record, "name");
+  if (termId == null || termId <= 0 || !slug || !name) {
+    return null;
+  }
+  return { term_id: termId, slug, name };
+}
+
+function parseSearchHit(value: unknown): GetOblicWordpressSearchHit {
+  const source = asRecord(value);
+  if (!source) {
+    throw new GetOblicWordpressError(
+      "INVALID_RESPONSE",
+      "WordPress returned an invalid search result.",
+      502,
+    );
+  }
+
+  const wordpressListingId = readInteger(source, "wordpress_listing_id");
+  if (wordpressListingId == null || wordpressListingId <= 0) {
+    throw new GetOblicWordpressError(
+      "INVALID_RESPONSE",
+      "WordPress search result is missing wordpress_listing_id.",
+      502,
+    );
+  }
+
+  const categoryRaw = source.category;
+  let category: GetOblicWordpressSearchHit["category"] = [];
+  if (Array.isArray(categoryRaw)) {
+    category = categoryRaw
+      .map((entry) => parseSearchCategory(entry))
+      .filter((entry): entry is NonNullable<typeof entry> => entry != null);
+  } else if (categoryRaw != null) {
+    const single = parseSearchCategory(categoryRaw);
+    if (single) {
+      category = [single];
+    }
+  }
+
+  return {
+    wordpress_listing_id: wordpressListingId,
+    title: readNullableString(source, "title"),
+    permalink: readNullableString(source, "permalink"),
+    status: readNullableString(source, "status"),
+    listing_type: readNullableString(source, "listing_type"),
+    category,
+    location_display: readNullableString(source, "location_display"),
+    lat: readNullableNumber(source, "lat"),
+    lng: readNullableNumber(source, "lng"),
+    image: readNullableString(source, "image"),
+    google_id: readNullableString(source, "google_id"),
+  };
+}
+
+function parseSearchResponse(payload: unknown): GetOblicWordpressSearchResponse {
+  const root = asRecord(payload);
+  if (!root || root.success !== true) {
+    throw new GetOblicWordpressError(
+      "INVALID_RESPONSE",
+      "WordPress returned an invalid search payload.",
+      502,
+    );
+  }
+
+  const query = asRecord(root.query);
+  const pagination = asRecord(root.pagination);
+  const resultsRaw = root.results;
+  if (!query || !pagination || !Array.isArray(resultsRaw)) {
+    throw new GetOblicWordpressError(
+      "INVALID_RESPONSE",
+      "WordPress search response is missing query, results, or pagination.",
+      502,
+    );
+  }
+
+  const keywords = readString(query, "keywords");
+  const listingType = readString(query, "listing_type");
+  const page = readInteger(query, "page");
+  const perPage = readInteger(query, "per_page");
+  const foundPosts = readInteger(pagination, "found_posts");
+  const maxNumPages = readInteger(pagination, "max_num_pages");
+  if (
+    !keywords ||
+    !listingType ||
+    page == null ||
+    page < 0 ||
+    perPage == null ||
+    perPage < 1 ||
+    foundPosts == null ||
+    foundPosts < 0 ||
+    maxNumPages == null ||
+    maxNumPages < 0
+  ) {
+    throw new GetOblicWordpressError(
+      "INVALID_RESPONSE",
+      "WordPress search response is missing pagination fields.",
+      502,
+    );
+  }
+
+  return {
+    query: {
+      keywords,
+      listing_type: listingType,
+      page,
+      per_page: perPage,
+    },
+    results: resultsRaw.map((entry) => parseSearchHit(entry)),
+    pagination: {
+      page: readInteger(pagination, "page") ?? page,
+      per_page: readInteger(pagination, "per_page") ?? perPage,
+      found_posts: foundPosts,
+      max_num_pages: maxNumPages,
+    },
+  };
+}
+
+export function normalizeGetOblicWordpressSearchRequest(input: {
+  keywords: unknown;
+  listing_type?: unknown;
+  page?: unknown;
+  per_page?: unknown;
+}): GetOblicWordpressSearchRequest {
+  if (input.keywords != null && typeof input.keywords === "object") {
+    throw new GetOblicWordpressError(
+      "VALIDATION",
+      "keywords must be a string.",
+      400,
+      "KEYWORDS_INVALID",
+    );
+  }
+  if (
+    typeof input.keywords !== "string" &&
+    typeof input.keywords !== "number"
+  ) {
+    throw new GetOblicWordpressError(
+      "VALIDATION",
+      "keywords is required.",
+      400,
+      "KEYWORDS_REQUIRED",
+    );
+  }
+
+  const keywords = String(input.keywords).trim();
+  if (!keywords) {
+    throw new GetOblicWordpressError(
+      "VALIDATION",
+      "keywords is required.",
+      400,
+      "KEYWORDS_REQUIRED",
+    );
+  }
+  if (keywords.length > GETOBLIC_DIRECTORY_SEARCH_KEYWORDS_MAX) {
+    throw new GetOblicWordpressError(
+      "VALIDATION",
+      "keywords exceeds the maximum length.",
+      400,
+      "KEYWORDS_TOO_LONG",
+    );
+  }
+
+  let listingType: string = GETOBLIC_DIRECTORY_SEARCH_DEFAULT_LISTING_TYPE;
+  if (input.listing_type != null && input.listing_type !== "") {
+    if (typeof input.listing_type !== "string") {
+      throw new GetOblicWordpressError(
+        "VALIDATION",
+        "listing_type is invalid.",
+        400,
+        "INVALID_LISTING_TYPE",
+      );
+    }
+    const normalized = input.listing_type.trim();
+    if (!/^[a-z0-9][a-z0-9_-]{0,199}$/.test(normalized)) {
+      throw new GetOblicWordpressError(
+        "VALIDATION",
+        "listing_type is invalid.",
+        400,
+        "INVALID_LISTING_TYPE",
+      );
+    }
+    listingType = normalized;
+  }
+
+  const page = parseBoundedInteger(
+    input.page,
+    GETOBLIC_DIRECTORY_SEARCH_DEFAULT_PAGE,
+    0,
+    Number.MAX_SAFE_INTEGER,
+    "page must be an integer greater than or equal to 0.",
+    "INVALID_PAGE",
+  );
+  const perPage = parseBoundedInteger(
+    input.per_page,
+    GETOBLIC_DIRECTORY_SEARCH_DEFAULT_PER_PAGE,
+    GETOBLIC_DIRECTORY_SEARCH_MIN_PER_PAGE,
+    GETOBLIC_DIRECTORY_SEARCH_MAX_PER_PAGE,
+    "per_page must be an integer between 1 and 20.",
+    "INVALID_PER_PAGE",
+  );
+
+  return {
+    keywords,
+    listing_type: listingType,
+    page,
+    per_page: perPage,
+  };
+}
+
+function parseBoundedInteger(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+  message: string,
+  remoteCode: string,
+): number {
+  if (value == null || value === "") {
+    return fallback;
+  }
+  if (typeof value === "object" || typeof value === "boolean") {
+    throw new GetOblicWordpressError("VALIDATION", message, 400, remoteCode);
+  }
+  if (typeof value === "number" && Number.isInteger(value)) {
+    if (value < min || value > max) {
+      throw new GetOblicWordpressError("VALIDATION", message, 400, remoteCode);
+    }
+    return value;
+  }
+  if (typeof value === "string" && /^(?:0|[1-9][0-9]*)$/.test(value.trim())) {
+    const parsed = Number(value.trim());
+    if (parsed < min || parsed > max) {
+      throw new GetOblicWordpressError("VALIDATION", message, 400, remoteCode);
+    }
+    return parsed;
+  }
+  throw new GetOblicWordpressError("VALIDATION", message, 400, remoteCode);
+}
+
 function parseKnowledgeBaseUpdate(
   payload: unknown,
   fallbackListingId: number,
@@ -463,4 +738,21 @@ export async function putWordpressListingKnowledgeBase(
     body: { knowledge_base: knowledgeBase },
   });
   return parseKnowledgeBaseUpdate(payload, id);
+}
+
+export async function searchWordpressListings(
+  input: GetOblicWordpressSearchRequest,
+): Promise<GetOblicWordpressSearchResponse> {
+  const request = normalizeGetOblicWordpressSearchRequest(input);
+  const params = new URLSearchParams({
+    keywords: request.keywords,
+    listing_type: request.listing_type,
+    page: String(request.page),
+    per_page: String(request.per_page),
+  });
+  const { payload } = await wordpressFetch(
+    `/listings/search?${params.toString()}`,
+    { method: "GET" },
+  );
+  return parseSearchResponse(payload);
 }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  classifyGetOblicDirectorySearchClaimStatus,
   classifyGetOblicListingClaimAvailability,
   getCurrentGetOblicAllocationPeriodStart,
   isActiveGetOblicRelationshipStatus,
@@ -116,6 +117,29 @@ describe("GetOblic listing claim availability", () => {
       found: false,
     });
     assert.deepEqual(result, { availability: "available" });
+  });
+});
+
+describe("GetOblic directory search claim overlay", () => {
+  it("returns AVAILABLE when no active claim exists", () => {
+    assert.equal(
+      classifyGetOblicDirectorySearchClaimStatus(ORG_A, null),
+      "AVAILABLE",
+    );
+  });
+
+  it("returns OWNED_BY_THIS_ORG for a same-organization claim", () => {
+    assert.equal(
+      classifyGetOblicDirectorySearchClaimStatus(ORG_A, ORG_A),
+      "OWNED_BY_THIS_ORG",
+    );
+  });
+
+  it("returns UNAVAILABLE for another organization without leaking identifiers", () => {
+    const status = classifyGetOblicDirectorySearchClaimStatus(ORG_A, ORG_B);
+    assert.equal(status, "UNAVAILABLE");
+    assert.doesNotMatch(status, new RegExp(ORG_B));
+    assert.doesNotMatch(status, /OWNED_BY_THIS_PROSPECT/);
   });
 });
 

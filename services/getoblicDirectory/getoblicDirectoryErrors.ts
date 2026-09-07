@@ -9,6 +9,7 @@ export function directoryErrorStatus(code: GetOblicDirectoryErrorCode): number {
     case "GETOBLIC_LINK_NOT_FOUND":
       return 404;
     case "GETOBLIC_INVALID_WORDPRESS_LISTING_ID":
+    case "GETOBLIC_SEARCH_INVALID_REQUEST":
       return 400;
     case "GETOBLIC_REMOTE_AUTH_FAILED":
       return 503;
