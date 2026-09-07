@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { TodaysIntelligence } from "../../components/dashboard/TodaysIntelligence";
+import { HomeAttentionList } from "../../components/home/HomeAttentionList";
+import { HomeDomainCard } from "../../components/home/HomeDomainCard";
 import { GettingStartedConversationPanel } from "../../components/getting-started/GettingStartedConversationPanel";
 import { IdentityConversationPanel } from "../../components/identity/IdentityConversationPanel";
 import { IdentityExecutiveIntelligence } from "../../components/identity/IdentityExecutiveIntelligence";
@@ -97,27 +98,15 @@ const STORED_OPPORTUNITY_TITLE = "Acme expansion in Lyon";
 const STORED_GREETING_NAME = "Laurent";
 const STORED_EI_SUMMARY = "Generated executive summary stays English.";
 
-const emptyTodaysIntelligence = {
-  newDiscussions: 2,
-  immediateActionOpportunities: 1,
-  briefingsAwaitingApproval: 0,
-  strategicBlueprints: 3,
-  highestOpportunity: {
-    id: "opp-1",
-    title: STORED_OPPORTUNITY_TITLE,
-    score: 91,
-  },
-  knowledgeConfidence: 64,
-  knowledgeConfidenceDelta: 3,
-};
-
 function dashboardPageUses(messages: TenantMessages): string[] {
   return [
     messages.dashboard.eyebrow,
     messages.dashboard.subtitle,
-    messages.dashboard.todaysTitle,
-    messages.dashboard.brainReadyTitle,
-    messages.dashboard.openBrain,
+    messages.dashboard.define.title,
+    messages.dashboard.visibility.title,
+    messages.dashboard.traction.title,
+    messages.dashboard.convert.title,
+    messages.dashboard.attention.title,
     messages.dashboard.goodMorning,
     messages.dashboard.goodAfternoon,
     messages.dashboard.goodEvening,
@@ -125,19 +114,22 @@ function dashboardPageUses(messages: TenantMessages): string[] {
 }
 
 describe("V31 L3.3 tenant page body — dashboard", () => {
-  it("keeps English Dashboard chrome canonical", () => {
+  it("keeps English Command Center chrome canonical", () => {
     const html = renderToStaticMarkup(
-      createElement(TodaysIntelligence, {
-        summary: emptyTodaysIntelligence,
-        messages: en.dashboard,
+      createElement(HomeAttentionList, {
+        title: en.dashboard.attention.title,
+        intro: en.dashboard.attention.intro,
+        items: [],
+        emptyLabel: en.dashboard.attention.empty,
       }),
     );
-    assert.match(html, /Today&#x27;s Intelligence|Today's Intelligence/);
-    assert.match(html, /Your executive snapshot/);
-    assert.match(html, /New discussions/);
-    assert.match(html, /Highest opportunity/);
-    assert.match(html, /Score 91/);
-    assert.equal(en.dashboard.eyebrow, "Athena Dashboard");
+    assert.match(html, /What needs attention/);
+    assert.match(html, /Open items from your current workspace state/);
+    assert.equal(en.dashboard.eyebrow, "Command Center");
+    assert.equal(
+      en.dashboard.subtitle,
+      "Here is where your business stands, and what you can work on now.",
+    );
     assert.equal(en.dashboard.goodMorning, "Good morning");
     assert.equal(en.dashboard.goodAfternoon, "Good afternoon");
     assert.equal(en.dashboard.goodEvening, "Good evening");
@@ -146,35 +138,52 @@ describe("V31 L3.3 tenant page body — dashboard", () => {
     assert.match(page, /const hour = new Date\(\)\.getHours\(\)/);
     assert.match(page, /if \(hour < 12\) return "goodMorning"/);
     assert.match(page, /if \(hour < 18\) return "goodAfternoon"/);
+    assert.match(page, /loadHomeSnapshot/);
+    assert.doesNotMatch(page, /TodaysIntelligence/);
   });
 
-  it("translates Dashboard page chrome in all five non-English languages", () => {
+  it("translates Command Center chrome in all five non-English languages", () => {
     for (const language of ["fr", "es", "it", "de", "pt"] as const) {
       const messages = DICTIONARIES[language];
       const html = renderToStaticMarkup(
-        createElement(TodaysIntelligence, {
-          summary: emptyTodaysIntelligence,
-          messages: messages.dashboard,
+        createElement(HomeAttentionList, {
+          title: messages.dashboard.attention.title,
+          intro: messages.dashboard.attention.intro,
+          items: [],
+          emptyLabel: messages.dashboard.attention.empty,
         }),
       );
       assert.notEqual(messages.dashboard.eyebrow, en.dashboard.eyebrow);
-      assert.notEqual(messages.dashboard.todaysTitle, en.dashboard.todaysTitle);
+      assert.notEqual(
+        messages.dashboard.attention.title,
+        en.dashboard.attention.title,
+      );
       assert.match(
         html,
-        new RegExp(messages.dashboard.todaysTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+        new RegExp(
+          messages.dashboard.attention.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        ),
       );
-      assert.doesNotMatch(html, /Your executive snapshot/);
+      assert.doesNotMatch(html, /What needs attention/);
       for (const greeting of dashboardPageUses(messages)) {
         assert.ok(greeting.trim());
       }
     }
   });
 
-  it("keeps dynamic Dashboard entity values verbatim", () => {
+  it("keeps dynamic Command Center entity values verbatim", () => {
     const html = renderToStaticMarkup(
-      createElement(TodaysIntelligence, {
-        summary: emptyTodaysIntelligence,
-        messages: fr.dashboard,
+      createElement(HomeDomainCard, {
+        stageNumber: 2,
+        icon: "visibility",
+        title: fr.dashboard.visibility.title,
+        question: fr.dashboard.visibility.question,
+        tone: "ready",
+        statusLabel: fr.dashboard.visibility.labelReady,
+        statusLine: fr.dashboard.visibility.statusReady,
+        details: [`${STORED_OPPORTUNITY_TITLE} · SEO Intelligence · 1 Sep 2026`],
+        ctaLabel: fr.dashboard.visibility.ctaReview,
+        href: "/seo",
       }),
     );
     assert.match(html, /Acme expansion in Lyon/);

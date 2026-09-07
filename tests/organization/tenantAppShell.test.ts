@@ -409,7 +409,9 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
     }
     assert.doesNotMatch(identity, /TenantBackLink/);
     assert.doesNotMatch(prospects, /TenantBackLink/);
-    assert.match(home, /TodaysIntelligence/);
+    assert.match(home, /HomeDomainCard/);
+    assert.match(home, /HomeAttentionList/);
+    assert.doesNotMatch(home, /TodaysIntelligence/);
     assert.match(identity, /IdentityConversationPanel/);
     assert.match(prospects, /ProspectsLibraryClient/);
   });
