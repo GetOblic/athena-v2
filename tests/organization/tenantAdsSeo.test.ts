@@ -117,9 +117,13 @@ describe("V31 L3.8 tenant ads + seo — list chrome", () => {
     assert.match(adsPage, /getTenantLocalization/);
     assert.match(seoPage, /getTenantLocalization/);
     assert.match(adsPage, /TenantBackLink/);
-    assert.match(seoPage, /TenantBackLink/);
+    assert.match(seoPage, /TenantAppShell/);
+    assert.doesNotMatch(seoPage, /TenantBackLink/);
     assert.match(adsPage, /copy\.title/);
-    assert.match(seoPage, /copy\.title/);
+    assert.match(seoPage, /copy\.visibility\.title/);
+    assert.doesNotMatch(seoPage, /copy\.generateIntelligence/);
+    assert.doesNotMatch(seoPage, /copy\.generateTechnical/);
+    assert.match(seoPage, /copy\.visibility\.analyzeCta|copy\.visibility\.newAnalysisCta/);
     assert.equal((adsPage.match(/getTenantLocalization\(\)/g) ?? []).length, 1);
     assert.equal((seoPage.match(/getTenantLocalization\(\)/g) ?? []).length, 1);
   });
@@ -168,7 +172,11 @@ describe("V31 L3.8 tenant ads + seo — create / generate chrome", () => {
     assert.match(adsNew, /getTenantLocalization/);
     assert.match(seoNew, /getTenantLocalization/);
     assert.match(adsForm, /copy\.generate/);
-    assert.match(seoForm, /copy\.generateIntelligence/);
+    assert.match(seoForm, /copy\.chooseWhat/);
+    assert.match(seoForm, /copy\.startAnalysis/);
+    assert.equal((seoForm.match(/type="submit"/g) ?? []).length, 1);
+    assert.doesNotMatch(seoForm, /\{copy\.generateIntelligence\}/);
+    assert.doesNotMatch(seoForm, /\{copy\.generateTechnical\}/);
     assert.match(adsForm, /name: name\.trim\(\) \|\| undefined/);
     assert.match(adsForm, /guidance: guidance\.trim\(\) \|\| undefined/);
     assert.match(seoForm, /generationType,/);

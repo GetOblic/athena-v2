@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
@@ -8,33 +9,36 @@ import { en } from "@/lib/tenantI18n/messages/en";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { SeoGenerationType } from "@/services/seo/seoGenerationType";
 
-/** Athena success-green treatment — same language as ThinkDifferentlyButton. */
-const TECHNICAL_SEO_BUTTON_CLASS =
-  "inline-flex items-center justify-center rounded-2xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-6 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-60";
-
 type SeoReportGenerateFormProps = {
   messages?: TenantMessages;
+  technicalSelectable?: boolean;
 };
 
 export function SeoReportGenerateForm({
   messages,
+  technicalSelectable = true,
 }: SeoReportGenerateFormProps) {
   const copy = messages?.seo.new ?? en.seo.new;
+  const lenses = messages?.seo.lenses ?? en.seo.lenses;
+  const expand = messages?.seo.expand ?? en.seo.expand;
+  const collapse = messages?.seo.collapse ?? en.seo.collapse;
   const router = useRouter();
   const submittingRef = useRef(false);
+  const [generationType, setGenerationType] =
+    useState<SeoGenerationType>("intelligence");
   const [name, setName] = useState("");
   const [guidance, setGuidance] = useState("");
   const [focusArea, setFocusArea] = useState("");
   const [geography, setGeography] = useState("");
   const [constraints, setConstraints] = useState("");
-  const [submittingType, setSubmittingType] =
-    useState<SeoGenerationType | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleGenerate(generationType: SeoGenerationType) {
+  async function handleGenerate() {
     if (submittingRef.current) return;
+    if (generationType === "technical" && !technicalSelectable) return;
     submittingRef.current = true;
-    setSubmittingType(generationType);
+    setSubmitting(true);
     setError(null);
 
     try {
@@ -76,32 +80,85 @@ export function SeoReportGenerateForm({
       );
     } finally {
       submittingRef.current = false;
-      setSubmittingType(null);
+      setSubmitting(false);
     }
   }
 
-  const submitting = submittingType != null;
   const extraFields = [
-    [copy.focusAreaLabel, focusArea, setFocusArea, 500],
-    [copy.geographyLabel, geography, setGeography, 200],
-    [copy.constraintsLabel, constraints, setConstraints, 1000],
+    [copy.focus, focusArea, setFocusArea, 500],
+    [copy.placeOrMarket, geography, setGeography, 200],
+    [copy.limitsToRespect, constraints, setConstraints, 1000],
   ] as const;
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        void handleGenerate("intelligence");
+        void handleGenerate();
       }}
       className="space-y-6"
     >
-      <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
-        <p className="text-sm leading-7 text-white/60">{copy.briefOptional}</p>
-      </div>
+      <fieldset className="space-y-3">
+        <legend className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
+          {copy.chooseWhat}
+        </legend>
+        <div className="grid gap-3">
+          <label className="flex min-w-0 cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+            <input
+              type="radio"
+              name="generationType"
+              value="intelligence"
+              checked={generationType === "intelligence"}
+              onChange={() => setGenerationType("intelligence")}
+              className="mt-1"
+            />
+            <span className="min-w-0">
+              <span className="block break-words text-sm font-semibold text-white">
+                {lenses.intelligence}
+              </span>
+            </span>
+          </label>
+          <label
+            className={`flex min-w-0 items-start gap-3 rounded-2xl border px-4 py-4 ${
+              technicalSelectable
+                ? "cursor-pointer border-white/10 bg-black/20"
+                : "cursor-not-allowed border-white/5 bg-black/10 opacity-70"
+            }`}
+          >
+            <input
+              type="radio"
+              name="generationType"
+              value="technical"
+              checked={generationType === "technical"}
+              disabled={!technicalSelectable}
+              onChange={() => {
+                if (technicalSelectable) setGenerationType("technical");
+              }}
+              className="mt-1"
+            />
+            <span className="min-w-0">
+              <span className="block break-words text-sm font-semibold text-white">
+                {lenses.technical}
+              </span>
+              {!technicalSelectable ? (
+                <span className="mt-2 block text-sm leading-6 text-white/55">
+                  {copy.technicalNeedsRicher}{" "}
+                  <Link
+                    href="/identity"
+                    className="text-[var(--athena-orange)] underline-offset-2 hover:underline"
+                  >
+                    {copy.openDefineYourBusiness}
+                  </Link>
+                </span>
+              ) : null}
+            </span>
+          </label>
+        </div>
+      </fieldset>
 
       <label className="block space-y-2">
         <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-          {copy.nameLabel}
+          {copy.nameThisAnalysis}
         </span>
         <input
           value={name}
@@ -114,7 +171,7 @@ export function SeoReportGenerateForm({
 
       <label className="block space-y-2">
         <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-          {copy.guidanceLabel}
+          {copy.keepInMind}
         </span>
         <textarea
           value={guidance}
@@ -125,7 +182,12 @@ export function SeoReportGenerateForm({
         />
       </label>
 
-      <AthenaCollapsibleSection title={copy.moreDetail} defaultOpen={false}>
+      <AthenaCollapsibleSection
+        title={copy.moreDetail}
+        defaultOpen={false}
+        showToggleLabel
+        toggleLabels={{ expand, collapse }}
+      >
         <div className="space-y-4">
           {extraFields.map(([label, value, setter, max]) => (
             <label key={label} className="block space-y-2">
@@ -143,29 +205,15 @@ export function SeoReportGenerateForm({
         </div>
       </AthenaCollapsibleSection>
 
-      {error ? <p className="text-sm text-rose-200">{error}</p> : null}
+      {error ? <p className="break-words text-sm text-rose-200">{error}</p> : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {submittingType === "intelligence"
-            ? copy.starting
-            : copy.generateIntelligence}
-        </button>
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={() => void handleGenerate("technical")}
-          className={TECHNICAL_SEO_BUTTON_CLASS}
-        >
-          {submittingType === "technical"
-            ? copy.starting
-            : copy.generateTechnical}
-        </button>
-      </div>
+      <button
+        type="submit"
+        disabled={submitting || (generationType === "technical" && !technicalSelectable)}
+        className="w-full rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto"
+      >
+        {submitting ? copy.starting : copy.startAnalysis}
+      </button>
     </form>
   );
 }

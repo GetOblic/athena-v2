@@ -724,9 +724,13 @@ describe("Social Planner L7 non-interference", () => {
     assert.match(read("app/ads/page.tsx"), /AdsLibraryClient/);
     assert.match(read("app/seo/page.tsx"), /SeoLibraryClient/);
     assert.match(read("components/ads/AdsLibraryClient.tsx"), /copy\.generateAds/);
-    assert.match(read("components/seo/SeoLibraryClient.tsx"), /copy\.generateIntelligence/);
+    const seoLibrary = read("components/seo/SeoLibraryClient.tsx");
+    assert.match(seoLibrary, /copy\.visibility\.historyTitle/);
+    assert.match(seoLibrary, /copy\.actionOpen/);
+    assert.doesNotMatch(seoLibrary, /copy\.generateIntelligence/);
+    assert.doesNotMatch(seoLibrary, /copy\.generateTechnical/);
     assert.doesNotMatch(read("components/ads/AdsLibraryClient.tsx"), /socialPlanner|Social Planner/);
-    assert.doesNotMatch(read("components/seo/SeoLibraryClient.tsx"), /socialPlanner|Social Planner/);
+    assert.doesNotMatch(seoLibrary, /socialPlanner|Social Planner/);
     assert.doesNotMatch(read("app/ads/page.tsx"), /social-planner/);
     assert.doesNotMatch(read("app/seo/page.tsx"), /social-planner/);
     assert.match(read("app/licensee/page.tsx"), /LicenseeDashboardClient/);

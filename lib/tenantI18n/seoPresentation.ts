@@ -130,6 +130,7 @@ export function getLocalizedSeoGenerationStageLabel(
 /**
  * Presentation-only SEO generation-type label.
  * Canonical tokens remain intelligence | technical.
+ * Home continues to consume seo.generationType.*.
  */
 export function getLocalizedSeoGenerationTypeLabel(
   messages: TenantMessages,
@@ -141,6 +142,53 @@ export function getLocalizedSeoGenerationTypeLabel(
     return localized;
   }
   return en.seo.generationType[key];
+}
+
+/**
+ * V2 Build Visibility lens label. Presentation only.
+ * Does not replace seo.generationType.* consumed by Home.
+ */
+export function getLocalizedSeoLensLabel(
+  messages: TenantMessages,
+  generationType: SeoGenerationType,
+): string {
+  const key = generationType === "technical" ? "technical" : "intelligence";
+  const localized = messages.seo.lenses[key];
+  if (typeof localized === "string" && localized.trim()) {
+    return localized;
+  }
+  return en.seo.lenses[key];
+}
+
+const ROADMAP_PRIORITY_KEYS = {
+  P0: "priorityHighest",
+  P1: "priorityHigh",
+  P2: "priorityMedium",
+  P3: "priorityLower",
+} as const;
+
+export function getLocalizedSeoRoadmapPriorityLabel(
+  messages: TenantMessages,
+  priority?: string | null,
+): string {
+  const trimmed = String(priority ?? "").trim();
+  const key =
+    ROADMAP_PRIORITY_KEYS[trimmed as keyof typeof ROADMAP_PRIORITY_KEYS];
+  if (!key) {
+    return trimmed;
+  }
+  const localized = messages.seo.detail[key];
+  return localized.trim() ? localized : en.seo.detail[key];
+}
+
+export function formatLocalizedSeoProvenance(
+  messages: TenantMessages,
+  date: string,
+): string {
+  const template = messages.seo.detail.provenance.includes("{date}")
+    ? messages.seo.detail.provenance
+    : en.seo.detail.provenance;
+  return interpolateTenantMessage(template, { date });
 }
 
 function localizePillarScore(
@@ -264,8 +312,11 @@ export function getSeoRecommendationCardChrome(
   const detail = messages.seo.detail;
   return {
     whyLabel: detail.whyAthenaRecommends,
-    evidenceLabel: detail.evidence,
+    evidenceLabel: detail.signalsAthenaUsed,
     impactLabel: detail.expectedBusinessImpact,
+    effortLabel: detail.effortLabel,
+    expand: messages.seo.expand,
+    collapse: messages.seo.collapse,
     copyWhyPrefix: (why) =>
       interpolateTenantMessage(
         detail.copyWhyPrefix.includes("{why}")
@@ -313,10 +364,10 @@ export function getSeoWebsitePagesChrome(
   messages: TenantMessages,
 ): SeoWebsitePagesAnalyzedChrome {
   return {
-    title: messages.seo.detail.websitePagesAnalyzed,
+    title: messages.seo.detail.websitePagesUsed,
     pageCountOne: messages.seo.detail.pageCountOne,
     pageCountMany: messages.seo.detail.pageCountMany,
-    emptyMessage: messages.seo.detail.pagesEmpty,
+    emptyMessage: messages.seo.detail.pagesEmptyV2,
     untitledPage: messages.seo.detail.untitledPage,
     expand: messages.seo.expand,
     collapse: messages.seo.collapse,

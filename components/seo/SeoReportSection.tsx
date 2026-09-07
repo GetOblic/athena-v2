@@ -96,7 +96,7 @@ export function SeoReportSection({
       {fields.map((field) => (
         <div key={field.label} className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
+            <div className="min-w-0 break-all text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
               {field.label}
             </div>
             <CopyButton
@@ -106,7 +106,7 @@ export function SeoReportSection({
               chrome={chrome?.copy}
             />
           </div>
-          <div className="whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white/80">
+          <div className="whitespace-pre-wrap break-all rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white/80">
             {field.value || emptyValue}
           </div>
         </div>

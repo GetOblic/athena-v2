@@ -71,6 +71,9 @@ const SHELLED_PAGES = [
   "app/page.tsx",
   "app/identity/page.tsx",
   "app/prospects/page.tsx",
+  "app/seo/page.tsx",
+  "app/seo/new/page.tsx",
+  "app/seo/[id]/page.tsx",
 ] as const;
 
 const V2_ENGLISH_LABELS = [
@@ -261,7 +264,7 @@ describe("V2-UI-1B tenant app shell — navigation contract", () => {
 });
 
 describe("V2-UI-1B tenant app shell — isolation and leakage", () => {
-  it("is imported only from the three migrated tenant pages", () => {
+  it("is imported only from the migrated tenant pages", () => {
     const hits: string[] = [];
     for (const dir of ["app", "components"]) {
       for (const file of listTsFiles(dir)) {
@@ -390,10 +393,13 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
     assert.equal(de.nav.athenaInbox, "Athena Inbox");
   });
 
-  it("wraps exactly the three representative pages and removes old chrome", () => {
+  it("wraps Home, Identity, Prospects, and Build Visibility pages and removes old chrome", () => {
     const home = read("app/page.tsx");
     const identity = read("app/identity/page.tsx");
     const prospects = read("app/prospects/page.tsx");
+    const seo = read("app/seo/page.tsx");
+    const seoNew = read("app/seo/new/page.tsx");
+    const seoDetail = read("app/seo/[id]/page.tsx");
     assert.match(home, /<TenantAppShell currentPath="\/" messages=\{messages\}>/);
     assert.match(
       identity,
@@ -403,12 +409,24 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
       prospects,
       /<TenantAppShell currentPath="\/prospects" messages=\{messages\}>/,
     );
-    for (const source of [home, identity, prospects]) {
+    assert.match(seo, /<TenantAppShell currentPath="\/seo" messages=\{messages\}>/);
+    assert.match(
+      seoNew,
+      /<TenantAppShell currentPath="\/seo\/new" messages=\{messages\}>/,
+    );
+    assert.match(
+      seoDetail,
+      /<TenantAppShell currentPath=\{`\/seo\/\$\{id\}`\} messages=\{messages\}>/,
+    );
+    for (const source of [home, identity, prospects, seo, seoNew, seoDetail]) {
       assert.doesNotMatch(source, /AthenaBrandLink/);
       assert.doesNotMatch(source, /DashboardSidebar/);
     }
     assert.doesNotMatch(identity, /TenantBackLink/);
     assert.doesNotMatch(prospects, /TenantBackLink/);
+    assert.doesNotMatch(seo, /TenantBackLink/);
+    assert.doesNotMatch(seoNew, /TenantBackLink/);
+    assert.doesNotMatch(seoDetail, /TenantBackLink/);
     assert.match(home, /HomeDomainCard/);
     assert.match(home, /HomeAttentionList/);
     assert.doesNotMatch(home, /TodaysIntelligence/);

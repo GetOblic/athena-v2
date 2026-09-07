@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
@@ -34,6 +35,7 @@ type StatusPayload = {
   status?: string;
   generationStage?: SeoReportGenerationStage | null;
   errorMessage?: string | null;
+  errorCode?: string | null;
   isReady?: boolean;
   isFailed?: boolean;
   isInFlight?: boolean;
@@ -44,6 +46,7 @@ type SeoReportStatusPanelProps = {
   initialStatus: string;
   initialStage: SeoReportGenerationStage | null;
   initialErrorMessage?: string | null;
+  initialErrorCode?: string | null;
   messages?: TenantMessages;
 };
 
@@ -52,14 +55,17 @@ export function SeoReportStatusPanel({
   initialStatus,
   initialStage,
   initialErrorMessage = null,
+  initialErrorCode = null,
   messages,
 }: SeoReportStatusPanelProps) {
   const copy = messages?.seo.statusPanel ?? en.seo.statusPanel;
+  const visibility = messages?.seo.visibility ?? en.seo.visibility;
   const dictionary = messages ?? en;
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [stage, setStage] = useState(initialStage);
   const [errorMessage, setErrorMessage] = useState(initialErrorMessage);
+  const [errorCode, setErrorCode] = useState(initialErrorCode);
   const [regenerating, setRegenerating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -83,6 +89,9 @@ export function SeoReportStatusPanel({
         }
         if (payload.errorMessage !== undefined) {
           setErrorMessage(payload.errorMessage ?? null);
+        }
+        if (payload.errorCode !== undefined) {
+          setErrorCode(payload.errorCode ?? null);
         }
 
         if (payload.isReady || payload.status === "Ready") {
@@ -169,51 +178,72 @@ export function SeoReportStatusPanel({
       ? STAGE_LABELS[stage]
       : "Queued";
 
-  const leaveAndReturn = interpolateTenantMessage(
-    copy.leaveAndReturn.includes("{stage}")
-      ? copy.leaveAndReturn
-      : en.seo.statusPanel.leaveAndReturn,
+  const currently = interpolateTenantMessage(
+    copy.currently.includes("{stage}")
+      ? copy.currently
+      : en.seo.statusPanel.currently,
     { stage: stageLabel },
   );
 
   return (
     <div className="mb-8 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
       <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-orange)]">
-        {copy.generationStatus}
-      </div>
-      <h2 className="mt-3 text-2xl font-semibold">
         {getLocalizedSeoReportStatusLabel(dictionary, status)}
-      </h2>
+      </div>
       {inFlight ? (
-        <p className="mt-3 text-sm leading-7 text-white/60">{leaveAndReturn}</p>
+        <div className="mt-3 space-y-3">
+          <h2 className="text-2xl font-semibold">{copy.analyzing}</h2>
+          <p className="text-sm leading-7 text-white/70">{currently}</p>
+          <p className="text-sm leading-7 text-white/50">
+            {copy.leaveAndReturnLater}
+          </p>
+        </div>
       ) : null}
       {status === "Processing Failed" ? (
-        <div className="mt-4 space-y-4">
-          <p className="text-sm leading-7 text-rose-100/80">
-            {errorMessage || copy.generationFailed}
-          </p>
-          <div className="flex flex-wrap gap-3">
+        <div className="mt-3 space-y-4">
+          <h2 className="text-2xl font-semibold">{copy.couldNotFinish}</h2>
+          {errorMessage ? (
+            <p className="break-words text-sm leading-7 text-rose-100/80">
+              {errorMessage}
+            </p>
+          ) : (
+            <p className="text-sm leading-7 text-rose-100/80">
+              {copy.generationFailed}
+            </p>
+          )}
+          {errorCode === "TECHNICAL_SEO_EVIDENCE_INSUFFICIENT" ? (
+            <p className="text-sm leading-7 text-white/70">
+              {copy.insufficientHint}
+            </p>
+          ) : null}
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <button
               type="button"
               onClick={() => void handleRetryGenerate()}
               disabled={regenerating}
-              className="rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+              className="w-full rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto"
             >
-              {regenerating ? copy.working : copy.retry}
+              {regenerating ? copy.working : copy.retryThis}
             </button>
             <button
               type="button"
               onClick={() => void handleRegenerate()}
               disabled={regenerating}
-              className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 disabled:opacity-60"
+              className="w-full rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 disabled:opacity-60 sm:w-auto"
             >
-              {copy.regenerateAsNew}
+              {copy.startNewSameBrief}
             </button>
+            <Link
+              href="/seo"
+              className="w-full rounded-2xl border border-white/15 px-5 py-3 text-center text-sm font-semibold text-white/80 sm:w-auto"
+            >
+              {visibility.backToLanding}
+            </Link>
           </div>
         </div>
       ) : null}
       {actionError ? (
-        <p className="mt-3 text-sm text-rose-200">{actionError}</p>
+        <p className="mt-3 break-words text-sm text-rose-200">{actionError}</p>
       ) : null}
     </div>
   );

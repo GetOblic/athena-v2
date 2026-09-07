@@ -25,17 +25,16 @@ describe("seo workspace UI", () => {
     );
   });
 
-  it("library has empty state, dual Generate CTAs, open/delete actions", () => {
+  it("library is history-only with open/delete actions", () => {
     const library = read("components/seo/SeoLibraryClient.tsx");
     assert.equal(en.seo.emptyTitle, "No SEO reports yet");
     assert.equal(en.seo.generateIntelligence, "Generate SEO Intelligence");
     assert.equal(en.seo.generateTechnical, "Generate Technical SEO");
     assert.equal(en.seo.actionOpen, "Open");
-    assert.match(library, /copy\.emptyTitle/);
-    assert.match(library, /copy\.generateIntelligence/);
-    assert.match(library, /copy\.generateTechnical/);
-    assert.match(library, /--athena-orange/);
-    assert.match(library, /--athena-success/);
+    assert.match(library, /copy\.visibility\.historyTitle/);
+    assert.match(library, /copy\.visibility\.historyIntro/);
+    assert.doesNotMatch(library, /copy\.generateIntelligence/);
+    assert.doesNotMatch(library, /copy\.generateTechnical/);
     assert.match(library, /copy\.actionOpen/);
     assert.match(library, /SeoReportHeaderDeleteButton/);
   });
@@ -44,17 +43,16 @@ describe("seo workspace UI", () => {
     const form = read("components/seo/SeoReportGenerateForm.tsx");
     assert.match(en.seo.new.briefOptional, /brief is optional/i);
     assert.equal(en.seo.new.moreDetail, "More detail");
-    assert.equal(en.seo.new.generateIntelligence, "Generate SEO Intelligence");
-    assert.equal(en.seo.new.generateTechnical, "Generate Technical SEO");
-    assert.match(form, /copy\.briefOptional/);
+    assert.equal(en.seo.new.startAnalysis, "Start analysis");
+    assert.match(en.seo.new.visibilitySubtitle, /brief is optional/i);
     assert.match(form, /copy\.moreDetail/);
-    assert.match(form, /copy\.generateIntelligence/);
-    assert.match(form, /copy\.generateTechnical/);
+    assert.match(form, /copy\.startAnalysis/);
+    assert.match(form, /copy\.chooseWhat/);
     assert.match(form, /submittingRef/);
     assert.doesNotMatch(form, /language:/);
   });
 
-  it("detail view renders executive overview and progressive disclosure sections", () => {
+  it("detail view renders V2 assessment, roadmap, and progressive disclosure sections", () => {
     const detail = read("components/seo/SeoReportDetailView.tsx");
     assert.equal(en.seo.detail.executiveAssessment, "Executive Assessment");
     assert.equal(
@@ -74,13 +72,15 @@ describe("seo workspace UI", () => {
       "Trust & Authority Analysis",
     );
     assert.equal(en.seo.detail.ninetyDayRoadmap, "90-Day SEO Roadmap");
-    assert.match(detail, /SeoExecutiveOverview/);
+    assert.doesNotMatch(detail, /SeoExecutiveOverview/);
+    assert.match(detail, /copy\.detail\.athenasAssessment/);
+    assert.match(detail, /copy\.detail\.recommendedImprovements/);
+    assert.match(detail, /copy\.detail\.supportingIntelligence/);
     assert.match(detail, /copy\.detail\.executiveAssessment/);
-    assert.match(detail, /copy\.detail\.contentCoverageAnalysis/);
-    assert.match(detail, /copy\.detail\.customerIntentAnalysis/);
-    assert.match(detail, /copy\.detail\.commercialOpportunityAnalysis/);
-    assert.match(detail, /copy\.detail\.trustAuthorityAnalysis/);
-    assert.match(detail, /copy\.detail\.ninetyDayRoadmap/);
+    assert.match(detail, /copy\.detail\.contentCoverageV2/);
+    assert.match(detail, /copy\.detail\.customerIntentV2/);
+    assert.match(detail, /copy\.detail\.commercialOpportunitiesV2/);
+    assert.match(detail, /copy\.detail\.trustAndAuthorityV2/);
     assert.match(detail, /SeoWebsitePagesAnalyzedSection/);
     assert.match(detail, /SeoRecommendationCard/);
     assert.match(detail, /SeoReportStatusPanel/);
@@ -139,8 +139,12 @@ describe("seo workspace UI", () => {
     assert.match(status, /Assembling organization intelligence/);
     assert.match(status, /Generating executive SEO assessment/i);
     assert.match(status, /\/api\/seo\/\$\{reportId\}\/status/);
-    assert.match(status, /copy\.regenerateAsNew/);
+    assert.match(status, /copy\.startNewSameBrief/);
     assert.equal(en.seo.statusPanel.regenerateAsNew, "Regenerate as new report");
+    assert.equal(
+      en.seo.statusPanel.startNewSameBrief,
+      "Start a new analysis with the same brief",
+    );
   });
 
   it("delete uses ConfirmDeleteControl pattern", () => {

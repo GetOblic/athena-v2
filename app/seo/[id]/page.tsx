@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { SeoReportDetailView } from "@/components/seo/SeoReportDetailView";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -22,25 +22,19 @@ export default async function SeoReportDetailPage({
   }
 
   const { organizationId } = await requireCurrentOrganizationContext();
-  const { messages } = await getTenantLocalization();
+  const { language, messages } = await getTenantLocalization();
   const report = await getSeoReportById(id, organizationId);
   if (!report) {
     notFound();
   }
 
   return (
-    <>
-      <div className="px-10 pt-10">
-        <AthenaBrandLink
-          tagline={messages.chrome.tagline}
-          logoutLabel={messages.chrome.logOut}
-          sessionActionsLabel={messages.chrome.sessionActions}
-        />
-      </div>
+    <TenantAppShell currentPath={`/seo/${id}`} messages={messages}>
       <SeoReportDetailView
         report={toPublicSeoReportDetail(report)}
         messages={messages}
+        language={language}
       />
-    </>
+    </TenantAppShell>
   );
 }

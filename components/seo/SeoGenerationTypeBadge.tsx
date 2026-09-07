@@ -18,11 +18,11 @@ export function SeoGenerationTypeBadge({
     <span
       className={
         isTechnical
-          ? "inline-flex items-center rounded-full border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--athena-success)]"
-          : "inline-flex items-center rounded-full border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--athena-orange)]"
+          ? "inline-flex max-w-full items-center rounded-full border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--athena-success)]"
+          : "inline-flex max-w-full items-center rounded-full border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--athena-orange)]"
       }
     >
-      {resolvedLabel}
+      <span className="min-w-0 break-words">{resolvedLabel}</span>
     </span>
   );
 }

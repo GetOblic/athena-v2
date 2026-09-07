@@ -7,7 +7,7 @@ import { SeoReportHeaderDeleteButton } from "@/components/seo/SeoReportHeaderDel
 import { ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS } from "@/components/ui/athenaIntelligenceRow";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
 import {
-  getLocalizedSeoGenerationTypeLabel,
+  getLocalizedSeoLensLabel,
   getLocalizedSeoReportStatusLabel,
   getSeoConfirmDeleteChrome,
 } from "@/lib/tenantI18n/seoPresentation";
@@ -60,7 +60,7 @@ export function SeoLibraryClient({
         <h2 className="text-2xl font-semibold text-rose-100">
           {copy.unableToLoad}
         </h2>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-rose-100/70">
+        <p className="mx-auto mt-4 max-w-xl break-words text-sm leading-7 text-rose-100/70">
           {loadError}
         </p>
       </div>
@@ -68,54 +68,24 @@ export function SeoLibraryClient({
   }
 
   if (reports.length === 0) {
-    return (
-      <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-14 text-center">
-        <h2 className="text-2xl font-semibold">{copy.emptyTitle}</h2>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/50">
-          {copy.emptyBody}
-        </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href="/seo/new"
-            className="inline-flex rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white"
-          >
-            {copy.generateIntelligence}
-          </Link>
-          <Link
-            href="/seo/new"
-            className="inline-flex rounded-2xl bg-[var(--athena-success)] px-6 py-3 text-sm font-semibold text-white"
-          >
-            {copy.generateTechnical}
-          </Link>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={copy.searchPlaceholder}
-          className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none md:max-w-md"
-        />
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/seo/new"
-            className="inline-flex rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white"
-          >
-            {copy.generateIntelligence}
-          </Link>
-          <Link
-            href="/seo/new"
-            className="inline-flex rounded-2xl bg-[var(--athena-success)] px-6 py-3 text-sm font-semibold text-white"
-          >
-            {copy.generateTechnical}
-          </Link>
-        </div>
+      <div>
+        <h2 className="text-2xl font-semibold">{copy.visibility.historyTitle}</h2>
+        <p className="mt-2 text-sm leading-6 text-white/50">
+          {copy.visibility.historyIntro}
+        </p>
       </div>
+
+      <input
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder={copy.searchPlaceholder}
+        className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none md:max-w-md"
+      />
 
       <div className="space-y-3">
         {filtered.map((report) => (
@@ -124,31 +94,32 @@ export function SeoLibraryClient({
             className={`${ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS} flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between`}
           >
             <Link href={`/seo/${report.id}`} className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="text-lg font-semibold">{report.name}</div>
+              <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="min-w-0 break-words text-lg font-semibold">
+                  {report.name}
+                </div>
                 <SeoGenerationTypeBadge
                   generationType={report.generationType ?? "intelligence"}
-                  label={getLocalizedSeoGenerationTypeLabel(
+                  label={getLocalizedSeoLensLabel(
                     dictionary,
                     report.generationType ?? "intelligence",
                   )}
                 />
               </div>
-              <div className="mt-2 text-sm text-white/50">
-                {report.summary ||
-                  (report.generationType === "technical"
-                    ? copy.pendingTechnical
-                    : copy.pendingIntelligence)}
+              <div className="mt-2 line-clamp-2 break-words text-sm text-white/50">
+                {report.status === "Ready"
+                  ? report.summary || copy.emptyValue
+                  : copy.visibility.analysisNotFinished}
               </div>
               <div className="mt-2 text-xs text-white/35">
                 {formatDate(report.createdAt, language, copy.emptyValue)} ·{" "}
                 {getLocalizedSeoReportStatusLabel(dictionary, report.status)}
               </div>
             </Link>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
               <Link
                 href={`/seo/${report.id}`}
-                className="rounded-2xl border border-white/15 px-4 py-2 text-sm text-white/80"
+                className="w-full rounded-2xl border border-white/15 px-4 py-2 text-center text-sm text-white/80 sm:w-auto"
               >
                 {copy.actionOpen}
               </Link>

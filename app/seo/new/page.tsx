@@ -1,42 +1,52 @@
 export const dynamic = "force-dynamic";
 
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
-import { TenantBackLink } from "@/components/navigation/TenantBackLink";
+import Link from "next/link";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { SeoReportGenerateForm } from "@/components/seo/SeoReportGenerateForm";
+import { VisibilityPageHeader } from "@/components/seo/VisibilityPageHeader";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import { loadOrganizationDeepWebsiteIntelligence } from "@/services/seo/seoContextComposer";
+import { assessTechnicalSeoEvidenceSufficiency } from "@/services/seo/seoTechnicalEvidence";
 
 export default async function NewSeoReportPage() {
-  await requireCurrentOrganizationContext();
+  const { organizationId } = await requireCurrentOrganizationContext();
   const { messages } = await getTenantLocalization();
   const copy = messages.seo;
 
+  let technicalSelectable = true;
+  try {
+    const intelligence =
+      await loadOrganizationDeepWebsiteIntelligence(organizationId);
+    const sufficiency = assessTechnicalSeoEvidenceSufficiency(intelligence);
+    technicalSelectable = sufficiency.sufficient;
+  } catch {
+    technicalSelectable = true;
+  }
+
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
-      />
+    <TenantAppShell currentPath="/seo/new" messages={messages}>
+      <Link
+        href="/seo"
+        className="text-sm text-[var(--athena-orange)] underline-offset-2 hover:underline"
+      >
+        {copy.visibility.backToLanding}
+      </Link>
 
-      <TenantBackLink href="/seo" label={copy.backToSeo} />
-
-      <div className="mb-10 mt-10 max-w-3xl">
-        <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          {copy.new.eyebrow}
-        </div>
-        <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          {copy.new.title}
-        </h1>
-        <p className="mt-4 text-base leading-7 text-white/50">
-          {copy.new.subtitle}
-        </p>
+      <div className="mt-8 max-w-3xl">
+        <VisibilityPageHeader
+          eyebrow={copy.visibility.eyebrow}
+          title={copy.new.visibilityTitle}
+          subtitle={copy.new.visibilitySubtitle}
+        />
       </div>
 
       <div className="max-w-3xl">
-        <SeoReportGenerateForm messages={messages} />
+        <SeoReportGenerateForm
+          messages={messages}
+          technicalSelectable={technicalSelectable}
+        />
       </div>
-    </main>
+    </TenantAppShell>
   );
 }

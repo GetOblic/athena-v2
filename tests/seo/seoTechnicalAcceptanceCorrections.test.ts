@@ -670,28 +670,32 @@ describe("4 — evidence-backed internal linking", () => {
   });
 });
 
-describe("5 — /seo workspace positioning + dual CTAs", () => {
+describe("5 — /seo workspace positioning + Build Visibility entry", () => {
   it("positions workspace for both SEO Intelligence and Technical SEO", () => {
     const page = read("app/seo/page.tsx");
     assert.equal(en.seo.eyebrow, "SEO Workspace");
     assert.equal(en.seo.generateIntelligence, "Generate SEO Intelligence");
     assert.equal(en.seo.generateTechnical, "Generate Technical SEO");
     assert.match(en.seo.subtitle, /evidence-backed technical optimization/);
-    assert.match(page, /copy\.eyebrow/);
-    assert.match(page, /copy\.subtitle/);
+    assert.match(page, /copy\.visibility\.eyebrow/);
+    assert.match(page, /copy\.visibility\.subtitle/);
     assert.doesNotMatch(page, /not a traditional crawler audit/);
   });
 
-  it("exposes orange + green CTAs on library empty and populated states", () => {
+  it("keeps one Build Visibility analysis entry and treats history as secondary", () => {
+    const page = read("app/seo/page.tsx");
     const library = read("components/seo/SeoLibraryClient.tsx");
-    assert.match(library, /copy\.generateIntelligence/);
-    assert.match(library, /copy\.generateTechnical/);
-    assert.match(library, /--athena-orange/);
-    assert.match(library, /--athena-success/);
-    assert.equal(
-      (library.match(/copy\.generateTechnical/g) ?? []).length >= 2,
-      true,
-    );
+    assert.match(page, /TenantAppShell/);
+    assert.doesNotMatch(page, /TenantBackLink/);
+    assert.match(page, /copy\.visibility\.analyzeCta|copy\.visibility\.newAnalysisCta/);
+    assert.match(page, /href="\/seo\/new"/);
+    assert.match(page, /--athena-orange/);
+    assert.doesNotMatch(page, /copy\.generateIntelligence/);
+    assert.doesNotMatch(page, /copy\.generateTechnical/);
+    assert.doesNotMatch(library, /copy\.generateIntelligence/);
+    assert.doesNotMatch(library, /copy\.generateTechnical/);
+    assert.match(library, /copy\.visibility\.historyTitle/);
+    assert.match(library, /copy\.visibility\.historyIntro/);
   });
 });
 
