@@ -9,6 +9,7 @@ import { HomeDomainCard } from "../../components/home/HomeDomainCard";
 import { GettingStartedConversationPanel } from "../../components/getting-started/GettingStartedConversationPanel";
 import { IdentityConversationPanel } from "../../components/identity/IdentityConversationPanel";
 import { IdentityExecutiveIntelligence } from "../../components/identity/IdentityExecutiveIntelligence";
+import { readIdentityExecutiveIntelligence } from "../../services/identity/identityExecutiveIntelligence";
 import { getLocalizedBrainStatus } from "../../lib/tenantI18n/brainStatus";
 import { tenantConversationWrapperChrome } from "../../lib/tenantI18n/conversationChrome";
 import { localizeDeepScrapeStage } from "../../lib/tenantI18n/deepScrapeProgress";
@@ -271,14 +272,16 @@ describe("V31 L3.3 tenant page body — getting started", () => {
 describe("V31 L3.3 tenant page body — Athena Brain", () => {
   it("localizes Brain page and form labels while keeping stored values verbatim", () => {
     const page = read("app/identity/page.tsx");
-    assert.match(page, /copy\.greetingLabel/);
-    assert.match(page, /copy\.voiceLabel/);
-    assert.match(page, /copy\.knowledgeLabel/);
-    assert.match(page, /copy\.websiteLabel/);
-    assert.match(page, /defaultValue=\{identity\?\.greeting_name/);
-    assert.match(page, /defaultValue=\{identity\?\.about_you/);
-    assert.match(page, /defaultValue=\{identity\?\.expertise/);
-    assert.match(page, /defaultValue=\{identity\?\.website/);
+    const teach = read("components/identity/IdentityTeachAthenaSection.tsx");
+    assert.match(page, /IdentityTeachAthenaSection/);
+    assert.match(teach, /messages\.greetingLabel/);
+    assert.match(teach, /messages\.voiceLabel/);
+    assert.match(teach, /messages\.knowledgeLabel/);
+    assert.match(teach, /messages\.websiteLabel/);
+    assert.match(teach, /defaultValue=\{identity\?\.greeting_name/);
+    assert.match(teach, /defaultValue=\{identity\?\.about_you/);
+    assert.match(teach, /defaultValue=\{identity\?\.expertise/);
+    assert.match(teach, /defaultValue=\{identity\?\.website/);
     assert.equal(en.identity.greetingLabel, "What should Athena call you?");
     assert.notEqual(fr.identity.greetingLabel, en.identity.greetingLabel);
     assert.equal(en.identity.accountLanguage, "Account Language");
@@ -319,7 +322,7 @@ describe("V31 L3.3 tenant page body — Athena Brain", () => {
       fr.identity.businessModel.business_overview,
       BUSINESS_MODEL_FIELD_LABELS.business_overview,
     );
-    const ei = read("components/identity/IdentityExecutiveIntelligence.tsx");
+    const ei = read("components/identity/IdentityWhatAthenaKnows.tsx");
     assert.match(ei, /messages\.businessModel\[key\]/);
     assert.doesNotMatch(ei, /BUSINESS_MODEL_FIELD_LABELS/);
     const context = read(
@@ -365,11 +368,33 @@ describe("V31 L3.3 tenant page body — Athena Brain", () => {
       }),
     );
     assert.match(html, /Generated executive summary stays English\./);
-    assert.match(html, /Stored reason stays English\./);
-    assert.match(html, /Executive Intelligence/);
-    assert.match(html, /Carte de compréhension/);
+    assert.match(html, /Stored overview stays\./);
+    assert.ok(html.includes(fr.identity.page.knowsTitle));
     assert.doesNotMatch(html, /What Athena understands about your business/);
-    const ei = read("components/identity/IdentityExecutiveIntelligence.tsx");
+    assert.doesNotMatch(html, /What Athena knows/);
+    const executive = readIdentityExecutiveIntelligence({
+      executive_intelligence: {
+        executive_summary: STORED_EI_SUMMARY,
+        confidence_level: "strong",
+        confidence_reasons: ["Stored reason stays English."],
+        voice_alignment: "strong",
+        business_knowledge_coverage: "developing",
+        website_evidence_coverage: "limited",
+        business_model: { business_overview: "Stored overview stays." },
+        hidden_signals: [],
+        calibration_gaps: [],
+      },
+    });
+    assert.ok(executive);
+    assert.deepEqual(executive.confidence_reasons, [
+      "Stored reason stays English.",
+    ]);
+    const advanced = read(
+      "components/identity/IdentityAdvancedUnderstanding.tsx",
+    );
+    assert.match(advanced, /executive\.confidence_reasons\.map/);
+    assert.match(advanced, /\{reason\}/);
+    const ei = read("components/identity/IdentityWhatAthenaKnows.tsx");
     assert.match(ei, /\{value\}/);
     assert.match(ei, /messages\.businessModel\[key\]/);
   });
@@ -404,7 +429,7 @@ describe("V31 L3.3 tenant page body — Athena Brain", () => {
       }),
     );
     assert.match(french, /Ask Athena/);
-    assert.match(french, /propos de votre activité/);
+    assert.match(fr.identity.conversationDescription, /ne modifient pas le Brain/);
     assert.doesNotMatch(french, /Ask Athena about your business/);
     const english = renderToStaticMarkup(
       createElement(IdentityConversationPanel, {
@@ -551,7 +576,7 @@ describe("V31 L3.3 tenant page body — Athena Brain", () => {
 
   it("formats Brain timestamps with the accepted locale mapping", () => {
     const page = read("app/identity/page.tsx");
-    const ei = read("components/identity/IdentityExecutiveIntelligence.tsx");
+    const ei = read("components/identity/IdentityWebsiteKnowledge.tsx");
     const deep = read("components/identity/DeepScrapeWebsiteButton.tsx");
     assert.match(page, /formatTenantDateTime\(identity\.brain_last_updated, language\)/);
     assert.match(ei, /formatTenantDateTime\(/);

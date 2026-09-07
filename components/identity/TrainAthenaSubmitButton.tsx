@@ -122,7 +122,7 @@ export function TrainAthenaSubmitButton({
       type="submit"
       disabled={pending}
       aria-busy={pending}
-      className="w-fit rounded-full bg-[var(--athena-orange)] px-8 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+      className="w-full rounded-full bg-[var(--athena-orange)] px-8 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70 sm:w-fit"
     >
       {pending ? pendingLabel : label}
     </button>

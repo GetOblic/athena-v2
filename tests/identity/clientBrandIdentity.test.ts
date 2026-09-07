@@ -43,10 +43,11 @@ function listTsFiles(dir: string): string[] {
 describe("Client Brand Identity — page composition", () => {
   it("renders Brand Identity section and existing Brain fields", () => {
     const page = read("app/identity/page.tsx");
+    const teach = read("components/identity/IdentityTeachAthenaSection.tsx");
     assert.match(page, /BrandIdentitySection/);
     assert.match(page, /getAthenaIdentityByUserId/);
     assert.match(page, /getOrganizationBrandIdentity/);
-    assert.match(page, /greeting_name/);
+    assert.match(teach, /greeting_name/);
     assert.match(page, /upsertAthenaIdentity/);
     assert.match(page, /updateOrganizationBrandIdentity/);
     assert.doesNotMatch(page, /updateAthenaBrandIdentity/);

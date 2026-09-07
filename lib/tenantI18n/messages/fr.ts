@@ -344,9 +344,9 @@ export const fr: TenantMessages = {
   identity: {
     backToDashboard: "← Tableau de bord",
     eyebrow: "Athena Brain",
-    title: "Entraînez votre Athena Brain",
+    title: "Définissez votre activité",
     subtitle:
-      "Enseignez à Athena votre voix, votre expertise, votre connaissance métier et vos règles professionnelles. Athena s’en servira pour générer des réponses, des appels à l’action, des briefings et des blueprints d’actifs stratégiques.",
+      "Enseignez à Athena votre voix, votre expertise et votre site web. Athena s’en sert lorsqu’elle travaille pour vous.",
     flashSaved: "Athena Brain entraîné avec succès.",
     flashBrandSaved: "Identité de marque enregistrée avec succès.",
     flashWorkspaceSaved: "Préférences d’espace de travail IA enregistrées.",
@@ -372,10 +372,12 @@ export const fr: TenantMessages = {
       "Enseignez à Athena votre méthodologie, vos cadres, FAQ, terminologie, offres et règles…",
     websiteLabel: "Site web de l’entreprise",
     websiteHelp:
-      "Athena étudie votre page d’accueil pendant Entraîner Athena. Après l’entraînement, utilisez Deep Scrape Website pour un apprentissage autonome sur plusieurs pages.",
+      "Athena étudie votre page d’accueil pendant Entraîner Athena. L’apprentissage plus profond du site est facultatif plus tard.",
     websitePlaceholder: "https://votreentreprise.com",
     trainAthena: "Entraîner Athena",
     trainingAthena: "Entraînement d’Athena…",
+    retrainAthena: "Réentraîner Athena",
+    retrainingAthena: "Réentraînement d’Athena…",
     brainStatus: "État du Brain",
     voiceLearned: "Voix apprise",
     expertiseLearned: "Expertise apprise",
@@ -392,9 +394,9 @@ export const fr: TenantMessages = {
     },
     lastTrained: "Dernier entraînement :",
     notYetTrained: "Pas encore entraîné",
-    conversationTitle: "Ask Athena à propos de votre activité",
+    conversationTitle: "Ask Athena ce qu’elle comprend",
     conversationDescription:
-      "Explorez ce qu’Athena comprend actuellement de votre activité, positionnement, audience, voix, services, et comment Athena utilise ces informations.",
+      "Ask Athena à propos de sa compréhension actuelle de votre activité. Les réponses ne modifient pas le Brain.",
     conversationPlaceholder:
       "Posez une question sur votre activité ou Athena…",
     conversationInputLabel:
@@ -555,6 +557,46 @@ export const fr: TenantMessages = {
       calls_to_action: "Appels à l’action",
       communication_style: "Style de communication",
       strategic_priorities: "Priorités stratégiques",
+    },
+    page: {
+      knowsTitle: "Ce qu’Athena sait",
+      knowsAttribution:
+        "Ceci est la compréhension actuelle d’Athena, pas une fiche de faits confirmés.",
+      knowsLastSuccessful:
+        "Ceci est la dernière compréhension réussie d’Athena.",
+      knowsUnderstandingPrefix: "Athena comprend actuellement :",
+      teachTitle: "Enseigner à Athena",
+      teachAddressing: "Comment Athena s’adresse à vous",
+      teachFacts: "Ce que vous enseignez à Athena",
+      teachWebsite: "Où Athena peut en apprendre davantage",
+      teachUntrainedHelper:
+        "Athena apprend de ces quatre éléments lorsque vous choisissez Entraîner Athena. Il n’y a pas d’enregistrement séparé.",
+      teachTrainedHelper:
+        "Modifier ces faits ne met pas Athena à jour tant que vous ne la réentraînez pas.",
+      gapsTitle: "Ce dont Athena a encore besoin",
+      gapsEmpty:
+        "Rien de matériel ne nécessite de clarification pour le moment.",
+      gapsGoToField: "Aller à ce champ",
+      updateLocationVoice: "Votre voix",
+      updateLocationKnowledge: "Votre connaissance métier",
+      updateLocationWebsite: "Site web de l’entreprise",
+      updateLocationWebsiteContent: "Contenu du site",
+      websiteKnowledgeTitle: "Connaissance du site",
+      websiteNoUrl:
+        "Ajoutez votre site dans Enseigner à Athena pour qu’Athena puisse en apprendre.",
+      websiteWillStudy:
+        "Athena étudiera la page d’accueil lorsque vous choisirez Entraîner Athena.",
+      websiteLearnedHomepage:
+        "Athena a appris de la page d’accueil pendant l’entraînement.",
+      websiteLearnedDeep:
+        "Athena a aussi appris à partir de pages supplémentaires du site.",
+      websiteLastDeepLearning: "Dernier apprentissage approfondi",
+      websiteDeepScrapeHelp:
+        "Apprentissage facultatif plus profond du site. Réentraînez Athena ensuite pour l’intégrer au Brain.",
+      advancedTitle: "Compréhension avancée",
+      otherToolsTitle: "Autres outils",
+      askAthenaSummary:
+        "Demandez ce qu’Athena comprend. Les réponses ne modifient pas le Brain.",
     },
     getoblic: {
       title: "GetOblic Links",

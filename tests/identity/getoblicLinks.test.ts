@@ -1024,10 +1024,8 @@ describe("GetOblic Links — API route and Identity contracts", () => {
     assert.match(page, /DeepScrapeWebsiteButton/);
     const deepIdx = page.indexOf("<DeepScrapeWebsiteButton");
     const linksIdx = page.indexOf("<GetOblicLinksCard");
-    const asideCloseIdx = page.indexOf("</aside>");
     assert.ok(deepIdx > 0);
     assert.ok(linksIdx > deepIdx);
-    assert.ok(asideCloseIdx > linksIdx);
   });
 
   it("API routes use node runtime, force-dynamic, org auth, and no-store", () => {

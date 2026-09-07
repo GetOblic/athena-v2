@@ -4,12 +4,21 @@ import { AiWorkspacePreferencesSection } from "@/components/identity/AiWorkspace
 import { BrandIdentitySection } from "@/components/identity/BrandIdentitySection";
 import { DeepScrapeWebsiteButton } from "@/components/identity/DeepScrapeWebsiteButton";
 import { GetOblicLinksCard } from "@/components/identity/GetOblicLinksCard";
-import { IdentityExecutiveIntelligence } from "@/components/identity/IdentityExecutiveIntelligence";
-import {
-  TrainAthenaForm,
-  TrainAthenaSubmitButton,
-} from "@/components/identity/TrainAthenaSubmitButton";
+import { IdentityAdvancedUnderstanding } from "@/components/identity/IdentityAdvancedUnderstanding";
+import { IdentityCalibrationGaps } from "@/components/identity/IdentityCalibrationGaps";
 import { IdentityConversationPanel } from "@/components/identity/IdentityConversationPanel";
+import { IdentityOtherTools } from "@/components/identity/IdentityOtherTools";
+import { IdentityPageHeader } from "@/components/identity/IdentityPageHeader";
+import { IdentityTeachAthenaSection } from "@/components/identity/IdentityTeachAthenaSection";
+import { IdentityWebsiteKnowledge } from "@/components/identity/IdentityWebsiteKnowledge";
+import { IdentityWhatAthenaKnows } from "@/components/identity/IdentityWhatAthenaKnows";
+import {
+  hasMaterialCalibrationGaps,
+  hasSuccessfulAthenaTraining,
+  isAthenaBrainTraining,
+  shouldOpenTeachAthena,
+} from "@/components/identity/identityPagePresentation";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { getLocalizedBrainStatus } from "@/lib/tenantI18n/brainStatus";
 import { tenantConversationWrapperChrome } from "@/lib/tenantI18n/conversationChrome";
 import { formatTenantDateTime } from "@/lib/tenantI18n/format";
@@ -19,6 +28,7 @@ import {
   isAiWorkspaceId,
   isImageGeneratorId,
 } from "@/services/assetContinuation/destinationRegistry";
+import { buildConversationScopeFingerprint } from "@/services/athenaConversation/athenaConversationScope";
 import {
   AiWorkspacePreferencesNotFoundError,
   getOrganizationAiWorkspacePreferences,
@@ -31,16 +41,13 @@ import {
   resolveOrganizationBrandProfilePicturePreviewUrl,
   updateOrganizationBrandIdentity,
 } from "@/services/identity/brandIdentityService";
+import { readIdentityExecutiveIntelligence } from "@/services/identity/identityExecutiveIntelligence";
 import {
   getAthenaIdentityByUserId,
   upsertAthenaIdentity,
 } from "@/services/identity/identityService";
 import { organizationLanguageLabel } from "@/services/organizationLanguage";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
-import { buildConversationScopeFingerprint } from "@/services/athenaConversation/athenaConversationScope";
-
-const fieldClassName =
-  "rounded-2xl border border-white/15 bg-white/[0.04] px-5 py-4 text-sm text-white/90 shadow-inner shadow-black/20 outline-none placeholder:text-white/30 focus:border-[var(--athena-orange)] focus:ring-1 focus:ring-[var(--athena-orange)]";
 
 async function saveIdentity(formData: FormData) {
   "use server";
@@ -200,10 +207,19 @@ export default async function IdentityPage({
       organizationId,
     );
 
-  const hasVoice = Boolean(identity?.about_you?.trim());
-  const hasExpertise = Boolean(identity?.expertise?.trim());
   const hasWebsite = Boolean(identity?.website?.trim());
-  const hasMasterProfile = Boolean(identity?.master_profile);
+  const trained = hasSuccessfulAthenaTraining(identity);
+  const training = isAthenaBrainTraining(identity);
+  const executive = readIdentityExecutiveIntelligence(identity?.master_profile);
+  const teachAthenaOpen = shouldOpenTeachAthena({
+    trained,
+    training,
+    hasCalibrationGaps: hasMaterialCalibrationGaps(executive?.calibration_gaps),
+  });
+  const trainLabel = trained ? copy.retrainAthena : copy.trainAthena;
+  const trainPendingLabel = trained
+    ? copy.retrainingAthena
+    : copy.trainingAthena;
   const brandError = localizeFlashError(params.brandError, {
     not_found: copy.flashBrandNotFound,
     save_failed: copy.flashBrandSaveFailed,
@@ -219,196 +235,19 @@ export default async function IdentityPage({
     "Could not save AI workspace preferences.": copy.flashWorkspaceSaveFailed,
   });
 
-  return (
-    <TenantAppShell currentPath="/identity" messages={messages}>
-      <div className="mb-10">
-        <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          {copy.eyebrow}
-        </div>
+  const teachAthena = (
+    <IdentityTeachAthenaSection
+      identity={identity}
+      messages={copy}
+      action={saveIdentity}
+      defaultOpen={teachAthenaOpen}
+      trainLabel={trainLabel}
+      pendingLabel={trainPendingLabel}
+    />
+  );
 
-        <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          {copy.title}
-        </h1>
-
-        <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          {copy.subtitle}
-        </p>
-      </div>
-
-      {params.saved === "true" && (
-        <div className="mb-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
-          {copy.flashSaved}
-        </div>
-      )}
-
-      {params.brandSaved === "true" && (
-        <div className="mb-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
-          {copy.flashBrandSaved}
-        </div>
-      )}
-
-      <IdentityConversationPanel
-        opaqueScope={buildConversationScopeFingerprint({
-          scope: "identity",
-          organizationId,
-          userId,
-        })}
-        title={copy.conversationTitle}
-        description={copy.conversationDescription}
-        placeholder={copy.conversationPlaceholder}
-        inputLabel={copy.conversationInputLabel}
-        examplePrompts={[
-          copy.example1,
-          copy.example2,
-          copy.example3,
-          copy.example4,
-          copy.example5,
-          copy.example6,
-        ]}
-        chrome={conversationChrome.chrome}
-        clearLabel={conversationChrome.clearLabel}
-        submitLabel={conversationChrome.submitLabel}
-        emptyStateTitle={conversationChrome.emptyStateTitle}
-        readOnlyNotice={conversationChrome.readOnlyNotice}
-      />
-
-      <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-        <TrainAthenaForm
-          action={saveIdentity}
-          className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8"
-        >
-          <div className="grid gap-8">
-            <label className="grid gap-3">
-              <span className="text-xl font-semibold">{copy.greetingLabel}</span>
-              <span className="max-w-3xl text-sm leading-6 text-white/45">
-                {copy.greetingHelp}
-              </span>
-              <input
-                name="greeting_name"
-                defaultValue={identity?.greeting_name ?? ""}
-                className={fieldClassName}
-                placeholder={copy.greetingPlaceholder}
-              />
-            </label>
-
-            <label className="grid gap-3">
-              <span className="text-xl font-semibold">{copy.voiceLabel}</span>
-              <span className="max-w-3xl text-sm leading-6 text-white/45">
-                {copy.voiceHelp}
-              </span>
-              <textarea
-                name="about_you"
-                rows={8}
-                defaultValue={identity?.about_you ?? ""}
-                className={`resize-y leading-6 ${fieldClassName}`}
-                placeholder={copy.voicePlaceholder}
-              />
-            </label>
-
-            <label className="grid gap-3">
-              <span className="text-xl font-semibold">
-                {copy.knowledgeLabel}
-              </span>
-              <span className="max-w-3xl text-sm leading-6 text-white/45">
-                {copy.knowledgeHelp}
-              </span>
-              <textarea
-                name="expertise"
-                rows={10}
-                defaultValue={identity?.expertise ?? ""}
-                className={`resize-y leading-6 ${fieldClassName}`}
-                placeholder={copy.knowledgePlaceholder}
-              />
-            </label>
-
-            <label className="grid gap-3">
-              <span className="text-xl font-semibold">{copy.websiteLabel}</span>
-              <span className="max-w-3xl text-sm leading-6 text-white/45">
-                {copy.websiteHelp}
-              </span>
-              <input
-                name="website"
-                defaultValue={identity?.website ?? ""}
-                className={fieldClassName}
-                placeholder={copy.websitePlaceholder}
-              />
-            </label>
-
-            <TrainAthenaSubmitButton
-              label={copy.trainAthena}
-              pendingLabel={copy.trainingAthena}
-            />
-          </div>
-        </TrainAthenaForm>
-
-        <aside className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-          <h2 className="text-xl font-semibold">{copy.brainStatus}</h2>
-
-          <div className="mt-6 space-y-5 text-sm leading-6 text-white/55">
-            <div>
-              {hasVoice ? "✓" : "○"} {copy.voiceLearned}
-            </div>
-            <div>
-              {hasExpertise ? "✓" : "○"} {copy.expertiseLearned}
-            </div>
-            <div>
-              {hasWebsite ? "✓" : "○"} {copy.homepageLearned}
-            </div>
-            <div>
-              {hasMasterProfile ? "✓" : "○"} {copy.terminologyLearned}
-            </div>
-            <div>✓ {copy.continuousLearning}</div>
-          </div>
-
-          <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-5">
-            <div className="text-xs uppercase tracking-[0.25em] text-white/35">
-              {copy.accountLanguage}
-            </div>
-            <div className="mt-3 text-lg font-semibold text-white">
-              {accountLanguageLabel}
-            </div>
-            <div className="mt-2 text-sm text-white/40">
-              {copy.accountLanguageHelp}
-            </div>
-          </div>
-
-          <div className="mt-8 rounded-2xl border border-white/10 bg-black/20 p-5">
-            <div className="text-xs uppercase tracking-[0.25em] text-white/35">
-              {copy.status}
-            </div>
-            <div className="mt-3 text-lg font-semibold text-[var(--athena-orange)]">
-              {getLocalizedBrainStatus(messages, identity?.brain_status)}
-            </div>
-            <div className="mt-2 text-sm text-white/40">
-              {copy.lastTrained}{" "}
-              {identity?.brain_last_updated
-                ? formatTenantDateTime(identity.brain_last_updated, language)
-                : copy.notYetTrained}
-            </div>
-          </div>
-
-          <DeepScrapeWebsiteButton
-            initiallyAvailable={
-              identity?.brain_status === "ready" && hasWebsite
-            }
-            initialLastDeepScrapeAt={identity?.last_deep_scrape_at ?? null}
-            initialLastDeepScrapePages={
-              typeof identity?.last_deep_scrape_pages === "number"
-                ? identity.last_deep_scrape_pages
-                : null
-            }
-            messages={copy.deepScrape}
-            locale={locale}
-          />
-
-          <GetOblicLinksCard
-            organizationId={organizationId}
-            userId={userId}
-            messages={copy.getoblic}
-          />
-        </aside>
-      </div>
-
+  const brandIdentity = (
+    <AthenaCollapsibleSection title={copy.brand.title} defaultOpen={false}>
       <BrandIdentitySection
         key={[
           organizationId,
@@ -433,25 +272,149 @@ export default async function IdentityPage({
         brandError={brandError}
         messages={copy.brand}
       />
+    </AthenaCollapsibleSection>
+  );
 
-      <AiWorkspacePreferencesSection
-        initialPreferredAiWorkspace={
-          aiWorkspacePreferences.preferredAiWorkspace
+  const askAthena = (
+    <AthenaCollapsibleSection
+      title={copy.conversationTitle}
+      summary={copy.page.askAthenaSummary}
+      defaultOpen={false}
+    >
+      <IdentityConversationPanel
+        opaqueScope={buildConversationScopeFingerprint({
+          scope: "identity",
+          organizationId,
+          userId,
+        })}
+        title={copy.conversationTitle}
+        description={copy.conversationDescription}
+        placeholder={copy.conversationPlaceholder}
+        inputLabel={copy.conversationInputLabel}
+        examplePrompts={[
+          copy.example1,
+          copy.example2,
+          copy.example3,
+          copy.example4,
+          copy.example5,
+          copy.example6,
+        ]}
+        chrome={conversationChrome.chrome}
+        clearLabel={conversationChrome.clearLabel}
+        submitLabel={conversationChrome.submitLabel}
+        emptyStateTitle={conversationChrome.emptyStateTitle}
+        readOnlyNotice={conversationChrome.readOnlyNotice}
+      />
+    </AthenaCollapsibleSection>
+  );
+
+  const deepScrape = (
+    <DeepScrapeWebsiteButton
+      initiallyAvailable={identity?.brain_status === "ready" && hasWebsite}
+      initialLastDeepScrapeAt={identity?.last_deep_scrape_at ?? null}
+      initialLastDeepScrapePages={
+        typeof identity?.last_deep_scrape_pages === "number"
+          ? identity.last_deep_scrape_pages
+          : null
+      }
+      messages={copy.deepScrape}
+      locale={locale}
+    />
+  );
+
+  const otherTools = (
+    <IdentityOtherTools
+      messages={copy}
+      accountLanguageLabel={accountLanguageLabel}
+      workspace={
+        <AiWorkspacePreferencesSection
+          initialPreferredAiWorkspace={
+            aiWorkspacePreferences.preferredAiWorkspace
+          }
+          initialPreferredImageGenerator={
+            aiWorkspacePreferences.preferredImageGenerator
+          }
+          saveAiWorkspacePreferences={saveAiWorkspacePreferences}
+          saved={params.workspaceSaved === "true"}
+          error={workspaceError}
+          messages={copy.workspace}
+        />
+      }
+      getoblic={
+        <GetOblicLinksCard
+          organizationId={organizationId}
+          userId={userId}
+          messages={copy.getoblic}
+        />
+      }
+    />
+  );
+
+  return (
+    <TenantAppShell currentPath="/identity" messages={messages}>
+      <IdentityPageHeader
+        eyebrow={copy.eyebrow}
+        title={copy.title}
+        subtitle={copy.subtitle}
+        statusLabel={copy.status}
+        statusValue={getLocalizedBrainStatus(messages, identity?.brain_status)}
+        lastTrainedLabel={copy.lastTrained}
+        lastTrainedValue={
+          identity?.brain_last_updated
+            ? formatTenantDateTime(identity.brain_last_updated, language)
+            : copy.notYetTrained
         }
-        initialPreferredImageGenerator={
-          aiWorkspacePreferences.preferredImageGenerator
-        }
-        saveAiWorkspacePreferences={saveAiWorkspacePreferences}
-        saved={params.workspaceSaved === "true"}
-        error={workspaceError}
-        messages={copy.workspace}
       />
 
-      <IdentityExecutiveIntelligence
-        identity={identity}
-        messages={copy}
-        language={language}
-      />
+      {params.saved === "true" && (
+        <div className="mb-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
+          {copy.flashSaved}
+        </div>
+      )}
+
+      {params.brandSaved === "true" && (
+        <div className="mb-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
+          {copy.flashBrandSaved}
+        </div>
+      )}
+
+      <div className="grid gap-8">
+        {trained ? (
+          <>
+            <IdentityWhatAthenaKnows identity={identity} messages={copy} />
+            {executive ? (
+              <IdentityCalibrationGaps
+                gaps={executive.calibration_gaps}
+                messages={copy}
+              />
+            ) : null}
+            {teachAthena}
+            <IdentityWebsiteKnowledge
+              identity={identity}
+              messages={copy}
+              language={language}
+              trained={trained}
+              deepScrape={deepScrape}
+            />
+            {brandIdentity}
+            {askAthena}
+            {executive ? (
+              <IdentityAdvancedUnderstanding
+                executive={executive}
+                messages={copy}
+              />
+            ) : null}
+            {otherTools}
+          </>
+        ) : (
+          <>
+            {teachAthena}
+            {brandIdentity}
+            {askAthena}
+            {otherTools}
+          </>
+        )}
+      </div>
     </TenantAppShell>
   );
 }

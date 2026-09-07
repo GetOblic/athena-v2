@@ -107,8 +107,9 @@ describe("Identity Executive Intelligence — generation lifecycle wiring", () =
 
   it("2) Update/Train Athena refreshes through the same compile path", () => {
     const page = read("app/identity/page.tsx");
+    const teach = read("components/identity/IdentityTeachAthenaSection.tsx");
     assert.match(page, /upsertAthenaIdentity/);
-    assert.match(page, /TrainAthenaSubmitButton/);
+    assert.match(teach, /TrainAthenaSubmitButton/);
     assert.doesNotMatch(page, /generateReview\(/);
   });
 
@@ -122,7 +123,7 @@ describe("Identity Executive Intelligence — generation lifecycle wiring", () =
 
   it("4) page navigation/reload does not trigger generation", () => {
     const page = read("app/identity/page.tsx");
-    assert.match(page, /IdentityExecutiveIntelligence/);
+    assert.match(page, /IdentityWhatAthenaKnows/);
     assert.doesNotMatch(page, /compileMasterIdentityProfile/);
     assert.doesNotMatch(page, /generateReview\(/);
   });
@@ -255,13 +256,13 @@ describe("Identity Executive Intelligence — website coverage", () => {
 
   it("Brain page inventory UI reuses shared WebsiteAnalyzedPagesList without SEO crawl", () => {
     const identityUi = read(
-      "components/identity/IdentityExecutiveIntelligence.tsx",
+      "components/identity/IdentityWebsiteKnowledge.tsx",
     );
     const shared = read(
       "components/websiteLearning/WebsiteAnalyzedPagesList.tsx",
     );
     assert.match(identityUi, /WebsiteAnalyzedPagesList/);
-    assert.match(identityUi, /messages\.analyzedSourcePages/);
+    assert.match(identityUi, /copy\.analyzedSourcePages/);
     assert.match(identityUi, /buildIdentityWebsiteCoverageView/);
     assert.doesNotMatch(identityUi, /services\/seo/);
     assert.match(shared, /target="_blank"/);
@@ -343,7 +344,7 @@ describe("Identity Executive Intelligence — website coverage", () => {
   });
 
   it("8) coverage builders do not invent cross-tenant data paths", () => {
-    const ui = read("components/identity/IdentityExecutiveIntelligence.tsx");
+    const ui = read("components/identity/IdentityWebsiteKnowledge.tsx");
     assert.match(ui, /buildIdentityWebsiteCoverageView/);
     assert.match(ui, /identity\.website_intelligence/);
     assert.doesNotMatch(ui, /supabaseAdmin|from\("athena_website/);
@@ -352,7 +353,7 @@ describe("Identity Executive Intelligence — website coverage", () => {
 
 describe("Identity Executive Intelligence — UI and safety", () => {
   it("11) legacy Brain without EI renders a safe Update Athena message", () => {
-    const ui = read("components/identity/IdentityExecutiveIntelligence.tsx");
+    const ui = read("components/identity/IdentityWhatAthenaKnows.tsx");
     assert.match(ui, /copy\.legacyBody/);
     assert.match(ui, /messages\.executive/);
     const dictionary = read("lib/tenantI18n/messages/en.ts");
@@ -388,11 +389,17 @@ describe("Identity Executive Intelligence — UI and safety", () => {
     assert.match(button, /setAvailable\(true\)/);
   });
 
-  it("places Executive Intelligence below Client Brand Identity", () => {
+  it("places What Athena knows above Brand Identity in the trained composition", () => {
     const page = read("app/identity/page.tsx");
-    const brandIdx = page.indexOf("<BrandIdentitySection");
-    const eiIdx = page.indexOf("<IdentityExecutiveIntelligence");
-    assert.ok(brandIdx >= 0);
-    assert.ok(eiIdx > brandIdx);
+    const trainedStart = page.indexOf("{trained ? (");
+    const trainedBlock = page.slice(
+      trainedStart,
+      page.indexOf(") : (", trainedStart),
+    );
+    assert.ok(trainedStart >= 0);
+    assert.ok(
+      trainedBlock.indexOf("IdentityWhatAthenaKnows") <
+        trainedBlock.indexOf("{brandIdentity}"),
+    );
   });
 });

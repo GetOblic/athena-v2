@@ -377,7 +377,10 @@ describe("V31 L1 organization language — Brain display and isolation", () => {
     assert.match(page, /requireCurrentOrganizationContext/);
     assert.match(page, /getTenantLocalization/);
     assert.match(page, /organizationLanguageLabel/);
-    assert.match(page, /copy\.accountLanguage/);
+    assert.match(
+      read("components/identity/IdentityOtherTools.tsx"),
+      /messages\.accountLanguage/,
+    );
     assert.doesNotMatch(page, /resolveOrganizationLanguage/);
     assert.doesNotMatch(page, /name=["']account_language["']/);
     assert.doesNotMatch(page, /<select[^>]*language/i);

@@ -135,7 +135,10 @@ describe("Train Athena completion sound", () => {
     );
     assert.doesNotMatch(submitFn, /playCompletionSound/);
     assert.doesNotMatch(read("app/identity/page.tsx"), /playCompletionSound/);
-    assert.match(read("app/identity/page.tsx"), /TrainAthenaForm/);
+    assert.match(
+      read("components/identity/IdentityTeachAthenaSection.tsx"),
+      /TrainAthenaForm/,
+    );
 
     await handleTrainAthenaServerActionResult(
       async () => undefined,

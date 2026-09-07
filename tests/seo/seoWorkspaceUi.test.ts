@@ -125,10 +125,9 @@ describe("seo workspace UI", () => {
     assert.match(sharedList, /target="_blank"/);
     assert.match(sharedList, /rel="noopener noreferrer"/);
 
-    const identity = read("components/identity/IdentityExecutiveIntelligence.tsx");
+    const identity = read("components/identity/IdentityWebsiteKnowledge.tsx");
     assert.match(identity, /WebsiteAnalyzedPagesList/);
-    assert.match(identity, /messages\.analyzedSourcePages/);
-    assert.match(identity, /messages\.websiteCoverageEyebrow/);
+    assert.match(identity, /copy\.analyzedSourcePages/);
     const dictionary = read("lib/tenantI18n/messages/en.ts");
     assert.match(dictionary, /analyzedSourcePages: "Analyzed source pages"/);
     assert.match(

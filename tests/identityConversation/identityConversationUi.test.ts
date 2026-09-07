@@ -56,22 +56,22 @@ describe("identity conversation UI", () => {
     ]);
   });
 
-  it("page mounts the panel after hero/banners and before Train Athena grid", () => {
+  it("page mounts the panel after Brand Identity and below Teach Athena", () => {
     const page = read("app/identity/page.tsx");
     assert.match(page, /IdentityConversationPanel/);
     assert.match(page, /buildConversationScopeFingerprint/);
     assert.match(page, /scope:\s*"identity"/);
+    assert.doesNotMatch(page, /lg:grid-cols-\[2fr_1fr\]/);
 
     const panelIndex = page.indexOf("<IdentityConversationPanel");
-    const gridIndex = page.indexOf('grid gap-8 lg:grid-cols-[2fr_1fr]');
-    const trainIndex = page.indexOf("<TrainAthenaForm");
     const brandIndex = page.indexOf("<BrandIdentitySection");
+    const teachIndex = page.indexOf("<IdentityTeachAthenaSection");
     const deepScrapeIndex = page.indexOf("<DeepScrapeWebsiteButton");
     assert.ok(panelIndex > 0);
-    assert.ok(gridIndex > panelIndex);
-    assert.ok(trainIndex > panelIndex);
-    assert.ok(brandIndex > panelIndex);
-    assert.ok(deepScrapeIndex > panelIndex);
+    assert.ok(teachIndex > 0);
+    assert.ok(brandIndex > teachIndex);
+    assert.ok(panelIndex > brandIndex);
+    assert.ok(deepScrapeIndex > 0);
   });
 
   it("panel stays outside mutation surfaces", () => {

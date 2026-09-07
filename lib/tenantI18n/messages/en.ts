@@ -342,9 +342,9 @@ export const en = {
   identity: {
     backToDashboard: "← Dashboard",
     eyebrow: "Athena Brain",
-    title: "Train Your Athena Brain",
+    title: "Define Your Business",
     subtitle:
-      "Teach Athena your voice, expertise, business knowledge and professional rules. Athena will use this when generating replies, CTAs, briefings and strategic asset blueprints.",
+      "Teach Athena your voice, expertise, and website. Athena uses this when it works for you.",
     flashSaved: "Athena Brain trained successfully.",
     flashBrandSaved: "Brand Identity saved successfully.",
     flashWorkspaceSaved: "AI Workspace preferences saved.",
@@ -369,10 +369,12 @@ export const en = {
       "Teach Athena your methodology, frameworks, FAQs, terminology, offers and rules...",
     websiteLabel: "Business Website",
     websiteHelp:
-      "Athena studies your homepage during Train Athena. After training, use Deep Scrape Website for autonomous multi-page learning.",
+      "Athena studies your homepage during Train Athena. Deeper website learning is optional later.",
     websitePlaceholder: "https://yourcompany.com",
     trainAthena: "Train Athena",
     trainingAthena: "Training Athena...",
+    retrainAthena: "Retrain Athena",
+    retrainingAthena: "Retraining Athena...",
     brainStatus: "Brain Status",
     voiceLearned: "Voice learned",
     expertiseLearned: "Expertise learned",
@@ -389,9 +391,9 @@ export const en = {
     },
     lastTrained: "Last trained:",
     notYetTrained: "Not yet trained",
-    conversationTitle: "Ask Athena about your business",
+    conversationTitle: "Ask Athena what it understands",
     conversationDescription:
-      "Explore what Athena currently understands about your business, positioning, audience, voice, services, and how Athena uses this information.",
+      "Ask Athena about its current understanding of your business. Responses do not change the Brain.",
     conversationPlaceholder: "Ask a question about your business or Athena…",
     conversationInputLabel: "Ask a question about your business or Athena",
     example1: "What does Athena currently understand about my business?",
@@ -549,6 +551,46 @@ export const en = {
       calls_to_action: "Calls to Action",
       communication_style: "Communication Style",
       strategic_priorities: "Strategic Priorities",
+    },
+    page: {
+      knowsTitle: "What Athena knows",
+      knowsAttribution:
+        "This is Athena's current understanding, not a confirmed fact sheet.",
+      knowsLastSuccessful:
+        "This is Athena's last successful understanding.",
+      knowsUnderstandingPrefix: "Athena currently understands:",
+      teachTitle: "Teach Athena",
+      teachAddressing: "How Athena addresses you",
+      teachFacts: "What you teach Athena",
+      teachWebsite: "Where Athena can learn more",
+      teachUntrainedHelper:
+        "Athena learns from these four things when you select Train Athena. There is no separate save.",
+      teachTrainedHelper:
+        "Changing these facts does not update Athena until you retrain.",
+      gapsTitle: "What Athena still needs",
+      gapsEmpty:
+        "Nothing material needs clarification right now.",
+      gapsGoToField: "Go to this field",
+      updateLocationVoice: "Your Voice",
+      updateLocationKnowledge: "Your Business Knowledge",
+      updateLocationWebsite: "Business Website",
+      updateLocationWebsiteContent: "Website content",
+      websiteKnowledgeTitle: "Website knowledge",
+      websiteNoUrl:
+        "Add your website in Teach Athena so Athena can learn from it.",
+      websiteWillStudy:
+        "Athena will study the homepage when you select Train Athena.",
+      websiteLearnedHomepage:
+        "Athena learned from the homepage during training.",
+      websiteLearnedDeep:
+        "Athena also learned from additional website pages.",
+      websiteLastDeepLearning: "Last deep learning",
+      websiteDeepScrapeHelp:
+        "Optional deeper website learning. Retrain Athena afterward to fold it into the Brain.",
+      advancedTitle: "Advanced understanding",
+      otherToolsTitle: "Other tools",
+      askAthenaSummary:
+        "Ask what Athena understands. Responses do not change the Brain.",
     },
     getoblic: {
       title: "GetOblic Links",
