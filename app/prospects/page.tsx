@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
-import { TenantBackLink } from "@/components/navigation/TenantBackLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { ProspectsLibraryClient } from "@/components/prospects/ProspectsLibraryClient";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -18,17 +17,8 @@ export default async function ProspectsPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
-      />
-
-      <TenantBackLink href="/" label={copy.backToDashboard} />
-
-      <div className="mb-10 mt-10">
+    <TenantAppShell currentPath="/prospects" messages={messages}>
+      <div className="mb-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
           {copy.eyebrow}
         </div>
@@ -45,6 +35,6 @@ export default async function ProspectsPage() {
         messages={messages}
         language={language}
       />
-    </main>
+    </TenantAppShell>
   );
 }

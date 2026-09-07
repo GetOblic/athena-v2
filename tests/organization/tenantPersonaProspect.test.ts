@@ -133,7 +133,7 @@ describe("V31 L3.6 tenant personas + prospects — list chrome", () => {
     assert.match(personaPage, /getTenantLocalization/);
     assert.match(prospectPage, /getTenantLocalization/);
     assert.match(personaPage, /TenantBackLink/);
-    assert.match(prospectPage, /TenantBackLink/);
+    assert.match(prospectPage, /TenantAppShell/);
     assert.match(personaPage, /copy\.title/);
     assert.match(prospectPage, /copy\.title/);
   });

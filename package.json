@@ -23,6 +23,7 @@
     "date-holidays": "^3.35.0",
     "esbuild": "^0.25.0",
     "jsdom": "^29.1.1",
+    "lucide-react": "^1.42.0",
     "next": "16.2.10",
     "playwright": "^1.61.1",
     "qrcode": "^1.5.4",

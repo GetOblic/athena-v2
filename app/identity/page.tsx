@@ -1,5 +1,5 @@
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { redirect } from "next/navigation";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { AiWorkspacePreferencesSection } from "@/components/identity/AiWorkspacePreferencesSection";
 import { BrandIdentitySection } from "@/components/identity/BrandIdentitySection";
 import { DeepScrapeWebsiteButton } from "@/components/identity/DeepScrapeWebsiteButton";
@@ -10,7 +10,6 @@ import {
   TrainAthenaSubmitButton,
 } from "@/components/identity/TrainAthenaSubmitButton";
 import { IdentityConversationPanel } from "@/components/identity/IdentityConversationPanel";
-import { TenantBackLink } from "@/components/navigation/TenantBackLink";
 import { getLocalizedBrainStatus } from "@/lib/tenantI18n/brainStatus";
 import { tenantConversationWrapperChrome } from "@/lib/tenantI18n/conversationChrome";
 import { formatTenantDateTime } from "@/lib/tenantI18n/format";
@@ -221,17 +220,8 @@ export default async function IdentityPage({
   });
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
-      />
-
-      <TenantBackLink href="/" label={copy.backToDashboard} />
-
-      <div className="mb-10 mt-10">
+    <TenantAppShell currentPath="/identity" messages={messages}>
+      <div className="mb-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
           {copy.eyebrow}
         </div>
@@ -462,6 +452,6 @@ export default async function IdentityPage({
         messages={copy}
         language={language}
       />
-    </main>
+    </TenantAppShell>
   );
 }

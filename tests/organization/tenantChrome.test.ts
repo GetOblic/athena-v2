@@ -317,9 +317,12 @@ describe("V31 L3.2 tenant chrome — AthenaBrandLink isolation", () => {
   it("lets tenant callers pass a localized tagline", () => {
     const sidebar = read("components/dashboard/DashboardSidebar.tsx");
     const dashboard = read("app/page.tsx");
+    const tenantSidebar = read("components/dashboard/TenantSidebar.tsx");
     assert.match(sidebar, /tagline=\{messages\.chrome\.tagline\}/);
-    assert.match(dashboard, /tagline=\{messages\.chrome\.tagline\}/);
+    assert.match(dashboard, /<TenantAppShell/);
+    assert.match(dashboard, /messages=\{messages\}/);
     assert.match(dashboard, /getTenantLocalization/);
+    assert.match(tenantSidebar, /messages\.chrome\.tagline/);
     assert.equal(fr.chrome.tagline, "Intelligence OS");
     assert.equal(fr.chrome.logOut, "Se déconnecter");
   });

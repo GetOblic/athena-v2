@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { TodaysIntelligence } from "@/components/dashboard/TodaysIntelligence";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -40,109 +39,96 @@ export default async function Home() {
   const brainReady = identity?.brain_status === "ready";
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] text-white">
-      <div className="flex min-h-screen">
-        <DashboardSidebar activeHref="/" messages={messages} />
+    <TenantAppShell currentPath="/" messages={messages}>
+      <div className="mb-12">
+        <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
+          {messages.dashboard.eyebrow}
+        </div>
 
-        <section className="flex-1 p-10">
-          <AthenaBrandLink
-            className="mb-8 md:hidden"
-            tagline={messages.chrome.tagline}
-            logoutLabel={messages.chrome.logOut}
-            sessionActionsLabel={messages.chrome.sessionActions}
-          />
+        <h1 className="mt-4 text-5xl font-semibold tracking-tight">
+          {messages.dashboard[timeGreetingKey()]}, {name}.
+        </h1>
 
-          <div className="mb-12">
-            <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-              {messages.dashboard.eyebrow}
+        <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
+          {messages.dashboard.subtitle}
+        </p>
+      </div>
+
+      <TodaysIntelligence
+        summary={todaysIntelligence}
+        messages={messages.dashboard}
+      />
+
+      <div className="mb-10 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="text-sm uppercase tracking-[0.25em] text-white/35">
+              {messages.nav.athenaBrain}
             </div>
-
-            <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-              {messages.dashboard[timeGreetingKey()]}, {name}.
-            </h1>
-
-            <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-              {messages.dashboard.subtitle}
+            <h2 className="mt-3 text-3xl font-semibold">
+              {brainReady
+                ? messages.dashboard.brainReadyTitle
+                : messages.dashboard.brainNeedsTitle}
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-white/50">
+              {brainReady
+                ? messages.dashboard.brainReadyBody
+                : messages.dashboard.brainNeedsBody}
             </p>
           </div>
 
-          <TodaysIntelligence
-            summary={todaysIntelligence}
-            messages={messages.dashboard}
-          />
-
-          <div className="mb-10 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="text-sm uppercase tracking-[0.25em] text-white/35">
-                  {messages.nav.athenaBrain}
-                </div>
-                <h2 className="mt-3 text-3xl font-semibold">
-                  {brainReady
-                    ? messages.dashboard.brainReadyTitle
-                    : messages.dashboard.brainNeedsTitle}
-                </h2>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-white/50">
-                  {brainReady
-                    ? messages.dashboard.brainReadyBody
-                    : messages.dashboard.brainNeedsBody}
-                </p>
-              </div>
-
-              <Link
-                href="/identity"
-                className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
-              >
-                {brainReady
-                  ? messages.dashboard.openBrain
-                  : messages.dashboard.trainAthena}
-              </Link>
-            </div>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
-            <Metric
-              label={messages.dashboard.metricDiscussions}
-              value={stats.discussions}
-            />
-            <Metric
-              label={messages.dashboard.metricOpportunities}
-              value={stats.opportunities}
-            />
-            <Metric
-              label={messages.dashboard.metricDraftBriefings}
-              value={stats.draftBriefings}
-            />
-            <Metric
-              label={messages.dashboard.metricApprovedBriefings}
-              value={stats.approvedBriefings}
-            />
-            <Metric
-              label={messages.dashboard.metricStrategicBlueprints}
-              value={stats.strategicBlueprints}
-            />
-          </div>
-
-          <div className="mt-10 grid gap-7 lg:grid-cols-3">
-            <ActionCard
-              title={messages.dashboard.reviewOpportunitiesTitle}
-              description={messages.dashboard.reviewOpportunitiesDescription}
-              href="/opportunities"
-            />
-            <ActionCard
-              title={messages.dashboard.continueDiscussionsTitle}
-              description={messages.dashboard.continueDiscussionsDescription}
-              href="/discussions"
-            />
-            <ActionCard
-              title={messages.dashboard.openBriefingsTitle}
-              description={messages.dashboard.openBriefingsDescription}
-              href="/briefings"
-            />
-          </div>
-        </section>
+          <Link
+            href="/identity"
+            className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
+          >
+            {brainReady
+              ? messages.dashboard.openBrain
+              : messages.dashboard.trainAthena}
+          </Link>
+        </div>
       </div>
-    </main>
+
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
+        <Metric
+          label={messages.dashboard.metricDiscussions}
+          value={stats.discussions}
+        />
+        <Metric
+          label={messages.dashboard.metricOpportunities}
+          value={stats.opportunities}
+        />
+        <Metric
+          label={messages.dashboard.metricDraftBriefings}
+          value={stats.draftBriefings}
+        />
+        <Metric
+          label={messages.dashboard.metricApprovedBriefings}
+          value={stats.approvedBriefings}
+        />
+        <Metric
+          label={messages.dashboard.metricStrategicBlueprints}
+          value={stats.strategicBlueprints}
+        />
+      </div>
+
+      <div className="mt-10 grid gap-7 lg:grid-cols-3">
+        <ActionCard
+          title={messages.dashboard.reviewOpportunitiesTitle}
+          description={messages.dashboard.reviewOpportunitiesDescription}
+          href="/opportunities"
+        />
+        <ActionCard
+          title={messages.dashboard.continueDiscussionsTitle}
+          description={messages.dashboard.continueDiscussionsDescription}
+          href="/discussions"
+        />
+        <ActionCard
+          title={messages.dashboard.openBriefingsTitle}
+          description={messages.dashboard.openBriefingsDescription}
+          href="/briefings"
+        />
+      </div>
+    </TenantAppShell>
   );
 }
 
