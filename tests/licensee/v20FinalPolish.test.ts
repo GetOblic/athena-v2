@@ -36,7 +36,7 @@ describe("V20 final polish — header, dashboard UX, remove, notes, snapshot", (
     assert.match(client, /SearchIcon/);
     assert.match(client, /Open Athena →/);
     assert.match(client, /shadow-xl shadow-orange-500\/25/);
-    assert.match(client, /Create your first Athena sub-account/);
+    assert.match(client, /Create your company account/);
     assert.match(client, /No matching sub-accounts found/);
     assert.match(client, /SubAccountFallbackIcon/);
     assert.match(client, /Master Note/);

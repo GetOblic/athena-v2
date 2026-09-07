@@ -29,6 +29,12 @@ export type LicenseeSubAccountListItem = {
   logoPreviewUrl: string | null;
   pinned: boolean;
   pinnedAt: string | null;
+  /**
+   * Derived presentation flag:
+   * organization_id === licensee_accounts.own_company_organization_id.
+   * Not a second persisted identity source.
+   */
+  isOwnCompany: boolean;
   accountEmail: string | null;
   notes: string;
   /** Existing Athena Identity summary when available; omitted when none. */
@@ -42,4 +48,56 @@ export function resolveLicenseeSubAccountTitle(
 ): string {
   const alias = item.displayName?.trim();
   return alias || item.name;
+}
+
+/**
+ * Shared server / Estimate list order: pinned first, then alphabetical title.
+ * Do not change — Estimate default-selects subAccounts[0] from this order.
+ */
+export function sortLicenseeSubAccountsShared(
+  items: LicenseeSubAccountListItem[],
+): LicenseeSubAccountListItem[] {
+  return [...items].sort((a, b) => {
+    if (a.pinned !== b.pinned) {
+      return a.pinned ? -1 : 1;
+    }
+    return resolveLicenseeSubAccountTitle(a).localeCompare(
+      resolveLicenseeSubAccountTitle(b),
+      undefined,
+      { sensitivity: "base" },
+    );
+  });
+}
+
+/**
+ * Licensee dashboard presentation only:
+ * My Company → other pinned clients → remaining, alpha within groups.
+ * Must not be used by Estimate or other shared list consumers.
+ */
+export function sortLicenseeSubAccountsForDashboard(
+  items: LicenseeSubAccountListItem[],
+): LicenseeSubAccountListItem[] {
+  return [...items].sort((a, b) => {
+    if (a.isOwnCompany !== b.isOwnCompany) {
+      return a.isOwnCompany ? -1 : 1;
+    }
+    if (a.pinned !== b.pinned) {
+      return a.pinned ? -1 : 1;
+    }
+    return resolveLicenseeSubAccountTitle(a).localeCompare(
+      resolveLicenseeSubAccountTitle(b),
+      undefined,
+      { sensitivity: "base" },
+    );
+  });
+}
+
+/** First newly created relationship may auto-designate only in this state. */
+export function shouldAutoDesignateOwnCompany(input: {
+  ownCompanyOrganizationId: string | null | undefined;
+  existingRelationshipCount: number;
+}): boolean {
+  return (
+    !input.ownCompanyOrganizationId && input.existingRelationshipCount === 0
+  );
 }

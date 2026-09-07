@@ -2,6 +2,7 @@ import { createBrandLogoSignedUrl } from "@/services/identity/brandLogoStorage";
 import { readIdentityExecutiveIntelligence } from "@/services/identity/identityExecutiveIntelligence";
 import {
   LicenseeAccessError,
+  assertLicenseeOwnsSubAccount,
   getLicenseeAccountByUserId,
   isLicenseeMasterUser,
   type LicenseeAccount,
@@ -14,6 +15,8 @@ import { computeAccountReadiness } from "@/services/licensee/licenseeAccountRead
 import {
   LICENSEE_SUB_ACCOUNT_DISPLAY_NAME_MAX_LENGTH,
   LICENSEE_SUB_ACCOUNT_NOTES_MAX_LENGTH,
+  shouldAutoDesignateOwnCompany,
+  sortLicenseeSubAccountsShared,
   type LicenseeSubAccountListItem,
 } from "@/services/licensee/licenseeSubAccountTypes";
 import { PERSONA_INTELLIGENCE_PLATFORM } from "@/services/personas/personaBridgeMarker";
@@ -42,6 +45,9 @@ export {
   LICENSEE_SUB_ACCOUNT_DISPLAY_NAME_MAX_LENGTH,
   LICENSEE_SUB_ACCOUNT_NOTES_MAX_LENGTH,
   resolveLicenseeSubAccountTitle,
+  shouldAutoDesignateOwnCompany,
+  sortLicenseeSubAccountsForDashboard,
+  sortLicenseeSubAccountsShared,
   type LicenseeSubAccountListItem,
   type LicenseeSubAccountOperationalMetrics,
 } from "@/services/licensee/licenseeSubAccountTypes";
@@ -57,6 +63,17 @@ export class LicenseeSubAccountCreateError extends Error {
   constructor(code: string, message: string) {
     super(message);
     this.name = "LicenseeSubAccountCreateError";
+    this.code = code;
+  }
+}
+
+/** Domain errors for own-company identity (designation + locked relationship). */
+export class LicenseeOwnCompanyError extends Error {
+  code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "LicenseeOwnCompanyError";
     this.code = code;
   }
 }
@@ -392,6 +409,8 @@ export async function listLicenseeSubAccountsForMaster(
       logoPreviewUrl,
       pinned: Boolean(relationship.pinned),
       pinnedAt: relationship.pinned_at ?? null,
+      isOwnCompany:
+        org.id === licenseeAccount.own_company_organization_id,
       accountEmail: ownerUserId
         ? emailByUserId.get(ownerUserId) ?? null
         : null,
@@ -412,16 +431,9 @@ export async function listLicenseeSubAccountsForMaster(
     });
   }
 
-  items.sort((a, b) => {
-    if (a.pinned !== b.pinned) {
-      return a.pinned ? -1 : 1;
-    }
-    const titleA = normalizeDisplayName(a.displayName) || a.name;
-    const titleB = normalizeDisplayName(b.displayName) || b.name;
-    return titleA.localeCompare(titleB, undefined, { sensitivity: "base" });
-  });
-
-  return items;
+  // Shared pinned-then-alphabetical order. Estimate default-selects [0].
+  // Own-company-first ordering is a Licensee dashboard presentation rule only.
+  return sortLicenseeSubAccountsShared(items);
 }
 
 export async function setLicenseeSubAccountPinned(input: {
@@ -622,6 +634,16 @@ export async function removeLicenseeSubAccountRelationship(input: {
     );
   }
 
+  if (
+    licenseeAccount.own_company_organization_id &&
+    relationship.organization_id === licenseeAccount.own_company_organization_id
+  ) {
+    throw new LicenseeOwnCompanyError(
+      "OWN_COMPANY_RELATIONSHIP_LOCKED",
+      "Your company account cannot be removed from the Master dashboard.",
+    );
+  }
+
   const { error: deleteError } = await supabaseAdmin
     .from("licensee_sub_accounts")
     .delete()
@@ -635,6 +657,178 @@ export async function removeLicenseeSubAccountRelationship(input: {
   return {
     relationshipId,
     organizationId: relationship.organization_id,
+  };
+}
+
+async function countLicenseeSubAccountRelationships(
+  licenseeAccountId: string,
+): Promise<number> {
+  const { count, error } = await supabaseAdmin
+    .from("licensee_sub_accounts")
+    .select("id", { count: "exact", head: true })
+    .eq("licensee_account_id", licenseeAccountId);
+
+  if (error) {
+    throw new LicenseeSubAccountCreateError(
+      "RELATIONSHIP_LOOKUP_FAILED",
+      error.message,
+    );
+  }
+
+  return count ?? 0;
+}
+
+/**
+ * Write own-company identity only when currently unset.
+ * Never writes pinned / pinned_at. Never mutates organizations.
+ */
+async function persistOwnCompanyIfUnset(input: {
+  licenseeAccountId: string;
+  organizationId: string;
+}): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from("licensee_accounts")
+    .update({ own_company_organization_id: input.organizationId })
+    .eq("id", input.licenseeAccountId)
+    .is("own_company_organization_id", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw new LicenseeOwnCompanyError(
+      "OWN_COMPANY_PERSIST_FAILED",
+      error.message || "Failed to designate My Company.",
+    );
+  }
+
+  return Boolean(data?.id);
+}
+
+/**
+ * Explicit Licensee Master designation of an owned sub-account as My Company.
+ * Idempotent when the same organization is already designated.
+ * Rejects replacement of a different designation.
+ */
+export async function designateLicenseeOwnCompany(input: {
+  masterUserId: string;
+  relationshipId: string;
+}): Promise<{
+  relationshipId: string;
+  organizationId: string;
+  alreadyDesignated: boolean;
+}> {
+  const licenseeAccount = await requireLicenseeMasterAccount(input.masterUserId);
+  const relationshipId = input.relationshipId.trim();
+  if (!relationshipId) {
+    throw new LicenseeAccessError("Missing relationship id.");
+  }
+
+  const { data: relationship, error: lookupError } = await supabaseAdmin
+    .from("licensee_sub_accounts")
+    .select("id, licensee_account_id, organization_id")
+    .eq("id", relationshipId)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new LicenseeAccessError(lookupError.message);
+  }
+
+  if (!relationship || relationship.licensee_account_id !== licenseeAccount.id) {
+    throw new LicenseeAccessError(
+      "Master does not own this sub-account relationship.",
+    );
+  }
+
+  await assertLicenseeOwnsSubAccount({
+    masterUserId: input.masterUserId,
+    organizationId: relationship.organization_id,
+  });
+
+  const current = licenseeAccount.own_company_organization_id;
+  if (current === relationship.organization_id) {
+    return {
+      relationshipId: relationship.id,
+      organizationId: relationship.organization_id,
+      alreadyDesignated: true,
+    };
+  }
+
+  if (current) {
+    throw new LicenseeOwnCompanyError(
+      "OWN_COMPANY_ALREADY_DESIGNATED",
+      "My Company is already designated and cannot be changed from this dashboard.",
+    );
+  }
+
+  const designated = await persistOwnCompanyIfUnset({
+    licenseeAccountId: licenseeAccount.id,
+    organizationId: relationship.organization_id,
+  });
+
+  if (!designated) {
+    const latest = await getLicenseeAccountByUserId(input.masterUserId);
+    if (latest?.own_company_organization_id === relationship.organization_id) {
+      return {
+        relationshipId: relationship.id,
+        organizationId: relationship.organization_id,
+        alreadyDesignated: true,
+      };
+    }
+    throw new LicenseeOwnCompanyError(
+      "OWN_COMPANY_ALREADY_DESIGNATED",
+      "My Company is already designated and cannot be changed from this dashboard.",
+    );
+  }
+
+  return {
+    relationshipId: relationship.id,
+    organizationId: relationship.organization_id,
+    alreadyDesignated: false,
+  };
+}
+
+/**
+ * First-account auto-designation after the relationship exists.
+ * No-op unless FK is null and the relationship count before create was zero.
+ */
+async function maybeAutoDesignateFirstOwnCompany(input: {
+  licenseeAccountId: string;
+  organizationId: string;
+  ownCompanyOrganizationId: string | null;
+  existingRelationshipCount: number;
+}): Promise<void> {
+  if (
+    !shouldAutoDesignateOwnCompany({
+      ownCompanyOrganizationId: input.ownCompanyOrganizationId,
+      existingRelationshipCount: input.existingRelationshipCount,
+    })
+  ) {
+    return;
+  }
+
+  await persistOwnCompanyIfUnset({
+    licenseeAccountId: input.licenseeAccountId,
+    organizationId: input.organizationId,
+  });
+}
+
+export async function getLicenseeOwnCompanySetupState(masterUserId: string): Promise<{
+  ownCompanyOrganizationId: string | null;
+  relationshipCount: number;
+  isFirstCompanySetup: boolean;
+}> {
+  const licenseeAccount = await requireLicenseeMasterAccount(masterUserId);
+  const relationshipCount = await countLicenseeSubAccountRelationships(
+    licenseeAccount.id,
+  );
+  const ownCompanyOrganizationId = licenseeAccount.own_company_organization_id;
+  return {
+    ownCompanyOrganizationId,
+    relationshipCount,
+    isFirstCompanySetup: shouldAutoDesignateOwnCompany({
+      ownCompanyOrganizationId,
+      existingRelationshipCount: relationshipCount,
+    }),
   };
 }
 
@@ -773,6 +967,10 @@ export async function createLicenseeSubAccount(input: {
       "A Master email cannot be used as a sub-account email.",
     );
   }
+
+  const existingRelationshipCount = await countLicenseeSubAccountRelationships(
+    licenseeAccount.id,
+  );
 
   let organizationLanguage: OrganizationLanguage | undefined;
   if (
@@ -941,6 +1139,13 @@ export async function createLicenseeSubAccount(input: {
   await ensureRelationship({
     licenseeAccountId: licenseeAccount.id,
     organizationId,
+  });
+
+  await maybeAutoDesignateFirstOwnCompany({
+    licenseeAccountId: licenseeAccount.id,
+    organizationId,
+    ownCompanyOrganizationId: licenseeAccount.own_company_organization_id,
+    existingRelationshipCount,
   });
 
   return {

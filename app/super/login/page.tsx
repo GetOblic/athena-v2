@@ -11,6 +11,7 @@ import {
   getSuperAdminByUserId,
   isGetOblicSuperAdminUser,
 } from "@/services/superAdmin/superAdminIdentity";
+import { licenseeMasterMarkerCookieClearOptions } from "@/services/licensee/licenseeMasterMarkerCookie";
 import { superAdminMarkerCookieWriteOptions } from "@/services/superAdmin/superAdminMarkerCookie";
 
 /**
@@ -134,6 +135,14 @@ export default async function SuperAdminLoginPage({
       secure: marker.secure,
       path: marker.path,
       maxAge: marker.maxAge,
+    });
+    const staleLicensee = licenseeMasterMarkerCookieClearOptions();
+    cookieStore.set(staleLicensee.name, staleLicensee.value, {
+      httpOnly: staleLicensee.httpOnly,
+      sameSite: staleLicensee.sameSite,
+      secure: staleLicensee.secure,
+      path: staleLicensee.path,
+      maxAge: staleLicensee.maxAge,
     });
 
     redirect("/super");

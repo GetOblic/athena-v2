@@ -303,7 +303,7 @@ describe("V20 Master Account — V1 contracts", () => {
     assert.match(client, /Open Athena →/);
     assert.match(client, /Create Sub-account/);
     assert.match(client, /Search businesses, emails, notes/);
-    assert.match(client, /Create your first Athena sub-account/);
+    assert.match(client, /Create your company account/);
     assert.match(client, /No matching sub-accounts found/);
     assert.match(client, /Master Note/);
     assert.match(client, /Account Snapshot/);

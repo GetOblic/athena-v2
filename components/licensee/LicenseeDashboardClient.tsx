@@ -16,6 +16,7 @@ import {
   LICENSEE_SUB_ACCOUNT_DISPLAY_NAME_MAX_LENGTH,
   LICENSEE_SUB_ACCOUNT_NOTES_MAX_LENGTH,
   resolveLicenseeSubAccountTitle,
+  sortLicenseeSubAccountsForDashboard,
   type LicenseeSubAccountListItem,
 } from "@/services/licensee/licenseeSubAccountTypes";
 
@@ -27,16 +28,7 @@ type LicenseeDashboardClientProps = {
 function sortSubAccounts(
   items: LicenseeSubAccountListItem[],
 ): LicenseeSubAccountListItem[] {
-  return [...items].sort((a, b) => {
-    if (a.pinned !== b.pinned) {
-      return a.pinned ? -1 : 1;
-    }
-    return resolveLicenseeSubAccountTitle(a).localeCompare(
-      resolveLicenseeSubAccountTitle(b),
-      undefined,
-      { sensitivity: "base" },
-    );
-  });
+  return sortLicenseeSubAccountsForDashboard(items);
 }
 
 export function LicenseeDashboardClient({
@@ -50,6 +42,7 @@ export function LicenseeDashboardClient({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [pinPending, startPinTransition] = useTransition();
+  const [designatePending, startDesignateTransition] = useTransition();
   const [removePending, startRemoveTransition] = useTransition();
   const [confirmRemove, setConfirmRemove] =
     useState<LicenseeSubAccountListItem | null>(null);
@@ -85,8 +78,10 @@ export function LicenseeDashboardClient({
     });
   }, [items, query]);
 
-  const pinned = filtered.filter((item) => item.pinned);
-  const unpinned = filtered.filter((item) => !item.pinned);
+  const hasOwnCompany = items.some((item) => item.isOwnCompany);
+  const ownCompany = filtered.filter((item) => item.isOwnCompany);
+  const pinned = filtered.filter((item) => item.pinned && !item.isOwnCompany);
+  const unpinned = filtered.filter((item) => !item.pinned && !item.isOwnCompany);
 
   async function openAthena(organizationId: string) {
     setActionError(null);
@@ -218,6 +213,44 @@ export function LicenseeDashboardClient({
     setSuccessMessage("Master display name saved.");
   }
 
+  function designateOwnCompany(relationshipId: string) {
+    setActionError(null);
+    setSuccessMessage(null);
+    startDesignateTransition(async () => {
+      try {
+        const response = await fetch("/api/licensee/sub-accounts/own-company", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ relationshipId }),
+        });
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          organizationId?: string;
+          error?: { message?: string };
+        };
+        if (!response.ok || !payload.ok) {
+          setActionError(
+            payload.error?.message || "Could not set My Company.",
+          );
+          return;
+        }
+
+        setItems((current) =>
+          sortSubAccounts(
+            current.map((item) => ({
+              ...item,
+              isOwnCompany: item.relationshipId === relationshipId,
+            })),
+          ),
+        );
+        setSuccessMessage("My Company is now designated.");
+        router.refresh();
+      } catch {
+        setActionError("Could not set My Company.");
+      }
+    });
+  }
+
   function confirmRemoveSubAccount() {
     if (!confirmRemove) {
       return;
@@ -278,7 +311,9 @@ export function LicenseeDashboardClient({
           href="/licensee/sub-accounts/new"
           className="inline-flex shrink-0 items-center justify-center rounded-full bg-[var(--athena-orange)] px-6 py-3.5 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
         >
-          + Create Sub-account
+          {items.length === 0
+            ? "Create your company account"
+            : "+ Create Sub-account"}
         </Link>
       </div>
 
@@ -341,14 +376,14 @@ export function LicenseeDashboardClient({
 
       {items.length === 0 ? (
         <EmptyState
-          title="Create your first Athena sub-account."
-          body="Provision a normal Athena workspace and open it from this Master dashboard whenever you need it."
+          title="Create your company account"
+          body="This will be the Athena workspace you use to grow your own business."
           action={
             <Link
               href="/licensee/sub-accounts/new"
               className="mt-6 inline-flex items-center justify-center rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
             >
-              + Create Sub-account
+              Create your company account
             </Link>
           }
         />
@@ -359,6 +394,55 @@ export function LicenseeDashboardClient({
         />
       ) : (
         <>
+          {!hasOwnCompany ? (
+            <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-5 py-4">
+              <h2 className="text-base font-semibold text-white">
+                Which account is your company?
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-white/60">
+                Choose the account you use to run your own GetOblic business.
+                This is a one-time designation.
+              </p>
+            </div>
+          ) : null}
+
+          {hasOwnCompany ? (
+            <Section title="My Company">
+              {ownCompany.length === 0 ? (
+                <p className="text-sm text-white/40">
+                  Your company account is hidden by the current search.
+                </p>
+              ) : (
+                <ul className="space-y-5">
+                  {ownCompany.map((item) => (
+                    <SubAccountCard
+                      key={item.relationshipId}
+                      item={item}
+                      opening={openingId === item.organizationId}
+                      pinDisabled={pinPending}
+                      designateDisabled={designatePending}
+                      canDesignateOwnCompany={false}
+                      onTogglePin={() =>
+                        togglePin(item.relationshipId, item.pinned)
+                      }
+                      onOpen={() => openAthena(item.organizationId)}
+                      onSaveNotes={(notes) =>
+                        saveNotes(item.relationshipId, notes)
+                      }
+                      onSaveDisplayName={(displayName) =>
+                        saveDisplayName(item.relationshipId, displayName)
+                      }
+                      onRequestRemove={() => undefined}
+                      onDesignateOwnCompany={() =>
+                        designateOwnCompany(item.relationshipId)
+                      }
+                    />
+                  ))}
+                </ul>
+              )}
+            </Section>
+          ) : null}
+
           <Section title="Pinned">
             {pinned.length === 0 ? (
               <p className="text-sm text-white/40">No pinned sub-accounts.</p>
@@ -370,6 +454,8 @@ export function LicenseeDashboardClient({
                     item={item}
                     opening={openingId === item.organizationId}
                     pinDisabled={pinPending}
+                    designateDisabled={designatePending}
+                    canDesignateOwnCompany={!hasOwnCompany}
                     onTogglePin={() =>
                       togglePin(item.relationshipId, item.pinned)
                     }
@@ -381,6 +467,9 @@ export function LicenseeDashboardClient({
                       saveDisplayName(item.relationshipId, displayName)
                     }
                     onRequestRemove={() => setConfirmRemove(item)}
+                    onDesignateOwnCompany={() =>
+                      designateOwnCompany(item.relationshipId)
+                    }
                   />
                 ))}
               </ul>
@@ -390,7 +479,9 @@ export function LicenseeDashboardClient({
           <Section title="All Sub-accounts">
             {unpinned.length === 0 ? (
               <p className="text-sm text-white/40">
-                All linked sub-accounts are pinned.
+                {hasOwnCompany
+                  ? "Client sub-accounts will appear here."
+                  : "All linked sub-accounts are pinned."}
               </p>
             ) : (
               <ul className="space-y-5">
@@ -400,6 +491,8 @@ export function LicenseeDashboardClient({
                     item={item}
                     opening={openingId === item.organizationId}
                     pinDisabled={pinPending}
+                    designateDisabled={designatePending}
+                    canDesignateOwnCompany={!hasOwnCompany}
                     onTogglePin={() =>
                       togglePin(item.relationshipId, item.pinned)
                     }
@@ -410,7 +503,15 @@ export function LicenseeDashboardClient({
                     onSaveDisplayName={(displayName) =>
                       saveDisplayName(item.relationshipId, displayName)
                     }
-                    onRequestRemove={() => setConfirmRemove(item)}
+                    onRequestRemove={() => {
+                      if (item.isOwnCompany) {
+                        return;
+                      }
+                      setConfirmRemove(item);
+                    }}
+                    onDesignateOwnCompany={() =>
+                      designateOwnCompany(item.relationshipId)
+                    }
                   />
                 ))}
               </ul>
@@ -465,6 +566,33 @@ function EmptyState({
       </p>
       {action}
     </div>
+  );
+}
+
+function LockIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className={className}
+    >
+      <rect
+        x="5.5"
+        y="11"
+        width="13"
+        height="9"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M8 11V8.5a4 4 0 0 1 8 0V11"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
@@ -551,20 +679,26 @@ function SubAccountCard({
   item,
   opening,
   pinDisabled,
+  designateDisabled,
+  canDesignateOwnCompany,
   onTogglePin,
   onOpen,
   onSaveNotes,
   onSaveDisplayName,
   onRequestRemove,
+  onDesignateOwnCompany,
 }: {
   item: LicenseeSubAccountListItem;
   opening: boolean;
   pinDisabled: boolean;
+  designateDisabled: boolean;
+  canDesignateOwnCompany: boolean;
   onTogglePin: () => void;
   onOpen: () => void;
   onSaveNotes: (notes: string) => Promise<void>;
   onSaveDisplayName: (displayName: string) => Promise<void>;
   onRequestRemove: () => void;
+  onDesignateOwnCompany: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [draftNotes, setDraftNotes] = useState(item.notes);
@@ -603,9 +737,11 @@ function SubAccountCard({
   return (
     <li
       className={`rounded-[28px] border bg-[#141820] p-6 shadow-[0_14px_40px_rgba(0,0,0,0.38)] transition ${
-        expanded
-          ? "border-white/28 ring-1 ring-white/10"
-          : "border-white/22"
+        item.isOwnCompany
+          ? "border-[var(--athena-orange)]/45 ring-1 ring-[var(--athena-orange)]/20"
+          : expanded
+            ? "border-white/28 ring-1 ring-white/10"
+            : "border-white/22"
       }`}
     >
       <div className="flex flex-col gap-5">
@@ -625,6 +761,12 @@ function SubAccountCard({
             </div>
 
             <div className="min-w-0 flex-1">
+              {item.isOwnCompany ? (
+                <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-[var(--athena-orange)]/35 bg-[var(--athena-orange)]/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--athena-orange)]">
+                  <LockIcon className="h-3 w-3" />
+                  My Company
+                </div>
+              ) : null}
               <h3 className="truncate text-xl font-semibold tracking-tight text-white">
                 {title}
               </h3>
@@ -861,27 +1003,46 @@ function SubAccountCard({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
-              <button
-                type="button"
-                disabled={pinDisabled}
-                onClick={onTogglePin}
-                aria-label={
-                  item.pinned ? "Unpin sub-account" : "Pin sub-account"
-                }
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-white/65 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
-              >
-                <span className="text-[var(--athena-orange)]">
-                  {item.pinned ? "★" : "☆"}
-                </span>
-                {item.pinned ? "Pinned" : "Pin"}
-              </button>
-              <button
-                type="button"
-                onClick={onRequestRemove}
-                className="inline-flex items-center rounded-xl border border-white/10 px-3 py-2 text-sm text-white/55 transition hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-100"
-              >
-                Remove
-              </button>
+              {canDesignateOwnCompany && !item.isOwnCompany ? (
+                <button
+                  type="button"
+                  disabled={designateDisabled}
+                  onClick={onDesignateOwnCompany}
+                  className="inline-flex items-center rounded-xl border border-[var(--athena-orange)]/35 bg-[var(--athena-orange)]/10 px-3 py-2 text-sm font-medium text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/20 disabled:opacity-50"
+                >
+                  Set as My Company
+                </button>
+              ) : null}
+              {item.isOwnCompany ? (
+                <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-white/45">
+                  <LockIcon className="h-3.5 w-3.5" />
+                  Locked company identity
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={pinDisabled}
+                    onClick={onTogglePin}
+                    aria-label={
+                      item.pinned ? "Unpin sub-account" : "Pin sub-account"
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-white/65 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+                  >
+                    <span className="text-[var(--athena-orange)]">
+                      {item.pinned ? "★" : "☆"}
+                    </span>
+                    {item.pinned ? "Pinned" : "Pin"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onRequestRemove}
+                    className="inline-flex items-center rounded-xl border border-white/10 px-3 py-2 text-sm text-white/55 transition hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-100"
+                  >
+                    Remove
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ) : null}

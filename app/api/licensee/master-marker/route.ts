@@ -5,6 +5,7 @@ import {
   applyLicenseeMasterMarkerCookie,
   clearLicenseeMasterMarkerCookie,
 } from "@/services/licensee/licenseeMasterMarkerCookie";
+import { clearSuperAdminMarkerCookie } from "@/services/superAdmin/superAdminMarkerCookie";
 
 /**
  * Route-handler cookie mutations for the Master UX marker.
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
 
     const response = NextResponse.redirect(new URL("/licensee", siteUrl));
     applyLicenseeMasterMarkerCookie(response);
+    clearSuperAdminMarkerCookie(response);
     return response;
   }
 

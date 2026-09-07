@@ -9,6 +9,7 @@ import { getLicenseeAccountByUserId } from "@/services/licensee/licenseeIdentity
 import {
   LicenseeSubAccountCreateError,
   createLicenseeSubAccount,
+  getLicenseeOwnCompanySetupState,
 } from "@/services/licensee/licenseeSubAccounts";
 import {
   DEFAULT_ORGANIZATION_LANGUAGE,
@@ -138,6 +139,8 @@ export default async function CreateLicenseeSubAccountPage({
   const selectedLanguage = isOrganizationLanguage(params.language)
     ? params.language
     : DEFAULT_ORGANIZATION_LANGUAGE;
+  const setupState = await getLicenseeOwnCompanySetupState(user.id);
+  const isFirstCompanySetup = setupState.isFirstCompanySetup;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] px-6 py-10 text-white">
@@ -156,11 +159,14 @@ export default async function CreateLicenseeSubAccountPage({
             Business Licensee
           </div>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight">
-            Create Sub-account
+            {isFirstCompanySetup
+              ? "Create your company account"
+              : "Create Sub-account"}
           </h1>
           <p className="mt-4 text-sm leading-7 text-white/50">
-            Creates or links a normal Athena account. The sub-account keeps its
-            own login, organization, and Brain.
+            {isFirstCompanySetup
+              ? "This will be the Athena workspace you use to grow your own business. It remains a normal Athena account with its own login, organization, and Brain."
+              : "Creates or links a normal Athena account. The sub-account keeps its own login, organization, and Brain."}
           </p>
         </div>
 
@@ -231,7 +237,11 @@ export default async function CreateLicenseeSubAccountPage({
             type="submit"
             className="w-full rounded-full bg-[var(--athena-orange)] px-6 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
           >
-            {needsConfirm ? "Confirm and link sub-account" : "Create Sub-account"}
+            {needsConfirm
+              ? "Confirm and link sub-account"
+              : isFirstCompanySetup
+                ? "Create your company account"
+                : "Create Sub-account"}
           </button>
         </form>
 

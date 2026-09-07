@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LicenseeAccessError } from "@/services/licensee/licenseeIdentity";
 import {
   LicenseeOwnCompanyError,
-  removeLicenseeSubAccountRelationship,
+  designateLicenseeOwnCompany,
 } from "@/services/licensee/licenseeSubAccounts";
 
 function jsonError(status: number, code: string, message: string) {
@@ -14,8 +14,8 @@ function jsonError(status: number, code: string, message: string) {
 }
 
 /**
- * Remove Master ↔ sub-account relationship only.
- * Does not delete the Athena account or any tenant data.
+ * Designate an owned sub-account as the Licensee's My Company.
+ * No tenant, organization, or pin mutation.
  */
 export async function POST(request: NextRequest) {
   let body: { relationshipId?: string } = {};
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await removeLicenseeSubAccountRelationship({
+    const result = await designateLicenseeOwnCompany({
       masterUserId: user.id,
       relationshipId,
     });
@@ -55,14 +55,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (error instanceof LicenseeOwnCompanyError) {
-      return jsonError(409, error.code, error.message);
+      const status =
+        error.code === "OWN_COMPANY_ALREADY_DESIGNATED" ? 409 : 400;
+      return jsonError(status, error.code, error.message);
     }
 
-    console.error("[LICENSEE_REMOVE] failed", error);
+    console.error("[LICENSEE_OWN_COMPANY] failed", error);
     return jsonError(
       500,
-      "REMOVE_FAILED",
-      error instanceof Error ? error.message : "Remove failed.",
+      "OWN_COMPANY_DESIGNATE_FAILED",
+      error instanceof Error ? error.message : "Designation failed.",
     );
   }
 }

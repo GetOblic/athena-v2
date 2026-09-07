@@ -4,6 +4,7 @@ import {
   SuperAdminAuthorityLookupError,
   isGetOblicSuperAdminUser,
 } from "@/services/superAdmin/superAdminIdentity";
+import { clearLicenseeMasterMarkerCookie } from "@/services/licensee/licenseeMasterMarkerCookie";
 import {
   applySuperAdminMarkerCookie,
   clearSuperAdminMarkerCookie,
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
 
     const response = NextResponse.redirect(new URL("/super", siteUrl));
     applySuperAdminMarkerCookie(response);
+    clearLicenseeMasterMarkerCookie(response);
     return response;
   }
 

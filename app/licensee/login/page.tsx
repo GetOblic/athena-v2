@@ -11,6 +11,7 @@ import {
   isLicenseeMasterUser,
 } from "@/services/licensee/licenseeIdentity";
 import { licenseeMasterMarkerCookieWriteOptions } from "@/services/licensee/licenseeMasterMarkerCookie";
+import { superAdminMarkerCookieClearOptions } from "@/services/superAdmin/superAdminMarkerCookie";
 import {
   AccountAccessDeniedError,
   assertAccountAccessActive,
@@ -131,6 +132,14 @@ export default async function LicenseeLoginPage({
       secure: marker.secure,
       path: marker.path,
       maxAge: marker.maxAge,
+    });
+    const staleSuper = superAdminMarkerCookieClearOptions();
+    cookieStore.set(staleSuper.name, staleSuper.value, {
+      httpOnly: staleSuper.httpOnly,
+      sameSite: staleSuper.sameSite,
+      secure: staleSuper.secure,
+      path: staleSuper.path,
+      maxAge: staleSuper.maxAge,
     });
 
     redirect("/licensee");

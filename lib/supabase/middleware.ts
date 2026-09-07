@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { resolvePrivilegedUxMarkerGate } from "@/lib/supabase/privilegedUxMarkerGates";
 import {
   LICENSEE_MASTER_MARKER_COOKIE,
   LICENSEE_ORIGIN_COOKIE,
@@ -92,11 +93,13 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  const hasSuperMarker = request.cookies.has(SUPER_ADMIN_MARKER_COOKIE);
+  const hasMasterMarker = request.cookies.has(LICENSEE_MASTER_MARKER_COOKIE);
+  const hasOriginCookie = request.cookies.has(LICENSEE_ORIGIN_COOKIE);
+
   if (user && path === "/login") {
     const redirectUrl = request.nextUrl.clone();
-    const hasSuperMarker = request.cookies.has(SUPER_ADMIN_MARKER_COOKIE);
-    const hasMasterMarker = request.cookies.has(LICENSEE_MASTER_MARKER_COOKIE);
-    const inHandoff = request.cookies.has(LICENSEE_ORIGIN_COOKIE);
+    const inHandoff = hasOriginCookie;
     redirectUrl.pathname = hasSuperMarker
       ? "/super"
       : hasMasterMarker && !inHandoff
@@ -106,23 +109,34 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // UX-only Super Admin product-route gate. Marker is not security authority.
-  if (
-    user &&
-    request.cookies.has(SUPER_ADMIN_MARKER_COOKIE) &&
-    !isSuperPath &&
-    !isPublicPath &&
-    !path.startsWith("/api/super/")
-  ) {
-    if (isApiPath) {
+  // UX-only product-route gates. Markers are not security authority.
+  // Both markers together skip both gates so /licensee ↔ /super cannot cycle.
+  if (user) {
+    const gate = resolvePrivilegedUxMarkerGate({
+      path,
+      isPublicPath,
+      isApiPath,
+      isSuperPath,
+      isLicenseePath,
+      hasSuperMarker,
+      hasMasterMarker,
+      hasOriginCookie,
+    });
+
+    if (gate.kind === "api_forbidden") {
       return NextResponse.json(
         {
           ok: false,
           success: false,
           error: {
-            code: "SUPER_ADMIN_CONTEXT",
+            code:
+              gate.code === "SUPER_ADMIN_CONTEXT"
+                ? "SUPER_ADMIN_CONTEXT"
+                : "LICENSEE_MASTER_CONTEXT",
             message:
-              "GetOblic Super Admin sessions cannot access Athena or Licensee product APIs.",
+              gate.code === "SUPER_ADMIN_CONTEXT"
+                ? "GetOblic Super Admin sessions cannot access Athena or Licensee product APIs."
+                : "Business Licensee Master sessions cannot access Athena product APIs.",
           },
         },
         {
@@ -132,44 +146,12 @@ export async function updateSession(request: NextRequest) {
       );
     }
 
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/super";
-    redirectUrl.search = "";
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  // UX-only Master product-route gate. Marker is not security authority.
-  // Skip when a handoff origin cookie is present (sub-account Athena session).
-  if (
-    user &&
-    request.cookies.has(LICENSEE_MASTER_MARKER_COOKIE) &&
-    !request.cookies.has(LICENSEE_ORIGIN_COOKIE) &&
-    !isLicenseePath &&
-    !isPublicPath &&
-    !path.startsWith("/api/licensee/")
-  ) {
-    if (isApiPath) {
-      return NextResponse.json(
-        {
-          ok: false,
-          success: false,
-          error: {
-            code: "LICENSEE_MASTER_CONTEXT",
-            message:
-              "Business Licensee Master sessions cannot access Athena product APIs.",
-          },
-        },
-        {
-          status: 403,
-          headers: { "Cache-Control": "no-store" },
-        },
-      );
+    if (gate.kind === "redirect") {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = gate.pathname;
+      redirectUrl.search = "";
+      return NextResponse.redirect(redirectUrl);
     }
-
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/licensee";
-    redirectUrl.search = "";
-    return NextResponse.redirect(redirectUrl);
   }
 
   // Do not auto-redirect authenticated users away from control-plane login pages.

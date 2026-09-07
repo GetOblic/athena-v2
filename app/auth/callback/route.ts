@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isLicenseeMasterUser } from "@/services/licensee/licenseeIdentity";
-import { applyLicenseeMasterMarkerCookie } from "@/services/licensee/licenseeMasterMarkerCookie";
+import {
+  applyLicenseeMasterMarkerCookie,
+  clearLicenseeMasterMarkerCookie,
+} from "@/services/licensee/licenseeMasterMarkerCookie";
 import {
   AccountAccessDeniedError,
   assertAccountAccessActive,
@@ -10,7 +13,10 @@ import {
   SuperAdminAuthorityLookupError,
   isGetOblicSuperAdminUser,
 } from "@/services/superAdmin/superAdminIdentity";
-import { applySuperAdminMarkerCookie } from "@/services/superAdmin/superAdminMarkerCookie";
+import {
+  applySuperAdminMarkerCookie,
+  clearSuperAdminMarkerCookie,
+} from "@/services/superAdmin/superAdminMarkerCookie";
 import { provisionTenantForAuthenticatedUser } from "@/services/organizationService";
 
 async function postAuthDestination(
@@ -33,8 +39,10 @@ function redirectWithControlPlaneMarker(
   const response = NextResponse.redirect(url);
   if (options.isSuperAdmin) {
     applySuperAdminMarkerCookie(response);
+    clearLicenseeMasterMarkerCookie(response);
   } else if (options.isMaster) {
     applyLicenseeMasterMarkerCookie(response);
+    clearSuperAdminMarkerCookie(response);
   }
   return response;
 }

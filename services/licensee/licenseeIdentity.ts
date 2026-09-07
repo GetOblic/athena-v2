@@ -8,6 +8,8 @@ export type LicenseeAccount = {
   id: string;
   user_id: string;
   email: string;
+  /** Licensee-scoped own-company identity. Null until designated. */
+  own_company_organization_id: string | null;
 };
 
 export type AuthorizedLicenseeSubAccountRelationship = {
@@ -100,7 +102,7 @@ export async function getLicenseeAccountByUserId(
 
   const { data, error } = await supabaseAdmin
     .from("licensee_accounts")
-    .select("id, user_id, email")
+    .select("id, user_id, email, own_company_organization_id")
     .eq("user_id", id)
     .maybeSingle();
 
@@ -112,7 +114,19 @@ export async function getLicenseeAccountByUserId(
     return null;
   }
 
-  return (data as LicenseeAccount | null) ?? null;
+  if (!data) {
+    return null;
+  }
+
+  return {
+    id: data.id as string,
+    user_id: data.user_id as string,
+    email: data.email as string,
+    own_company_organization_id:
+      typeof data.own_company_organization_id === "string"
+        ? data.own_company_organization_id
+        : null,
+  };
 }
 
 /**
