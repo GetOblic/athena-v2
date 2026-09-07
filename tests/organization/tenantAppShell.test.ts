@@ -74,6 +74,14 @@ const SHELLED_PAGES = [
   "app/seo/page.tsx",
   "app/seo/new/page.tsx",
   "app/seo/[id]/page.tsx",
+  "app/personas/page.tsx",
+  "app/personas/import/page.tsx",
+  "app/personas/[id]/page.tsx",
+  "app/ads/page.tsx",
+  "app/ads/new/page.tsx",
+  "app/ads/[id]/page.tsx",
+  "app/social-planner/page.tsx",
+  "app/social-planner/[id]/page.tsx",
 ] as const;
 
 const V2_ENGLISH_LABELS = [
@@ -146,11 +154,11 @@ const ACTIVE_STATE_CASES: Array<{
   { path: "/prospects/import", expectedKey: "convertOpportunities" },
   { path: "/prospects/abc", expectedKey: "convertOpportunities" },
   { path: "/inbox", expectedKey: "athenaInbox" },
-  { path: "/ads", expectedKey: "ads" },
-  { path: "/ads/new", expectedKey: "ads" },
-  { path: "/ads/abc", expectedKey: "ads" },
-  { path: "/social-planner", expectedKey: "socialPlanner" },
-  { path: "/social-planner/abc", expectedKey: "socialPlanner" },
+  { path: "/ads", expectedKey: "generateTraction" },
+  { path: "/ads/new", expectedKey: "generateTraction" },
+  { path: "/ads/abc", expectedKey: "generateTraction" },
+  { path: "/social-planner", expectedKey: "generateTraction" },
+  { path: "/social-planner/abc", expectedKey: "generateTraction" },
   { path: "/intelligence-domains", expectedKey: "intelligenceDomains" },
   { path: "/communities", expectedKey: "intelligenceDomains" },
   { path: "/communities/abc", expectedKey: "intelligenceDomains" },
@@ -247,6 +255,21 @@ describe("V2-UI-1B tenant app shell — navigation contract", () => {
     assert.notEqual(firstActiveKey("/identity"), "home");
     assert.equal(isTenantNavActive("/identity", { href: "/", exact: true }), false);
     assert.equal(isTenantNavActive("/", { href: "/", exact: true }), true);
+    const traction = localizeTenantNav(en).find(
+      (item) => item.key === "generateTraction",
+    );
+    const ads = localizeTenantNav(en).find((item) => item.key === "ads");
+    const social = localizeTenantNav(en).find(
+      (item) => item.key === "socialPlanner",
+    );
+    assert.ok(traction);
+    assert.deepEqual(traction.alsoActiveFor, ["/ads", "/social-planner"]);
+    assert.equal(isTenantNavActive("/ads", traction), true);
+    assert.equal(isTenantNavActive("/ads/new", traction), true);
+    assert.equal(isTenantNavActive("/social-planner", traction), true);
+    assert.equal(isTenantNavActive("/ads", ads ?? {}), true);
+    assert.equal(isTenantNavActive("/social-planner", social ?? {}), true);
+    assert.equal(isTenantNavActive("/personas", ads ?? {}), false);
   });
 
   it("never matches Settings or Help", () => {

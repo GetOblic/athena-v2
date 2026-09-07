@@ -69,12 +69,12 @@ export function AdCampaignDetailView({
   }
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
+    <div className="min-w-0 text-white">
       <Link href="/ads" className="text-sm text-[var(--athena-orange)]">
         {copy.backToAds}
       </Link>
 
-      <div className="mb-8 mt-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+      <div className="mb-8 mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
             {copy.detail.eyebrow}
@@ -123,34 +123,38 @@ export function AdCampaignDetailView({
 
       {pkg ? (
         <div className="space-y-6">
+          {campaign.status === "Ready" ? (
+            <p className="text-sm leading-6 text-white/50">
+              {copy.traction.readyStay}
+            </p>
+          ) : null}
+
           <AdAssetSection
             title={copy.detail.campaignStrategy}
             eyebrow="1"
             emptyValue={emptyValue}
             copy={copyChrome}
             fields={[
-              { label: copy.detail.campaignName, value: pkg.strategy.campaignName },
-              { label: copy.detail.objective, value: pkg.strategy.objective },
               { label: copy.detail.audience, value: pkg.strategy.audience },
               {
                 label: copy.detail.coreOfferOrMessage,
                 value: pkg.strategy.coreOfferOrMessage,
               },
               {
-                label: copy.detail.positioningAngle,
-                value: pkg.strategy.positioningAngle,
-              },
-              {
                 label: copy.detail.primaryValueProposition,
                 value: pkg.strategy.primaryValueProposition,
+              },
+              {
+                label: copy.detail.positioningAngle,
+                value: pkg.strategy.positioningAngle,
               },
               { label: copy.detail.ctaDirection, value: pkg.strategy.ctaDirection },
               {
                 label: copy.detail.landingPageDirection,
                 value: pkg.strategy.landingPageDirection,
               },
-              { label: copy.detail.rationale, value: pkg.strategy.rationale },
-              { label: copy.detail.briefMode, value: pkg.strategy.briefMode },
+              { label: copy.detail.objective, value: pkg.strategy.objective },
+              { label: copy.detail.campaignName, value: pkg.strategy.campaignName },
             ]}
           />
 
@@ -314,8 +318,21 @@ export function AdCampaignDetailView({
               ]),
             ]}
           />
+
+          {pkg.strategy.rationale || pkg.strategy.briefMode ? (
+            <AdAssetSection
+              title={copy.traction.advanced}
+              eyebrow=""
+              emptyValue={emptyValue}
+              copy={copyChrome}
+              fields={[
+                { label: copy.detail.rationale, value: pkg.strategy.rationale },
+                { label: copy.detail.briefMode, value: pkg.strategy.briefMode },
+              ]}
+            />
+          ) : null}
         </div>
       ) : null}
-    </main>
+    </div>
   );
 }

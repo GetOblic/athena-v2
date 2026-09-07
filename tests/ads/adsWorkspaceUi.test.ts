@@ -26,8 +26,8 @@ describe("ads workspace UI", () => {
 
   it("library has empty state, Generate CTA, open/delete actions", () => {
     const library = read("components/ads/AdsLibraryClient.tsx");
-    assert.equal(en.ads.emptyTitle, "No Ads campaigns yet");
-    assert.equal(en.ads.generateAds, "Generate Ads");
+    assert.equal(en.ads.emptyTitle, "No campaigns yet.");
+    assert.equal(en.ads.generateAds, "Create campaign");
     assert.equal(en.ads.actionOpen, "Open");
     assert.match(library, /copy\.emptyTitle/);
     assert.match(library, /copy\.generateAds/);
@@ -38,9 +38,9 @@ describe("ads workspace UI", () => {
   it("new form states brief is optional and supports generation without brief", () => {
     const form = read("components/ads/AdCampaignGenerateForm.tsx");
     assert.match(en.ads.new.briefOptional, /brief is optional/i);
-    assert.match(en.ads.new.briefOptional, /no brief at all/i);
-    assert.equal(en.ads.new.moreDetail, "More detail");
-    assert.equal(en.ads.new.generate, "Generate Ads");
+    assert.match(en.ads.new.briefOptional, /already knows/i);
+    assert.equal(en.ads.new.moreDetail, "Advanced");
+    assert.equal(en.ads.new.generate, "Create campaign");
     assert.match(form, /copy\.briefOptional/);
     assert.match(form, /copy\.moreDetail/);
     assert.match(form, /copy\.generate/);
@@ -51,7 +51,7 @@ describe("ads workspace UI", () => {
 
   it("detail view renders six Ready sections, copy controls, status stages, regenerate", () => {
     const detail = read("components/ads/AdCampaignDetailView.tsx");
-    assert.equal(en.ads.detail.campaignStrategy, "Campaign Strategy");
+    assert.equal(en.ads.detail.campaignStrategy, "Campaign direction");
     assert.equal(en.ads.detail.facebook, "Facebook");
     assert.equal(en.ads.detail.instagram, "Instagram");
     assert.equal(en.ads.detail.tiktok, "TikTok");
@@ -81,7 +81,7 @@ describe("ads workspace UI", () => {
     assert.match(status, /copy\.regenerateAsNew/);
     assert.equal(
       en.ads.statusPanel.regenerateAsNew,
-      "Regenerate as new campaign",
+      "Create another version",
     );
   });
 

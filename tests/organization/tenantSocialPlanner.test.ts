@@ -124,17 +124,17 @@ const WHOLE_ASSET_TRACKING = {
 
 describe("V31 L3.9 tenant social planner — list chrome", () => {
   it("keeps English Social Planner chrome canonical", () => {
-    assert.equal(en.socialPlanner.title, "Social Planner");
-    assert.equal(en.socialPlanner.eyebrow, "Social Planner");
+    assert.equal(en.socialPlanner.title, "Social Content");
+    assert.equal(en.socialPlanner.eyebrow, "Generate Traction");
     assert.equal(
       en.socialPlanner.subtitle,
-      "Plan your next seven social assets with one push.",
+      "Plan one week of social content. Athena writes seven pieces from what it already knows about your business and audiences.",
     );
-    assert.equal(en.socialPlanner.generateMyWeek, "Generate My Week");
-    assert.equal(en.socialPlanner.openCalendar, "Open Calendar");
+    assert.equal(en.socialPlanner.generateMyWeek, "Generate this week");
+    assert.equal(en.socialPlanner.openCalendar, "Open this week");
     const page = read("app/social-planner/page.tsx");
     assert.match(page, /getTenantLocalization/);
-    assert.match(page, /TenantBackLink/);
+    assert.match(page, /TenantAppShell/);
     assert.match(page, /copy\.title/);
     assert.equal((page.match(/getTenantLocalization\(\)/g) ?? []).length, 1);
   });
@@ -152,7 +152,7 @@ describe("V31 L3.9 tenant social planner — list chrome", () => {
         dictionary.socialPlanner.generateMyWeek,
         en.socialPlanner.generateMyWeek,
       );
-      assert.equal(dictionary.socialPlanner.title, "Social Planner");
+      assert.notEqual(dictionary.socialPlanner.title, en.socialPlanner.title);
     }
     assert.match(fr.socialPlanner.generateMyWeek, /semaine/i);
     assert.match(es.socialPlanner.openCalendar, /calendario/i);
@@ -321,10 +321,6 @@ describe("V31 L3.9 tenant social planner — status and tokens", () => {
       "Think Differently",
     );
     for (const dictionary of Object.values(DICTIONARIES)) {
-      assert.equal(
-        dictionary.socialPlanner.thinkDifferently,
-        "Think Differently",
-      );
       assert.equal(
         dictionary.socialPlanner.generationModes.thinkDifferently,
         "Think Differently",
@@ -770,9 +766,8 @@ describe("V31 L3.9 tenant social planner — boundaries", () => {
 
   it("preserves locked product terms", () => {
     for (const dictionary of Object.values(DICTIONARIES)) {
-      assert.equal(dictionary.socialPlanner.title, "Social Planner");
-      assert.equal(dictionary.socialPlanner.eyebrow, "Social Planner");
-      assert.equal(dictionary.socialPlanner.thinkDifferently, "Think Differently");
+      assert.equal(dictionary.socialPlanner.generationModes.thinkDifferently, "Think Differently");
+      assert.match(dictionary.socialPlanner.eyebrow, /Generate Traction|Traction/);
       assert.match(dictionary.socialPlanner.askAthenaTitle, /Ask Athena/);
       assert.match(dictionary.socialPlanner.selectWeekHelp, /Athena/);
     }

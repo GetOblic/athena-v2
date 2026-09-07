@@ -9,21 +9,18 @@ function read(relativePath: string) {
   return readFileSync(join(ROOT, relativePath), "utf8");
 }
 
-describe("Persona Summary and Persona Details collapsed by default", () => {
-  it("Summary uses AthenaCollapsibleSection with defaultOpen={false}", () => {
+describe("Audience profile collapsed when intelligence exists", () => {
+  it("detail page opens the profile only when intelligence is absent", () => {
     const page = read("app/personas/[id]/page.tsx");
-    assert.match(
-      page,
-      /title=\{copy\.detail\.summary\}\s*defaultOpen=\{false\}/,
-    );
-    assert.match(page, /AthenaCollapsibleSection/);
+    assert.match(page, /PersonaMetadataEditor/);
+    assert.match(page, /defaultOpen=\{!hasCurrentExecutiveVersion\}/);
   });
 
-  it("Persona Details metadata editor defaults collapsed", () => {
+  it("Audience profile metadata editor defaults collapsed unless asked to open", () => {
     const editor = read("components/personas/PersonaMetadataEditor.tsx");
-    assert.match(editor, /eyebrow=\{chrome\?\.eyebrow \?\? "Persona Details"\}/);
-    assert.match(editor, /defaultOpen=\{false\}/);
-    assert.doesNotMatch(editor, /defaultOpen\s*\n/);
+    assert.match(editor, /eyebrow=\{chrome\?\.eyebrow \?\? "Audience profile"\}/);
+    assert.match(editor, /defaultOpen = false/);
+    assert.match(editor, /defaultOpen=\{defaultOpen\}/);
     assert.doesNotMatch(editor, /defaultOpen=\{true\}/);
   });
 });

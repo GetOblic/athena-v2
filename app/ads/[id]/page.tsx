@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import { AdCampaignDetailView } from "@/components/ads/AdCampaignDetailView";
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { toPublicAdCampaignDetail } from "@/services/ads/adCampaignPublic";
 import { getAdCampaignById } from "@/services/ads/adCampaignService";
@@ -29,18 +29,11 @@ export default async function AdCampaignDetailPage({
   }
 
   return (
-    <>
-      <div className="px-10 pt-10">
-        <AthenaBrandLink
-          tagline={messages.chrome.tagline}
-          logoutLabel={messages.chrome.logOut}
-          sessionActionsLabel={messages.chrome.sessionActions}
-        />
-      </div>
+    <TenantAppShell currentPath={`/ads/${id}`} messages={messages}>
       <AdCampaignDetailView
         campaign={toPublicAdCampaignDetail(campaign)}
         messages={messages}
       />
-    </>
+    </TenantAppShell>
   );
 }

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AdCampaignHeaderDeleteButton } from "@/components/ads/AdCampaignHeaderDeleteButton";
-import { ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS } from "@/components/ui/athenaIntelligenceRow";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
 import {
   getAdsConfirmDeleteChrome,
@@ -78,7 +77,7 @@ export function AdsLibraryClient({
         </p>
         <Link
           href="/ads/new"
-          className="mt-8 inline-flex rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white"
+          className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
         >
           {copy.generateAds}
         </Link>
@@ -88,26 +87,26 @@ export function AdsLibraryClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={copy.searchPlaceholder}
-          className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none md:max-w-md"
+          className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none sm:max-w-md"
         />
         <Link
           href="/ads/new"
-          className="inline-flex rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white"
+          className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
         >
           {copy.generateAds}
         </Link>
       </div>
 
-      <div className="space-y-3">
+      <div className="grid gap-4">
         {filtered.map((campaign) => (
           <div
             key={campaign.id}
-            className={`${ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS} flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between`}
+            className="flex min-w-0 flex-col gap-4 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-5 sm:flex-row sm:items-center sm:justify-between"
           >
             <Link href={`/ads/${campaign.id}`} className="min-w-0 flex-1">
               <div className="text-lg font-semibold">{campaign.name}</div>

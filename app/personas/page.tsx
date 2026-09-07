@@ -1,8 +1,14 @@
 export const dynamic = "force-dynamic";
 
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
-import { TenantBackLink } from "@/components/navigation/TenantBackLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { PersonasLibraryClient } from "@/components/personas/PersonasLibraryClient";
+import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
+import { TractionSiblingNav } from "@/components/traction/TractionSiblingNav";
+import {
+  deriveAudienceLibrarySummary,
+  formatAudienceLibrarySummary,
+} from "@/lib/personas/audienceLibrarySummary";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { enrichPersonasForLibrary } from "@/services/personas/personaLibraryEnrichment";
@@ -24,28 +30,50 @@ export default async function PersonasPage() {
       error instanceof Error ? error.message : copy.loadFailed;
   }
 
+  const summary = formatAudienceLibrarySummary(
+    deriveAudienceLibrarySummary(personas),
+    {
+      audiencesOne: copy.traction.audiencesOne,
+      audiencesMany: copy.traction.audiencesMany,
+      readyOne: copy.traction.readyOne,
+      readyMany: copy.traction.readyMany,
+      generatingOne: copy.traction.generatingOne,
+      generatingMany: copy.traction.generatingMany,
+    },
+    interpolateTenantMessage,
+  );
+
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
-      />
-
-      <TenantBackLink href="/" label={copy.backToDashboard} />
-
-      <div className="mb-10 mt-10">
-        <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          {copy.eyebrow}
-        </div>
-        <h1 className="mt-4 text-5xl font-semibold tracking-tight">
-          {copy.title}
-        </h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          {copy.subtitle}
-        </p>
-      </div>
+    <TenantAppShell currentPath="/personas" messages={messages}>
+      <TractionPageHeader
+        eyebrow={copy.eyebrow}
+        title={copy.title}
+        question={copy.question}
+        subtitle={copy.subtitle}
+      >
+        <TractionSiblingNav
+          links={[
+            {
+              href: "/personas",
+              label: copy.traction.audiences,
+              current: true,
+            },
+            {
+              href: "/ads",
+              label: copy.traction.advertising,
+              help: copy.traction.advertisingHelp,
+            },
+            {
+              href: "/social-planner",
+              label: copy.traction.socialContent,
+              help: copy.traction.socialHelp,
+            },
+          ]}
+        />
+        {summary ? (
+          <p className="mt-4 text-sm text-white/45">{summary}</p>
+        ) : null}
+      </TractionPageHeader>
 
       <PersonasLibraryClient
         personas={personas}
@@ -53,6 +81,6 @@ export default async function PersonasPage() {
         messages={messages}
         language={language}
       />
-    </main>
+    </TenantAppShell>
   );
 }

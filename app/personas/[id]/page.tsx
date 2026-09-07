@@ -1,12 +1,12 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import {
   DiscussionRegenerationProgress,
   DiscussionRegenerationProvider,
 } from "@/components/discussions/DiscussionRegenerationProvider";
 import { ExecutiveIntelligenceWorkspace } from "@/components/discussions/ExecutiveIntelligenceWorkspace";
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
-import { TenantBackLink } from "@/components/navigation/TenantBackLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { PersonaAppendInteraction } from "@/components/personas/PersonaAppendInteraction";
 import { PersonaAppendInteractionTracked } from "@/components/personas/PersonaAppendInteractionTracked";
 import { PersonaConversationPanel } from "@/components/personas/PersonaConversationPanel";
@@ -16,7 +16,7 @@ import { PersonaGenerationProgress } from "@/components/personas/PersonaGenerati
 import { PersonaHeaderDeleteButton } from "@/components/personas/PersonaHeaderDeleteButton";
 import { PersonaLifecycleStatusControl } from "@/components/personas/PersonaLifecycleStatusControl";
 import { PersonaMetadataEditor } from "@/components/personas/PersonaMetadataEditor";
-import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDiscussionById } from "@/services/discussionService";
@@ -33,7 +33,6 @@ import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityS
 import { toBlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import {
   formatPersonaLocation,
-  formatPersonaOpportunityScore,
   formatPersonaReferenceWebsiteDisplay,
   resolvePersonaDisplayStatus,
 } from "@/services/personas/personaDisplay";
@@ -46,40 +45,14 @@ import {
   resolvePersonaDisplayLabel,
 } from "@/services/personas/personaUtils";
 import { normalizeRootWebsiteUrl } from "@/services/websiteLearning/deepScrape/urlSafety";
-import { formatTenantDate } from "@/lib/tenantI18n/format";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { getSharedAssetChrome } from "@/lib/tenantI18n/opportunityPresentation";
 import {
-  getLocalizedPersonaLifecycleLabel,
-  getLocalizedPersonaReadinessLabel,
-} from "@/lib/tenantI18n/personaPresentation";
-import type { OrganizationLanguage } from "@/services/organizationLanguage";
-
-function formatDate(
-  value: string | null | undefined,
-  language: OrganizationLanguage,
-) {
-  if (!value) return null;
-  return formatTenantDate(value, language);
-}
-
-function SummaryItem({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | null | undefined;
-}) {
-  if (!value) return null;
-  return (
-    <div>
-      <div className="text-xs uppercase tracking-[0.16em] text-white/35">
-        {label}
-      </div>
-      <div className="mt-2 text-sm leading-6 text-white/75">{value}</div>
-    </div>
-  );
-}
+  getAudienceIntelligenceStatusLabel,
+  getAudienceWorkingStatusLabel,
+  isAudienceIntelligenceFailed,
+  isAudienceIntelligenceProcessing,
+} from "@/lib/personas/audienceReadinessPresentation";
 
 export default async function PersonaDetailsPage({
   params,
@@ -88,7 +61,7 @@ export default async function PersonaDetailsPage({
 }) {
   const { id } = await params;
   const { organizationId } = await requireCurrentOrganizationContext();
-  const [{ language, locale, messages }, persona] = await Promise.all([
+  const [{ locale, messages }, persona] = await Promise.all([
     getTenantLocalization(),
     getPersonaById(id, organizationId),
   ]);
@@ -97,16 +70,15 @@ export default async function PersonaDetailsPage({
 
   if (!persona) {
     return (
-      <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-        <AthenaBrandLink
-          className="mb-8"
-          tagline={messages.chrome.tagline}
-          logoutLabel={messages.chrome.logOut}
-          sessionActionsLabel={messages.chrome.sessionActions}
-        />
-        <TenantBackLink href="/personas" label={copy.backToPersonas} />
-        <h1 className="mt-8 text-4xl font-semibold">{copy.notFound}</h1>
-      </main>
+      <TenantAppShell currentPath={`/personas/${id}`} messages={messages}>
+        <Link
+          href="/personas"
+          className="mb-6 inline-flex text-sm text-[var(--athena-orange)]"
+        >
+          {copy.backToPersonas}
+        </Link>
+        <h1 className="text-4xl font-semibold">{copy.notFound}</h1>
+      </TenantAppShell>
     );
   }
 
@@ -170,7 +142,6 @@ export default async function PersonaDetailsPage({
     persona.reference_website,
   );
   const referenceHref = normalizeWebsiteUrl(persona.reference_website);
-  const scoreLabel = formatPersonaOpportunityScore(persona.opportunity_score);
   const brandDirection = organizationBrand
     ? toBlueprintBrandDirectionInput(organizationBrand)
     : null;
@@ -184,6 +155,8 @@ export default async function PersonaDetailsPage({
   const conversationVersionState = versionState.current
     ? ("current" as const)
     : ("none" as const);
+  const intelligenceFailed = isAudienceIntelligenceFailed(readiness);
+  const intelligenceProcessing = isAudienceIntelligenceProcessing(readiness);
 
   const initialRegenerationSnapshot = {
     latestAnalysisId: latestAnalysis?.id ?? null,
@@ -194,128 +167,149 @@ export default async function PersonaDetailsPage({
     regenerationInFlight,
   };
 
-  const pageBody = (
-    <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
-      />
-      <TenantBackLink href="/personas" label={copy.backToPersonas} />
+  const profileEditor = (
+    <PersonaMetadataEditor
+      persona={persona}
+      chrome={copy.metadata}
+      emptyValue={copy.emptyValue}
+      defaultOpen={!hasCurrentExecutiveVersion}
+    />
+  );
 
-      <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            {copy.detail.eyebrow}
-          </div>
-          <h1 className="mt-4 max-w-5xl text-5xl font-semibold tracking-tight">
-            {displayLabel}
-          </h1>
-          {persona.short_description ? (
-            <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-              {persona.short_description}
-            </p>
-          ) : null}
+  const conversationPanel = (
+    <PersonaConversationPanel
+      personaId={persona.id}
+      executiveVersionId={versionState.current?.id ?? null}
+      versionState={conversationVersionState}
+      versionLabel={
+        versionState.current ? copy.detail.currentExecutiveVersion : null
+      }
+      chrome={copy.conversation}
+    />
+  );
+
+  const crossLinks = (
+    <div className="mt-8 space-y-3 rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+      <Link href="/ads/new" className="block">
+        <div className="text-sm font-semibold text-white">
+          {copy.traction.createAdvertising}
         </div>
+        <p className="mt-1 text-sm leading-6 text-white/50">
+          {copy.traction.createAdvertisingHelp}
+        </p>
+      </Link>
+      <Link
+        href="/social-planner"
+        className="block text-sm font-semibold text-white"
+      >
+        {copy.traction.planSocial}
+      </Link>
+    </div>
+  );
 
-        <div className="flex flex-col items-stretch gap-3 sm:items-end">
-          <PersonaGenerateIntelligenceButton
+  const pageBody = (
+    <TenantAppShell currentPath={`/personas/${id}`} messages={messages}>
+      <Link
+        href="/personas"
+        className="mb-6 inline-flex text-sm text-[var(--athena-orange)]"
+      >
+        {copy.backToPersonas}
+      </Link>
+
+      <TractionPageHeader
+        eyebrow={copy.detail.eyebrow}
+        title={displayLabel}
+        subtitle={persona.short_description ?? undefined}
+        badge={
+          <span className="rounded-full border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--athena-orange)]">
+            {getAudienceIntelligenceStatusLabel(messages, readiness)}
+          </span>
+        }
+      >
+        <p className="mt-3 hidden text-sm text-white/40 lg:block">
+          {copy.traction.workingStatus}:{" "}
+          {getAudienceWorkingStatusLabel(messages, lifecycle)}
+        </p>
+        {(location || referenceDisplay) && (
+          <p className="mt-2 text-sm text-white/45">
+            {[persona.category, location].filter(Boolean).join(" · ")}
+            {referenceHref ? (
+              <>
+                {persona.category || location ? " · " : null}
+                <a
+                  href={referenceHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--athena-orange)] underline underline-offset-2"
+                >
+                  {referenceDisplay}
+                </a>
+              </>
+            ) : referenceDisplay ? (
+              <>
+                {persona.category || location ? " · " : null}
+                {referenceDisplay}
+              </>
+            ) : null}
+          </p>
+        )}
+      </TractionPageHeader>
+
+      {intelligenceProcessing ? (
+        <div className="mb-6 rounded-[24px] border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 p-5">
+          <p className="text-sm leading-6 text-white/80">
+            {copy.traction.processingBanner}
+          </p>
+          <PersonaGenerationProgress
             personaId={persona.id}
             initialStatus={readiness}
-            initialInFlight={regenerationInFlight}
-            hasCurrentExecutiveVersion={hasCurrentExecutiveVersion}
-            chrome={copy.detail}
-          />
-          <PersonaDeepScrapeWebsiteButton
-            personaId={persona.id}
-            initiallyAvailable={deepScrapeAvailable}
-            messages={copy.deepScrape}
-            locale={locale}
-          />
-          <PersonaLifecycleStatusControl persona={persona} messages={messages} />
-          <PersonaHeaderDeleteButton
-            personaId={persona.id}
-            confirmMessage={copy.detail.deleteConfirm}
-            errorFallback={copy.detail.deleteFailed}
-            chrome={messages.common}
+            messages={messages}
           />
         </div>
-      </div>
+      ) : null}
 
-      <AthenaCollapsibleSection
-        title={copy.detail.summary}
-        defaultOpen={false}
-        className="mt-10"
-      >
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          <SummaryItem label={copy.detail.category} value={persona.category} />
-          <SummaryItem label={copy.detail.location} value={location} />
-          <SummaryItem label={copy.detail.languages} value={persona.languages} />
-          <SummaryItem
-            label={copy.detail.lifecycle}
-            value={getLocalizedPersonaLifecycleLabel(messages, lifecycle)}
-          />
-          <SummaryItem
-            label={copy.detail.readiness}
-            value={getLocalizedPersonaReadinessLabel(messages, readiness)}
-          />
-          <SummaryItem
-            label={copy.detail.opportunityScore}
-            value={scoreLabel === "—" ? null : scoreLabel}
-          />
-          <SummaryItem label={copy.detail.source} value={persona.source} />
-          <SummaryItem
-            label={copy.detail.created}
-            value={formatDate(persona.created_at, language)}
-          />
-          <SummaryItem
-            label={copy.detail.updated}
-            value={formatDate(persona.updated_at, language)}
-          />
-          {referenceDisplay ? (
-            <div>
-              <div className="text-xs uppercase tracking-[0.16em] text-white/35">
-                {copy.detail.referenceWebsite}
-              </div>
-              <div className="mt-2 text-sm leading-6 text-white/75">
-                {referenceHref ? (
-                  <a
-                    href={referenceHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[var(--athena-orange)] underline underline-offset-2"
-                  >
-                    {referenceDisplay}
-                  </a>
-                ) : (
-                  referenceDisplay
-                )}
-              </div>
-            </div>
-          ) : null}
+      {intelligenceFailed ? (
+        <div className="mb-6 rounded-[24px] border border-rose-400/30 bg-rose-500/10 p-5">
+          <p className="text-sm leading-6 text-rose-100/80">
+            {copy.traction.failedBanner}
+          </p>
         </div>
+      ) : null}
 
-        <PersonaGenerationProgress
+      {!hasCurrentExecutiveVersion && !intelligenceProcessing && !intelligenceFailed ? (
+        <div className="mb-6 rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+          <p className="text-sm leading-6 text-white/65">
+            {copy.traction.savedBanner}
+          </p>
+        </div>
+      ) : null}
+
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <PersonaGenerateIntelligenceButton
           personaId={persona.id}
           initialStatus={readiness}
-          messages={messages}
+          initialInFlight={regenerationInFlight}
+          hasCurrentExecutiveVersion={hasCurrentExecutiveVersion}
+          chrome={copy.detail}
         />
-      </AthenaCollapsibleSection>
-
-      <div className="mt-8">
-        <PersonaMetadataEditor
-          persona={persona}
-          chrome={copy.metadata}
-          emptyValue={copy.emptyValue}
+        <PersonaDeepScrapeWebsiteButton
+          personaId={persona.id}
+          initiallyAvailable={deepScrapeAvailable}
+          messages={copy.deepScrape}
+          locale={locale}
+        />
+        <PersonaLifecycleStatusControl persona={persona} messages={messages} />
+        <PersonaHeaderDeleteButton
+          personaId={persona.id}
+          confirmMessage={copy.detail.deleteConfirm}
+          errorFallback={copy.detail.deleteFailed}
+          chrome={messages.common}
         />
       </div>
 
       {discussion ? (
         <>
-          <div className="mt-8">
-            <DiscussionRegenerationProgress />
-          </div>
+          <DiscussionRegenerationProgress />
           <ExecutiveIntelligenceWorkspace
             discussionId={discussion.id}
             personaId={persona.id}
@@ -330,31 +324,19 @@ export default async function PersonaDetailsPage({
             locale={locale}
             conversationChrome={copy.conversation}
             assetChrome={getSharedAssetChrome(messages)}
+            personaSectionTitles={copy.traction}
             afterBlueprint={null}
             afterDetailedReasoning={
               <div className="mt-8 space-y-8">
+                {conversationPanel}
+                {profileEditor}
                 <PersonaAppendInteractionTracked
                   personaId={persona.id}
                   discussionId={discussion.id}
                   initialNotes={persona.notes}
                   chrome={copy.append}
                 />
-                {/*
-                  Discuss with Athena coordination (asset reference, open, scroll/focus,
-                  selected Executive Version) is provided by ExecutiveIntelligenceWorkspace
-                  via PersonaDiscussProvider. Props below are the no-context fallback.
-                */}
-                <PersonaConversationPanel
-                  personaId={persona.id}
-                  executiveVersionId={versionState.current?.id ?? null}
-                  versionState={conversationVersionState}
-                  versionLabel={
-                    versionState.current
-                      ? copy.detail.currentExecutiveVersion
-                      : null
-                  }
-                  chrome={copy.conversation}
-                />
+                {crossLinks}
               </div>
             }
             originalDiscussionSection={
@@ -389,7 +371,7 @@ export default async function PersonaDetailsPage({
       ) : (
         <>
           <div
-            className={`mt-8 rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
+            className={`rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
           >
             <h2 className="text-lg font-semibold">{copy.detail.noDiscussionTitle}</h2>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-white/45">
@@ -403,6 +385,7 @@ export default async function PersonaDetailsPage({
             </p>
           </div>
           <div className="mt-8 space-y-8">
+            {profileEditor}
             <PersonaAppendInteraction
               personaId={persona.id}
               discussionId={null}
@@ -416,10 +399,11 @@ export default async function PersonaDetailsPage({
               versionLabel={null}
               chrome={copy.conversation}
             />
+            {crossLinks}
           </div>
         </>
       )}
-    </main>
+    </TenantAppShell>
   );
 
   if (!discussion) {

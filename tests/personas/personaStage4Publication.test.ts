@@ -155,19 +155,19 @@ describe("persona stage-4 workspace and Think Differently", () => {
 
     assert.match(workspace, /sourceKind\?: "discussion" \| "prospect" \| "persona"/);
     assert.match(workspace, /Persona Assessment/);
-    assert.match(workspace, /Persona Deployment Assets/);
-    assert.match(workspace, /Persona Analysis Assets/);
+    assert.match(workspace, /Outreach drafts/);
+    assert.match(workspace, /groupAudienceAnalysisAssets/);
     assert.match(workspace, /Persona Strategic Blueprint/);
     assert.doesNotMatch(
       workspace.split('sourceKind === "persona"')[0] ?? "",
       /Ask Athena/,
     );
 
-    // Section order: Deployment before Analysis before Blueprint
-    const depIdx = workspace.indexOf("Persona Deployment Assets");
-    const analysisIdx = workspace.indexOf("Persona Analysis Assets");
+    // Audience intelligence first, outreach drafts demoted, then blueprint
+    const analysisIdx = workspace.indexOf("groupAudienceAnalysisAssets");
+    const depIdx = workspace.indexOf("Outreach drafts");
     const bpIdx = workspace.indexOf("Persona Strategic Blueprint");
-    assert.ok(depIdx > 0 && analysisIdx > depIdx && bpIdx > analysisIdx);
+    assert.ok(analysisIdx > 0 && depIdx > analysisIdx && bpIdx > depIdx);
 
     assert.match(card, /Persona Assessment/);
     assert.match(page, /sourceKind="persona"/);
@@ -179,7 +179,7 @@ describe("persona stage-4 workspace and Think Differently", () => {
 
     assert.match(button, /think-differently/);
     assert.match(button, /hasCurrentExecutiveVersion/);
-    assert.match(button, /Think Differently/);
+    assert.match(button, /Try another approach/);
 
     assert.match(display, /"Ready"/);
     assert.match(display, /hasCurrentExecutiveVersion/);

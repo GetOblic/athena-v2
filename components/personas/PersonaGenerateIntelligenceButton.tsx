@@ -10,6 +10,8 @@ type PersonaGenerateChrome = {
   retryGenerateIntelligence: string;
   thinkDifferently: string;
   thinkingDifferently: string;
+  refreshIntelligence?: string;
+  refreshingIntelligence?: string;
   generateFailed: string;
   thinkFailed: string;
   generateQueued: string;
@@ -179,6 +181,7 @@ export function PersonaGenerateIntelligenceButton({
 
   const busy = Boolean(queueingKind) || inFlight;
   const failed = /fail/i.test(String(statusLabel ?? ""));
+  const ready = String(statusLabel ?? "") === "Ready";
   const generatingIntelligence =
     busy &&
     (queueingKind === "generate_intelligence" ||
@@ -187,28 +190,46 @@ export function PersonaGenerateIntelligenceButton({
     busy && queueingKind === "think_differently";
 
   return (
-    <div className="flex flex-col items-stretch gap-2 sm:items-end">
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={() => void queueAction("generate_intelligence")}
-          disabled={busy}
-          className="inline-flex items-center justify-center rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {generatingIntelligence ? <ButtonSpinner /> : null}
-          {generatingIntelligence
-            ? (chrome?.generatingIntelligence ?? "Generating Intelligence…")
-            : failed
-              ? (chrome?.retryGenerateIntelligence ??
-                "Retry Generate Intelligence")
-              : (chrome?.generateIntelligence ?? "Generate Intelligence")}
-        </button>
+    <div className="flex flex-col items-stretch gap-2">
+      <div className="flex flex-wrap items-center gap-3">
+        {!ready || failed ? (
+          <button
+            type="button"
+            onClick={() => void queueAction("generate_intelligence")}
+            disabled={busy}
+            className="inline-flex items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {generatingIntelligence ? <ButtonSpinner /> : null}
+            {generatingIntelligence
+              ? (chrome?.generatingIntelligence ??
+                "Generating audience intelligence…")
+              : failed
+                ? (chrome?.retryGenerateIntelligence ??
+                  "Try generating again")
+                : (chrome?.generateIntelligence ??
+                  "Generate audience intelligence")}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void queueAction("generate_intelligence")}
+            disabled={busy}
+            className="inline-flex items-center justify-center rounded-2xl border border-white/15 px-6 py-3 text-sm font-semibold text-white/85 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {generatingIntelligence ? <ButtonSpinner /> : null}
+            {generatingIntelligence
+              ? (chrome?.refreshingIntelligence ??
+                chrome?.generatingIntelligence ??
+                "Refreshing intelligence…")
+              : (chrome?.refreshIntelligence ?? "Refresh intelligence")}
+          </button>
+        )}
         {canThinkDifferently ? (
           <button
             type="button"
             onClick={() => void queueAction("think_differently")}
             disabled={busy}
-            className="inline-flex items-center justify-center rounded-full border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-6 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center justify-center rounded-2xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-6 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {thinkingDifferently ? (
               <span
@@ -217,8 +238,8 @@ export function PersonaGenerateIntelligenceButton({
               />
             ) : null}
             {thinkingDifferently
-              ? (chrome?.thinkingDifferently ?? "Thinking Differently…")
-              : (chrome?.thinkDifferently ?? "Think Differently")}
+              ? (chrome?.thinkingDifferently ?? "Trying another approach…")
+              : (chrome?.thinkDifferently ?? "Try another approach")}
           </button>
         ) : null}
       </div>

@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
-import { TenantBackLink } from "@/components/navigation/TenantBackLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { SocialPlannerWorkspace } from "@/components/socialPlanner/SocialPlannerWorkspace";
 import { SOCIAL_PLANNER_CALENDAR_ID_RE } from "@/components/socialPlanner/socialPlannerClient";
+import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
+import { TractionSiblingNav } from "@/components/traction/TractionSiblingNav";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import {
   SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
@@ -57,27 +58,33 @@ export default async function SocialPlannerPage({
   }
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] px-5 py-8 text-white sm:p-10">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
-      />
-
-      <TenantBackLink href="/" label={copy.backToDashboard} />
-
-      <div className="mb-10 mt-10">
-        <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          {copy.eyebrow}
-        </div>
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">
-          {copy.title}
-        </h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-white/50">
-          {copy.subtitle}
+    <TenantAppShell currentPath="/social-planner" messages={messages}>
+      <TractionPageHeader
+        eyebrow={copy.eyebrow}
+        title={copy.title}
+        subtitle={copy.subtitle}
+      >
+        <TractionSiblingNav
+          links={[
+            {
+              href: "/personas",
+              label: copy.traction.audiences,
+            },
+            {
+              href: "/ads",
+              label: copy.traction.advertising,
+            },
+            {
+              href: "/social-planner",
+              label: copy.title,
+              current: true,
+            },
+          ]}
+        />
+        <p className="mt-4 text-sm leading-6 text-white/50">
+          {copy.traction.helper}
         </p>
-      </div>
+      </TractionPageHeader>
 
       <SocialPlannerWorkspace
         initialCalendars={calendars}
@@ -87,6 +94,6 @@ export default async function SocialPlannerPage({
         language={language}
         locale={locale}
       />
-    </main>
+    </TenantAppShell>
   );
 }

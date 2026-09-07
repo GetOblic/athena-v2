@@ -9,6 +9,9 @@ type PersonaCreationBlockProps = {
   /** Stable panel id for aria-controls. */
   panelId: string;
   defaultOpen?: boolean;
+  className?: string;
+  /** Applied only while the block is expanded (desktop density, not default chrome). */
+  expandedClassName?: string;
 };
 
 /**
@@ -21,11 +24,15 @@ export function PersonaCreationBlock({
   children,
   panelId,
   defaultOpen = false,
+  className = "",
+  expandedClassName = "",
 }: PersonaCreationBlockProps) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+    <section
+      className={`rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 ${className} ${open ? expandedClassName : ""}`.trim()}
+    >
       <button
         type="button"
         onClick={() => setOpen((previous) => !previous)}

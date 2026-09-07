@@ -231,6 +231,7 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
       title={copy.generateTitle}
       panelId="persona-creation-generate"
       summary={copy.generateSummary}
+      defaultOpen
     >
       <div className="space-y-4">
         <label className="block text-sm text-white/50">
@@ -423,7 +424,9 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
                 disabled={busy}
                 className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
               >
-                {phase === "creating" ? copy.creating : copy.createCta}
+                {phase === "creating"
+                  ? copy.creating
+                  : copy.createThisAudience}
               </button>
               <button
                 type="button"

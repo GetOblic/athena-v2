@@ -1087,20 +1087,75 @@ export const fr: TenantMessages = {
   },
   personas: {
     backToDashboard: "← Tableau de bord",
-    backToPersonas: "← Personas",
-    eyebrow: "Intelligence Persona",
-    title: "Personas",
+    backToPersonas: "← Audiences",
+    eyebrow: "Generate Traction",
+    title: "Generate Traction",
     subtitle:
       "Types de clientèle et archétypes clients qu’Athena peut comprendre et analyser comme sources d’intelligence de premier plan.",
     notFound: "Persona introuvable",
     loadFailed: "Échec du chargement des Personas pour cette organisation.",
     loadErrorTitle: "Impossible de charger les Personas",
     emptyValue: "—",
+    question:
+      "Qui dois-je atteindre, qu’est-ce qui compte pour eux, et que dois-je créer pour attirer leur attention ?",
+    traction: {
+      audiences: "Audiences",
+      advertising: "Publicité",
+      socialContent: "Contenu social",
+      advertisingHelp:
+        "Créez une campagne publicitaire. Athena tient compte de votre entreprise et de l’intelligence d’audience.",
+      socialHelp:
+        "Planifiez une semaine de contenu social. Athena utilise ce qu’elle sait déjà de votre entreprise et de vos audiences.",
+      createAdvertising: "Créer une publicité.",
+      createAdvertisingHelp:
+        "Athena tient compte de votre entreprise et de l’intelligence d’audience.",
+      planSocial: "Planifier une semaine de contenu social.",
+      audiencesOne: "1 audience",
+      audiencesMany: "{count} audiences",
+      readyOne: "1 avec une intelligence prête",
+      readyMany: "{count} avec une intelligence prête",
+      generatingOne: "1 encore en cours",
+      generatingMany: "{count} encore en cours",
+      workingStatus: "Statut de travail",
+      intelligenceSaved: "Audience enregistrée · intelligence pas encore générée",
+      athenaStarting: "Athena commence",
+      athenaWorking: "Athena travaille",
+      athenaWriting: "Athena rédige l’intelligence d’audience",
+      intelligenceReady: "Intelligence prête",
+      intelligenceFailed: "Intelligence en échec",
+      processingBanner:
+        "Athena rédige l’intelligence d’audience. Vous pouvez quitter et revenir.",
+      failedBanner: "Athena n’a pas pu terminer cette intelligence d’audience.",
+      savedBanner:
+        "Audience enregistrée. Athena n’a pas encore rédigé l’intelligence d’audience.",
+      sectionOverview: "Vue d’ensemble de l’audience",
+      sectionCareAbout: "Ce qui compte pour eux",
+      sectionObjections: "Problèmes, objections et frictions",
+      sectionOffer: "Positionnement de l’offre",
+      sectionMessaging: "Cadre de messages",
+      sectionLanguage: "Langage et ton",
+      sectionChannel: "Stratégie de canaux",
+      sectionCampaigns: "Concepts de campagne",
+      sectionThemes: "Thèmes de contenu",
+      sectionAdConcepts: "Concepts publicitaires",
+      sectionLanding: "Direction de la page d’atterrissage",
+      sectionVisual: "Direction visuelle",
+      sectionExperience: "Expérience client",
+      sectionValidation: "Validation et apprentissage",
+      sectionProfile: "Profil d’audience",
+      sectionEvidence: "Preuves à l’appui",
+      sectionObservation: "Ajouter une observation",
+      sectionOutreach: "Brouillons d’approche",
+      sectionPrevious: "Intelligence précédente",
+      sectionBlueprint: "Blueprint",
+      sectionAdvanced: "Avancé",
+    },
     list: {
-      emptyTitle: "Aucune Persona pour le moment",
+      emptyTitle: "Aucune audience n’est encore définie.",
       emptyBody:
-        "Les Personas représentent des types de clientèle ou des archétypes clients. Créez-en une manuellement ou importez un CSV pour commencer à constituer votre bibliothèque de Personas.",
-      createCta: "Créer ou importer des Personas",
+        "Athena a besoin du contexte d’audience pour raisonner plus précisément sur les personnes que vous voulez atteindre.",
+      createCta: "Créer une audience",
+      createFirstCta: "Définir votre première audience",
       search: "Rechercher",
       searchPlaceholder: "Nom, description, catégorie, localisation…",
       status: "Statut",
@@ -1127,7 +1182,8 @@ export const fr: TenantMessages = {
     },
     import: {
       subtitle:
-        "Les imports manuels et CSV créent les fiches Persona immédiatement. Générer une Persona prépare d’abord un candidat à relire depuis Athena Brain — rien n’est enregistré tant que vous n’avez pas confirmé. Les profils incomplets sont acceptés — seules les Personas entièrement vides sont rejetées.",
+        "Dites à Athena qui vous voulez atteindre. Vous pouvez commencer par une courte description, ou laisser Athena suggérer une audience à partir de ce qu’elle sait déjà de votre entreprise.",
+      createTitle: "Créer une audience",
       manualTitle: "Création manuelle",
       manualSummary:
         "Créez une Persona unique. Les informations incomplètes conviennent — seule une Persona entièrement vide est rejetée.",
@@ -1142,7 +1198,8 @@ export const fr: TenantMessages = {
       helpNotes: "Notes internes de l’opérateur.",
       helpAdsContent:
         "Collez des publicités, créations, messages ou exemples qui ciblent cette Persona ou semblent lui parler.",
-      createCta: "Créer la Persona",
+      createCta: "Créer une audience",
+      createThisAudience: "Créer cette audience",
       creating: "Création…",
       openPersona: "Ouvrir la Persona",
       createFinished: "Création terminée.",
@@ -1154,14 +1211,14 @@ export const fr: TenantMessages = {
       groupEducationProfessional: "Formation et contexte professionnel",
       groupLifestyleBehavior: "Mode de vie et comportement",
       groupValuesAesthetics: "Valeurs et esthétique",
-      generateTitle: "Générer une Persona",
+      generateTitle: "Suggérer une audience",
       generateSummary:
-        "Utilisez Athena Brain et votre connaissance métier existante pour générer une Persona nouvelle et pertinente.",
+        "Laissez Athena suggérer une audience à partir de ce qu’elle sait déjà de votre entreprise.",
       instructionLabel:
         "Quel type de Persona souhaitez-vous qu’Athena génère ? (Facultatif)",
       instructionPlaceholder:
         "Exemples :\n- Générer un acheteur sceptique.\n- Générer quelqu’un susceptible d’acheter des services premium.\n- Générer un propriétaire de clinique en Californie.\n- Surprenez-moi avec un public mal desservi.",
-      generateCta: "Générer une Persona",
+      generateCta: "Suggérer une audience",
       generating: "Athena génère…",
       generatingHelp:
         "Athena évalue la couverture du portefeuille, puis génère un candidat à partir de votre Brain, du contexte de marché et des Personas existantes…",
@@ -1171,8 +1228,8 @@ export const fr: TenantMessages = {
         "Modifiez n’importe quel champ avant de créer. Rien n’est enregistré tant que vous n’avez pas confirmé.",
       reviewGeneratingNote:
         "Athena génère un autre candidat — le candidat actuel reste jusqu’à ce qu’une nouvelle réponse aboutisse.",
-      portfolioInsightTitle: "Aperçu de la couverture du portefeuille",
-      portfolioInsightLead: "Athena a choisi cette Persona parce que :",
+      portfolioInsightTitle: "Pourquoi Athena a suggéré ceci",
+      portfolioInsightLead: "Athena a choisi cette audience parce que :",
       generateAgain: "Générer à nouveau",
       clearCandidate: "Effacer le candidat",
       validationEmpty:
@@ -1221,7 +1278,7 @@ export const fr: TenantMessages = {
       statusInvalid: "Invalide",
     },
     detail: {
-      eyebrow: "Persona",
+      eyebrow: "Audience",
       summary: "Résumé",
       category: "Catégorie",
       location: "Localisation",
@@ -1233,11 +1290,13 @@ export const fr: TenantMessages = {
       created: "Créée",
       updated: "Mise à jour",
       referenceWebsite: "Site de référence",
-      generateIntelligence: "Générer l’intelligence",
+      generateIntelligence: "Générer l’intelligence d’audience",
       generatingIntelligence: "Génération de l’intelligence…",
-      retryGenerateIntelligence: "Réessayer de générer l’intelligence",
-      thinkDifferently: "Think Differently",
+      retryGenerateIntelligence: "Réessayer la génération",
+      thinkDifferently: "Essayer une autre approche",
       thinkingDifferently: "Think Differently en cours…",
+      refreshIntelligence: "Actualiser l’intelligence",
+      refreshingIntelligence: "Actualisation de l’intelligence…",
       generateFailed: "Échec de Générer l’intelligence.",
       thinkFailed: "Échec de Think Differently.",
       generateQueued:
@@ -1250,7 +1309,7 @@ export const fr: TenantMessages = {
       noDiscussionInFlight:
         "Athena génère l’intelligence Persona en arrière-plan.",
       noDiscussionFailed:
-        "La dernière tentative de génération a échoué. Utilisez Réessayer de générer l’intelligence pour recommencer.",
+        "Athena n’a pas pu terminer cette intelligence d’audience.",
       noDiscussionOther:
         "La génération de l’intelligence Persona est en cours ou en attente de finalisation.",
       sourceContextHelp:
@@ -1263,7 +1322,7 @@ export const fr: TenantMessages = {
       deleteFailed: "Échec de la suppression de la persona.",
     },
     metadata: {
-      title: "Détails de la Persona",
+      title: "Profil d’audience",
       titleEdit: "Modifier les métadonnées",
       eyebrow: "Détails de la Persona",
       helpRead:
@@ -1375,7 +1434,7 @@ export const fr: TenantMessages = {
       processingFailed: "Échec du traitement",
     },
     conversation: {
-      title: "Ask Athena à propos de cette Persona",
+      title: "Ask Athena à propos de cette audience",
       intro:
         "Posez des questions fondées sur cet archétype Persona en utilisant le profil actuel, les Notes, la recherche du site de référence et la version exécutive actuelle lorsqu’elle est disponible.",
       usingCurrent: "Utilisation de la version exécutive actuelle",
@@ -1449,7 +1508,7 @@ export const fr: TenantMessages = {
       researchNone: "Non recherché",
     },
     executive: {
-      heading: "Executive Intelligence",
+      heading: "Intelligence d’audience",
       whatMatters: "L’essentiel en 30 secondes",
       emptyDiscussion:
         "Lancez une analyse Athena pour déverrouiller l’executive intelligence de cette persona.",
@@ -1567,8 +1626,8 @@ export const fr: TenantMessages = {
       generationFailedLogs:
         "La génération a échoué. Veuillez consulter les journaux.",
       generationUnknown: "Erreur inconnue",
-      deploymentAssetsTitle: "Persona Deployment Assets",
-      analysisAssetsTitle: "Actifs d’analyse Persona",
+      deploymentAssetsTitle: "Brouillons d’approche",
+      analysisAssetsTitle: "Intelligence d’audience",
       strategicBlueprintTitle: "Persona Strategic Blueprint",
       opportunityScore: "Score d’opportunité",
     },
@@ -1591,7 +1650,7 @@ export const fr: TenantMessages = {
       sortUpdated: "Mise à jour",
       sortCreated: "Création",
       sortScore: "Score d’opportunité",
-      sortName: "Nom de l’entreprise",
+      sortName: "Nom",
       importCta: "Importer des Prospects",
       emptyTitle: "Aucun prospect trouvé.",
       emptyBody:
@@ -1622,7 +1681,7 @@ export const fr: TenantMessages = {
       linkedinUrl: "URL LinkedIn",
       facebookUrl: "URL Facebook",
       instagramUrl: "URL Instagram",
-      csvTitle: "Import CSV",
+      csvTitle: "Importer depuis un CSV",
       csvSummary:
         "Téléversez un CSV pour prévisualiser comment Athena interprète chaque ligne. Aucune fiche Prospect n’est créée tant que vous n’avez pas relu et confirmé l’import.",
       downloadTemplate: "Télécharger le modèle CSV",
@@ -2217,30 +2276,39 @@ export const fr: TenantMessages = {
   ads: {
     backToDashboard: "← Tableau de bord",
     backToAds: "← Publicités",
-    eyebrow: "Publicité organisationnelle",
-    title: "Publicités",
+    eyebrow: "Generate Traction",
+    title: "Publicité",
     subtitle:
-      "Générez des campagnes publicitaires au niveau de l’organisation à partir de l’intelligence accumulée d’Athena sur le Brain, les Prospects et les Personas.",
+      "Créez des campagnes publicitaires à partir de ce qu’Athena sait de votre entreprise et de vos audiences. Un brief est facultatif.",
     loadFailed:
       "Échec du chargement des campagnes Publicités pour cette organisation.",
     unableToLoad: "Impossible de charger les Publicités",
-    emptyTitle: "Aucune campagne Publicités pour le moment",
+    emptyTitle: "Aucune campagne pour le moment.",
     emptyBody:
       "Générez des campagnes publicitaires au niveau de l’organisation à partir de l’intelligence accumulée d’Athena. Un brief est facultatif.",
-    generateAds: "Générer des Publicités",
+    generateAds: "Créer une campagne",
     searchPlaceholder: "Rechercher des campagnes",
-    packagePending: "Package de campagne en attente",
+    packagePending: "Campagne pas encore terminée",
     noSearchMatch: "Aucune campagne ne correspond à votre recherche.",
     actionOpen: "Ouvrir",
     emptyValue: "—",
+    traction: {
+      audiences: "Audiences",
+      socialContent: "Contenu social",
+      readyStay:
+        "Cette campagne reste telle que générée. Créer une autre version démarre une nouvelle campagne.",
+      audienceHelp:
+        "Ceci est facultatif. Athena peut aussi tenir compte de vos audiences enregistrées. Cela n’attache pas une audience précise à la campagne.",
+      advanced: "Avancé",
+    },
     status: {
-      queued: "En file",
-      processing: "En cours",
+      queued: "Démarrage",
+      processing: "Création de la campagne",
       ready: "Prêt",
-      processingFailed: "Échec du traitement",
+      processingFailed: "Échec",
     },
     new: {
-      eyebrow: "Générer des Publicités",
+      eyebrow: "Publicité",
       title: "Nouvelle campagne",
       subtitle:
         "Fournissez une orientation facultative, ou laissez tout vide et laissez Athena déduire la plus forte opportunité de campagne.",
@@ -2248,7 +2316,7 @@ export const fr: TenantMessages = {
         "Un brief est facultatif. Athena peut générer une campagne complète au niveau de l’organisation à partir de l’intelligence existante, sans aucun brief.",
       nameLabel: "Nom de la campagne (facultatif)",
       namePlaceholder: "Campagne publicitaire sans titre",
-      guidanceLabel: "Orientation (facultatif)",
+      guidanceLabel: "Athena doit-elle garder quelque chose à l’esprit ?",
       guidancePlaceholder:
         "Direction libre facultative pour la campagne. Laissez vide pour qu’Athena déduise la plus forte opportunité.",
       moreDetail: "Plus de détails",
@@ -2265,7 +2333,7 @@ export const fr: TenantMessages = {
     detail: {
       eyebrow: "Publicités organisationnelles",
       statusLabel: "Statut",
-      regenerate: "Régénérer",
+      regenerate: "Créer une autre version",
       starting: "Démarrage…",
       regenerateFailed: "Échec de la régénération de la campagne.",
       campaignStrategy: "Stratégie de campagne",
@@ -2712,10 +2780,10 @@ export const fr: TenantMessages = {
   socialPlanner: {
     backToDashboard: "← Tableau de bord",
     backToSocialPlanner: "← Retour à Social Planner",
-    eyebrow: "Social Planner",
-    title: "Social Planner",
+    eyebrow: "Generate Traction",
+    title: "Contenu social",
     subtitle:
-      "Planifiez vos sept prochains actifs sociaux en une seule action.",
+      "Planifiez une semaine de contenu social. Athena rédige sept pièces à partir de ce qu’elle sait déjà de votre entreprise et de vos audiences.",
     loadFailed:
       "Échec du chargement des calendriers sociaux pour cette organisation.",
     unableToLoad: "Impossible de charger Social Planner",
@@ -2725,7 +2793,7 @@ export const fr: TenantMessages = {
     weekStarts: "La semaine commence",
     optionalDirection: "Orientation facultative",
     guidancePlaceholder:
-      "Campagne, offre, thème, événement, audience, ton, ou tout ce qu’Athena doit garder à l’esprit. Laissez vide et Athena décidera.",
+      "Thème, offre, événement, audience, ton, ou tout ce qu’Athena doit garder à l’esprit. Laissez vide et Athena décidera.",
     guidanceHelp:
       "Athena décide de la stratégie de la semaine à partir de tout ce qu’elle sait sur l’entreprise.",
     chooseStartDate: "Choisissez une date de début pour votre semaine.",
@@ -2765,7 +2833,13 @@ export const fr: TenantMessages = {
     calendarOpportunity: "Opportunité calendrier : {label}",
     openAsset: "Ouvrir l’actif",
     closeAsset: "Fermer l’actif",
-    discussWithAthena: "Discuter avec Athena",
+    discussWithAthena: "Ask Athena à propos de ce jour",
+    whoThisIsFor: "À qui s’adresse ce contenu",
+    traction: {
+      audiences: "Audiences",
+      advertising: "Publicité",
+      helper: "Athena utilise l’intelligence entreprise et audience disponible.",
+    },
     recommendedPlatforms: "Plateformes recommandées",
     socialCopy: "Texte social",
     cta: "CTA",

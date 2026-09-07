@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { PersonaCreationBlock } from "@/components/personas/PersonaCreationBlock";
 import { PersonaCsvImport } from "@/components/personas/PersonaCsvImport";
 import { PersonaGenerateForm } from "@/components/personas/PersonaGenerateForm";
@@ -28,6 +28,29 @@ type ManualResult = {
 type PersonaImportFormsProps = {
   messages: TenantMessages;
 };
+
+function ManualAdvancedFieldGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className={`min-w-0 ${open ? "lg:col-span-2" : ""}`}>
+      <AthenaCollapsibleSection
+        title={title}
+        defaultOpen={false}
+        open={open}
+        onOpenChange={setOpen}
+      >
+        {children}
+      </AthenaCollapsibleSection>
+    </div>
+  );
+}
 
 export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
   const router = useRouter();
@@ -104,12 +127,17 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-8 lg:grid-cols-2">
-        <PersonaCreationBlock
-          title={copy.manualTitle}
-          panelId="persona-creation-manual"
-          summary={copy.manualSummary}
-        >
+      <div className="mx-auto w-full min-w-0 max-w-3xl">
+        <PersonaGenerateForm messages={messages} />
+      </div>
+
+      <PersonaCreationBlock
+        title={copy.manualTitle}
+        panelId="persona-creation-manual"
+        summary={copy.manualSummary}
+        className="mx-auto w-full min-w-0 max-w-3xl"
+        expandedClassName="lg:max-w-6xl"
+      >
           <form onSubmit={submitManual} className="space-y-4">
             <label className="block text-sm text-white/50">
               {meta.personaName}
@@ -201,15 +229,14 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
               />
             </label>
 
-            <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 gap-4 pt-2 lg:grid-cols-2">
               {PERSONA_ADVANCED_FIELD_GROUPS.map((group) => (
-                <AthenaCollapsibleSection
+                <ManualAdvancedFieldGroup
                   key={group.title}
                   title={getLocalizedPersonaImportGroupTitle(
                     messages,
                     group.title,
                   )}
-                  defaultOpen={false}
                 >
                   <div className="grid gap-4">
                     {group.fields.map(([key]) => (
@@ -223,7 +250,7 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
                       </label>
                     ))}
                   </div>
-                </AthenaCollapsibleSection>
+                </ManualAdvancedFieldGroup>
               ))}
             </div>
 
@@ -251,12 +278,11 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
               )}
             </div>
           )}
-        </PersonaCreationBlock>
+      </PersonaCreationBlock>
 
-        <PersonaGenerateForm messages={messages} />
+      <div className="mx-auto w-full min-w-0 max-w-3xl">
+        <PersonaCsvImport messages={messages} />
       </div>
-
-      <PersonaCsvImport messages={messages} />
     </div>
   );
 }

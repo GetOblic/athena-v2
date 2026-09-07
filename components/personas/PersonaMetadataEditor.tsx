@@ -17,6 +17,7 @@ type PersonaMetadataEditorProps = {
   persona: Persona;
   chrome?: PersonaMetadataChrome | null;
   emptyValue?: string;
+  defaultOpen?: boolean;
 };
 
 const FIELD_GROUPS: Array<{
@@ -234,6 +235,7 @@ export function PersonaMetadataEditor({
   persona,
   chrome = null,
   emptyValue = "—",
+  defaultOpen = false,
 }: PersonaMetadataEditorProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -305,11 +307,11 @@ export function PersonaMetadataEditor({
     <AthenaCollapsibleSection
       title={
         isEditing
-          ? (chrome?.titleEdit ?? "Edit metadata")
-          : (chrome?.title ?? "Persona Details")
+          ? (chrome?.titleEdit ?? "Edit audience profile")
+          : (chrome?.title ?? "Audience profile")
       }
-      eyebrow={chrome?.eyebrow ?? "Persona Details"}
-      defaultOpen={false}
+      eyebrow={chrome?.eyebrow ?? "Audience profile"}
+      defaultOpen={defaultOpen}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>

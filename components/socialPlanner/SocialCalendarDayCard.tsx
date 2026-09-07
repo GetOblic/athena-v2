@@ -95,11 +95,14 @@ export function SocialCalendarDayCard({
           </span>
         </div>
         <h3 className="text-xl font-semibold leading-8">{asset.concept}</h3>
-        {asset.audience ? (
-          <p className="text-sm leading-6 text-white/50">{asset.audience}</p>
-        ) : null}
         {asset.hook ? (
           <p className="text-sm leading-6 text-white/70">{asset.hook}</p>
+        ) : null}
+        {asset.audience ? (
+          <p className="text-sm leading-6 text-white/50">
+            <span className="text-white/35">{copy.whoThisIsFor}: </span>
+            {asset.audience}
+          </p>
         ) : null}
         {selectedAnchors.length > 0 ? (
           <div className="flex flex-wrap gap-2">

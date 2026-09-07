@@ -102,10 +102,10 @@ const ARBITRARY_ERROR = "WORKER_ADS_TIMEOUT: upstream model 503";
 
 describe("V31 L3.8 tenant ads + seo — list chrome", () => {
   it("keeps English Ads and SEO list chrome canonical", () => {
-    assert.equal(en.ads.title, "Ads");
-    assert.equal(en.ads.eyebrow, "Organization Advertising");
-    assert.equal(en.ads.emptyTitle, "No Ads campaigns yet");
-    assert.equal(en.ads.generateAds, "Generate Ads");
+    assert.equal(en.ads.title, "Advertising");
+    assert.equal(en.ads.eyebrow, "Generate Traction");
+    assert.equal(en.ads.emptyTitle, "No campaigns yet.");
+    assert.equal(en.ads.generateAds, "Create campaign");
     assert.equal(en.ads.actionOpen, "Open");
     assert.equal(en.seo.title, "SEO");
     assert.equal(en.seo.eyebrow, "SEO Workspace");
@@ -116,7 +116,7 @@ describe("V31 L3.8 tenant ads + seo — list chrome", () => {
     const seoPage = read("app/seo/page.tsx");
     assert.match(adsPage, /getTenantLocalization/);
     assert.match(seoPage, /getTenantLocalization/);
-    assert.match(adsPage, /TenantBackLink/);
+    assert.match(adsPage, /TenantAppShell/);
     assert.match(seoPage, /TenantAppShell/);
     assert.doesNotMatch(seoPage, /TenantBackLink/);
     assert.match(adsPage, /copy\.title/);
@@ -141,7 +141,8 @@ describe("V31 L3.8 tenant ads + seo — list chrome", () => {
     assert.match(fr.ads.title, /Publicit/i);
     assert.match(es.ads.emptyTitle, /campaña/i);
     assert.match(itMessages.seo.actionOpen, /Apri/i);
-    assert.match(de.ads.eyebrow, /Werbung/i);
+    assert.match(de.ads.title, /Werbung/i);
+    assert.equal(de.ads.eyebrow, "Generate Traction");
     assert.match(pt.seo.emptyTitle, /relat/i);
   });
 
@@ -167,7 +168,7 @@ describe("V31 L3.8 tenant ads + seo — create / generate chrome", () => {
     const seoForm = read("components/seo/SeoReportGenerateForm.tsx");
     const adsNew = read("app/ads/new/page.tsx");
     const seoNew = read("app/seo/new/page.tsx");
-    assert.equal(en.ads.new.generate, "Generate Ads");
+    assert.equal(en.ads.new.generate, "Create campaign");
     assert.equal(en.seo.new.generateIntelligence, "Generate SEO Intelligence");
     assert.match(adsNew, /getTenantLocalization/);
     assert.match(seoNew, /getTenantLocalization/);
@@ -232,10 +233,10 @@ describe("V31 L3.8 tenant ads + seo — detail chrome and content boundary", () 
 
 describe("V31 L3.8 tenant ads + seo — status presentation", () => {
   it("keeps English status labels canonical and localizes presentation only", () => {
-    assert.equal(en.ads.status.queued, "Queued");
+    assert.equal(en.ads.status.queued, "Starting");
     assert.equal(en.ads.status.ready, "Ready");
-    assert.equal(en.ads.status.processingFailed, "Processing Failed");
-    assert.equal(getLocalizedAdCampaignStatusLabel(en, "Queued"), "Queued");
+    assert.equal(en.ads.status.processingFailed, "Failed");
+    assert.equal(getLocalizedAdCampaignStatusLabel(en, "Queued"), "Starting");
     assert.equal(getLocalizedAdCampaignStatusLabel(fr, "Queued"), fr.ads.status.queued);
     assert.equal(getLocalizedAdCampaignStatusLabel(es, "Ready"), es.ads.status.ready);
     assert.equal(

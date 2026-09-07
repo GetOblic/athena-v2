@@ -403,8 +403,11 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.doesNotMatch(page, /getSocialCalendarById/);
     assert.doesNotMatch(page, /SocialCalendarDetail/);
     assert.match(page, /searchParams/);
-    assert.match(page, /px-5 py-8/);
-    assert.match(page, /sm:p-10/);
+    assert.match(page, /TenantAppShell/);
+    assert.match(
+      read("components/dashboard/TenantAppShell.tsx"),
+      /px-5 py-6/,
+    );
     assert.match(page, /getTenantLocalization/);
     assert.match(page, /locale/);
     assert.doesNotMatch(workspace, /replaceState|selectCalendar|SocialCalendarDetail/);
@@ -524,9 +527,9 @@ describe("Social Planner dedicated calendar detail routing", () => {
     assert.match(page, /getSocialCalendarById\(id, organizationId\)/);
     assert.match(page, /toSocialCalendarDetailDto/);
     assert.match(page, /SocialPlannerDetailWorkspace/);
-    assert.match(page, /TenantBackLink href="\/social-planner"/);
+    assert.match(page, /href="\/social-planner"/);
     assert.match(page, /copy\.backToSocialPlanner/);
-    assert.match(page, /TenantBackLink/);
+    assert.match(page, /TenantAppShell/);
     assert.doesNotMatch(page, /router\.back\(|listSocialCalendars/);
     assert.doesNotMatch(page, /version navigator|previous version|next version/i);
   });
@@ -568,7 +571,7 @@ describe("Social Planner dedicated calendar detail routing", () => {
     assert.match(detailWorkspace, /function handleCreateAnotherWeek/);
     assert.match(detailWorkspace, /router.push\("\/social-planner"\)/);
     assert.doesNotMatch(detailWorkspace, /selectCalendar\(null|focusComposer|\?focus=/);
-    assert.match(page, /TenantBackLink href="\/social-planner"/);
+    assert.match(page, /href="\/social-planner"/);
   });
 
   it("preserves Ready L1 Copy/Continue, L2 Discuss, and L3 interactions", () => {
@@ -618,7 +621,7 @@ describe("Social Planner 7-day quick navigation", () => {
     assert.match(ready, /data-day-navigation/);
     assert.match(ready, /aria-label=\{copy\.jumpToDay\}/);
     assert.ok(headerIdx >= 0 && navIdx >= 0 && whyIdx >= 0);
-    assert.ok(headerIdx < navIdx && navIdx < whyIdx);
+    assert.ok(headerIdx < whyIdx && whyIdx < navIdx);
     assert.doesNotMatch(beforeReady, /data-day-navigation/);
     assert.doesNotMatch(beforeReady, /social-planner-day-/);
     assert.doesNotMatch(beforeReady, /copy\.jumpToDay/);
@@ -630,7 +633,7 @@ describe("Social Planner 7-day quick navigation", () => {
     const ready = detail.slice(detail.indexOf("function SocialCalendarReadyDetail"));
     const nav = ready.slice(
       ready.indexOf("data-day-navigation"),
-      ready.indexOf("copy.whyThisWeekWorks"),
+      ready.indexOf("SocialCalendarDayCard"),
     );
 
     assert.match(nav, /assets\.map\(\(asset\) => \{/);
@@ -731,7 +734,7 @@ describe("Social Planner L7 non-interference", () => {
     assert.doesNotMatch(seoLibrary, /copy\.generateTechnical/);
     assert.doesNotMatch(read("components/ads/AdsLibraryClient.tsx"), /socialPlanner|Social Planner/);
     assert.doesNotMatch(seoLibrary, /socialPlanner|Social Planner/);
-    assert.doesNotMatch(read("app/ads/page.tsx"), /social-planner/);
+    assert.match(read("app/ads/page.tsx"), /href: "\/social-planner"/);
     assert.doesNotMatch(read("app/seo/page.tsx"), /social-planner/);
     assert.match(read("app/licensee/page.tsx"), /LicenseeDashboardClient/);
     assert.match(read("app/super/page.tsx"), /SuperAdminDashboardClient/);

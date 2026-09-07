@@ -1025,7 +1025,7 @@ describe("persona generation — route and UI contracts", () => {
     assert.match(form, /source:\s*"generated"/);
     assert.match(form, /copy\.generateAgain/);
     assert.match(form, /copy\.clearCandidate/);
-    assert.match(form, /copy\.createCta/);
+    assert.match(form, /copy\.createThisAudience/);
     assert.match(form, /copy\.portfolioInsightTitle/);
     assert.match(form, /copy\.portfolioInsightLead/);
     assert.match(form, /portfolioCoverageInsight/);
@@ -1120,7 +1120,7 @@ describe("persona generation — route and UI contracts", () => {
 });
 
 describe("persona creation blocks — collapsible layout and state", () => {
-  it("all three blocks start collapsed by default", () => {
+  it("Suggest an audience starts open; manual and CSV stay collapsed", () => {
     const block = read("components/personas/PersonaCreationBlock.tsx");
     assert.match(block, /defaultOpen = false/);
     assert.match(block, /useState\(defaultOpen\)/);
@@ -1140,7 +1140,7 @@ describe("persona creation blocks — collapsible layout and state", () => {
 
     assert.match(generate, /title=\{copy\.generateTitle\}/);
     assert.match(generate, /panelId="persona-creation-generate"/);
-    assert.doesNotMatch(generate, /defaultOpen=\{true\}/);
+    assert.match(generate, /defaultOpen/);
 
     assert.match(csv, /title=\{copy\.csvTitle\}/);
     assert.match(csv, /panelId="persona-creation-csv"/);
@@ -1171,18 +1171,30 @@ describe("persona creation blocks — collapsible layout and state", () => {
     );
   });
 
-  it("desktop DOM order places Manual and Generate before CSV", () => {
+  it("desktop DOM order places Suggest, then manual create, then CSV", () => {
     const forms = read("components/personas/PersonaImportForms.tsx");
-    assert.match(
-      forms,
-      /grid gap-8 lg:grid-cols-2[\s\S]*copy\.manualTitle[\s\S]*PersonaGenerateForm[\s\S]*PersonaCsvImport/,
-    );
     const manualIndex = forms.indexOf("title={copy.manualTitle}");
     const generateIndex = forms.indexOf("<PersonaGenerateForm");
     const csvIndex = forms.indexOf("<PersonaCsvImport");
-    assert.ok(manualIndex > 0);
-    assert.ok(generateIndex > manualIndex);
-    assert.ok(csvIndex > generateIndex);
+    assert.ok(generateIndex > 0);
+    assert.ok(manualIndex > generateIndex);
+    assert.ok(csvIndex > manualIndex);
+  });
+
+  it("manual create expands to a wider desktop surface without widening Suggest or CSV", () => {
+    const forms = read("components/personas/PersonaImportForms.tsx");
+    assert.match(forms, /expandedClassName="lg:max-w-6xl"/);
+    assert.match(forms, /grid grid-cols-1 gap-4 pt-2 lg:grid-cols-2/);
+    assert.match(forms, /open \? "lg:col-span-2"/);
+    assert.match(forms, /defaultOpen=\{false\}/);
+    assert.doesNotMatch(
+      read("components/personas/PersonaGenerateForm.tsx"),
+      /expandedClassName="lg:max-w-6xl"/,
+    );
+    assert.doesNotMatch(
+      read("components/personas/PersonaCsvImport.tsx"),
+      /expandedClassName="lg:max-w-6xl"/,
+    );
   });
 
   it("collapse keeps form trees mounted so session state is preserved", () => {

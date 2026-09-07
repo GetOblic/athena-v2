@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
-import { TenantBackLink } from "@/components/navigation/TenantBackLink";
+import Link from "next/link";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { SocialPlannerDetailWorkspace } from "@/components/socialPlanner/SocialPlannerDetailWorkspace";
 import { SOCIAL_PLANNER_CALENDAR_ID_RE } from "@/components/socialPlanner/socialPlannerClient";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
@@ -39,25 +39,20 @@ export default async function SocialPlannerDetailPage({
   }
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] px-5 py-8 text-white sm:p-10">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
+    <TenantAppShell currentPath={`/social-planner/${id}`} messages={messages}>
+      <Link
+        href="/social-planner"
+        className="mb-6 inline-flex text-sm text-[var(--athena-orange)]"
+      >
+        {copy.backToSocialPlanner}
+      </Link>
+      <SocialPlannerDetailWorkspace
+        initialDetail={initialDetail}
+        initialDetailError={initialDetailError}
+        messages={messages}
+        language={language}
+        locale={locale}
       />
-
-      <TenantBackLink href="/social-planner" label={copy.backToSocialPlanner} />
-
-      <div className="mt-10">
-        <SocialPlannerDetailWorkspace
-          initialDetail={initialDetail}
-          initialDetailError={initialDetailError}
-          messages={messages}
-          language={language}
-          locale={locale}
-        />
-      </div>
-    </main>
+    </TenantAppShell>
   );
 }

@@ -146,11 +146,11 @@ describe("V31 L3.10.2 tenant import surfaces — server authority", () => {
     assert.match(prospectPage, /getTenantLocalization/);
     assert.match(personaPage, /PersonaImportForms messages=\{messages\}/);
     assert.match(prospectPage, /ProspectImportForms messages=\{messages\}/);
-    assert.match(personaPage, /TenantBackLink href="\/personas"/);
+    assert.match(personaPage, /href="\/personas"/);
     assert.match(prospectPage, /TenantBackLink href="\/prospects"/);
     assert.match(personaPage, /copy\.backToPersonas/);
     assert.match(prospectPage, /copy\.backToProspects/);
-    assert.match(personaPage, /copy\.list\.createCta/);
+    assert.match(personaPage, /copy\.import\.createTitle/);
     assert.match(prospectPage, /copy\.list\.importCta/);
   });
 
@@ -204,14 +204,16 @@ describe("V31 L3.10.2 tenant import surfaces — dictionaries", () => {
   it("keeps locked product terms exact in import chrome", () => {
     for (const language of ORGANIZATION_LANGUAGES) {
       const dictionary = DICTIONARIES[language];
-      assert.match(dictionary.personas.import.subtitle, /Athena Brain/);
-      assert.match(dictionary.personas.import.generateSummary, /Athena Brain/);
+      assert.match(dictionary.personas.import.subtitle, /Athena/);
+      assert.match(dictionary.personas.import.generateSummary, /Athena/);
+      assert.doesNotMatch(dictionary.personas.import.subtitle, /Athena Brain/);
+      assert.doesNotMatch(dictionary.personas.import.generateSummary, /Athena Brain/);
       assert.match(dictionary.personas.import.generating, /Athena/);
       assert.match(dictionary.prospects.import.guideBackground, /Executive Intelligence/);
       assert.match(dictionary.chrome.tagline, /Intelligence OS/);
       assert.equal(dictionary.chrome.tagline, "Intelligence OS");
     }
-    assert.equal(en.personas.import.csvTitle, "CSV Import");
+    assert.equal(en.personas.import.csvTitle, "Import from CSV");
     assert.equal(fr.personas.import.csvTitle.includes("CSV"), true);
     assert.equal(de.prospects.import.csvTitle.includes("CSV"), true);
   });
@@ -518,9 +520,9 @@ describe("V31 L3.10.2 tenant import surfaces — shared isolation", () => {
     const personaPage = read("app/personas/import/page.tsx");
     const prospectPage = read("app/prospects/import/page.tsx");
     const brand = read("components/branding/AthenaBrandLink.tsx");
-    assert.match(personaPage, /logoutLabel=\{messages\.chrome\.logOut\}/);
-    assert.match(personaPage, /sessionActionsLabel=\{messages\.chrome\.sessionActions\}/);
-    assert.match(personaPage, /tagline=\{messages\.chrome\.tagline\}/);
+    assert.match(personaPage, /TenantAppShell/);
+    assert.match(personaPage, /currentPath="\/personas\/import"/);
+    assert.doesNotMatch(personaPage, /AthenaBrandLink|TenantBackLink/);
     assert.match(prospectPage, /logoutLabel=\{messages\.chrome\.logOut\}/);
     assert.match(prospectPage, /sessionActionsLabel=\{messages\.chrome\.sessionActions\}/);
     assert.doesNotMatch(brand, /tenantI18n|lib\/tenantI18n/);

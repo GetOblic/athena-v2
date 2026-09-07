@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS } from "@/components/ui/athenaIntelligenceRow";
 import { PERSONA_LIFECYCLE_STATUSES } from "@/services/personas/personaLifecycle";
 import type { PersonaLibraryRow } from "@/services/personas/personaLibraryEnrichment";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import {
-  getLocalizedPersonaLifecycleLabel,
-  getLocalizedPersonaReadinessLabel,
-} from "@/lib/tenantI18n/personaPresentation";
+  getAudienceIntelligenceStatusLabel,
+  getAudienceWorkingStatusLabel,
+} from "@/lib/personas/audienceReadinessPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
@@ -42,9 +41,7 @@ export function PersonasLibraryClient({
   const emptyValue = messages?.personas.emptyValue ?? "—";
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
-  const [sort, setSort] = useState<"updated" | "created" | "score" | "name">(
-    "updated",
-  );
+  const [sort, setSort] = useState<"updated" | "created" | "name">("updated");
   const [page, setPage] = useState(1);
 
   const statuses = useMemo(() => {
@@ -84,17 +81,6 @@ export function PersonasLibraryClient({
       if (sort === "name") {
         return a.display_label.localeCompare(b.display_label);
       }
-      if (sort === "score") {
-        const aScore =
-          a.display_opportunity_score == null
-            ? Number.NEGATIVE_INFINITY
-            : a.display_opportunity_score;
-        const bScore =
-          b.display_opportunity_score == null
-            ? Number.NEGATIVE_INFINITY
-            : b.display_opportunity_score;
-        return bScore - aScore;
-      }
       if (sort === "created") {
         return (
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -119,9 +105,9 @@ export function PersonasLibraryClient({
     return (
       <div className="rounded-[24px] border border-rose-400/30 bg-rose-500/10 p-10 text-center">
         <h2 className="text-2xl font-semibold text-rose-100">
-          {messages?.personas.loadErrorTitle ?? "Unable to load Personas"}
+          {messages?.personas.loadErrorTitle ?? "Unable to load audiences"}
         </h2>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-rose-100/70">
+        <p className="mx-auto mt-4 max-w-xl break-words text-sm leading-7 text-rose-100/70">
           {loadError}
         </p>
       </div>
@@ -130,19 +116,19 @@ export function PersonasLibraryClient({
 
   if (personas.length === 0) {
     return (
-      <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-14 text-center">
+      <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-8 text-left sm:p-10">
         <h2 className="text-2xl font-semibold">
-          {list?.emptyTitle ?? "No Personas yet"}
+          {list?.emptyTitle ?? "No audiences are defined yet."}
         </h2>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/40">
+        <p className="mt-4 max-w-xl text-sm leading-7 text-white/50">
           {list?.emptyBody ??
-            "Personas represent clientele types or customer archetypes. Create one manually or import a CSV to start building your Persona library."}
+            "Athena needs audience context to reason more specifically about who you want to reach."}
         </p>
         <Link
           href="/personas/import"
-          className="mt-8 inline-flex items-center justify-center rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
+          className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
         >
-          {list?.createCta ?? "Create or Import Personas"}
+          {list?.createFirstCta ?? "Define your first audience"}
         </Link>
       </div>
     );
@@ -168,7 +154,7 @@ export function PersonasLibraryClient({
             />
           </label>
           <label className="block text-sm text-white/50">
-            {list?.status ?? "Status"}
+            {list?.status ?? "Working status"}
             <select
               value={status}
               onChange={(event) => {
@@ -182,7 +168,7 @@ export function PersonasLibraryClient({
                   {value === "all"
                     ? (list?.allStatuses ?? "All statuses")
                     : messages
-                      ? getLocalizedPersonaLifecycleLabel(messages, value)
+                      ? getAudienceWorkingStatusLabel(messages, value)
                       : value}
                 </option>
               ))}
@@ -199,95 +185,87 @@ export function PersonasLibraryClient({
             >
               <option value="updated">{list?.sortUpdated ?? "Updated"}</option>
               <option value="created">{list?.sortCreated ?? "Created"}</option>
-              <option value="score">
-                {list?.sortScore ?? "Opportunity Score"}
-              </option>
-              <option value="name">{list?.sortName ?? "Persona Name"}</option>
+              <option value="name">{list?.sortName ?? "Name"}</option>
             </select>
           </label>
         </div>
 
         <Link
           href="/personas/import"
-          className="inline-flex items-center justify-center rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
+          className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
         >
-          {list?.createCta ?? "Create or Import Personas"}
+          {list?.createCta ?? "Create audience"}
         </Link>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-14 text-center">
+        <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-10 text-center">
           <h2 className="text-2xl font-semibold">
-            {list?.filterEmptyTitle ?? "No personas found."}
+            {list?.filterEmptyTitle ?? "No audiences found."}
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/40">
             {list?.filterEmptyBody ??
-              "Try a different search or lifecycle filter."}
+              "Try a different search or working-status filter."}
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)]">
-          <div className="grid min-w-[1100px] grid-cols-[1.4fr_1.2fr_1fr_1fr_160px_120px_110px_110px] gap-4 border-b border-white/10 px-6 py-4 text-xs uppercase tracking-[0.2em] text-white/35">
-            <div>{list?.colPersona ?? "Persona"}</div>
-            <div>{list?.colReferenceWebsite ?? "Reference Website"}</div>
-            <div>{list?.colCategory ?? "Category"}</div>
-            <div>{list?.colLocation ?? "Location"}</div>
-            <div>{list?.colStatus ?? "Status"}</div>
-            <div>{list?.colScore ?? "Opportunity Score"}</div>
-            <div>{list?.colCreated ?? "Created"}</div>
-            <div>{list?.colUpdated ?? "Updated"}</div>
-          </div>
-
-          {pageRows.map((persona) => (
-            <Link
-              key={persona.id}
-              href={`/personas/${persona.id}`}
-              className={`grid min-w-[1100px] grid-cols-[1.4fr_1.2fr_1fr_1fr_160px_120px_110px_110px] gap-4 px-6 py-5 text-sm transition hover:bg-white/[0.03] ${ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS}`}
-            >
-              <div className="font-medium text-white">
-                {persona.display_label}
-              </div>
-              <div className="truncate text-white/55">
-                {persona.display_reference_website || emptyValue}
-              </div>
-              <div className="text-white/55">
-                {persona.category || emptyValue}
-              </div>
-              <div className="text-white/55">
-                {persona.display_location || emptyValue}
-              </div>
-              <div>
-                <div className="text-[var(--athena-orange)]">
+        <div className="grid gap-4 md:grid-cols-2">
+          {pageRows.map((persona) => {
+            const meta = [
+              persona.category,
+              persona.display_location,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <Link
+                key={persona.id}
+                href={`/personas/${persona.id}`}
+                className="min-w-0 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-5 transition hover:border-white/20 hover:bg-white/[0.03]"
+              >
+                <h3 className="break-words text-lg font-semibold text-white">
+                  {persona.display_label}
+                </h3>
+                {persona.short_description ? (
+                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/55">
+                    {persona.short_description}
+                  </p>
+                ) : null}
+                <div className="mt-3 text-sm text-[var(--athena-orange)]">
                   {messages
-                    ? getLocalizedPersonaLifecycleLabel(
-                        messages,
-                        persona.display_lifecycle_status,
-                      )
-                    : persona.display_lifecycle_status}
-                </div>
-                <div className="mt-1 text-xs text-white/35">
-                  {messages
-                    ? getLocalizedPersonaReadinessLabel(
+                    ? getAudienceIntelligenceStatusLabel(
                         messages,
                         persona.display_status,
                       )
                     : persona.display_status}
                 </div>
-              </div>
-              <div>{persona.display_opportunity_score_label}</div>
-              <div className="text-white/45">
-                {formatDate(persona.created_at, language, emptyValue)}
-              </div>
-              <div className="text-white/45">
-                {formatDate(persona.updated_at, language, emptyValue)}
-              </div>
-            </Link>
-          ))}
+                <div className="mt-1 hidden text-xs text-white/35 lg:block">
+                  {messages
+                    ? getAudienceWorkingStatusLabel(
+                        messages,
+                        persona.display_lifecycle_status,
+                      )
+                    : persona.display_lifecycle_status}
+                </div>
+                {meta ? (
+                  <div className="mt-3 text-sm text-white/50">{meta}</div>
+                ) : null}
+                {persona.display_reference_website ? (
+                  <div className="mt-1 truncate text-sm text-white/40">
+                    {persona.display_reference_website}
+                  </div>
+                ) : null}
+                <div className="mt-3 text-xs text-white/40">
+                  {formatDate(persona.updated_at, language, emptyValue)}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
 
       {filtered.length > PAGE_SIZE && (
-        <div className="flex items-center justify-between text-sm text-white/45">
+        <div className="flex flex-col gap-3 text-sm text-white/45 sm:flex-row sm:items-center sm:justify-between">
           <div>
             {interpolateTenantMessage(
               list?.showing ?? "Showing {start}–{end} of {total}",

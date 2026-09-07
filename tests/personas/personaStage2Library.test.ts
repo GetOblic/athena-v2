@@ -181,12 +181,12 @@ describe("persona stage-2 library UX contracts", () => {
   it("uses 25-row pagination and required columns", () => {
     const client = read("components/personas/PersonasLibraryClient.tsx");
     assert.match(client, /const PAGE_SIZE = 25/);
-    assert.match(client, /Persona/);
-    assert.match(client, /Reference Website/);
-    assert.match(client, /Opportunity Score/);
-    assert.match(client, /Create or Import Personas/);
-    assert.match(client, /Unable to load Personas/);
-    assert.match(client, /display_opportunity_score == null/);
+    assert.match(client, /display_label/);
+    assert.match(client, /display_reference_website/);
+    assert.doesNotMatch(client, /Opportunity Score/);
+    assert.match(client, /Create audience|createCta/);
+    assert.match(client, /Unable to load audiences/);
+    assert.doesNotMatch(client, /display_opportunity_score == null/);
   });
 
   it("library page surfaces load errors instead of silent empty state", () => {

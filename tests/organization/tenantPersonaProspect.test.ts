@@ -122,9 +122,9 @@ function sampleAnalysis(): DiscussionAnalysis {
 
 describe("V31 L3.6 tenant personas + prospects — list chrome", () => {
   it("keeps English Persona and Prospect list chrome canonical", () => {
-    assert.equal(en.personas.title, "Personas");
-    assert.equal(en.personas.list.createCta, "Create or Import Personas");
-    assert.equal(en.personas.list.emptyTitle, "No Personas yet");
+    assert.equal(en.personas.title, "Generate Traction");
+    assert.equal(en.personas.list.createCta, "Create audience");
+    assert.equal(en.personas.list.emptyTitle, "No audiences are defined yet.");
     assert.equal(en.prospects.title, "Prospects");
     assert.equal(en.prospects.list.importCta, "Import Prospects");
     assert.equal(en.prospects.list.emptyTitle, "No prospects found.");
@@ -132,7 +132,7 @@ describe("V31 L3.6 tenant personas + prospects — list chrome", () => {
     const prospectPage = read("app/prospects/page.tsx");
     assert.match(personaPage, /getTenantLocalization/);
     assert.match(prospectPage, /getTenantLocalization/);
-    assert.match(personaPage, /TenantBackLink/);
+    assert.match(personaPage, /TenantAppShell/);
     assert.match(prospectPage, /TenantAppShell/);
     assert.match(personaPage, /copy\.title/);
     assert.match(prospectPage, /copy\.title/);
@@ -154,9 +154,9 @@ describe("V31 L3.6 tenant personas + prospects — list chrome", () => {
         en.prospects.list.importCta,
       );
     }
-    assert.match(fr.personas.list.createCta, /Persona/i);
+    assert.match(fr.personas.list.createCta, /audience/i);
     assert.match(es.prospects.list.importCta, /Prospect/i);
-    assert.match(itMessages.personas.list.emptyTitle, /Persona/i);
+    assert.match(itMessages.personas.list.emptyTitle, /audience/i);
     assert.match(de.prospects.list.emptyTitle, /Prospect/i);
     assert.match(pt.personas.list.search, /Pesquis/i);
   });
@@ -193,14 +193,14 @@ describe("V31 L3.6 tenant personas + prospects — detail chrome", () => {
   it("localizes Persona detail chrome and keeps stored values verbatim", () => {
     const page = read("app/personas/[id]/page.tsx");
     assert.match(page, /getTenantLocalization/);
-    assert.match(page, /TenantBackLink/);
+    assert.match(page, /TenantAppShell/);
     assert.match(page, /copy\.detail\.eyebrow/);
     assert.match(page, /\{displayLabel\}/);
-    assert.match(page, /\{persona\.short_description\}/);
+    assert.match(page, /persona\.short_description/);
     assert.match(page, /\{persona\.ads_content\}/);
     assert.match(page, /chrome=\{copy\.metadata\}/);
     assert.doesNotMatch(page, /translatePersona|localizeDisplayLabel/);
-    assert.equal(en.personas.detail.eyebrow, "Persona");
+    assert.equal(en.personas.detail.eyebrow, "Audience");
     assert.notEqual(fr.personas.detail.summary, en.personas.detail.summary);
   });
 
@@ -298,12 +298,12 @@ describe("V31 L3.6 tenant personas + prospects — detail chrome", () => {
   });
 
   it("formats Persona and Prospect dates with the tenant locale", () => {
-    const personaPage = read("app/personas/[id]/page.tsx");
+    const personaLibrary = read("components/personas/PersonasLibraryClient.tsx");
     const prospectPage = read("app/prospects/[id]/page.tsx");
-    assert.match(personaPage, /formatDate\(persona\.created_at, language\)/);
-    assert.match(personaPage, /return formatTenantDate\(value, language\)/);
+    assert.match(personaLibrary, /formatDate\(persona\.updated_at, language/);
+    assert.match(personaLibrary, /return formatTenantDate\(value, language\)/);
     assert.match(prospectPage, /formatTenantDate\(prospect\.created_at, language\)/);
-    assert.doesNotMatch(personaPage, /toLocaleDateString\("en-US"/);
+    assert.doesNotMatch(personaLibrary, /toLocaleDateString\("en-US"/);
     assert.doesNotMatch(prospectPage, /toLocaleDateString\("en-US"/);
     assert.equal(toFormattingLocale("fr"), "fr-FR");
     assert.equal(toFormattingLocale("pt"), "pt-PT");
@@ -319,12 +319,12 @@ describe("V31 L3.6 tenant personas + prospects — conversation", () => {
     const prospectPanel = read(
       "components/prospects/ProspectConversationPanel.tsx",
     );
-    assert.match(personaPanel, /chrome\?\.title \?\? "Ask Athena about this Persona"/);
+    assert.match(personaPanel, /chrome\?\.title \?\? "Ask Athena about this audience"/);
     assert.match(personaPanel, /chrome\?\.send \?\? "Send"/);
     assert.match(prospectPanel, /chrome\?: ProspectConversationChrome/);
     assert.equal(
       en.personas.conversation.example1,
-      "What motivates this Persona most strongly?",
+      "What motivates this audience most strongly?",
     );
     assert.notEqual(
       fr.personas.conversation.example1,
@@ -368,10 +368,10 @@ describe("V31 L3.6 tenant personas + prospects — Executive Intelligence", () =
     assert.match(prospectPage, /assetChrome=\{getSharedAssetChrome\(messages\)\}/);
     assert.match(personaPage, /locale=\{locale\}/);
     assert.match(prospectPage, /locale=\{locale\}/);
-    assert.equal(en.personas.executive.heading, "Executive Intelligence");
+    assert.equal(en.personas.executive.heading, "Audience intelligence");
     assert.equal(
       en.personas.executive.analysisAssetsTitle,
-      "Persona Analysis Assets",
+      "Audience intelligence",
     );
     assert.notEqual(
       fr.personas.executive.whatMatters,
@@ -480,7 +480,10 @@ describe("V31 L3.6 tenant personas + prospects — Deep Scrape and refresh", () 
       "components/personas/PersonaGenerateIntelligenceButton.tsx",
     );
     assert.match(refresh, /chrome\?\.generateIntelligence \?\? "Generate Intelligence"/);
-    assert.match(generate, /chrome\?\.generateIntelligence \?\? "Generate Intelligence"/);
+    assert.match(
+      generate,
+      /chrome\?\.generateIntelligence \?\?\s*"Generate audience intelligence"/,
+    );
     assert.match(refresh, /`\/api\/prospects\/\$\{prospectId\}\/refresh`/);
     assert.match(generate, /`\/api\/personas\/\$\{personaId\}\/refresh`/);
     assert.match(refresh, /method: "POST"/);
@@ -646,7 +649,11 @@ describe("V31 L3.6 tenant personas + prospects — boundaries", () => {
       assert.match(dictionary.personas.conversation.athena, /Athena/);
       assert.match(dictionary.prospects.deepScrape.button, /Deep Scrape/);
       assert.match(dictionary.prospects.detail.thinkDifferently, /Think Differently/);
-      assert.match(dictionary.personas.executive.heading, /Executive Intelligence/);
+      assert.match(
+        dictionary.personas.executive.heading,
+        /audience|audiencia|audiência|Zielgruppe/i,
+      );
+      assert.match(dictionary.prospects.executive.heading, /Executive Intelligence/);
     }
   });
 });

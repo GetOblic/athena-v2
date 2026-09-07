@@ -323,7 +323,7 @@ function PersonaConversationPanelInner({
   return (
     <div id="persona-conversation" className="scroll-mt-24">
       <AthenaCollapsibleSection
-        title={chrome?.title ?? "Ask Athena about this Persona"}
+        title={chrome?.title ?? "Ask Athena about this audience"}
         defaultOpen
         open={open}
         onOpenChange={
@@ -418,7 +418,7 @@ function PersonaConversationPanelInner({
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
           <label htmlFor="persona-conversation-input" className="sr-only">
-            {chrome?.inputLabel ?? "Ask Athena about this Persona"}
+            {chrome?.inputLabel ?? "Ask Athena about this audience"}
           </label>
           <textarea
             id="persona-conversation-input"
@@ -429,7 +429,7 @@ function PersonaConversationPanelInner({
             rows={3}
             disabled={busy}
             placeholder={
-              chrome?.placeholder ?? "Ask Athena about this Persona…"
+              chrome?.placeholder ?? "Ask Athena about this audience…"
             }
             className="w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-50"
           />

@@ -291,6 +291,18 @@ function SocialCalendarReadyDetail({
         <p className="text-sm text-rose-100/80">{thinkDifferentlyError}</p>
       ) : null}
 
+      <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-7">
+        {socialPackage.strategySummary ? (
+          <p className="text-sm leading-7 text-white/50">
+            {socialPackage.strategySummary}
+          </p>
+        ) : null}
+        <h3 className="mt-4 text-xl font-semibold">{copy.whyThisWeekWorks}</h3>
+        <p className="mt-3 text-sm leading-7 text-white/70">
+          {socialPackage.whyThisWeekWorks}
+        </p>
+      </div>
+
       <nav
         data-day-navigation=""
         aria-label={copy.jumpToDay}
@@ -324,18 +336,6 @@ function SocialCalendarReadyDetail({
           })}
         </div>
       </nav>
-
-      <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-7">
-        {socialPackage.strategySummary ? (
-          <p className="text-sm leading-7 text-white/50">
-            {socialPackage.strategySummary}
-          </p>
-        ) : null}
-        <h3 className="mt-4 text-xl font-semibold">{copy.whyThisWeekWorks}</h3>
-        <p className="mt-3 text-sm leading-7 text-white/70">
-          {socialPackage.whyThisWeekWorks}
-        </p>
-      </div>
 
       <div className="space-y-5">
         {assets.map((asset) => {

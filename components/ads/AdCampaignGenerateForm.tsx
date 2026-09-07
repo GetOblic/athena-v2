@@ -71,13 +71,11 @@ export function AdCampaignGenerateForm({
     }
   }
 
-  const extraFields = [
-    [copy.objectiveLabel, objective, setObjective, 500],
-    [copy.offerLabel, offer, setOffer, 500],
-    [copy.audienceLabel, audience, setAudience, 500],
-    [copy.geographyLabel, geography, setGeography, 200],
-    [copy.landingPageLabel, landingPage, setLandingPage, 500],
-    [copy.constraintsLabel, constraints, setConstraints, 1000],
+  const advancedFields = [
+    [copy.nameLabel, name, setName, 120, "input"],
+    [copy.geographyLabel, geography, setGeography, 200, "textarea"],
+    [copy.landingPageLabel, landingPage, setLandingPage, 500, "textarea"],
+    [copy.constraintsLabel, constraints, setConstraints, 1000, "textarea"],
   ] as const;
 
   return (
@@ -88,15 +86,42 @@ export function AdCampaignGenerateForm({
 
       <label className="block space-y-2">
         <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-          {copy.nameLabel}
+          {copy.objectiveLabel}
         </span>
-        <input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-          placeholder={copy.namePlaceholder}
-          maxLength={120}
+        <textarea
+          value={objective}
+          onChange={(event) => setObjective(event.target.value)}
+          className="min-h-[88px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
+          maxLength={500}
         />
+      </label>
+
+      <label className="block space-y-2">
+        <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
+          {copy.offerLabel}
+        </span>
+        <textarea
+          value={offer}
+          onChange={(event) => setOffer(event.target.value)}
+          className="min-h-[88px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
+          maxLength={500}
+        />
+      </label>
+
+      <label className="block space-y-2">
+        <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
+          {copy.audienceLabel}
+        </span>
+        <textarea
+          value={audience}
+          onChange={(event) => setAudience(event.target.value)}
+          className="min-h-[88px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
+          maxLength={500}
+        />
+        <p className="text-xs leading-5 text-white/40">
+          {messages?.ads.traction.audienceHelp ??
+            en.ads.traction.audienceHelp}
+        </p>
       </label>
 
       <label className="block space-y-2">
@@ -114,17 +139,29 @@ export function AdCampaignGenerateForm({
 
       <AthenaCollapsibleSection title={copy.moreDetail} defaultOpen={false}>
         <div className="space-y-4">
-          {extraFields.map(([label, value, setter, max]) => (
+          {advancedFields.map(([label, value, setter, max, kind]) => (
             <label key={label} className="block space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
                 {label}
               </span>
-              <textarea
-                value={value}
-                onChange={(event) => setter(event.target.value)}
-                className="min-h-[88px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-                maxLength={max}
-              />
+              {kind === "input" ? (
+                <input
+                  value={value}
+                  onChange={(event) => setter(event.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
+                  placeholder={
+                    label === copy.nameLabel ? copy.namePlaceholder : undefined
+                  }
+                  maxLength={max}
+                />
+              ) : (
+                <textarea
+                  value={value}
+                  onChange={(event) => setter(event.target.value)}
+                  className="min-h-[88px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
+                  maxLength={max}
+                />
+              )}
             </label>
           ))}
         </div>
