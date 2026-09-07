@@ -367,7 +367,7 @@ function ProspectConversationPanelInner({
   return (
     <div id="prospect-conversation" className="mt-8 scroll-mt-24">
       <AthenaCollapsibleSection
-        title={chrome?.title ?? "Ask Athena About This Prospect"}
+        title={chrome?.title ?? "Ask Athena about this prospect"}
         defaultOpen={false}
         open={open}
         onOpenChange={onOpenChange}
@@ -393,7 +393,7 @@ function ProspectConversationPanelInner({
 
         <p className="mt-3 text-xs leading-5 text-white/35">
           {chrome?.readOnlyNotice ??
-            "Conversation responses do not modify Athena intelligence or assets."}
+            "This conversation does not change the saved prospect intelligence."}
         </p>
 
         {discussingLabel ? (

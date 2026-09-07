@@ -147,11 +147,11 @@ describe("V31 L3.10.2 tenant import surfaces — server authority", () => {
     assert.match(personaPage, /PersonaImportForms messages=\{messages\}/);
     assert.match(prospectPage, /ProspectImportForms messages=\{messages\}/);
     assert.match(personaPage, /href="\/personas"/);
-    assert.match(prospectPage, /TenantBackLink href="\/prospects"/);
+    assert.match(prospectPage, /href="\/prospects"/);
     assert.match(personaPage, /copy\.backToPersonas/);
     assert.match(prospectPage, /copy\.backToProspects/);
     assert.match(personaPage, /copy\.import\.createTitle/);
-    assert.match(prospectPage, /copy\.list\.importCta/);
+    assert.match(prospectPage, /copy\.import\.createTitle/);
   });
 
   it("does not introduce Client or browser language authority", () => {
@@ -374,7 +374,7 @@ describe("V31 L3.10.2 tenant import surfaces — Prospect", () => {
     assert.match(forms, /getLocalizedProspectImportFieldLabel/);
     assert.match(forms, /meta\.getoblicType/);
     assert.match(forms, /meta\.notSet/);
-    assert.match(csv, /copy\.csvTitle/);
+    assert.match(forms, /copy\.csvTitle/);
     assert.match(csv, /copy\.invalidWebsites/);
     assert.match(csv, /copy\.withoutWebsite/);
     assert.match(csv, /getLocalizedImportPreviewStatus/);
@@ -523,8 +523,9 @@ describe("V31 L3.10.2 tenant import surfaces — shared isolation", () => {
     assert.match(personaPage, /TenantAppShell/);
     assert.match(personaPage, /currentPath="\/personas\/import"/);
     assert.doesNotMatch(personaPage, /AthenaBrandLink|TenantBackLink/);
-    assert.match(prospectPage, /logoutLabel=\{messages\.chrome\.logOut\}/);
-    assert.match(prospectPage, /sessionActionsLabel=\{messages\.chrome\.sessionActions\}/);
+    assert.match(prospectPage, /TenantAppShell/);
+    assert.match(prospectPage, /currentPath="\/prospects\/import"/);
+    assert.doesNotMatch(prospectPage, /AthenaBrandLink|TenantBackLink/);
     assert.doesNotMatch(brand, /tenantI18n|lib\/tenantI18n/);
     assert.match(brand, /tagline = "Intelligence OS"/);
   });

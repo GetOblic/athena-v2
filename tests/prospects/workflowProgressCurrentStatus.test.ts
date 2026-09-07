@@ -91,10 +91,7 @@ describe("Sprint 2A — Workflow Progress Current Status", () => {
     );
 
     assert.match(discussionPage, /clientStatusLabel:\s*discussion\.status/);
-    assert.match(prospectPage, /clientStatusLabel:\s*lifecycleStatus/);
-    assert.doesNotMatch(
-      prospectPage,
-      /clientStatusLabel:\s*(?:prospect\.status|intelligenceReadiness)/,
-    );
+    assert.doesNotMatch(prospectPage, /DiscussionWorkflowStrip/);
+    assert.doesNotMatch(prospectPage, /clientStatusLabel:/);
   });
 });

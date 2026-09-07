@@ -22,7 +22,7 @@ export function ProspectHeaderDeleteButton({
     <ConfirmDeleteControl
       confirmMessage={
         confirmMessage ??
-        "Delete this Prospect permanently? The Prospect, its linked Discussion, and generated intelligence will be removed. This cannot be undone."
+        "Delete this prospect permanently? The prospect, its linked intelligence, and generated drafts will be removed. This cannot be undone."
       }
       deleteUrl={`/api/prospects/${prospectId}`}
       redirectTo="/prospects"

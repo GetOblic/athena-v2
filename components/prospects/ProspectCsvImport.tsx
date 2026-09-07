@@ -193,11 +193,8 @@ export function ProspectCsvImport({ messages }: ProspectCsvImportProps) {
     Boolean(csvError);
 
   return (
-    <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
-      <h2 className="text-2xl font-semibold">{copy.csvTitle}</h2>
-      <p className="mt-3 text-sm leading-6 text-white/45">{copy.csvSummary}</p>
-
-      <div className="mt-6">
+    <div className="min-w-0">
+      <div>
         <a
           href="/templates/athena-prospect-import-template.csv"
           download="Athena_Prospect_Import_Template.csv"
@@ -482,6 +479,6 @@ export function ProspectCsvImport({ messages }: ProspectCsvImportProps) {
           )}
         </div>
       )}
-    </section>
+    </div>
   );
 }

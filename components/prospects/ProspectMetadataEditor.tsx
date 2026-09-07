@@ -26,6 +26,10 @@ type ProspectMetadataEditorProps = {
   discussionId?: string | null;
   chrome?: ProspectMetadataChrome | null;
   emptyValue?: string;
+  defaultOpen?: boolean;
+  createdLabel?: string;
+  updatedLabel?: string;
+  opportunityScoreLabel?: string;
 };
 
 const TEXT_FIELDS = [
@@ -242,6 +246,10 @@ export function ProspectMetadataEditor({
   discussionId,
   chrome = null,
   emptyValue = "—",
+  defaultOpen = false,
+  createdLabel,
+  updatedLabel,
+  opportunityScoreLabel,
 }: ProspectMetadataEditorProps) {
   const router = useRouter();
   const { trackQueuedGeneration } = useDiscussionRegeneration();
@@ -329,10 +337,10 @@ export function ProspectMetadataEditor({
       title={
         isEditing
           ? (chrome?.titleEdit ?? "Edit profile")
-          : (chrome?.title ?? "Prospect Details")
+          : (chrome?.title ?? "Prospect profile")
       }
-      eyebrow={chrome?.eyebrow ?? "Prospect Details"}
-      defaultOpen={false}
+      eyebrow={chrome?.eyebrow ?? "Prospect profile"}
+      defaultOpen={defaultOpen}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -535,6 +543,49 @@ export function ProspectMetadataEditor({
               {display.ads_content || emptyValue}
             </div>
           </div>
+
+          <AthenaCollapsibleSection
+            title={chrome?.advancedGroup ?? "Advanced"}
+            defaultOpen={false}
+            className="mt-8"
+          >
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <div className="text-sm text-white/40">
+                  {chrome?.source ?? "Source"}
+                </div>
+                <div className="mt-2 text-sm text-white/75">
+                  {prospect.source || emptyValue}
+                </div>
+              </div>
+              <div>
+                <div className="text-sm text-white/40">
+                  {chrome?.created ?? "Created"}
+                </div>
+                <div className="mt-2 text-sm text-white/75">
+                  {createdLabel || prospect.created_at || emptyValue}
+                </div>
+              </div>
+              <div>
+                <div className="text-sm text-white/40">
+                  {chrome?.updated ?? "Updated"}
+                </div>
+                <div className="mt-2 text-sm text-white/75">
+                  {updatedLabel || prospect.updated_at || emptyValue}
+                </div>
+              </div>
+              {opportunityScoreLabel ? (
+                <div>
+                  <div className="text-sm text-white/40">
+                    {chrome?.opportunityScore ?? "Opportunity Score"}
+                  </div>
+                  <div className="mt-2 text-sm text-white/75">
+                    {opportunityScoreLabel}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </AthenaCollapsibleSection>
         </>
       )}
 

@@ -125,9 +125,9 @@ describe("V31 L3.6 tenant personas + prospects — list chrome", () => {
     assert.equal(en.personas.title, "Generate Traction");
     assert.equal(en.personas.list.createCta, "Create audience");
     assert.equal(en.personas.list.emptyTitle, "No audiences are defined yet.");
-    assert.equal(en.prospects.title, "Prospects");
-    assert.equal(en.prospects.list.importCta, "Import Prospects");
-    assert.equal(en.prospects.list.emptyTitle, "No prospects found.");
+    assert.equal(en.prospects.title, "Convert Opportunities");
+    assert.equal(en.prospects.list.importCta, "Add prospect");
+    assert.equal(en.prospects.list.emptyTitle, "No prospects yet.");
     const personaPage = read("app/personas/page.tsx");
     const prospectPage = read("app/prospects/page.tsx");
     assert.match(personaPage, /getTenantLocalization/);
@@ -155,7 +155,7 @@ describe("V31 L3.6 tenant personas + prospects — list chrome", () => {
       );
     }
     assert.match(fr.personas.list.createCta, /audience/i);
-    assert.match(es.prospects.list.importCta, /Prospect/i);
+    assert.match(es.prospects.list.importCta, /prospect/i);
     assert.match(itMessages.personas.list.emptyTitle, /audience/i);
     assert.match(de.prospects.list.emptyTitle, /Prospect/i);
     assert.match(pt.personas.list.search, /Pesquis/i);
@@ -207,13 +207,13 @@ describe("V31 L3.6 tenant personas + prospects — detail chrome", () => {
   it("localizes Prospect detail chrome and keeps persisted values verbatim", () => {
     const page = read("app/prospects/[id]/page.tsx");
     assert.match(page, /getTenantLocalization/);
-    assert.match(page, /TenantBackLink/);
+    assert.match(page, /TenantAppShell/);
     assert.match(page, /copy\.detail\.eyebrow/);
     assert.match(page, /\{prospect\.business_name\}/);
     assert.match(page, /\{prospect\.ads_content\}/);
     assert.match(page, /chrome=\{copy\.metadata\}/);
     assert.doesNotMatch(page, /translateProspect|localizeBusinessName/);
-    assert.equal(en.prospects.detail.eyebrow, "Prospect Intelligence");
+    assert.equal(en.prospects.detail.eyebrow, "Prospect");
     assert.notEqual(fr.prospects.detail.subtitle, en.prospects.detail.subtitle);
   });
 
@@ -251,7 +251,7 @@ describe("V31 L3.6 tenant personas + prospects — detail chrome", () => {
     );
     assert.match(
       prospectDelete,
-      /Delete this Prospect permanently\? The Prospect, its linked Discussion, and generated intelligence will be removed\. This cannot be undone\./,
+      /Delete this prospect permanently\? The prospect, its linked intelligence, and generated drafts will be removed\. This cannot be undone\./,
     );
   });
 
@@ -294,7 +294,8 @@ describe("V31 L3.6 tenant personas + prospects — detail chrome", () => {
       /body: JSON\.stringify\(\{ lifecycle_status: nextStatus \}\)/,
     );
     const prospectPage = read("app/prospects/[id]/page.tsx");
-    assert.match(prospectPage, /clientStatusLabel: lifecycleStatus/);
+    assert.match(prospectPage, /ProspectLifecycleStatusControl/);
+    assert.doesNotMatch(prospectPage, /clientStatusLabel:/);
   });
 
   it("formats Persona and Prospect dates with the tenant locale", () => {
@@ -479,7 +480,7 @@ describe("V31 L3.6 tenant personas + prospects — Deep Scrape and refresh", () 
     const generate = read(
       "components/personas/PersonaGenerateIntelligenceButton.tsx",
     );
-    assert.match(refresh, /chrome\?\.generateIntelligence \?\? "Generate Intelligence"/);
+    assert.match(refresh, /chrome\?\.generateIntelligence \?\? "Generate prospect intelligence"/);
     assert.match(
       generate,
       /chrome\?\.generateIntelligence \?\?\s*"Generate audience intelligence"/,
@@ -490,7 +491,7 @@ describe("V31 L3.6 tenant personas + prospects — Deep Scrape and refresh", () 
     assert.doesNotMatch(refresh, /language:/);
     assert.doesNotMatch(generate, /language:/);
     assert.doesNotMatch(refresh, /JSON\.stringify/);
-    assert.equal(en.prospects.detail.generateIntelligence, "Generate Intelligence");
+    assert.equal(en.prospects.detail.generateIntelligence, "Generate prospect intelligence");
     assert.notEqual(
       fr.prospects.detail.generatingIntelligence,
       en.prospects.detail.generatingIntelligence,
@@ -647,13 +648,13 @@ describe("V31 L3.6 tenant personas + prospects — boundaries", () => {
     assert.match(named, new RegExp(STORED_PERSONA_NAME));
     for (const dictionary of Object.values(DICTIONARIES)) {
       assert.match(dictionary.personas.conversation.athena, /Athena/);
-      assert.match(dictionary.prospects.deepScrape.button, /Deep Scrape/);
-      assert.match(dictionary.prospects.detail.thinkDifferently, /Think Differently/);
+      assert.match(dictionary.prospects.deepScrape.button, /website|site|sito|sitio|sítio|Webseite/i);
+      assert.match(dictionary.prospects.detail.thinkDifferently, /approach|approche|enfoque|approccio|Ansatz|abordagem/i);
       assert.match(
         dictionary.personas.executive.heading,
         /audience|audiencia|audiência|Zielgruppe/i,
       );
-      assert.match(dictionary.prospects.executive.heading, /Executive Intelligence/);
+      assert.match(dictionary.prospects.executive.heading, /prospect|Prospect/i);
     }
   });
 });

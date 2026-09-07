@@ -71,6 +71,8 @@ const SHELLED_PAGES = [
   "app/page.tsx",
   "app/identity/page.tsx",
   "app/prospects/page.tsx",
+  "app/prospects/import/page.tsx",
+  "app/prospects/[id]/page.tsx",
   "app/seo/page.tsx",
   "app/seo/new/page.tsx",
   "app/seo/[id]/page.tsx",
@@ -432,6 +434,16 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
       prospects,
       /<TenantAppShell currentPath="\/prospects" messages=\{messages\}>/,
     );
+    const prospectImport = read("app/prospects/import/page.tsx");
+    const prospectDetail = read("app/prospects/[id]/page.tsx");
+    assert.match(
+      prospectImport,
+      /<TenantAppShell currentPath="\/prospects\/import" messages=\{messages\}>/,
+    );
+    assert.match(
+      prospectDetail,
+      /<TenantAppShell currentPath=\{`\/prospects\/\$\{id\}`\} messages=\{messages\}>/,
+    );
     assert.match(seo, /<TenantAppShell currentPath="\/seo" messages=\{messages\}>/);
     assert.match(
       seoNew,
@@ -441,12 +453,23 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
       seoDetail,
       /<TenantAppShell currentPath=\{`\/seo\/\$\{id\}`\} messages=\{messages\}>/,
     );
-    for (const source of [home, identity, prospects, seo, seoNew, seoDetail]) {
+    for (const source of [
+      home,
+      identity,
+      prospects,
+      prospectImport,
+      prospectDetail,
+      seo,
+      seoNew,
+      seoDetail,
+    ]) {
       assert.doesNotMatch(source, /AthenaBrandLink/);
       assert.doesNotMatch(source, /DashboardSidebar/);
     }
     assert.doesNotMatch(identity, /TenantBackLink/);
     assert.doesNotMatch(prospects, /TenantBackLink/);
+    assert.doesNotMatch(prospectImport, /TenantBackLink/);
+    assert.doesNotMatch(prospectDetail, /TenantBackLink/);
     assert.doesNotMatch(seo, /TenantBackLink/);
     assert.doesNotMatch(seoNew, /TenantBackLink/);
     assert.doesNotMatch(seoDetail, /TenantBackLink/);

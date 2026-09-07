@@ -34,17 +34,18 @@ describe("Generate Intelligence header placement", () => {
     );
   });
 
-  it("3. Prospect header renders Generate Intelligence + Think Differently", () => {
+  it("3. Prospect header renders generate / refresh / try another approach", () => {
     const page = read("app/prospects/[id]/page.tsx");
     assert.match(page, /ProspectRefreshIntelligenceButton/);
-    assert.match(page, /lg:flex-row lg:items-start lg:justify-between/);
+    assert.match(page, /flex flex-col gap-3 sm:flex-row sm:flex-wrap/);
     assert.match(page, /prospectId=\{prospect\.id\}/);
 
     const prospectButton = read(
       "components/prospects/ProspectRefreshIntelligenceButton.tsx",
     );
-    assert.match(prospectButton, /Generate Intelligence/);
-    assert.match(prospectButton, /Think Differently/);
+    assert.match(prospectButton, /Generate prospect intelligence/);
+    assert.match(prospectButton, /Try another approach/);
+    assert.match(prospectButton, /hasCurrentVersion/);
   });
 
   it("4. Prospect Details no longer renders Generate Intelligence", () => {
@@ -164,7 +165,7 @@ describe("Generate Intelligence header placement", () => {
 
   it("20/21. Prospect Details and Detailed Athena Reasoning remain otherwise intact", () => {
     const editor = read("components/prospects/ProspectMetadataEditor.tsx");
-    assert.match(editor, /Prospect Details/);
+    assert.match(editor, /Prospect profile/);
     assert.match(editor, /beginEdit/);
     assert.doesNotMatch(editor, /handleDelete/);
 
@@ -191,9 +192,8 @@ describe("Generate Intelligence header placement", () => {
     const prospectPage = read("app/prospects/[id]/page.tsx");
     assert.match(
       prospectPage,
-      /flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between/,
+      /flex flex-col gap-3 sm:flex-row sm:flex-wrap/,
     );
-    assert.match(prospectPage, /flex flex-wrap items-center justify-end/);
   });
 
   it("24-26. no migration, worker, or client-side queue wiring in UI", () => {

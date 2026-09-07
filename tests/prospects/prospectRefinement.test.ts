@@ -274,9 +274,10 @@ describe("page structure contracts", () => {
       join(ROOT, "components/prospects/ProspectsLibraryClient.tsx"),
       "utf8",
     );
-    assert.match(source, /list\?\.colCategory \?\? "Category"/);
+    assert.match(source, /prospect\.category/);
+    assert.match(source, /prospect\.industry/);
     assert.doesNotMatch(source, />Industry</);
     assert.match(source, /display_lifecycle_status/);
-    assert.match(source, /prospect\.category/);
+    assert.match(source, /getProspectWorkingStatusLabel/);
   });
 });

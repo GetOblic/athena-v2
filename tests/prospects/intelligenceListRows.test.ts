@@ -17,8 +17,8 @@ describe("Standardized clickable intelligence rows", () => {
   it("Prospect rows remain fully clickable", () => {
     const source = read("components/prospects/ProspectsLibraryClient.tsx");
     assert.match(source, /href=\{`\/prospects\/\$\{prospect\.id\}`\}/);
-    assert.match(source, /ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS/);
     assert.match(source, /<Link[\s\S]*prospect\.id[\s\S]*<\/Link>/);
+    assert.match(source, /grid-cols-1 gap-4 md:grid-cols-2/);
   });
 
   it("Discussion rows are fully clickable", () => {
@@ -114,7 +114,7 @@ describe("Standardized clickable intelligence rows", () => {
     );
 
     const prospects = read("components/prospects/ProspectsLibraryClient.tsx");
-    assert.match(prospects, /ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS/);
+    assert.match(prospects, /href=\{`\/prospects\/\$\{prospect\.id\}`\}/);
 
     const rowComponent = read("components/ui/AthenaIntelligenceListRow.tsx");
     assert.match(rowComponent, /ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS/);

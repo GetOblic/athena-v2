@@ -1633,31 +1633,51 @@ export const it: TenantMessages = {
   prospects: {
     backToDashboard: "← Pannello",
     backToProspects: "← Prospects",
-    eyebrow: "Intelligence Prospect",
-    title: "Prospects",
+    eyebrow: "Convertire le opportunità",
+    title: "Convertire le opportunità",
+    question:
+      "Su chi dovrei concentrarmi, cosa conta di loro e cosa dovrei fare dopo?",
     subtitle:
-      "Aziende e organizzazioni che Athena analizza per produrre executive intelligence personalizzata e asset di approccio.",
+      "Athena ti aiuta a capire le aziende che stai perseguendo, perché possono contare e come affrontarle.",
     notFound: "Prospect non trovato",
     emptyValue: "—",
     list: {
       search: "Cerca",
       searchPlaceholder: "Azienda, sito web, decision maker, categoria…",
-      status: "Stato",
+      status: "Stato di lavoro",
       allStatuses: "Tutti gli stati",
       sort: "Ordina",
       sortUpdated: "Aggiornamento",
       sortCreated: "Creazione",
       sortScore: "Punteggio opportunità",
       sortName: "Nome",
-      importCta: "Importa Prospects",
-      emptyTitle: "Nessun prospect trovato.",
+      importCta: "Aggiungi prospect",
+      emptyTitle: "Nessun prospect ancora.",
       emptyBody:
-        "Importa un’azienda manualmente o tramite CSV per avviare l’Intelligence Prospect.",
+        "Un prospect è un’azienda che vuoi che Athena comprenda e ti aiuti a perseguire.",
+      emptySupport:
+        "Aggiungine uno così Athena può imparare chi sono, cosa può contare e come affrontarli.",
+      emptyHelp:
+        "Athena può scrivere intelligence sul prospect e bozze di approccio dalle informazioni che fornisci. Un sito web aiuta.",
+      filterEmptyTitle: "Nessun prospect trovato.",
+      filterEmptyBody:
+        "Prova una ricerca o un filtro di stato di lavoro diverso.",
+      createFirstCta: "Aggiungi prospect",
+      prospectsOne: "1 prospect",
+      prospectsMany: "{count} prospect",
+      newOne: "1 nuovo",
+      newMany: "{count} nuovi",
+      followUpOne: "1 follow-up",
+      followUpMany: "{count} follow-up",
+      readyOne: "1 con intelligence pronta",
+      readyMany: "{count} con intelligence pronta",
+      generatingOne: "1 ancora in generazione",
+      generatingMany: "{count} ancora in generazione",
       colBusinessName: "Nome dell’azienda",
       colWebsite: "Sito web",
       colDecisionMaker: "Decision maker",
       colCategory: "Categoria",
-      colStatus: "Stato",
+      colStatus: "Stato di lavoro",
       colScore: "Punteggio opportunità",
       colCreated: "Creato",
       colUpdated: "Aggiornato",
@@ -1665,14 +1685,46 @@ export const it: TenantMessages = {
       previous: "Precedente",
       next: "Successivo",
     },
+    convert: {
+      athenaStarting: "Athena sta iniziando",
+      athenaWorking: "Athena sta lavorando",
+      athenaLearningWebsite: "Athena sta imparando dal loro sito",
+      athenaWriting: "Athena sta scrivendo l’intelligence del prospect",
+      intelligenceReady: "Intelligence pronta",
+      intelligenceFailed: "Intelligence non riuscita",
+      whyMatters: "Perché questo prospect può contare",
+      whatTheyNeed: "Di cosa sembrano avere bisogno",
+      timingAndIntent: "Timing e intento",
+      risksAndObjections: "Rischi e obiezioni",
+      whatAthenaRecommends: "Cosa raccomanda Athena",
+      recommendedHelper:
+        "Questa è una guida generata. Non è un’attività salvata e non viene contrassegnata come fatta automaticamente.",
+      draftNextStep: "Un passo successivo in bozza che puoi copiare",
+      outreachDrafts: "Bozze di approccio",
+      otherDrafts: "Altre bozze",
+      websiteResearch: "Ricerca del sito",
+      websiteResearchAlt: "Cosa Athena ha imparato dal loro sito",
+      previousIntelligence: "Intelligence precedente",
+      blueprint: "Blueprint",
+      sourceContext: "Contesto di origine",
+      advanced: "Avanzate",
+      prospectProfile: "Profilo del prospect",
+      opportunityDetected: "Opportunità rilevata",
+      opportunityScoreHelp:
+        "Valore di sistema archiviato. Non è una classifica di chi perseguire.",
+      moreAbout: "Altro su questa azienda",
+    },
     import: {
+      createTitle: "Aggiungi un prospect",
       subtitle:
-        "Gli import manuali e CSV creano subito le schede Prospect e mettono in coda la generazione asincrona. I record incompleti restano analizzabili.",
-      manualTitle: "Import manuale",
+        "Aggiungi un’azienda che vuoi che Athena comprenda e ti aiuti a perseguire.",
+      manualTitle: "Aggiungi un’azienda",
       manualSummary:
-        "Crea un singolo Prospect. Il nome dell’azienda è fortemente consigliato; i Prospect incompleti restano analizzabili.",
-      importCta: "Importa Prospect",
-      importing: "Importazione…",
+        "Crea un prospect. Il nome dell’azienda è obbligatorio. Un sito web aiuta Athena a imparare. I dettagli di contatto incompleti vanno bene.",
+      moreAboutTitle: "Altro su questa azienda",
+      advancedSystemTitle: "Avanzate / sistema",
+      importCta: "Aggiungi questo prospect",
+      importing: "Aggiunta…",
       openProspect: "Apri Prospect",
       importFinished: "Import completato.",
       importFailed: "Import non riuscito.",
@@ -1680,6 +1732,8 @@ export const it: TenantMessages = {
       facebookUrl: "URL Facebook",
       instagramUrl: "URL Instagram",
       csvTitle: "Importa da CSV",
+      csvDuplicatesHelp:
+        "I duplicati vengono saltati quando il sito web corrisponde, o quando nome azienda + città corrispondono senza un sito utilizzabile.",
       csvSummary:
         "Carica un CSV per anteprima di come Athena interpreta ogni riga. Nessuna scheda Prospect viene creata finché non rivedi e confermi l’import.",
       downloadTemplate: "Scarica il modello CSV",
@@ -1737,9 +1791,21 @@ export const it: TenantMessages = {
       statusInvalid: "Non valido",
     },
     detail: {
-      eyebrow: "Intelligence Prospect",
+      eyebrow: "Prospect",
+      question:
+        "Cosa devo sapere su questa azienda e come dovrei affrontarla?",
       subtitle:
         "Intelligence di livello esecutivo per questa relazione Prospect.",
+      savedBanner: "Questo prospect è salvato.",
+      savedBannerHelp: "Athena non ha ancora terminato l’intelligence del prospect.",
+      processingBanner: "Athena sta analizzando questo prospect.",
+      processingBannerHelp: "Puoi uscire e tornare.",
+      failedBanner: "Athena non ha potuto terminare questa intelligence del prospect.",
+      refreshIntelligence: "Aggiorna intelligence",
+      refreshingIntelligence: "Aggiornamento…",
+      tryAgain: "Prova a generare di nuovo",
+      deleteBlocked:
+        "Questo prospect è collegato a una scheda GetOblic attiva e non può essere eliminato.",
       website: "Sito web",
       category: "Categoria",
       decisionMaker: "Decision maker",
@@ -1755,10 +1821,10 @@ export const it: TenantMessages = {
       linkedin: "LinkedIn",
       source: "Origine",
       homepageLearning: "Apprendimento della homepage",
-      generateIntelligence: "Genera intelligence",
-      generatingIntelligence: "Generazione dell’intelligence…",
-      thinkDifferently: "Think Differently",
-      thinkingDifferently: "Think Differently in corso…",
+      generateIntelligence: "Genera intelligence del prospect",
+      generatingIntelligence: "Generazione…",
+      thinkDifferently: "Prova un altro approccio",
+      thinkingDifferently: "Altro approccio in corso…",
       generateFailed: "Genera intelligence non riuscito.",
       thinkFailed: "Think Differently non riuscito.",
       refreshQueued:
@@ -1766,7 +1832,7 @@ export const it: TenantMessages = {
       thinkQueued:
         "Think Differently accodato. Athena sta rigenerando Strategic Blueprint e Deployment Assets in background.",
       noDiscussion:
-        "L’Intelligence Prospect non è ancora stata accodata. Usa Genera intelligence nell’intestazione della pagina per avviare la generazione asincrona.",
+        "Athena non ha ancora completato l’intelligence del prospect. Usa Genera intelligence del prospect per iniziare.",
       sourceContextHelp:
         "Intelligence della homepage e contenuto ads acquisiti per questo Prospect. I campi del profilo si gestiscono in Dettagli del Prospect sotto.",
       adsContent: "Contenuto ads",
@@ -1781,9 +1847,15 @@ export const it: TenantMessages = {
       workflowCurrentStatus: "Stato attuale: {status}",
     },
     metadata: {
-      title: "Dettagli del Prospect",
+      title: "Profilo del prospect",
       titleEdit: "Modifica profilo",
-      eyebrow: "Dettagli del Prospect",
+      eyebrow: "Profilo del prospect",
+      moreAbout: "Altro su questa azienda",
+      advancedGroup: "Avanzate",
+      created: "Creato",
+      updated: "Aggiornato",
+      source: "Origine",
+      opportunityScore: "Punteggio opportunità",
       helpRead:
         "Consulta i campi del prospect in sola lettura. Modifica per aggiornare i dati di origine. Usa Genera intelligence nell’intestazione della pagina per rigenerare.",
       helpEdit:
@@ -1832,10 +1904,10 @@ export const it: TenantMessages = {
     append: {
       title: "Aggiungi informazioni",
       help: "Aggiungi nuove note o contesto senza sostituire i campi importati. Athena conserva la cronologia e rigenera una nuova versione esecutiva attuale in background.",
-      field: "Informazioni aggiuntive",
+      field: "Ciò che hai imparato",
       placeholder:
         "Incolla nuovo contesto o intelligence su questo prospect.",
-      cta: "Aggiungi e rielabora",
+      cta: "Aggiungi e aggiorna",
       queuing: "In coda...",
       processing: "Elaborazione...",
       success:
@@ -1845,7 +1917,7 @@ export const it: TenantMessages = {
         "Athena ha ricevuto una risposta inattesa dal server durante l’accodamento di questo aggiornamento.",
     },
     lifecycle: {
-      label: "Stato del Prospect",
+      label: "Stato di lavoro",
       updated: "Stato del Prospect aggiornato.",
       updateFailed: "Impossibile aggiornare lo stato del Prospect.",
       new: "Nuovo",
@@ -1867,7 +1939,7 @@ export const it: TenantMessages = {
       processingFailed: "Elaborazione non riuscita",
     },
     homepage: {
-      title: "Intelligence della homepage",
+      title: "Ricerca del sito",
       empty: "Nessuna intelligence della homepage acquisita per ora.",
       homepageNone: "Nessun sito web indicato",
       homepageIncomplete:
@@ -1898,7 +1970,7 @@ export const it: TenantMessages = {
       usingNone:
         "Nessuna versione esecutiva — uso del contesto prospect disponibile",
       readOnlyNotice:
-        "Le risposte della conversazione non modificano l’intelligence né gli asset di Athena.",
+        "Questa conversazione non cambia l’intelligence del prospect salvata.",
       discussing: "In discussione: {kind} — {title}",
       clearTarget: "Rimuovi destinazione",
       tryAsking: "Prova a chiedere",
@@ -1928,7 +2000,7 @@ export const it: TenantMessages = {
       strategicBlueprint: "Strategic Blueprint",
     },
     deepScrape: {
-      button: "Deep Scrape Website",
+      button: "Ricerca questo sito",
       lastTitle: "Ultimo Deep Scrape",
       pagesAnalyzed: "Pagine analizzate: {count}",
       queueFailed: "Impossibile mettere in coda il Deep Scrape.",
@@ -1951,8 +2023,8 @@ export const it: TenantMessages = {
         "Il Deep Scrape del sito web non è riuscito. Riprova più tardi.",
     },
     executive: {
-      heading: "Executive Intelligence",
-      whatMatters: "L’essenziale in 30 secondi",
+      heading: "Intelligence del prospect",
+      whatMatters: "Ciò che Athena comprende",
       emptyDiscussion:
         "Avvia l’analisi Athena per sbloccare l’executive intelligence di questo prospect.",
       selectionMissing:
@@ -1964,7 +2036,7 @@ export const it: TenantMessages = {
       originalDiscussion: "Contesto di origine",
       detailedReasoning: "Ragionamento Athena dettagliato",
       analysisStatusLabel: "Stato dell’analisi:",
-      versionsTitle: "Versioni esecutive",
+      versionsTitle: "Intelligence precedente",
       versionsHelp:
         "Esplora la comprensione strategica completa di Athena nel tempo. Aprire una versione precedente è in sola lettura e non rigenera mai l’intelligence.",
       currentVersion: "Versione attuale",
@@ -2021,7 +2093,7 @@ export const it: TenantMessages = {
       opportunityTitle: "Titolo dell’opportunità Prospect",
       opportunityReason: "Motivo dell’opportunità Prospect",
       strategicRecommendation: "Strategia di approccio",
-      recommendedAction: "Azione consigliata",
+      recommendedAction: "Cosa raccomanda Athena",
       recommendationHelper: "Indicazioni per le decisioni interne.",
       riskLevel: "Livello di rischio",
       opportunityYes: "Sì",
@@ -2068,9 +2140,9 @@ export const it: TenantMessages = {
         "Athena ha ricevuto una risposta inattesa dal server durante l’accodamento della generazione.",
       generationFailedLogs: "Generazione non riuscita. Controlla i log.",
       generationUnknown: "Errore sconosciuto",
-      deploymentAssetsTitle: "Deployment Assets",
+      deploymentAssetsTitle: "Bozze di approccio",
       analysisAssetsTitle: "Asset di analisi",
-      strategicBlueprintTitle: "Strategic Asset Blueprint",
+      strategicBlueprintTitle: "Blueprint",
       opportunityScore: "Punteggio opportunità",
     },
   },

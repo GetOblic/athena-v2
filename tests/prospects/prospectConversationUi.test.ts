@@ -64,7 +64,7 @@ describe("prospect conversation UI placement", () => {
         versionLabel: null,
       }),
     );
-    assert.match(html, /Ask Athena About This Prospect/);
+    assert.match(html, /Ask Athena about this prospect/i);
     assert.match(html, /aria-expanded="false"/);
     assert.doesNotMatch(html, /Conversation responses do not modify/);
   });

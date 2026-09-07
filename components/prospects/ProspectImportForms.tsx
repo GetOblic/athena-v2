@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { ProspectCreationBlock } from "@/components/prospects/ProspectCreationBlock";
 import { ProspectCsvImport } from "@/components/prospects/ProspectCsvImport";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { getLocalizedProspectImportFieldLabel } from "@/lib/tenantI18n/importPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
@@ -48,9 +50,70 @@ const MANUAL_FIELDS = [
   ["source", "Source"],
 ] as const;
 
+const PRIMARY_FIELD_KEYS = [
+  "business_name",
+  "website",
+  "decision_maker",
+  "first_name",
+  "last_name",
+  "job_title",
+  "email",
+  "phone",
+  "category",
+  "industry",
+  "city",
+  "state",
+  "country",
+] as const;
+
+const PRIMARY_FULL_WIDTH_FIELD_KEYS = new Set<
+  (typeof PRIMARY_FIELD_KEYS)[number]
+>(["business_name", "website", "decision_maker"]);
+
+const MORE_ABOUT_FIELD_KEYS = [
+  "address",
+  "whatsapp_number",
+  "linkedin",
+  "facebook",
+  "instagram",
+  "google_business_url",
+  "company_size",
+  "revenue",
+  "employee_count",
+  "technologies",
+  "pain_points",
+  "source",
+  "timezone",
+] as const;
+
+const ADVANCED_FIELD_KEYS = ["external_contact_id"] as const;
+
 type ProspectImportFormsProps = {
   messages: TenantMessages;
 };
+
+function ManualCollapsedGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className={`min-w-0 ${open ? "lg:col-span-2" : ""}`}>
+      <AthenaCollapsibleSection
+        title={title}
+        defaultOpen={false}
+        open={open}
+        onOpenChange={setOpen}
+      >
+        {children}
+      </AthenaCollapsibleSection>
+    </div>
+  );
+}
 
 export function ProspectImportForms({ messages }: ProspectImportFormsProps) {
   const router = useRouter();
@@ -68,6 +131,29 @@ export function ProspectImportForms({ messages }: ProspectImportFormsProps) {
   );
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualResult, setManualResult] = useState<ManualResult | null>(null);
+
+  function setField(key: string, value: string) {
+    setManual((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+  }
+
+  function renderField(key: string, className = "") {
+    return (
+      <label
+        key={key}
+        className={`block min-w-0 text-sm text-white/50 ${className}`.trim()}
+      >
+        {getLocalizedProspectImportFieldLabel(messages, key)}
+        <input
+          value={manual[key] ?? ""}
+          onChange={(event) => setField(key, event.target.value)}
+          className={`mt-2 w-full ${fieldClassName}`}
+        />
+      </label>
+    );
+  }
 
   async function submitManual(event: React.FormEvent) {
     event.preventDefault();
@@ -114,96 +200,87 @@ export function ProspectImportForms({ messages }: ProspectImportFormsProps) {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-2">
-      <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8">
+    <div className="space-y-8">
+      <section className="mx-auto w-full min-w-0 max-w-3xl rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-8 lg:max-w-6xl">
         <h2 className="text-2xl font-semibold">{copy.manualTitle}</h2>
         <p className="mt-3 text-sm leading-6 text-white/45">
           {copy.manualSummary}
         </p>
 
         <form onSubmit={submitManual} className="mt-8 space-y-4">
-          {MANUAL_FIELDS.map(([key]) => (
-            <label key={key} className="block text-sm text-white/50">
-              {getLocalizedProspectImportFieldLabel(messages, key)}
-              <input
-                value={manual[key] ?? ""}
-                onChange={(event) =>
-                  setManual((previous) => ({
-                    ...previous,
-                    [key]: event.target.value,
-                  }))
-                }
+          <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+            {PRIMARY_FIELD_KEYS.map((key) =>
+              renderField(
+                key,
+                PRIMARY_FULL_WIDTH_FIELD_KEYS.has(key) ? "lg:col-span-2" : "",
+              ),
+            )}
+
+            <label className="block min-w-0 text-sm text-white/50 lg:col-span-2">
+              {meta.notes}
+              <textarea
+                value={manual.notes ?? ""}
+                onChange={(event) => setField("notes", event.target.value)}
+                rows={3}
                 className={`mt-2 w-full ${fieldClassName}`}
               />
             </label>
-          ))}
 
-          <label className="block text-sm text-white/50">
-            {meta.getoblicType}
-            <select
-              value={manual.getoblic_type ?? ""}
-              onChange={(event) =>
-                setManual((previous) => ({
-                  ...previous,
-                  getoblic_type: event.target.value,
-                }))
-              }
-              className={`mt-2 w-full ${fieldClassName}`}
-            >
-              <option value="">{meta.notSet}</option>
-              {PROSPECT_GETOBLIC_TYPES.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="block min-w-0 text-sm text-white/50 lg:col-span-2">
+              {meta.additionalContext}
+              <textarea
+                value={manual.additional_context ?? ""}
+                onChange={(event) =>
+                  setField("additional_context", event.target.value)
+                }
+                rows={3}
+                className={`mt-2 w-full ${fieldClassName}`}
+              />
+            </label>
+          </div>
 
-          <label className="block text-sm text-white/50">
-            {meta.notes}
-            <textarea
-              value={manual.notes ?? ""}
-              onChange={(event) =>
-                setManual((previous) => ({
-                  ...previous,
-                  notes: event.target.value,
-                }))
-              }
-              rows={3}
-              className={`mt-2 w-full ${fieldClassName}`}
-            />
-          </label>
+          <div className="grid min-w-0 grid-cols-1 gap-4 pt-2 lg:grid-cols-2">
+            <ManualCollapsedGroup title={copy.moreAboutTitle}>
+              <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+                {MORE_ABOUT_FIELD_KEYS.map((key) => renderField(key))}
+                <label className="block min-w-0 text-sm text-white/50 lg:col-span-2">
+                  {meta.adsContent}
+                  <textarea
+                    value={manual.ads_content ?? ""}
+                    onChange={(event) =>
+                      setField("ads_content", event.target.value)
+                    }
+                    rows={5}
+                    placeholder={meta.adsPlaceholder}
+                    className={`mt-2 w-full ${fieldClassName}`}
+                  />
+                </label>
+              </div>
+            </ManualCollapsedGroup>
 
-          <label className="block text-sm text-white/50">
-            {meta.additionalContext}
-            <textarea
-              value={manual.additional_context ?? ""}
-              onChange={(event) =>
-                setManual((previous) => ({
-                  ...previous,
-                  additional_context: event.target.value,
-                }))
-              }
-              rows={3}
-              className={`mt-2 w-full ${fieldClassName}`}
-            />
-          </label>
-
-          <label className="block text-sm text-white/50">
-            {meta.adsContent}
-            <textarea
-              value={manual.ads_content ?? ""}
-              onChange={(event) =>
-                setManual((previous) => ({
-                  ...previous,
-                  ads_content: event.target.value,
-                }))
-              }
-              rows={5}
-              placeholder={meta.adsPlaceholder}
-              className={`mt-2 w-full ${fieldClassName}`}
-            />
-          </label>
+            <ManualCollapsedGroup title={copy.advancedSystemTitle}>
+              <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+                {ADVANCED_FIELD_KEYS.map((key) => renderField(key))}
+                <label className="block min-w-0 text-sm text-white/50">
+                  {meta.getoblicType}
+                  <select
+                    value={manual.getoblic_type ?? ""}
+                    onChange={(event) =>
+                      setField("getoblic_type", event.target.value)
+                    }
+                    className={`mt-2 w-full ${fieldClassName}`}
+                  >
+                    <option value="">{meta.notSet}</option>
+                    {PROSPECT_GETOBLIC_TYPES.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </ManualCollapsedGroup>
+          </div>
 
           <button
             type="submit"
@@ -231,7 +308,17 @@ export function ProspectImportForms({ messages }: ProspectImportFormsProps) {
         )}
       </section>
 
-      <ProspectCsvImport messages={messages} />
+      <ProspectCreationBlock
+        title={copy.csvTitle}
+        panelId="prospect-import-csv"
+        summary={copy.csvSummary}
+        className="mx-auto w-full min-w-0 max-w-3xl"
+      >
+        <p className="mb-6 text-sm leading-6 text-white/40">
+          {copy.csvDuplicatesHelp}
+        </p>
+        <ProspectCsvImport messages={messages} />
+      </ProspectCreationBlock>
     </div>
   );
 }

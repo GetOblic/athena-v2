@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS } from "@/components/ui/athenaIntelligenceRow";
 import { PROSPECT_LIFECYCLE_STATUSES } from "@/services/prospects/prospectLifecycle";
 import type { ProspectLibraryRow } from "@/services/prospects/prospectLibraryEnrichment";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import {
-  getLocalizedProspectLifecycleLabel,
-  getLocalizedProspectReadinessLabel,
-} from "@/lib/tenantI18n/prospectPresentation";
+  getProspectIntelligenceStatusLabel,
+  getProspectWorkingStatusLabel,
+} from "@/lib/prospects/prospectReadinessPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
@@ -31,6 +30,13 @@ function formatDate(
   return formatTenantDate(value, language) || emptyValue;
 }
 
+function formatProspectLocation(prospect: ProspectLibraryRow): string {
+  return [prospect.city, prospect.state, prospect.country]
+    .map((part) => String(part ?? "").trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
 export function ProspectsLibraryClient({
   prospects,
   messages,
@@ -40,9 +46,7 @@ export function ProspectsLibraryClient({
   const emptyValue = messages?.prospects.emptyValue ?? "—";
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
-  const [sort, setSort] = useState<"updated" | "created" | "score" | "name">(
-    "updated",
-  );
+  const [sort, setSort] = useState<"updated" | "created" | "name">("updated");
   const [page, setPage] = useState(1);
 
   const statuses = useMemo(() => {
@@ -85,12 +89,6 @@ export function ProspectsLibraryClient({
       if (sort === "name") {
         return a.business_name.localeCompare(b.business_name);
       }
-      if (sort === "score") {
-        return (
-          (b.display_opportunity_score ?? -1) -
-          (a.display_opportunity_score ?? -1)
-        );
-      }
       if (sort === "created") {
         return (
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -111,10 +109,38 @@ export function ProspectsLibraryClient({
     currentPage * PAGE_SIZE,
   );
 
+  if (prospects.length === 0) {
+    return (
+      <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-8 text-left sm:p-10">
+        <h2 className="text-2xl font-semibold">
+          {list?.emptyTitle ?? "No prospects yet."}
+        </h2>
+        <p className="mt-4 max-w-xl text-sm leading-7 text-white/50">
+          {list?.emptyBody ??
+            "A prospect is a business you want Athena to understand and help you pursue."}
+        </p>
+        <p className="mt-3 max-w-xl text-sm leading-7 text-white/40">
+          {list?.emptySupport ??
+            "Add one so Athena can learn who they are, what may matter, and how to approach them."}
+        </p>
+        <p className="mt-3 max-w-xl text-sm leading-7 text-white/35">
+          {list?.emptyHelp ??
+            "Athena can write prospect intelligence and outreach drafts from the information you provide. A website helps."}
+        </p>
+        <Link
+          href="/prospects/import"
+          className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
+        >
+          {list?.createFirstCta ?? list?.importCta ?? "Add prospect"}
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="grid flex-1 gap-3 md:grid-cols-3">
+        <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-3">
           <label className="block text-sm text-white/50">
             {list?.search ?? "Search"}
             <input
@@ -131,7 +157,7 @@ export function ProspectsLibraryClient({
             />
           </label>
           <label className="block text-sm text-white/50">
-            {list?.status ?? "Status"}
+            {list?.status ?? "Working status"}
             <select
               value={status}
               onChange={(event) => {
@@ -145,7 +171,7 @@ export function ProspectsLibraryClient({
                   {value === "all"
                     ? (list?.allStatuses ?? "All statuses")
                     : messages
-                      ? getLocalizedProspectLifecycleLabel(messages, value)
+                      ? getProspectWorkingStatusLabel(messages, value)
                       : value}
                 </option>
               ))}
@@ -162,95 +188,89 @@ export function ProspectsLibraryClient({
             >
               <option value="updated">{list?.sortUpdated ?? "Updated"}</option>
               <option value="created">{list?.sortCreated ?? "Created"}</option>
-              <option value="score">
-                {list?.sortScore ?? "Opportunity Score"}
-              </option>
-              <option value="name">{list?.sortName ?? "Business Name"}</option>
+              <option value="name">{list?.sortName ?? "Name"}</option>
             </select>
           </label>
         </div>
 
         <Link
           href="/prospects/import"
-          className="inline-flex items-center justify-center rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
+          className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
         >
-          {list?.importCta ?? "Import Prospects"}
+          {list?.importCta ?? "Add prospect"}
         </Link>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-14 text-center">
+        <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-10 text-center">
           <h2 className="text-2xl font-semibold">
-            {list?.emptyTitle ?? "No prospects found."}
+            {list?.filterEmptyTitle ?? "No prospects found."}
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/40">
-            {list?.emptyBody ??
-              "Import a business manually or via CSV to start Prospect Intelligence."}
+            {list?.filterEmptyBody ??
+              "Try a different search or working-status filter."}
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)]">
-          <div className="grid min-w-[1100px] grid-cols-[1.4fr_1.2fr_1fr_1fr_160px_120px_110px_110px] gap-4 border-b border-white/10 px-6 py-4 text-xs uppercase tracking-[0.2em] text-white/35">
-            <div>{list?.colBusinessName ?? "Business Name"}</div>
-            <div>{list?.colWebsite ?? "Website"}</div>
-            <div>{list?.colDecisionMaker ?? "Decision Maker"}</div>
-            <div>{list?.colCategory ?? "Category"}</div>
-            <div>{list?.colStatus ?? "Status"}</div>
-            <div>{list?.colScore ?? "Opportunity Score"}</div>
-            <div>{list?.colCreated ?? "Created"}</div>
-            <div>{list?.colUpdated ?? "Updated"}</div>
-          </div>
-
-          {pageRows.map((prospect) => (
-            <Link
-              key={prospect.id}
-              href={`/prospects/${prospect.id}`}
-              className={`grid min-w-[1100px] grid-cols-[1.4fr_1.2fr_1fr_1fr_160px_120px_110px_110px] gap-4 px-6 py-5 text-sm transition hover:bg-white/[0.03] ${ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS}`}
-            >
-              <div className="font-medium text-white">
-                {prospect.business_name}
-              </div>
-              <div className="truncate text-white/55">
-                {prospect.website || emptyValue}
-              </div>
-              <div className="text-white/55">
-                {prospect.decision_maker || emptyValue}
-              </div>
-              <div className="text-white/55">
-                {prospect.category || emptyValue}
-              </div>
-              <div>
-                <div className="text-[var(--athena-orange)]">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {pageRows.map((prospect) => {
+            const categoryOrIndustry =
+              prospect.category?.trim() || prospect.industry?.trim() || "";
+            const location = formatProspectLocation(prospect);
+            const meta = [categoryOrIndustry, location]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <Link
+                key={prospect.id}
+                href={`/prospects/${prospect.id}`}
+                className="min-w-0 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-5 transition hover:border-white/20 hover:bg-white/[0.03]"
+              >
+                <h3 className="break-words text-lg font-semibold text-white">
+                  {prospect.business_name}
+                </h3>
+                {meta ? (
+                  <p className="mt-2 break-words text-sm text-white/50">
+                    {meta}
+                  </p>
+                ) : null}
+                {prospect.decision_maker ? (
+                  <p className="mt-2 break-words text-sm text-white/55">
+                    {prospect.decision_maker}
+                  </p>
+                ) : null}
+                <div className="mt-3 text-sm text-[var(--athena-orange)]">
                   {messages
-                    ? getLocalizedProspectLifecycleLabel(
+                    ? getProspectWorkingStatusLabel(
                         messages,
                         prospect.display_lifecycle_status,
                       )
                     : prospect.display_lifecycle_status}
                 </div>
-                <div className="mt-1 text-xs text-white/35">
+                <div className="mt-1 text-sm text-white/45">
                   {messages
-                    ? getLocalizedProspectReadinessLabel(
+                    ? getProspectIntelligenceStatusLabel(
                         messages,
                         prospect.display_status,
                       )
                     : prospect.display_status}
                 </div>
-              </div>
-              <div>{prospect.display_opportunity_score_label}</div>
-              <div className="text-white/45">
-                {formatDate(prospect.created_at, language, emptyValue)}
-              </div>
-              <div className="text-white/45">
-                {formatDate(prospect.updated_at, language, emptyValue)}
-              </div>
-            </Link>
-          ))}
+                <div className="mt-3 text-xs text-white/40">
+                  {formatDate(prospect.updated_at, language, emptyValue)}
+                </div>
+                {prospect.website ? (
+                  <div className="mt-1 truncate text-sm text-white/40">
+                    {prospect.website}
+                  </div>
+                ) : null}
+              </Link>
+            );
+          })}
         </div>
       )}
 
       {filtered.length > PAGE_SIZE && (
-        <div className="flex items-center justify-between text-sm text-white/45">
+        <div className="flex flex-col gap-3 text-sm text-white/45 sm:flex-row sm:items-center sm:justify-between">
           <div>
             {interpolateTenantMessage(
               list?.showing ?? "Showing {start}–{end} of {total}",
