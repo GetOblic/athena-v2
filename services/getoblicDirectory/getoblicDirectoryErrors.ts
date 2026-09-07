@@ -6,6 +6,7 @@ import type {
 export function directoryErrorStatus(code: GetOblicDirectoryErrorCode): number {
   switch (code) {
     case "GETOBLIC_PROSPECT_NOT_FOUND":
+    case "GETOBLIC_LINK_NOT_FOUND":
       return 404;
     case "GETOBLIC_INVALID_WORDPRESS_LISTING_ID":
       return 400;
@@ -13,7 +14,10 @@ export function directoryErrorStatus(code: GetOblicDirectoryErrorCode): number {
       return 503;
     case "GETOBLIC_REMOTE_TRANSIENT":
     case "GETOBLIC_WORDPRESS_AUTHOR_FAILED":
+    case "GETOBLIC_WORDPRESS_KB_WRITE_FAILED":
       return 502;
+    case "GETOBLIC_KB_SYNC_PERSISTENCE_FAILED":
+      return 500;
     case "GETOBLIC_CONCURRENCY_CONFLICT":
       return 409;
     default:
