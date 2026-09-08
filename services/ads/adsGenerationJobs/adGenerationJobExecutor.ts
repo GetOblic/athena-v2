@@ -23,11 +23,12 @@ export type ClaimedAdJobExecution = {
   claimToken: string;
 };
 
-function classifyAdsError(error: unknown): {
+export function classifyAdsError(error: unknown): {
   code: string;
   message: string;
   retryable: boolean;
   stage: AdCampaignGenerationStage;
+  errorMetadata: Record<string, unknown> | null;
 } {
   if (error instanceof AdsGenerationPipelineError) {
     return {
@@ -35,6 +36,7 @@ function classifyAdsError(error: unknown): {
       message: error.message,
       retryable: error.retryable,
       stage: error.stage,
+      errorMetadata: error.metadata ?? null,
     };
   }
 
@@ -54,6 +56,7 @@ function classifyAdsError(error: unknown): {
     message: message.slice(0, 1000),
     retryable,
     stage: "failed",
+    errorMetadata: null,
   };
 }
 
@@ -211,6 +214,7 @@ export async function executeClaimedAdGenerationJob(
       errorMessage: classified.message,
       retryable: classified.retryable,
       failedStage: classified.stage,
+      errorMetadata: classified.errorMetadata,
     });
 
     console.error("[ATHENA_ADS_JOBS] execute_failed", {

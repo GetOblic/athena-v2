@@ -1,11 +1,15 @@
+import "../licensee/licenseeAuthTestEnv";
+
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { classifyAdsError } from "../../services/ads/adsGenerationJobs/adGenerationJobExecutor";
 import {
   isActiveAdGenerationJobStatus,
   mapAdGenerationJobRow,
 } from "../../services/ads/adsGenerationJobs/adGenerationJobTypes";
+import { AdsGenerationPipelineError } from "../../services/ads/adsGenerationPipeline";
 
 const ROOT = process.cwd();
 
@@ -107,5 +111,92 @@ describe("ad generation jobs", () => {
     assert.ok(adsIdx > deepIdx);
     assert.match(worker, /concurrency remains forced to 1|concurrency must be 1/);
     assert.match(worker, /Ads only when generation \+ deep scrape queues are idle/);
+  });
+
+  it("forwards pipeline error metadata to failAdGenerationJobWithClaim", () => {
+    const executor = read(
+      "services/ads/adsGenerationJobs/adGenerationJobExecutor.ts",
+    );
+    assert.match(executor, /errorMetadata: error\.metadata \?\? null/);
+    assert.match(executor, /errorMetadata: classified\.errorMetadata/);
+    assert.match(executor, /failAdGenerationJobWithClaim/);
+  });
+
+  it("MALFORMED_JSON after inner exhaustion stays non-retryable in executor classification", () => {
+    const classified = classifyAdsError(
+      new AdsGenerationPipelineError({
+        code: "MALFORMED_JSON",
+        message: "Ads generation produced malformed JSON at stage google_search.",
+        stage: "google_search",
+        retryable: false,
+        metadata: {
+          stage: "google_search",
+          errorCode: "MALFORMED_JSON",
+          parseCategory: "syntax_error",
+          innerAttempt: 2,
+          innerAttemptMax: 2,
+        },
+      }),
+    );
+    assert.equal(classified.code, "MALFORMED_JSON");
+    assert.equal(classified.retryable, false);
+    assert.equal(classified.stage, "google_search");
+    assert.equal(classified.message, "Ads generation produced malformed JSON at stage google_search.");
+    assert.deepEqual(classified.errorMetadata, {
+      stage: "google_search",
+      errorCode: "MALFORMED_JSON",
+      parseCategory: "syntax_error",
+      innerAttempt: 2,
+      innerAttemptMax: 2,
+    });
+  });
+
+  it("does not reclassify terminal MALFORMED_JSON as a whole-pipeline retry", () => {
+    const classified = classifyAdsError(
+      new AdsGenerationPipelineError({
+        code: "MALFORMED_JSON",
+        message: "Ads generation produced malformed JSON at stage google_search.",
+        stage: "google_search",
+        retryable: false,
+      }),
+    );
+    assert.equal(classified.retryable, false);
+    assert.notEqual(classified.code, "ADS_GENERATION_FAILED");
+  });
+
+  it("keeps existing retryable classification for provider and generic failures", () => {
+    const llmFailed = classifyAdsError(
+      new AdsGenerationPipelineError({
+        code: "LLM_CALL_FAILED",
+        message: "OpenRouter API error: 503 unavailable",
+        stage: "google_search",
+        retryable: true,
+      }),
+    );
+    assert.equal(llmFailed.code, "LLM_CALL_FAILED");
+    assert.equal(llmFailed.retryable, true);
+    assert.equal(llmFailed.errorMetadata, null);
+
+    const invalidPackage = classifyAdsError(
+      new AdsGenerationPipelineError({
+        code: "INVALID_PACKAGE",
+        message: "googleSearch.headlines must contain at least 1 item(s).",
+        stage: "validating",
+        retryable: true,
+      }),
+    );
+    assert.equal(invalidPackage.code, "INVALID_PACKAGE");
+    assert.equal(invalidPackage.retryable, true);
+
+    const timeout = classifyAdsError(new Error("network timeout"));
+    assert.equal(timeout.code, "ADS_GENERATION_FAILED");
+    assert.equal(timeout.retryable, true);
+
+    const rateLimit = classifyAdsError(new Error("rate limit 429"));
+    assert.equal(rateLimit.retryable, true);
+
+    const permanent = classifyAdsError(new Error("campaign schema mismatch"));
+    assert.equal(permanent.retryable, false);
+    assert.equal(permanent.errorMetadata, null);
   });
 });
