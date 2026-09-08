@@ -33,6 +33,7 @@ const READINESS_KEYS = {
   "Generating Executive Intelligence": "generatingExecutiveIntelligence",
   Ready: "ready",
   "Processing Failed": "processingFailed",
+  Saved: "saved",
 } as const;
 
 type ProspectReadinessKey = keyof typeof READINESS_KEYS;

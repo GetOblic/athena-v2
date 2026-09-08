@@ -7,6 +7,7 @@ import {
   getLocalizedProspectReadinessLabel,
 } from "@/lib/tenantI18n/prospectPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
+import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 
 const PROCESSING_STATUSES = new Set([
   "Queued",
@@ -33,6 +34,8 @@ export function getProspectIntelligenceStatusLabel(
       return convert.intelligenceReady;
     case "Processing Failed":
       return convert.intelligenceFailed;
+    case "Saved":
+      return convert.saved;
     default:
       return getLocalizedProspectReadinessLabel(messages, readiness);
   }
@@ -61,4 +64,25 @@ export function isProspectIntelligenceReady(
   readiness: string | null | undefined,
 ): boolean {
   return String(readiness ?? "").trim() === "Ready";
+}
+
+/**
+ * Full Executive Generate/Refresh is the existing shared action.
+ * A Saved GetOblic Opportunity may exist without a website; do not present
+ * that action as the next step until a website exists or intelligence already does.
+ */
+export function shouldOfferProspectFullIntelligenceAction(input: {
+  source: string | null | undefined;
+  website: string | null | undefined;
+  hasCurrentVersion: boolean;
+}): boolean {
+  const source = String(input.source ?? "").trim();
+  if (
+    source === "getoblic" &&
+    !normalizeWebsiteUrl(input.website) &&
+    !input.hasCurrentVersion
+  ) {
+    return false;
+  }
+  return true;
 }

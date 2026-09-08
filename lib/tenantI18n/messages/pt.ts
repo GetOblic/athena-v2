@@ -1665,6 +1665,8 @@ export const pt: TenantMessages = {
       filterEmptyBody:
         "Tente outra pesquisa ou outro filtro de estado de trabalho.",
       createFirstCta: "Adicionar prospect",
+      findOpportunitiesCta: "Encontrar oportunidades",
+      addProspectYourselfCta: "Adicionar um prospect você mesmo",
       prospectsOne: "1 prospect",
       prospectsMany: "{count} prospects",
       newOne: "1 novo",
@@ -1687,6 +1689,53 @@ export const pt: TenantMessages = {
       previous: "Anterior",
       next: "Seguinte",
     },
+    find: {
+      title: "Encontrar oportunidades",
+      subtitle:
+        "Pesquise negócios reais e adicione aqueles que quer que a Athena o ajude a perseguir.",
+      keywords: "Pesquisar",
+      keywordsPlaceholder: "Nome, categoria ou lugar",
+      submit: "Pesquisar",
+      searching: "A pesquisar…",
+      empty:
+        "Nenhum negócio correspondeu. Tente outro nome, categoria ou lugar.",
+      error: "A Athena não conseguiu pesquisar agora. Tente novamente.",
+      notConfigured:
+        "Este espaço ainda não está configurado para adicionar negócios GetOblic.",
+      allowanceExhausted:
+        "Adicionou o máximo de negócios GetOblic deste mês.",
+      addYourself: "Ou adicione um negócio você mesmo",
+      sourceGetOblic: "GetOblic",
+      available: "Disponível",
+      addToOpportunities: "Adicionar às oportunidades",
+      alreadyInMyOpportunities: "Já nas minhas oportunidades",
+      open: "Abrir",
+      alreadyBeingPursued: "Já está a ser seguida",
+      adding: "A adicionar…",
+      addFailed: "A Athena não conseguiu adicionar este negócio. Tente novamente.",
+      tryAgain: "Tentar novamente",
+      viewListing: "Ver listagem",
+      needsBusinessName:
+        "A Athena não conseguiu adicionar este negócio porque o nome está em falta.",
+      nameCollision:
+        "Já existe uma oportunidade semelhante. A Athena não adicionou uma segunda.",
+      imageAlt: "Negócio",
+    },
+    websiteCompletion: {
+      heading:
+        "Adicione o sítio deles para a Athena poder investigar este negócio.",
+      body: "Esta oportunidade está guardada. A Athena aprende o que um negócio faz a partir do sítio. Pode adicioná-lo agora ou mais tarde.",
+      website: "Sítio web",
+      researchCta: "Investigar este negócio",
+      researching: "A guardar…",
+      notNow: "Agora não",
+      laterNote:
+        "Adicione um sítio quando tiver um. A Athena pode investigar este negócio então.",
+      addWebsiteToStartResearch:
+        "Adicione o sítio deles para começar a investigação",
+      invalidWebsite: "Isso não parece um sítio web.",
+      failed: "A Athena não conseguiu guardar este sítio. Tente novamente.",
+    },
     convert: {
       athenaStarting: "A Athena está a começar",
       athenaWorking: "A Athena está a trabalhar",
@@ -1694,6 +1743,7 @@ export const pt: TenantMessages = {
       athenaWriting: "A Athena está a escrever a inteligência do prospect",
       intelligenceReady: "Inteligência pronta",
       intelligenceFailed: "Inteligência falhou",
+      saved: "Guardado",
       whyMatters: "Porque este prospect pode importar",
       whatTheyNeed: "O que parecem precisar",
       timingAndIntent: "Timing e intenção",
@@ -1939,6 +1989,7 @@ export const pt: TenantMessages = {
       generatingExecutiveIntelligence: "A gerar Executive Intelligence",
       ready: "Pronto",
       processingFailed: "Falha no processamento",
+      saved: "Guardado",
     },
     homepage: {
       title: "Pesquisa do sítio",

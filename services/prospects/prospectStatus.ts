@@ -10,6 +10,7 @@ export const PROSPECT_DISPLAY_STATUSES = [
   "Generating Executive Intelligence",
   "Ready",
   "Processing Failed",
+  "Saved",
 ] as const;
 
 export type ProspectDisplayStatus = (typeof PROSPECT_DISPLAY_STATUSES)[number];

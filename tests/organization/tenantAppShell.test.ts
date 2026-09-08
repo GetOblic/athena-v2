@@ -72,6 +72,7 @@ const SHELLED_PAGES = [
   "app/identity/page.tsx",
   "app/prospects/page.tsx",
   "app/prospects/import/page.tsx",
+  "app/prospects/find/page.tsx",
   "app/prospects/[id]/page.tsx",
   "app/seo/page.tsx",
   "app/seo/new/page.tsx",
@@ -164,6 +165,7 @@ const ACTIVE_STATE_CASES: Array<{
   { path: "/personas/abc", expectedKey: "generateTraction" },
   { path: "/prospects", expectedKey: "convertOpportunities" },
   { path: "/prospects/import", expectedKey: "convertOpportunities" },
+  { path: "/prospects/find", expectedKey: "convertOpportunities" },
   { path: "/prospects/abc", expectedKey: "convertOpportunities" },
   { path: "/inbox", expectedKey: "athenaInbox" },
   { path: "/ads", expectedKey: "generateTraction" },
@@ -445,10 +447,15 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
       /<TenantAppShell currentPath="\/prospects" messages=\{messages\}>/,
     );
     const prospectImport = read("app/prospects/import/page.tsx");
+    const prospectFind = read("app/prospects/find/page.tsx");
     const prospectDetail = read("app/prospects/[id]/page.tsx");
     assert.match(
       prospectImport,
       /<TenantAppShell currentPath="\/prospects\/import" messages=\{messages\}>/,
+    );
+    assert.match(
+      prospectFind,
+      /<TenantAppShell currentPath="\/prospects\/find" messages=\{messages\}>/,
     );
     assert.match(
       prospectDetail,
@@ -468,6 +475,7 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
       identity,
       prospects,
       prospectImport,
+      prospectFind,
       prospectDetail,
       seo,
       seoNew,

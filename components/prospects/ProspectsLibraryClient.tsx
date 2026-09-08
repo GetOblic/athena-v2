@@ -127,12 +127,23 @@ export function ProspectsLibraryClient({
           {list?.emptyHelp ??
             "Athena can write prospect intelligence and outreach drafts from the information you provide. A website helps."}
         </p>
-        <Link
-          href="/prospects/import"
-          className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
-        >
-          {list?.createFirstCta ?? list?.importCta ?? "Add prospect"}
-        </Link>
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Link
+            href="/prospects/find"
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
+          >
+            {list?.findOpportunitiesCta ?? "Find opportunities"}
+          </Link>
+          <Link
+            href="/prospects/import"
+            className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 px-6 py-3 text-sm font-semibold text-white sm:w-auto"
+          >
+            {list?.addProspectYourselfCta ??
+              list?.createFirstCta ??
+              list?.importCta ??
+              "Add a prospect yourself"}
+          </Link>
+        </div>
       </div>
     );
   }
@@ -193,12 +204,20 @@ export function ProspectsLibraryClient({
           </label>
         </div>
 
-        <Link
-          href="/prospects/import"
-          className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
-        >
-          {list?.importCta ?? "Add prospect"}
-        </Link>
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <Link
+            href="/prospects/find"
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
+          >
+            {list?.findOpportunitiesCta ?? "Find opportunities"}
+          </Link>
+          <Link
+            href="/prospects/import"
+            className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 px-6 py-3 text-sm font-semibold text-white sm:w-auto"
+          >
+            {list?.importCta ?? "Add prospect"}
+          </Link>
+        </div>
       </div>
 
       {filtered.length === 0 ? (

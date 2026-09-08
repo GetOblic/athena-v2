@@ -59,11 +59,12 @@ const DICTIONARIES: Record<string, TenantMessages> = {
 const CONVERT_ROUTES = [
   ["app/prospects/page.tsx", '/prospects"'],
   ["app/prospects/import/page.tsx", "/prospects/import"],
+  ["app/prospects/find/page.tsx", "/prospects/find"],
   ["app/prospects/[id]/page.tsx", "`/prospects/${id}`"],
 ] as const;
 
 describe("V2-UI-6C Convert Opportunities presentation", () => {
-  it("wraps all three routes in TenantAppShell and removes standalone chrome", () => {
+  it("wraps Convert Opportunities routes in TenantAppShell and removes standalone chrome", () => {
     for (const [file, pathFragment] of CONVERT_ROUTES) {
       const source = read(file);
       assert.match(source, /TenantAppShell/);
@@ -76,11 +77,16 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
     }
   });
 
-  it("activates Convert Opportunities on all three routes", () => {
+  it("activates Convert Opportunities on library, import, find, and detail routes", () => {
     const items = localizeTenantNav(en);
     const convert = items.find((item) => item.key === "convertOpportunities");
     assert.ok(convert);
-    for (const path of ["/prospects", "/prospects/import", "/prospects/abc"]) {
+    for (const path of [
+      "/prospects",
+      "/prospects/import",
+      "/prospects/find",
+      "/prospects/abc",
+    ]) {
       assert.equal(isTenantNavActive(path, convert), true, path);
     }
     assert.equal(isTenantNavActive("/personas", convert), false);
@@ -141,20 +147,29 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
     );
   });
 
-  it("does not add GetOblic discovery, claim, or Estimate primary CTAs", () => {
-    const surfaces = [
-      "app/prospects/page.tsx",
-      "app/prospects/import/page.tsx",
-      "app/prospects/[id]/page.tsx",
-      "components/prospects/ProspectsLibraryClient.tsx",
-      "components/prospects/ProspectImportForms.tsx",
-    ];
-    for (const file of surfaces) {
-      const source = read(file);
+  it("keeps GetOblic discovery as Find opportunities without claim or Estimate chrome", () => {
+    const library = read("components/prospects/ProspectsLibraryClient.tsx");
+    assert.match(library, /\/prospects\/find/);
+    assert.match(library, /findOpportunitiesCta/);
+    assert.doesNotMatch(library, /Search GetOblic|Find businesses/);
+    assert.doesNotMatch(library, /claim listing|allocation remaining|KB sync/);
+    assert.doesNotMatch(library, /\/licensee\/estimate/);
+
+    const importPage = read("app/prospects/import/page.tsx");
+    const importForms = read("components/prospects/ProspectImportForms.tsx");
+    for (const source of [importPage, importForms]) {
       assert.doesNotMatch(source, /Search GetOblic|Find businesses/);
       assert.doesNotMatch(source, /claim listing|allocation remaining|KB sync/);
       assert.doesNotMatch(source, /\/licensee\/estimate/);
+      assert.doesNotMatch(source, /GetOblicOpportunityDiscovery/);
     }
+
+    const detail = read("app/prospects/[id]/page.tsx");
+    assert.doesNotMatch(detail, /GetOblicOpportunityDiscovery/);
+    assert.doesNotMatch(detail, /\/api\/getoblic-directory\/search/);
+    assert.match(detail, /GetOblicWebsiteCompletionCard/);
+    assert.doesNotMatch(detail, /claim listing|allocation remaining|KB sync/);
+    assert.doesNotMatch(detail, /\/licensee\/estimate/);
   });
 
   it("does not invent a persisted next-action task", () => {
@@ -375,6 +390,12 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
       "prospects.import.createTitle",
       "prospects.detail.refreshIntelligence",
       "prospects.detail.savedBanner",
+      "prospects.list.findOpportunitiesCta",
+      "prospects.find.title",
+      "prospects.websiteCompletion.heading",
+      "prospects.websiteCompletion.addWebsiteToStartResearch",
+      "prospects.convert.saved",
+      "prospects.readiness.saved",
     ];
     const canonical = collectKeyPaths(en);
     for (const path of required) {

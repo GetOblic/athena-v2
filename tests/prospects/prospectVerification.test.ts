@@ -94,6 +94,16 @@ describe("prospect display status resolution", () => {
       "Queued",
     );
   });
+
+  it("keeps Saved when generation was intentionally deferred", () => {
+    assert.equal(
+      resolveProspectDisplayStatus({
+        prospectStatus: "Saved",
+        hasCurrentVersion: false,
+      }),
+      "Saved",
+    );
+  });
 });
 
 describe("prospect opportunity score resolution", () => {

@@ -13,6 +13,7 @@ import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectL
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import { ProspectDeepScrapeWebsiteButton } from "@/components/prospects/ProspectDeepScrapeWebsiteButton";
 import { ProspectHeaderDeleteButton } from "@/components/prospects/ProspectHeaderDeleteButton";
+import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
 import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
 import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
@@ -32,6 +33,7 @@ import {
   getProspectIntelligenceStatusLabel,
   isProspectIntelligenceFailed,
   isProspectIntelligenceProcessing,
+  shouldOfferProspectFullIntelligenceAction,
 } from "@/lib/prospects/prospectReadinessPresentation";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
@@ -152,6 +154,11 @@ export default async function ProspectDetailsPage({
     }),
   );
   const websiteHref = normalizeWebsiteUrl(prospect.website);
+  const offerFullIntelligence = shouldOfferProspectFullIntelligenceAction({
+    source: prospect.source,
+    website: prospect.website,
+    hasCurrentVersion,
+  });
   const location = [prospect.city, prospect.state, prospect.country]
     .map((part) => String(part ?? "").trim())
     .filter(Boolean)
@@ -242,6 +249,13 @@ export default async function ProspectDetailsPage({
         ) : null}
       </TractionPageHeader>
 
+      {prospect.source === "getoblic" && !prospect.website ? (
+        <GetOblicWebsiteCompletionCard
+          prospectId={prospect.id}
+          messages={messages}
+        />
+      ) : null}
+
       {!hasCurrentVersion && !intelligenceProcessing && !intelligenceFailed ? (
         <div className="mb-6 rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
           <p className="text-sm font-medium text-white/80">
@@ -273,15 +287,21 @@ export default async function ProspectDetailsPage({
       ) : null}
 
       <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <ProspectRefreshIntelligenceButton
-          prospectId={prospect.id}
-          discussionId={
-            discussion?.id ?? prospect.linked_discussion_id ?? null
-          }
-          chrome={copy.detail}
-          hasCurrentVersion={hasCurrentVersion}
-          intelligenceStatus={intelligenceReadiness}
-        />
+        {offerFullIntelligence ? (
+          <ProspectRefreshIntelligenceButton
+            prospectId={prospect.id}
+            discussionId={
+              discussion?.id ?? prospect.linked_discussion_id ?? null
+            }
+            chrome={copy.detail}
+            hasCurrentVersion={hasCurrentVersion}
+            intelligenceStatus={intelligenceReadiness}
+          />
+        ) : (
+          <p className="text-sm leading-6 text-white/55">
+            {copy.websiteCompletion.addWebsiteToStartResearch}
+          </p>
+        )}
         <ProspectDeepScrapeWebsiteButton
           prospectId={prospect.id}
           initiallyAvailable={hasCurrentVersion && Boolean(prospect.website)}
@@ -351,7 +371,9 @@ export default async function ProspectDetailsPage({
             className={`rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
           >
             <p className="max-w-3xl text-sm leading-7 text-white/50">
-              {copy.detail.noDiscussion}
+              {offerFullIntelligence
+                ? copy.detail.noDiscussion
+                : copy.websiteCompletion.addWebsiteToStartResearch}
             </p>
           </div>
           {profileEditor}

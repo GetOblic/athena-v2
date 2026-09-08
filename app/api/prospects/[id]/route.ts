@@ -7,11 +7,16 @@ import {
 import { ensureProspectGenerationQueued } from "@/services/prospects/prospectImporter";
 import { toPublicProspect } from "@/services/prospects/prospectPublic";
 import { hasMeaningfulProspectEdit } from "@/services/prospects/prospectUtils";
+import {
+  GETOBLIC_PROSPECT_SOURCE,
+  mergeGetOblicWebsiteAttribution,
+} from "@/services/getoblicDirectory/getoblicDirectoryConvertService";
 import { GetOblicDirectoryError } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
 } from "@/services/organizationService";
+import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,9 +89,19 @@ export async function PATCH(
       );
     }
 
+    const nextWebsite =
+      body.website === undefined
+        ? undefined
+        : normalizeWebsiteUrl(optionalString(body.website));
+    const mergedRawJson =
+      existing.source === GETOBLIC_PROSPECT_SOURCE && nextWebsite
+        ? mergeGetOblicWebsiteAttribution(existing.raw_json)
+        : undefined;
+
     const prospect = await updateProspect(id, organizationId, {
       business_name: optionalString(body.business_name),
       website: optionalString(body.website),
+      raw_json: mergedRawJson,
       linkedin: optionalString(body.linkedin),
       facebook: optionalString(body.facebook),
       instagram: optionalString(body.instagram),
