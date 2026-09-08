@@ -56,6 +56,7 @@ function convertFailureCopy(
     case "GETOBLIC_NAME_COLLISION":
       return copy.nameCollision;
     case "GETOBLIC_LISTING_CLAIMED_OTHER_ORG":
+    case "GETOBLIC_LISTING_NOT_CLAIMABLE":
       return copy.alreadyBeingPursued;
     default:
       return fallback;

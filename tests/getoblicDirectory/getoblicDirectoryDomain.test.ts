@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { directoryErrorStatus } from "../../services/getoblicDirectory/getoblicDirectoryErrors";
 import {
   classifyGetOblicDirectorySearchClaimStatus,
   classifyGetOblicListingClaimAvailability,
+  GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
   getCurrentGetOblicAllocationPeriodStart,
   isActiveGetOblicRelationshipStatus,
+  isGetOblicInventoryPoolAuthor,
   type GetOblicActiveListingClaimLookup,
 } from "../../services/getoblicDirectory/getoblicDirectoryTypes";
 
@@ -121,51 +124,130 @@ describe("GetOblic listing claim availability", () => {
 });
 
 describe("GetOblic directory search claim overlay", () => {
-  it("returns AVAILABLE when no active claim exists", () => {
+  const POOL = GETOBLIC_INVENTORY_POOL_AUTHOR_ID;
+  const LICENSEE_AUTHOR_ID = 271520168;
+
+  it("names the GetOblic inventory-pool author once", () => {
+    assert.equal(GETOBLIC_INVENTORY_POOL_AUTHOR_ID, 271519816);
+    assert.equal(isGetOblicInventoryPoolAuthor(POOL), true);
+    assert.equal(isGetOblicInventoryPoolAuthor(LICENSEE_AUTHOR_ID), false);
+    assert.equal(isGetOblicInventoryPoolAuthor(null), false);
+  });
+
+  it("returns AVAILABLE when the live owner is the inventory pool and no claim exists", () => {
     assert.equal(
-      classifyGetOblicDirectorySearchClaimStatus(ORG_A, null),
+      classifyGetOblicDirectorySearchClaimStatus(ORG_A, null, POOL),
       "AVAILABLE",
+    );
+  });
+
+  it("returns UNAVAILABLE when no claim exists and the live owner is not the inventory pool", () => {
+    assert.equal(
+      classifyGetOblicDirectorySearchClaimStatus(
+        ORG_A,
+        null,
+        LICENSEE_AUTHOR_ID,
+      ),
+      "UNAVAILABLE",
+    );
+  });
+
+  it("returns UNAVAILABLE when the live owner is absent or unparseable", () => {
+    assert.equal(
+      classifyGetOblicDirectorySearchClaimStatus(ORG_A, null, null),
+      "UNAVAILABLE",
     );
   });
 
   it("returns OWNED_BY_THIS_ORG only for a completed same-organization claim", () => {
     assert.equal(
-      classifyGetOblicDirectorySearchClaimStatus(ORG_A, {
-        organization_id: ORG_A,
-        relationship_status: "linked",
-      }),
+      classifyGetOblicDirectorySearchClaimStatus(
+        ORG_A,
+        {
+          organization_id: ORG_A,
+          relationship_status: "linked",
+        },
+        POOL,
+      ),
       "OWNED_BY_THIS_ORG",
     );
   });
 
+  it("keeps Dallas/TULI/Miami same-org linked rows Open after WordPress reassignment", () => {
+    for (const listingId of [179011, 546506, 653470]) {
+      assert.equal(
+        classifyGetOblicDirectorySearchClaimStatus(
+          ORG_A,
+          {
+            organization_id: ORG_A,
+            relationship_status: "linked",
+          },
+          LICENSEE_AUTHOR_ID,
+        ),
+        "OWNED_BY_THIS_ORG",
+        `listing ${listingId}`,
+      );
+    }
+  });
+
   it("returns INCOMPLETE_FOR_THIS_ORG for a same-organization claiming reservation", () => {
     assert.equal(
-      classifyGetOblicDirectorySearchClaimStatus(ORG_A, {
-        organization_id: ORG_A,
-        relationship_status: "claiming",
-      }),
+      classifyGetOblicDirectorySearchClaimStatus(
+        ORG_A,
+        {
+          organization_id: ORG_A,
+          relationship_status: "claiming",
+        },
+        POOL,
+      ),
       "INCOMPLETE_FOR_THIS_ORG",
     );
   });
 
   it("returns INCOMPLETE_FOR_THIS_ORG for a same-organization remote_missing reservation", () => {
     assert.equal(
-      classifyGetOblicDirectorySearchClaimStatus(ORG_A, {
-        organization_id: ORG_A,
-        relationship_status: "remote_missing",
-      }),
+      classifyGetOblicDirectorySearchClaimStatus(
+        ORG_A,
+        {
+          organization_id: ORG_A,
+          relationship_status: "remote_missing",
+        },
+        POOL,
+      ),
       "INCOMPLETE_FOR_THIS_ORG",
     );
   });
 
+  it("returns UNAVAILABLE for same-org claiming when the live owner is no longer the inventory pool", () => {
+    assert.equal(
+      classifyGetOblicDirectorySearchClaimStatus(
+        ORG_A,
+        {
+          organization_id: ORG_A,
+          relationship_status: "claiming",
+        },
+        LICENSEE_AUTHOR_ID,
+      ),
+      "UNAVAILABLE",
+    );
+  });
+
   it("returns UNAVAILABLE for another organization without leaking identifiers", () => {
-    const status = classifyGetOblicDirectorySearchClaimStatus(ORG_A, {
-      organization_id: ORG_B,
-      relationship_status: "linked",
-    });
+    const status = classifyGetOblicDirectorySearchClaimStatus(
+      ORG_A,
+      {
+        organization_id: ORG_B,
+        relationship_status: "linked",
+      },
+      POOL,
+    );
     assert.equal(status, "UNAVAILABLE");
     assert.doesNotMatch(status, new RegExp(ORG_B));
     assert.doesNotMatch(status, /OWNED_BY_THIS_PROSPECT/);
+  });
+
+  it("maps GETOBLIC_LISTING_NOT_CLAIMABLE to HTTP 409", () => {
+    assert.equal(directoryErrorStatus("GETOBLIC_LISTING_NOT_CLAIMABLE"), 409);
   });
 });
 

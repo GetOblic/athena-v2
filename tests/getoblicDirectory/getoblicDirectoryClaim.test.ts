@@ -15,7 +15,10 @@ import {
   type ClaimKnownListingWordpressPort,
 } from "../../services/getoblicDirectory/getoblicDirectoryClaimService";
 import { GetOblicWordpressError } from "../../services/getoblicDirectory/getoblicWordpressTypes";
-import type { GetOblicListingLink } from "../../services/getoblicDirectory/getoblicDirectoryTypes";
+import {
+  GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
+  type GetOblicListingLink,
+} from "../../services/getoblicDirectory/getoblicDirectoryTypes";
 
 const originalFrom = supabaseAdmin.from.bind(supabaseAdmin);
 const originalRpc = supabaseAdmin.rpc.bind(supabaseAdmin);
@@ -174,7 +177,7 @@ function successWordpress(
         wordpress_listing_id: id,
         status: "publish",
         title: "Listing",
-        author_id: 1,
+        author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
         google_id: null,
         google_place_url: null,
         knowledge_base: null,
@@ -603,7 +606,7 @@ describe("GetOblic claim orchestration", () => {
     );
   });
 
-  it("3. new claim inserts claiming before remote side effects", async () => {
+  it("3. new claim reserves claiming before assign and allocation", async () => {
     const store = {
       settings: [defaultSettings()],
       prospects: [defaultProspect()],
@@ -612,39 +615,43 @@ describe("GetOblic claim orchestration", () => {
     };
     const timeline: string[] = [];
     const { ops } = installStore(store);
+    const insertCount = () =>
+      ops.filter(
+        (op) => op.op === "insert" && op.table === "athena_getoblic_listing_links",
+      ).length;
     const wordpress = successWordpress({
       getListingById: async (id) => {
-        timeline.push("remote:getListing");
+        timeline.push(`remote:getListing:${insertCount()}`);
         return {
           wordpress_listing_id: id,
           status: "publish",
           title: "Listing",
-          author_id: 1,
+          author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
           google_id: null,
           google_place_url: null,
           knowledge_base: null,
         };
       },
-    });
-    const originalInsertCount = () =>
-      ops.filter(
-        (op) => op.op === "insert" && op.table === "athena_getoblic_listing_links",
-      ).length;
-    const wordpressWithOrder: ClaimKnownListingWordpressPort = {
-      ...wordpress,
-      getListingById: async (id) => {
-        assert.equal(originalInsertCount(), 1);
-        return wordpress.getListingById(id);
+      assignListingAuthor: async (listingId, userId) => {
+        timeline.push("remote:assignAuthor");
+        assert.equal(insertCount(), 1);
+        return {
+          wordpress_listing_id: listingId,
+          wordpress_user_id: userId,
+          changed: true,
+        };
       },
-    };
-    const result = await claim({}, wordpressWithOrder);
+    });
+    const result = await claim({}, wordpress);
     assert.deepEqual(
       ops.find(
         (op) => op.op === "insert" && op.table === "athena_getoblic_listing_links",
       )?.values?.relationship_status,
       "claiming",
     );
-    assert.equal(timeline[0], "remote:getListing");
+    assert.equal(timeline[0], "remote:getListing:0");
+    assert.ok(timeline.includes("remote:getListing:1"));
+    assert.ok(timeline.indexOf("remote:assignAuthor") > timeline.indexOf("remote:getListing:1"));
     assert.equal(result.outcome, "linked");
     assert.equal(store.links[0]?.relationship_status, "linked");
   });
@@ -763,7 +770,7 @@ describe("GetOblic claim orchestration", () => {
       raceWinner: raced,
     });
     await assert.rejects(
-      () => claim(),
+      () => claim({}, successWordpress()),
       (error: unknown) => {
         assert.ok(error instanceof GetOblicDirectoryError);
         assert.equal(error.code, "GETOBLIC_LISTING_CLAIMED_OTHER_ORG");
@@ -928,6 +935,140 @@ describe("GetOblic claim orchestration", () => {
     const result = await claim({}, successWordpress());
     assert.equal(result.outcome, "linked");
     assert.equal(result.allocated, true);
+  });
+
+  it("rejects a brand-new ineligible Add before inserting a claiming reservation", async () => {
+    const store = {
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      links: [] as LinkRow[],
+      events: [] as EventRow[],
+    };
+    const { ops } = installStore(store);
+    const wordpress = successWordpress({
+      getListingById: async (id) => ({
+        wordpress_listing_id: id,
+        status: "publish",
+        title: "Listing",
+        author_id: 271520168,
+        google_id: null,
+        google_place_url: null,
+        knowledge_base: null,
+      }),
+    });
+    await assert.rejects(
+      () => claim({}, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_LISTING_NOT_CLAIMABLE");
+        assert.equal(error.status, 409);
+        assert.equal(error.link, null);
+        assert.doesNotMatch(error.message, /271519816|271520168|WordPress|author/i);
+        return true;
+      },
+    );
+    assert.equal(store.links.length, 0);
+    assert.equal(store.events.length, 0);
+    assert.equal(
+      ops.filter(
+        (op) => op.op === "insert" && op.table === "athena_getoblic_listing_links",
+      ).length,
+      0,
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+  });
+
+  it("fails closed at claim time when the live owner is no longer the inventory pool", async () => {
+    const existing = completeLink({
+      organization_id: ORG_A,
+      prospect_id: PROSPECT_A,
+      wordpress_listing_id: 1000,
+      relationship_status: "claiming",
+    });
+    const store = {
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      links: [existing],
+      events: [] as EventRow[],
+    };
+    const { ops } = installStore(store);
+    const wordpress = successWordpress({
+      getListingById: async (id) => ({
+        wordpress_listing_id: id,
+        status: "publish",
+        title: "Listing",
+        author_id: 99,
+        google_id: null,
+        google_place_url: null,
+        knowledge_base: null,
+      }),
+    });
+    await assert.rejects(
+      () => claim({}, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_LISTING_NOT_CLAIMABLE");
+        assert.equal(error.link?.id, "link-1");
+        assert.equal(error.link?.relationship_status, "claiming");
+        return true;
+      },
+    );
+    assert.equal(store.links[0]?.relationship_status, "claiming");
+    assert.equal(store.links[0]?.wordpress_author_id, null);
+    assert.equal(store.events.length, 0);
+    assert.equal(
+      ops.filter((op) => op.op === "rpc").length,
+      0,
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+  });
+
+  it("re-reads the live owner after search and rejects a TOCTOU owner change", async () => {
+    const store = {
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      links: [] as LinkRow[],
+      events: [] as EventRow[],
+    };
+    installStore(store);
+    let reads = 0;
+    const wordpress = successWordpress({
+      getListingById: async (id) => {
+        reads += 1;
+        return {
+          wordpress_listing_id: id,
+          status: "publish",
+          title: "Listing",
+          author_id:
+            reads === 1 ? GETOBLIC_INVENTORY_POOL_AUTHOR_ID : 271520168,
+          google_id: null,
+          google_place_url: null,
+          knowledge_base: null,
+        };
+      },
+    });
+    await assert.rejects(
+      () => claim({}, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_LISTING_NOT_CLAIMABLE");
+        return true;
+      },
+    );
+    assert.equal(reads, 2);
+    assert.equal(store.links[0]?.relationship_status, "claiming");
+    assert.equal(store.links[0]?.wordpress_author_id, null);
+    assert.equal(store.events.length, 0);
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
   });
 
   it("15. author remote failure stays claiming and does not allocate", async () => {

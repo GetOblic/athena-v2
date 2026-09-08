@@ -329,6 +329,7 @@ function parseSearchHit(value: unknown): GetOblicWordpressSearchHit {
     lng: readNullableNumber(source, "lng"),
     image: readNullableString(source, "image"),
     google_id: readNullableString(source, "google_id"),
+    author_id: readInteger(source, "author_id"),
   };
 }
 

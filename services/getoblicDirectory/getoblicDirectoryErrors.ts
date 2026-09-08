@@ -19,6 +19,7 @@ export function directoryErrorStatus(code: GetOblicDirectoryErrorCode): number {
       return 502;
     case "GETOBLIC_KB_SYNC_PERSISTENCE_FAILED":
       return 500;
+    case "GETOBLIC_LISTING_NOT_CLAIMABLE":
     case "GETOBLIC_CONCURRENCY_CONFLICT":
       return 409;
     default:
@@ -43,6 +44,17 @@ export class GetOblicDirectoryError extends Error {
     this.status = status;
     this.link = link;
   }
+}
+
+export function getOblicListingNotClaimableError(
+  link: GetOblicListingLink | null = null,
+): GetOblicDirectoryError {
+  return new GetOblicDirectoryError(
+    "GETOBLIC_LISTING_NOT_CLAIMABLE",
+    "This listing is not available to claim.",
+    409,
+    link,
+  );
 }
 
 export function getOblicListingActiveClaimError(): GetOblicDirectoryError {

@@ -12,6 +12,7 @@ import {
   type GetOblicDirectorySearchWordpressPort,
 } from "../../services/getoblicDirectory/getoblicDirectorySearchService";
 import { GetOblicWordpressError } from "../../services/getoblicDirectory/getoblicWordpressTypes";
+import { GETOBLIC_INVENTORY_POOL_AUTHOR_ID } from "../../services/getoblicDirectory/getoblicDirectoryTypes";
 import type { GetOblicWordpressSearchResponse } from "../../services/getoblicDirectory/getoblicWordpressTypes";
 
 const originalFrom = supabaseAdmin.from.bind(supabaseAdmin);
@@ -129,6 +130,7 @@ function hit(
     lng: -96.81,
     image: null,
     google_id: null,
+    author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
     ...overrides,
   };
 }
@@ -296,6 +298,74 @@ describe("GetOblic directory search service", () => {
     assert.doesNotMatch(serialized, new RegExp(PROSPECT_A));
     assert.doesNotMatch(serialized, new RegExp(PROSPECT_B));
     assert.doesNotMatch(serialized, /OWNED_BY_THIS_PROSPECT/);
+    assert.doesNotMatch(serialized, /author_id/);
+    assert.doesNotMatch(serialized, /271519816/);
+  });
+
+  it("classifies live inventory-pool ownership independently of public payload", async () => {
+    installLinks([
+      completeLink({
+        id: "link-dallas",
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_A,
+        wordpress_listing_id: 179011,
+        relationship_status: "linked",
+      }),
+      completeLink({
+        id: "link-tuli",
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_A,
+        wordpress_listing_id: 546506,
+        relationship_status: "linked",
+      }),
+      completeLink({
+        id: "link-miami",
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_A,
+        wordpress_listing_id: 653470,
+        relationship_status: "linked",
+      }),
+      completeLink({
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_B,
+        wordpress_listing_id: 100,
+        relationship_status: "claiming",
+      }),
+    ]);
+
+    const result = await searchGetOblicDirectory(
+      {
+        organizationId: ORG_A,
+        keywords: "hair salons in Dallas",
+      },
+      port(
+        remoteResponse([
+          hit(179011, { author_id: 271520168, title: "Salon Dallas" }),
+          hit(546506, { author_id: 271520168, title: "TULI" }),
+          hit(653470, { author_id: 271520168, title: "Salon Miami" }),
+          hit(200, { author_id: 99 }),
+          hit(100),
+          hit(300),
+          hit(400, { author_id: null }),
+        ]),
+      ),
+    );
+
+    assert.equal(result.results[0]?.athena_claim_status, "OWNED_BY_THIS_ORG");
+    assert.equal(result.results[1]?.athena_claim_status, "OWNED_BY_THIS_ORG");
+    assert.equal(result.results[2]?.athena_claim_status, "OWNED_BY_THIS_ORG");
+    assert.equal(result.results[3]?.athena_claim_status, "UNAVAILABLE");
+    assert.equal(result.results[4]?.athena_claim_status, "INCOMPLETE_FOR_THIS_ORG");
+    assert.equal(result.results[5]?.athena_claim_status, "AVAILABLE");
+    assert.equal(result.results[6]?.athena_claim_status, "UNAVAILABLE");
+    const publicSearch = toPublicGetOblicDirectorySearch(result);
+    const serialized = JSON.stringify(publicSearch);
+    assert.doesNotMatch(serialized, /author_id/);
+    assert.doesNotMatch(serialized, /271519816/);
+    assert.doesNotMatch(serialized, /271520168/);
+    for (const row of publicSearch.results) {
+      assert.equal("author_id" in row, false);
+    }
   });
 
   it("overlays same-org claiming as incomplete, not owned", async () => {
@@ -454,6 +524,9 @@ describe("GetOblic directory search source contract", () => {
     assert.doesNotMatch(service, /consumeGetOblicListingAllocation/);
     assert.doesNotMatch(service, /OWNED_BY_THIS_PROSPECT/);
     assert.doesNotMatch(service, /createProspect/);
+    assert.match(service, /hit\.author_id/);
+    assert.doesNotMatch(service, /author_id: hit\.author_id/);
+    assert.doesNotMatch(service, /271519816/);
   });
 
   it("does not add UI, migrations, or Elastic credentials", () => {

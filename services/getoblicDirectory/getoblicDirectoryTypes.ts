@@ -89,6 +89,7 @@ export const GETOBLIC_DIRECTORY_ERROR_CODES = [
   "GETOBLIC_PROSPECT_ALREADY_LINKED",
   "GETOBLIC_LISTING_CLAIMED_SAME_ORG",
   "GETOBLIC_LISTING_CLAIMED_OTHER_ORG",
+  "GETOBLIC_LISTING_NOT_CLAIMABLE",
   "GETOBLIC_REMOTE_LISTING_MISSING",
   "GETOBLIC_REMOTE_AUTH_FAILED",
   "GETOBLIC_REMOTE_TRANSIENT",
@@ -193,6 +194,14 @@ export function isActiveGetOblicRelationshipStatus(
   );
 }
 
+export const GETOBLIC_INVENTORY_POOL_AUTHOR_ID = 271519816 as const;
+
+export function isGetOblicInventoryPoolAuthor(
+  authorId: number | null,
+): boolean {
+  return authorId === GETOBLIC_INVENTORY_POOL_AUTHOR_ID;
+}
+
 export const GETOBLIC_DIRECTORY_SEARCH_CLAIM_STATUSES = [
   "AVAILABLE",
   "OWNED_BY_THIS_ORG",
@@ -220,21 +229,31 @@ export const GETOBLIC_DIRECTORY_SEARCH_MAX_PER_PAGE = 20;
  * Generic directory search has no Prospect authority.
  * Do not emit OWNED_BY_THIS_PROSPECT from this classifier.
  * OWNED_BY_THIS_ORG is completed (linked) only.
- * claiming / remote_missing stay INCOMPLETE_FOR_THIS_ORG.
+ * Same-org claiming / remote_missing stay INCOMPLETE_FOR_THIS_ORG
+ * only while the live WordPress owner is still the inventory pool.
  */
 export function classifyGetOblicDirectorySearchClaimStatus(
   organizationId: string,
   claim: GetOblicDirectorySearchClaimOverlay | null,
+  currentAuthorId: number | null,
 ): GetOblicDirectorySearchClaimStatus {
-  if (!claim) {
-    return "AVAILABLE";
+  if (
+    claim &&
+    claim.organization_id === organizationId &&
+    claim.relationship_status === "linked"
+  ) {
+    return "OWNED_BY_THIS_ORG";
   }
-  if (claim.organization_id === organizationId) {
-    return claim.relationship_status === "linked"
-      ? "OWNED_BY_THIS_ORG"
-      : "INCOMPLETE_FOR_THIS_ORG";
+  if (claim && claim.organization_id !== organizationId) {
+    return "UNAVAILABLE";
   }
-  return "UNAVAILABLE";
+  if (!isGetOblicInventoryPoolAuthor(currentAuthorId)) {
+    return "UNAVAILABLE";
+  }
+  if (claim && claim.organization_id === organizationId) {
+    return "INCOMPLETE_FOR_THIS_ORG";
+  }
+  return "AVAILABLE";
 }
 
 export function classifyGetOblicListingClaimAvailability(

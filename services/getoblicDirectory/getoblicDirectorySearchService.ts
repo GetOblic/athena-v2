@@ -29,7 +29,10 @@ const defaultWordpressPort: GetOblicDirectorySearchWordpressPort = {
   searchWordpressListings,
 };
 
-export type GetOblicDirectorySearchHit = GetOblicWordpressSearchHit & {
+export type GetOblicDirectorySearchHit = Omit<
+  GetOblicWordpressSearchHit,
+  "author_id"
+> & {
   athena_claim_status: GetOblicDirectorySearchClaimStatus;
 };
 
@@ -124,10 +127,21 @@ export async function searchGetOblicDirectory(
     found_posts: remote.pagination.found_posts,
     max_num_pages: remote.pagination.max_num_pages,
     results: remote.results.map((hit) => ({
-      ...hit,
+      wordpress_listing_id: hit.wordpress_listing_id,
+      title: hit.title,
+      permalink: hit.permalink,
+      status: hit.status,
+      listing_type: hit.listing_type,
+      category: hit.category,
+      location_display: hit.location_display,
+      lat: hit.lat,
+      lng: hit.lng,
+      image: hit.image,
+      google_id: hit.google_id,
       athena_claim_status: classifyGetOblicDirectorySearchClaimStatus(
         organizationId,
         claims.get(hit.wordpress_listing_id) ?? null,
+        hit.author_id,
       ),
     })),
   };

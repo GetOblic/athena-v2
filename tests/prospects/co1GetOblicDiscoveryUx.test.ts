@@ -74,6 +74,10 @@ describe("CO-1 Find Opportunities UX", () => {
     assert.doesNotMatch(discovery, /google.?places/i);
     assert.match(discovery, /page: String\(nextPage\)/);
     assert.match(discovery, /if \(!trimmed\)/);
+    assert.match(discovery, /GETOBLIC_LISTING_NOT_CLAIMABLE/);
+    assert.match(discovery, /alreadyBeingPursued/);
+    assert.doesNotMatch(discovery, /271519816/);
+    assert.doesNotMatch(discovery, /author_id/);
   });
 
   it("covers search result card states without leaking other-org identity", () => {

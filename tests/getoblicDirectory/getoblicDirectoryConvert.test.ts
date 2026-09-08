@@ -15,7 +15,10 @@ import {
   toPublicGetOblicConversion,
   type GetOblicConvertDependencies,
 } from "../../services/getoblicDirectory/getoblicDirectoryConvertService";
-import type { GetOblicListingLink } from "../../services/getoblicDirectory/getoblicDirectoryTypes";
+import {
+  GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
+  type GetOblicListingLink,
+} from "../../services/getoblicDirectory/getoblicDirectoryTypes";
 import { GetOblicWordpressError } from "../../services/getoblicDirectory/getoblicWordpressTypes";
 import type { Prospect } from "../../services/prospects/prospectService";
 
@@ -162,7 +165,7 @@ function deps(
       wordpress_listing_id: id,
       status: "publish",
       title: "Acme Salon",
-      author_id: 1,
+      author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
       google_id: "ChIJ123",
       google_place_url: "https://maps.google.com/?cid=1",
       knowledge_base: "do-not-copy",
@@ -495,7 +498,7 @@ describe("GetOblic directory convert orchestration", () => {
         wordpress_listing_id: id,
         status: "publish",
         title: null,
-        author_id: 1,
+        author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
         google_id: null,
         google_place_url: null,
         knowledge_base: null,
@@ -625,6 +628,76 @@ describe("GetOblic directory convert orchestration", () => {
     assert.equal(provenance.origin, "getoblic_directory");
     assert.doesNotMatch(JSON.stringify(provenance), /secret-notes/);
     assert.doesNotMatch(JSON.stringify(provenance), /author_id/);
+  });
+
+  it("rejects an ineligible new Add before Prospect or claim creation", async () => {
+    const port = deps({
+      getListingById: async (id) => ({
+        wordpress_listing_id: id,
+        status: "publish",
+        title: "Acme Salon",
+        author_id: 271520168,
+        google_id: "ChIJ123",
+        google_place_url: "https://maps.google.com/?cid=1",
+        knowledge_base: null,
+      }),
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "unavailable");
+    assert.notEqual(result.outcome, "claim_incomplete");
+    assert.equal(result.prospect_id, null);
+    assert.equal(port.created.length, 0);
+    assert.equal(port.claimed.length, 0);
+    assert.deepEqual(port.deleted, []);
+  });
+
+  it("keeps same-org linked Open without applying inventory-pool preflight", async () => {
+    const existing = prospect({ id: PROSPECT_B, status: "Saved" });
+    let listingReads = 0;
+    const port = deps({
+      getActiveListingClaim: async () => ({
+        found: true,
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_B,
+        relationship_status: "linked",
+      }),
+      getProspectById: async () => existing,
+      getListingById: async (id) => {
+        listingReads += 1;
+        return {
+          wordpress_listing_id: id,
+          status: "publish",
+          title: "Salon Dallas",
+          author_id: 271520168,
+          google_id: null,
+          google_place_url: null,
+          knowledge_base: null,
+        };
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "already_owned");
+    assert.equal(result.prospect_id, PROSPECT_B);
+    assert.equal(listingReads, 0);
+    assert.equal(port.created.length, 0);
+    assert.equal(port.claimed.length, 0);
+  });
+
+  it("maps claim-time GETOBLIC_LISTING_NOT_CLAIMABLE to unavailable", async () => {
+    const port = deps({
+      claimKnownExistingListing: async () => {
+        throw new GetOblicDirectoryError(
+          "GETOBLIC_LISTING_NOT_CLAIMABLE",
+          "This listing is not available to claim.",
+        );
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "unavailable");
+    assert.notEqual(result.outcome, "claim_incomplete");
+    assert.equal(result.prospect_id, null);
+    assert.equal(port.created.length, 1);
+    assert.deepEqual(port.deleted, []);
   });
 });
 

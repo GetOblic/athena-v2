@@ -224,6 +224,7 @@ describe("GetOblic WordPress client operations", () => {
               lng: -96.81,
               image: null,
               google_id: null,
+              author_id: 271519816,
             },
           ],
           pagination: {
@@ -247,6 +248,7 @@ describe("GetOblic WordPress client operations", () => {
       per_page: 6,
     });
     assert.equal(result.results[0]?.wordpress_listing_id, 683539);
+    assert.equal(result.results[0]?.author_id, 271519816);
     assert.equal(result.pagination.found_posts, 16);
     const url = new URL(calls[0]?.url ?? "");
     assert.equal(url.origin + url.pathname, "https://getoblic.com/wp-json/athena/v1/listings/search");
@@ -260,6 +262,57 @@ describe("GetOblic WordPress client operations", () => {
     const headers = new Headers(calls[0]?.init?.headers);
     assert.equal(headers.get("x-api-key"), "test-directory-key");
     assert.equal(calls[0]?.init?.method, "GET");
+  });
+
+  it("parses a missing search author_id as null without failing the hit", async () => {
+    process.env.ATHENA_V2_DIRECTORY_API_KEY = "test-directory-key";
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          query: {
+            keywords: "hair",
+            listing_type: "getoblic_global_search_engine",
+            page: 0,
+            per_page: 6,
+          },
+          results: [
+            {
+              wordpress_listing_id: 197509,
+              title: "Other owner",
+              permalink: "https://getoblic.com/listing/other",
+              status: "publish",
+              listing_type: "barbershop",
+              category: [],
+              location_display: null,
+              lat: null,
+              lng: null,
+              image: null,
+              google_id: null,
+            },
+          ],
+          pagination: {
+            page: 0,
+            per_page: 6,
+            found_posts: 1,
+            max_num_pages: 1,
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    const { searchWordpressListings } = await import(
+      "../../services/getoblicDirectory/getoblicWordpressClient"
+    );
+    const result = await searchWordpressListings({
+      keywords: "hair",
+      listing_type: "getoblic_global_search_engine",
+      page: 0,
+      per_page: 6,
+    });
+    assert.equal(result.results[0]?.wordpress_listing_id, 197509);
+    assert.equal(result.results[0]?.author_id, null);
   });
 
   it("rejects empty keywords before calling WordPress", async () => {

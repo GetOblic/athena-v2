@@ -90,6 +90,7 @@ export type GetOblicWordpressSearchHit = {
   lng: number | null;
   image: string | null;
   google_id: string | null;
+  author_id: number | null;
 };
 
 export type GetOblicWordpressSearchResponse = {

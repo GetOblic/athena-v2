@@ -22,7 +22,10 @@ import {
   getGetOblicDirectorySettings,
   hasOrganizationAlreadyConsumedListing,
 } from "@/services/getoblicDirectory/getoblicDirectoryService";
-import type { ActiveGetOblicRelationshipStatus } from "@/services/getoblicDirectory/getoblicDirectoryTypes";
+import {
+  isGetOblicInventoryPoolAuthor,
+  type ActiveGetOblicRelationshipStatus,
+} from "@/services/getoblicDirectory/getoblicDirectoryTypes";
 import {
   getWordpressListingById,
   parseGetOblicWordpressListingId,
@@ -452,6 +455,10 @@ export async function convertGetOblicDirectoryListing(
     throw mapped;
   }
 
+  if (!isGetOblicInventoryPoolAuthor(listing.author_id)) {
+    return emptyResult("unavailable");
+  }
+
   const businessName = resolveGetOblicTrustedBusinessName(
     listing.title,
     observed.title,
@@ -730,6 +737,13 @@ async function finishExistingProspect(args: {
           dependencies: args.dependencies,
         });
       }
+    }
+
+    if (
+      error instanceof GetOblicDirectoryError &&
+      error.code === "GETOBLIC_LISTING_NOT_CLAIMABLE"
+    ) {
+      return emptyResult("unavailable");
     }
 
     if (

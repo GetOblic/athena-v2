@@ -9,6 +9,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   GetOblicDirectoryError,
+  getOblicListingNotClaimableError,
   isPostgresUniqueViolation,
 } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
 import {
@@ -17,6 +18,7 @@ import {
   GETOBLIC_LISTING_LINKS_TABLE,
   getCurrentGetOblicAllocationPeriodStart,
   isActiveGetOblicRelationshipStatus,
+  isGetOblicInventoryPoolAuthor,
   type GetOblicDirectorySettings,
   type GetOblicListingLink,
 } from "@/services/getoblicDirectory/getoblicDirectoryTypes";
@@ -32,7 +34,10 @@ import {
   parseGetOblicWordpressListingId,
   resolveOrCreateWordpressUser,
 } from "@/services/getoblicDirectory/getoblicWordpressClient";
-import { GetOblicWordpressError } from "@/services/getoblicDirectory/getoblicWordpressTypes";
+import {
+  GetOblicWordpressError,
+  type GetOblicWordpressListing,
+} from "@/services/getoblicDirectory/getoblicWordpressTypes";
 import { getProspectById } from "@/services/prospects/prospectService";
 
 const REMOTE_ERROR_MAX_LENGTH = 500;
@@ -224,13 +229,16 @@ export async function claimKnownExistingListing(
   const settings = await requireDirectorySettings(input.organizationId);
   await requireProspectInOrganization(input.prospectId, input.organizationId);
 
-  const reserved = await reserveOrResumeClaim({
-    organizationId: input.organizationId,
-    prospectId: input.prospectId,
-    wordpressListingId,
-    actorUserId: input.actorUserId,
-    actorLicenseeAccountId: input.actorLicenseeAccountId,
-  });
+  const reserved = await reserveOrResumeClaim(
+    {
+      organizationId: input.organizationId,
+      prospectId: input.prospectId,
+      wordpressListingId,
+      actorUserId: input.actorUserId,
+      actorLicenseeAccountId: input.actorLicenseeAccountId,
+    },
+    wordpress,
+  );
 
   if (reserved.relationship_status === "linked") {
     if (reserved.wordpress_listing_id !== wordpressListingId) {
@@ -298,13 +306,16 @@ async function requireProspectInOrganization(
   }
 }
 
-async function reserveOrResumeClaim(input: {
-  organizationId: string;
-  prospectId: string;
-  wordpressListingId: number;
-  actorUserId: string | null;
-  actorLicenseeAccountId: string | null;
-}): Promise<GetOblicListingLink> {
+async function reserveOrResumeClaim(
+  input: {
+    organizationId: string;
+    prospectId: string;
+    wordpressListingId: number;
+    actorUserId: string | null;
+    actorLicenseeAccountId: string | null;
+  },
+  wordpress: ClaimKnownListingWordpressPort,
+): Promise<GetOblicListingLink> {
   const prospectLink = await getActiveGetOblicLinkForProspect(
     input.organizationId,
     input.prospectId,
@@ -322,6 +333,8 @@ async function reserveOrResumeClaim(input: {
   if (globalLink) {
     return resolveExistingActiveClaim(input, globalLink);
   }
+
+  await assertNewClaimListingEligible(wordpress, input.wordpressListingId);
 
   const inserted = await insertClaimingReservation(input);
   if (inserted) {
@@ -462,6 +475,10 @@ async function acquireReservedClaim(args: {
   );
   if (listingLookup.outcome !== "found") {
     return listingLookup.result;
+  }
+
+  if (!isGetOblicInventoryPoolAuthor(listingLookup.listing.author_id)) {
+    throw getOblicListingNotClaimableError(args.reserved);
   }
 
   const wordpressAuthorId = await resolveWordpressAuthorIdOrStamp({
@@ -688,17 +705,32 @@ function readPersistedWordpressAuthorId(data: unknown): number | null {
     : null;
 }
 
+async function assertNewClaimListingEligible(
+  wordpress: ClaimKnownListingWordpressPort,
+  wordpressListingId: number,
+): Promise<void> {
+  let listing: GetOblicWordpressListing;
+  try {
+    listing = await wordpress.getListingById(wordpressListingId);
+  } catch {
+    return;
+  }
+  if (!isGetOblicInventoryPoolAuthor(listing.author_id)) {
+    throw getOblicListingNotClaimableError();
+  }
+}
+
 async function lookupRemoteListing(
   reserved: GetOblicListingLink,
   wordpress: ClaimKnownListingWordpressPort,
   now: Date,
 ): Promise<
-  | { outcome: "found" }
+  | { outcome: "found"; listing: GetOblicWordpressListing }
   | { outcome: "halt"; result: ClaimKnownListingResult }
 > {
   try {
-    await wordpress.getListingById(reserved.wordpress_listing_id);
-    return { outcome: "found" };
+    const listing = await wordpress.getListingById(reserved.wordpress_listing_id);
+    return { outcome: "found", listing };
   } catch (error) {
     if (isWordpressListingNotFound(error)) {
       const link = await persistClaimRow(reserved, {
