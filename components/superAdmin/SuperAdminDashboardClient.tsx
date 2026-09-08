@@ -80,6 +80,21 @@ async function putJson(url: string, body: Record<string, unknown>) {
   return payload;
 }
 
+async function patchJson(url: string, body: Record<string, unknown>) {
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = (await response.json().catch(() => ({}))) as AllocationSaveApiBody;
+  if (!response.ok || payload.ok === false) {
+    throw new Error(
+      payload.error?.message || `Request failed (${response.status}).`,
+    );
+  }
+  return payload;
+}
+
 export function SuperAdminDashboardClient({
   initialAccounts,
   initialDirectoryAllocations,
@@ -127,9 +142,22 @@ export function SuperAdminDashboardClient({
   const [savingAllocationKey, setSavingAllocationKey] = useState<string | null>(
     null,
   );
+  const [savingAccountKey, setSavingAccountKey] = useState<string | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [accountNotice, setAccountNotice] = useState<string | null>(null);
   const [allowanceDrafts, setAllowanceDrafts] = useState<
     Record<string, string>
   >(() => buildAllowanceDrafts(initialDirectoryAllocations));
+  const [accountEmailDrafts, setAccountEmailDrafts] = useState<
+    Record<string, string>
+  >(() => buildAccountEmailDrafts(initialDirectoryAllocations));
+  const [accountPasswordDrafts, setAccountPasswordDrafts] = useState<
+    Record<string, string>
+  >({});
+  const [accountWordpressUserIdDrafts, setAccountWordpressUserIdDrafts] =
+    useState<Record<string, string>>(() =>
+      buildWordpressUserIdDrafts(initialDirectoryAllocations),
+    );
 
   function refresh() {
     startTransition(() => {
@@ -249,6 +277,36 @@ export function SuperAdminDashboardClient({
     }));
   }
 
+  function updateAccountEmailDraft(
+    row: SuperAdminGetOblicDirectoryAllocationRow,
+    value: string,
+  ) {
+    setAccountEmailDrafts((current) => ({
+      ...current,
+      [allocationKey(row)]: value,
+    }));
+  }
+
+  function updateAccountPasswordDraft(
+    row: SuperAdminGetOblicDirectoryAllocationRow,
+    value: string,
+  ) {
+    setAccountPasswordDrafts((current) => ({
+      ...current,
+      [allocationKey(row)]: value,
+    }));
+  }
+
+  function updateAccountWordpressUserIdDraft(
+    row: SuperAdminGetOblicDirectoryAllocationRow,
+    value: string,
+  ) {
+    setAccountWordpressUserIdDrafts((current) => ({
+      ...current,
+      [allocationKey(row)]: value,
+    }));
+  }
+
   async function saveDirectoryAllowance(
     row: SuperAdminGetOblicDirectoryAllocationRow,
   ) {
@@ -288,6 +346,67 @@ export function SuperAdminDashboardClient({
       );
     } finally {
       setSavingAllocationKey(null);
+    }
+  }
+
+  async function saveDirectoryAccount(
+    row: SuperAdminGetOblicDirectoryAllocationRow,
+  ) {
+    const key = allocationKey(row);
+    const email = (accountEmailDrafts[key] ?? "").trim();
+    const password = accountPasswordDrafts[key] ?? "";
+    const rawWordpressUserId = (
+      accountWordpressUserIdDrafts[key] ?? ""
+    ).trim();
+    const wordpressUserId =
+      rawWordpressUserId === "" ? null : Number(rawWordpressUserId);
+
+    setAccountError(null);
+    setAccountNotice(null);
+    setSavingAccountKey(key);
+    try {
+      if (!row.hasGetOblicPassword && password.length === 0) {
+        throw new Error(
+          "Password is required the first time a GetOblic.com account is saved.",
+        );
+      }
+      const payload = await patchJson(
+        "/api/super/getoblic-directory/account",
+        {
+          licenseeAccountId: row.licenseeAccountId,
+          organizationId: row.organizationId,
+          email,
+          password,
+          wordpressUserId,
+        },
+      );
+      const next = payload.allocation;
+      if (!next) {
+        throw new Error("Save succeeded without a refreshed account.");
+      }
+      setDirectoryAllocations((current) => replaceAllocationRow(current, next));
+      setAccountEmailDrafts((current) => ({
+        ...current,
+        [allocationKey(next)]: next.getoblicAccountEmail ?? "",
+      }));
+      setAccountWordpressUserIdDrafts((current) => ({
+        ...current,
+        [allocationKey(next)]:
+          next.wordpressUserId == null ? "" : String(next.wordpressUserId),
+      }));
+      setAccountPasswordDrafts((current) => ({
+        ...current,
+        [allocationKey(next)]: "",
+      }));
+      setAccountNotice("GetOblic.com account saved.");
+    } catch (err) {
+      setAccountError(
+        err instanceof Error
+          ? err.message
+          : "Save GetOblic.com account failed.",
+      );
+    } finally {
+      setSavingAccountKey(null);
     }
   }
 
@@ -331,6 +450,18 @@ export function SuperAdminDashboardClient({
       {error ? (
         <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-5 py-4 text-sm text-red-100">
           {error}
+        </div>
+      ) : null}
+
+      {accountNotice ? (
+        <div className="rounded-2xl border border-[var(--athena-orange)]/40 bg-[var(--athena-orange)]/10 px-5 py-4 text-sm text-white/80">
+          {accountNotice}
+        </div>
+      ) : null}
+
+      {accountError ? (
+        <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-5 py-4 text-sm text-red-100">
+          {accountError}
         </div>
       ) : null}
 
@@ -591,6 +722,12 @@ export function SuperAdminDashboardClient({
                           const key = allocationKey(row);
                           const draft = allowanceDrafts[key] ?? "";
                           const saving = savingAllocationKey === key;
+                          const savingAccount = savingAccountKey === key;
+                          const emailDraft = accountEmailDrafts[key] ?? "";
+                          const passwordDraft = accountPasswordDrafts[key] ?? "";
+                          const wordpressUserIdDraft =
+                            accountWordpressUserIdDrafts[key] ?? "";
+                          const accountDisabled = !row.configured;
                           return (
                             <div
                               key={key}
@@ -621,6 +758,96 @@ export function SuperAdminDashboardClient({
                                   <div className="mt-1 text-xs leading-5 text-white/40">
                                     {allocationSecondaryCopy(row)}
                                   </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-5 space-y-3 border-t border-white/10 pt-4">
+                                <div className="text-sm font-medium text-white/80">
+                                  GetOblic.com account
+                                </div>
+                                <label className="block space-y-2">
+                                  <span className="text-sm text-white/70">
+                                    Email
+                                  </span>
+                                  <input
+                                    type="email"
+                                    value={emailDraft}
+                                    onChange={(event) =>
+                                      updateAccountEmailDraft(
+                                        row,
+                                        event.target.value,
+                                      )
+                                    }
+                                    disabled={accountDisabled}
+                                    placeholder=""
+                                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)] disabled:opacity-50"
+                                  />
+                                </label>
+                                <label className="block space-y-2">
+                                  <span className="text-sm text-white/70">
+                                    Password
+                                  </span>
+                                  <input
+                                    type="password"
+                                    value={passwordDraft}
+                                    onChange={(event) =>
+                                      updateAccountPasswordDraft(
+                                        row,
+                                        event.target.value,
+                                      )
+                                    }
+                                    disabled={accountDisabled}
+                                    placeholder={
+                                      row.hasGetOblicPassword
+                                        ? "Leave blank to keep current password"
+                                        : ""
+                                    }
+                                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)] disabled:opacity-50"
+                                  />
+                                  {row.hasGetOblicPassword ? (
+                                    <span className="block text-xs text-white/40">
+                                      Leave blank to keep current password
+                                    </span>
+                                  ) : null}
+                                </label>
+                                <label className="block space-y-2">
+                                  <span className="text-sm text-white/70">
+                                    WordPress User ID
+                                  </span>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={wordpressUserIdDraft}
+                                    onChange={(event) =>
+                                      updateAccountWordpressUserIdDraft(
+                                        row,
+                                        event.target.value,
+                                      )
+                                    }
+                                    disabled={accountDisabled}
+                                    placeholder=""
+                                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)] disabled:opacity-50"
+                                  />
+                                </label>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      isPending ||
+                                      savingAccount ||
+                                      accountDisabled
+                                    }
+                                    onClick={() => saveDirectoryAccount(row)}
+                                    className="rounded-xl bg-[var(--athena-orange)] px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
+                                  >
+                                    Save Account
+                                  </button>
+                                  {accountDisabled ? (
+                                    <span className="text-xs text-white/40">
+                                      Monthly listing allowance must be
+                                      configured first.
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
 
@@ -773,6 +1000,32 @@ function buildAllowanceDrafts(
       drafts[`${row.licenseeAccountId}:${row.organizationId}`] = row.configured
         ? String(row.monthlyAllowance ?? "")
         : "";
+    }
+  }
+  return drafts;
+}
+
+function buildAccountEmailDrafts(
+  model: SuperAdminGetOblicDirectoryAllocationModel,
+): Record<string, string> {
+  const drafts: Record<string, string> = {};
+  for (const group of model.groups) {
+    for (const row of group.subAccounts) {
+      drafts[`${row.licenseeAccountId}:${row.organizationId}`] =
+        row.getoblicAccountEmail ?? "";
+    }
+  }
+  return drafts;
+}
+
+function buildWordpressUserIdDrafts(
+  model: SuperAdminGetOblicDirectoryAllocationModel,
+): Record<string, string> {
+  const drafts: Record<string, string> = {};
+  for (const group of model.groups) {
+    for (const row of group.subAccounts) {
+      drafts[`${row.licenseeAccountId}:${row.organizationId}`] =
+        row.wordpressUserId == null ? "" : String(row.wordpressUserId);
     }
   }
   return drafts;

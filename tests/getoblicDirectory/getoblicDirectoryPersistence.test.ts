@@ -12,6 +12,8 @@ import { deleteProspect } from "../../services/prospects/prospectService";
 const ROOT = process.cwd();
 const MIGRATION =
   "supabase/migrations/20260906000001_create_athena_getoblic_directory.sql";
+const ACCOUNT_CREDENTIALS_MIGRATION =
+  "supabase/migrations/20260909000001_add_getoblic_directory_account_credentials.sql";
 
 function read(relativePath: string): string {
   return readFileSync(join(ROOT, relativePath), "utf8");
@@ -30,6 +32,19 @@ describe("GetOblic Directory migration / schema", () => {
     const migration = read(MIGRATION);
     assert.match(migration, /Do not apply this migration from application code/);
     assert.doesNotMatch(migration, /supabase migration up/i);
+  });
+
+  it("accepts later nullable GetOblic.com account credential columns", () => {
+    assert.equal(existsSync(join(ROOT, ACCOUNT_CREDENTIALS_MIGRATION)), true);
+    const migration = read(ACCOUNT_CREDENTIALS_MIGRATION);
+    assert.match(migration, /add column if not exists getoblic_account_email text/);
+    assert.match(
+      migration,
+      /add column if not exists getoblic_account_password_ciphertext text/,
+    );
+    assert.match(migration, /getoblic_account_email is null/);
+    assert.doesNotMatch(migration, /not null default/);
+    assert.doesNotMatch(migration, /create table/i);
   });
 
   it("creates the three required tables only", () => {

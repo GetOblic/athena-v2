@@ -6,7 +6,8 @@ export type SuperAdminAuditAction =
   | "deactivate_account"
   | "reactivate_account"
   | "update_strategic_blueprint_instruction"
-  | "update_getoblic_directory_allowance";
+  | "update_getoblic_directory_allowance"
+  | "update_getoblic_directory_account";
 
 export type SuperAdminAuditAccountType = "athena" | "licensee";
 

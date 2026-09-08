@@ -1,3 +1,4 @@
+import { EncryptedSecretError, encryptSecret } from "@/lib/serverEncryptedSecret";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   getGetOblicAllocationUsage,
@@ -9,6 +10,9 @@ import {
   requireGetOblicSuperAdmin,
   type GetOblicSuperAdmin,
 } from "@/services/superAdmin/superAdminIdentity";
+
+const SUPER_ADMIN_DIRECTORY_ACCOUNT_COLUMNS =
+  "getoblic_account_email, getoblic_account_password_ciphertext, wordpress_author_id" as const;
 
 export class SuperAdminGetOblicDirectoryError extends Error {
   code: string;
@@ -33,6 +37,9 @@ export type SuperAdminGetOblicDirectoryAllocationRow = {
   usedThisMonth: number | null;
   remainingThisMonth: number | null;
   periodStart: string | null;
+  getoblicAccountEmail: string | null;
+  wordpressUserId: number | null;
+  hasGetOblicPassword: boolean;
 };
 
 export type SuperAdminGetOblicDirectoryLicenseeGroup = {
@@ -81,6 +88,65 @@ export function assertValidMonthlyAllowance(value: unknown): number {
     );
   }
 
+  return value;
+}
+
+export function assertValidGetOblicAccountEmail(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new SuperAdminGetOblicDirectoryError(
+      "INVALID_EMAIL",
+      "email must be a valid GetOblic.com account email.",
+      400,
+    );
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length <= 3 || !trimmed.includes("@")) {
+    throw new SuperAdminGetOblicDirectoryError(
+      "INVALID_EMAIL",
+      "email must be a valid GetOblic.com account email.",
+      400,
+    );
+  }
+
+  return trimmed;
+}
+
+export function assertValidWordpressUserId(value: unknown): number {
+  if (typeof value === "string" && /^-?\d+$/.test(value.trim())) {
+    value = Number(value.trim());
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new SuperAdminGetOblicDirectoryError(
+      "INVALID_WORDPRESS_USER_ID",
+      "wordpressUserId must be a positive integer.",
+      400,
+    );
+  }
+
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new SuperAdminGetOblicDirectoryError(
+      "INVALID_WORDPRESS_USER_ID",
+      "wordpressUserId must be a positive integer.",
+      400,
+    );
+  }
+
+  return value;
+}
+
+function readPasswordInput(value: unknown): string {
+  if (value == null) {
+    return "";
+  }
+  if (typeof value !== "string") {
+    throw new SuperAdminGetOblicDirectoryError(
+      "PASSWORD_REQUIRED",
+      "password must be a string.",
+      400,
+    );
+  }
   return value;
 }
 
@@ -223,6 +289,235 @@ export async function updateGetOblicDirectoryAllowanceForSuperAdmin(input: {
 }> {
   const actor = await requireGetOblicSuperAdmin(input.actorUserId);
   const monthlyAllowance = assertValidMonthlyAllowance(input.monthlyAllowance);
+  const { licenseeAccountId, organizationId, licensee, relationship, organization } =
+    await requireLicenseeOrganizationRelationship({
+      licenseeAccountId: input.licenseeAccountId,
+      organizationId: input.organizationId,
+    });
+
+  const previous = await getGetOblicDirectorySettings(organizationId);
+  const previousAllowance = previous.configured
+    ? previous.settings.monthly_allowance
+    : null;
+
+  const now = new Date().toISOString();
+  const upsertPayload = {
+    organization_id: organizationId,
+    monthly_allowance: monthlyAllowance,
+    updated_at: now,
+    updated_by_user_id: actor.user_id,
+  };
+
+  const { data: upserted, error: upsertError } = await supabaseAdmin
+    .from(GETOBLIC_DIRECTORY_SETTINGS_TABLE)
+    .upsert(upsertPayload, { onConflict: "organization_id" })
+    .select(
+      "organization_id, monthly_allowance, wordpress_author_id, created_at, updated_at, updated_by_user_id",
+    )
+    .single();
+
+  if (upsertError || !upserted) {
+    await logSuperAdminAudit({
+      actorUserId: actor.user_id,
+      action: "update_getoblic_directory_allowance",
+      metadata: {
+        licenseeAccountId,
+        organizationId,
+        previousAllowance,
+        nextAllowance: monthlyAllowance,
+      },
+      success: false,
+      reason: upsertError?.message || "GetOblic directory allowance update failed.",
+    });
+    throw new SuperAdminGetOblicDirectoryError(
+      "SETTINGS_WRITE_FAILED",
+      upsertError?.message || "Failed to save GetOblic listing allowance.",
+      500,
+    );
+  }
+
+  const allocation = await buildAllocationRow({
+    licenseeAccountId,
+    organizationId,
+    organizationName: String(organization.name ?? ""),
+    displayAlias: normalizeDisplayAlias(
+      (relationship as LicenseeSubAccountRow).display_name,
+    ),
+    isOwnCompany:
+      organizationId ===
+      ((licensee as LicenseeAccountRow).own_company_organization_id ?? null),
+  });
+
+  await logSuperAdminAudit({
+    actorUserId: actor.user_id,
+    action: "update_getoblic_directory_allowance",
+    metadata: {
+      licenseeAccountId,
+      organizationId,
+      previousAllowance,
+      nextAllowance: monthlyAllowance,
+    },
+    success: true,
+  });
+
+  return { superAdmin: actor, allocation };
+}
+
+export async function updateGetOblicDirectoryAccountForSuperAdmin(input: {
+  actorUserId: string;
+  licenseeAccountId: string;
+  organizationId: string;
+  email: unknown;
+  password: unknown;
+  wordpressUserId: unknown;
+}): Promise<{
+  superAdmin: GetOblicSuperAdmin;
+  allocation: SuperAdminGetOblicDirectoryAllocationRow;
+}> {
+  const actor = await requireGetOblicSuperAdmin(input.actorUserId);
+  const email = assertValidGetOblicAccountEmail(input.email);
+  const wordpressUserId = assertValidWordpressUserId(input.wordpressUserId);
+  const password = readPasswordInput(input.password);
+  const { licenseeAccountId, organizationId, licensee, relationship, organization } =
+    await requireLicenseeOrganizationRelationship({
+      licenseeAccountId: input.licenseeAccountId,
+      organizationId: input.organizationId,
+    });
+
+  const { data: existing, error: existingError } = await supabaseAdmin
+    .from(GETOBLIC_DIRECTORY_SETTINGS_TABLE)
+    .select(
+      "organization_id, monthly_allowance, wordpress_author_id, getoblic_account_email, getoblic_account_password_ciphertext, created_at, updated_at, updated_by_user_id",
+    )
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new SuperAdminGetOblicDirectoryError(
+      "SETTINGS_NOT_CONFIGURED",
+      existingError.message || "Failed to load GetOblic directory settings.",
+      500,
+    );
+  }
+
+  if (!existing) {
+    throw new SuperAdminGetOblicDirectoryError(
+      "SETTINGS_NOT_CONFIGURED",
+      "Monthly listing allowance must be configured before saving a GetOblic.com account.",
+      409,
+    );
+  }
+
+  const existingCiphertext = readString(
+    (existing as { getoblic_account_password_ciphertext?: unknown })
+      .getoblic_account_password_ciphertext,
+  );
+  const hasExistingPassword = Boolean(existingCiphertext);
+  const passwordChanged = password.length > 0;
+
+  if (!hasExistingPassword && !passwordChanged) {
+    throw new SuperAdminGetOblicDirectoryError(
+      "PASSWORD_REQUIRED",
+      "password is required the first time a GetOblic.com account is saved.",
+      400,
+    );
+  }
+
+  let nextCiphertext: string | undefined;
+  if (passwordChanged) {
+    try {
+      nextCiphertext = encryptSecret(password);
+    } catch (error) {
+      if (error instanceof EncryptedSecretError) {
+        throw new SuperAdminGetOblicDirectoryError(
+          "SETTINGS_WRITE_FAILED",
+          error.message,
+          500,
+        );
+      }
+      throw error;
+    }
+  }
+
+  const now = new Date().toISOString();
+  const updatePayload: Record<string, unknown> = {
+    getoblic_account_email: email,
+    wordpress_author_id: wordpressUserId,
+    updated_at: now,
+    updated_by_user_id: actor.user_id,
+  };
+  if (nextCiphertext !== undefined) {
+    updatePayload.getoblic_account_password_ciphertext = nextCiphertext;
+  }
+
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from(GETOBLIC_DIRECTORY_SETTINGS_TABLE)
+    .update(updatePayload)
+    .eq("organization_id", organizationId)
+    .select(
+      "organization_id, monthly_allowance, wordpress_author_id, getoblic_account_email, created_at, updated_at, updated_by_user_id",
+    )
+    .single();
+
+  if (updateError || !updated) {
+    await logSuperAdminAudit({
+      actorUserId: actor.user_id,
+      action: "update_getoblic_directory_account",
+      metadata: {
+        licenseeAccountId,
+        organizationId,
+        email,
+        wordpressUserId,
+        passwordChanged,
+      },
+      success: false,
+      reason: updateError?.message || "GetOblic directory account update failed.",
+    });
+    throw new SuperAdminGetOblicDirectoryError(
+      "SETTINGS_WRITE_FAILED",
+      updateError?.message || "Failed to save GetOblic.com account.",
+      500,
+    );
+  }
+
+  const allocation = await buildAllocationRow({
+    licenseeAccountId,
+    organizationId,
+    organizationName: String(organization.name ?? ""),
+    displayAlias: normalizeDisplayAlias(
+      (relationship as LicenseeSubAccountRow).display_name,
+    ),
+    isOwnCompany:
+      organizationId ===
+      ((licensee as LicenseeAccountRow).own_company_organization_id ?? null),
+  });
+
+  await logSuperAdminAudit({
+    actorUserId: actor.user_id,
+    action: "update_getoblic_directory_account",
+    metadata: {
+      licenseeAccountId,
+      organizationId,
+      email,
+      wordpressUserId,
+      passwordChanged,
+    },
+    success: true,
+  });
+
+  return { superAdmin: actor, allocation };
+}
+
+async function requireLicenseeOrganizationRelationship(input: {
+  licenseeAccountId: string;
+  organizationId: string;
+}): Promise<{
+  licenseeAccountId: string;
+  organizationId: string;
+  licensee: LicenseeAccountRow;
+  relationship: LicenseeSubAccountRow;
+  organization: OrganizationRow;
+}> {
   const licenseeAccountId = readString(input.licenseeAccountId)?.trim() ?? "";
   const organizationId = readString(input.organizationId)?.trim() ?? "";
 
@@ -301,72 +596,58 @@ export async function updateGetOblicDirectoryAllowanceForSuperAdmin(input: {
     );
   }
 
-  const previous = await getGetOblicDirectorySettings(organizationId);
-  const previousAllowance = previous.configured
-    ? previous.settings.monthly_allowance
-    : null;
-
-  const now = new Date().toISOString();
-  const upsertPayload = {
-    organization_id: organizationId,
-    monthly_allowance: monthlyAllowance,
-    updated_at: now,
-    updated_by_user_id: actor.user_id,
-  };
-
-  const { data: upserted, error: upsertError } = await supabaseAdmin
-    .from(GETOBLIC_DIRECTORY_SETTINGS_TABLE)
-    .upsert(upsertPayload, { onConflict: "organization_id" })
-    .select(
-      "organization_id, monthly_allowance, wordpress_author_id, created_at, updated_at, updated_by_user_id",
-    )
-    .single();
-
-  if (upsertError || !upserted) {
-    await logSuperAdminAudit({
-      actorUserId: actor.user_id,
-      action: "update_getoblic_directory_allowance",
-      metadata: {
-        licenseeAccountId,
-        organizationId,
-        previousAllowance,
-        nextAllowance: monthlyAllowance,
-      },
-      success: false,
-      reason: upsertError?.message || "GetOblic directory allowance update failed.",
-    });
-    throw new SuperAdminGetOblicDirectoryError(
-      "SETTINGS_WRITE_FAILED",
-      upsertError?.message || "Failed to save GetOblic listing allowance.",
-      500,
-    );
-  }
-
-  const allocation = await buildAllocationRow({
+  return {
     licenseeAccountId,
     organizationId,
-    organizationName: String(organization.name ?? ""),
-    displayAlias: normalizeDisplayAlias(
-      (relationship as LicenseeSubAccountRow).display_name,
-    ),
-    isOwnCompany:
-      organizationId ===
-      ((licensee as LicenseeAccountRow).own_company_organization_id ?? null),
-  });
+    licensee: licensee as LicenseeAccountRow,
+    relationship: relationship as LicenseeSubAccountRow,
+    organization: organization as OrganizationRow,
+  };
+}
 
-  await logSuperAdminAudit({
-    actorUserId: actor.user_id,
-    action: "update_getoblic_directory_allowance",
-    metadata: {
-      licenseeAccountId,
-      organizationId,
-      previousAllowance,
-      nextAllowance: monthlyAllowance,
-    },
-    success: true,
-  });
+async function loadSuperAdminDirectoryAccountFields(organizationId: string): Promise<{
+  getoblicAccountEmail: string | null;
+  wordpressUserId: number | null;
+  hasGetOblicPassword: boolean;
+}> {
+  const empty = {
+    getoblicAccountEmail: null,
+    wordpressUserId: null,
+    hasGetOblicPassword: false,
+  };
 
-  return { superAdmin: actor, allocation };
+  const { data, error } = await supabaseAdmin
+    .from(GETOBLIC_DIRECTORY_SETTINGS_TABLE)
+    .select(SUPER_ADMIN_DIRECTORY_ACCOUNT_COLUMNS)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return empty;
+  }
+
+  const row = data as {
+    getoblic_account_email?: unknown;
+    getoblic_account_password_ciphertext?: unknown;
+    wordpress_author_id?: unknown;
+  };
+
+  return {
+    getoblicAccountEmail: readString(row.getoblic_account_email)?.trim() || null,
+    wordpressUserId: readPositiveInteger(row.wordpress_author_id),
+    hasGetOblicPassword: Boolean(readString(row.getoblic_account_password_ciphertext)),
+  };
+}
+
+function readPositiveInteger(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
 }
 
 async function buildAllocationRow(input: {
@@ -376,6 +657,9 @@ async function buildAllocationRow(input: {
   displayAlias: string | null;
   isOwnCompany: boolean;
 }): Promise<SuperAdminGetOblicDirectoryAllocationRow> {
+  const account = await loadSuperAdminDirectoryAccountFields(
+    input.organizationId,
+  );
   const settings = await getGetOblicDirectorySettings(input.organizationId);
   if (!settings.configured) {
     return {
@@ -389,6 +673,7 @@ async function buildAllocationRow(input: {
       usedThisMonth: null,
       remainingThisMonth: null,
       periodStart: null,
+      ...account,
     };
   }
 
@@ -405,6 +690,7 @@ async function buildAllocationRow(input: {
       usedThisMonth: null,
       remainingThisMonth: null,
       periodStart: null,
+      ...account,
     };
   }
 
@@ -419,5 +705,6 @@ async function buildAllocationRow(input: {
     usedThisMonth: usage.used,
     remainingThisMonth: usage.remaining,
     periodStart: usage.period_start,
+    ...account,
   };
 }

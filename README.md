@@ -200,6 +200,19 @@ GETOBLIC_LINKS_API_KEY=your_worker_api_key
 - `GETOBLIC_LINKS_BASE_URL` defaults to `https://link.getoblic.com` when omitted.
 - The API key must never be exposed to browser code.
 
+### Super Admin secret encryption
+
+GetOblic.com account passwords recorded by Super Admin are encrypted at rest. Configure this **server-only** variable (never use `NEXT_PUBLIC_`):
+
+```bash
+ATHENA_SECRET_ENCRYPTION_KEY=
+```
+
+- Required on the Athena server for Super Admin GetOblic.com account saves.
+- Must be exactly 64 hexadecimal characters.
+- Decodes to a 32-byte AES-256-GCM key.
+- Never expose the key, plaintext password, or ciphertext to the browser, Licensee Masters, or tenant users.
+
 ---
 
 # Project Principles

@@ -51,12 +51,15 @@ const ACTIVE_STATUS_LIST = [...ACTIVE_GETOBLIC_RELATIONSHIP_STATUSES];
 const LINK_CONFLICT_COLUMNS =
   "organization_id, prospect_id, relationship_status" as const;
 
+const DIRECTORY_SETTINGS_TENANT_COLUMNS =
+  "organization_id, monthly_allowance, wordpress_author_id, created_at, updated_at, updated_by_user_id" as const;
+
 export async function getGetOblicDirectorySettings(
   organizationId: string,
 ): Promise<GetOblicDirectorySettingsResult> {
   const { data, error } = await supabaseAdmin
     .from(GETOBLIC_DIRECTORY_SETTINGS_TABLE)
-    .select("*")
+    .select(DIRECTORY_SETTINGS_TENANT_COLUMNS)
     .eq("organization_id", organizationId)
     .maybeSingle();
 

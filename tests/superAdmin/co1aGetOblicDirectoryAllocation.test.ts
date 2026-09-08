@@ -32,6 +32,8 @@ type SettingsRow = {
   organization_id: string;
   monthly_allowance: number;
   wordpress_author_id: number | null;
+  getoblic_account_email?: string | null;
+  getoblic_account_password_ciphertext?: string | null;
   created_at: string;
   updated_at: string;
   updated_by_user_id: string | null;
@@ -817,9 +819,18 @@ describe("CO-1A Super Admin GetOblic listing allocation — usage and contracts"
 
   it("23. No code path other than this Super Admin service becomes a new writer of monthly_allowance", () => {
     const writer = read("services/superAdmin/superAdminGetOblicDirectory.ts");
-    assert.match(writer, /monthly_allowance: monthlyAllowance/);
-    assert.match(writer, /onConflict: "organization_id"/);
-    assert.doesNotMatch(writer, /wordpress_author_id:/);
+    const allowanceStart = writer.indexOf(
+      "export async function updateGetOblicDirectoryAllowanceForSuperAdmin",
+    );
+    const accountStart = writer.indexOf(
+      "export async function updateGetOblicDirectoryAccountForSuperAdmin",
+    );
+    assert.ok(allowanceStart >= 0);
+    assert.ok(accountStart > allowanceStart);
+    const allowanceWriter = writer.slice(allowanceStart, accountStart);
+    assert.match(allowanceWriter, /monthly_allowance: monthlyAllowance/);
+    assert.match(allowanceWriter, /onConflict: "organization_id"/);
+    assert.doesNotMatch(allowanceWriter, /wordpress_author_id:/);
 
     const roots = ["services", "app", "components", "lib"];
     for (const root of roots) {

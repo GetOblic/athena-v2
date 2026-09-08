@@ -875,6 +875,28 @@ describe("GetOblic claim orchestration", () => {
     assert.equal(store.links[0]?.relationship_status, "linked");
   });
 
+  it("mapped wordpress_author_id skips resolve-or-create and continues author assignment", async () => {
+    const store = {
+      settings: [defaultSettings({ wordpress_author_id: 42 })],
+      prospects: [defaultProspect()],
+      links: [] as LinkRow[],
+      events: [] as EventRow[],
+    };
+    installStore(store);
+    const wordpress = successWordpress();
+    const result = await claim({}, wordpress);
+    assert.equal(result.outcome, "linked");
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("resolveOrCreate:")),
+      false,
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call === "assignAuthor:1000:42"),
+      true,
+    );
+    assert.equal(store.links[0]?.wordpress_author_id, 42);
+  });
+
   it("13. author already correct changed=false is success", async () => {
     const store = {
       settings: [defaultSettings()],

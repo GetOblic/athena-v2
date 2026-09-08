@@ -67,6 +67,7 @@ type EventRow = {
 type QueryCall = {
   table: string;
   filters: Record<string, unknown>;
+  columns?: string;
 };
 
 function completeLink(partial: Partial<LinkRow> & Pick<LinkRow, "organization_id" | "prospect_id" | "wordpress_listing_id" | "relationship_status">): LinkRow {
@@ -145,7 +146,8 @@ function installFixture(store: {
     };
 
     const builder = {
-      select: (_columns?: string, options?: { count?: string; head?: boolean }) => {
+      select: (columns?: string, options?: { count?: string; head?: boolean }) => {
+        call.columns = columns;
         countHead = Boolean(options?.head && options.count === "exact");
         return builder;
       },
@@ -185,7 +187,7 @@ afterEach(() => {
 
 describe("GetOblic Directory settings", () => {
   it("returns a configured settings row", async () => {
-    installFixture({
+    const { calls } = installFixture({
       settings: [
         {
           organization_id: ORG_A,
@@ -205,6 +207,17 @@ describe("GetOblic Directory settings", () => {
       assert.equal(result.settings.monthly_allowance, 5);
       assert.equal(result.settings.wordpress_author_id, 42);
     }
+    const settingsCall = calls.find(
+      (call) => call.table === "athena_getoblic_directory_settings",
+    );
+    assert.equal(
+      settingsCall?.columns,
+      "organization_id, monthly_allowance, wordpress_author_id, created_at, updated_at, updated_by_user_id",
+    );
+    assert.doesNotMatch(
+      String(settingsCall?.columns),
+      /getoblic_account_email|getoblic_account_password_ciphertext/,
+    );
   });
 
   it("fails closed when the settings row is missing", async () => {
