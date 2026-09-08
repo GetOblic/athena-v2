@@ -69,6 +69,26 @@ type DiscussionRegenerationContextValue = {
 const DiscussionRegenerationContext =
   createContext<DiscussionRegenerationContextValue | null>(null);
 
+const noopAsync = async () => {};
+const noop = () => {};
+
+/** Safe no-discussion context. Does not poll, queue, or fabricate a discussion. */
+const IDLE_DISCUSSION_REGENERATION: DiscussionRegenerationContextValue = {
+  isGenerating: false,
+  isCompleted: false,
+  activeGenerationKind: null,
+  duplicateNotice: null,
+  error: null,
+  startedAtMs: null,
+  resumed: false,
+  stillRunningAfterTimeout: false,
+  startRegeneration: noopAsync,
+  startThinkDifferently: noopAsync,
+  trackQueuedGeneration: noop,
+  scrollToUpdatedAnalysis: noop,
+  chrome: null,
+};
+
 export function useDiscussionRegeneration(): DiscussionRegenerationContextValue {
   const context = useContext(DiscussionRegenerationContext);
 
@@ -82,7 +102,7 @@ export function useDiscussionRegeneration(): DiscussionRegenerationContextValue 
 }
 
 type DiscussionRegenerationProviderProps = {
-  discussionId: string;
+  discussionId?: string | null;
   initialSnapshot: RegenerationStatusSnapshot;
   children: ReactNode;
   chrome?: DiscussionExecutiveChrome | null;
@@ -94,6 +114,42 @@ export function DiscussionRegenerationProvider({
   children,
   chrome = null,
 }: DiscussionRegenerationProviderProps) {
+  if (!discussionId) {
+    return (
+      <DiscussionRegenerationContext.Provider
+        value={
+          chrome
+            ? { ...IDLE_DISCUSSION_REGENERATION, chrome }
+            : IDLE_DISCUSSION_REGENERATION
+        }
+      >
+        {children}
+      </DiscussionRegenerationContext.Provider>
+    );
+  }
+
+  return (
+    <DiscussionRegenerationSessionProvider
+      discussionId={discussionId}
+      initialSnapshot={initialSnapshot}
+      chrome={chrome}
+    >
+      {children}
+    </DiscussionRegenerationSessionProvider>
+  );
+}
+
+function DiscussionRegenerationSessionProvider({
+  discussionId,
+  initialSnapshot,
+  children,
+  chrome = null,
+}: {
+  discussionId: string;
+  initialSnapshot: RegenerationStatusSnapshot;
+  children: ReactNode;
+  chrome?: DiscussionExecutiveChrome | null;
+}) {
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);

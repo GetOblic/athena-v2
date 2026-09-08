@@ -383,13 +383,9 @@ export default async function ProspectDetailsPage({
     </TenantAppShell>
   );
 
-  if (!discussion) {
-    return pageBody;
-  }
-
   return (
     <DiscussionRegenerationProvider
-      discussionId={discussion.id}
+      discussionId={discussion?.id ?? null}
       initialSnapshot={initialRegenerationSnapshot}
       chrome={executive}
     >
