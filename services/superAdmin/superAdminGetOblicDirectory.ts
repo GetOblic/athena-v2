@@ -1,4 +1,3 @@
-import { EncryptedSecretError, encryptSecret } from "@/lib/serverEncryptedSecret";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   getGetOblicAllocationUsage,
@@ -12,7 +11,7 @@ import {
 } from "@/services/superAdmin/superAdminIdentity";
 
 const SUPER_ADMIN_DIRECTORY_ACCOUNT_COLUMNS =
-  "getoblic_account_email, getoblic_account_password_ciphertext, wordpress_author_id" as const;
+  "getoblic_account_email, wordpress_author_id" as const;
 
 export class SuperAdminGetOblicDirectoryError extends Error {
   code: string;
@@ -39,7 +38,6 @@ export type SuperAdminGetOblicDirectoryAllocationRow = {
   periodStart: string | null;
   getoblicAccountEmail: string | null;
   wordpressUserId: number | null;
-  hasGetOblicPassword: boolean;
 };
 
 export type SuperAdminGetOblicDirectoryLicenseeGroup = {
@@ -133,20 +131,6 @@ export function assertValidWordpressUserId(value: unknown): number {
     );
   }
 
-  return value;
-}
-
-function readPasswordInput(value: unknown): string {
-  if (value == null) {
-    return "";
-  }
-  if (typeof value !== "string") {
-    throw new SuperAdminGetOblicDirectoryError(
-      "PASSWORD_REQUIRED",
-      "password must be a string.",
-      400,
-    );
-  }
   return value;
 }
 
@@ -368,7 +352,6 @@ export async function updateGetOblicDirectoryAccountForSuperAdmin(input: {
   licenseeAccountId: string;
   organizationId: string;
   email: unknown;
-  password: unknown;
   wordpressUserId: unknown;
 }): Promise<{
   superAdmin: GetOblicSuperAdmin;
@@ -377,7 +360,6 @@ export async function updateGetOblicDirectoryAccountForSuperAdmin(input: {
   const actor = await requireGetOblicSuperAdmin(input.actorUserId);
   const email = assertValidGetOblicAccountEmail(input.email);
   const wordpressUserId = assertValidWordpressUserId(input.wordpressUserId);
-  const password = readPasswordInput(input.password);
   const { licenseeAccountId, organizationId, licensee, relationship, organization } =
     await requireLicenseeOrganizationRelationship({
       licenseeAccountId: input.licenseeAccountId,
@@ -387,7 +369,7 @@ export async function updateGetOblicDirectoryAccountForSuperAdmin(input: {
   const { data: existing, error: existingError } = await supabaseAdmin
     .from(GETOBLIC_DIRECTORY_SETTINGS_TABLE)
     .select(
-      "organization_id, monthly_allowance, wordpress_author_id, getoblic_account_email, getoblic_account_password_ciphertext, created_at, updated_at, updated_by_user_id",
+      "organization_id, monthly_allowance, wordpress_author_id, getoblic_account_email, created_at, updated_at, updated_by_user_id",
     )
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -408,47 +390,13 @@ export async function updateGetOblicDirectoryAccountForSuperAdmin(input: {
     );
   }
 
-  const existingCiphertext = readString(
-    (existing as { getoblic_account_password_ciphertext?: unknown })
-      .getoblic_account_password_ciphertext,
-  );
-  const hasExistingPassword = Boolean(existingCiphertext);
-  const passwordChanged = password.length > 0;
-
-  if (!hasExistingPassword && !passwordChanged) {
-    throw new SuperAdminGetOblicDirectoryError(
-      "PASSWORD_REQUIRED",
-      "password is required the first time a GetOblic.com account is saved.",
-      400,
-    );
-  }
-
-  let nextCiphertext: string | undefined;
-  if (passwordChanged) {
-    try {
-      nextCiphertext = encryptSecret(password);
-    } catch (error) {
-      if (error instanceof EncryptedSecretError) {
-        throw new SuperAdminGetOblicDirectoryError(
-          "SETTINGS_WRITE_FAILED",
-          error.message,
-          500,
-        );
-      }
-      throw error;
-    }
-  }
-
   const now = new Date().toISOString();
-  const updatePayload: Record<string, unknown> = {
+  const updatePayload = {
     getoblic_account_email: email,
     wordpress_author_id: wordpressUserId,
     updated_at: now,
     updated_by_user_id: actor.user_id,
   };
-  if (nextCiphertext !== undefined) {
-    updatePayload.getoblic_account_password_ciphertext = nextCiphertext;
-  }
 
   const { data: updated, error: updateError } = await supabaseAdmin
     .from(GETOBLIC_DIRECTORY_SETTINGS_TABLE)
@@ -468,7 +416,6 @@ export async function updateGetOblicDirectoryAccountForSuperAdmin(input: {
         organizationId,
         email,
         wordpressUserId,
-        passwordChanged,
       },
       success: false,
       reason: updateError?.message || "GetOblic directory account update failed.",
@@ -500,7 +447,6 @@ export async function updateGetOblicDirectoryAccountForSuperAdmin(input: {
       organizationId,
       email,
       wordpressUserId,
-      passwordChanged,
     },
     success: true,
   });
@@ -608,12 +554,10 @@ async function requireLicenseeOrganizationRelationship(input: {
 async function loadSuperAdminDirectoryAccountFields(organizationId: string): Promise<{
   getoblicAccountEmail: string | null;
   wordpressUserId: number | null;
-  hasGetOblicPassword: boolean;
 }> {
   const empty = {
     getoblicAccountEmail: null,
     wordpressUserId: null,
-    hasGetOblicPassword: false,
   };
 
   const { data, error } = await supabaseAdmin
@@ -628,14 +572,12 @@ async function loadSuperAdminDirectoryAccountFields(organizationId: string): Pro
 
   const row = data as {
     getoblic_account_email?: unknown;
-    getoblic_account_password_ciphertext?: unknown;
     wordpress_author_id?: unknown;
   };
 
   return {
     getoblicAccountEmail: readString(row.getoblic_account_email)?.trim() || null,
     wordpressUserId: readPositiveInteger(row.wordpress_author_id),
-    hasGetOblicPassword: Boolean(readString(row.getoblic_account_password_ciphertext)),
   };
 }
 

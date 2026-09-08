@@ -3,8 +3,7 @@ import "../getoblicDirectory/getoblicDirectoryTestEnv";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, before, beforeEach, describe, it } from "node:test";
-import { decryptSecret, encryptSecret } from "../../lib/serverEncryptedSecret";
+import { afterEach, describe, it } from "node:test";
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import { GETOBLIC_DIRECTORY_SETTINGS_TABLE } from "../../services/getoblicDirectory/getoblicDirectoryTypes";
 import { SuperAdminAccessError } from "../../services/superAdmin/superAdminIdentity";
@@ -17,7 +16,6 @@ import {
 
 const originalFrom = supabaseAdmin.from.bind(supabaseAdmin);
 const ROOT = process.cwd();
-const TEST_ENCRYPTION_KEY = "a".repeat(64);
 
 const SUPER_ADMIN_USER = "sa-user-1";
 const LICENSEE_MASTER_USER = "lm-user-1";
@@ -400,31 +398,26 @@ function restoreSupabaseAdmin() {
   (supabaseAdmin as any).from = originalFrom;
 }
 
-function assertSafeDto(value: unknown) {
+function assertNoPasswordState(value: unknown) {
   const serialized = JSON.stringify(value);
   assert.doesNotMatch(serialized, /getoblic_account_password_ciphertext/);
   assert.doesNotMatch(serialized, /ATHENA_SECRET_ENCRYPTION_KEY/);
+  assert.doesNotMatch(serialized, /hasGetOblicPassword/);
+  assert.doesNotMatch(serialized, /passwordChanged/);
   assert.doesNotMatch(serialized, /"password"\s*:/);
   if (value && typeof value === "object") {
     assert.equal(
       Object.hasOwn(value as object, "getoblic_account_password_ciphertext"),
       false,
     );
+    assert.equal(Object.hasOwn(value as object, "hasGetOblicPassword"), false);
+    assert.equal(Object.hasOwn(value as object, "passwordChanged"), false);
     assert.equal(Object.hasOwn(value as object, "password"), false);
   }
 }
 
-before(() => {
-  process.env.ATHENA_SECRET_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
-});
-
-beforeEach(() => {
-  process.env.ATHENA_SECRET_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
-});
-
 afterEach(() => {
   restoreSupabaseAdmin();
-  process.env.ATHENA_SECRET_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
 });
 
 describe("CO-1B Super Admin GetOblic.com account — authorization", () => {
@@ -439,13 +432,11 @@ describe("CO-1B Super Admin GetOblic.com account — authorization", () => {
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_GETOBLIC,
       email: "owner@getoblic.com",
-      password: "first-password",
       wordpressUserId: 271519816,
     });
 
     assert.equal(result.allocation.getoblicAccountEmail, "owner@getoblic.com");
     assert.equal(result.allocation.wordpressUserId, 271519816);
-    assert.equal(result.allocation.hasGetOblicPassword, true);
     assert.equal(
       ops.some(
         (op) =>
@@ -453,7 +444,7 @@ describe("CO-1B Super Admin GetOblic.com account — authorization", () => {
       ),
       true,
     );
-    assertSafeDto(result.allocation);
+    assertNoPasswordState(result.allocation);
   });
 
   it("Licensee Master is forbidden", async () => {
@@ -465,7 +456,6 @@ describe("CO-1B Super Admin GetOblic.com account — authorization", () => {
           licenseeAccountId: LICENSEE_A,
           organizationId: ORG_GETOBLIC,
           email: "owner@getoblic.com",
-          password: "secret",
           wordpressUserId: 12,
         }),
       (error: unknown) => {
@@ -484,7 +474,6 @@ describe("CO-1B Super Admin GetOblic.com account — authorization", () => {
           licenseeAccountId: LICENSEE_A,
           organizationId: ORG_GETOBLIC,
           email: "owner@getoblic.com",
-          password: "secret",
           wordpressUserId: 12,
         }),
       (error: unknown) => {
@@ -503,7 +492,6 @@ describe("CO-1B Super Admin GetOblic.com account — authorization", () => {
           licenseeAccountId: LICENSEE_A,
           organizationId: ORG_OTHER,
           email: "owner@getoblic.com",
-          password: "secret",
           wordpressUserId: 12,
         }),
       (error: unknown) => {
@@ -524,7 +512,6 @@ describe("CO-1B Super Admin GetOblic.com account — authorization", () => {
           licenseeAccountId: LICENSEE_A,
           organizationId: ORG_GETOBLIC,
           email: "owner@getoblic.com",
-          password: "secret",
           wordpressUserId: 12,
         }),
       (error: unknown) => {
@@ -538,7 +525,29 @@ describe("CO-1B Super Admin GetOblic.com account — authorization", () => {
 });
 
 describe("CO-1B Super Admin GetOblic.com account — write", () => {
-  it("first account save requires a password", async () => {
+  it("rejects an invalid email", async () => {
+    const store = baseStore({ settings: [defaultSettings()] });
+    installStore(store);
+    await assert.rejects(
+      () =>
+        updateGetOblicDirectoryAccountForSuperAdmin({
+          actorUserId: SUPER_ADMIN_USER,
+          licenseeAccountId: LICENSEE_A,
+          organizationId: ORG_GETOBLIC,
+          email: "not-an-email",
+          wordpressUserId: 12,
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof SuperAdminGetOblicDirectoryError);
+        assert.equal(error.code, "INVALID_EMAIL");
+        return true;
+      },
+    );
+    assert.equal(store.settings[0]?.getoblic_account_email, null);
+    assert.equal(store.settings[0]?.wordpress_author_id, null);
+  });
+
+  it("rejects a non-positive WordPress User ID", async () => {
     const store = baseStore({ settings: [defaultSettings()] });
     installStore(store);
     await assert.rejects(
@@ -548,74 +557,46 @@ describe("CO-1B Super Admin GetOblic.com account — write", () => {
           licenseeAccountId: LICENSEE_A,
           organizationId: ORG_GETOBLIC,
           email: "owner@getoblic.com",
-          password: "",
-          wordpressUserId: 12,
+          wordpressUserId: 0,
         }),
       (error: unknown) => {
         assert.ok(error instanceof SuperAdminGetOblicDirectoryError);
-        assert.equal(error.code, "PASSWORD_REQUIRED");
+        assert.equal(error.code, "INVALID_WORDPRESS_USER_ID");
         return true;
       },
     );
-    assert.equal(store.settings[0]?.getoblic_account_email, null);
+    assert.equal(store.settings[0]?.wordpress_author_id, null);
   });
 
   it("stores a valid email and WordPress user ID", async () => {
     const store = baseStore({ settings: [defaultSettings()] });
-    installStore(store);
+    const { ops } = installStore(store);
 
     const result = await updateGetOblicDirectoryAccountForSuperAdmin({
       actorUserId: SUPER_ADMIN_USER,
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_GETOBLIC,
       email: "  owner@getoblic.com  ",
-      password: "first-password",
       wordpressUserId: 88,
-    });
-
-    assert.equal(store.settings[0]?.getoblic_account_email, "owner@getoblic.com");
-    assert.equal(store.settings[0]?.wordpress_author_id, 88);
-    assert.equal(result.allocation.getoblicAccountEmail, "owner@getoblic.com");
-    assert.equal(result.allocation.wordpressUserId, 88);
-  });
-
-  it("encrypts the password before persistence in v1 format", async () => {
-    const store = baseStore({ settings: [defaultSettings()] });
-    const { ops } = installStore(store);
-    const plaintext = "first-password";
-
-    await updateGetOblicDirectoryAccountForSuperAdmin({
-      actorUserId: SUPER_ADMIN_USER,
-      licenseeAccountId: LICENSEE_A,
-      organizationId: ORG_GETOBLIC,
-      email: "owner@getoblic.com",
-      password: plaintext,
-      wordpressUserId: 12,
     });
 
     const update = ops.find(
       (op) =>
         op.op === "update" && op.table === GETOBLIC_DIRECTORY_SETTINGS_TABLE,
     );
-    const ciphertext = String(
-      update?.values?.getoblic_account_password_ciphertext ?? "",
-    );
-    assert.ok(ciphertext);
-    assert.notEqual(ciphertext, plaintext);
-    assert.match(ciphertext, /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
-    assert.equal(decryptSecret(ciphertext), plaintext);
-    assert.equal(store.settings[0]?.getoblic_account_password_ciphertext, ciphertext);
-    assert.doesNotMatch(JSON.stringify(update?.values ?? {}), /first-password/);
+    assert.equal(store.settings[0]?.getoblic_account_email, "owner@getoblic.com");
+    assert.equal(store.settings[0]?.wordpress_author_id, 88);
+    assert.equal(result.allocation.getoblicAccountEmail, "owner@getoblic.com");
+    assert.equal(result.allocation.wordpressUserId, 88);
+    assert.equal(update?.values?.getoblic_account_email, "owner@getoblic.com");
+    assert.equal(update?.values?.wordpress_author_id, 88);
   });
 
-  it("blank password preserves existing ciphertext", async () => {
-    const existing = encryptSecret("keep-this-password");
+  it("does not write getoblic_account_password_ciphertext", async () => {
     const store = baseStore({
       settings: [
         defaultSettings({
-          getoblic_account_email: "old@getoblic.com",
-          getoblic_account_password_ciphertext: existing,
-          wordpress_author_id: 7,
+          getoblic_account_password_ciphertext: "dormant-ciphertext",
         }),
       ],
     });
@@ -625,9 +606,8 @@ describe("CO-1B Super Admin GetOblic.com account — write", () => {
       actorUserId: SUPER_ADMIN_USER,
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_GETOBLIC,
-      email: "new@getoblic.com",
-      password: "",
-      wordpressUserId: 9,
+      email: "owner@getoblic.com",
+      wordpressUserId: 12,
     });
 
     const update = ops.find(
@@ -638,38 +618,14 @@ describe("CO-1B Super Admin GetOblic.com account — write", () => {
       Object.hasOwn(update?.values ?? {}, "getoblic_account_password_ciphertext"),
       false,
     );
-    assert.equal(store.settings[0]?.getoblic_account_password_ciphertext, existing);
-    assert.equal(store.settings[0]?.getoblic_account_email, "new@getoblic.com");
-    assert.equal(store.settings[0]?.wordpress_author_id, 9);
-  });
-
-  it("replacement password changes ciphertext", async () => {
-    const existing = encryptSecret("old-password");
-    const store = baseStore({
-      settings: [
-        defaultSettings({
-          getoblic_account_email: "owner@getoblic.com",
-          getoblic_account_password_ciphertext: existing,
-          wordpress_author_id: 7,
-        }),
-      ],
-    });
-    installStore(store);
-
-    await updateGetOblicDirectoryAccountForSuperAdmin({
-      actorUserId: SUPER_ADMIN_USER,
-      licenseeAccountId: LICENSEE_A,
-      organizationId: ORG_GETOBLIC,
-      email: "owner@getoblic.com",
-      password: "replacement-password",
-      wordpressUserId: 7,
-    });
-
-    const next = store.settings[0]?.getoblic_account_password_ciphertext;
-    assert.ok(next);
-    assert.notEqual(next, existing);
-    assert.match(String(next), /^v1\./);
-    assert.equal(decryptSecret(String(next)), "replacement-password");
+    assert.equal(
+      store.settings[0]?.getoblic_account_password_ciphertext,
+      "dormant-ciphertext",
+    );
+    assert.doesNotMatch(
+      JSON.stringify(update?.values ?? {}),
+      /getoblic_account_password_ciphertext/,
+    );
   });
 
   it("preserves monthly_allowance including zero", async () => {
@@ -683,7 +639,6 @@ describe("CO-1B Super Admin GetOblic.com account — write", () => {
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_GETOBLIC,
       email: "owner@getoblic.com",
-      password: "first-password",
       wordpressUserId: 12,
     });
 
@@ -708,7 +663,6 @@ describe("CO-1B Super Admin GetOblic.com account — write", () => {
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_GETOBLIC,
       email: "owner@getoblic.com",
-      password: "first-password",
       wordpressUserId: 12,
     });
 
@@ -725,7 +679,6 @@ describe("CO-1B Super Admin GetOblic.com account — write", () => {
         licenseeAccountId: LICENSEE_A,
         organizationId: ORG_V2,
         email: "owner@getoblic.com",
-        password: "secret",
         wordpressUserId: 12,
       }),
     );
@@ -741,7 +694,7 @@ describe("CO-1B Super Admin GetOblic.com account — write", () => {
 });
 
 describe("CO-1B Super Admin GetOblic.com account — safe DTO and audit", () => {
-  it("response omits ciphertext and plaintext password", async () => {
+  it("response DTO contains email and WordPress ID with no password state", async () => {
     const store = baseStore({ settings: [defaultSettings()] });
     installStore(store);
 
@@ -750,25 +703,25 @@ describe("CO-1B Super Admin GetOblic.com account — safe DTO and audit", () => 
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_GETOBLIC,
       email: "owner@getoblic.com",
-      password: "first-password",
       wordpressUserId: 12,
     });
 
-    assertSafeDto(result);
-    assertSafeDto(result.allocation);
-    assert.equal(result.allocation.hasGetOblicPassword, true);
+    assertNoPasswordState(result);
+    assertNoPasswordState(result.allocation);
     assert.equal(
       Object.hasOwn(result.allocation, "getoblicAccountEmail"),
       true,
     );
+    assert.equal(Object.hasOwn(result.allocation, "wordpressUserId"), true);
+    assert.equal(Object.hasOwn(result.allocation, "hasGetOblicPassword"), false);
   });
 
-  it("list DTO contains hasGetOblicPassword only", async () => {
+  it("list DTO contains email and WordPress ID with no password state", async () => {
     const store = baseStore({
       settings: [
         defaultSettings({
           getoblic_account_email: "owner@getoblic.com",
-          getoblic_account_password_ciphertext: encryptSecret("hidden"),
+          getoblic_account_password_ciphertext: "dormant-ciphertext",
           wordpress_author_id: 42,
         }),
       ],
@@ -783,12 +736,12 @@ describe("CO-1B Super Admin GetOblic.com account — safe DTO and audit", () => 
     assert.ok(row);
     assert.equal(row?.getoblicAccountEmail, "owner@getoblic.com");
     assert.equal(row?.wordpressUserId, 42);
-    assert.equal(row?.hasGetOblicPassword, true);
-    assertSafeDto(row);
-    assertSafeDto(model);
+    assert.equal(Object.hasOwn(row ?? {}, "hasGetOblicPassword"), false);
+    assertNoPasswordState(row);
+    assertNoPasswordState(model);
   });
 
-  it("audit contains passwordChanged only and never secrets", async () => {
+  it("audit contains mapping fields and no password metadata", async () => {
     const store = baseStore({ settings: [defaultSettings()] });
     installStore(store);
 
@@ -797,7 +750,6 @@ describe("CO-1B Super Admin GetOblic.com account — safe DTO and audit", () => 
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_GETOBLIC,
       email: "owner@getoblic.com",
-      password: "first-password",
       wordpressUserId: 12,
     });
 
@@ -808,39 +760,13 @@ describe("CO-1B Super Admin GetOblic.com account — safe DTO and audit", () => 
     assert.equal(metadata.organizationId, ORG_GETOBLIC);
     assert.equal(metadata.email, "owner@getoblic.com");
     assert.equal(metadata.wordpressUserId, 12);
-    assert.equal(metadata.passwordChanged, true);
+    assert.equal(Object.hasOwn(metadata, "passwordChanged"), false);
     assert.equal(Object.hasOwn(metadata, "password"), false);
     assert.equal(
       Object.hasOwn(metadata, "getoblic_account_password_ciphertext"),
       false,
     );
-    assert.doesNotMatch(JSON.stringify(store.audit[0]), /first-password/);
-    assert.doesNotMatch(JSON.stringify(store.audit[0]), /v1\./);
-  });
-
-  it("blank password audit records passwordChanged=false", async () => {
-    const store = baseStore({
-      settings: [
-        defaultSettings({
-          getoblic_account_email: "owner@getoblic.com",
-          getoblic_account_password_ciphertext: encryptSecret("hidden"),
-          wordpress_author_id: 12,
-        }),
-      ],
-    });
-    installStore(store);
-
-    await updateGetOblicDirectoryAccountForSuperAdmin({
-      actorUserId: SUPER_ADMIN_USER,
-      licenseeAccountId: LICENSEE_A,
-      organizationId: ORG_GETOBLIC,
-      email: "owner@getoblic.com",
-      password: "",
-      wordpressUserId: 12,
-    });
-
-    const metadata = store.audit[0]?.metadata as Record<string, unknown>;
-    assert.equal(metadata.passwordChanged, false);
+    assertNoPasswordState(store.audit[0]);
   });
 });
 
@@ -871,7 +797,7 @@ describe("CO-1B secret boundary and claim path", () => {
     assert.doesNotMatch(types, /hasGetOblicPassword/);
   });
 
-  it("no tenant or Licensee API exposes the new credential fields", () => {
+  it("no tenant or Licensee API exposes Super Admin account fields", () => {
     const blocked = [
       "getoblic_account_email",
       "getoblic_account_password_ciphertext",
@@ -884,7 +810,6 @@ describe("CO-1B secret boundary and claim path", () => {
       "services/superAdmin/superAdminAuditLog.ts",
       "app/api/super/getoblic-directory/account/route.ts",
       "components/superAdmin/SuperAdminDashboardClient.tsx",
-      "lib/serverEncryptedSecret.ts",
     ]);
     for (const root of ["app", "components", "services"]) {
       for (const file of walkSourceFiles(root)) {
@@ -935,29 +860,31 @@ describe("CO-1B secret boundary and claim path", () => {
 });
 
 describe("CO-1B Super Admin surface contracts", () => {
-  it("account API is PATCH-only and returns a safe allocation DTO", () => {
+  it("account API is PATCH-only and accepts no password input", () => {
     const route = read("app/api/super/getoblic-directory/account/route.ts");
     assert.match(route, /export async function PATCH/);
     assert.match(route, /updateGetOblicDirectoryAccountForSuperAdmin/);
     assert.match(route, /UNAUTHORIZED/);
     assert.match(route, /NOT_SUPER_ADMIN/);
     assert.match(route, /SuperAdminAccessError/);
+    assert.match(route, /email\?: unknown/);
+    assert.match(route, /wordpressUserId\?: unknown/);
+    assert.doesNotMatch(route, /password/);
     assert.doesNotMatch(route, /export async function GET/);
     assert.doesNotMatch(route, /export async function PUT/);
     assert.doesNotMatch(route, /export async function POST/);
     assert.doesNotMatch(route, /decryptSecret/);
-    assert.doesNotMatch(route, /password:\s*result/);
+    assert.doesNotMatch(route, /encryptSecret/);
     assert.match(route, /\{ ok: true, allocation: result\.allocation \}/);
   });
 
-  it("dashboard adds GetOblic.com account fields without snake_case secrets", () => {
+  it("dashboard adds GetOblic.com account fields without password UI", () => {
     const dashboard = read(
       "components/superAdmin/SuperAdminDashboardClient.tsx",
     );
     assert.match(dashboard, /GetOblic\.com account/);
     assert.match(dashboard, /Save Account/);
     assert.match(dashboard, /WordPress User ID/);
-    assert.match(dashboard, /Leave blank to keep current password/);
     assert.match(
       dashboard,
       /Monthly listing allowance must be[\s\S]*configured first/,
@@ -965,10 +892,29 @@ describe("CO-1B Super Admin surface contracts", () => {
     assert.match(dashboard, /saveDirectoryAccount/);
     assert.match(dashboard, /\/api\/super\/getoblic-directory\/account/);
     assert.match(dashboard, /method: "PATCH"/);
+    assert.doesNotMatch(dashboard, /Password/);
+    assert.doesNotMatch(dashboard, /type="password"/);
+    assert.doesNotMatch(dashboard, /hasGetOblicPassword/);
+    assert.doesNotMatch(dashboard, /accountPasswordDrafts/);
+    assert.doesNotMatch(dashboard, /Leave blank to keep current password/);
     assert.doesNotMatch(dashboard, /wordpress_author_id/);
     assert.doesNotMatch(dashboard, /getoblic_account_email/);
     assert.doesNotMatch(dashboard, /getoblic_account_password_ciphertext/);
     assert.doesNotMatch(dashboard, /decryptSecret|encryptSecret/);
+  });
+
+  it("service and DTO contain no password or encryption architecture", () => {
+    const service = read("services/superAdmin/superAdminGetOblicDirectory.ts");
+    assert.doesNotMatch(service, /serverEncryptedSecret/);
+    assert.doesNotMatch(service, /encryptSecret/);
+    assert.doesNotMatch(service, /decryptSecret/);
+    assert.doesNotMatch(service, /hasGetOblicPassword/);
+    assert.doesNotMatch(service, /passwordChanged/);
+    assert.doesNotMatch(service, /getoblic_account_password_ciphertext/);
+    assert.doesNotMatch(service, /ATHENA_SECRET_ENCRYPTION_KEY/);
+    assert.doesNotMatch(service, /password:/);
+    assert.match(service, /getoblic_account_email/);
+    assert.match(service, /wordpress_author_id/);
   });
 
   it("audit action is registered and allowance writer remains unchanged", async () => {
@@ -981,7 +927,7 @@ describe("CO-1B Super Admin surface contracts", () => {
           monthly_allowance: 5,
           wordpress_author_id: 42,
           getoblic_account_email: "owner@getoblic.com",
-          getoblic_account_password_ciphertext: encryptSecret("hidden"),
+          getoblic_account_password_ciphertext: "dormant-ciphertext",
         }),
       ],
     });
@@ -999,6 +945,10 @@ describe("CO-1B Super Admin surface contracts", () => {
     assert.equal(Object.hasOwn(upsert?.values ?? {}, "wordpress_author_id"), false);
     assert.equal(store.settings[0]?.wordpress_author_id, 42);
     assert.equal(store.settings[0]?.getoblic_account_email, "owner@getoblic.com");
+    assert.equal(
+      store.settings[0]?.getoblic_account_password_ciphertext,
+      "dormant-ciphertext",
+    );
     assert.equal(store.settings[0]?.monthly_allowance, 8);
   });
 

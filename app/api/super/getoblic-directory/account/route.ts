@@ -21,7 +21,6 @@ export async function PATCH(request: NextRequest) {
     licenseeAccountId?: unknown;
     organizationId?: unknown;
     email?: unknown;
-    password?: unknown;
     wordpressUserId?: unknown;
   } = {};
   try {
@@ -58,7 +57,6 @@ export async function PATCH(request: NextRequest) {
       licenseeAccountId: body.licenseeAccountId,
       organizationId: body.organizationId,
       email: body.email,
-      password: body.password,
       wordpressUserId: body.wordpressUserId,
     });
 

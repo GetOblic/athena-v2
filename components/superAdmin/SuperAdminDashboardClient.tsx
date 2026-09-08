@@ -151,9 +151,6 @@ export function SuperAdminDashboardClient({
   const [accountEmailDrafts, setAccountEmailDrafts] = useState<
     Record<string, string>
   >(() => buildAccountEmailDrafts(initialDirectoryAllocations));
-  const [accountPasswordDrafts, setAccountPasswordDrafts] = useState<
-    Record<string, string>
-  >({});
   const [accountWordpressUserIdDrafts, setAccountWordpressUserIdDrafts] =
     useState<Record<string, string>>(() =>
       buildWordpressUserIdDrafts(initialDirectoryAllocations),
@@ -287,16 +284,6 @@ export function SuperAdminDashboardClient({
     }));
   }
 
-  function updateAccountPasswordDraft(
-    row: SuperAdminGetOblicDirectoryAllocationRow,
-    value: string,
-  ) {
-    setAccountPasswordDrafts((current) => ({
-      ...current,
-      [allocationKey(row)]: value,
-    }));
-  }
-
   function updateAccountWordpressUserIdDraft(
     row: SuperAdminGetOblicDirectoryAllocationRow,
     value: string,
@@ -354,7 +341,6 @@ export function SuperAdminDashboardClient({
   ) {
     const key = allocationKey(row);
     const email = (accountEmailDrafts[key] ?? "").trim();
-    const password = accountPasswordDrafts[key] ?? "";
     const rawWordpressUserId = (
       accountWordpressUserIdDrafts[key] ?? ""
     ).trim();
@@ -365,18 +351,12 @@ export function SuperAdminDashboardClient({
     setAccountNotice(null);
     setSavingAccountKey(key);
     try {
-      if (!row.hasGetOblicPassword && password.length === 0) {
-        throw new Error(
-          "Password is required the first time a GetOblic.com account is saved.",
-        );
-      }
       const payload = await patchJson(
         "/api/super/getoblic-directory/account",
         {
           licenseeAccountId: row.licenseeAccountId,
           organizationId: row.organizationId,
           email,
-          password,
           wordpressUserId,
         },
       );
@@ -393,10 +373,6 @@ export function SuperAdminDashboardClient({
         ...current,
         [allocationKey(next)]:
           next.wordpressUserId == null ? "" : String(next.wordpressUserId),
-      }));
-      setAccountPasswordDrafts((current) => ({
-        ...current,
-        [allocationKey(next)]: "",
       }));
       setAccountNotice("GetOblic.com account saved.");
     } catch (err) {
@@ -724,7 +700,6 @@ export function SuperAdminDashboardClient({
                           const saving = savingAllocationKey === key;
                           const savingAccount = savingAccountKey === key;
                           const emailDraft = accountEmailDrafts[key] ?? "";
-                          const passwordDraft = accountPasswordDrafts[key] ?? "";
                           const wordpressUserIdDraft =
                             accountWordpressUserIdDrafts[key] ?? "";
                           const accountDisabled = !row.configured;
@@ -782,33 +757,6 @@ export function SuperAdminDashboardClient({
                                     placeholder=""
                                     className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)] disabled:opacity-50"
                                   />
-                                </label>
-                                <label className="block space-y-2">
-                                  <span className="text-sm text-white/70">
-                                    Password
-                                  </span>
-                                  <input
-                                    type="password"
-                                    value={passwordDraft}
-                                    onChange={(event) =>
-                                      updateAccountPasswordDraft(
-                                        row,
-                                        event.target.value,
-                                      )
-                                    }
-                                    disabled={accountDisabled}
-                                    placeholder={
-                                      row.hasGetOblicPassword
-                                        ? "Leave blank to keep current password"
-                                        : ""
-                                    }
-                                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)] disabled:opacity-50"
-                                  />
-                                  {row.hasGetOblicPassword ? (
-                                    <span className="block text-xs text-white/40">
-                                      Leave blank to keep current password
-                                    </span>
-                                  ) : null}
                                 </label>
                                 <label className="block space-y-2">
                                   <span className="text-sm text-white/70">
