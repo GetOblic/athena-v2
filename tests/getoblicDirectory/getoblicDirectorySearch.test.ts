@@ -288,6 +288,7 @@ describe("GetOblic directory search service", () => {
     assert.equal(result.results[0]?.athena_claim_status, "OWNED_BY_THIS_ORG");
     assert.equal(result.results[1]?.athena_claim_status, "UNAVAILABLE");
     assert.equal(result.results[2]?.athena_claim_status, "AVAILABLE");
+    assert.notEqual(result.results[0]?.athena_claim_status, "INCOMPLETE_FOR_THIS_ORG");
     const publicSearch = toPublicGetOblicDirectorySearch(result);
     const serialized = JSON.stringify(publicSearch);
     assert.doesNotMatch(serialized, /organization_id/);
@@ -295,6 +296,50 @@ describe("GetOblic directory search service", () => {
     assert.doesNotMatch(serialized, new RegExp(PROSPECT_A));
     assert.doesNotMatch(serialized, new RegExp(PROSPECT_B));
     assert.doesNotMatch(serialized, /OWNED_BY_THIS_PROSPECT/);
+  });
+
+  it("overlays same-org claiming as incomplete, not owned", async () => {
+    installLinks([
+      completeLink({
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_A,
+        wordpress_listing_id: 100,
+        relationship_status: "claiming",
+      }),
+    ]);
+
+    const result = await searchGetOblicDirectory(
+      {
+        organizationId: ORG_A,
+        keywords: "hair salons in Dallas",
+      },
+      port(remoteResponse([hit(100)])),
+    );
+
+    assert.equal(result.results[0]?.athena_claim_status, "INCOMPLETE_FOR_THIS_ORG");
+    assert.notEqual(result.results[0]?.athena_claim_status, "OWNED_BY_THIS_ORG");
+  });
+
+  it("overlays same-org remote_missing as incomplete, not owned", async () => {
+    installLinks([
+      completeLink({
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_A,
+        wordpress_listing_id: 100,
+        relationship_status: "remote_missing",
+      }),
+    ]);
+
+    const result = await searchGetOblicDirectory(
+      {
+        organizationId: ORG_A,
+        keywords: "hair salons in Dallas",
+      },
+      port(remoteResponse([hit(100)])),
+    );
+
+    assert.equal(result.results[0]?.athena_claim_status, "INCOMPLETE_FOR_THIS_ORG");
+    assert.notEqual(result.results[0]?.athena_claim_status, "OWNED_BY_THIS_ORG");
   });
 
   it("returns empty results without creating claims or prospects", async () => {

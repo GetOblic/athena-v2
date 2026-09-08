@@ -95,6 +95,22 @@ describe("CO-1 Find Opportunities UX", () => {
     );
     assert.equal(
       resolveGetOblicOpportunityCardPhase({
+        claimStatus: "INCOMPLETE_FOR_THIS_ORG",
+        inFlight: false,
+        failed: false,
+      }),
+      "incomplete",
+    );
+    assert.notEqual(
+      resolveGetOblicOpportunityCardPhase({
+        claimStatus: "INCOMPLETE_FOR_THIS_ORG",
+        inFlight: false,
+        failed: false,
+      }),
+      "owned",
+    );
+    assert.equal(
+      resolveGetOblicOpportunityCardPhase({
         claimStatus: "UNAVAILABLE",
         inFlight: false,
         failed: false,
@@ -127,9 +143,12 @@ describe("CO-1 Find Opportunities UX", () => {
     const card = read("components/prospects/GetOblicOpportunityResultCard.tsx");
     assert.match(card, /addToOpportunities/);
     assert.match(card, /alreadyInMyOpportunities/);
+    assert.match(card, /needsFinishing/);
+    assert.match(card, /finishAdding/);
     assert.match(card, /alreadyBeingPursued/);
     assert.match(card, /sourceGetOblic/);
     assert.match(card, /viewListing/);
+    assert.doesNotMatch(card, /claiming|reservation|allocation|WordPress/);
     assert.doesNotMatch(card, /organization_id/);
     assert.doesNotMatch(card, /prospect_id/);
     assert.doesNotMatch(card, /wordpress_listing_id\}/);
@@ -259,6 +278,8 @@ describe("CO-1 Find Opportunities UX", () => {
       assert.ok(messages.prospects.list.findOpportunitiesCta);
       assert.ok(messages.prospects.find.title);
       assert.ok(messages.prospects.find.addToOpportunities);
+      assert.ok(messages.prospects.find.needsFinishing);
+      assert.ok(messages.prospects.find.finishAdding);
       assert.ok(messages.prospects.websiteCompletion.heading);
       assert.ok(messages.prospects.websiteCompletion.addWebsiteToStartResearch);
       assert.ok(messages.prospects.convert.saved);

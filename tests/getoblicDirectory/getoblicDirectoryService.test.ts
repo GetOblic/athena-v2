@@ -468,8 +468,14 @@ describe("GetOblic claim lookup and availability (service)", () => {
       300,
       400,
     ]);
-    assert.equal(claims.get(100), ORG_A);
-    assert.equal(claims.get(200), ORG_B);
+    assert.deepEqual(claims.get(100), {
+      organization_id: ORG_A,
+      relationship_status: "linked",
+    });
+    assert.deepEqual(claims.get(200), {
+      organization_id: ORG_B,
+      relationship_status: "claiming",
+    });
     assert.equal(claims.has(300), false);
     assert.equal(claims.has(400), false);
     const lookup = calls.find(

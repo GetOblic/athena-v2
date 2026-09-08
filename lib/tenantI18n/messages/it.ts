@@ -1707,6 +1707,8 @@ export const it: TenantMessages = {
       available: "Disponibile",
       addToOpportunities: "Aggiungi alle opportunità",
       alreadyInMyOpportunities: "Già nelle mie opportunità",
+      needsFinishing: "Da completare",
+      finishAdding: "Termina l’aggiunta",
       open: "Apri",
       alreadyBeingPursued: "Già in corso",
       adding: "Aggiunta…",

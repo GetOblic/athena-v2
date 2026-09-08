@@ -464,7 +464,8 @@ async function acquireReservedClaim(args: {
     return listingLookup.result;
   }
 
-  const wordpressAuthorId = await resolveWordpressAuthorId({
+  const wordpressAuthorId = await resolveWordpressAuthorIdOrStamp({
+    reserved: args.reserved,
     settings: args.settings,
     organizationId: args.input.organizationId,
     actorUserId: args.input.actorUserId,
@@ -509,9 +510,7 @@ async function acquireReservedClaim(args: {
   }
 
   const allocatedAt =
-    allocation.consumedNow
-      ? args.now.toISOString()
-      : args.reserved.allocated_at;
+    args.reserved.allocated_at ?? args.now.toISOString();
 
   const linked = await persistClaimRow(args.reserved, {
     relationship_status: "linked",
@@ -528,6 +527,38 @@ async function acquireReservedClaim(args: {
     link: linked,
     allocated: allocation.consumedNow,
   };
+}
+
+async function resolveWordpressAuthorIdOrStamp(input: {
+  reserved: GetOblicListingLink;
+  settings: GetOblicDirectorySettings;
+  organizationId: string;
+  actorUserId: string | null;
+  wordpress: ClaimKnownListingWordpressPort;
+  now: Date;
+}): Promise<number> {
+  try {
+    return await resolveWordpressAuthorId(input);
+  } catch (error) {
+    if (
+      error instanceof GetOblicDirectoryError &&
+      (error.code === "GETOBLIC_WORDPRESS_AUTHOR_UNMAPPED" ||
+        error.code === "GETOBLIC_WORDPRESS_AUTHOR_FAILED")
+    ) {
+      const link = await persistClaimRow(input.reserved, {
+        last_remote_error: boundRemoteError(error.code, error.message),
+        last_remote_error_at: input.now.toISOString(),
+        updated_at: input.now.toISOString(),
+      });
+      throw new GetOblicDirectoryError(
+        error.code,
+        error.message,
+        error.status,
+        link,
+      );
+    }
+    throw error;
+  }
 }
 
 async function resolveWordpressAuthorId(input: {

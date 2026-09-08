@@ -14,12 +14,17 @@ export type GetOblicOpportunitySearchHit = {
   lng: number | null;
   image: string | null;
   google_id: string | null;
-  athena_claim_status: "AVAILABLE" | "OWNED_BY_THIS_ORG" | "UNAVAILABLE";
+  athena_claim_status:
+    | "AVAILABLE"
+    | "OWNED_BY_THIS_ORG"
+    | "INCOMPLETE_FOR_THIS_ORG"
+    | "UNAVAILABLE";
 };
 
 export type GetOblicOpportunityCardPhase =
   | "available"
   | "owned"
+  | "incomplete"
   | "unavailable"
   | "in_progress"
   | "failed";
@@ -31,6 +36,9 @@ export function resolveGetOblicOpportunityCardPhase(input: {
 }): GetOblicOpportunityCardPhase {
   if (input.claimStatus === "OWNED_BY_THIS_ORG") {
     return input.inFlight ? "in_progress" : "owned";
+  }
+  if (input.claimStatus === "INCOMPLETE_FOR_THIS_ORG") {
+    return input.inFlight ? "in_progress" : "incomplete";
   }
   if (input.claimStatus === "UNAVAILABLE") {
     return "unavailable";
@@ -114,11 +122,13 @@ export function GetOblicOpportunityResultCard({
       <p className="mt-2 text-sm text-[var(--athena-orange)]">
         {phase === "owned"
           ? copy.alreadyInMyOpportunities
-          : phase === "unavailable"
-            ? copy.alreadyBeingPursued
-            : phase === "in_progress"
-              ? copy.adding
-              : copy.available}
+          : phase === "incomplete"
+            ? copy.needsFinishing
+            : phase === "unavailable"
+              ? copy.alreadyBeingPursued
+              : phase === "in_progress"
+                ? copy.adding
+                : copy.available}
       </p>
       {phase === "failed" ? (
         <p className="mt-2 text-sm text-rose-200/80">
@@ -127,14 +137,18 @@ export function GetOblicOpportunityResultCard({
       ) : null}
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        {phase === "available" || phase === "failed" ? (
+        {phase === "available" || phase === "failed" || phase === "incomplete" ? (
           <button
             type="button"
             disabled={inFlight || addDisabled}
             onClick={() => onAdd(hit)}
             className="inline-flex items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
           >
-            {phase === "failed" ? copy.tryAgain : copy.addToOpportunities}
+            {phase === "failed"
+              ? copy.tryAgain
+              : phase === "incomplete"
+                ? copy.finishAdding
+                : copy.addToOpportunities}
           </button>
         ) : null}
         {phase === "owned" ? (

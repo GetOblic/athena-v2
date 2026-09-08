@@ -196,11 +196,17 @@ export function isActiveGetOblicRelationshipStatus(
 export const GETOBLIC_DIRECTORY_SEARCH_CLAIM_STATUSES = [
   "AVAILABLE",
   "OWNED_BY_THIS_ORG",
+  "INCOMPLETE_FOR_THIS_ORG",
   "UNAVAILABLE",
 ] as const;
 
 export type GetOblicDirectorySearchClaimStatus =
   (typeof GETOBLIC_DIRECTORY_SEARCH_CLAIM_STATUSES)[number];
+
+export type GetOblicDirectorySearchClaimOverlay = {
+  organization_id: string;
+  relationship_status: ActiveGetOblicRelationshipStatus;
+};
 
 export const GETOBLIC_DIRECTORY_SEARCH_DEFAULT_LISTING_TYPE =
   "getoblic_global_search_engine" as const;
@@ -213,16 +219,20 @@ export const GETOBLIC_DIRECTORY_SEARCH_MAX_PER_PAGE = 20;
 /**
  * Generic directory search has no Prospect authority.
  * Do not emit OWNED_BY_THIS_PROSPECT from this classifier.
+ * OWNED_BY_THIS_ORG is completed (linked) only.
+ * claiming / remote_missing stay INCOMPLETE_FOR_THIS_ORG.
  */
 export function classifyGetOblicDirectorySearchClaimStatus(
   organizationId: string,
-  claimOrganizationId: string | null,
+  claim: GetOblicDirectorySearchClaimOverlay | null,
 ): GetOblicDirectorySearchClaimStatus {
-  if (!claimOrganizationId) {
+  if (!claim) {
     return "AVAILABLE";
   }
-  if (claimOrganizationId === organizationId) {
-    return "OWNED_BY_THIS_ORG";
+  if (claim.organization_id === organizationId) {
+    return claim.relationship_status === "linked"
+      ? "OWNED_BY_THIS_ORG"
+      : "INCOMPLETE_FOR_THIS_ORG";
   }
   return "UNAVAILABLE";
 }

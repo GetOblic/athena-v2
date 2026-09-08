@@ -791,7 +791,12 @@ async function finishExistingProspect(args: {
       };
     }
 
-    if (error instanceof GetOblicDirectoryError && error.link) {
+    if (
+      error instanceof GetOblicDirectoryError &&
+      (error.code === "GETOBLIC_WORDPRESS_AUTHOR_UNMAPPED" ||
+        error.code === "GETOBLIC_WORDPRESS_AUTHOR_FAILED" ||
+        error.link)
+    ) {
       return presentProspect({
         prospect,
         outcome: "claim_incomplete",

@@ -1240,24 +1240,148 @@ describe("GetOblic claim orchestration", () => {
     assert.match(source, /getUserById/);
     assert.doesNotMatch(source, /prospect\.email/);
     assert.doesNotMatch(source, /actorUserId.*email/);
-    installStore({
+    const store = {
       settings: [defaultSettings({ wordpress_author_id: null })],
       prospects: [defaultProspect()],
       links: [] as LinkRow[],
+      events: [] as EventRow[],
       members: [],
-    });
+    };
+    installStore(store);
     const wordpress = successWordpress();
     await assert.rejects(
       () => claim({}, wordpress),
       (error: unknown) => {
         assert.ok(error instanceof GetOblicDirectoryError);
         assert.equal(error.code, "GETOBLIC_WORDPRESS_AUTHOR_UNMAPPED");
+        assert.equal(error.link?.relationship_status, "claiming");
         return true;
       },
     );
+    assert.equal(store.links[0]?.relationship_status, "claiming");
+    assert.match(
+      String(store.links[0]?.last_remote_error),
+      /GETOBLIC_WORDPRESS_AUTHOR_UNMAPPED/,
+    );
+    assert.equal(store.events.length, 0);
     assert.equal(
       wordpress.calls.some((call) => call.startsWith("resolveOrCreate:")),
       false,
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+  });
+
+  it("stamps last_remote_error when author mapping fails after reservation", async () => {
+    const reserved = completeLink({
+      id: "link-reserved",
+      organization_id: ORG_A,
+      prospect_id: PROSPECT_A,
+      wordpress_listing_id: 1000,
+      relationship_status: "claiming",
+      wordpress_author_id: null,
+      allocated_at: null,
+      last_remote_error: null,
+    });
+    const store = {
+      settings: [defaultSettings({ wordpress_author_id: null })],
+      prospects: [defaultProspect()],
+      links: [reserved],
+      events: [] as EventRow[],
+      members: [],
+    };
+    installStore(store);
+    const wordpress = successWordpress();
+    await assert.rejects(
+      () => claim({}, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_WORDPRESS_AUTHOR_UNMAPPED");
+        assert.equal(error.link?.id, "link-reserved");
+        assert.equal(error.link?.relationship_status, "claiming");
+        return true;
+      },
+    );
+    assert.equal(store.links.length, 1);
+    assert.equal(store.links[0]?.id, "link-reserved");
+    assert.equal(store.links[0]?.relationship_status, "claiming");
+    assert.equal(store.links[0]?.wordpress_author_id, null);
+    assert.equal(store.links[0]?.allocated_at, null);
+    assert.match(
+      String(store.links[0]?.last_remote_error),
+      /GETOBLIC_WORDPRESS_AUTHOR_UNMAPPED/,
+    );
+    assert.ok(store.links[0]?.last_remote_error_at);
+    assert.equal(store.events.length, 0);
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+  });
+
+  it("populates allocated_at when resume sees an already-consumed allocation", async () => {
+    const store = {
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      links: [
+        completeLink({
+          id: "link-1",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 1000,
+          relationship_status: "claiming",
+          wordpress_author_id: null,
+          allocated_at: null,
+        }),
+      ],
+      events: [
+        {
+          id: "e1",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          listing_link_id: "link-1",
+          wordpress_listing_id: 1000,
+          event_kind: "allocate_existing",
+          period_start: "2026-09-01",
+          idempotency_key: buildGetOblicAllocateExistingIdempotencyKey(
+            ORG_A,
+            1000,
+          ),
+          actor_user_id: null,
+          actor_licensee_account_id: null,
+        },
+      ] as EventRow[],
+    };
+    const { ops } = installStore(store);
+    const wordpress = successWordpress();
+    const result = await claim({}, wordpress);
+    assert.equal(result.outcome, "linked");
+    assert.equal(result.allocated, false);
+    assert.equal(store.links[0]?.relationship_status, "linked");
+    assert.equal(store.links[0]?.wordpress_author_id, 42);
+    assert.equal(store.links[0]?.allocated_at, NOW.toISOString());
+    assert.equal(store.events.length, 1);
+    assert.equal(store.events[0]?.id, "e1");
+    assert.equal(
+      ops.filter(
+        (op) =>
+          op.op === "rpc" && op.table === CONSUME_GETOBLIC_LISTING_ALLOCATION_RPC,
+      ).length,
+      1,
+    );
+    assert.equal(
+      ops.filter(
+        (op) =>
+          op.op === "insert" &&
+          op.table === "athena_getoblic_listing_allocation_events",
+      ).length,
+      0,
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call === "assignAuthor:1000:42"),
+      true,
     );
   });
 

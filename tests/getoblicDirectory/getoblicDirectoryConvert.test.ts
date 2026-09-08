@@ -311,6 +311,56 @@ describe("GetOblic directory convert orchestration", () => {
     assert.equal(port.queued.length, 0);
   });
 
+  it("resumes a same-org claiming reservation on the existing Prospect", async () => {
+    const existing = prospect({ id: PROSPECT_B, status: "Saved" });
+    const port = deps({
+      getActiveListingClaim: async () => ({
+        found: true,
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_B,
+        relationship_status: "claiming",
+      }),
+      getProspectById: async () => existing,
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "reused");
+    assert.equal(result.prospect_id, PROSPECT_B);
+    assert.equal(port.created.length, 0);
+    assert.equal(port.claimed.length, 1);
+    assert.equal(
+      (port.claimed[0] as { prospectId?: string }).prospectId,
+      PROSPECT_B,
+    );
+    assert.equal(port.queued.length, 0);
+    assert.deepEqual(port.deleted, []);
+  });
+
+  it("returns claim_incomplete with the existing Prospect when author mapping fails", async () => {
+    const existing = prospect({ id: PROSPECT_B, status: "Saved" });
+    const port = deps({
+      getActiveListingClaim: async () => ({
+        found: true,
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_B,
+        relationship_status: "claiming",
+      }),
+      getProspectById: async () => existing,
+      claimKnownExistingListing: async () => {
+        throw new GetOblicDirectoryError(
+          "GETOBLIC_WORDPRESS_AUTHOR_UNMAPPED",
+          "This organization has no mapped WordPress author.",
+        );
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "claim_incomplete");
+    assert.equal(result.prospect_id, PROSPECT_B);
+    assert.equal(port.created.length, 0);
+    assert.deepEqual(port.deleted, []);
+    assert.equal(result.generation_queued, false);
+    assert.equal(result.allocated, false);
+  });
+
   it("blocks other-org listings without leaking their identity", async () => {
     const port = deps({
       getActiveListingClaim: async () => ({

@@ -1676,6 +1676,8 @@ export const en = {
       available: "Available",
       addToOpportunities: "Add to opportunities",
       alreadyInMyOpportunities: "Already in my opportunities",
+      needsFinishing: "Needs finishing",
+      finishAdding: "Finish adding",
       open: "Open",
       alreadyBeingPursued: "Already being pursued",
       adding: "Adding…",

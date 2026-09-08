@@ -128,15 +128,41 @@ describe("GetOblic directory search claim overlay", () => {
     );
   });
 
-  it("returns OWNED_BY_THIS_ORG for a same-organization claim", () => {
+  it("returns OWNED_BY_THIS_ORG only for a completed same-organization claim", () => {
     assert.equal(
-      classifyGetOblicDirectorySearchClaimStatus(ORG_A, ORG_A),
+      classifyGetOblicDirectorySearchClaimStatus(ORG_A, {
+        organization_id: ORG_A,
+        relationship_status: "linked",
+      }),
       "OWNED_BY_THIS_ORG",
     );
   });
 
+  it("returns INCOMPLETE_FOR_THIS_ORG for a same-organization claiming reservation", () => {
+    assert.equal(
+      classifyGetOblicDirectorySearchClaimStatus(ORG_A, {
+        organization_id: ORG_A,
+        relationship_status: "claiming",
+      }),
+      "INCOMPLETE_FOR_THIS_ORG",
+    );
+  });
+
+  it("returns INCOMPLETE_FOR_THIS_ORG for a same-organization remote_missing reservation", () => {
+    assert.equal(
+      classifyGetOblicDirectorySearchClaimStatus(ORG_A, {
+        organization_id: ORG_A,
+        relationship_status: "remote_missing",
+      }),
+      "INCOMPLETE_FOR_THIS_ORG",
+    );
+  });
+
   it("returns UNAVAILABLE for another organization without leaking identifiers", () => {
-    const status = classifyGetOblicDirectorySearchClaimStatus(ORG_A, ORG_B);
+    const status = classifyGetOblicDirectorySearchClaimStatus(ORG_A, {
+      organization_id: ORG_B,
+      relationship_status: "linked",
+    });
     assert.equal(status, "UNAVAILABLE");
     assert.doesNotMatch(status, new RegExp(ORG_B));
     assert.doesNotMatch(status, /OWNED_BY_THIS_PROSPECT/);

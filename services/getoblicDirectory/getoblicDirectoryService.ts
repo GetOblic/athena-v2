@@ -31,6 +31,7 @@ import {
   isActiveGetOblicRelationshipStatus,
   type GetOblicActiveListingClaimLookup,
   type GetOblicAllocationUsageResult,
+  type GetOblicDirectorySearchClaimOverlay,
   type GetOblicDirectorySettings,
   type GetOblicDirectorySettingsResult,
   type GetOblicKbPushStatus,
@@ -190,11 +191,12 @@ export async function determineGetOblicListingClaimAvailability(
 /**
  * Internal batch active-claim lookup for search overlay.
  * Intentionally not organization-scoped: exclusivity is global.
- * Returns only listing ID → organization_id. Do not serialize this map.
+ * Returns listing ID → organization + relationship status.
+ * Do not serialize this map.
  */
 export async function getActiveGetOblicClaimOrganizationIdsByWordPressListingIds(
   wordpressListingIds: number[],
-): Promise<Map<number, string>> {
+): Promise<Map<number, GetOblicDirectorySearchClaimOverlay>> {
   const uniqueIds = [
     ...new Set(
       wordpressListingIds.filter(
@@ -202,14 +204,14 @@ export async function getActiveGetOblicClaimOrganizationIdsByWordPressListingIds
       ),
     ),
   ];
-  const claims = new Map<number, string>();
+  const claims = new Map<number, GetOblicDirectorySearchClaimOverlay>();
   if (uniqueIds.length === 0) {
     return claims;
   }
 
   const { data, error } = await supabaseAdmin
     .from(GETOBLIC_LISTING_LINKS_TABLE)
-    .select("wordpress_listing_id, organization_id")
+    .select("wordpress_listing_id, organization_id, relationship_status")
     .in("wordpress_listing_id", uniqueIds)
     .in("relationship_status", ACTIVE_STATUS_LIST);
 
@@ -226,10 +228,20 @@ export async function getActiveGetOblicClaimOrganizationIdsByWordPressListingIds
     const record = row as Record<string, unknown>;
     const listingId = readInteger(record.wordpress_listing_id);
     const organizationId = readString(record.organization_id);
-    if (listingId == null || listingId <= 0 || !organizationId) {
+    const status = readString(record.relationship_status);
+    if (
+      listingId == null ||
+      listingId <= 0 ||
+      !organizationId ||
+      !status ||
+      !isActiveGetOblicRelationshipStatus(status)
+    ) {
       continue;
     }
-    claims.set(listingId, organizationId);
+    claims.set(listingId, {
+      organization_id: organizationId,
+      relationship_status: status,
+    });
   }
 
   return claims;
