@@ -154,6 +154,9 @@ describe("V31 L3.4 tenant list surfaces — Intelligence Domains", () => {
     assert.match(page, /copy\.title/);
     assert.match(page, /copy\.subtitle/);
     assert.match(page, /copy\.empty/);
+    assert.match(page, /TenantAppShell/);
+    assert.doesNotMatch(page, /DashboardSidebar/);
+    assert.doesNotMatch(page, /AthenaBrandLink/);
     assert.match(page, /getTenantLocalization\(\)/);
     assert.equal((page.match(/getTenantLocalization\(\)/g) ?? []).length, 1);
   });
@@ -226,7 +229,9 @@ describe("V31 L3.4 tenant list surfaces — Inbox", () => {
     const page = read("app/inbox/page.tsx");
     assert.match(page, /copy\.title/);
     assert.match(page, /copy\.subtitle/);
-    assert.match(page, /TenantBackLink/);
+    assert.match(page, /TenantAppShell/);
+    assert.doesNotMatch(page, /TenantBackLink/);
+    assert.doesNotMatch(page, /AthenaBrandLink/);
     assert.match(page, /getIntelligenceDomainName\(domain\)/);
     assert.match(page, /getTenantLocalization\(\)/);
     const form = read("components/inbox/CaptureDiscussionForm.tsx");
@@ -374,7 +379,9 @@ describe("V31 L3.4 tenant list surfaces — Discussions list", () => {
     const page = read("app/discussions/page.tsx");
     assert.match(page, /copy\.emptyTitle/);
     assert.match(page, /copy\.emptyBody/);
-    assert.match(page, /TenantBackLink/);
+    assert.match(page, /TenantAppShell/);
+    assert.doesNotMatch(page, /TenantBackLink/);
+    assert.doesNotMatch(page, /AthenaBrandLink/);
   });
 });
 

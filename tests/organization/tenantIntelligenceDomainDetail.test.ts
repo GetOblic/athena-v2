@@ -248,7 +248,10 @@ describe("V31 L3.10.1 tenant Intelligence Domain detail — chrome", () => {
     );
     assert.equal(en.intelligenceDomains.open, "Open");
     const page = read("app/communities/[id]/page.tsx");
+    assert.match(page, /TenantAppShell/);
     assert.match(page, /TenantBackLink/);
+    assert.doesNotMatch(page, /AthenaBrandLink/);
+    assert.doesNotMatch(page, /DashboardSidebar/);
     assert.match(page, /copy\.backToDomains/);
     assert.match(page, /\{community\.group_name\}/);
     assert.match(page, /\{community\.notes \|\| copy\.notesEmpty\}/);
@@ -661,11 +664,14 @@ describe("V31 L3.10.1 tenant Intelligence Domain detail — timeline and section
 });
 
 describe("V31 L3.10.1 tenant Intelligence Domain detail — session and refresh", () => {
-  it("passes localized logout and session chrome to AthenaBrandLink", () => {
+  it("wraps Intelligence Domain detail in TenantAppShell and keeps AthenaBrandLink tenant-neutral", () => {
     const page = read("app/communities/[id]/page.tsx");
-    assert.match(page, /logoutLabel=\{messages\.chrome\.logOut\}/);
-    assert.match(page, /sessionActionsLabel=\{messages\.chrome\.sessionActions\}/);
-    assert.match(page, /tagline=\{messages\.chrome\.tagline\}/);
+    assert.match(
+      page,
+      /<TenantAppShell currentPath=\{`\/communities\/\$\{id\}`\} messages=\{messages\}>/,
+    );
+    assert.doesNotMatch(page, /AthenaBrandLink/);
+    assert.doesNotMatch(page, /logoutLabel=\{messages\.chrome\.logOut\}/);
     const brand = read("components/branding/AthenaBrandLink.tsx");
     assert.match(brand, /tagline = "Intelligence OS"/);
     assert.doesNotMatch(brand, /getTenantLocalization|tenantI18n\/messages/);

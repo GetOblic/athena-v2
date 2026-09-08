@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { GenerateCommunityIntelligenceButton } from "@/components/communities/GenerateCommunityIntelligenceButton";
 import { IntelligenceDomainHeaderActions } from "@/components/intelligenceDomains/IntelligenceDomainHeaderActions";
 import { DomainHealthCard } from "@/components/intelligenceDomains/DomainHealthCard";
@@ -44,18 +44,11 @@ export default async function CommunityDetailsPage({
 
   if (!community) {
     return (
-      <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-        <AthenaBrandLink
-          className="mb-8"
-          tagline={messages.chrome.tagline}
-          logoutLabel={messages.chrome.logOut}
-          sessionActionsLabel={messages.chrome.sessionActions}
-        />
-
+      <TenantAppShell currentPath={`/communities/${id}`} messages={messages}>
         <TenantBackLink href="/intelligence-domains" label={copy.backToDomains} />
 
         <h1 className="mt-8 text-4xl font-semibold">{copy.notFound}</h1>
-      </main>
+      </TenantAppShell>
     );
   }
 
@@ -88,14 +81,7 @@ export default async function CommunityDetailsPage({
       : copy.discussionsCapturedHelpMany;
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
-      />
-
+    <TenantAppShell currentPath={`/communities/${id}`} messages={messages}>
       <TenantBackLink href="/intelligence-domains" label={copy.backToDomains} />
 
       <div className="mt-10 flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
@@ -104,7 +90,7 @@ export default async function CommunityDetailsPage({
             {copy.eyebrow}
           </div>
 
-          <h1 className="mt-4 text-5xl font-semibold tracking-tight">
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-5xl">
             {community.group_name}
           </h1>
 
@@ -297,7 +283,7 @@ export default async function CommunityDetailsPage({
           {community.notes || copy.notesEmpty}
         </div>
       </div>
-    </main>
+    </TenantAppShell>
   );
 }
 

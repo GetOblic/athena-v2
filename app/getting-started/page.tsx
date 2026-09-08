@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { GettingStartedConversationPanel } from "@/components/getting-started/GettingStartedConversationPanel";
 import { tenantConversationWrapperChrome } from "@/lib/tenantI18n/conversationChrome";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
@@ -39,24 +38,13 @@ export default async function GettingStartedPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] text-white">
-      <div className="flex min-h-screen">
-        <DashboardSidebar activeHref="/getting-started" messages={messages} />
-
-        <section className="flex-1 p-10">
-          <AthenaBrandLink
-            className="mb-8 md:hidden"
-            tagline={messages.chrome.tagline}
-            logoutLabel={messages.chrome.logOut}
-            sessionActionsLabel={messages.chrome.sessionActions}
-          />
-
+    <TenantAppShell currentPath="/getting-started" messages={messages}>
           <div className="mb-12 max-w-4xl">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
               {copy.eyebrow}
             </div>
 
-            <h1 className="mt-4 text-5xl font-semibold tracking-tight">
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-5xl">
               {copy.title}
             </h1>
 
@@ -196,9 +184,7 @@ export default async function GettingStartedPage() {
               </Link>
             </section>
           </div>
-        </section>
-      </div>
-    </main>
+    </TenantAppShell>
   );
 }
 

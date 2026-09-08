@@ -1,8 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { CreateIntelligenceDomainForm } from "@/components/intelligenceDomains/CreateIntelligenceDomainForm";
 import { IntelligenceDomainCard } from "@/components/intelligenceDomains/IntelligenceDomainRowActions";
@@ -67,27 +66,13 @@ export default async function IntelligenceDomainsPage({
   const copy = messages.intelligenceDomains;
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] text-white">
-      <div className="flex min-h-screen">
-        <DashboardSidebar
-          activeHref="/intelligence-domains"
-          messages={messages}
-        />
-
-        <section className="min-w-0 flex-1 p-6 lg:p-10">
-          <AthenaBrandLink
-            className="mb-8 md:hidden"
-            tagline={messages.chrome.tagline}
-            logoutLabel={messages.chrome.logOut}
-            sessionActionsLabel={messages.chrome.sessionActions}
-          />
-
+    <TenantAppShell currentPath="/intelligence-domains" messages={messages}>
           <div className="mb-10">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
               {copy.eyebrow}
             </div>
 
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight lg:text-5xl">
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-5xl">
               {copy.title}
             </h1>
 
@@ -130,8 +115,6 @@ export default async function IntelligenceDomainsPage({
 
             <CreateIntelligenceDomainForm action={createDomain} messages={copy} />
           </div>
-        </section>
-      </div>
-    </main>
+    </TenantAppShell>
   );
 }

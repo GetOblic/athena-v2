@@ -1,10 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { DiscussionAgeBadge } from "@/components/discussions/DiscussionAgeBadge";
 import { DiscussionLifecycleBadge } from "@/components/discussions/DiscussionLifecycleBadge";
-import { TenantBackLink } from "@/components/navigation/TenantBackLink";
 import { QueueSectionHeader } from "@/components/queues/QueueSectionHeader";
 import { AthenaIntelligenceListRow } from "@/components/ui/AthenaIntelligenceListRow";
 import { getDiscussionAgeKey } from "@/lib/discussionAge";
@@ -54,22 +53,13 @@ export default async function DiscussionsPage() {
   );
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
-      />
-
-      <TenantBackLink href="/" label={copy.backToDashboard} />
-
-      <div className="mb-10 mt-10">
+    <TenantAppShell currentPath="/discussions" messages={messages}>
+      <div className="mb-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
           {copy.eyebrow}
         </div>
 
-        <h1 className="mt-4 text-5xl font-semibold tracking-tight">
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-5xl">
           {copy.title}
         </h1>
 
@@ -191,6 +181,6 @@ export default async function DiscussionsPage() {
           })}
         </div>
       )}
-    </main>
+    </TenantAppShell>
   );
 }

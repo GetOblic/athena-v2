@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { notFound } from "next/navigation";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
 import { StrategicAssetBlueprintEmpty } from "@/components/assetBlueprints/StrategicAssetBlueprintEmpty";
@@ -53,22 +53,17 @@ export default async function BriefingPage({ params }: Props) {
   ]);
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
-      />
-
+    <TenantAppShell currentPath={`/briefings/${id}`} messages={messages}>
       <TenantBackLink href="/briefings" label={copy.backToBriefings} />
 
       <div className="mt-10">
-        <div className="text-xs uppercase tracking-[0.35em] text-[var(--athena-orange)]">
+        <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
           {detail.eyebrow}
         </div>
 
-        <h1 className="mt-4 text-5xl font-semibold">{detail.title}</h1>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-5xl">
+          {detail.title}
+        </h1>
 
         <p className="mt-4 max-w-3xl text-white/50">
           {detail.subtitle}
@@ -171,7 +166,7 @@ export default async function BriefingPage({ params }: Props) {
           />
         )}
       </div>
-    </main>
+    </TenantAppShell>
   );
 }
 

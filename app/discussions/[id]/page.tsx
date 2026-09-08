@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { AppendDiscussionUpdateForm } from "@/components/discussions/AppendDiscussionUpdateForm";
 import {
   DiscussionRegenerationProgress,
@@ -75,17 +75,11 @@ export default async function DiscussionDetailsPage({
 
   if (!discussion) {
     return (
-      <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-        <AthenaBrandLink
-          className="mb-8"
-          tagline={messages.chrome.tagline}
-          logoutLabel={messages.chrome.logOut}
-          sessionActionsLabel={messages.chrome.sessionActions}
-        />
+      <TenantAppShell currentPath={`/discussions/${id}`} messages={messages}>
         <TenantBackLink href="/discussions" label={copy.backToDiscussions} />
 
         <h1 className="mt-8 text-4xl font-semibold">{copy.notFound}</h1>
-      </main>
+      </TenantAppShell>
     );
   }
 
@@ -199,14 +193,7 @@ export default async function DiscussionDetailsPage({
       initialSnapshot={initialRegenerationSnapshot}
       chrome={executive}
     >
-      <main className="min-h-screen bg-[var(--athena-bg)] p-10 text-white">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
-      />
-
+      <TenantAppShell currentPath={`/discussions/${id}`} messages={messages}>
       <TenantBackLink href="/discussions" label={copy.backToDiscussions} />
 
       <div className="mt-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
@@ -215,7 +202,7 @@ export default async function DiscussionDetailsPage({
             {copy.eyebrow}
           </div>
 
-          <h1 className="mt-4 max-w-5xl text-5xl font-semibold tracking-tight">
+          <h1 className="mt-4 max-w-5xl text-3xl font-semibold tracking-tight sm:text-5xl">
             {discussion.title}
           </h1>
 
@@ -403,7 +390,7 @@ export default async function DiscussionDetailsPage({
           </div>
         }
       />
-      </main>
+      </TenantAppShell>
     </DiscussionRegenerationProvider>
   );
 }

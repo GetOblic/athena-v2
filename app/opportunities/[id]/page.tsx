@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
@@ -78,14 +78,7 @@ export default async function OpportunityPage({ params }: Props) {
     null;
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] p-8 text-white">
-      <AthenaBrandLink
-        className="mb-8"
-        tagline={messages.chrome.tagline}
-        logoutLabel={messages.chrome.logOut}
-        sessionActionsLabel={messages.chrome.sessionActions}
-      />
-
+    <TenantAppShell currentPath={`/opportunities/${id}`} messages={messages}>
       <TenantBackLink href="/opportunities" label={copy.backToOpportunities} />
 
       <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -94,7 +87,9 @@ export default async function OpportunityPage({ params }: Props) {
             {detail.eyebrow}
           </div>
 
-          <h1 className="mt-4 text-5xl font-semibold">{opportunity.title}</h1>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-5xl">
+            {opportunity.title}
+          </h1>
 
           <p className="mt-4 max-w-3xl text-white/50">
             {detail.subtitle}
@@ -283,7 +278,7 @@ export default async function OpportunityPage({ params }: Props) {
           />
         )}
       </div>
-    </main>
+    </TenantAppShell>
   );
 }
 

@@ -188,7 +188,10 @@ describe("V31 L3.5 tenant discussion detail — chrome", () => {
     assert.equal(en.discussions.executive.whatMatters, "What matters in 30 seconds");
     const page = read("app/discussions/[id]/page.tsx");
     assert.match(page, /getTenantLocalization/);
+    assert.match(page, /TenantAppShell/);
     assert.match(page, /TenantBackLink/);
+    assert.doesNotMatch(page, /AthenaBrandLink/);
+    assert.doesNotMatch(page, /DashboardSidebar/);
     assert.match(page, /copy\.backToDiscussions/);
     assert.match(page, /\{discussion\.title\}/);
     assert.match(page, /\{originalBody \|\| copy\.emptyBody\}/);

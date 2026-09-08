@@ -211,8 +211,12 @@ describe("V31 L3.7 tenant opportunities + briefings — list chrome", () => {
     const briefingPage = read("app/briefings/page.tsx");
     assert.match(opportunityPage, /getTenantLocalization/);
     assert.match(briefingPage, /getTenantLocalization/);
-    assert.match(opportunityPage, /TenantBackLink/);
-    assert.match(briefingPage, /TenantBackLink/);
+    assert.match(opportunityPage, /TenantAppShell/);
+    assert.match(briefingPage, /TenantAppShell/);
+    assert.doesNotMatch(opportunityPage, /TenantBackLink/);
+    assert.doesNotMatch(briefingPage, /TenantBackLink/);
+    assert.doesNotMatch(opportunityPage, /AthenaBrandLink/);
+    assert.doesNotMatch(briefingPage, /AthenaBrandLink/);
     assert.match(opportunityPage, /copy\.title/);
     assert.match(briefingPage, /copy\.title/);
     assert.equal((opportunityPage.match(/getTenantLocalization\(\)/g) ?? []).length, 1);
@@ -284,7 +288,9 @@ describe("V31 L3.7 tenant opportunities + briefings — detail chrome", () => {
   it("localizes Opportunity detail chrome and keeps stored values verbatim", () => {
     const page = read("app/opportunities/[id]/page.tsx");
     assert.match(page, /getTenantLocalization/);
+    assert.match(page, /TenantAppShell/);
     assert.match(page, /TenantBackLink/);
+    assert.doesNotMatch(page, /AthenaBrandLink/);
     assert.match(page, /detail\.eyebrow/);
     assert.match(page, /\{opportunity\.title\}/);
     assert.match(page, /opportunity\.recommended_action/);
@@ -301,7 +307,9 @@ describe("V31 L3.7 tenant opportunities + briefings — detail chrome", () => {
   it("localizes Briefing detail chrome and keeps generated body verbatim", () => {
     const page = read("app/briefings/[id]/page.tsx");
     assert.match(page, /getTenantLocalization/);
+    assert.match(page, /TenantAppShell/);
     assert.match(page, /TenantBackLink/);
+    assert.doesNotMatch(page, /AthenaBrandLink/);
     assert.match(page, /detail\.eyebrow/);
     assert.match(page, /value=\{review\.summary\}/);
     assert.match(page, /value=\{review\.pain_points\}/);

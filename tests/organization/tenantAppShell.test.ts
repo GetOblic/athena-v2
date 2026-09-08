@@ -84,6 +84,16 @@ const SHELLED_PAGES = [
   "app/ads/[id]/page.tsx",
   "app/social-planner/page.tsx",
   "app/social-planner/[id]/page.tsx",
+  "app/inbox/page.tsx",
+  "app/getting-started/page.tsx",
+  "app/intelligence-domains/page.tsx",
+  "app/communities/[id]/page.tsx",
+  "app/discussions/page.tsx",
+  "app/discussions/[id]/page.tsx",
+  "app/opportunities/page.tsx",
+  "app/opportunities/[id]/page.tsx",
+  "app/briefings/page.tsx",
+  "app/briefings/[id]/page.tsx",
 ] as const;
 
 const V2_ENGLISH_LABELS = [
@@ -478,6 +488,182 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
     assert.doesNotMatch(home, /TodaysIntelligence/);
     assert.match(identity, /IdentityConversationPanel/);
     assert.match(prospects, /ProspectsLibraryClient/);
+  });
+
+  it("wraps Inbox as a Utilities TenantAppShell route and removes standalone V1 chrome", () => {
+    const inbox = read("app/inbox/page.tsx");
+    assert.match(
+      inbox,
+      /<TenantAppShell currentPath="\/inbox" messages=\{messages\}>/,
+    );
+    assert.doesNotMatch(inbox, /AthenaBrandLink/);
+    assert.doesNotMatch(inbox, /TenantBackLink/);
+    assert.doesNotMatch(inbox, /<main\b/);
+    assert.doesNotMatch(inbox, /AthenaHeaderActions/);
+    assert.match(inbox, /copy\.title/);
+    assert.match(inbox, /copy\.eyebrow/);
+    assert.match(inbox, /copy\.subtitle/);
+    assert.match(inbox, /CaptureDiscussionForm/);
+
+    const items = localizeTenantNav(en);
+    const inboxNav = items.find((item) => item.key === "athenaInbox");
+    const define = items.find((item) => item.key === "defineYourBusiness");
+    const visibility = items.find((item) => item.key === "buildVisibility");
+    const traction = items.find((item) => item.key === "generateTraction");
+    const convert = items.find((item) => item.key === "convertOpportunities");
+    assert.ok(inboxNav && define && visibility && traction && convert);
+    assert.equal(inboxNav.section, "utilities");
+    assert.equal(inboxNav.href, "/inbox");
+    assert.notEqual(inboxNav.section, "growth");
+    assert.equal(isTenantNavActive("/inbox", inboxNav), true);
+    assert.equal(firstActiveKey("/inbox"), "athenaInbox");
+    assert.equal(isTenantNavActive("/inbox", define), false);
+    assert.equal(isTenantNavActive("/inbox", visibility), false);
+    assert.equal(isTenantNavActive("/inbox", traction), false);
+    assert.equal(isTenantNavActive("/inbox", convert), false);
+
+    const shell = read("components/dashboard/TenantAppShell.tsx");
+    assert.match(shell, /AthenaHeaderActions/);
+  });
+
+  it("wraps remaining More Tools destinations in TenantAppShell and removes standalone V1 chrome", () => {
+    const gettingStarted = read("app/getting-started/page.tsx");
+    const intelligenceDomains = read("app/intelligence-domains/page.tsx");
+    const communityDetail = read("app/communities/[id]/page.tsx");
+    const discussions = read("app/discussions/page.tsx");
+    const discussionDetail = read("app/discussions/[id]/page.tsx");
+    const opportunities = read("app/opportunities/page.tsx");
+    const opportunityDetail = read("app/opportunities/[id]/page.tsx");
+    const briefings = read("app/briefings/page.tsx");
+    const briefingDetail = read("app/briefings/[id]/page.tsx");
+
+    assert.match(
+      gettingStarted,
+      /<TenantAppShell currentPath="\/getting-started" messages=\{messages\}>/,
+    );
+    assert.match(
+      intelligenceDomains,
+      /<TenantAppShell currentPath="\/intelligence-domains" messages=\{messages\}>/,
+    );
+    assert.match(
+      communityDetail,
+      /<TenantAppShell currentPath=\{`\/communities\/\$\{id\}`\} messages=\{messages\}>/,
+    );
+    assert.match(
+      discussions,
+      /<TenantAppShell currentPath="\/discussions" messages=\{messages\}>/,
+    );
+    assert.match(
+      discussionDetail,
+      /<TenantAppShell currentPath=\{`\/discussions\/\$\{id\}`\} messages=\{messages\}>/,
+    );
+    assert.match(
+      opportunities,
+      /<TenantAppShell currentPath="\/opportunities" messages=\{messages\}>/,
+    );
+    assert.match(
+      opportunityDetail,
+      /<TenantAppShell currentPath=\{`\/opportunities\/\$\{id\}`\} messages=\{messages\}>/,
+    );
+    assert.match(
+      briefings,
+      /<TenantAppShell currentPath="\/briefings" messages=\{messages\}>/,
+    );
+    assert.match(
+      briefingDetail,
+      /<TenantAppShell currentPath=\{`\/briefings\/\$\{id\}`\} messages=\{messages\}>/,
+    );
+
+    for (const source of [
+      gettingStarted,
+      intelligenceDomains,
+      communityDetail,
+      discussions,
+      discussionDetail,
+      opportunities,
+      opportunityDetail,
+      briefings,
+      briefingDetail,
+    ]) {
+      assert.doesNotMatch(source, /AthenaBrandLink/);
+      assert.doesNotMatch(source, /DashboardSidebar/);
+      assert.doesNotMatch(source, /AthenaHeaderActions/);
+      assert.doesNotMatch(source, /<main\b/);
+    }
+
+    assert.doesNotMatch(gettingStarted, /TenantBackLink/);
+    assert.doesNotMatch(intelligenceDomains, /TenantBackLink/);
+    assert.doesNotMatch(discussions, /TenantBackLink/);
+    assert.doesNotMatch(opportunities, /TenantBackLink/);
+    assert.doesNotMatch(briefings, /TenantBackLink/);
+
+    assert.match(communityDetail, /TenantBackLink/);
+    assert.match(discussionDetail, /TenantBackLink/);
+    assert.match(opportunityDetail, /TenantBackLink/);
+    assert.match(briefingDetail, /TenantBackLink/);
+
+    const communitiesRedirect = read("app/communities/page.tsx");
+    const reviewsRedirect = read("app/reviews/page.tsx");
+    const reviewDetailRedirect = read("app/reviews/[id]/page.tsx");
+    assert.match(communitiesRedirect, /redirect\("\/intelligence-domains"\)/);
+    assert.match(reviewsRedirect, /redirect\("\/briefings"\)/);
+    assert.match(reviewDetailRedirect, /redirect\(`\/briefings\/\$\{id\}`\)/);
+    for (const source of [
+      communitiesRedirect,
+      reviewsRedirect,
+      reviewDetailRedirect,
+    ]) {
+      assert.doesNotMatch(source, /TenantAppShell/);
+    }
+
+    const items = localizeTenantNav(en);
+    const convert = items.find((item) => item.key === "convertOpportunities");
+    const traction = items.find((item) => item.key === "generateTraction");
+    const define = items.find((item) => item.key === "defineYourBusiness");
+    const visibility = items.find((item) => item.key === "buildVisibility");
+    const inboxNav = items.find((item) => item.key === "athenaInbox");
+    assert.ok(convert && traction && define && visibility && inboxNav);
+
+    assert.equal(firstActiveKey("/discussions"), "discussions");
+    assert.equal(firstActiveKey("/discussions/abc"), "discussions");
+    assert.equal(firstActiveKey("/opportunities"), "opportunities");
+    assert.equal(firstActiveKey("/opportunities/abc"), "opportunities");
+    assert.equal(firstActiveKey("/briefings"), "briefings");
+    assert.equal(firstActiveKey("/briefings/abc"), "briefings");
+    assert.equal(firstActiveKey("/intelligence-domains"), "intelligenceDomains");
+    assert.equal(firstActiveKey("/communities/abc"), "intelligenceDomains");
+    assert.equal(firstActiveKey("/getting-started"), "gettingStarted");
+    assert.equal(firstActiveKey("/inbox"), "athenaInbox");
+
+    for (const path of [
+      "/discussions",
+      "/discussions/abc",
+      "/opportunities",
+      "/opportunities/abc",
+      "/briefings",
+      "/briefings/abc",
+    ]) {
+      assert.notEqual(firstActiveKey(path), "convertOpportunities", path);
+      assert.equal(isTenantNavActive(path, convert), false, path);
+    }
+
+    for (const path of ["/intelligence-domains", "/communities/abc", "/getting-started"]) {
+      assert.notEqual(firstActiveKey(path), "defineYourBusiness", path);
+      assert.notEqual(firstActiveKey(path), "buildVisibility", path);
+      assert.notEqual(firstActiveKey(path), "generateTraction", path);
+      assert.notEqual(firstActiveKey(path), "convertOpportunities", path);
+    }
+
+    assert.equal(isTenantNavActive("/ads", traction), true);
+    assert.equal(isTenantNavActive("/social-planner", traction), true);
+    assert.equal(isTenantNavActive("/inbox", inboxNav), true);
+    assert.deepEqual(
+      items.filter((item) => item.section === "more").map((item) => item.href),
+      [...MORE_TOOLS_HREFS],
+    );
+
+    const shell = read("components/dashboard/TenantAppShell.tsx");
+    assert.match(shell, /AthenaHeaderActions/);
   });
 });
 
