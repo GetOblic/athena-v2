@@ -1,7 +1,8 @@
 /**
- * CO-1 GetOblic Directory → canonical Prospect conversion.
+ * CO-1 / CO-4 GetOblic Directory → canonical Prospect conversion.
  * Server-owned orchestration: preflight, create/reuse one Prospect, claim,
- * then queue generation only when a normalized website already exists.
+ * and import proven factual listing metadata. Conversion never queues
+ * generation — claiming remains an ownership / data-import operation only.
  *
  * Does not search Google, write Knowledge Base, or invent identity fields.
  */
@@ -33,6 +34,8 @@ import {
 import {
   GetOblicWordpressError,
   type GetOblicWordpressListing,
+  type GetOblicWordpressTaxonomyTerm,
+  type GetOblicWordpressWorkHours,
 } from "@/services/getoblicDirectory/getoblicWordpressTypes";
 import { ensureProspectGenerationQueued } from "@/services/prospects/prospectImporter";
 import {
@@ -75,6 +78,8 @@ export type GetOblicConvertObservedSnapshot = {
   listing_type: string | null;
   category: GetOblicConvertObservedCategory[];
   location_display: string | null;
+  lat: number | null;
+  lng: number | null;
   google_id: string | null;
   google_place_url: string | null;
   image: string | null;
@@ -135,6 +140,9 @@ const defaultDependencies: GetOblicConvertDependencies = {
 
 const TEXT_MAX = 300;
 const URL_MAX = 500;
+const DESCRIPTION_MAX = 4000;
+const GALLERY_MAX = 24;
+const TAGS_MAX = 24;
 
 export function toPublicGetOblicConversion(result: GetOblicConvertResult): {
   outcome: GetOblicConvertOutcome;
@@ -227,6 +235,8 @@ export function sanitizeGetOblicConvertObserved(
       .filter((item): item is GetOblicConvertObservedCategory => item != null)
       .slice(0, 8),
     location_display: compactText(record?.location_display),
+    lat: compactFiniteNumber(record?.lat),
+    lng: compactFiniteNumber(record?.lng),
     google_id: compactText(record?.google_id, 200),
     google_place_url: compactText(record?.google_place_url, URL_MAX),
     image: compactText(record?.image, URL_MAX),
@@ -307,23 +317,51 @@ export function buildGetOblicProspectProvenance(input: {
   googleBusinessUrl: string | null;
   category: string | null;
 }): Record<string, unknown> {
+  const listing = input.listing;
+  const listingCategories = sanitizeListingCategories(listing?.category);
+  const imported = resolveGetOblicListingImport(listing, input.observed);
   return {
     origin: GETOBLIC_PROSPECT_PROVENANCE_ORIGIN,
     wordpress_listing_id: input.wordpressListingId,
     observed: {
-      title: input.listing?.title ?? input.observed.title,
+      wordpress_listing_id: input.wordpressListingId,
+      title: compactText(listing?.title) ?? input.observed.title,
       permalink: input.observed.permalink,
-      listing_type: input.observed.listing_type,
-      category: input.observed.category,
+      listing_type:
+        compactText(listing?.listing_type, 120) ?? input.observed.listing_type,
+      category: listingCategories.length > 0 ? listingCategories : input.observed.category,
+      region: sanitizeListingRegion(listing?.region),
+      address: imported.address,
+      phone: imported.phone,
+      whatsapp: compactText(listing?.whatsapp, 120),
       location_display: input.observed.location_display,
-      google_id: input.listing?.google_id ?? input.observed.google_id,
+      lat: listing?.lat ?? input.observed.lat,
+      lng: listing?.lng ?? input.observed.lng,
+      google_id: compactText(listing?.google_id, 200) ?? input.observed.google_id,
       google_place_url:
-        input.listing?.google_place_url ?? input.observed.google_place_url,
-      image: input.observed.image,
+        compactText(listing?.google_place_url, URL_MAX) ??
+        input.observed.google_place_url,
+      image: compactText(listing?.image, URL_MAX) ?? input.observed.image,
+      cover: compactText(listing?.cover, URL_MAX),
+      gallery: sanitizeListingGallery(listing?.gallery),
+      tagline: compactText(listing?.tagline),
+      description: compactText(listing?.description, DESCRIPTION_MAX),
+      timezone: compactText(listing?.timezone, 120),
+      work_hours: sanitizeWorkHours(listing?.work_hours),
+      text_hours: compactText(listing?.text_hours, 500),
+      tags: sanitizeListingTags(listing?.tags),
     },
     attribution: {
-      business_name: "getoblic_search",
-      category: input.category ? "getoblic_search" : null,
+      business_name: compactText(listing?.title)
+        ? "getoblic_listing_detail"
+        : "getoblic_search",
+      phone: imported.phone ? "getoblic_listing_detail" : null,
+      address: imported.address ? "getoblic_listing_detail" : null,
+      category: listingCategories.length > 0
+        ? "getoblic_listing_detail"
+        : input.category
+          ? "getoblic_search"
+          : null,
       google_business_url: input.googleBusinessUrl
         ? "getoblic_listing_detail"
         : null,
@@ -483,16 +521,13 @@ export async function convertGetOblicDirectoryListing(
     return emptyResult("name_collision");
   }
 
-  const googleBusinessUrl =
-    compactText(listing.google_place_url, URL_MAX) ??
-    compactText(observed.google_place_url, URL_MAX);
-  const category = firstGetOblicCategoryName(observed.category);
+  const imported = resolveGetOblicListingImport(listing, observed);
   const provenance = buildGetOblicProspectProvenance({
     wordpressListingId,
     observed,
     listing,
-    googleBusinessUrl,
-    category,
+    googleBusinessUrl: imported.googleBusinessUrl,
+    category: imported.category,
   });
 
   let created: Prospect;
@@ -502,10 +537,12 @@ export async function convertGetOblicDirectoryListing(
       user_id: input.actorUserId,
       business_name: businessName,
       website: null,
-      category,
+      category: imported.category,
+      phone: imported.phone,
+      address: imported.address,
       source: GETOBLIC_PROSPECT_SOURCE,
       getoblic_type: null,
-      google_business_url: googleBusinessUrl,
+      google_business_url: imported.googleBusinessUrl,
       status: "Saved",
       raw_json: provenance,
     });
@@ -869,56 +906,45 @@ async function finalizeAfterClaim(args: {
     });
   }
 
-  const googleBusinessUrl =
-    compactText(args.listing?.google_place_url, URL_MAX) ??
-    compactText(args.observed.google_place_url, URL_MAX);
-  if (googleBusinessUrl && !prospect.google_business_url) {
-    const updated = await args.dependencies.updateProspect(
-      prospect.id,
-      args.organizationId,
-      {
-        google_business_url: googleBusinessUrl,
-        raw_json: mergeGoogleBusinessUrlAttribution(
-          prospect.raw_json,
-          args.wordpressListingId,
-        ),
-      },
-    );
-    if (updated) {
-      prospect = updated;
-    }
+  const listing = await resolveListingForImport(
+    args.listing,
+    args.wordpressListingId,
+    args.dependencies,
+  );
+  const imported = resolveGetOblicListingImport(listing, args.observed);
+  const fillEmpty = buildReuseFillEmptyPatch(prospect, imported);
+  const provenance = mergeGetOblicListingProvenance(
+    prospect.raw_json,
+    buildGetOblicProspectProvenance({
+      wordpressListingId: args.wordpressListingId,
+      observed: args.observed,
+      listing,
+      googleBusinessUrl: imported.googleBusinessUrl,
+      category: imported.category,
+    }),
+  );
+
+  const updated = await args.dependencies.updateProspect(
+    prospect.id,
+    args.organizationId,
+    {
+      ...fillEmpty,
+      raw_json: provenance,
+    },
+  );
+  if (updated) {
+    prospect = updated;
   }
 
-  const website = normalizeWebsiteUrl(prospect.website);
-  if (!website) {
-    prospect = await persistDeferredSaved(
-      prospect,
-      args.organizationId,
-      args.dependencies,
-    );
-    return presentProspect({
-      prospect,
-      outcome: args.created ? "created" : "reused",
-      generationQueued: false,
-      allocated: args.claim.allocated,
-    });
-  }
-
-  const shouldQueue = args.created || prospect.status === "Saved";
-  let generationQueued = false;
-  if (shouldQueue) {
-    const queued = await args.dependencies.ensureProspectGenerationQueued(
-      prospect,
-      { requestedBy: args.requestedBy },
-    );
-    generationQueued = queued.queued;
-    prospect = queued.prospect;
-  }
-
+  prospect = await persistDeferredSaved(
+    prospect,
+    args.organizationId,
+    args.dependencies,
+  );
   return presentProspect({
     prospect,
     outcome: args.created ? "created" : "reused",
-    generationQueued,
+    generationQueued: false,
     allocated: args.claim.allocated,
   });
 }
@@ -1197,20 +1223,236 @@ function mapConvertWordpressError(error: unknown): GetOblicDirectoryError {
   );
 }
 
-function mergeGoogleBusinessUrlAttribution(
+type GetOblicListingImportFields = {
+  phone: string | null;
+  address: string | null;
+  category: string | null;
+  googleBusinessUrl: string | null;
+};
+
+function resolveGetOblicListingImport(
+  listing: GetOblicWordpressListing | null,
+  observed: GetOblicConvertObservedSnapshot,
+): GetOblicListingImportFields {
+  const listingCategories = sanitizeListingCategories(listing?.category);
+  return {
+    phone: compactText(listing?.phone, 120),
+    address: compactText(listing?.address),
+    category:
+      firstGetOblicCategoryName(listingCategories) ??
+      firstGetOblicCategoryName(observed.category),
+    googleBusinessUrl:
+      compactText(listing?.google_place_url, URL_MAX) ??
+      compactText(observed.google_place_url, URL_MAX),
+  };
+}
+
+function buildReuseFillEmptyPatch(
+  prospect: Pick<Prospect, "phone" | "address" | "category" | "google_business_url">,
+  imported: GetOblicListingImportFields,
+): {
+  phone?: string;
+  address?: string;
+  category?: string;
+  google_business_url?: string;
+} {
+  const patch: {
+    phone?: string;
+    address?: string;
+    category?: string;
+    google_business_url?: string;
+  } = {};
+  if (isBlankProspectText(prospect.phone) && imported.phone) {
+    patch.phone = imported.phone;
+  }
+  if (isBlankProspectText(prospect.address) && imported.address) {
+    patch.address = imported.address;
+  }
+  if (isBlankProspectText(prospect.category) && imported.category) {
+    patch.category = imported.category;
+  }
+  if (
+    isBlankProspectText(prospect.google_business_url) &&
+    imported.googleBusinessUrl
+  ) {
+    patch.google_business_url = imported.googleBusinessUrl;
+  }
+  return patch;
+}
+
+function mergeGetOblicListingProvenance(
   rawJson: Record<string, unknown> | null | undefined,
-  wordpressListingId: number,
+  incoming: Record<string, unknown>,
 ): Record<string, unknown> {
   const existing = rawJson && typeof rawJson === "object" ? { ...rawJson } : {};
-  const attribution = asRecord(existing.attribution) ?? {};
-  existing.origin = existing.origin ?? GETOBLIC_PROSPECT_PROVENANCE_ORIGIN;
+  delete existing.knowledge_base;
+  existing.origin = existing.origin ?? incoming.origin;
   existing.wordpress_listing_id =
-    existing.wordpress_listing_id ?? wordpressListingId;
-  existing.attribution = {
-    ...attribution,
-    google_business_url: "getoblic_listing_detail",
-  };
+    existing.wordpress_listing_id ?? incoming.wordpress_listing_id;
+
+  const existingObserved = asRecord(existing.observed);
+  if (existingObserved) {
+    delete existingObserved.knowledge_base;
+  }
+  existing.observed = mergeObservedRecords(
+    existingObserved,
+    asRecord(incoming.observed),
+  );
+  existing.attribution = mergeAttributionRecords(
+    asRecord(existing.attribution),
+    asRecord(incoming.attribution),
+  );
   return existing;
+}
+
+function mergeObservedRecords(
+  existing: Record<string, unknown> | null,
+  incoming: Record<string, unknown> | null,
+): Record<string, unknown> {
+  const result = existing ? { ...existing } : {};
+  delete result.knowledge_base;
+  if (!incoming) {
+    return result;
+  }
+  for (const [key, value] of Object.entries(incoming)) {
+    if (key === "knowledge_base" || isEmptyObservedValue(value)) {
+      continue;
+    }
+    if (isEmptyObservedValue(result[key])) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+function mergeAttributionRecords(
+  existing: Record<string, unknown> | null,
+  incoming: Record<string, unknown> | null,
+): Record<string, unknown> {
+  const result = existing ? { ...existing } : {};
+  if (!incoming) {
+    return result;
+  }
+  for (const [key, value] of Object.entries(incoming)) {
+    if (value == null || value === "") {
+      continue;
+    }
+    if (result[key] == null || result[key] === "") {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+function isEmptyObservedValue(value: unknown): boolean {
+  if (value == null) return true;
+  if (typeof value === "string" && !value.trim()) return true;
+  if (Array.isArray(value) && value.length === 0) return true;
+  return false;
+}
+
+function isBlankProspectText(value: unknown): boolean {
+  return compactText(value) == null;
+}
+
+async function resolveListingForImport(
+  listing: GetOblicWordpressListing | null,
+  wordpressListingId: number,
+  dependencies: Pick<GetOblicConvertDependencies, "getListingById">,
+): Promise<GetOblicWordpressListing | null> {
+  if (listing) {
+    return listing;
+  }
+  try {
+    return await dependencies.getListingById(wordpressListingId);
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeListingCategories(
+  value: GetOblicWordpressListing["category"] | null | undefined,
+): GetOblicConvertObservedCategory[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => sanitizeObservedCategory(item))
+    .filter((item): item is GetOblicConvertObservedCategory => item != null)
+    .slice(0, 8);
+}
+
+function sanitizeListingRegion(
+  value: GetOblicWordpressTaxonomyTerm | null | undefined,
+): GetOblicWordpressTaxonomyTerm | null {
+  if (!value) {
+    return null;
+  }
+  const name = compactText(value.name, 120);
+  const slug = compactText(value.slug, 120);
+  const termId = readPositiveInteger(value.term_id);
+  if (!name && !slug && termId == null) {
+    return null;
+  }
+  return { term_id: termId, slug, name };
+}
+
+function sanitizeListingGallery(value: string[] | null | undefined): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const urls: string[] = [];
+  for (const item of value) {
+    const url = compactText(item, URL_MAX);
+    if (!url) continue;
+    urls.push(url);
+    if (urls.length >= GALLERY_MAX) break;
+  }
+  return urls;
+}
+
+function sanitizeListingTags(
+  value: GetOblicWordpressTaxonomyTerm[] | null | undefined,
+): GetOblicWordpressTaxonomyTerm[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const tags: GetOblicWordpressTaxonomyTerm[] = [];
+  for (const item of value) {
+    const parsed = sanitizeListingRegion(item);
+    if (!parsed) continue;
+    tags.push(parsed);
+    if (tags.length >= TAGS_MAX) break;
+  }
+  return tags;
+}
+
+function sanitizeWorkHours(
+  value: GetOblicWordpressWorkHours | undefined,
+): GetOblicWordpressWorkHours {
+  if (value == null) {
+    return null;
+  }
+  if (Array.isArray(value) || (typeof value === "object" && !Array.isArray(value))) {
+    try {
+      return JSON.parse(JSON.stringify(value)) as
+        | Record<string, unknown>
+        | unknown[];
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function compactFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && /^-?\d+(?:\.\d+)?$/.test(value.trim())) {
+    return Number(value.trim());
+  }
+  return null;
 }
 
 function sanitizeObservedCategory(

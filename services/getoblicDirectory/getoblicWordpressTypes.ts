@@ -38,6 +38,17 @@ export class GetOblicWordpressError extends Error {
   }
 }
 
+export type GetOblicWordpressTaxonomyTerm = {
+  term_id: number | null;
+  slug: string | null;
+  name: string | null;
+};
+
+export type GetOblicWordpressWorkHours =
+  | Record<string, unknown>
+  | unknown[]
+  | null;
+
 export type GetOblicWordpressListing = {
   wordpress_listing_id: number;
   status: string | null;
@@ -46,6 +57,23 @@ export type GetOblicWordpressListing = {
   google_id: string | null;
   google_place_url: string | null;
   knowledge_base: string | null;
+  phone?: string | null;
+  whatsapp?: string | null;
+  address?: string | null;
+  region?: GetOblicWordpressTaxonomyTerm | null;
+  lat?: number | null;
+  lng?: number | null;
+  timezone?: string | null;
+  work_hours?: GetOblicWordpressWorkHours;
+  text_hours?: string | null;
+  tagline?: string | null;
+  description?: string | null;
+  cover?: string | null;
+  gallery?: string[];
+  image?: string | null;
+  listing_type?: string | null;
+  category?: GetOblicWordpressSearchCategory[];
+  tags?: GetOblicWordpressTaxonomyTerm[];
 };
 
 export type GetOblicWordpressUserResolution = {

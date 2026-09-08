@@ -12,10 +12,13 @@ import {
   type GetOblicWordpressErrorCode,
   type GetOblicWordpressKnowledgeBaseUpdate,
   type GetOblicWordpressListing,
+  type GetOblicWordpressSearchCategory,
   type GetOblicWordpressSearchHit,
   type GetOblicWordpressSearchRequest,
   type GetOblicWordpressSearchResponse,
+  type GetOblicWordpressTaxonomyTerm,
   type GetOblicWordpressUserResolution,
+  type GetOblicWordpressWorkHours,
 } from "@/services/getoblicDirectory/getoblicWordpressTypes";
 import {
   GETOBLIC_DIRECTORY_SEARCH_DEFAULT_LISTING_TYPE,
@@ -192,6 +195,23 @@ function parseListing(payload: unknown): GetOblicWordpressListing {
     google_id: readNullableString(source, "google_id"),
     google_place_url: readNullableString(source, "google_place_url"),
     knowledge_base: readNullableString(source, "knowledge_base"),
+    phone: readNullableString(source, "phone"),
+    whatsapp: readNullableString(source, "whatsapp"),
+    address: readNullableString(source, "address"),
+    region: parseListingRegion(source.region),
+    lat: readNullableNumber(source, "lat"),
+    lng: readNullableNumber(source, "lng"),
+    timezone: readNullableString(source, "timezone"),
+    work_hours: readWorkHours(source.work_hours),
+    text_hours: readNullableString(source, "text_hours"),
+    tagline: readNullableString(source, "tagline"),
+    description: readNullableString(source, "description"),
+    cover: readNullableString(source, "cover"),
+    gallery: readUrlList(source.gallery),
+    image: readNullableString(source, "image"),
+    listing_type: readNullableString(source, "listing_type"),
+    category: parseListingCategories(source.category),
+    tags: parseListingTags(source.tags),
   };
 }
 
@@ -283,6 +303,140 @@ function parseSearchCategory(
     return null;
   }
   return { term_id: termId, slug, name };
+}
+
+const LISTING_GALLERY_MAX = 24;
+const LISTING_TAG_MAX = 24;
+
+function parseListingCategories(
+  value: unknown,
+): GetOblicWordpressSearchCategory[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => parseSearchCategory(entry))
+      .filter((entry): entry is GetOblicWordpressSearchCategory => entry != null);
+  }
+  if (value != null) {
+    const single = parseSearchCategory(value);
+    if (single) {
+      return [single];
+    }
+  }
+  return [];
+}
+
+function parseFlexibleTaxonomyTerm(
+  value: unknown,
+): GetOblicWordpressTaxonomyTerm | null {
+  if (typeof value === "string" && value.trim()) {
+    return { term_id: null, slug: null, name: value.trim() };
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  const name = readString(record, "name");
+  const slug = readString(record, "slug");
+  const termId = readInteger(record, "term_id");
+  if (!name && !slug && (termId == null || termId <= 0)) {
+    return null;
+  }
+  return {
+    term_id: termId != null && termId > 0 ? termId : null,
+    slug,
+    name,
+  };
+}
+
+function parseListingRegion(
+  value: unknown,
+): GetOblicWordpressTaxonomyTerm | null {
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const parsed = parseFlexibleTaxonomyTerm(entry);
+      if (parsed) {
+        return parsed;
+      }
+    }
+    return null;
+  }
+  return parseFlexibleTaxonomyTerm(value);
+}
+
+function parseListingTags(value: unknown): GetOblicWordpressTaxonomyTerm[] {
+  const items = Array.isArray(value) ? value : value != null ? [value] : [];
+  const tags: GetOblicWordpressTaxonomyTerm[] = [];
+  for (const item of items) {
+    const parsed = parseFlexibleTaxonomyTerm(item);
+    if (!parsed) {
+      continue;
+    }
+    tags.push(parsed);
+    if (tags.length >= LISTING_TAG_MAX) {
+      break;
+    }
+  }
+  return tags;
+}
+
+function isPlainJsonObjectOrArray(
+  value: unknown,
+): value is Record<string, unknown> | unknown[] {
+  if (Array.isArray(value)) {
+    return true;
+  }
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readWorkHours(value: unknown): GetOblicWordpressWorkHours {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      return isPlainJsonObjectOrArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  if (!isPlainJsonObjectOrArray(value)) {
+    return null;
+  }
+  try {
+    return JSON.parse(JSON.stringify(value)) as
+      | Record<string, unknown>
+      | unknown[];
+  } catch {
+    return null;
+  }
+}
+
+function readUrlList(value: unknown): string[] {
+  const items = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[,\n]/)
+      : [];
+  const urls: string[] = [];
+  for (const item of items) {
+    if (typeof item !== "string") {
+      continue;
+    }
+    const trimmed = item.trim();
+    if (!trimmed) {
+      continue;
+    }
+    urls.push(trimmed.slice(0, 500));
+    if (urls.length >= LISTING_GALLERY_MAX) {
+      break;
+    }
+  }
+  return urls;
 }
 
 function parseSearchHit(value: unknown): GetOblicWordpressSearchHit {

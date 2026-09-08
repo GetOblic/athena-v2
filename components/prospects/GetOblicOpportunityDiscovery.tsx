@@ -135,6 +135,8 @@ export function GetOblicOpportunityDiscovery({
             listing_type: hit.listing_type,
             category: hit.category,
             location_display: hit.location_display,
+            lat: hit.lat,
+            lng: hit.lng,
             google_id: hit.google_id,
             image: hit.image,
           },

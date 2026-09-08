@@ -96,6 +96,11 @@ describe("GetOblic WordPress client operations", () => {
     assert.equal(listing.wordpress_listing_id, 1000);
     assert.equal(listing.title, "347 West Broadway");
     assert.equal(listing.author_id, 271519816);
+    assert.equal(listing.phone, null);
+    assert.equal(listing.address, null);
+    assert.deepEqual(listing.gallery, []);
+    assert.deepEqual(listing.category, []);
+    assert.deepEqual(listing.tags, []);
     assert.equal(calls.length, 1);
     assert.equal(
       calls[0]?.url,
@@ -346,5 +351,143 @@ describe("GetOblic WordPress client operations", () => {
       },
     );
     assert.equal(called, false);
+  });
+
+  it("parses proven listing detail fields and ignores unknown keys", async () => {
+    process.env.ATHENA_V2_DIRECTORY_API_KEY = "test-directory-key";
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          listing: {
+            wordpress_listing_id: 1000,
+            status: "publish",
+            title: "347 West Broadway",
+            author_id: 271519816,
+            google_id: "ChIJ123",
+            google_place_url: "https://maps.google.com/?cid=1",
+            knowledge_base: "secret-notes",
+            phone: "512-555-0100",
+            whatsapp: "+15125550100",
+            address: "347 West Broadway",
+            region: { term_id: 44, slug: "soho", name: "SoHo" },
+            lat: "40.721",
+            lng: -74.003,
+            timezone: "America/New_York",
+            work_hours: { Mon: [["09:00", "17:00"]] },
+            text_hours: "Mon-Fri 9-5",
+            tagline: "Walk-ins welcome",
+            description: "A downtown shop.",
+            cover: "https://cdn.example.com/cover.jpg",
+            gallery: [
+              "https://cdn.example.com/1.jpg",
+              "https://cdn.example.com/2.jpg",
+            ],
+            image: "https://cdn.example.com/hero.jpg",
+            listing_type: "barbershop",
+            category: [
+              { term_id: 9, slug: "hair-salons", name: "Hair Salons" },
+            ],
+            tags: ["Color", { term_id: 3, slug: "fade", name: "Fade" }],
+            website: "https://should-not-be-invented.example",
+            facebook: "https://facebook.com/should-not-parse",
+            unknown_internal: "drop-me",
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    const { getWordpressListingById } = await import(
+      "../../services/getoblicDirectory/getoblicWordpressClient"
+    );
+    const listing = await getWordpressListingById(1000);
+    assert.equal(listing.phone, "512-555-0100");
+    assert.equal(listing.whatsapp, "+15125550100");
+    assert.equal(listing.address, "347 West Broadway");
+    assert.deepEqual(listing.region, {
+      term_id: 44,
+      slug: "soho",
+      name: "SoHo",
+    });
+    assert.equal(listing.lat, 40.721);
+    assert.equal(listing.lng, -74.003);
+    assert.equal(listing.timezone, "America/New_York");
+    assert.deepEqual(listing.work_hours, { Mon: [["09:00", "17:00"]] });
+    assert.equal(listing.text_hours, "Mon-Fri 9-5");
+    assert.equal(listing.tagline, "Walk-ins welcome");
+    assert.equal(listing.description, "A downtown shop.");
+    assert.equal(listing.cover, "https://cdn.example.com/cover.jpg");
+    assert.deepEqual(listing.gallery, [
+      "https://cdn.example.com/1.jpg",
+      "https://cdn.example.com/2.jpg",
+    ]);
+    assert.equal(listing.image, "https://cdn.example.com/hero.jpg");
+    assert.equal(listing.listing_type, "barbershop");
+    assert.equal(listing.category[0]?.name, "Hair Salons");
+    assert.equal(listing.tags[0]?.name, "Color");
+    assert.equal(listing.knowledge_base, "secret-notes");
+    assert.equal("website" in listing, false);
+    assert.equal("facebook" in listing, false);
+    assert.equal("unknown_internal" in listing, false);
+  });
+
+  it("fails safely on malformed optional listing detail fields", async () => {
+    process.env.ATHENA_V2_DIRECTORY_API_KEY = "test-directory-key";
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify({
+          wordpress_listing_id: 1000,
+          status: "publish",
+          title: "Safe Parse",
+          author_id: 271519816,
+          google_id: null,
+          google_place_url: null,
+          knowledge_base: null,
+          phone: { nested: true },
+          whatsapp: ["bad"],
+          address: 12,
+          region: { unexpected: true },
+          lat: "not-a-number",
+          lng: { bad: true },
+          timezone: { tz: "America/Chicago" },
+          work_hours: "not-json",
+          text_hours: { hours: "nope" },
+          tagline: ["x"],
+          description: { html: "<p>nope</p>" },
+          cover: { url: "https://cdn.example.com/cover.jpg" },
+          gallery: [{ url: "https://cdn.example.com/1.jpg" }, 0, ""],
+          image: { src: "https://cdn.example.com/hero.jpg" },
+          listing_type: { slug: "barbershop" },
+          category: "Hair Salons",
+          tags: { name: 9 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    const { getWordpressListingById } = await import(
+      "../../services/getoblicDirectory/getoblicWordpressClient"
+    );
+    const listing = await getWordpressListingById(1000);
+    assert.equal(listing.wordpress_listing_id, 1000);
+    assert.equal(listing.title, "Safe Parse");
+    assert.equal(listing.phone, null);
+    assert.equal(listing.whatsapp, null);
+    assert.equal(listing.address, null);
+    assert.equal(listing.region, null);
+    assert.equal(listing.lat, null);
+    assert.equal(listing.lng, null);
+    assert.equal(listing.timezone, null);
+    assert.equal(listing.work_hours, null);
+    assert.equal(listing.text_hours, null);
+    assert.equal(listing.tagline, null);
+    assert.equal(listing.description, null);
+    assert.equal(listing.cover, null);
+    assert.deepEqual(listing.gallery, []);
+    assert.equal(listing.image, null);
+    assert.equal(listing.listing_type, null);
+    assert.deepEqual(listing.category, []);
+    assert.deepEqual(listing.tags, []);
   });
 });

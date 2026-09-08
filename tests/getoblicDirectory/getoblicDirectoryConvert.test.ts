@@ -12,6 +12,7 @@ import {
   isDisposableLosingConversionProspect,
   mergeGetOblicWebsiteAttribution,
   resolveGetOblicTrustedBusinessName,
+  sanitizeGetOblicConvertObserved,
   toPublicGetOblicConversion,
   type GetOblicConvertDependencies,
 } from "../../services/getoblicDirectory/getoblicDirectoryConvertService";
@@ -240,6 +241,8 @@ function convertInput() {
       listing_type: "getoblic_global_search_engine",
       category: [{ term_id: 9, slug: "hair-salons", name: "Hair Salons" }],
       location_display: "Austin, TX",
+      lat: 30.27,
+      lng: -97.74,
       google_id: "ChIJ123",
       image: "https://cdn.example.com/acme.jpg",
     },
@@ -589,18 +592,18 @@ describe("GetOblic directory convert orchestration", () => {
     assert.equal(port.queued.length, 0);
   });
 
-  it("queues existing generation only when a reused Prospect already has a website", async () => {
+  it("does not queue generation when a reused Prospect already has a website", async () => {
     const existing = prospect({
       website: "https://acme.example",
       status: "Saved",
     });
-    const port = deps({
-      findOriginProspectByListingId: async () => existing,
-    });
+    const { port } = reuseStore(existing);
     const result = await convertGetOblicDirectoryListing(convertInput(), port);
-    assert.equal(result.generation_queued, true);
-    assert.equal(port.queued.length, 1);
-    assert.equal(port.queued[0].website, "https://acme.example");
+    assert.equal(result.outcome, "reused");
+    assert.equal(result.website_ready, true);
+    assert.equal(result.generation_queued, false);
+    assert.equal(result.status, "Saved");
+    assert.equal(port.queued.length, 0);
   });
 
   it("returns prospect_id when claim is incomplete after create", async () => {
@@ -652,6 +655,25 @@ describe("GetOblic directory convert orchestration", () => {
     );
   });
 
+  it("forwards search lat/lng into the observed snapshot and drops malformed values", () => {
+    const observed = sanitizeGetOblicConvertObserved({
+      title: "Acme",
+      lat: 30.27,
+      lng: "-97.74",
+      extra: "ignore",
+    });
+    assert.equal(observed.lat, 30.27);
+    assert.equal(observed.lng, -97.74);
+    assert.equal(
+      sanitizeGetOblicConvertObserved({ lat: "west", lng: { bad: true } }).lat,
+      null,
+    );
+    assert.equal(
+      sanitizeGetOblicConvertObserved({ lat: "west", lng: { bad: true } }).lng,
+      null,
+    );
+  });
+
   it("builds compact non-secret provenance", () => {
     const provenance = buildGetOblicProspectProvenance({
       wordpressListingId: LISTING_ID,
@@ -661,6 +683,8 @@ describe("GetOblic directory convert orchestration", () => {
         listing_type: "getoblic_global_search_engine",
         category: [{ term_id: 9, slug: "hair-salons", name: "Hair Salons" }],
         location_display: "Austin, TX",
+        lat: 30.27,
+        lng: -97.74,
         google_id: "ChIJ123",
         google_place_url: null,
         image: null,
@@ -1333,6 +1357,224 @@ describe("GetOblic conversion loser cleanup integrity", () => {
   });
 });
 
+function richListing(id: number) {
+  return {
+    wordpress_listing_id: id,
+    status: "publish",
+    title: "Acme Salon",
+    author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
+    google_id: "ChIJ123",
+    google_place_url: "https://maps.google.com/?cid=1",
+    knowledge_base: "do-not-copy",
+    phone: "512-555-0100",
+    whatsapp: "+15125550100",
+    address: "100 Congress Ave",
+    region: { term_id: 44, slug: "austin", name: "Austin" },
+    lat: 30.267,
+    lng: -97.743,
+    timezone: "America/Chicago",
+    work_hours: { Mon: [["09:00", "17:00"]] },
+    text_hours: "Mon-Fri 9-5",
+    tagline: "Downtown cuts",
+    description: "A neighborhood salon.",
+    cover: "https://cdn.example.com/cover.jpg",
+    gallery: ["https://cdn.example.com/1.jpg", "https://cdn.example.com/2.jpg"],
+    image: "https://cdn.example.com/acme.jpg",
+    listing_type: "barbershop",
+    category: [{ term_id: 9, slug: "hair-salons", name: "Hair Salons" }],
+    tags: [{ term_id: 3, slug: "color", name: "Color" }],
+  };
+}
+
+function reuseStore(existing: Prospect) {
+  const store = [existing];
+  const port = deps({
+    findOriginProspectByListingId: async () => store[0] ?? null,
+    getProspectById: async (id) => store.find((row) => row.id === id) ?? null,
+    getListingById: async (id) => richListing(id),
+    updateProspect: async (id, _organizationId, input) => {
+      const index = store.findIndex((row) => row.id === id);
+      if (index < 0) return null;
+      const next = {
+        ...store[index],
+        ...input,
+        id,
+      };
+      store[index] = next;
+      return next;
+    },
+  });
+  return { port, store };
+}
+
+describe("GetOblic CO-4 rich listing import", () => {
+  it("imports phone, address, category, and Google Business URL onto a new Prospect", async () => {
+    const port = deps({
+      getListingById: async (id) => richListing(id),
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "created");
+    assert.equal(port.created[0].phone, "512-555-0100");
+    assert.equal(port.created[0].address, "100 Congress Ave");
+    assert.equal(port.created[0].category, "Hair Salons");
+    assert.equal(
+      port.created[0].google_business_url,
+      "https://maps.google.com/?cid=1",
+    );
+    assert.equal(port.created[0].website, null);
+    assert.equal(port.created[0].city, null);
+    assert.equal(port.created[0].email, null);
+    assert.equal(port.created[0].linkedin, null);
+    assert.equal(port.created[0].facebook, null);
+    assert.equal(port.created[0].instagram, null);
+    assert.equal(port.queued.length, 0);
+  });
+
+  it("preserves additional factual fields in raw_json and never copies knowledge_base", async () => {
+    const port = deps({
+      getListingById: async (id) => richListing(id),
+    });
+    await convertGetOblicDirectoryListing(convertInput(), port);
+    const raw = JSON.stringify(port.created[0].raw_json);
+    assert.doesNotMatch(raw, /do-not-copy/);
+    assert.doesNotMatch(raw, /knowledge_base/);
+    const observed = port.created[0].raw_json?.observed as Record<string, unknown>;
+    assert.equal(observed.wordpress_listing_id, LISTING_ID);
+    assert.equal(observed.phone, "512-555-0100");
+    assert.equal(observed.whatsapp, "+15125550100");
+    assert.equal(observed.address, "100 Congress Ave");
+    assert.equal(observed.tagline, "Downtown cuts");
+    assert.equal(observed.description, "A neighborhood salon.");
+    assert.equal(observed.timezone, "America/Chicago");
+    assert.equal(observed.text_hours, "Mon-Fri 9-5");
+    assert.deepEqual(observed.gallery, [
+      "https://cdn.example.com/1.jpg",
+      "https://cdn.example.com/2.jpg",
+    ]);
+    assert.equal(
+      (observed.region as { name?: string } | null)?.name,
+      "Austin",
+    );
+    assert.equal(port.created[0].city, null);
+    const attribution = port.created[0].raw_json?.attribution as {
+      phone?: string;
+      address?: string;
+      category?: string;
+      google_business_url?: string;
+      website?: string | null;
+      business_name?: string;
+    };
+    assert.equal(attribution.business_name, "getoblic_listing_detail");
+    assert.equal(attribution.phone, "getoblic_listing_detail");
+    assert.equal(attribution.address, "getoblic_listing_detail");
+    assert.equal(attribution.category, "getoblic_listing_detail");
+    assert.equal(attribution.google_business_url, "getoblic_listing_detail");
+    assert.equal(attribution.website, null);
+  });
+
+  it("never treats the listing permalink as website", async () => {
+    const port = deps({
+      getListingById: async (id) => richListing(id),
+    });
+    await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(port.created[0].website, null);
+    assert.notEqual(
+      port.created[0].website,
+      "https://getoblic.com/listing/acme",
+    );
+    assert.equal(
+      (port.created[0].raw_json?.observed as { permalink?: string }).permalink,
+      "https://getoblic.com/listing/acme",
+    );
+  });
+
+  it("does not overwrite an existing Prospect phone or address", async () => {
+    const existing = prospect({
+      phone: "user-phone",
+      address: "User Address",
+      category: "User Category",
+      notes: "keep-me",
+      website_intelligence: { summary: "researched" },
+      raw_json: {
+        origin: "getoblic_directory",
+        wordpress_listing_id: LISTING_ID,
+        user_marker: true,
+      },
+    });
+    const { port, store } = reuseStore(existing);
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "reused");
+    assert.equal(store[0].phone, "user-phone");
+    assert.equal(store[0].address, "User Address");
+    assert.equal(store[0].category, "User Category");
+    assert.equal(store[0].notes, "keep-me");
+    assert.deepEqual(store[0].website_intelligence, { summary: "researched" });
+    assert.equal(
+      (store[0].raw_json as { user_marker?: boolean }).user_marker,
+      true,
+    );
+    assert.equal(port.queued.length, 0);
+  });
+
+  it("fills empty phone and address on an existing Prospect", async () => {
+    const existing = prospect({
+      phone: null,
+      address: "  ",
+      category: null,
+      google_business_url: null,
+    });
+    const { port, store } = reuseStore(existing);
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "reused");
+    assert.equal(store[0].phone, "512-555-0100");
+    assert.equal(store[0].address, "100 Congress Ave");
+    assert.equal(store[0].category, "Hair Salons");
+    assert.equal(store[0].google_business_url, "https://maps.google.com/?cid=1");
+    assert.equal(store[0].website, null);
+    assert.equal(store[0].city, null);
+    assert.equal(port.queued.length, 0);
+  });
+
+  it("preserves search lat/lng in provenance when detail coordinates are absent", async () => {
+    const port = deps({
+      getListingById: async (id) => ({
+        ...richListing(id),
+        lat: null,
+        lng: null,
+      }),
+    });
+    await convertGetOblicDirectoryListing(convertInput(), port);
+    const observed = port.created[0].raw_json?.observed as {
+      lat?: number | null;
+      lng?: number | null;
+    };
+    assert.equal(observed.lat, 30.27);
+    assert.equal(observed.lng, -97.74);
+  });
+
+  it("does not queue generation for a new or reused GetOblic import", async () => {
+    const createdPort = deps({
+      getListingById: async (id) => richListing(id),
+    });
+    const created = await convertGetOblicDirectoryListing(
+      convertInput(),
+      createdPort,
+    );
+    assert.equal(created.generation_queued, false);
+    assert.equal(createdPort.queued.length, 0);
+
+    const existing = prospect({
+      website: "https://already-has-a-site.example",
+      status: "Saved",
+    });
+    const { port } = reuseStore(existing);
+    const reused = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(reused.generation_queued, false);
+    assert.equal(reused.website_ready, true);
+    assert.equal(port.queued.length, 0);
+  });
+});
+
 describe("GetOblic directory convert source contract", () => {
   it("owns conversion on a dedicated tenant-scoped route", () => {
     const route = read("app/api/prospects/from-getoblic/route.ts");
@@ -1358,6 +1600,11 @@ describe("GetOblic directory convert source contract", () => {
     assert.doesNotMatch(service, /OpenRouter|openrouter/i);
     assert.doesNotMatch(service, /knowledge_base:/);
     assert.match(service, /ensureProspectGenerationQueued/);
+    assert.doesNotMatch(
+      service,
+      /await args\.dependencies\.ensureProspectGenerationQueued/,
+    );
+    assert.match(service, /generationQueued: false/);
     assert.match(service, /normalizeWebsiteUrl\(prospect\.website\)/);
   });
 
