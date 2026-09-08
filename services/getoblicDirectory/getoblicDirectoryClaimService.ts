@@ -1,16 +1,16 @@
 /**
  * Athena V2 GetOblic Directory claim orchestration for a known existing
- * WordPress listing. Reservation is durable before any remote side effect.
+ * WordPress listing. Concurrent listing capacity is reserved in
+ * reserve_getoblic_listing_capacity before any WordPress author assignment.
  *
  * Phase 2C does not search, create listings, push Knowledge Base content,
- * release/unlink, refund, or assign packages.
+ * refund, or assign packages. Release lives in getoblicDirectoryReleaseService.
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   GetOblicDirectoryError,
   getOblicListingNotClaimableError,
-  isPostgresUniqueViolation,
 } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
 import {
   classifyGetOblicListingClaimAvailability,
@@ -46,6 +46,9 @@ const ACTIVE_STATUS_LIST = ["claiming", "linked", "remote_missing"] as const;
 export const CONSUME_GETOBLIC_LISTING_ALLOCATION_RPC =
   "consume_getoblic_listing_allocation" as const;
 
+export const RESERVE_GETOBLIC_LISTING_CAPACITY_RPC =
+  "reserve_getoblic_listing_capacity" as const;
+
 export type ConsumeGetOblicListingAllocationInput = {
   organizationId: string;
   prospectId: string;
@@ -56,6 +59,39 @@ export type ConsumeGetOblicListingAllocationInput = {
   actorUserId: string | null;
   actorLicenseeAccountId: string | null;
 };
+
+export type ReserveGetOblicListingCapacityInput = {
+  organizationId: string;
+  prospectId: string;
+  wordpressListingId: number;
+  periodStart: string;
+  idempotencyKey: string;
+  actorUserId: string | null;
+  actorLicenseeAccountId: string | null;
+};
+
+export type ReserveGetOblicListingCapacityDecision =
+  | {
+      kind: "reserved";
+      listingLinkId: string;
+      allocationEventId: string | null;
+      eventRecorded: boolean;
+    }
+  | {
+      kind: "resumed";
+      listingLinkId: string;
+      allocationEventId: string | null;
+      eventRecorded: boolean;
+    }
+  | {
+      kind: "exceeded";
+    }
+  | {
+      kind: "not_configured";
+    }
+  | {
+      kind: "conflicted";
+    };
 
 export type ConsumeGetOblicListingAllocationDecision =
   | {
@@ -81,7 +117,7 @@ export type ClaimKnownListingOutcome =
   | "linked"
   | "remote_missing"
   | "claiming"
-  | "allowance_exceeded";
+  | "capacity_exceeded";
 
 export type ClaimKnownListingResult = {
   outcome: ClaimKnownListingOutcome;
@@ -140,9 +176,9 @@ export function toPublicGetOblicClaim(result: ClaimKnownListingResult): {
 }
 
 /**
- * Single-transaction allocation consumption. Monthly quota serialization
- * lives in consume_getoblic_listing_allocation (settings-row FOR UPDATE).
- * This wrapper does not count or insert allocation events itself.
+ * Legacy allocation-event wrapper. Concurrent capacity reservation lives in
+ * reserve_getoblic_listing_capacity (settings-row FOR UPDATE + active-link
+ * count + claiming insert). Do not use this wrapper to decide capacity.
  */
 export async function consumeGetOblicListingAllocation(
   input: ConsumeGetOblicListingAllocationInput,
@@ -211,11 +247,90 @@ function readOptionalId(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+export async function reserveGetOblicListingCapacity(
+  input: ReserveGetOblicListingCapacityInput,
+): Promise<ReserveGetOblicListingCapacityDecision> {
+  const { data, error } = await supabaseAdmin.rpc(
+    RESERVE_GETOBLIC_LISTING_CAPACITY_RPC,
+    {
+      p_organization_id: input.organizationId,
+      p_prospect_id: input.prospectId,
+      p_wordpress_listing_id: input.wordpressListingId,
+      p_period_start: input.periodStart,
+      p_idempotency_key: input.idempotencyKey,
+      p_actor_user_id: input.actorUserId,
+      p_actor_licensee_account_id: input.actorLicenseeAccountId,
+    },
+  );
+
+  if (error) {
+    console.error("Error reserving GetOblic listing capacity:", error);
+    throw allocationConcurrencyError();
+  }
+
+  const decision = mapReserveCapacityRpcData(data);
+  if (!decision) {
+    throw allocationConcurrencyError();
+  }
+  return decision;
+}
+
+function mapReserveCapacityRpcData(
+  data: unknown,
+): ReserveGetOblicListingCapacityDecision | null {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object" || Array.isArray(row)) {
+    return null;
+  }
+
+  const record = row as Record<string, unknown>;
+  const reserved = record.reserved === true;
+  const resumed = record.resumed === true;
+  const exceeded = record.exceeded === true;
+  const notConfigured = record.not_configured === true;
+  const conflicted = record.conflicted === true;
+  const flags = [reserved, resumed, exceeded, notConfigured, conflicted].filter(
+    Boolean,
+  );
+  if (flags.length !== 1) {
+    return null;
+  }
+
+  if (notConfigured) {
+    return { kind: "not_configured" };
+  }
+  if (exceeded) {
+    return { kind: "exceeded" };
+  }
+  if (conflicted) {
+    return { kind: "conflicted" };
+  }
+
+  const listingLinkId = readOptionalId(record.listing_link_id);
+  if (!listingLinkId) {
+    return null;
+  }
+
+  return {
+    kind: reserved ? "reserved" : "resumed",
+    listingLinkId,
+    allocationEventId: readOptionalId(record.allocation_event_id),
+    eventRecorded: record.event_recorded === true,
+  };
+}
+
 function allocationConcurrencyError(): GetOblicDirectoryError {
   return new GetOblicDirectoryError(
     "GETOBLIC_CONCURRENCY_CONFLICT",
     "GetOblic Directory could not complete this claim safely.",
     503,
+  );
+}
+
+function listingCapacityExceededError(): GetOblicDirectoryError {
+  return new GetOblicDirectoryError(
+    "GETOBLIC_LISTING_CAPACITY_EXCEEDED",
+    "This account has reached its GetOblic listing capacity. Release an existing GetOblic listing before adding another.",
   );
 }
 
@@ -236,20 +351,34 @@ export async function claimKnownExistingListing(
       wordpressListingId,
       actorUserId: input.actorUserId,
       actorLicenseeAccountId: input.actorLicenseeAccountId,
+      now,
     },
     wordpress,
   );
 
-  if (reserved.relationship_status === "linked") {
-    if (reserved.wordpress_listing_id !== wordpressListingId) {
-      throw prospectAlreadyLinkedError();
-    }
-    return { outcome: "linked", link: reserved, allocated: false };
+  if (reserved.link.wordpress_listing_id !== wordpressListingId) {
+    resolveExistingActiveClaim(
+      {
+        organizationId: input.organizationId,
+        prospectId: input.prospectId,
+        wordpressListingId,
+      },
+      reserved.link,
+    );
+    throw prospectAlreadyLinkedError();
+  }
+
+  if (reserved.link.relationship_status === "linked") {
+    return {
+      outcome: "linked",
+      link: reserved.link,
+      allocated: reserved.allocated,
+    };
   }
 
   if (
-    reserved.relationship_status !== "claiming" &&
-    reserved.relationship_status !== "remote_missing"
+    reserved.link.relationship_status !== "claiming" &&
+    reserved.link.relationship_status !== "remote_missing"
   ) {
     throw new GetOblicDirectoryError(
       "GETOBLIC_CONCURRENCY_CONFLICT",
@@ -260,7 +389,8 @@ export async function claimKnownExistingListing(
   return acquireReservedClaim({
     input,
     settings,
-    reserved,
+    reserved: reserved.link,
+    allocated: reserved.allocated,
     wordpress,
     now,
     wordpressListingId,
@@ -313,9 +443,10 @@ async function reserveOrResumeClaim(
     wordpressListingId: number;
     actorUserId: string | null;
     actorLicenseeAccountId: string | null;
+    now: Date;
   },
   wordpress: ClaimKnownListingWordpressPort,
-): Promise<GetOblicListingLink> {
+): Promise<{ link: GetOblicListingLink; allocated: boolean }> {
   const prospectLink = await getActiveGetOblicLinkForProspect(
     input.organizationId,
     input.prospectId,
@@ -324,45 +455,88 @@ async function reserveOrResumeClaim(
     if (prospectLink.wordpress_listing_id !== input.wordpressListingId) {
       throw prospectAlreadyLinkedError();
     }
-    return prospectLink;
+    if (prospectLink.relationship_status === "linked") {
+      return { link: prospectLink, allocated: false };
+    }
   }
 
   const globalLink = await getActiveGetOblicListingLinkByWordPressListingId(
     input.wordpressListingId,
   );
   if (globalLink) {
-    return resolveExistingActiveClaim(input, globalLink);
-  }
-
-  await assertNewClaimListingEligible(wordpress, input.wordpressListingId);
-
-  const inserted = await insertClaimingReservation(input);
-  if (inserted) {
-    return inserted;
-  }
-
-  const racedProspect = await getActiveGetOblicLinkForProspect(
-    input.organizationId,
-    input.prospectId,
-  );
-  if (racedProspect) {
-    if (racedProspect.wordpress_listing_id !== input.wordpressListingId) {
-      throw prospectAlreadyLinkedError();
+    const classified = resolveExistingActiveClaim(input, globalLink);
+    if (classified.relationship_status === "linked") {
+      return { link: classified, allocated: false };
     }
-    return racedProspect;
   }
 
-  const racedGlobal = await getActiveGetOblicListingLinkByWordPressListingId(
-    input.wordpressListingId,
+  const resumingSameActiveRelationship = Boolean(
+    prospectLink &&
+      prospectLink.wordpress_listing_id === input.wordpressListingId,
   );
-  if (racedGlobal) {
-    return resolveExistingActiveClaim(input, racedGlobal);
+  if (!resumingSameActiveRelationship) {
+    await assertNewClaimListingEligible(wordpress, input.wordpressListingId);
   }
 
-  throw new GetOblicDirectoryError(
-    "GETOBLIC_CONCURRENCY_CONFLICT",
-    "This listing could not be reserved safely. Try again.",
+  const decision = await reserveGetOblicListingCapacity({
+    organizationId: input.organizationId,
+    prospectId: input.prospectId,
+    wordpressListingId: input.wordpressListingId,
+    periodStart: getCurrentGetOblicAllocationPeriodStart(input.now),
+    idempotencyKey: buildGetOblicAllocateExistingIdempotencyKey(
+      input.organizationId,
+      input.wordpressListingId,
+    ),
+    actorUserId: input.actorUserId,
+    actorLicenseeAccountId: input.actorLicenseeAccountId,
+  });
+
+  if (decision.kind === "not_configured") {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_DIRECTORY_NOT_CONFIGURED",
+      "GetOblic Directory is not configured for this organization.",
+    );
+  }
+  if (decision.kind === "exceeded") {
+    throw listingCapacityExceededError();
+  }
+  if (decision.kind === "conflicted") {
+    const racedProspect = await getActiveGetOblicLinkForProspect(
+      input.organizationId,
+      input.prospectId,
+    );
+    if (racedProspect) {
+      if (racedProspect.wordpress_listing_id !== input.wordpressListingId) {
+        throw prospectAlreadyLinkedError();
+      }
+      return { link: racedProspect, allocated: false };
+    }
+    const racedGlobal = await getActiveGetOblicListingLinkByWordPressListingId(
+      input.wordpressListingId,
+    );
+    if (racedGlobal) {
+      return {
+        link: resolveExistingActiveClaim(input, racedGlobal),
+        allocated: false,
+      };
+    }
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_CONCURRENCY_CONFLICT",
+      "This listing could not be reserved safely. Try again.",
+    );
+  }
+
+  const reserved = await loadListingLinkById(
+    decision.listingLinkId,
+    input.organizationId,
   );
+  if (!reserved) {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_CONCURRENCY_CONFLICT",
+      "This listing could not be reserved safely. Try again.",
+    );
+  }
+  return { link: reserved, allocated: decision.eventRecorded };
 }
 
 function resolveExistingActiveClaim(
@@ -416,54 +590,29 @@ function prospectAlreadyLinkedError(): GetOblicDirectoryError {
   );
 }
 
-async function insertClaimingReservation(input: {
-  organizationId: string;
-  prospectId: string;
-  wordpressListingId: number;
-  actorUserId: string | null;
-  actorLicenseeAccountId: string | null;
-}): Promise<GetOblicListingLink | null> {
+async function loadListingLinkById(
+  listingLinkId: string,
+  organizationId: string,
+): Promise<GetOblicListingLink | null> {
   const { data, error } = await supabaseAdmin
     .from(GETOBLIC_LISTING_LINKS_TABLE)
-    .insert({
-      organization_id: input.organizationId,
-      prospect_id: input.prospectId,
-      wordpress_listing_id: input.wordpressListingId,
-      relationship_origin: "linked_existing",
-      relationship_status: "claiming",
-      created_by_user_id: input.actorUserId,
-      created_via_licensee_account_id: input.actorLicenseeAccountId,
-    })
     .select("*")
-    .single();
+    .eq("id", listingLinkId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
 
   if (error) {
-    if (isPostgresUniqueViolation(error)) {
-      return null;
-    }
-    console.error("Error inserting GetOblic listing reservation:", error);
-    throw new GetOblicDirectoryError(
-      "GETOBLIC_CONCURRENCY_CONFLICT",
-      "This listing could not be reserved safely. Try again.",
-      503,
-    );
+    console.error("Error loading reserved GetOblic listing link:", error);
+    return null;
   }
-
-  const mapped = mapListingLinkRow((data ?? {}) as Record<string, unknown>);
-  if (!mapped) {
-    throw new GetOblicDirectoryError(
-      "GETOBLIC_CONCURRENCY_CONFLICT",
-      "This listing could not be reserved safely. Try again.",
-      503,
-    );
-  }
-  return mapped;
+  return data ? mapListingLinkRow(data as Record<string, unknown>) : null;
 }
 
 async function acquireReservedClaim(args: {
   input: ClaimKnownListingInput;
   settings: GetOblicDirectorySettings;
   reserved: GetOblicListingLink;
+  allocated: boolean;
   wordpress: ClaimKnownListingWordpressPort;
   now: Date;
   wordpressListingId: number;
@@ -500,32 +649,6 @@ async function acquireReservedClaim(args: {
     return authorResult.result;
   }
 
-  const allocation = await consumeAllowanceIfNeeded({
-    organizationId: args.input.organizationId,
-    prospectId: args.input.prospectId,
-    listingLinkId: args.reserved.id,
-    wordpressListingId: args.wordpressListingId,
-    actorUserId: args.input.actorUserId,
-    actorLicenseeAccountId: args.input.actorLicenseeAccountId,
-    now: args.now,
-  });
-
-  if (allocation.outcome === "exceeded") {
-    const link = await persistClaimRow(args.reserved, {
-      last_remote_error: boundRemoteError(
-        "GETOBLIC_MONTHLY_ALLOWANCE_EXCEEDED",
-        "Monthly GetOblic Directory allowance has been used.",
-      ),
-      last_remote_error_at: args.now.toISOString(),
-      updated_at: args.now.toISOString(),
-    });
-    return {
-      outcome: "allowance_exceeded",
-      link,
-      allocated: false,
-    };
-  }
-
   const allocatedAt =
     args.reserved.allocated_at ?? args.now.toISOString();
 
@@ -542,7 +665,7 @@ async function acquireReservedClaim(args: {
   return {
     outcome: "linked",
     link: linked,
-    allocated: allocation.consumedNow,
+    allocated: args.allocated,
   };
 }
 
@@ -820,44 +943,6 @@ async function assignAuthor(
       link,
     );
   }
-}
-
-async function consumeAllowanceIfNeeded(input: {
-  organizationId: string;
-  prospectId: string;
-  listingLinkId: string;
-  wordpressListingId: number;
-  actorUserId: string | null;
-  actorLicenseeAccountId: string | null;
-  now: Date;
-}): Promise<{ outcome: "ok"; consumedNow: boolean } | { outcome: "exceeded" }> {
-  const decision = await consumeGetOblicListingAllocation({
-    organizationId: input.organizationId,
-    prospectId: input.prospectId,
-    listingLinkId: input.listingLinkId,
-    wordpressListingId: input.wordpressListingId,
-    periodStart: getCurrentGetOblicAllocationPeriodStart(input.now),
-    idempotencyKey: buildGetOblicAllocateExistingIdempotencyKey(
-      input.organizationId,
-      input.wordpressListingId,
-    ),
-    actorUserId: input.actorUserId,
-    actorLicenseeAccountId: input.actorLicenseeAccountId,
-  });
-
-  if (decision.kind === "not_configured") {
-    throw new GetOblicDirectoryError(
-      "GETOBLIC_DIRECTORY_NOT_CONFIGURED",
-      "GetOblic Directory is not configured for this organization.",
-    );
-  }
-  if (decision.kind === "exceeded") {
-    return { outcome: "exceeded" };
-  }
-  if (decision.kind === "already") {
-    return { outcome: "ok", consumedNow: false };
-  }
-  return { outcome: "ok", consumedNow: true };
 }
 
 async function persistRemoteFailure(

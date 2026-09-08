@@ -13,6 +13,7 @@ import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectL
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import { ProspectDeepScrapeWebsiteButton } from "@/components/prospects/ProspectDeepScrapeWebsiteButton";
 import { ProspectHeaderDeleteButton } from "@/components/prospects/ProspectHeaderDeleteButton";
+import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicListingReleaseControl";
 import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
 import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
 import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
@@ -47,6 +48,7 @@ import { getOrganizationAiWorkspacePreferences } from "@/services/identity/aiWor
 import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
 import { toBlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { getProspectById } from "@/services/prospects/prospectService";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 
@@ -154,6 +156,10 @@ export default async function ProspectDetailsPage({
     }),
   );
   const websiteHref = normalizeWebsiteUrl(prospect.website);
+  const activeGetOblicLink = await getActiveGetOblicLinkForProspect(
+    organizationId,
+    prospect.id,
+  );
   const offerFullIntelligence = shouldOfferProspectFullIntelligenceAction({
     source: prospect.source,
     website: prospect.website,
@@ -319,6 +325,18 @@ export default async function ProspectDetailsPage({
           chrome={messages.common}
         />
       </div>
+
+      {activeGetOblicLink &&
+      (activeGetOblicLink.relationship_status === "linked" ||
+        activeGetOblicLink.relationship_status === "claiming") ? (
+        <div className="mb-8">
+          <GetOblicListingReleaseControl
+            prospectId={prospect.id}
+            relationshipStatus={activeGetOblicLink.relationship_status}
+            messages={messages}
+          />
+        </div>
+      ) : null}
 
       {discussion ? (
         <>

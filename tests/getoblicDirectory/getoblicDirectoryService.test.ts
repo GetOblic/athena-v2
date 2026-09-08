@@ -9,6 +9,7 @@ import {
   getActiveGetOblicClaimOrganizationIdsByWordPressListingIds,
   getActiveGetOblicLinkForProspect,
   getGetOblicAllocationUsage,
+  getGetOblicListingCapacity,
   getGetOblicDirectorySettings,
   hasOrganizationAlreadyConsumedListing,
 } from "../../services/getoblicDirectory/getoblicDirectoryService";
@@ -250,18 +251,18 @@ describe("GetOblic Directory settings", () => {
       assert.equal(settings.settings.monthly_allowance, 0);
     }
 
-    const usage = await getGetOblicAllocationUsage(ORG_A, NOW);
+    const usage = await getGetOblicListingCapacity(ORG_A);
     assert.equal(usage.configured, true);
     if (usage.configured) {
-      assert.equal(usage.monthly_allowance, 0);
-      assert.equal(usage.used, 0);
-      assert.equal(usage.remaining, 0);
+      assert.equal(usage.listingCapacity, 0);
+      assert.equal(usage.currentlyHeld, 0);
+      assert.equal(usage.available, 0);
     }
   });
 });
 
-describe("GetOblic allocation usage", () => {
-  it("counts only the current UTC month and computes remaining", async () => {
+describe("GetOblic listing capacity", () => {
+  it("counts active links and ignores historical allocation events", async () => {
     installFixture({
       settings: [
         {
@@ -277,17 +278,44 @@ describe("GetOblic allocation usage", () => {
         { id: "e1", organization_id: ORG_A, wordpress_listing_id: 10, period_start: "2026-09-01" },
         { id: "e2", organization_id: ORG_A, wordpress_listing_id: 11, period_start: "2026-09-01" },
         { id: "e3", organization_id: ORG_A, wordpress_listing_id: 12, period_start: "2026-08-01" },
-        { id: "e4", organization_id: ORG_B, wordpress_listing_id: 13, period_start: "2026-09-01" },
+      ],
+      links: [
+        completeLink({
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 10,
+          relationship_status: "linked",
+        }),
+        completeLink({
+          id: "link-2",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 11,
+          relationship_status: "claiming",
+        }),
+        completeLink({
+          id: "link-released",
+          organization_id: ORG_A,
+          prospect_id: "cccccccc-cccc-cccc-cccc-cccccccccc99",
+          wordpress_listing_id: 12,
+          relationship_status: "released",
+        }),
+        completeLink({
+          id: "link-b",
+          organization_id: ORG_B,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 13,
+          relationship_status: "linked",
+        }),
       ],
     });
 
-    const usage = await getGetOblicAllocationUsage(ORG_A, NOW);
+    const usage = await getGetOblicListingCapacity(ORG_A);
     assert.deepEqual(usage, {
       configured: true,
-      monthly_allowance: 3,
-      period_start: "2026-09-01",
-      used: 2,
-      remaining: 1,
+      listingCapacity: 3,
+      currentlyHeld: 2,
+      available: 1,
     });
   });
 
@@ -329,11 +357,11 @@ describe("GetOblic allocation usage", () => {
     });
 
     assert.equal(await hasOrganizationAlreadyConsumedListing(ORG_A, 50), false);
-    const usage = await getGetOblicAllocationUsage(ORG_A, NOW);
+    const usage = await getGetOblicListingCapacity(ORG_A);
     assert.equal(usage.configured, true);
     if (usage.configured) {
-      assert.equal(usage.used, 0);
-      assert.equal(usage.remaining, 2);
+      assert.equal(usage.currentlyHeld, 0);
+      assert.equal(usage.available, 2);
     }
   });
 });

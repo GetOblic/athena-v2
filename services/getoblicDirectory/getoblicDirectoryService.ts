@@ -30,7 +30,7 @@ import {
   getCurrentGetOblicAllocationPeriodStart,
   isActiveGetOblicRelationshipStatus,
   type GetOblicActiveListingClaimLookup,
-  type GetOblicAllocationUsageResult,
+  type GetOblicListingCapacityResult,
   type GetOblicDirectorySearchClaimOverlay,
   type GetOblicDirectorySettings,
   type GetOblicDirectorySettingsResult,
@@ -247,10 +247,9 @@ export async function getActiveGetOblicClaimOrganizationIdsByWordPressListingIds
   return claims;
 }
 
-export async function getGetOblicAllocationUsage(
+export async function getGetOblicListingCapacity(
   organizationId: string,
-  now: Date = new Date(),
-): Promise<GetOblicAllocationUsageResult> {
+): Promise<GetOblicListingCapacityResult> {
   const settingsResult = await getGetOblicDirectorySettings(organizationId);
   if (!settingsResult.configured) {
     return {
@@ -259,31 +258,38 @@ export async function getGetOblicAllocationUsage(
     };
   }
 
-  const periodStart = getCurrentGetOblicAllocationPeriodStart(now);
   const { count, error } = await supabaseAdmin
-    .from(GETOBLIC_LISTING_ALLOCATION_EVENTS_TABLE)
+    .from(GETOBLIC_LISTING_LINKS_TABLE)
     .select("id", { count: "exact", head: true })
     .eq("organization_id", organizationId)
-    .eq("period_start", periodStart);
+    .in("relationship_status", ACTIVE_STATUS_LIST);
 
   if (error) {
-    console.error("Error counting GetOblic allocation usage:", error);
+    console.error("Error counting GetOblic listing capacity:", error);
     return {
       configured: false,
       code: "GETOBLIC_DIRECTORY_NOT_CONFIGURED",
     };
   }
 
-  const used = count ?? 0;
-  const monthlyAllowance = settingsResult.settings.monthly_allowance;
+  const listingCapacity = settingsResult.settings.monthly_allowance;
+  const currentlyHeld = count ?? 0;
 
   return {
     configured: true,
-    monthly_allowance: monthlyAllowance,
-    period_start: periodStart,
-    used,
-    remaining: Math.max(monthlyAllowance - used, 0),
+    listingCapacity,
+    currentlyHeld,
+    available: Math.max(listingCapacity - currentlyHeld, 0),
   };
+}
+
+/** @deprecated Internal compatibility alias. Use getGetOblicListingCapacity. */
+export async function getGetOblicAllocationUsage(
+  organizationId: string,
+  now?: Date,
+): Promise<GetOblicListingCapacityResult> {
+  void now;
+  return getGetOblicListingCapacity(organizationId);
 }
 
 export async function hasOrganizationAlreadyConsumedListing(

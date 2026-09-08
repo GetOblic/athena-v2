@@ -55,7 +55,7 @@ export const GETOBLIC_CONVERT_OUTCOMES = [
   "needs_business_name",
   "name_collision",
   "settings_missing",
-  "allowance_exceeded",
+  "capacity_exceeded",
   "unavailable",
   "remote_missing",
   "claim_incomplete",
@@ -177,8 +177,8 @@ export function convertOutcomeErrorCode(
       return "GETOBLIC_NAME_COLLISION";
     case "settings_missing":
       return "GETOBLIC_DIRECTORY_NOT_CONFIGURED";
-    case "allowance_exceeded":
-      return "GETOBLIC_MONTHLY_ALLOWANCE_EXCEEDED";
+    case "capacity_exceeded":
+      return "GETOBLIC_LISTING_CAPACITY_EXCEEDED";
     case "unavailable":
       return "GETOBLIC_LISTING_CLAIMED_OTHER_ORG";
     case "remote_missing":
@@ -200,8 +200,8 @@ export function convertOutcomeErrorMessage(
       return "A similar opportunity already exists. Athena didn’t add a second one.";
     case "settings_missing":
       return "This workspace isn’t set up to add GetOblic businesses yet.";
-    case "allowance_exceeded":
-      return "You’ve added the maximum GetOblic businesses for this month.";
+    case "capacity_exceeded":
+      return "You’ve reached listing capacity and must release an existing GetOblic listing before adding another.";
     case "unavailable":
       return "This business is already being pursued.";
     case "remote_missing":
@@ -412,22 +412,16 @@ export async function convertGetOblicDirectoryListing(
     return emptyResult("settings_missing");
   }
 
-  const [usage, alreadyPaid, originProspect] = await Promise.all([
+  const [usage, originProspect] = await Promise.all([
     dependencies.getAllocationUsage(organizationId, input.now),
-    dependencies.hasAlreadyConsumedListing(organizationId, wordpressListingId),
     dependencies.findOriginProspectByListingId(
       organizationId,
       wordpressListingId,
     ),
   ]);
 
-  if (
-    usage.configured &&
-    usage.remaining <= 0 &&
-    !alreadyPaid &&
-    !originProspect
-  ) {
-    return emptyResult("allowance_exceeded");
+  if (usage.configured && usage.available <= 0) {
+    return emptyResult("capacity_exceeded");
   }
 
   if (originProspect) {
@@ -750,7 +744,7 @@ async function finishExistingProspect(args: {
       error instanceof GetOblicDirectoryError &&
       (error.code === "GETOBLIC_LISTING_CLAIMED_OTHER_ORG" ||
         error.code === "GETOBLIC_DIRECTORY_NOT_CONFIGURED" ||
-        error.code === "GETOBLIC_MONTHLY_ALLOWANCE_EXCEEDED")
+        error.code === "GETOBLIC_LISTING_CAPACITY_EXCEEDED")
     ) {
       if (error.code === "GETOBLIC_LISTING_CLAIMED_OTHER_ORG") {
         const discard = await discardLosingConversionProspect({
@@ -794,15 +788,36 @@ async function finishExistingProspect(args: {
           prospect_id: args.created ? prospect.id : null,
         };
       }
-      return {
-        ...presentProspect({
-          prospect,
-          outcome: "allowance_exceeded",
-          generationQueued: false,
-          allocated: false,
-        }),
-        prospect_id: args.created ? prospect.id : null,
-      };
+
+      const discard = await discardLosingConversionProspect({
+        created: args.created,
+        loser: prospect,
+        winnerId: null,
+        requireResolvedWinner: false,
+        organizationId: args.organizationId,
+        wordpressListingId: args.wordpressListingId,
+        dependencies: args.dependencies,
+      });
+      if (discard === "delete_failed" || discard === "not_disposable") {
+        throw cleanupIntegrityError();
+      }
+      if (discard === "protected_claim") {
+        const current = await resolveSameOrgCanonicalProspect(
+          args.organizationId,
+          args.wordpressListingId,
+          args.dependencies,
+        );
+        if (current) {
+          return presentProspect({
+            prospect: current,
+            outcome: "reused",
+            generationQueued: false,
+            allocated: false,
+          });
+        }
+        throw cleanupIntegrityError();
+      }
+      return emptyResult("capacity_exceeded");
     }
 
     if (
@@ -846,8 +861,8 @@ async function finalizeAfterClaim(args: {
       prospect,
       outcome: args.claim.outcome === "remote_missing"
         ? "remote_missing"
-        : args.claim.outcome === "allowance_exceeded"
-          ? "allowance_exceeded"
+        : args.claim.outcome === "capacity_exceeded"
+          ? "capacity_exceeded"
           : "claim_incomplete",
       generationQueued: false,
       allocated: args.claim.allocated,

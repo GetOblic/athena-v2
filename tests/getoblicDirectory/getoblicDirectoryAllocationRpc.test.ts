@@ -176,9 +176,9 @@ describe("GetOblic allocation concurrency source contract", () => {
       migration,
       /Two simultaneous first-time claims for DIFFERENT listings in the SAME/,
     );
-    assert.match(service, /consume_getoblic_listing_allocation/);
-    assert.match(service, /Monthly quota serialization/);
-    assert.match(service, /lives in consume_getoblic_listing_allocation/);
+    assert.match(service, /reserve_getoblic_listing_capacity/);
+    assert.match(service, /Concurrent listing capacity/);
+    assert.match(service, /reserve_getoblic_listing_capacity/);
     assert.doesNotMatch(service, /GETOBLIC_LISTING_ALLOCATION_EVENTS_TABLE/);
 
     // Limitation: this suite does not open two concurrent Postgres

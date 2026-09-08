@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
-  getGetOblicAllocationUsage,
   getGetOblicDirectorySettings,
+  getGetOblicListingCapacity,
 } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { GETOBLIC_DIRECTORY_SETTINGS_TABLE } from "@/services/getoblicDirectory/getoblicDirectoryTypes";
 import { logSuperAdminAudit } from "@/services/superAdmin/superAdminAuditLog";
@@ -32,10 +32,9 @@ export type SuperAdminGetOblicDirectoryAllocationRow = {
   displayAlias: string | null;
   isOwnCompany: boolean;
   configured: boolean;
-  monthlyAllowance: number | null;
-  usedThisMonth: number | null;
-  remainingThisMonth: number | null;
-  periodStart: string | null;
+  listingCapacity: number | null;
+  currentlyHeld: number | null;
+  available: number | null;
   getoblicAccountEmail: string | null;
   wordpressUserId: number | null;
 };
@@ -69,24 +68,29 @@ type OrganizationRow = {
   name: string;
 };
 
-export function assertValidMonthlyAllowance(value: unknown): number {
+export function assertValidListingCapacity(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new SuperAdminGetOblicDirectoryError(
-      "INVALID_ALLOWANCE",
-      "monthlyAllowance must be a non-negative integer.",
+      "INVALID_CAPACITY",
+      "listingCapacity must be a non-negative integer.",
       400,
     );
   }
 
   if (!Number.isInteger(value) || value < 0) {
     throw new SuperAdminGetOblicDirectoryError(
-      "INVALID_ALLOWANCE",
-      "monthlyAllowance must be a non-negative integer.",
+      "INVALID_CAPACITY",
+      "listingCapacity must be a non-negative integer.",
       400,
     );
   }
 
   return value;
+}
+
+/** @deprecated Internal compatibility alias. Use assertValidListingCapacity. */
+export function assertValidMonthlyAllowance(value: unknown): number {
+  return assertValidListingCapacity(value);
 }
 
 export function assertValidGetOblicAccountEmail(value: unknown): string {
@@ -149,14 +153,15 @@ function readString(value: unknown): string | null {
 }
 
 /**
- * Super Admin read of monthly GetOblic listing allowances.
+ * Super Admin read of concurrent GetOblic listing capacity.
  *
  * Independent of the Master dashboard sub-account loader — that path pulls
  * tenant intelligence and uses Master authorization. This path is
- * Super-Admin-only and returns a small allocation DTO only.
+ * Super-Admin-only and returns a small capacity DTO only.
  *
- * Missing settings row remains unconfigured (not allowance 0).
+ * Missing settings row remains unconfigured (not capacity 0).
  * Does not create settings rows.
+ * monthly_allowance remains the physical settings column only.
  */
 export async function listGetOblicDirectoryAllocationsForSuperAdmin(
   actorUserId: string,
@@ -266,13 +271,13 @@ export async function updateGetOblicDirectoryAllowanceForSuperAdmin(input: {
   actorUserId: string;
   licenseeAccountId: string;
   organizationId: string;
-  monthlyAllowance: unknown;
+  listingCapacity: unknown;
 }): Promise<{
   superAdmin: GetOblicSuperAdmin;
   allocation: SuperAdminGetOblicDirectoryAllocationRow;
 }> {
   const actor = await requireGetOblicSuperAdmin(input.actorUserId);
-  const monthlyAllowance = assertValidMonthlyAllowance(input.monthlyAllowance);
+  const listingCapacity = assertValidListingCapacity(input.listingCapacity);
   const { licenseeAccountId, organizationId, licensee, relationship, organization } =
     await requireLicenseeOrganizationRelationship({
       licenseeAccountId: input.licenseeAccountId,
@@ -287,7 +292,7 @@ export async function updateGetOblicDirectoryAllowanceForSuperAdmin(input: {
   const now = new Date().toISOString();
   const upsertPayload = {
     organization_id: organizationId,
-    monthly_allowance: monthlyAllowance,
+    monthly_allowance: listingCapacity,
     updated_at: now,
     updated_by_user_id: actor.user_id,
   };
@@ -308,14 +313,14 @@ export async function updateGetOblicDirectoryAllowanceForSuperAdmin(input: {
         licenseeAccountId,
         organizationId,
         previousAllowance,
-        nextAllowance: monthlyAllowance,
+        nextAllowance: listingCapacity,
       },
       success: false,
       reason: upsertError?.message || "GetOblic directory allowance update failed.",
     });
     throw new SuperAdminGetOblicDirectoryError(
       "SETTINGS_WRITE_FAILED",
-      upsertError?.message || "Failed to save GetOblic listing allowance.",
+      upsertError?.message || "Failed to save GetOblic listing capacity.",
       500,
     );
   }
@@ -339,7 +344,7 @@ export async function updateGetOblicDirectoryAllowanceForSuperAdmin(input: {
       licenseeAccountId,
       organizationId,
       previousAllowance,
-      nextAllowance: monthlyAllowance,
+      nextAllowance: listingCapacity,
     },
     success: true,
   });
@@ -385,7 +390,7 @@ export async function updateGetOblicDirectoryAccountForSuperAdmin(input: {
   if (!existing) {
     throw new SuperAdminGetOblicDirectoryError(
       "SETTINGS_NOT_CONFIGURED",
-      "Monthly listing allowance must be configured before saving a GetOblic.com account.",
+      "Listing capacity must be configured before saving a GetOblic.com account.",
       409,
     );
   }
@@ -611,15 +616,14 @@ async function buildAllocationRow(input: {
       displayAlias: input.displayAlias,
       isOwnCompany: input.isOwnCompany,
       configured: false,
-      monthlyAllowance: null,
-      usedThisMonth: null,
-      remainingThisMonth: null,
-      periodStart: null,
+      listingCapacity: null,
+      currentlyHeld: null,
+      available: null,
       ...account,
     };
   }
 
-  const usage = await getGetOblicAllocationUsage(input.organizationId);
+  const usage = await getGetOblicListingCapacity(input.organizationId);
   if (!usage.configured) {
     return {
       licenseeAccountId: input.licenseeAccountId,
@@ -628,10 +632,9 @@ async function buildAllocationRow(input: {
       displayAlias: input.displayAlias,
       isOwnCompany: input.isOwnCompany,
       configured: false,
-      monthlyAllowance: null,
-      usedThisMonth: null,
-      remainingThisMonth: null,
-      periodStart: null,
+      listingCapacity: null,
+      currentlyHeld: null,
+      available: null,
       ...account,
     };
   }
@@ -643,10 +646,9 @@ async function buildAllocationRow(input: {
     displayAlias: input.displayAlias,
     isOwnCompany: input.isOwnCompany,
     configured: true,
-    monthlyAllowance: usage.monthly_allowance,
-    usedThisMonth: usage.used,
-    remainingThisMonth: usage.remaining,
-    periodStart: usage.period_start,
+    listingCapacity: usage.listingCapacity,
+    currentlyHeld: usage.currentlyHeld,
+    available: usage.available,
     ...account,
   };
 }

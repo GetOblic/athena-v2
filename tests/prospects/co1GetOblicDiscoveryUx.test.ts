@@ -55,7 +55,7 @@ describe("CO-1 Find Opportunities UX", () => {
     assert.match(page, /copy\.find\.subtitle/);
     assert.match(page, /GetOblicOpportunityDiscovery/);
     assert.match(page, /getGetOblicDirectorySettings/);
-    assert.match(page, /getGetOblicAllocationUsage/);
+    assert.match(page, /getGetOblicListingCapacity/);
     assert.doesNotMatch(page, /organizationId:/);
     assert.doesNotMatch(page, /fit score|recommendation score/i);
   });
@@ -75,6 +75,15 @@ describe("CO-1 Find Opportunities UX", () => {
     assert.match(discovery, /page: String\(nextPage\)/);
     assert.match(discovery, /if \(!trimmed\)/);
     assert.match(discovery, /GETOBLIC_LISTING_NOT_CLAIMABLE/);
+    assert.match(discovery, /GETOBLIC_LISTING_CAPACITY_EXCEEDED/);
+    assert.match(discovery, /listingCapacityReached/);
+    assert.match(discovery, /outcome === "claim_incomplete"/);
+    assert.match(discovery, /outcome === "remote_missing"/);
+    assert.doesNotMatch(discovery, /outcome === "capacity_exceeded"/);
+    assert.match(discovery, /setFailedId/);
+    assert.match(discovery, /setFailureMessage/);
+    assert.match(discovery, /copy\.listingCapacityReached/);
+    assert.match(discovery, /INCOMPLETE_FOR_THIS_ORG/);
     assert.match(discovery, /alreadyBeingPursued/);
     assert.doesNotMatch(discovery, /271519816/);
     assert.doesNotMatch(discovery, /author_id/);
@@ -187,6 +196,8 @@ describe("CO-1 Find Opportunities UX", () => {
     assert.doesNotMatch(card, /decision maker|phone|email|whatsapp/i);
     assert.doesNotMatch(detail, /\/api\/getoblic-directory\/search/);
     assert.doesNotMatch(detail, /GetOblicOpportunityDiscovery/);
+    assert.match(detail, /GetOblicListingReleaseControl/);
+    assert.doesNotMatch(card, /Release GetOblic listing|getoblic-directory\/release/);
   });
 
   it("does not offer Generate on Saved GetOblic without a website", () => {
@@ -284,6 +295,8 @@ describe("CO-1 Find Opportunities UX", () => {
       assert.ok(messages.prospects.find.addToOpportunities);
       assert.ok(messages.prospects.find.needsFinishing);
       assert.ok(messages.prospects.find.finishAdding);
+      assert.ok(messages.prospects.find.listingCapacityReached);
+      assert.ok(messages.prospects.detail.releaseGetOblicListing);
       assert.ok(messages.prospects.websiteCompletion.heading);
       assert.ok(messages.prospects.websiteCompletion.addWebsiteToStartResearch);
       assert.ok(messages.prospects.convert.saved);

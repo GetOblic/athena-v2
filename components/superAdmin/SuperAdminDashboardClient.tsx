@@ -299,7 +299,7 @@ export function SuperAdminDashboardClient({
   ) {
     const key = allocationKey(row);
     const raw = (allowanceDrafts[key] ?? "").trim();
-    const monthlyAllowance = raw === "" ? null : Number(raw);
+    const listingCapacity = raw === "" ? null : Number(raw);
 
     setError(null);
     setLocalNotice(null);
@@ -310,7 +310,7 @@ export function SuperAdminDashboardClient({
         {
           licenseeAccountId: row.licenseeAccountId,
           organizationId: row.organizationId,
-          monthlyAllowance,
+          listingCapacity,
         },
       )) as AllocationSaveApiBody;
       const next = payload.allocation;
@@ -321,15 +321,15 @@ export function SuperAdminDashboardClient({
       setAllowanceDrafts((current) => ({
         ...current,
         [allocationKey(next)]: next.configured
-          ? String(next.monthlyAllowance ?? "")
+          ? String(next.listingCapacity ?? "")
           : "",
       }));
-      setLocalNotice("GetOblic listing allowance saved.");
+      setLocalNotice("GetOblic listing capacity saved.");
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Save GetOblic listing allowance failed.",
+          : "Save GetOblic listing capacity failed.",
       );
     } finally {
       setSavingAllocationKey(null);
@@ -641,21 +641,21 @@ export function SuperAdminDashboardClient({
       <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6">
         <div className="mb-5">
           <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
-            GetOblic Listing Allocation
+            GetOblic Listing Capacity
           </div>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight">
-            Monthly listing allowance
+            GetOblic listing capacity
           </h2>
           <p className="mt-2 text-sm leading-6 text-white/50">
-            Monthly listing allowance per Licensee sub-account. Licensee Masters
-            and tenant users cannot change this.
+            Concurrent GetOblic listing capacity per Licensee sub-account.
+            Licensee Masters and tenant users cannot change this.
           </p>
         </div>
 
         {directoryAllocations.groups.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-black/20 px-5 py-8 text-sm text-white/50">
             No Licensee Masters yet. Create a Licensee Master and link
-            sub-accounts before setting an allowance.
+            sub-accounts before setting listing capacity.
           </div>
         ) : (
           <div className="space-y-4">
@@ -792,8 +792,7 @@ export function SuperAdminDashboardClient({
                                   </button>
                                   {accountDisabled ? (
                                     <span className="text-xs text-white/40">
-                                      Monthly listing allowance must be
-                                      configured first.
+                                      Listing capacity must be configured first.
                                     </span>
                                   ) : null}
                                 </div>
@@ -802,7 +801,7 @@ export function SuperAdminDashboardClient({
                               <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
                                 <label className="min-w-0 flex-1 space-y-2">
                                   <span className="text-sm text-white/70">
-                                    Monthly GetOblic listings
+                                    GetOblic listing capacity
                                   </span>
                                   <input
                                     type="text"
@@ -946,7 +945,7 @@ function buildAllowanceDrafts(
   for (const group of model.groups) {
     for (const row of group.subAccounts) {
       drafts[`${row.licenseeAccountId}:${row.organizationId}`] = row.configured
-        ? String(row.monthlyAllowance ?? "")
+        ? String(row.listingCapacity ?? "")
         : "";
     }
   }
@@ -1002,14 +1001,14 @@ function allocationSecondaryCopy(
   row: SuperAdminGetOblicDirectoryAllocationRow,
 ): string {
   if (!row.configured) {
-    return "Conversions are blocked until an allowance is set.";
+    return "Conversions are blocked until listing capacity is set.";
   }
-  if (row.monthlyAllowance === 0) {
+  if (row.listingCapacity === 0) {
     return "New GetOblic conversions are blocked.";
   }
-  const used = row.usedThisMonth ?? 0;
-  const allowance = row.monthlyAllowance ?? 0;
-  const remaining = row.remainingThisMonth;
-  const usage = `${used} of ${allowance} used this month`;
-  return remaining == null ? usage : `${usage} · ${remaining} remaining`;
+  const held = row.currentlyHeld ?? 0;
+  const capacity = row.listingCapacity ?? 0;
+  const available = row.available;
+  const usage = `${held} currently held of ${capacity}`;
+  return available == null ? usage : `${usage} · ${available} available`;
 }

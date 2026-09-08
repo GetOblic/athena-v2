@@ -1,7 +1,7 @@
 /**
  * Athena V2 GetOblic Directory domain contracts (Phase 2A).
- * Persistence / status / quota evaluation only — no claim API, WordPress,
- * search, listing creation, KB push, release, or Super Admin editor.
+ * Persistence / status / capacity evaluation only — no claim API, WordPress,
+ * search, listing creation, KB push, or Super Admin editor.
  */
 
 export const GETOBLIC_DIRECTORY_SETTINGS_TABLE =
@@ -95,7 +95,10 @@ export const GETOBLIC_DIRECTORY_ERROR_CODES = [
   "GETOBLIC_REMOTE_TRANSIENT",
   "GETOBLIC_WORDPRESS_AUTHOR_UNMAPPED",
   "GETOBLIC_WORDPRESS_AUTHOR_FAILED",
-  "GETOBLIC_MONTHLY_ALLOWANCE_EXCEEDED",
+  "GETOBLIC_LISTING_CAPACITY_EXCEEDED",
+  "GETOBLIC_RELEASE_REMOTE_MISSING",
+  "GETOBLIC_RELEASE_THIRD_PARTY_OWNER",
+  "GETOBLIC_RELEASE_NOT_ACTIVE",
   "GETOBLIC_CONCURRENCY_CONFLICT",
   "GETOBLIC_INVALID_WORDPRESS_LISTING_ID",
   "GETOBLIC_LINK_NOT_FOUND",
@@ -167,18 +170,24 @@ export type GetOblicActiveListingClaimLookup =
       relationship_status: ActiveGetOblicRelationshipStatus;
     };
 
-export type GetOblicAllocationUsageResult =
+/**
+ * Product-facing concurrent listing capacity.
+ * monthly_allowance remains the physical settings column only.
+ */
+export type GetOblicListingCapacityResult =
   | {
       configured: true;
-      monthly_allowance: number;
-      period_start: string;
-      used: number;
-      remaining: number;
+      listingCapacity: number;
+      currentlyHeld: number;
+      available: number;
     }
   | {
       configured: false;
       code: "GETOBLIC_DIRECTORY_NOT_CONFIGURED";
     };
+
+/** @deprecated Internal compatibility alias. Use GetOblicListingCapacityResult. */
+export type GetOblicAllocationUsageResult = GetOblicListingCapacityResult;
 
 export function isGetOblicRelationshipStatus(
   value: string,

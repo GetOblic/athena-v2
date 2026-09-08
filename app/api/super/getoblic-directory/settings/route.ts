@@ -20,7 +20,7 @@ export async function PUT(request: NextRequest) {
   let body: {
     licenseeAccountId?: unknown;
     organizationId?: unknown;
-    monthlyAllowance?: unknown;
+    listingCapacity?: unknown;
   } = {};
   try {
     body = (await request.json()) as typeof body;
@@ -28,11 +28,11 @@ export async function PUT(request: NextRequest) {
     return jsonError(400, "INVALID_JSON", "Invalid JSON body.");
   }
 
-  if (typeof body.monthlyAllowance !== "number") {
+  if (typeof body.listingCapacity !== "number") {
     return jsonError(
       400,
-      "INVALID_ALLOWANCE",
-      "monthlyAllowance must be a non-negative integer.",
+      "INVALID_CAPACITY",
+      "listingCapacity must be a non-negative integer.",
     );
   }
 
@@ -63,7 +63,7 @@ export async function PUT(request: NextRequest) {
       actorUserId: user.id,
       licenseeAccountId: body.licenseeAccountId,
       organizationId: body.organizationId,
-      monthlyAllowance: body.monthlyAllowance,
+      listingCapacity: body.listingCapacity,
     });
 
     return NextResponse.json(
@@ -83,7 +83,7 @@ export async function PUT(request: NextRequest) {
       "SETTINGS_WRITE_FAILED",
       error instanceof Error
         ? error.message
-        : "Failed to save GetOblic listing allowance.",
+        : "Failed to save GetOblic listing capacity.",
     );
   }
 }

@@ -45,6 +45,12 @@ type EventRow = {
   period_start: string;
 };
 
+type LinkRow = {
+  id: string;
+  organization_id: string;
+  relationship_status: string;
+};
+
 type Op = {
   op: string;
   table: string;
@@ -54,12 +60,6 @@ type Op = {
 
 function read(relativePath: string): string {
   return readFileSync(join(ROOT, relativePath), "utf8");
-}
-
-function currentPeriodStart(): string {
-  const now = new Date();
-  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
-  return `${now.getUTCFullYear()}-${month}-01`;
 }
 
 function defaultSettings(overrides: Partial<SettingsRow> = {}): SettingsRow {
@@ -91,6 +91,7 @@ function baseStore(overrides: {
   organizations?: { id: string; name: string }[];
   settings?: SettingsRow[];
   events?: EventRow[];
+  links?: LinkRow[];
   failSettingsWrite?: boolean;
 } = {}) {
   return {
@@ -140,6 +141,7 @@ function baseStore(overrides: {
     ],
     settings: overrides.settings ?? [],
     events: overrides.events ?? [],
+    links: overrides.links ?? [],
     audit: [] as Record<string, unknown>[],
     failSettingsWrite: Boolean(overrides.failSettingsWrite),
   };
@@ -177,6 +179,9 @@ function installStore(store: ReturnType<typeof baseStore>): { ops: Op[] } {
       }
       if (table === "athena_getoblic_listing_allocation_events") {
         return store.events as unknown as Record<string, unknown>[];
+      }
+      if (table === "athena_getoblic_listing_links") {
+        return store.links as unknown as Record<string, unknown>[];
       }
       if (table === "getoblic_super_admin_audit") {
         return store.audit;
@@ -406,9 +411,9 @@ describe("CO-1A Super Admin GetOblic listing allocation — read", () => {
     );
     assert.ok(row);
     assert.equal(row?.configured, false);
-    assert.equal(row?.monthlyAllowance, null);
-    assert.equal(row?.usedThisMonth, null);
-    assert.equal(row?.remainingThisMonth, null);
+    assert.equal(row?.listingCapacity, null);
+    assert.equal(row?.currentlyHeld, null);
+    assert.equal(row?.available, null);
   });
 
   it("3. Own-company organization is identified correctly", async () => {
@@ -453,11 +458,11 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
       actorUserId: SUPER_ADMIN_USER,
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_V2,
-      monthlyAllowance: 10,
+      listingCapacity: 10,
     });
 
     assert.equal(result.allocation.configured, true);
-    assert.equal(result.allocation.monthlyAllowance, 10);
+    assert.equal(result.allocation.listingCapacity, 10);
     assert.equal(store.settings.length, 1);
     assert.equal(store.settings[0]?.organization_id, ORG_V2);
     assert.equal(store.settings[0]?.monthly_allowance, 10);
@@ -485,11 +490,11 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
       actorUserId: SUPER_ADMIN_USER,
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_GETOBLIC,
-      monthlyAllowance: 12,
+      listingCapacity: 12,
     });
 
     assert.equal(result.allocation.configured, true);
-    assert.equal(result.allocation.monthlyAllowance, 12);
+    assert.equal(result.allocation.listingCapacity, 12);
     assert.equal(store.settings[0]?.monthly_allowance, 12);
     assert.equal(store.settings[0]?.wordpress_author_id, 42);
     const upsert = ops.find(
@@ -515,7 +520,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
       actorUserId: SUPER_ADMIN_USER,
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_GETOBLIC,
-      monthlyAllowance: 15,
+      listingCapacity: 15,
     });
 
     assert.equal(store.settings[0]?.organization_id, ORG_GETOBLIC);
@@ -533,11 +538,11 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
       actorUserId: SUPER_ADMIN_USER,
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_V2,
-      monthlyAllowance: 0,
+      listingCapacity: 0,
     });
 
     assert.equal(result.allocation.configured, true);
-    assert.equal(result.allocation.monthlyAllowance, 0);
+    assert.equal(result.allocation.listingCapacity, 0);
     assert.equal(store.settings[0]?.monthly_allowance, 0);
 
     const listed =
@@ -546,7 +551,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
       (item) => item.organizationId === ORG_V2,
     );
     assert.equal(row?.configured, true);
-    assert.equal(row?.monthlyAllowance, 0);
+    assert.equal(row?.listingCapacity, 0);
   });
 
   it("10-13. Negative, float, blank/null, and numeric string are rejected", () => {
@@ -554,7 +559,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
       () => assertValidMonthlyAllowance(-1),
       (error: unknown) => {
         assert.ok(error instanceof SuperAdminGetOblicDirectoryError);
-        assert.equal(error.code, "INVALID_ALLOWANCE");
+        assert.equal(error.code, "INVALID_CAPACITY");
         return true;
       },
     );
@@ -562,7 +567,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
       () => assertValidMonthlyAllowance(1.5),
       (error: unknown) => {
         assert.ok(error instanceof SuperAdminGetOblicDirectoryError);
-        assert.equal(error.code, "INVALID_ALLOWANCE");
+        assert.equal(error.code, "INVALID_CAPACITY");
         return true;
       },
     );
@@ -570,7 +575,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
       () => assertValidMonthlyAllowance(null),
       (error: unknown) => {
         assert.ok(error instanceof SuperAdminGetOblicDirectoryError);
-        assert.equal(error.code, "INVALID_ALLOWANCE");
+        assert.equal(error.code, "INVALID_CAPACITY");
         return true;
       },
     );
@@ -578,7 +583,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
       () => assertValidMonthlyAllowance(""),
       (error: unknown) => {
         assert.ok(error instanceof SuperAdminGetOblicDirectoryError);
-        assert.equal(error.code, "INVALID_ALLOWANCE");
+        assert.equal(error.code, "INVALID_CAPACITY");
         return true;
       },
     );
@@ -586,7 +591,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
       () => assertValidMonthlyAllowance(Number.NaN),
       (error: unknown) => {
         assert.ok(error instanceof SuperAdminGetOblicDirectoryError);
-        assert.equal(error.code, "INVALID_ALLOWANCE");
+        assert.equal(error.code, "INVALID_CAPACITY");
         return true;
       },
     );
@@ -594,7 +599,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
       () => assertValidMonthlyAllowance("10"),
       (error: unknown) => {
         assert.ok(error instanceof SuperAdminGetOblicDirectoryError);
-        assert.equal(error.code, "INVALID_ALLOWANCE");
+        assert.equal(error.code, "INVALID_CAPACITY");
         return true;
       },
     );
@@ -604,18 +609,18 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
     const store = baseStore();
     installStore(store);
 
-    for (const monthlyAllowance of [-1, 1.5, null, "", Number.NaN, "10"]) {
+    for (const listingCapacity of [-1, 1.5, null, "", Number.NaN, "10"]) {
       await assert.rejects(
         () =>
           updateGetOblicDirectoryAllowanceForSuperAdmin({
             actorUserId: SUPER_ADMIN_USER,
             licenseeAccountId: LICENSEE_A,
             organizationId: ORG_V2,
-            monthlyAllowance,
+            listingCapacity,
           }),
         (error: unknown) => {
           assert.ok(error instanceof SuperAdminGetOblicDirectoryError);
-          assert.equal(error.code, "INVALID_ALLOWANCE");
+          assert.equal(error.code, "INVALID_CAPACITY");
           return true;
         },
       );
@@ -632,7 +637,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
           actorUserId: SUPER_ADMIN_USER,
           licenseeAccountId: LICENSEE_A,
           organizationId: ORG_OTHER,
-          monthlyAllowance: 5,
+          listingCapacity: 5,
         }),
       (error: unknown) => {
         assert.ok(error instanceof SuperAdminGetOblicDirectoryError);
@@ -651,7 +656,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — write", () => {
           actorUserId: SUPER_ADMIN_USER,
           licenseeAccountId: LICENSEE_A,
           organizationId: ORG_ARBITRARY,
-          monthlyAllowance: 5,
+          listingCapacity: 5,
         }),
       (error: unknown) => {
         assert.ok(error instanceof SuperAdminGetOblicDirectoryError);
@@ -678,7 +683,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — authorization and au
           actorUserId: LICENSEE_MASTER_USER,
           licenseeAccountId: LICENSEE_A,
           organizationId: ORG_GETOBLIC,
-          monthlyAllowance: 5,
+          listingCapacity: 5,
         }),
       (error: unknown) => {
         assert.ok(error instanceof SuperAdminAccessError);
@@ -702,7 +707,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — authorization and au
           actorUserId: TENANT_USER,
           licenseeAccountId: LICENSEE_A,
           organizationId: ORG_GETOBLIC,
-          monthlyAllowance: 5,
+          listingCapacity: 5,
         }),
       (error: unknown) => {
         assert.ok(error instanceof SuperAdminAccessError);
@@ -721,7 +726,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — authorization and au
       actorUserId: SUPER_ADMIN_USER,
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_GETOBLIC,
-      monthlyAllowance: 9,
+      listingCapacity: 9,
     });
 
     assert.equal(store.audit.length, 1);
@@ -743,7 +748,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — authorization and au
       actorUserId: SUPER_ADMIN_USER,
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_V2,
-      monthlyAllowance: 3,
+      listingCapacity: 3,
     });
 
     const metadata = store.audit[0]?.metadata as Record<string, unknown>;
@@ -753,20 +758,19 @@ describe("CO-1A Super Admin GetOblic listing allocation — authorization and au
 });
 
 describe("CO-1A Super Admin GetOblic listing allocation — usage and contracts", () => {
-  it("lists current UTC-month usage for a configured organization", async () => {
-    const periodStart = currentPeriodStart();
+  it("lists currently held active listings for a configured organization", async () => {
     installStore(
       baseStore({
         settings: [defaultSettings({ monthly_allowance: 10 })],
-        events: [
-          { id: "e1", organization_id: ORG_GETOBLIC, period_start: periodStart },
-          { id: "e2", organization_id: ORG_GETOBLIC, period_start: periodStart },
+        links: [
+          { id: "l1", organization_id: ORG_GETOBLIC, relationship_status: "linked" },
+          { id: "l2", organization_id: ORG_GETOBLIC, relationship_status: "claiming" },
           {
-            id: "e3",
+            id: "l3",
             organization_id: ORG_GETOBLIC,
-            period_start: "2020-01-01",
+            relationship_status: "released",
           },
-          { id: "e4", organization_id: ORG_V2, period_start: periodStart },
+          { id: "l4", organization_id: ORG_V2, relationship_status: "linked" },
         ],
       }),
     );
@@ -777,10 +781,9 @@ describe("CO-1A Super Admin GetOblic listing allocation — usage and contracts"
       (item) => item.organizationId === ORG_GETOBLIC,
     );
     assert.equal(row?.configured, true);
-    assert.equal(row?.monthlyAllowance, 10);
-    assert.equal(row?.usedThisMonth, 2);
-    assert.equal(row?.remainingThisMonth, 8);
-    assert.equal(row?.periodStart, periodStart);
+    assert.equal(row?.listingCapacity, 10);
+    assert.equal(row?.currentlyHeld, 2);
+    assert.equal(row?.available, 8);
   });
 
   it("20. Existing GetOblic search behavior remains settings-independent", () => {
@@ -805,14 +808,14 @@ describe("CO-1A Super Admin GetOblic listing allocation — usage and contracts"
     assert.match(convert, /getSettings/);
   });
 
-  it("22. Existing claim still uses settings and the allocation RPC unchanged", () => {
+  it("22. Existing claim still uses settings and reserves capacity in SQL", () => {
     const claim = read(
       "services/getoblicDirectory/getoblicDirectoryClaimService.ts",
     );
     assert.match(claim, /getGetOblicDirectorySettings/);
-    assert.match(claim, /CONSUME_GETOBLIC_LISTING_ALLOCATION_RPC/);
-    assert.match(claim, /consumeGetOblicListingAllocation/);
-    assert.match(claim, /consume_getoblic_listing_allocation/);
+    assert.match(claim, /RESERVE_GETOBLIC_LISTING_CAPACITY_RPC/);
+    assert.match(claim, /reserveGetOblicListingCapacity/);
+    assert.match(claim, /reserve_getoblic_listing_capacity/);
     assert.doesNotMatch(claim, /updateGetOblicDirectoryAllowanceForSuperAdmin/);
     assert.doesNotMatch(claim, /monthly_allowance:\s/);
   });
@@ -828,7 +831,7 @@ describe("CO-1A Super Admin GetOblic listing allocation — usage and contracts"
     assert.ok(allowanceStart >= 0);
     assert.ok(accountStart > allowanceStart);
     const allowanceWriter = writer.slice(allowanceStart, accountStart);
-    assert.match(allowanceWriter, /monthly_allowance: monthlyAllowance/);
+    assert.match(allowanceWriter, /monthly_allowance: listingCapacity/);
     assert.match(allowanceWriter, /onConflict: "organization_id"/);
     assert.doesNotMatch(allowanceWriter, /wordpress_author_id:/);
 
@@ -891,8 +894,8 @@ describe("CO-1A Super Admin GetOblic listing allocation — surface contracts", 
     assert.match(route, /export async function PUT/);
     assert.match(route, /createSupabaseServerClient/);
     assert.match(route, /updateGetOblicDirectoryAllowanceForSuperAdmin/);
-    assert.match(route, /typeof body\.monthlyAllowance !== "number"/);
-    assert.match(route, /INVALID_ALLOWANCE/);
+    assert.match(route, /typeof body\.listingCapacity !== "number"/);
+    assert.match(route, /INVALID_CAPACITY/);
     assert.match(route, /UNAUTHORIZED/);
     assert.match(route, /NOT_SUPER_ADMIN/);
     assert.match(route, /ACCOUNT_NOT_FOUND/);
@@ -915,20 +918,20 @@ describe("CO-1A Super Admin GetOblic listing allocation — surface contracts", 
     const dashboard = read(
       "components/superAdmin/SuperAdminDashboardClient.tsx",
     );
-    assert.match(dashboard, /GetOblic Listing Allocation/);
+    assert.match(dashboard, /GetOblic Listing Capacity/);
     assert.match(
       dashboard,
-      /Monthly listing allowance per Licensee sub-account\. Licensee Masters\s+and tenant users cannot change this\./,
+      /Concurrent GetOblic listing capacity per Licensee sub-account\.\s+Licensee Masters and tenant users cannot change this\./,
     );
     assert.match(dashboard, /Not configured/);
     assert.match(
       dashboard,
-      /Conversions are blocked until an allowance is set\./,
+      /Conversions are blocked until listing capacity is set\./,
     );
     assert.match(dashboard, /Configured/);
     assert.match(dashboard, /New GetOblic conversions are blocked\./);
-    assert.match(dashboard, /used this month/);
-    assert.match(dashboard, /Monthly GetOblic listings/);
+    assert.match(dashboard, /currently held of/);
+    assert.match(dashboard, /GetOblic listing capacity/);
     assert.match(dashboard, /Own company/);
     assert.match(dashboard, /saveDirectoryAllowance/);
     assert.match(dashboard, /\/api\/super\/getoblic-directory\/settings/);

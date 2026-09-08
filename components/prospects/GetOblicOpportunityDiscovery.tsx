@@ -37,7 +37,7 @@ type ConvertPayload = {
 type GetOblicOpportunityDiscoveryProps = {
   messages: TenantMessages;
   notConfigured: boolean;
-  allowanceExhausted: boolean;
+  listingCapacityReached: boolean;
 };
 
 function convertFailureCopy(
@@ -49,8 +49,8 @@ function convertFailureCopy(
   switch (code) {
     case "GETOBLIC_DIRECTORY_NOT_CONFIGURED":
       return copy.notConfigured;
-    case "GETOBLIC_MONTHLY_ALLOWANCE_EXCEEDED":
-      return copy.allowanceExhausted;
+    case "GETOBLIC_LISTING_CAPACITY_EXCEEDED":
+      return copy.listingCapacityReached;
     case "GETOBLIC_NEEDS_BUSINESS_NAME":
       return copy.needsBusinessName;
     case "GETOBLIC_NAME_COLLISION":
@@ -66,7 +66,7 @@ function convertFailureCopy(
 export function GetOblicOpportunityDiscovery({
   messages,
   notConfigured,
-  allowanceExhausted,
+  listingCapacityReached,
 }: GetOblicOpportunityDiscoveryProps) {
   const router = useRouter();
   const copy = messages.prospects.find;
@@ -146,8 +146,7 @@ export function GetOblicOpportunityDiscovery({
         prospectId &&
         (payload?.ok ||
           payload?.conversion?.outcome === "claim_incomplete" ||
-          payload?.conversion?.outcome === "remote_missing" ||
-          payload?.conversion?.outcome === "allowance_exceeded")
+          payload?.conversion?.outcome === "remote_missing")
       ) {
         router.push(`/prospects/${prospectId}`);
         return;
@@ -179,9 +178,9 @@ export function GetOblicOpportunityDiscovery({
           {copy.notConfigured}
         </div>
       ) : null}
-      {allowanceExhausted ? (
+      {listingCapacityReached ? (
         <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-sm leading-6 text-white/70">
-          {copy.allowanceExhausted}
+          {copy.listingCapacityReached}
         </div>
       ) : null}
 
@@ -236,7 +235,12 @@ export function GetOblicOpportunityDiscovery({
               failureMessage={
                 failedId === hit.wordpress_listing_id ? failureMessage : null
               }
-              addDisabled={notConfigured}
+              addDisabled={
+                notConfigured ||
+                (listingCapacityReached &&
+                  hit.athena_claim_status !== "INCOMPLETE_FOR_THIS_ORG" &&
+                  hit.athena_claim_status !== "OWNED_BY_THIS_ORG")
+              }
               onAdd={(item) => void convertHit(item)}
               onOpen={(item) => void convertHit(item)}
             />

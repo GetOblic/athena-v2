@@ -1702,8 +1702,8 @@ export const fr: TenantMessages = {
       error: "Athena n’a pas pu rechercher pour le moment. Réessayez.",
       notConfigured:
         "Cet espace n’est pas encore configuré pour ajouter des entreprises GetOblic.",
-      allowanceExhausted:
-        "Vous avez ajouté le maximum d’entreprises GetOblic pour ce mois.",
+      listingCapacityReached:
+        "Vous avez atteint la capacité de listings. Libérez un listing GetOblic existant avant d’en ajouter un autre.",
       addYourself: "Ou ajoutez une entreprise vous-même",
       sourceGetOblic: "GetOblic",
       available: "Disponible",
@@ -1892,6 +1892,13 @@ export const fr: TenantMessages = {
       deleteConfirm:
         "Supprimer définitivement ce prospect ? Le prospect, son intelligence liée et les brouillons générés seront supprimés. Cette action est irréversible.",
       deleteFailed: "Échec de la suppression du prospect.",
+      releaseGetOblicListing: "Libérer le listing GetOblic",
+      releaseGetOblicConfirm:
+        "Ce listing GetOblic sera renvoyé à l’inventaire GetOblic partagé. Il ne comptera plus dans la capacité de listings de ce compte. Le Prospect et les recherches et l’intelligence Athena resteront.",
+      releaseGetOblicAction: "Libérer le listing",
+      releasingGetOblic: "Libération…",
+      releaseGetOblicFailed: "Athena n’a pas pu libérer ce listing GetOblic.",
+      getoblicReleased: "Ce listing GetOblic a été libéré.",
       workflowProgress: "Progression du workflow",
       workflowAnalysis: "Analyse",
       workflowOpportunity: "Opportunité",

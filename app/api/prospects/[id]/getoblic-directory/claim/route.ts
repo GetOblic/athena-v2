@@ -36,8 +36,8 @@ function outcomeErrorCode(outcome: string): string {
   switch (outcome) {
     case "remote_missing":
       return "GETOBLIC_REMOTE_LISTING_MISSING";
-    case "allowance_exceeded":
-      return "GETOBLIC_MONTHLY_ALLOWANCE_EXCEEDED";
+    case "capacity_exceeded":
+      return "GETOBLIC_LISTING_CAPACITY_EXCEEDED";
     case "claiming":
       return "GETOBLIC_REMOTE_TRANSIENT";
     default:
@@ -49,8 +49,8 @@ function outcomeErrorMessage(outcome: string): string {
   switch (outcome) {
     case "remote_missing":
       return "The WordPress listing was not found.";
-    case "allowance_exceeded":
-      return "Monthly GetOblic Directory allowance has been used.";
+    case "capacity_exceeded":
+      return "This account has reached its GetOblic listing capacity. Release an existing GetOblic listing before adding another.";
     case "claiming":
       return "GetOblic Directory is temporarily unavailable.";
     default:
@@ -152,8 +152,8 @@ export async function POST(
                   outcome:
                     error.link.relationship_status === "linked"
                       ? "linked"
-                      : error.code === "GETOBLIC_MONTHLY_ALLOWANCE_EXCEEDED"
-                        ? "allowance_exceeded"
+                      : error.code === "GETOBLIC_LISTING_CAPACITY_EXCEEDED"
+                        ? "capacity_exceeded"
                         : error.code === "GETOBLIC_REMOTE_LISTING_MISSING"
                           ? "remote_missing"
                           : "claiming",

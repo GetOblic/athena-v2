@@ -1669,8 +1669,8 @@ export const en = {
       error: "Athena couldn’t search right now. Try again.",
       notConfigured:
         "This workspace isn’t set up to add GetOblic businesses yet.",
-      allowanceExhausted:
-        "You’ve added the maximum GetOblic businesses for this month.",
+      listingCapacityReached:
+        "You’ve reached listing capacity. Release an existing GetOblic listing before adding another.",
       addYourself: "Or add a business yourself",
       sourceGetOblic: "GetOblic",
       available: "Available",
@@ -1855,6 +1855,13 @@ export const en = {
       deleteConfirm:
         "Delete this prospect permanently? The prospect, its linked intelligence, and generated drafts will be removed. This cannot be undone.",
       deleteFailed: "Failed to delete prospect.",
+      releaseGetOblicListing: "Release GetOblic listing",
+      releaseGetOblicConfirm:
+        "This GetOblic listing will be returned to the shared GetOblic inventory. It will no longer count against this account’s listing capacity. The Prospect and Athena research and intelligence will remain.",
+      releaseGetOblicAction: "Release listing",
+      releasingGetOblic: "Releasing…",
+      releaseGetOblicFailed: "Athena couldn’t release this GetOblic listing.",
+      getoblicReleased: "This GetOblic listing was released.",
       workflowProgress: "Workflow Progress",
       workflowAnalysis: "Analysis",
       workflowOpportunity: "Opportunity",

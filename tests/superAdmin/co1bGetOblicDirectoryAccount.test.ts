@@ -104,6 +104,7 @@ function baseStore(
     }[];
     organizations?: { id: string; name: string }[];
     settings?: SettingsRow[];
+    links?: { id: string; organization_id: string; relationship_status: string }[];
     failSettingsWrite?: boolean;
   } = {},
 ) {
@@ -151,6 +152,7 @@ function baseStore(
       { id: ORG_OTHER, name: "Other Client" },
     ],
     settings: overrides.settings ?? [],
+    links: overrides.links ?? [],
     audit: [] as Record<string, unknown>[],
     failSettingsWrite: Boolean(overrides.failSettingsWrite),
   };
@@ -190,6 +192,9 @@ function installStore(store: ReturnType<typeof baseStore>): { ops: Op[] } {
       }
       if (table === "athena_getoblic_listing_allocation_events") {
         return [];
+      }
+      if (table === "athena_getoblic_listing_links") {
+        return store.links as unknown as Record<string, unknown>[];
       }
       if (table === "getoblic_super_admin_audit") {
         return store.audit;
@@ -648,7 +653,7 @@ describe("CO-1B Super Admin GetOblic.com account — write", () => {
     );
     assert.equal(Object.hasOwn(update?.values ?? {}, "monthly_allowance"), false);
     assert.equal(store.settings[0]?.monthly_allowance, 0);
-    assert.equal(result.allocation.monthlyAllowance, 0);
+    assert.equal(result.allocation.listingCapacity, 0);
     assert.equal(result.allocation.configured, true);
   });
 
@@ -667,7 +672,7 @@ describe("CO-1B Super Admin GetOblic.com account — write", () => {
     });
 
     assert.equal(store.settings[0]?.monthly_allowance, 300);
-    assert.equal(result.allocation.monthlyAllowance, 300);
+    assert.equal(result.allocation.listingCapacity, 300);
   });
 
   it("does not upsert a missing settings row", async () => {
@@ -887,7 +892,7 @@ describe("CO-1B Super Admin surface contracts", () => {
     assert.match(dashboard, /WordPress User ID/);
     assert.match(
       dashboard,
-      /Monthly listing allowance must be[\s\S]*configured first/,
+      /Listing capacity must be[\s\S]*configured first/,
     );
     assert.match(dashboard, /saveDirectoryAccount/);
     assert.match(dashboard, /\/api\/super\/getoblic-directory\/account/);
@@ -936,7 +941,7 @@ describe("CO-1B Super Admin surface contracts", () => {
       actorUserId: SUPER_ADMIN_USER,
       licenseeAccountId: LICENSEE_A,
       organizationId: ORG_GETOBLIC,
-      monthlyAllowance: 8,
+      listingCapacity: 8,
     });
     const upsert = ops.find(
       (op) =>

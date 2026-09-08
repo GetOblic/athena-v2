@@ -20,6 +20,10 @@ export function directoryErrorStatus(code: GetOblicDirectoryErrorCode): number {
     case "GETOBLIC_KB_SYNC_PERSISTENCE_FAILED":
       return 500;
     case "GETOBLIC_LISTING_NOT_CLAIMABLE":
+    case "GETOBLIC_LISTING_CAPACITY_EXCEEDED":
+    case "GETOBLIC_RELEASE_REMOTE_MISSING":
+    case "GETOBLIC_RELEASE_THIRD_PARTY_OWNER":
+    case "GETOBLIC_RELEASE_NOT_ACTIVE":
     case "GETOBLIC_CONCURRENCY_CONFLICT":
       return 409;
     default:

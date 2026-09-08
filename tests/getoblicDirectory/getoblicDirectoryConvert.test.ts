@@ -154,10 +154,9 @@ function deps(
     }),
     getAllocationUsage: async () => ({
       configured: true,
-      monthly_allowance: 5,
-      period_start: "2026-09-01",
-      used: 1,
-      remaining: 4,
+      listingCapacity: 5,
+      currentlyHeld: 1,
+      available: 4,
     }),
     hasAlreadyConsumedListing: async () => false,
     getActiveListingClaim: async () => ({ found: false }),
@@ -474,19 +473,72 @@ describe("GetOblic directory convert orchestration", () => {
     assert.equal(port.claimed.length, 0);
   });
 
-  it("fails closed when monthly allowance is exhausted and the listing was not already taken", async () => {
+  it("discards a thin Prospect created by this request when authoritative capacity rejects", async () => {
+    let claimAttempts = 0;
     const port = deps({
       getAllocationUsage: async () => ({
         configured: true,
-        monthly_allowance: 2,
-        period_start: "2026-09-01",
-        used: 2,
-        remaining: 0,
+        listingCapacity: 1,
+        currentlyHeld: 0,
+        available: 1,
       }),
-      hasAlreadyConsumedListing: async () => false,
+      claimKnownExistingListing: async () => {
+        claimAttempts += 1;
+        throw new GetOblicDirectoryError(
+          "GETOBLIC_LISTING_CAPACITY_EXCEEDED",
+          "This account has reached its GetOblic listing capacity. Release an existing GetOblic listing before adding another.",
+        );
+      },
     });
     const result = await convertGetOblicDirectoryListing(convertInput(), port);
-    assert.equal(result.outcome, "allowance_exceeded");
+    assert.equal(result.outcome, "capacity_exceeded");
+    assert.equal(result.prospect_id, null);
+    assert.equal(result.generation_queued, false);
+    assert.equal(result.allocated, false);
+    assert.equal(claimAttempts, 1);
+    assert.deepEqual(port.deleted, [PROSPECT_A]);
+    assert.equal(port.created.length, 0);
+    assert.equal(port.queued.length, 0);
+  });
+
+  it("does not discard a pre-existing Prospect when authoritative capacity rejects", async () => {
+    const existing = prospect({ id: PROSPECT_B });
+    const port = deps({
+      getAllocationUsage: async () => ({
+        configured: true,
+        listingCapacity: 1,
+        currentlyHeld: 0,
+        available: 1,
+      }),
+      findOriginProspectByListingId: async () => existing,
+      claimKnownExistingListing: async () => {
+        throw new GetOblicDirectoryError(
+          "GETOBLIC_LISTING_CAPACITY_EXCEEDED",
+          "This account has reached its GetOblic listing capacity. Release an existing GetOblic listing before adding another.",
+        );
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "capacity_exceeded");
+    assert.equal(result.prospect_id, null);
+    assert.equal(port.created.length, 0);
+    assert.deepEqual(port.deleted, []);
+    assert.equal(port.queued.length, 0);
+  });
+
+  it("fails closed when listing capacity is exhausted, even with a historical event or origin Prospect", async () => {
+    const port = deps({
+      getAllocationUsage: async () => ({
+        configured: true,
+        listingCapacity: 2,
+        currentlyHeld: 2,
+        available: 0,
+      }),
+      hasAlreadyConsumedListing: async () => true,
+      findOriginProspectByListingId: async () => prospect({ id: PROSPECT_B }),
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "capacity_exceeded");
     assert.equal(port.created.length, 0);
     assert.equal(port.claimed.length, 0);
   });

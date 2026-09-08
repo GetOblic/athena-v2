@@ -10,6 +10,7 @@ import {
   buildGetOblicAllocateExistingIdempotencyKey,
   claimKnownExistingListing,
   CONSUME_GETOBLIC_LISTING_ALLOCATION_RPC,
+  RESERVE_GETOBLIC_LISTING_CAPACITY_RPC,
   consumeGetOblicListingAllocation,
   toPublicGetOblicClaim,
   type ClaimKnownListingWordpressPort,
@@ -209,6 +210,7 @@ function installStore(store: {
   failNextLinkInsert?: boolean;
   failAllocationRpc?: boolean;
   raceWinner?: LinkRow;
+  injectReservedLink?: LinkRow;
 }): { ops: Op[] } {
   const ops: Op[] = [];
   let nextLinkId = 100;
@@ -435,6 +437,18 @@ function installStore(store: {
     args: Record<string, unknown> = {},
   ) => {
     ops.push({ op: "rpc", table: fn, values: args });
+    if (fn === RESERVE_GETOBLIC_LISTING_CAPACITY_RPC) {
+      if (store.failAllocationRpc) {
+        return { data: null, error: { message: "allocation rpc failed" } };
+      }
+      return applyReserveRpc(
+        store,
+        args,
+        () => `link-${nextLinkId++}`,
+        () => `event-${nextEventId++}`,
+        ops,
+      );
+    }
     if (fn !== CONSUME_GETOBLIC_LISTING_ALLOCATION_RPC) {
       return { data: null, error: { message: "unexpected rpc" } };
     }
@@ -445,6 +459,220 @@ function installStore(store: {
   };
 
   return { ops };
+}
+
+function applyReserveRpc(
+  store: {
+    settings?: SettingsRow[];
+    links?: LinkRow[];
+    events?: EventRow[];
+    failNextLinkInsert?: boolean;
+    raceWinner?: LinkRow;
+    injectReservedLink?: LinkRow;
+  },
+  args: Record<string, unknown>,
+  nextLinkId: () => string,
+  nextEventId: () => string,
+  ops: Op[],
+): {
+  data: Record<string, unknown>;
+  error: null;
+} {
+  const organizationId = String(args.p_organization_id ?? "");
+  const prospectId = String(args.p_prospect_id ?? "");
+  const wordpressListingId = Number(args.p_wordpress_listing_id);
+  const settings = (store.settings ?? []).find(
+    (row) => row.organization_id === organizationId,
+  );
+
+  if (!settings) {
+    return {
+      data: {
+        reserved: false,
+        resumed: false,
+        exceeded: false,
+        not_configured: true,
+        conflicted: false,
+        listing_link_id: null,
+        allocation_event_id: null,
+        event_recorded: false,
+      },
+      error: null,
+    };
+  }
+
+  if (store.injectReservedLink) {
+    const injected = store.injectReservedLink;
+    store.links = [...(store.links ?? []), injected];
+    delete store.injectReservedLink;
+    return {
+      data: {
+        reserved: false,
+        resumed: true,
+        exceeded: false,
+        not_configured: false,
+        conflicted: false,
+        listing_link_id: injected.id,
+        allocation_event_id: null,
+        event_recorded: false,
+      },
+      error: null,
+    };
+  }
+
+  const active = (store.links ?? []).filter((row) =>
+    ["claiming", "linked", "remote_missing"].includes(row.relationship_status),
+  );
+  const sameActive = active.find(
+    (row) =>
+      row.organization_id === organizationId &&
+      row.prospect_id === prospectId &&
+      row.wordpress_listing_id === wordpressListingId,
+  );
+  if (sameActive) {
+    const event = ensureFirstLifetimeEvent(store, args, sameActive.id, nextEventId);
+    return {
+      data: {
+        reserved: false,
+        resumed: true,
+        exceeded: false,
+        not_configured: false,
+        conflicted: false,
+        listing_link_id: sameActive.id,
+        allocation_event_id: event.id,
+        event_recorded: event.recordedNow,
+      },
+      error: null,
+    };
+  }
+
+  const held = active.filter((row) => row.organization_id === organizationId)
+    .length;
+  if (held >= settings.monthly_allowance) {
+    return {
+      data: {
+        reserved: false,
+        resumed: false,
+        exceeded: true,
+        not_configured: false,
+        conflicted: false,
+        listing_link_id: null,
+        allocation_event_id: null,
+        event_recorded: false,
+      },
+      error: null,
+    };
+  }
+
+  if (store.failNextLinkInsert) {
+    store.failNextLinkInsert = false;
+    if (store.raceWinner) {
+      store.links = [...(store.links ?? []), store.raceWinner];
+    }
+    return {
+      data: {
+        reserved: false,
+        resumed: false,
+        exceeded: false,
+        not_configured: false,
+        conflicted: true,
+        listing_link_id: store.raceWinner?.id ?? null,
+        allocation_event_id: null,
+        event_recorded: false,
+      },
+      error: null,
+    };
+  }
+
+  const conflict = active.find(
+    (row) =>
+      row.prospect_id === prospectId ||
+      row.wordpress_listing_id === wordpressListingId,
+  );
+  if (conflict) {
+    return {
+      data: {
+        reserved: false,
+        resumed: false,
+        exceeded: false,
+        not_configured: false,
+        conflicted: true,
+        listing_link_id: conflict.id,
+        allocation_event_id: null,
+        event_recorded: false,
+      },
+      error: null,
+    };
+  }
+
+  const row = completeLink({
+    id: nextLinkId(),
+    organization_id: organizationId,
+    prospect_id: prospectId,
+    wordpress_listing_id: wordpressListingId,
+    relationship_status: "claiming",
+    created_by_user_id: (args.p_actor_user_id as string | null) ?? null,
+    created_via_licensee_account_id:
+      (args.p_actor_licensee_account_id as string | null) ?? null,
+  });
+  store.links = [...(store.links ?? []), row];
+  ops.push({
+    op: "insert",
+    table: "athena_getoblic_listing_links",
+    values: {
+      relationship_status: "claiming",
+      organization_id: organizationId,
+      prospect_id: prospectId,
+      wordpress_listing_id: wordpressListingId,
+    },
+  });
+  const event = ensureFirstLifetimeEvent(store, args, row.id, nextEventId);
+  return {
+    data: {
+      reserved: true,
+      resumed: false,
+      exceeded: false,
+      not_configured: false,
+      conflicted: false,
+      listing_link_id: row.id,
+      allocation_event_id: event.id,
+      event_recorded: event.recordedNow,
+    },
+    error: null,
+  };
+}
+
+function ensureFirstLifetimeEvent(
+  store: { events?: EventRow[] },
+  args: Record<string, unknown>,
+  listingLinkId: string,
+  nextEventId: () => string,
+): { id: string | null; recordedNow: boolean } {
+  const organizationId = String(args.p_organization_id ?? "");
+  const wordpressListingId = Number(args.p_wordpress_listing_id);
+  const existing = (store.events ?? []).find(
+    (row) =>
+      row.organization_id === organizationId &&
+      row.wordpress_listing_id === wordpressListingId,
+  );
+  if (existing) {
+    return { id: existing.id, recordedNow: false };
+  }
+  const row: EventRow = {
+    id: nextEventId(),
+    organization_id: organizationId,
+    prospect_id: (args.p_prospect_id as string | null) ?? null,
+    listing_link_id: listingLinkId,
+    wordpress_listing_id: wordpressListingId,
+    event_kind: "allocate_existing",
+    period_start: String(args.p_period_start ?? ""),
+    idempotency_key: String(args.p_idempotency_key ?? ""),
+    actor_user_id: (args.p_actor_user_id as string | null) ?? null,
+    actor_licensee_account_id:
+      (args.p_actor_licensee_account_id as string | null) ?? null,
+  };
+  store.events = [...(store.events ?? []), row];
+  return { id: row.id, recordedNow: true };
 }
 
 function applyAllocationRpc(
@@ -681,6 +909,99 @@ describe("GetOblic claim orchestration", () => {
     assert.equal(store.links.length, 1);
   });
 
+  it("5a. claiming reservation listing-id mismatch is rejected before WordPress work", async () => {
+    const wordpress = successWordpress();
+    installStore({
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      injectReservedLink: completeLink({
+        id: "injected-claiming",
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_A,
+        wordpress_listing_id: 2000,
+        relationship_status: "claiming",
+      }),
+    });
+    await assert.rejects(
+      () => claim({ wordpressListingId: 1000 }, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_PROSPECT_ALREADY_LINKED");
+        return true;
+      },
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("getListing:2000")),
+      false,
+    );
+  });
+
+  it("5b. remote_missing reservation listing-id mismatch is rejected before WordPress work", async () => {
+    const wordpress = successWordpress();
+    installStore({
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      injectReservedLink: completeLink({
+        id: "injected-remote-missing",
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_A,
+        wordpress_listing_id: 2000,
+        relationship_status: "remote_missing",
+      }),
+    });
+    await assert.rejects(
+      () => claim({ wordpressListingId: 1000 }, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_PROSPECT_ALREADY_LINKED");
+        return true;
+      },
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("getListing:2000")),
+      false,
+    );
+  });
+
+  it("5c. linked reservation listing-id mismatch remains rejected before WordPress work", async () => {
+    const wordpress = successWordpress();
+    installStore({
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      injectReservedLink: completeLink({
+        id: "injected-linked",
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_A,
+        wordpress_listing_id: 2000,
+        relationship_status: "linked",
+      }),
+    });
+    await assert.rejects(
+      () => claim({ wordpressListingId: 1000 }, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_PROSPECT_ALREADY_LINKED");
+        return true;
+      },
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("getListing:2000")),
+      false,
+    );
+  });
+
   it("5. same prospect/different listing conflicts", async () => {
     installStore({
       settings: [defaultSettings()],
@@ -800,7 +1121,7 @@ describe("GetOblic claim orchestration", () => {
     const result = await claim({}, wordpress);
     assert.equal(result.outcome, "remote_missing");
     assert.equal(store.links[0]?.relationship_status, "remote_missing");
-    assert.equal(store.events.length, 0);
+    assert.equal(store.events.length, 1);
     assert.ok(store.links[0]?.last_remote_error);
   });
 
@@ -827,7 +1148,7 @@ describe("GetOblic claim orchestration", () => {
       },
     );
     assert.equal(store.links[0]?.relationship_status, "claiming");
-    assert.equal(store.events.length, 0);
+    assert.equal(store.events.length, 1);
   });
 
   it("11. remote_missing retry 404 stays remote_missing", async () => {
@@ -1018,10 +1339,13 @@ describe("GetOblic claim orchestration", () => {
     );
     assert.equal(store.links[0]?.relationship_status, "claiming");
     assert.equal(store.links[0]?.wordpress_author_id, null);
-    assert.equal(store.events.length, 0);
+    assert.equal(store.events.length, 1);
     assert.equal(
-      ops.filter((op) => op.op === "rpc").length,
-      0,
+      ops.filter(
+        (op) =>
+          op.op === "rpc" && op.table === RESERVE_GETOBLIC_LISTING_CAPACITY_RPC,
+      ).length,
+      1,
     );
     assert.equal(
       wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
@@ -1064,7 +1388,7 @@ describe("GetOblic claim orchestration", () => {
     assert.equal(reads, 2);
     assert.equal(store.links[0]?.relationship_status, "claiming");
     assert.equal(store.links[0]?.wordpress_author_id, null);
-    assert.equal(store.events.length, 0);
+    assert.equal(store.events.length, 1);
     assert.equal(
       wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
       false,
@@ -1094,7 +1418,7 @@ describe("GetOblic claim orchestration", () => {
       },
     );
     assert.equal(store.links[0]?.relationship_status, "claiming");
-    assert.equal(store.events.length, 0);
+    assert.equal(store.events.length, 1);
   });
 
   it("16. existing lifetime ledger avoids second consumption", async () => {
@@ -1132,24 +1456,32 @@ describe("GetOblic claim orchestration", () => {
     assert.equal(
       ops.filter(
         (op) =>
-          op.op === "rpc" && op.table === CONSUME_GETOBLIC_LISTING_ALLOCATION_RPC,
+          op.op === "rpc" && op.table === RESERVE_GETOBLIC_LISTING_CAPACITY_RPC,
       ).length,
       1,
     );
     assert.equal(store.events.length, 1);
   });
 
-  it("17. allowance exceeded stops before ledger insert and linked", async () => {
+  it("17. over capacity is rejected before WP author assign and claiming insert", async () => {
     const store = {
       settings: [defaultSettings({ monthly_allowance: 1 })],
       prospects: [defaultProspect()],
-      links: [] as LinkRow[],
+      links: [
+        completeLink({
+          id: "held",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 2000,
+          relationship_status: "linked",
+        }),
+      ],
       events: [
         {
           id: "e1",
           organization_id: ORG_A,
           prospect_id: PROSPECT_B,
-          listing_link_id: "other",
+          listing_link_id: "held",
           wordpress_listing_id: 2000,
           event_kind: "allocate_existing",
           period_start: "2026-09-01",
@@ -1159,14 +1491,22 @@ describe("GetOblic claim orchestration", () => {
         },
       ] as EventRow[],
     };
+    const wordpress = successWordpress();
     installStore(store);
-    const result = await claim({}, successWordpress());
-    assert.equal(result.outcome, "allowance_exceeded");
-    assert.equal(store.links[0]?.relationship_status, "claiming");
+    await assert.rejects(
+      () => claim({}, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_LISTING_CAPACITY_EXCEEDED");
+        return true;
+      },
+    );
+    assert.equal(store.links.length, 1);
+    assert.equal(store.links[0]?.id, "held");
     assert.equal(store.events.length, 1);
-    assert.match(
-      String(store.links[0]?.last_remote_error),
-      /GETOBLIC_MONTHLY_ALLOWANCE_EXCEEDED/,
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
     );
   });
 
@@ -1189,7 +1529,7 @@ describe("GetOblic claim orchestration", () => {
     assert.equal(store.events[0]?.period_start, "2026-09-01");
     const rpc = ops.find(
       (op) =>
-        op.op === "rpc" && op.table === CONSUME_GETOBLIC_LISTING_ALLOCATION_RPC,
+        op.op === "rpc" && op.table === RESERVE_GETOBLIC_LISTING_CAPACITY_RPC,
     );
     assert.ok(rpc?.values);
     assert.equal(
@@ -1404,7 +1744,7 @@ describe("GetOblic claim orchestration", () => {
       String(store.links[0]?.last_remote_error),
       /GETOBLIC_WORDPRESS_AUTHOR_UNMAPPED/,
     );
-    assert.equal(store.events.length, 0);
+    assert.equal(store.events.length, 1);
     assert.equal(
       wordpress.calls.some((call) => call.startsWith("resolveOrCreate:")),
       false,
@@ -1455,7 +1795,7 @@ describe("GetOblic claim orchestration", () => {
       /GETOBLIC_WORDPRESS_AUTHOR_UNMAPPED/,
     );
     assert.ok(store.links[0]?.last_remote_error_at);
-    assert.equal(store.events.length, 0);
+    assert.equal(store.events.length, 1);
     assert.equal(
       wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
       false,
@@ -1508,7 +1848,7 @@ describe("GetOblic claim orchestration", () => {
     assert.equal(
       ops.filter(
         (op) =>
-          op.op === "rpc" && op.table === CONSUME_GETOBLIC_LISTING_ALLOCATION_RPC,
+          op.op === "rpc" && op.table === RESERVE_GETOBLIC_LISTING_CAPACITY_RPC,
       ).length,
       1,
     );
@@ -1551,36 +1891,43 @@ describe("GetOblic claim orchestration", () => {
     assert.equal(store.events.length, 1);
   });
 
-  it("does not consume allowance when only provisioning the WordPress user", async () => {
+  it("reserves capacity before WordPress author assignment", async () => {
     const source = read(
       "services/getoblicDirectory/getoblicDirectoryClaimService.ts",
     );
-    const resolveIdx = source.indexOf("resolveOrCreateWordpressUser");
-    const allocateIdx = source.indexOf("consumeAllowanceIfNeeded");
-    assert.ok(resolveIdx >= 0);
-    assert.ok(allocateIdx > resolveIdx);
+    const reserveIdx = source.indexOf("reserveGetOblicListingCapacity");
+    const assignIdx = source.indexOf("assignAuthor(");
+    assert.ok(reserveIdx >= 0);
+    assert.ok(assignIdx > reserveIdx);
+    assert.doesNotMatch(source, /consumeAllowanceIfNeeded/);
   });
 
-  it("allowance 0 exceeds without inserting an event or linking", async () => {
+  it("capacity 0 blocks a new claim before claiming insert or WP assign", async () => {
     const store = {
       settings: [defaultSettings({ monthly_allowance: 0 })],
       prospects: [defaultProspect()],
       links: [] as LinkRow[],
       events: [] as EventRow[],
     };
+    const wordpress = successWordpress();
     installStore(store);
-    const result = await claim({}, successWordpress());
-    assert.equal(result.outcome, "allowance_exceeded");
-    assert.equal(result.allocated, false);
-    assert.equal(store.links[0]?.relationship_status, "claiming");
+    await assert.rejects(
+      () => claim({}, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_LISTING_CAPACITY_EXCEEDED");
+        return true;
+      },
+    );
+    assert.equal(store.links.length, 0);
     assert.equal(store.events.length, 0);
-    assert.match(
-      String(store.links[0]?.last_remote_error),
-      /GETOBLIC_MONTHLY_ALLOWANCE_EXCEEDED/,
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
     );
   });
 
-  it("unexpected allocation RPC failure stays claiming and does not link", async () => {
+  it("unexpected reservation RPC failure does not insert claiming or link", async () => {
     const store = {
       settings: [defaultSettings()],
       prospects: [defaultProspect()],
@@ -1597,15 +1944,15 @@ describe("GetOblic claim orchestration", () => {
         return true;
       },
     );
-    assert.equal(store.links[0]?.relationship_status, "claiming");
+    assert.equal(store.links.length, 0);
     assert.equal(store.events.length, 0);
   });
 
-  it("service no longer performs a separate monthly count + insert", () => {
+  it("service reserves capacity in SQL and does not count allocation events", () => {
     const source = read(
       "services/getoblicDirectory/getoblicDirectoryClaimService.ts",
     );
-    assert.match(source, /consume_getoblic_listing_allocation/);
+    assert.match(source, /reserve_getoblic_listing_capacity/);
     assert.match(source, /supabaseAdmin\.rpc\(/);
     assert.doesNotMatch(source, /GETOBLIC_LISTING_ALLOCATION_EVENTS_TABLE/);
     assert.doesNotMatch(source, /countPeriodAllocations/);
@@ -1628,6 +1975,224 @@ describe("GetOblic claim orchestration", () => {
         return true;
       },
     );
+  });
+
+  it("configured capacity below the limit succeeds and records a first-lifetime event", async () => {
+    const store = {
+      settings: [defaultSettings({ monthly_allowance: 3 })],
+      prospects: [defaultProspect()],
+      links: [
+        completeLink({
+          id: "held-1",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 2000,
+          relationship_status: "linked",
+        }),
+      ],
+      events: [] as EventRow[],
+    };
+    installStore(store);
+    const result = await claim({}, successWordpress());
+    assert.equal(result.outcome, "linked");
+    assert.equal(result.allocated, true);
+    assert.equal(
+      store.links.filter((row) => row.relationship_status !== "released").length,
+      2,
+    );
+    assert.equal(store.events.length, 1);
+  });
+
+  it("the last available slot succeeds", async () => {
+    const store = {
+      settings: [defaultSettings({ monthly_allowance: 1 })],
+      prospects: [defaultProspect()],
+      links: [] as LinkRow[],
+      events: [] as EventRow[],
+    };
+    installStore(store);
+    const result = await claim({}, successWordpress());
+    assert.equal(result.outcome, "linked");
+    assert.equal(store.links[0]?.relationship_status, "linked");
+  });
+
+  it("a historical allocation event is not held and does not bypass capacity on reclaim", async () => {
+    const store = {
+      settings: [defaultSettings({ monthly_allowance: 1 })],
+      prospects: [defaultProspect()],
+      links: [
+        completeLink({
+          id: "held",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 2000,
+          relationship_status: "linked",
+        }),
+        completeLink({
+          id: "released-old",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 1000,
+          relationship_status: "released",
+          released_at: "2026-08-01T00:00:00.000Z",
+        }),
+      ],
+      events: [
+        {
+          id: "e-old",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          listing_link_id: "released-old",
+          wordpress_listing_id: 1000,
+          event_kind: "allocate_existing",
+          period_start: "2026-01-01",
+          idempotency_key: "old-key",
+          actor_user_id: null,
+          actor_licensee_account_id: null,
+        },
+      ] as EventRow[],
+    };
+    const wordpress = successWordpress();
+    installStore(store);
+    await assert.rejects(
+      () => claim({}, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_LISTING_CAPACITY_EXCEEDED");
+        return true;
+      },
+    );
+    assert.equal(store.events.length, 1);
+    assert.equal(store.events[0]?.id, "e-old");
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+  });
+
+  it("claiming, linked, and remote_missing count as held; released does not", async () => {
+    const store = {
+      settings: [defaultSettings({ monthly_allowance: 3 })],
+      prospects: [defaultProspect()],
+      links: [
+        completeLink({
+          id: "c",
+          organization_id: ORG_A,
+          prospect_id: "cccccccc-cccc-cccc-cccc-cccccccccc01",
+          wordpress_listing_id: 11,
+          relationship_status: "claiming",
+        }),
+        completeLink({
+          id: "l",
+          organization_id: ORG_A,
+          prospect_id: "cccccccc-cccc-cccc-cccc-cccccccccc02",
+          wordpress_listing_id: 12,
+          relationship_status: "linked",
+        }),
+        completeLink({
+          id: "m",
+          organization_id: ORG_A,
+          prospect_id: "cccccccc-cccc-cccc-cccc-cccccccccc03",
+          wordpress_listing_id: 13,
+          relationship_status: "remote_missing",
+        }),
+        completeLink({
+          id: "r",
+          organization_id: ORG_A,
+          prospect_id: "cccccccc-cccc-cccc-cccc-cccccccccc04",
+          wordpress_listing_id: 14,
+          relationship_status: "released",
+          released_at: "2026-08-01T00:00:00.000Z",
+        }),
+      ],
+      events: [] as EventRow[],
+    };
+    const wordpress = successWordpress();
+    installStore(store);
+    await assert.rejects(
+      () => claim({}, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_LISTING_CAPACITY_EXCEEDED");
+        return true;
+      },
+    );
+    assert.equal(
+      store.links.filter((row) => row.wordpress_listing_id === 1000).length,
+      0,
+    );
+  });
+
+  it("same already-active relationship resumes without consuming another slot", async () => {
+    const store = {
+      settings: [defaultSettings({ monthly_allowance: 1 })],
+      prospects: [defaultProspect()],
+      links: [
+        completeLink({
+          id: "link-active",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 1000,
+          relationship_status: "claiming",
+          wordpress_author_id: null,
+        }),
+      ],
+      events: [] as EventRow[],
+    };
+    const { ops } = installStore(store);
+    const result = await claim({}, successWordpress());
+    assert.equal(result.outcome, "linked");
+    assert.equal(store.links.length, 1);
+    assert.equal(store.links[0]?.id, "link-active");
+    assert.equal(store.links[0]?.relationship_status, "linked");
+    assert.equal(store.events.length, 1);
+    assert.equal(
+      ops.filter(
+        (op) =>
+          op.op === "rpc" && op.table === RESERVE_GETOBLIC_LISTING_CAPACITY_RPC,
+      ).length,
+      1,
+    );
+  });
+
+  it("a released listing frees capacity so another claim can succeed", async () => {
+    const store = {
+      settings: [defaultSettings({ monthly_allowance: 1 })],
+      prospects: [defaultProspect()],
+      links: [
+        completeLink({
+          id: "released-old",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 2000,
+          relationship_status: "released",
+          released_at: "2026-08-01T00:00:00.000Z",
+        }),
+      ],
+      events: [
+        {
+          id: "e-old",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_B,
+          listing_link_id: "released-old",
+          wordpress_listing_id: 2000,
+          event_kind: "allocate_existing",
+          period_start: "2026-01-01",
+          idempotency_key: "old-key",
+          actor_user_id: null,
+          actor_licensee_account_id: null,
+        },
+      ] as EventRow[],
+    };
+    installStore(store);
+    const result = await claim({}, successWordpress());
+    assert.equal(result.outcome, "linked");
+    assert.equal(
+      store.links.filter((row) => row.relationship_status !== "released").length,
+      1,
+    );
+    assert.equal(store.events.length, 2);
+    assert.equal(store.events[0]?.id, "e-old");
   });
 });
 

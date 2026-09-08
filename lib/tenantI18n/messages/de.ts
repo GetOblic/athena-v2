@@ -1701,8 +1701,8 @@ export const de: TenantMessages = {
       error: "Athena konnte gerade nicht suchen. Versuchen Sie es erneut.",
       notConfigured:
         "Dieser Arbeitsbereich ist noch nicht eingerichtet, um GetOblic-Unternehmen hinzuzufügen.",
-      allowanceExhausted:
-        "Sie haben die maximale Anzahl GetOblic-Unternehmen für diesen Monat hinzugefügt.",
+      listingCapacityReached:
+        "Sie haben die Listing-Kapazität erreicht. Geben Sie ein bestehendes GetOblic-Listing frei, bevor Sie ein weiteres hinzufügen.",
       addYourself: "Oder fügen Sie selbst ein Unternehmen hinzu",
       sourceGetOblic: "GetOblic",
       available: "Verfügbar",
@@ -1894,6 +1894,13 @@ export const de: TenantMessages = {
       deleteConfirm:
         "Diesen Prospect dauerhaft löschen? Der Prospect, die verknüpfte Diskussion und die erzeugte Intelligence werden entfernt. Dies kann nicht rückgängig gemacht werden.",
       deleteFailed: "Prospect konnte nicht gelöscht werden.",
+      releaseGetOblicListing: "GetOblic-Listing freigeben",
+      releaseGetOblicConfirm:
+        "Dieses GetOblic-Listing wird ins gemeinsame GetOblic-Inventar zurückgegeben. Es zählt dann nicht mehr zur Listing-Kapazität dieses Kontos. Der Prospect und die Athena-Recherche und Intelligence bleiben erhalten.",
+      releaseGetOblicAction: "Listing freigeben",
+      releasingGetOblic: "Wird freigegeben…",
+      releaseGetOblicFailed: "Athena konnte dieses GetOblic-Listing nicht freigeben.",
+      getoblicReleased: "Dieses GetOblic-Listing wurde freigegeben.",
       workflowProgress: "Workflow-Fortschritt",
       workflowAnalysis: "Analyse",
       workflowOpportunity: "Opportunity",

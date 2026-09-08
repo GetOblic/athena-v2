@@ -6,8 +6,8 @@ import { GetOblicOpportunityDiscovery } from "@/components/prospects/GetOblicOpp
 import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import {
-  getGetOblicAllocationUsage,
   getGetOblicDirectorySettings,
+  getGetOblicListingCapacity,
 } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
@@ -16,8 +16,8 @@ export default async function FindOpportunitiesPage() {
   const { messages } = await getTenantLocalization();
   const copy = messages.prospects;
   const settings = await getGetOblicDirectorySettings(organizationId);
-  const usage = settings.configured
-    ? await getGetOblicAllocationUsage(organizationId)
+  const capacity = settings.configured
+    ? await getGetOblicListingCapacity(organizationId)
     : null;
 
   return (
@@ -36,8 +36,9 @@ export default async function FindOpportunitiesPage() {
       <GetOblicOpportunityDiscovery
         messages={messages}
         notConfigured={!settings.configured}
-        allowanceExhausted={Boolean(
-          usage?.configured && usage.remaining <= 0,
+        listingCapacityReached={Boolean(
+          capacity?.configured &&
+            capacity.currentlyHeld >= capacity.listingCapacity,
         )}
       />
     </TenantAppShell>
