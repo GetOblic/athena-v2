@@ -511,7 +511,12 @@ describe("V24 Phase 1 — GetOblic Super Admin contracts", () => {
     assert.match(audit, /create_licensee_master/);
     assert.match(audit, /deactivate_account/);
     assert.match(audit, /reactivate_account/);
+    assert.match(audit, /update_getoblic_directory_allowance/);
     assert.match(audit, /getoblic_super_admin_audit/);
+    assert.equal(
+      pathExists("app/api/super/getoblic-directory/settings/route.ts"),
+      true,
+    );
     // Durable audit only on success; failures remain console-audited.
     assert.match(audit, /if \(!event\.success\)/);
     assert.match(audit, /console\.error\("getoblic_super_admin_audit insert failed:/);

@@ -8,6 +8,7 @@ import { SuperAdminDashboardClient } from "@/components/superAdmin/SuperAdminDas
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SUPER_ADMIN_MARKER_COOKIE } from "@/services/superAdmin/superAdminCookieNames";
 import { listManageableAccountsForSuperAdmin } from "@/services/superAdmin/superAdminAccounts";
+import { listGetOblicDirectoryAllocationsForSuperAdmin } from "@/services/superAdmin/superAdminGetOblicDirectory";
 import { getActiveEstimatePricingMethodologyInstruction } from "@/services/estimate/estimatePricingMethodologyInstruction";
 import { getActiveTrendSocialPromptInstruction } from "@/services/superAdmin/strategicBlueprintInstructions";
 import {
@@ -52,6 +53,8 @@ export default async function SuperAdminPage({
   }
 
   const accounts = await listManageableAccountsForSuperAdmin(user.id);
+  const directoryAllocations =
+    await listGetOblicDirectoryAllocationsForSuperAdmin(user.id);
   const trendSocialPromptInstruction =
     await getActiveTrendSocialPromptInstruction();
   const estimatePricingMethodologyInstruction =
@@ -89,6 +92,7 @@ export default async function SuperAdminPage({
 
         <SuperAdminDashboardClient
           initialAccounts={accounts}
+          initialDirectoryAllocations={directoryAllocations}
           initialTrendSocialPromptInstruction={{
             instructionText: trendSocialPromptInstruction.instructionText,
             revisionId: trendSocialPromptInstruction.revisionId,

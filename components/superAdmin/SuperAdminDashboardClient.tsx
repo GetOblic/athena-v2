@@ -12,6 +12,10 @@ import {
   type OrganizationLanguage,
 } from "@/services/organizationLanguage";
 import type { ManageableAccount } from "@/services/superAdmin/superAdminAccounts";
+import type {
+  SuperAdminGetOblicDirectoryAllocationModel,
+  SuperAdminGetOblicDirectoryAllocationRow,
+} from "@/services/superAdmin/superAdminGetOblicDirectory";
 
 type GovernedInstructionState = {
   instructionText: string;
@@ -22,9 +26,14 @@ type GovernedInstructionState = {
 
 type SuperAdminDashboardClientProps = {
   initialAccounts: ManageableAccount[];
+  initialDirectoryAllocations: SuperAdminGetOblicDirectoryAllocationModel;
   initialTrendSocialPromptInstruction: GovernedInstructionState;
   initialEstimatePricingMethodologyInstruction: GovernedInstructionState;
   notice?: string | null;
+};
+
+type AllocationSaveApiBody = ApiErrorBody & {
+  allocation?: SuperAdminGetOblicDirectoryAllocationRow;
 };
 
 type ApiErrorBody = {
@@ -73,6 +82,7 @@ async function putJson(url: string, body: Record<string, unknown>) {
 
 export function SuperAdminDashboardClient({
   initialAccounts,
+  initialDirectoryAllocations,
   initialTrendSocialPromptInstruction,
   initialEstimatePricingMethodologyInstruction,
   notice,
@@ -105,6 +115,21 @@ export function SuperAdminDashboardClient({
     updatedAt: initialEstimatePricingMethodologyInstruction.updatedAt,
     configured: initialEstimatePricingMethodologyInstruction.configured,
   });
+  const [directoryAllocations, setDirectoryAllocations] = useState(
+    initialDirectoryAllocations,
+  );
+  const [expandedLicensees, setExpandedLicensees] = useState<
+    Record<string, boolean>
+  >(() => {
+    const first = initialDirectoryAllocations.groups[0]?.licenseeAccountId;
+    return first ? { [first]: true } : {};
+  });
+  const [savingAllocationKey, setSavingAllocationKey] = useState<string | null>(
+    null,
+  );
+  const [allowanceDrafts, setAllowanceDrafts] = useState<
+    Record<string, string>
+  >(() => buildAllowanceDrafts(initialDirectoryAllocations));
 
   function refresh() {
     startTransition(() => {
@@ -200,6 +225,69 @@ export function SuperAdminDashboardClient({
           ? err.message
           : "Save Trend Social Prompt instruction failed.",
       );
+    }
+  }
+
+  function toggleLicenseeGroup(licenseeAccountId: string) {
+    setExpandedLicensees((current) => ({
+      ...current,
+      [licenseeAccountId]: !current[licenseeAccountId],
+    }));
+  }
+
+  function allocationKey(row: SuperAdminGetOblicDirectoryAllocationRow) {
+    return `${row.licenseeAccountId}:${row.organizationId}`;
+  }
+
+  function updateAllocationDraft(
+    row: SuperAdminGetOblicDirectoryAllocationRow,
+    value: string,
+  ) {
+    setAllowanceDrafts((current) => ({
+      ...current,
+      [allocationKey(row)]: value,
+    }));
+  }
+
+  async function saveDirectoryAllowance(
+    row: SuperAdminGetOblicDirectoryAllocationRow,
+  ) {
+    const key = allocationKey(row);
+    const raw = (allowanceDrafts[key] ?? "").trim();
+    const monthlyAllowance = raw === "" ? null : Number(raw);
+
+    setError(null);
+    setLocalNotice(null);
+    setSavingAllocationKey(key);
+    try {
+      const payload = (await putJson(
+        "/api/super/getoblic-directory/settings",
+        {
+          licenseeAccountId: row.licenseeAccountId,
+          organizationId: row.organizationId,
+          monthlyAllowance,
+        },
+      )) as AllocationSaveApiBody;
+      const next = payload.allocation;
+      if (!next) {
+        throw new Error("Save succeeded without a refreshed allocation.");
+      }
+      setDirectoryAllocations((current) => replaceAllocationRow(current, next));
+      setAllowanceDrafts((current) => ({
+        ...current,
+        [allocationKey(next)]: next.configured
+          ? String(next.monthlyAllowance ?? "")
+          : "",
+      }));
+      setLocalNotice("GetOblic listing allowance saved.");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Save GetOblic listing allowance failed.",
+      );
+    } finally {
+      setSavingAllocationKey(null);
     }
   }
 
@@ -444,6 +532,140 @@ export function SuperAdminDashboardClient({
       </section>
 
       <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6">
+        <div className="mb-5">
+          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
+            GetOblic Listing Allocation
+          </div>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight">
+            Monthly listing allowance
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-white/50">
+            Monthly listing allowance per Licensee sub-account. Licensee Masters
+            and tenant users cannot change this.
+          </p>
+        </div>
+
+        {directoryAllocations.groups.length === 0 ? (
+          <div className="rounded-2xl border border-white/10 bg-black/20 px-5 py-8 text-sm text-white/50">
+            No Licensee Masters yet. Create a Licensee Master and link
+            sub-accounts before setting an allowance.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {directoryAllocations.groups.map((group) => {
+              const expanded = Boolean(expandedLicensees[group.licenseeAccountId]);
+              return (
+                <div
+                  key={group.licenseeAccountId}
+                  className="rounded-2xl border border-white/10 bg-black/20"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleLicenseeGroup(group.licenseeAccountId)}
+                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+                    aria-expanded={expanded}
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-white/90">
+                        {group.masterEmail}
+                      </div>
+                      <div className="mt-1 text-xs text-white/40">
+                        {group.subAccounts.length === 1
+                          ? "1 sub-account"
+                          : `${group.subAccounts.length} sub-accounts`}
+                      </div>
+                    </div>
+                    <span className="text-xs text-white/45">
+                      {expanded ? "▲ Collapse" : "▼ Expand"}
+                    </span>
+                  </button>
+
+                  {expanded ? (
+                    <div className="space-y-4 border-t border-white/10 px-5 py-5">
+                      {group.subAccounts.length === 0 ? (
+                        <div className="text-sm text-white/45">
+                          No sub-accounts linked to this Licensee Master.
+                        </div>
+                      ) : (
+                        group.subAccounts.map((row) => {
+                          const key = allocationKey(row);
+                          const draft = allowanceDrafts[key] ?? "";
+                          const saving = savingAllocationKey === key;
+                          return (
+                            <div
+                              key={key}
+                              className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="text-sm font-medium text-white">
+                                      {row.organizationName}
+                                    </div>
+                                    {row.isOwnCompany ? (
+                                      <span className="rounded-full border border-sky-300/30 bg-sky-300/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-sky-200">
+                                        Own company
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  {row.displayAlias ? (
+                                    <div className="mt-1 text-xs text-white/45">
+                                      {row.displayAlias}
+                                    </div>
+                                  ) : null}
+                                  <div className="mt-2 text-sm text-white/70">
+                                    {row.configured
+                                      ? "Configured"
+                                      : "Not configured"}
+                                  </div>
+                                  <div className="mt-1 text-xs leading-5 text-white/40">
+                                    {allocationSecondaryCopy(row)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                                <label className="min-w-0 flex-1 space-y-2">
+                                  <span className="text-sm text-white/70">
+                                    Monthly GetOblic listings
+                                  </span>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={draft}
+                                    onChange={(event) =>
+                                      updateAllocationDraft(
+                                        row,
+                                        event.target.value,
+                                      )
+                                    }
+                                    placeholder=""
+                                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  disabled={isPending || saving}
+                                  onClick={() => saveDirectoryAllowance(row)}
+                                  className="rounded-xl bg-[var(--athena-orange)] px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6">
         <div className="mb-5 flex items-end justify-between gap-4">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
@@ -540,4 +762,53 @@ export function SuperAdminDashboardClient({
       </section>
     </div>
   );
+}
+
+function buildAllowanceDrafts(
+  model: SuperAdminGetOblicDirectoryAllocationModel,
+): Record<string, string> {
+  const drafts: Record<string, string> = {};
+  for (const group of model.groups) {
+    for (const row of group.subAccounts) {
+      drafts[`${row.licenseeAccountId}:${row.organizationId}`] = row.configured
+        ? String(row.monthlyAllowance ?? "")
+        : "";
+    }
+  }
+  return drafts;
+}
+
+function replaceAllocationRow(
+  model: SuperAdminGetOblicDirectoryAllocationModel,
+  next: SuperAdminGetOblicDirectoryAllocationRow,
+): SuperAdminGetOblicDirectoryAllocationModel {
+  return {
+    groups: model.groups.map((group) => {
+      if (group.licenseeAccountId !== next.licenseeAccountId) {
+        return group;
+      }
+      return {
+        ...group,
+        subAccounts: group.subAccounts.map((row) =>
+          row.organizationId === next.organizationId ? next : row,
+        ),
+      };
+    }),
+  };
+}
+
+function allocationSecondaryCopy(
+  row: SuperAdminGetOblicDirectoryAllocationRow,
+): string {
+  if (!row.configured) {
+    return "Conversions are blocked until an allowance is set.";
+  }
+  if (row.monthlyAllowance === 0) {
+    return "New GetOblic conversions are blocked.";
+  }
+  const used = row.usedThisMonth ?? 0;
+  const allowance = row.monthlyAllowance ?? 0;
+  const remaining = row.remainingThisMonth;
+  const usage = `${used} of ${allowance} used this month`;
+  return remaining == null ? usage : `${usage} · ${remaining} remaining`;
 }
