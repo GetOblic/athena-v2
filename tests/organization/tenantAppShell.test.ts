@@ -129,6 +129,7 @@ const V2_LINK_HREFS = [
   "/social-planner",
   "/opportunities",
   "/briefings",
+  "/getting-started",
 ] as const;
 
 const MORE_TOOLS_HREFS = [
@@ -286,15 +287,18 @@ describe("V2-UI-1B tenant app shell — navigation contract", () => {
     assert.equal(isTenantNavActive("/personas", ads ?? {}), false);
   });
 
-  it("never matches Settings or Help", () => {
+  it("keeps Settings non-routable and routes Need Help to getting-started", () => {
     const settings = localizeTenantNav(en).find((item) => item.key === "settings");
     const help = localizeTenantNav(en).find((item) => item.key === "needHelp");
     assert.ok(settings);
     assert.ok(help);
     assert.equal(settings.href, undefined);
-    assert.equal(help.href, undefined);
+    assert.equal(settings.disabled, true);
+    assert.equal(help.href, "/getting-started");
+    assert.equal(help.disabled, undefined);
     assert.equal(isTenantNavActive("/settings", settings), false);
     assert.equal(isTenantNavActive("/identity", settings), false);
+    assert.equal(isTenantNavActive("/getting-started", help), true);
     assert.equal(isTenantNavActive("/help", help), false);
     assert.equal(isTenantNavActive("/", help), false);
   });

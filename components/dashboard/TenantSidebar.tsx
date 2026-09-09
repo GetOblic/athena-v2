@@ -16,6 +16,7 @@ import {
   groupTenantNav,
   isTenantNavActive,
   localizeTenantNav,
+  tenantNavItems,
   tenantNavRowClassName,
   type LocalizedTenantNavItem,
   type TenantNavIconName,
@@ -120,38 +121,52 @@ function SectionLabel({ children }: { children: string }) {
 export function TenantHelpCard({
   title,
   subtitle,
+  href,
 }: {
   title: string;
   subtitle: string;
+  href?: string;
 }) {
-  return (
-    <button
-      type="button"
-      disabled
-      aria-disabled="true"
-      className="w-full rounded-2xl border border-[var(--athena-orange)]/25 bg-[var(--athena-orange)]/5 p-4 text-left"
-    >
-      <span className="flex items-start gap-3">
-        <IconMark name="help" active={false} />
-        <span className="min-w-0">
-          <span className="block text-sm font-medium leading-5 text-white">
-            {title}
-          </span>
-          <span className="mt-0.5 block text-xs leading-4 text-white/45">
-            {subtitle}
-          </span>
+  const destination = href ?? helpHrefFromNav();
+  const className =
+    "block w-full rounded-2xl border border-[var(--athena-orange)]/25 bg-[var(--athena-orange)]/5 p-4 text-left";
+  const content = (
+    <span className="flex items-start gap-3">
+      <IconMark name="help" active={false} />
+      <span className="min-w-0">
+        <span className="block text-sm font-medium leading-5 text-white">
+          {title}
+        </span>
+        <span className="mt-0.5 block text-xs leading-4 text-white/45">
+          {subtitle}
         </span>
       </span>
-    </button>
+    </span>
   );
+
+  if (!destination) {
+    return (
+      <button type="button" disabled aria-disabled="true" className={className}>
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Link href={destination} className={className}>
+      {content}
+    </Link>
+  );
+}
+
+function helpHrefFromNav(): string | undefined {
+  return tenantNavItems.find((item) => item.key === "needHelp")?.href;
 }
 
 export function TenantNavList({
   currentPath,
   items,
   yourGrowthLabel,
-  utilitiesLabel,
-  moreToolsLabel,
 }: TenantNavListProps) {
   const grouped = groupTenantNav(items);
 
@@ -167,32 +182,6 @@ export function TenantNavList({
         <SectionLabel>{yourGrowthLabel}</SectionLabel>
         <div className="space-y-1">
           {grouped.growth.map((item) => (
-            <TenantNavItem
-              key={item.key}
-              item={item}
-              currentPath={currentPath}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <SectionLabel>{utilitiesLabel}</SectionLabel>
-        <div className="space-y-1">
-          {grouped.utilities.map((item) => (
-            <TenantNavItem
-              key={item.key}
-              item={item}
-              currentPath={currentPath}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <SectionLabel>{moreToolsLabel}</SectionLabel>
-        <div className="space-y-1">
-          {grouped.more.map((item) => (
             <TenantNavItem
               key={item.key}
               item={item}
@@ -268,7 +257,11 @@ export function TenantSidebar({
 
       {help ? (
         <div className="mt-6">
-          <TenantHelpCard title={help.label} subtitle={help.subtitle ?? ""} />
+          <TenantHelpCard
+            title={help.label}
+            subtitle={help.subtitle ?? ""}
+            href={help.href}
+          />
         </div>
       ) : null}
 

@@ -122,8 +122,8 @@ export const tenantNavDefs = [
   },
   {
     key: "needHelp",
+    href: "/getting-started",
     section: "help",
-    disabled: true,
     subtitleKey: "chatWithAthena",
     icon: "help",
   },
