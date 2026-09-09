@@ -56,6 +56,15 @@ export function isMatchableGetOblicGoogleIdKind(
   return kind === "legacy_hex" || kind === "chij";
 }
 
+export function googleBusinessIdsEqual(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  const a = typeof left === "string" ? left.trim() : "";
+  const b = typeof right === "string" ? right.trim() : "";
+  return Boolean(a) && a === b;
+}
+
 function looksLikeUrl(value: string): boolean {
   if (HTTP_URL.test(value)) {
     return true;

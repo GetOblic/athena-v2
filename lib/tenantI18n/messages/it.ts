@@ -1720,6 +1720,33 @@ export const it: TenantMessages = {
       nameCollision:
         "Esiste già un’opportunità simile. Athena non ne ha aggiunta una seconda.",
       imageAlt: "Azienda",
+      methods: {
+        directoryLabel: "Cerca nella directory GetOblic",
+        directoryDescription:
+          "Cerca aziende già presenti in GetOblic e aggiungine una alle tue opportunità.",
+        googleLabel: "Trova un’azienda su Google",
+        googleDescription: "Cerca un’azienda reale su Google e aggiungila.",
+      },
+      google: {
+        inputLabel: "Azienda su Google",
+        inputPlaceholder: "Digita il nome di un’azienda",
+        selected: "Azienda selezionata",
+        addCta: "Aggiungi questa azienda",
+        adding: "Aggiunta…",
+        loading: "Caricamento della ricerca Google…",
+        startTyping:
+          "Inizia a digitare, poi scegli un’azienda dai suggerimenti Google.",
+        choosePlace: "Scegli un’azienda dai suggerimenti Google.",
+        missingKey:
+          "La ricerca Google non è ancora configurata per questo spazio Athena.",
+        unavailable:
+          "La ricerca Google non è disponibile in questo momento. Controlla la configurazione di Google Maps e riprova.",
+        authorMappingMissing:
+          "Questo spazio non è ancora collegato a un account GetOblic, quindi Athena non può aggiungere un’azienda Google.",
+        addFailed:
+          "Athena non ha potuto aggiungere questa azienda Google. Riprova.",
+        success: "Athena ha aggiunto questa opportunità.",
+      },
     },
     websiteCompletion: {
       heading: "Aggiungi il loro sito così Athena può ricercare questa azienda.",

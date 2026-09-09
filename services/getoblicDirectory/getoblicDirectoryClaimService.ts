@@ -13,6 +13,10 @@ import {
   getOblicListingNotClaimableError,
 } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
 import {
+  classifyGetOblicGoogleId,
+  googleBusinessIdsEqual,
+} from "@/services/getoblicDirectory/getoblicGoogleId";
+import {
   classifyGetOblicListingClaimAvailability,
   GETOBLIC_DIRECTORY_SETTINGS_TABLE,
   GETOBLIC_LISTING_LINKS_TABLE,
@@ -125,6 +129,16 @@ export type ClaimKnownListingResult = {
   allocated: boolean;
 };
 
+export type ClaimListingVerification =
+  | {
+      mode: "inventory_pool";
+    }
+  | {
+      mode: "make_assigned";
+      expectedGoogleId: string;
+      expectedWordpressAuthorId: number;
+    };
+
 export type ClaimKnownListingInput = {
   organizationId: string;
   prospectId: string;
@@ -132,6 +146,7 @@ export type ClaimKnownListingInput = {
   actorUserId: string | null;
   actorLicenseeAccountId: string | null;
   now?: Date;
+  verification?: ClaimListingVerification;
 };
 
 export type ClaimKnownListingWordpressPort = {
@@ -352,6 +367,7 @@ export async function claimKnownExistingListing(
       actorUserId: input.actorUserId,
       actorLicenseeAccountId: input.actorLicenseeAccountId,
       now,
+      verification: input.verification,
     },
     wordpress,
   );
@@ -384,6 +400,17 @@ export async function claimKnownExistingListing(
       "GETOBLIC_CONCURRENCY_CONFLICT",
       "This listing cannot be claimed in its current state.",
     );
+  }
+
+  if (input.verification?.mode === "make_assigned") {
+    return acquireMakeAssignedClaim({
+      reserved: reserved.link,
+      allocated: reserved.allocated,
+      wordpress,
+      now,
+      expectedGoogleId: input.verification.expectedGoogleId,
+      expectedWordpressAuthorId: input.verification.expectedWordpressAuthorId,
+    });
   }
 
   return acquireReservedClaim({
@@ -444,6 +471,7 @@ async function reserveOrResumeClaim(
     actorUserId: string | null;
     actorLicenseeAccountId: string | null;
     now: Date;
+    verification?: ClaimListingVerification;
   },
   wordpress: ClaimKnownListingWordpressPort,
 ): Promise<{ link: GetOblicListingLink; allocated: boolean }> {
@@ -474,7 +502,8 @@ async function reserveOrResumeClaim(
     prospectLink &&
       prospectLink.wordpress_listing_id === input.wordpressListingId,
   );
-  if (!resumingSameActiveRelationship) {
+  const skipPoolEligibility = input.verification?.mode === "make_assigned";
+  if (!resumingSameActiveRelationship && !skipPoolEligibility) {
     await assertNewClaimListingEligible(wordpress, input.wordpressListingId);
   }
 
@@ -606,6 +635,59 @@ async function loadListingLinkById(
     return null;
   }
   return data ? mapListingLinkRow(data as Record<string, unknown>) : null;
+}
+
+async function acquireMakeAssignedClaim(args: {
+  reserved: GetOblicListingLink;
+  allocated: boolean;
+  wordpress: ClaimKnownListingWordpressPort;
+  now: Date;
+  expectedGoogleId: string;
+  expectedWordpressAuthorId: number;
+}): Promise<ClaimKnownListingResult> {
+  const listingLookup = await lookupRemoteListing(
+    args.reserved,
+    args.wordpress,
+    args.now,
+  );
+  if (listingLookup.outcome !== "found") {
+    return listingLookup.result;
+  }
+
+  if (
+    !googleBusinessIdsEqual(
+      listingLookup.listing.google_id,
+      args.expectedGoogleId,
+    )
+  ) {
+    throw getOblicListingNotClaimableError(args.reserved);
+  }
+
+  if (listingLookup.listing.author_id !== args.expectedWordpressAuthorId) {
+    throw getOblicListingNotClaimableError(args.reserved);
+  }
+
+  const classification = classifyGetOblicGoogleId(
+    listingLookup.listing.google_id,
+  );
+  const allocatedAt = args.reserved.allocated_at ?? args.now.toISOString();
+  const linked = await persistClaimRow(args.reserved, {
+    relationship_status: "linked",
+    wordpress_author_id: args.expectedWordpressAuthorId,
+    google_id_snapshot: listingLookup.listing.google_id,
+    google_id_is_matchable: classification.isMatchable,
+    allocated_at: allocatedAt,
+    last_verified_at: args.now.toISOString(),
+    last_remote_error: null,
+    last_remote_error_at: null,
+    updated_at: args.now.toISOString(),
+  });
+
+  return {
+    outcome: "linked",
+    link: linked,
+    allocated: args.allocated,
+  };
 }
 
 async function acquireReservedClaim(args: {

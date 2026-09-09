@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
-import { GetOblicOpportunityDiscovery } from "@/components/prospects/GetOblicOpportunityDiscovery";
+import { OpportunityDiscoveryMethods } from "@/components/prospects/OpportunityDiscoveryMethods";
 import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import {
@@ -19,6 +19,10 @@ export default async function FindOpportunitiesPage() {
   const capacity = settings.configured
     ? await getGetOblicListingCapacity(organizationId)
     : null;
+  const authorMappingMissing =
+    !settings.configured ||
+    settings.settings.wordpress_author_id == null ||
+    settings.settings.wordpress_author_id <= 0;
 
   return (
     <TenantAppShell currentPath="/prospects/find" messages={messages}>
@@ -33,13 +37,14 @@ export default async function FindOpportunitiesPage() {
         title={copy.find.title}
         subtitle={copy.find.subtitle}
       />
-      <GetOblicOpportunityDiscovery
+      <OpportunityDiscoveryMethods
         messages={messages}
         notConfigured={!settings.configured}
         listingCapacityReached={Boolean(
           capacity?.configured &&
             capacity.currentlyHeld >= capacity.listingCapacity,
         )}
+        authorMappingMissing={authorMappingMissing}
       />
     </TenantAppShell>
   );

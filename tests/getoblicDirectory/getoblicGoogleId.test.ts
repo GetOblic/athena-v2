@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { classifyGetOblicGoogleId } from "../../services/getoblicDirectory/getoblicGoogleId";
+import {
+  classifyGetOblicGoogleId,
+  googleBusinessIdsEqual,
+} from "../../services/getoblicDirectory/getoblicGoogleId";
 
 describe("GetOblic Google ID classifier", () => {
   it("classifies null as blank / not matchable", () => {
@@ -87,5 +90,14 @@ describe("GetOblic Google ID classifier", () => {
       isMatchable: false,
       kind: "unknown",
     });
+  });
+
+  it("compares Google business identities after trim only", () => {
+    assert.equal(googleBusinessIdsEqual("ChIJabc", "ChIJabc"), true);
+    assert.equal(googleBusinessIdsEqual("  ChIJabc  ", "ChIJabc"), true);
+    assert.equal(googleBusinessIdsEqual("ChIJabc", "ChIJxyz"), false);
+    assert.equal(googleBusinessIdsEqual("", "ChIJabc"), false);
+    assert.equal(googleBusinessIdsEqual(null, "ChIJabc"), false);
+    assert.equal(googleBusinessIdsEqual("   ", "   "), false);
   });
 });

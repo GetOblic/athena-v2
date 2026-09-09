@@ -2487,3 +2487,136 @@ describe("GetOblic claim public payload", () => {
     assert.doesNotMatch(JSON.stringify(mapped), new RegExp(PROSPECT_B));
   });
 });
+
+describe("GetOblic make-assigned claim (Google / no author POST)", () => {
+  it("reserves capacity, verifies google_id and mapped author, and links without /author POST", async () => {
+    const store = {
+      settings: [defaultSettings({ wordpress_author_id: 42 })],
+      prospects: [defaultProspect()],
+      links: [] as LinkRow[],
+      events: [] as EventRow[],
+    };
+    installStore(store);
+    const wordpress = successWordpress({
+      getListingById: async (id) => ({
+        wordpress_listing_id: id,
+        status: "publish",
+        title: "Oak Street Salon",
+        author_id: 42,
+        google_id: "ChIJexamplePlace",
+        google_place_url: "https://maps.google.com/?cid=1",
+        knowledge_base: null,
+      }),
+    });
+    const result = await claim(
+      {
+        verification: {
+          mode: "make_assigned",
+          expectedGoogleId: "ChIJexamplePlace",
+          expectedWordpressAuthorId: 42,
+        },
+      },
+      wordpress,
+    );
+    assert.equal(result.outcome, "linked");
+    assert.equal(result.link.relationship_status, "linked");
+    assert.equal(result.link.wordpress_author_id, 42);
+    assert.equal(result.link.google_id_snapshot, "ChIJexamplePlace");
+    assert.equal(result.link.google_id_is_matchable, true);
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("resolveOrCreate:")),
+      false,
+    );
+    assert.equal(store.links[0]?.relationship_status, "linked");
+  });
+
+  it("rejects a Make-assigned listing whose google_id does not match", async () => {
+    const store = {
+      settings: [defaultSettings({ wordpress_author_id: 42 })],
+      prospects: [defaultProspect()],
+      links: [] as LinkRow[],
+      events: [] as EventRow[],
+    };
+    installStore(store);
+    const wordpress = successWordpress({
+      getListingById: async (id) => ({
+        wordpress_listing_id: id,
+        status: "publish",
+        title: "Oak Street Salon",
+        author_id: 42,
+        google_id: "ChIJotherPlace",
+        google_place_url: null,
+        knowledge_base: null,
+      }),
+    });
+    await assert.rejects(
+      () =>
+        claim(
+          {
+            verification: {
+              mode: "make_assigned",
+              expectedGoogleId: "ChIJexamplePlace",
+              expectedWordpressAuthorId: 42,
+            },
+          },
+          wordpress,
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_LISTING_NOT_CLAIMABLE");
+        return true;
+      },
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+  });
+
+  it("rejects a Make-assigned listing whose author is not the mapped org author", async () => {
+    const store = {
+      settings: [defaultSettings({ wordpress_author_id: 42 })],
+      prospects: [defaultProspect()],
+      links: [] as LinkRow[],
+      events: [] as EventRow[],
+    };
+    installStore(store);
+    const wordpress = successWordpress({
+      getListingById: async (id) => ({
+        wordpress_listing_id: id,
+        status: "publish",
+        title: "Oak Street Salon",
+        author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
+        google_id: "ChIJexamplePlace",
+        google_place_url: null,
+        knowledge_base: null,
+      }),
+    });
+    await assert.rejects(
+      () =>
+        claim(
+          {
+            verification: {
+              mode: "make_assigned",
+              expectedGoogleId: "ChIJexamplePlace",
+              expectedWordpressAuthorId: 42,
+            },
+          },
+          wordpress,
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_LISTING_NOT_CLAIMABLE");
+        return true;
+      },
+    );
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+  });
+});

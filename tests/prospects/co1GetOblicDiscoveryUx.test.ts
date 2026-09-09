@@ -53,7 +53,7 @@ describe("CO-1 Find Opportunities UX", () => {
     assert.match(page, /requireCurrentOrganizationContext/);
     assert.match(page, /copy\.find\.title/);
     assert.match(page, /copy\.find\.subtitle/);
-    assert.match(page, /GetOblicOpportunityDiscovery/);
+    assert.match(page, /OpportunityDiscoveryMethods/);
     assert.match(page, /getGetOblicDirectorySettings/);
     assert.match(page, /getGetOblicListingCapacity/);
     assert.doesNotMatch(page, /organizationId:/);

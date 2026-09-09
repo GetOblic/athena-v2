@@ -16,6 +16,7 @@ import {
   claimKnownExistingListing,
   type ClaimKnownListingResult,
   type ClaimKnownListingWordpressPort,
+  type ClaimListingVerification,
 } from "@/services/getoblicDirectory/getoblicDirectoryClaimService";
 import {
   getActiveGetOblicClaimByWordPressListingId,
@@ -23,6 +24,7 @@ import {
   getGetOblicDirectorySettings,
   hasOrganizationAlreadyConsumedListing,
 } from "@/services/getoblicDirectory/getoblicDirectoryService";
+import { googleBusinessIdsEqual } from "@/services/getoblicDirectory/getoblicGoogleId";
 import {
   isGetOblicInventoryPoolAuthor,
   type ActiveGetOblicRelationshipStatus,
@@ -87,6 +89,8 @@ export type GetOblicConvertObservedSnapshot = {
   image: string | null;
 };
 
+export type GetOblicListingAuthorPolicy = "inventory_pool" | "mapped_author";
+
 export type GetOblicConvertInput = {
   organizationId: string;
   wordpressListingId: unknown;
@@ -94,6 +98,10 @@ export type GetOblicConvertInput = {
   actorUserId: string | null;
   actorLicenseeAccountId: string | null;
   now?: Date;
+  listingAuthorPolicy?: GetOblicListingAuthorPolicy;
+  expectedGoogleId?: string;
+  expectedWordpressAuthorId?: number;
+  preloadedListing?: GetOblicWordpressListing | null;
 };
 
 export type GetOblicConvertResult = {
@@ -492,17 +500,34 @@ export async function convertGetOblicDirectoryListing(
   }
 
   let listing: GetOblicWordpressListing;
-  try {
-    listing = await dependencies.getListingById(wordpressListingId);
-  } catch (error) {
-    const mapped = mapConvertWordpressError(error);
-    if (mapped.code === "GETOBLIC_REMOTE_LISTING_MISSING") {
-      return emptyResult("remote_missing");
+  if (input.preloadedListing) {
+    listing = input.preloadedListing;
+  } else {
+    try {
+      listing = await dependencies.getListingById(wordpressListingId);
+    } catch (error) {
+      const mapped = mapConvertWordpressError(error);
+      if (mapped.code === "GETOBLIC_REMOTE_LISTING_MISSING") {
+        return emptyResult("remote_missing");
+      }
+      throw mapped;
     }
-    throw mapped;
   }
 
-  if (!isGetOblicInventoryPoolAuthor(listing.author_id)) {
+  if (
+    !isListingAuthorEligible(
+      listing,
+      input.listingAuthorPolicy ?? "inventory_pool",
+      settings.settings.wordpress_author_id,
+    )
+  ) {
+    return emptyResult("unavailable");
+  }
+
+  if (
+    input.expectedGoogleId &&
+    !googleBusinessIdsEqual(listing.google_id, input.expectedGoogleId)
+  ) {
     return emptyResult("unavailable");
   }
 
@@ -789,6 +814,7 @@ async function finishExistingProspect(args: {
         actorUserId: args.input.actorUserId,
         actorLicenseeAccountId: args.input.actorLicenseeAccountId,
         now: args.input.now,
+        verification: makeAssignedVerification(args.input),
       },
       args.wordpress,
     );
@@ -1237,6 +1263,43 @@ function emptyResult(outcome: GetOblicConvertOutcome): GetOblicConvertResult {
     generation_queued: false,
     allocated: false,
   };
+}
+
+function makeAssignedVerification(
+  input: GetOblicConvertInput,
+): ClaimListingVerification | undefined {
+  if (input.listingAuthorPolicy !== "mapped_author") {
+    return undefined;
+  }
+  const expectedGoogleId = input.expectedGoogleId?.trim() ?? "";
+  const expectedWordpressAuthorId = input.expectedWordpressAuthorId;
+  if (
+    !expectedGoogleId ||
+    expectedWordpressAuthorId == null ||
+    expectedWordpressAuthorId <= 0
+  ) {
+    return undefined;
+  }
+  return {
+    mode: "make_assigned",
+    expectedGoogleId,
+    expectedWordpressAuthorId,
+  };
+}
+
+function isListingAuthorEligible(
+  listing: GetOblicWordpressListing,
+  policy: GetOblicListingAuthorPolicy,
+  mappedAuthorId: number | null,
+): boolean {
+  if (policy === "mapped_author") {
+    return (
+      mappedAuthorId != null &&
+      mappedAuthorId > 0 &&
+      listing.author_id === mappedAuthorId
+    );
+  }
+  return isGetOblicInventoryPoolAuthor(listing.author_id);
 }
 
 function parseConvertWordpressListingId(value: unknown): number {

@@ -1689,6 +1689,32 @@ export const en = {
       nameCollision:
         "A similar opportunity already exists. Athena didn’t add a second one.",
       imageAlt: "Business",
+      methods: {
+        directoryLabel: "Search the GetOblic Directory",
+        directoryDescription:
+          "Search businesses already listed in GetOblic and add one to your opportunities.",
+        googleLabel: "Find One Business on Google",
+        googleDescription: "Look up one real business on Google and add it.",
+      },
+      google: {
+        inputLabel: "Business on Google",
+        inputPlaceholder: "Type a business name",
+        selected: "Selected business",
+        addCta: "Add this business",
+        adding: "Adding…",
+        loading: "Loading Google search…",
+        startTyping:
+          "Start typing, then choose a business from the Google suggestions.",
+        choosePlace: "Choose a business from the Google suggestions.",
+        missingKey:
+          "Google search isn’t configured for this Athena workspace yet.",
+        unavailable:
+          "Google search isn’t available right now. Check the Google Maps configuration and try again.",
+        authorMappingMissing:
+          "This workspace isn’t mapped to a GetOblic account yet, so Athena can’t add a Google business.",
+        addFailed: "Athena couldn’t add this Google business. Try again.",
+        success: "Athena added this opportunity.",
+      },
     },
     websiteCompletion: {
       heading: "Add their website so Athena can research this business.",
