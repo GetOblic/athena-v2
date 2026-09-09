@@ -42,7 +42,6 @@ import {
   GetOblicWordpressError,
   type GetOblicWordpressListing,
 } from "@/services/getoblicDirectory/getoblicWordpressTypes";
-import type { Co5GoogleTrace } from "@/services/googleBusiness/googleBusinessConversionTrace";
 import { getProspectById } from "@/services/prospects/prospectService";
 
 const REMOTE_ERROR_MAX_LENGTH = 500;
@@ -148,7 +147,6 @@ export type ClaimKnownListingInput = {
   actorLicenseeAccountId: string | null;
   now?: Date;
   verification?: ClaimListingVerification;
-  diagnosticTrace?: Co5GoogleTrace;
 };
 
 export type ClaimKnownListingWordpressPort = {
@@ -357,14 +355,6 @@ export async function claimKnownExistingListing(
 ): Promise<ClaimKnownListingResult> {
   const wordpressListingId = parseWordpressListingId(input.wordpressListingId);
   const now = input.now ?? new Date();
-  const trace = input.diagnosticTrace;
-  const reserveStartedAt = Date.now();
-  trace?.log({
-    stage: "capacity_reserve_start",
-    organization_id: input.organizationId,
-    wordpress_listing_id: wordpressListingId,
-    prospect_id: input.prospectId,
-  });
 
   const settings = await requireDirectorySettings(input.organizationId);
   await requireProspectInOrganization(input.prospectId, input.organizationId);
@@ -381,14 +371,6 @@ export async function claimKnownExistingListing(
     },
     wordpress,
   );
-  trace?.log({
-    stage: "capacity_reserve_done",
-    organization_id: input.organizationId,
-    wordpress_listing_id: wordpressListingId,
-    prospect_id: input.prospectId,
-    relationship_status: reserved.link.relationship_status,
-    duration_ms: Date.now() - reserveStartedAt,
-  });
 
   if (reserved.link.wordpress_listing_id !== wordpressListingId) {
     resolveExistingActiveClaim(
@@ -421,14 +403,7 @@ export async function claimKnownExistingListing(
   }
 
   if (input.verification?.mode === "make_assigned") {
-    trace?.log({
-      stage: "link_finalize_start",
-      organization_id: input.organizationId,
-      wordpress_listing_id: wordpressListingId,
-      prospect_id: input.prospectId,
-      relationship_status: reserved.link.relationship_status,
-    });
-    const finalized = await acquireMakeAssignedClaim({
+    return acquireMakeAssignedClaim({
       reserved: reserved.link,
       allocated: reserved.allocated,
       wordpress,
@@ -436,25 +411,9 @@ export async function claimKnownExistingListing(
       expectedGoogleId: input.verification.expectedGoogleId,
       expectedWordpressAuthorId: input.verification.expectedWordpressAuthorId,
     });
-    trace?.log({
-      stage: "link_finalize_done",
-      organization_id: input.organizationId,
-      wordpress_listing_id: wordpressListingId,
-      prospect_id: input.prospectId,
-      relationship_status: finalized.link.relationship_status,
-      outcome: finalized.outcome,
-    });
-    return finalized;
   }
 
-  trace?.log({
-    stage: "link_finalize_start",
-    organization_id: input.organizationId,
-    wordpress_listing_id: wordpressListingId,
-    prospect_id: input.prospectId,
-    relationship_status: reserved.link.relationship_status,
-  });
-  const finalized = await acquireReservedClaim({
+  return acquireReservedClaim({
     input,
     settings,
     reserved: reserved.link,
@@ -463,15 +422,6 @@ export async function claimKnownExistingListing(
     now,
     wordpressListingId,
   });
-  trace?.log({
-    stage: "link_finalize_done",
-    organization_id: input.organizationId,
-    wordpress_listing_id: wordpressListingId,
-    prospect_id: input.prospectId,
-    relationship_status: finalized.link.relationship_status,
-    outcome: finalized.outcome,
-  });
-  return finalized;
 }
 
 function parseWordpressListingId(value: unknown): number {

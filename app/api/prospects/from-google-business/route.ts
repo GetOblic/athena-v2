@@ -6,10 +6,6 @@ import {
   convertOutcomeHttpStatus,
   toPublicGetOblicConversion,
 } from "@/services/getoblicDirectory/getoblicDirectoryConvertService";
-import {
-  createCo5GoogleTrace,
-  logCo5GoogleTraceCaughtError,
-} from "@/services/googleBusiness/googleBusinessConversionTrace";
 import { convertGoogleBusinessSelection } from "@/services/googleBusiness/googleBusinessConvertService";
 import { GoogleBusinessMakeError } from "@/services/googleBusiness/googleBusinessMakeTypes";
 import { LICENSEE_ORIGIN_COOKIE } from "@/services/licensee/licenseeCookieNames";
@@ -30,9 +26,7 @@ function json(data: unknown, status = 200) {
 }
 
 export async function POST(request: NextRequest) {
-  const diagnosticTrace = createCo5GoogleTrace();
   try {
-    diagnosticTrace.log({ stage: "route_received" });
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
 
@@ -41,11 +35,6 @@ export async function POST(request: NextRequest) {
       const raw = await request.text();
       body = raw.trim() ? (JSON.parse(raw) as unknown) : {};
     } catch {
-      diagnosticTrace.log({
-        stage: "route_response_ready",
-        error_code: "GOOGLE_BUSINESS_INVALID_PAYLOAD",
-        http_status: 400,
-      });
       return json(
         {
           ok: false,
@@ -73,7 +62,6 @@ export async function POST(request: NextRequest) {
       payload: body,
       actorUserId: userId,
       actorLicenseeAccountId,
-      diagnosticTrace,
     });
 
     const publicConversion = toPublicGetOblicConversion(conversion);
@@ -82,14 +70,6 @@ export async function POST(request: NextRequest) {
       conversion.outcome === "reused" ||
       conversion.outcome === "already_owned"
     ) {
-      diagnosticTrace.log({
-        stage: "route_response_ready",
-        organization_id: organizationId,
-        wordpress_listing_id: make.wordpress_listing_id,
-        prospect_id: conversion.prospect_id,
-        outcome: conversion.outcome,
-        http_status: 200,
-      });
       return json({
         ok: true,
         success: true,
@@ -98,15 +78,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    diagnosticTrace.log({
-      stage: "route_response_ready",
-      organization_id: organizationId,
-      wordpress_listing_id: make.wordpress_listing_id,
-      prospect_id: conversion.prospect_id,
-      outcome: conversion.outcome,
-      error_code: convertOutcomeErrorCode(conversion.outcome),
-      http_status: convertOutcomeHttpStatus(conversion.outcome),
-    });
     return json(
       {
         ok: false,
@@ -122,7 +93,6 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof OrganizationAccessError) {
-      logCo5GoogleTraceCaughtError(diagnosticTrace, error, 401, "UNAUTHORIZED");
       return json(
         {
           ok: false,
@@ -134,12 +104,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (error instanceof GoogleBusinessMakeError) {
-      logCo5GoogleTraceCaughtError(
-        diagnosticTrace,
-        error,
-        error.status,
-        error.code,
-      );
       return json(
         {
           ok: false,
@@ -154,12 +118,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (error instanceof GetOblicDirectoryError) {
-      logCo5GoogleTraceCaughtError(
-        diagnosticTrace,
-        error,
-        error.status,
-        error.code,
-      );
       return json(
         {
           ok: false,
@@ -173,12 +131,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    logCo5GoogleTraceCaughtError(
-      diagnosticTrace,
-      error,
-      502,
-      "GOOGLE_BUSINESS_REMOTE_FAILED",
-    );
     return json(
       {
         ok: false,
