@@ -22,6 +22,7 @@ import {
   GetOblicWordpressError,
   type GetOblicWordpressListing,
 } from "@/services/getoblicDirectory/getoblicWordpressTypes";
+import type { Co5GoogleTrace } from "@/services/googleBusiness/googleBusinessConversionTrace";
 import {
   addGoogleBusinessListing,
   readPositiveInteger,
@@ -39,6 +40,7 @@ export type ConvertGoogleBusinessSelectionInput = {
   actorUserId: string | null;
   actorLicenseeAccountId: string | null;
   now?: Date;
+  diagnosticTrace?: Co5GoogleTrace;
 };
 
 export type ConvertGoogleBusinessSelectionResult = {
@@ -105,25 +107,51 @@ export async function convertGoogleBusinessSelection(
   const getSettings = deps.getSettings ?? getGetOblicDirectorySettings;
   const getListingById = deps.getListingById ?? getWordpressListingById;
   const convertListing = deps.convertListing ?? convertGetOblicDirectoryListing;
+  const trace = input.diagnosticTrace;
 
   const payload = sanitizeGoogleBusinessPayload(input.payload);
+  trace?.log({
+    stage: "author_mapping_lookup_start",
+    organization_id: input.organizationId,
+  });
   const settingsResult = await getSettings(input.organizationId);
   const mappedAuthorId = settingsResult.configured
     ? readPositiveInteger(settingsResult.settings.wordpress_author_id)
     : null;
+  trace?.log({
+    stage: "author_mapping_lookup_done",
+    organization_id: input.organizationId,
+  });
   if (mappedAuthorId == null) {
     fail("GOOGLE_BUSINESS_AUTHOR_MAPPING_MISSING");
   }
 
+  const makeStartedAt = Date.now();
+  trace?.log({
+    stage: "make_start",
+    organization_id: input.organizationId,
+  });
   const make = await addListing({
     organizationId: input.organizationId,
     payload,
+  });
+  trace?.log({
+    stage: "make_done",
+    organization_id: input.organizationId,
+    wordpress_listing_id: make.wordpress_listing_id,
+    duration_ms: Date.now() - makeStartedAt,
   });
 
   if (!googleBusinessIdsEqual(make.google_id, payload.google_id)) {
     fail("GOOGLE_BUSINESS_GOOGLE_ID_MISMATCH");
   }
 
+  const wordpressStartedAt = Date.now();
+  trace?.log({
+    stage: "wordpress_verify_start",
+    organization_id: input.organizationId,
+    wordpress_listing_id: make.wordpress_listing_id,
+  });
   let listing: GetOblicWordpressListing | null = null;
   try {
     listing = await getListingById(make.wordpress_listing_id);
@@ -135,6 +163,16 @@ export async function convertGoogleBusinessSelection(
       throw mapWordpressLookupError(error);
     }
   }
+  trace?.log({
+    stage: "wordpress_verify_done",
+    organization_id: input.organizationId,
+    wordpress_listing_id: make.wordpress_listing_id,
+    author_match: listing ? listing.author_id === mappedAuthorId : undefined,
+    google_id_match: listing
+      ? googleBusinessIdsEqual(listing.google_id, payload.google_id)
+      : undefined,
+    duration_ms: Date.now() - wordpressStartedAt,
+  });
 
   if (listing) {
     if (!googleBusinessIdsEqual(listing.google_id, payload.google_id)) {
@@ -146,6 +184,11 @@ export async function convertGoogleBusinessSelection(
     listing = mergeEmptyListingFromGooglePayload(listing, payload);
   }
 
+  trace?.log({
+    stage: "directory_convert_start",
+    organization_id: input.organizationId,
+    wordpress_listing_id: make.wordpress_listing_id,
+  });
   const conversion = await convertListing(
     {
       organizationId: input.organizationId,
@@ -158,10 +201,25 @@ export async function convertGoogleBusinessSelection(
       expectedGoogleId: payload.google_id,
       expectedWordpressAuthorId: mappedAuthorId,
       preloadedListing: listing,
+      diagnosticTrace: trace,
     },
     convertDependencies,
     wordpress,
   );
+  trace?.log({
+    stage: "directory_convert_done",
+    organization_id: input.organizationId,
+    wordpress_listing_id: make.wordpress_listing_id,
+    prospect_id: conversion.prospect_id,
+    outcome: conversion.outcome,
+  });
+  trace?.log({
+    stage: "google_convert_done",
+    organization_id: input.organizationId,
+    wordpress_listing_id: make.wordpress_listing_id,
+    prospect_id: conversion.prospect_id,
+    outcome: conversion.outcome,
+  });
 
   return { make, conversion };
 }

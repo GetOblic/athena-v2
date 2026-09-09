@@ -8,6 +8,7 @@
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import type { Co5GoogleTrace } from "@/services/googleBusiness/googleBusinessConversionTrace";
 import {
   GetOblicDirectoryError,
   isPostgresUniqueViolation,
@@ -102,6 +103,7 @@ export type GetOblicConvertInput = {
   expectedGoogleId?: string;
   expectedWordpressAuthorId?: number;
   preloadedListing?: GetOblicWordpressListing | null;
+  diagnosticTrace?: Co5GoogleTrace;
 };
 
 export type GetOblicConvertResult = {
@@ -447,10 +449,24 @@ export async function convertGetOblicDirectoryListing(
     input.wordpressListingId,
   );
   const observed = sanitizeGetOblicConvertObserved(input.observed);
+  const trace = input.diagnosticTrace;
 
+  trace?.log({
+    stage: "active_claim_lookup_start",
+    organization_id: organizationId,
+    wordpress_listing_id: wordpressListingId,
+  });
   const activeClaim = await dependencies.getActiveListingClaim(
     wordpressListingId,
   );
+  trace?.log({
+    stage: "active_claim_lookup_done",
+    organization_id: organizationId,
+    wordpress_listing_id: wordpressListingId,
+    relationship_status: activeClaim.found
+      ? activeClaim.relationship_status
+      : undefined,
+  });
   if (activeClaim.found && activeClaim.organization_id !== organizationId) {
     return emptyResult("unavailable");
   }
@@ -468,11 +484,31 @@ export async function convertGetOblicDirectoryListing(
     });
   }
 
+  trace?.log({
+    stage: "settings_lookup_start",
+    organization_id: organizationId,
+    wordpress_listing_id: wordpressListingId,
+  });
   const settings = await dependencies.getSettings(organizationId);
+  trace?.log({
+    stage: "settings_lookup_done",
+    organization_id: organizationId,
+    wordpress_listing_id: wordpressListingId,
+  });
   if (!settings.configured) {
     return emptyResult("settings_missing");
   }
 
+  trace?.log({
+    stage: "capacity_preflight_start",
+    organization_id: organizationId,
+    wordpress_listing_id: wordpressListingId,
+  });
+  trace?.log({
+    stage: "origin_lookup_start",
+    organization_id: organizationId,
+    wordpress_listing_id: wordpressListingId,
+  });
   const [usage, originProspect] = await Promise.all([
     dependencies.getAllocationUsage(organizationId, input.now),
     dependencies.findOriginProspectByListingId(
@@ -480,6 +516,17 @@ export async function convertGetOblicDirectoryListing(
       wordpressListingId,
     ),
   ]);
+  trace?.log({
+    stage: "capacity_preflight_done",
+    organization_id: organizationId,
+    wordpress_listing_id: wordpressListingId,
+  });
+  trace?.log({
+    stage: "origin_lookup_done",
+    organization_id: organizationId,
+    wordpress_listing_id: wordpressListingId,
+    prospect_id: originProspect?.id ?? undefined,
+  });
 
   if (usage.configured && usage.available <= 0) {
     return emptyResult("capacity_exceeded");
@@ -539,11 +586,21 @@ export async function convertGetOblicDirectoryListing(
     return emptyResult("needs_business_name");
   }
 
+  trace?.log({
+    stage: "name_collision_lookup_start",
+    organization_id: organizationId,
+    wordpress_listing_id: wordpressListingId,
+  });
   const nameMatch = await dependencies.findProspectByNameAndCity(
     organizationId,
     businessName,
     null,
   );
+  trace?.log({
+    stage: "name_collision_lookup_done",
+    organization_id: organizationId,
+    wordpress_listing_id: wordpressListingId,
+  });
   if (nameMatch) {
     if (isSameGetOblicListingIdentity(nameMatch, wordpressListingId)) {
       return finishExistingProspect({
@@ -572,6 +629,11 @@ export async function convertGetOblicDirectoryListing(
 
   let created: Prospect;
   try {
+    trace?.log({
+      stage: "prospect_create_start",
+      organization_id: organizationId,
+      wordpress_listing_id: wordpressListingId,
+    });
     created = await persistConvertedProspect({
       organizationId,
       actorUserId: input.actorUserId,
@@ -580,6 +642,12 @@ export async function convertGetOblicDirectoryListing(
       provenance,
       persistWebsite: true,
       dependencies,
+    });
+    trace?.log({
+      stage: "prospect_create_done",
+      organization_id: organizationId,
+      wordpress_listing_id: wordpressListingId,
+      prospect_id: created.id,
     });
   } catch (error) {
     if (error instanceof GetOblicDirectoryError) {
@@ -815,6 +883,7 @@ async function finishExistingProspect(args: {
         actorLicenseeAccountId: args.input.actorLicenseeAccountId,
         now: args.input.now,
         verification: makeAssignedVerification(args.input),
+        diagnosticTrace: args.input.diagnosticTrace,
       },
       args.wordpress,
     );
@@ -828,6 +897,7 @@ async function finishExistingProspect(args: {
       organizationId: args.organizationId,
       dependencies: args.dependencies,
       requestedBy: args.input.actorUserId,
+      diagnosticTrace: args.input.diagnosticTrace,
     });
   } catch (error) {
     if (
@@ -974,8 +1044,10 @@ async function finalizeAfterClaim(args: {
   organizationId: string;
   dependencies: GetOblicConvertDependencies;
   requestedBy: string | null;
+  diagnosticTrace?: Co5GoogleTrace;
 }): Promise<GetOblicConvertResult> {
   let prospect = args.prospect;
+  const trace = args.diagnosticTrace;
 
   if (args.claim.outcome !== "linked") {
     prospect = await persistDeferredSaved(
@@ -995,6 +1067,12 @@ async function finalizeAfterClaim(args: {
     });
   }
 
+  trace?.log({
+    stage: "factual_import_start",
+    organization_id: args.organizationId,
+    wordpress_listing_id: args.wordpressListingId,
+    prospect_id: prospect.id,
+  });
   const listing = await resolveListingForImport(
     args.listing,
     args.wordpressListingId,
@@ -1034,12 +1112,20 @@ async function finalizeAfterClaim(args: {
     args.organizationId,
     args.dependencies,
   );
-  return presentProspect({
+  const result = presentProspect({
     prospect,
     outcome: args.created ? "created" : "reused",
     generationQueued: false,
     allocated: args.claim.allocated,
   });
+  trace?.log({
+    stage: "factual_import_done",
+    organization_id: args.organizationId,
+    wordpress_listing_id: args.wordpressListingId,
+    prospect_id: result.prospect_id,
+    outcome: result.outcome,
+  });
+  return result;
 }
 
 async function persistDeferredSaved(
