@@ -42,6 +42,7 @@ import {
   type GetOblicWordpressTaxonomyTerm,
   type GetOblicWordpressWorkHours,
 } from "@/services/getoblicDirectory/getoblicWordpressTypes";
+import { findReusableWebsiteIntelligenceForListing } from "@/services/getoblicDirectory/getoblicReusableWebsiteIntelligence";
 import { ensureProspectGenerationQueued } from "@/services/prospects/prospectImporter";
 import {
   createProspect,
@@ -53,6 +54,7 @@ import {
   type Prospect,
 } from "@/services/prospects/prospectService";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
+import { websiteIntelligenceHasUsableContent } from "@/services/prospects/prospectWebsiteLearningPolicy";
 
 export const GETOBLIC_PROSPECT_SOURCE = "getoblic" as const;
 export const GETOBLIC_PROSPECT_PROVENANCE_ORIGIN = "getoblic_directory" as const;
@@ -132,6 +134,7 @@ export type GetOblicConvertDependencies = {
     organizationId: string,
     wordpressListingId: number,
   ) => Promise<GetOblicListingLink | null>;
+  findReusableWebsiteIntelligence: typeof findReusableWebsiteIntelligenceForListing;
   createProspect: typeof createProspect;
   updateProspect: typeof updateProspect;
   deleteProspect: typeof deleteProspect;
@@ -150,6 +153,7 @@ const defaultDependencies: GetOblicConvertDependencies = {
   findProspectByWebsite,
   findOriginProspectByListingId: findGetOblicOriginProspectByListingId,
   findReleasedLinkForListing: findLatestReleasedGetOblicLinkForListing,
+  findReusableWebsiteIntelligence: findReusableWebsiteIntelligenceForListing,
   createProspect,
   updateProspect,
   deleteProspect,
@@ -1090,12 +1094,79 @@ async function finalizeAfterClaim(args: {
     args.organizationId,
     args.dependencies,
   );
+
+  if (args.created) {
+    prospect = await hydrateReusableWebsiteIntelligenceIfEligible({
+      prospect,
+      organizationId: args.organizationId,
+      wordpressListingId: args.wordpressListingId,
+      dependencies: args.dependencies,
+    });
+  }
+
   return presentProspect({
     prospect,
     outcome: args.created ? "created" : "reused",
     generationQueued: false,
     allocated: args.claim.allocated,
   });
+}
+
+/**
+ * Optional cross-org website_intelligence copy for a NEW Prospect only.
+ * Same-org reclaim / origin reuse never enter this path (created === false).
+ * Fail-open: claim success is already durable; a reuse miss must not unwind it.
+ */
+async function hydrateReusableWebsiteIntelligenceIfEligible(args: {
+  prospect: Prospect;
+  organizationId: string;
+  wordpressListingId: number;
+  dependencies: GetOblicConvertDependencies;
+}): Promise<Prospect> {
+  const prospect = args.prospect;
+  if (prospect.website_intelligence) {
+    return prospect;
+  }
+  if (!normalizeWebsiteUrl(prospect.website)) {
+    return prospect;
+  }
+
+  let reusable: Record<string, unknown> | null = null;
+  try {
+    reusable = await args.dependencies.findReusableWebsiteIntelligence({
+      currentOrganizationId: args.organizationId,
+      wordpressListingId: args.wordpressListingId,
+      currentWebsite: prospect.website,
+    });
+  } catch (error) {
+    console.error(
+      "Reusable GetOblic website intelligence lookup failed during convert:",
+      error,
+    );
+    return prospect;
+  }
+
+  if (
+    !reusable ||
+    !websiteIntelligenceHasUsableContent(reusable)
+  ) {
+    return prospect;
+  }
+
+  try {
+    const updated = await args.dependencies.updateProspect(
+      prospect.id,
+      args.organizationId,
+      { website_intelligence: reusable },
+    );
+    return updated ?? prospect;
+  } catch (error) {
+    console.error(
+      "Reusable GetOblic website intelligence copy failed during convert:",
+      error,
+    );
+    return prospect;
+  }
 }
 
 async function persistDeferredSaved(

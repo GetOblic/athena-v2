@@ -183,6 +183,7 @@ function convertDeps(
     findProspectByWebsite: async () => null,
     findOriginProspectByListingId: async () => null,
     findReleasedLinkForListing: async () => null,
+    findReusableWebsiteIntelligence: async () => null,
     createProspect: async (input) => {
       const row = prospect({
         business_name: input.business_name,
@@ -267,6 +268,56 @@ describe("CO-5D2 Google convert orchestration", () => {
     assert.equal(claimInput.verification?.mode, "make_assigned");
     assert.equal(claimInput.verification?.expectedWordpressAuthorId, 42);
     assert.doesNotMatch(JSON.stringify(port.created[0]?.raw_json), /do-not-copy/);
+  });
+
+  it("reuses website intelligence through the shared GetOblic convert path", async () => {
+    const reusable = {
+      provider: "deep_v1",
+      url: "https://oak.example",
+      scraped_at: "2026-08-01T00:00:00.000Z",
+      pages_analyzed: 4,
+      about: "Google-discovered reusable intelligence",
+      services: "Hair",
+    };
+    const reuseCalls: unknown[] = [];
+    const port = convertDeps({
+      findReusableWebsiteIntelligence: async (input) => {
+        reuseCalls.push(input);
+        return reusable;
+      },
+    });
+    const result = await convertGoogleBusinessSelection(
+      {
+        organizationId: ORG_A,
+        payload: validPayload(),
+        actorUserId: "user-1",
+        actorLicenseeAccountId: null,
+      },
+      {
+        getSettings: port.getSettings,
+        addListing: async () => ({
+          wordpress_listing_id: LISTING_ID,
+          google_id: GOOGLE_ID,
+        }),
+        getListingById: port.getListingById,
+      },
+      port,
+    );
+
+    assert.equal(result.conversion.outcome, "created");
+    assert.equal(result.conversion.generation_queued, false);
+    assert.equal(reuseCalls.length, 1);
+    assert.deepEqual(reuseCalls[0], {
+      currentOrganizationId: ORG_A,
+      wordpressListingId: LISTING_ID,
+      currentWebsite: "https://oak.example",
+    });
+    assert.deepEqual(port.created[0]?.website_intelligence, reusable);
+    assert.equal(port.queued.length, 0);
+    assert.doesNotMatch(
+      JSON.stringify(result.conversion),
+      /source_prospect_id|source_organization_id/,
+    );
   });
 
   it("fails before convert when Make returns a different google_id", async () => {
@@ -526,6 +577,8 @@ describe("CO-5D2 source contracts", () => {
     assert.doesNotMatch(convert, /assignWordpressListingAuthor/);
     assert.doesNotMatch(convert, /ensureProspectGenerationQueued/);
     assert.doesNotMatch(convert, /OpenRouter|openrouter/i);
+    assert.doesNotMatch(convert, /findReusableWebsiteIntelligence/);
+    assert.match(convert, /convertGetOblicDirectoryListing/);
     assert.match(claim, /mode === "make_assigned"/);
     assert.match(claim, /acquireMakeAssignedClaim/);
     const makeAssigned = claim.slice(

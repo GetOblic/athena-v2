@@ -16,6 +16,7 @@ import {
   toPublicGetOblicConversion,
   type GetOblicConvertDependencies,
 } from "../../services/getoblicDirectory/getoblicDirectoryConvertService";
+import { findReusableWebsiteIntelligenceForListing } from "../../services/getoblicDirectory/getoblicReusableWebsiteIntelligence";
 import {
   GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
   type GetOblicListingLink,
@@ -176,6 +177,7 @@ function deps(
     findProspectByWebsite: async () => null,
     findOriginProspectByListingId: async () => null,
     findReleasedLinkForListing: async () => null,
+    findReusableWebsiteIntelligence: async () => null,
     createProspect: async (input) => {
       const row = prospect({
         business_name: input.business_name,
@@ -1907,6 +1909,361 @@ describe("GetOblic CO-4 rich listing import", () => {
   });
 });
 
+describe("GetOblic cross-org reusable website intelligence", () => {
+  const deepReusable = {
+    provider: "deep_v1" as const,
+    url: "https://www.acme.example/about",
+    scraped_at: "2026-08-01T00:00:00.000Z",
+    pages_analyzed: 6,
+    about: "Reusable deep intelligence",
+    services: "Cuts and color",
+    business_knowledge: { about: "Reusable deep intelligence" },
+  };
+
+  const homepageReusable = {
+    provider: "homepage_only" as const,
+    url: "https://acme.example",
+    scraped_at: "2026-08-02T00:00:00.000Z",
+    about: "Reusable homepage intelligence",
+    services: "Cuts",
+  };
+
+  function reuseCallsPort(
+    overrides: Partial<GetOblicConvertDependencies> = {},
+  ) {
+    const reuseCalls: Array<Record<string, unknown>> = [];
+    const sourceProspect = prospect({
+      id: PROSPECT_B,
+      organization_id: ORG_B,
+      notes: "private-notes",
+      additional_context: "private-context",
+      ads_content: "private-ads",
+      decision_maker: "Private Person",
+      linked_discussion_id: "discussion-foreign",
+      website_intelligence: { ...deepReusable },
+      opportunity_score: 91,
+      pain_points: "private-pain",
+      technologies: "private-tech",
+    });
+    const port = deps({
+      getListingById: async (id) => richListing(id),
+      findReusableWebsiteIntelligence: async (input) => {
+        reuseCalls.push(input as unknown as Record<string, unknown>);
+        return { ...deepReusable };
+      },
+      getSettings: async () => ({
+        configured: true,
+        settings: {
+          organization_id: ORG_A,
+          monthly_allowance: 5,
+          wordpress_author_id: 42,
+          created_at: "2026-09-01T00:00:00.000Z",
+          updated_at: "2026-09-01T00:00:00.000Z",
+          updated_by_user_id: null,
+        },
+      }),
+      ...overrides,
+    });
+    return { port, reuseCalls, sourceProspect };
+  }
+
+  it("does not run cross-org hydration on same-org released-history reclaim", async () => {
+    const existing = prospect({
+      id: PROSPECT_A,
+      linked_discussion_id: "discussion-original",
+      website_intelligence: { summary: "preserved" },
+      notes: "keep-private",
+    });
+    const { port, reuseCalls } = reuseCallsPort({
+      getListingById: async (id) => richListing(id),
+      findReleasedLinkForListing: async () =>
+        link({
+          id: "released-historical",
+          prospect_id: PROSPECT_A,
+          relationship_status: "released",
+          released_at: "2026-08-01T00:00:00.000Z",
+        }),
+      getProspectById: async (id) => (id === PROSPECT_A ? existing : null),
+      updateProspect: async (id, _organizationId, input) => {
+        assert.equal("website_intelligence" in input, false);
+        return prospect({ ...existing, ...input, id });
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "reused");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(result.generation_queued, false);
+    assert.equal(port.created.length, 0);
+    assert.equal(port.queued.length, 0);
+    assert.deepEqual(reuseCalls, []);
+    assert.deepEqual(existing.website_intelligence, { summary: "preserved" });
+    assert.equal(existing.linked_discussion_id, "discussion-original");
+    assert.equal(existing.notes, "keep-private");
+  });
+
+  it("creates a new org-local Prospect and copies only matching reusable website intelligence", async () => {
+    const { port, reuseCalls, sourceProspect } = reuseCallsPort();
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "created");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(result.generation_queued, false);
+    assert.equal(result.website_ready, true);
+    assert.equal(port.created.length, 1);
+    assert.equal(port.created[0].id, PROSPECT_A);
+    assert.equal(port.created[0].organization_id, ORG_A);
+    assert.notEqual(port.created[0].id, sourceProspect.id);
+    assert.notEqual(port.created[0].organization_id, sourceProspect.organization_id);
+    assert.deepEqual(port.created[0].website_intelligence, deepReusable);
+    assert.equal(port.created[0].linked_discussion_id, null);
+    assert.equal(port.created[0].notes, null);
+    assert.equal(port.created[0].additional_context, null);
+    assert.equal(port.created[0].ads_content, null);
+    assert.equal(port.created[0].decision_maker, null);
+    assert.equal(port.created[0].opportunity_score, null);
+    assert.equal(port.created[0].pain_points, null);
+    assert.equal(port.created[0].technologies, null);
+    assert.equal(port.queued.length, 0);
+    assert.equal(reuseCalls.length, 1);
+    assert.equal(reuseCalls[0]?.currentOrganizationId, ORG_A);
+    assert.equal(reuseCalls[0]?.wordpressListingId, LISTING_ID);
+    assert.equal(reuseCalls[0]?.currentWebsite, "https://acme.example");
+    assert.deepEqual(sourceProspect.website_intelligence, deepReusable);
+    assert.equal(sourceProspect.notes, "private-notes");
+    assert.equal(sourceProspect.linked_discussion_id, "discussion-foreign");
+    const publicResult = toPublicGetOblicConversion(result);
+    const serialized = JSON.stringify({
+      result,
+      publicResult,
+      created: port.created[0],
+    });
+    assert.doesNotMatch(serialized, new RegExp(ORG_B));
+    assert.doesNotMatch(serialized, new RegExp(PROSPECT_B));
+    assert.doesNotMatch(serialized, /source_prospect_id|source_organization_id/);
+    assert.doesNotMatch(serialized, /discussion-foreign|private-notes|private-pain/);
+  });
+
+  it("copies homepage website intelligence when that is the reusable winner", async () => {
+    const { port } = reuseCallsPort({
+      findReusableWebsiteIntelligence: async () => ({ ...homepageReusable }),
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "created");
+    assert.deepEqual(port.created[0].website_intelligence, homepageReusable);
+    assert.equal(result.generation_queued, false);
+    assert.equal(port.queued.length, 0);
+  });
+
+  it("skips copy when the new Prospect has no website", async () => {
+    const reuseCalls: unknown[] = [];
+    const port = deps({
+      findReusableWebsiteIntelligence: async (input) => {
+        reuseCalls.push(input);
+        return { ...deepReusable };
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "created");
+    assert.equal(port.created[0].website, null);
+    assert.equal(port.created[0].website_intelligence, null);
+    assert.deepEqual(reuseCalls, []);
+    assert.equal(result.generation_queued, false);
+  });
+
+  it("continues a successful claim when reusable intelligence is absent", async () => {
+    const port = deps({
+      getListingById: async (id) => richListing(id),
+      findReusableWebsiteIntelligence: async () => null,
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "created");
+    assert.equal(port.created[0].website, "https://acme.example");
+    assert.equal(port.created[0].website_intelligence, null);
+    assert.equal(result.generation_queued, false);
+    assert.equal(port.queued.length, 0);
+  });
+
+  it("fails open when cross-org lookup throws after a successful claim", async () => {
+    const port = deps({
+      getListingById: async (id) => richListing(id),
+      findReusableWebsiteIntelligence: async () => {
+        throw new Error("privileged lookup failed");
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "created");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(result.generation_queued, false);
+    assert.equal(port.created[0].website_intelligence, null);
+    assert.equal(port.claimed.length, 1);
+    assert.deepEqual(port.deleted, []);
+  });
+
+  it("fails open when the website_intelligence copy/update fails after claim", async () => {
+    const port = deps({
+      getListingById: async (id) => richListing(id),
+      findReusableWebsiteIntelligence: async () => ({ ...deepReusable }),
+      updateProspect: async (id, organizationId, input) => {
+        if ("website_intelligence" in input) {
+          throw new Error("jsonb copy failed");
+        }
+        const current =
+          port.created.find((row) => row.id === id) ?? prospect({ id });
+        const next = prospect({ ...current, ...input, id, organization_id: organizationId });
+        const index = port.created.findIndex((row) => row.id === id);
+        if (index >= 0) port.created[index] = next;
+        return next;
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "created");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(result.generation_queued, false);
+    assert.equal(port.claimed.length, 1);
+    assert.deepEqual(port.deleted, []);
+    assert.equal(port.created[0].website, "https://acme.example");
+    assert.equal(port.created[0].website_intelligence, null);
+  });
+
+  it("does not attach reusable intelligence before claim, so failed-claim compensation stays disposable", async () => {
+    const reuseCalls: unknown[] = [];
+    const port = deps({
+      getListingById: async (id) => richListing(id),
+      findReusableWebsiteIntelligence: async (input) => {
+        reuseCalls.push(input);
+        return { ...deepReusable };
+      },
+      claimKnownExistingListing: async () => {
+        throw new GetOblicDirectoryError(
+          "GETOBLIC_LISTING_CAPACITY_EXCEEDED",
+          "This account has reached its GetOblic listing capacity. Release an existing GetOblic listing before adding another.",
+        );
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "capacity_exceeded");
+    assert.equal(result.prospect_id, null);
+    assert.deepEqual(reuseCalls, []);
+    assert.deepEqual(port.deleted, [PROSPECT_A]);
+    assert.equal(port.created.length, 0);
+    assert.equal(port.queued.length, 0);
+  });
+
+  it("keeps an active other-org claim unavailable and does not hydrate", async () => {
+    const reuseCalls: unknown[] = [];
+    const port = deps({
+      getActiveListingClaim: async () => ({
+        found: true,
+        organization_id: ORG_B,
+        prospect_id: PROSPECT_B,
+        relationship_status: "linked",
+      }),
+      findReusableWebsiteIntelligence: async (input) => {
+        reuseCalls.push(input);
+        return { ...deepReusable };
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "unavailable");
+    assert.equal(result.prospect_id, null);
+    assert.deepEqual(reuseCalls, []);
+    assert.equal(port.created.length, 0);
+    const publicResult = toPublicGetOblicConversion(result);
+    assert.doesNotMatch(JSON.stringify(publicResult), new RegExp(ORG_B));
+    assert.doesNotMatch(JSON.stringify(publicResult), new RegExp(PROSPECT_B));
+  });
+
+  it("does not copy when the historical host does not match the new Prospect website", async () => {
+    const port = deps({
+      getListingById: async (id) => richListing(id),
+      findReusableWebsiteIntelligence: (input) =>
+        findReusableWebsiteIntelligenceForListing(input, {
+          findReleasedHistoricalLinks: async () => [
+            {
+              organization_id: ORG_B,
+              prospect_id: PROSPECT_B,
+              wordpress_listing_id: LISTING_ID,
+              relationship_status: "released",
+              released_at: "2026-08-01T00:00:00.000Z",
+              created_at: "2026-07-01T00:00:00.000Z",
+            },
+          ],
+          loadProspectWebsiteIntelligence: async () => [
+            {
+              id: PROSPECT_B,
+              organization_id: ORG_B,
+              website_intelligence: {
+                ...deepReusable,
+                url: "https://other.example",
+              },
+            },
+          ],
+        }),
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "created");
+    assert.equal(port.created[0].website, "https://acme.example");
+    assert.equal(port.created[0].website_intelligence, null);
+    assert.equal(result.generation_queued, false);
+  });
+
+  it("does not copy unusable historical website intelligence", async () => {
+    const port = deps({
+      getListingById: async (id) => richListing(id),
+      findReusableWebsiteIntelligence: (input) =>
+        findReusableWebsiteIntelligenceForListing(input, {
+          findReleasedHistoricalLinks: async () => [
+            {
+              organization_id: ORG_B,
+              prospect_id: PROSPECT_B,
+              wordpress_listing_id: LISTING_ID,
+              relationship_status: "released",
+              released_at: "2026-08-01T00:00:00.000Z",
+              created_at: "2026-07-01T00:00:00.000Z",
+            },
+          ],
+          loadProspectWebsiteIntelligence: async () => [
+            {
+              id: PROSPECT_B,
+              organization_id: ORG_B,
+              website_intelligence: {
+                provider: "homepage_only",
+                url: "https://acme.example",
+                scraped_at: "2026-08-01T00:00:00.000Z",
+                about: "",
+                services: "",
+              },
+            },
+          ],
+        }),
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "created");
+    assert.equal(port.created[0].website_intelligence, null);
+  });
+
+  it("does not hydrate origin-fallback reuse of an existing same-org Prospect", async () => {
+    const reuseCalls: unknown[] = [];
+    const existing = prospect({
+      website: "https://already-has-a-site.example",
+      website_intelligence: null,
+    });
+    const port = deps({
+      findOriginProspectByListingId: async () => existing,
+      getListingById: async (id) => richListing(id),
+      findReusableWebsiteIntelligence: async (input) => {
+        reuseCalls.push(input);
+        return { ...deepReusable };
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "reused");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(port.created.length, 0);
+    assert.deepEqual(reuseCalls, []);
+    assert.equal(existing.website_intelligence, null);
+  });
+});
+
 describe("GetOblic directory convert source contract", () => {
   it("owns conversion on a dedicated tenant-scoped route", () => {
     const route = read("app/api/prospects/from-getoblic/route.ts");
@@ -1938,6 +2295,11 @@ describe("GetOblic directory convert source contract", () => {
     );
     assert.match(service, /generationQueued: false/);
     assert.match(service, /normalizeWebsiteUrl\(prospect\.website\)/);
+    assert.match(service, /findReusableWebsiteIntelligence/);
+    assert.match(service, /hydrateReusableWebsiteIntelligenceIfEligible/);
+    assert.doesNotMatch(service, /scrapeHomepageIntelligence/);
+    assert.doesNotMatch(service, /source_prospect_id/);
+    assert.doesNotMatch(service, /source_organization_id/);
   });
 
   it("does not add a second Prospect model or a migration", () => {
