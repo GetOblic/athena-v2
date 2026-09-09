@@ -10,17 +10,13 @@ import {
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
-import { enrichProspectsForLibrary } from "@/services/prospects/prospectLibraryEnrichment";
-import { getProspects } from "@/services/prospects/prospectService";
+import { loadProspectsForLibrary } from "@/services/prospects/prospectLibraryEnrichment";
 
 export default async function ProspectsPage() {
   const { organizationId } = await requireCurrentOrganizationContext();
   const { language, messages } = await getTenantLocalization();
   const copy = messages.prospects;
-  const prospects = await enrichProspectsForLibrary(
-    await getProspects(organizationId),
-    organizationId,
-  );
+  const prospects = await loadProspectsForLibrary(organizationId);
   const summary = formatProspectLibrarySummary(
     deriveProspectLibrarySummary(prospects),
     {

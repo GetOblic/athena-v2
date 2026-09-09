@@ -247,6 +247,124 @@ export async function getActiveGetOblicClaimOrganizationIdsByWordPressListingIds
   return claims;
 }
 
+export type GetOblicProspectLinkPresence = {
+  historyProspectIds: Set<string>;
+  activeProspectIds: Set<string>;
+};
+
+/**
+ * Library-only batch presence: any GetOblic link history vs an active
+ * claiming / linked / remote_missing relationship. Released-only Prospects
+ * have history and no active link.
+ */
+export async function getGetOblicProspectLinkPresence(
+  organizationId: string,
+  prospectIds: readonly string[],
+): Promise<GetOblicProspectLinkPresence> {
+  const uniqueIds = [
+    ...new Set(prospectIds.filter((id) => typeof id === "string" && id.length > 0)),
+  ];
+  const historyProspectIds = new Set<string>();
+  const activeProspectIds = new Set<string>();
+  if (uniqueIds.length === 0) {
+    return { historyProspectIds, activeProspectIds };
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from(GETOBLIC_LISTING_LINKS_TABLE)
+    .select("prospect_id, relationship_status")
+    .eq("organization_id", organizationId)
+    .in("prospect_id", uniqueIds);
+
+  if (error) {
+    console.error("Error batch-looking up GetOblic Prospect link presence:", error);
+    return { historyProspectIds, activeProspectIds };
+  }
+
+  for (const row of data ?? []) {
+    const record = row as Record<string, unknown>;
+    const prospectId = readString(record.prospect_id);
+    const status = readString(record.relationship_status);
+    if (!prospectId || !status) {
+      continue;
+    }
+    historyProspectIds.add(prospectId);
+    if (isActiveGetOblicRelationshipStatus(status)) {
+      activeProspectIds.add(prospectId);
+    }
+  }
+
+  return { historyProspectIds, activeProspectIds };
+}
+
+export function selectLatestReleasedGetOblicLink(
+  links: readonly GetOblicListingLink[],
+): GetOblicListingLink | null {
+  const released = links.filter(
+    (link) => link.relationship_status === "released",
+  );
+  if (released.length === 0) {
+    return null;
+  }
+
+  return [...released].sort((left, right) => {
+    const releasedCmp = compareIsoDescNullsLast(
+      left.released_at,
+      right.released_at,
+    );
+    if (releasedCmp !== 0) {
+      return releasedCmp;
+    }
+    return compareIsoDescNullsLast(left.created_at, right.created_at);
+  })[0] ?? null;
+}
+
+/**
+ * Same-org reclaim lookup. Canonical released-link history for one
+ * organization + listing. Never returns another organization's row.
+ */
+export async function findLatestReleasedGetOblicLinkForListing(
+  organizationId: string,
+  wordpressListingId: number,
+): Promise<GetOblicListingLink | null> {
+  const { data, error } = await supabaseAdmin
+    .from(GETOBLIC_LISTING_LINKS_TABLE)
+    .select("*")
+    .eq("organization_id", organizationId)
+    .eq("wordpress_listing_id", wordpressListingId)
+    .eq("relationship_status", "released");
+
+  if (error) {
+    console.error("Error finding released GetOblic listing link:", error);
+    return null;
+  }
+
+  const mapped = ((data ?? []) as Record<string, unknown>[])
+    .map((row) => mapListingLinkRow(row))
+    .filter((row): row is GetOblicListingLink => row != null);
+
+  return selectLatestReleasedGetOblicLink(mapped);
+}
+
+function compareIsoDescNullsLast(
+  left: string | null,
+  right: string | null,
+): number {
+  if (left == null && right == null) {
+    return 0;
+  }
+  if (left == null) {
+    return 1;
+  }
+  if (right == null) {
+    return -1;
+  }
+  if (left === right) {
+    return 0;
+  }
+  return left < right ? 1 : -1;
+}
+
 export async function getGetOblicListingCapacity(
   organizationId: string,
 ): Promise<GetOblicListingCapacityResult> {

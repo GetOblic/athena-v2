@@ -2194,6 +2194,44 @@ describe("GetOblic claim orchestration", () => {
     assert.equal(store.events.length, 2);
     assert.equal(store.events[0]?.id, "e-old");
   });
+
+  it("same-org reclaim after release inserts a new active link and keeps the historical released row", async () => {
+    const store = {
+      settings: [defaultSettings({ monthly_allowance: 1 })],
+      prospects: [defaultProspect()],
+      links: [
+        completeLink({
+          id: "released-historical",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 1000,
+          relationship_status: "released",
+          released_at: "2026-08-01T00:00:00.000Z",
+        }),
+      ],
+      events: [] as EventRow[],
+    };
+    installStore(store);
+    const result = await claim({}, successWordpress());
+    assert.equal(result.outcome, "linked");
+    assert.equal(result.allocated, true);
+    const historical = store.links.find((row) => row.id === "released-historical");
+    assert.ok(historical);
+    assert.equal(historical?.relationship_status, "released");
+    assert.equal(historical?.released_at, "2026-08-01T00:00:00.000Z");
+    assert.equal(historical?.prospect_id, PROSPECT_A);
+    const active = store.links.filter((row) => row.relationship_status !== "released");
+    assert.equal(active.length, 1);
+    assert.notEqual(active[0]?.id, "released-historical");
+    assert.equal(active[0]?.prospect_id, PROSPECT_A);
+    assert.equal(active[0]?.wordpress_listing_id, 1000);
+    assert.equal(
+      ["claiming", "linked", "remote_missing"].includes(
+        String(active[0]?.relationship_status),
+      ),
+      true,
+    );
+  });
 });
 
 describe("GetOblic claim route contract", () => {

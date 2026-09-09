@@ -182,6 +182,7 @@ function convertDeps(
     findProspectByNameAndCity: async () => null,
     findProspectByWebsite: async () => null,
     findOriginProspectByListingId: async () => null,
+    findReleasedLinkForListing: async () => null,
     createProspect: async (input) => {
       const row = prospect({
         business_name: input.business_name,

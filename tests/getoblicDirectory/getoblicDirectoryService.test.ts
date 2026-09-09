@@ -3,15 +3,19 @@ import "./getoblicDirectoryTestEnv";
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
+import type { GetOblicListingLink } from "../../services/getoblicDirectory/getoblicDirectoryTypes";
 import {
   determineGetOblicListingClaimAvailability,
+  findLatestReleasedGetOblicLinkForListing,
   getActiveGetOblicClaimByWordPressListingId,
   getActiveGetOblicClaimOrganizationIdsByWordPressListingIds,
   getActiveGetOblicLinkForProspect,
   getGetOblicAllocationUsage,
   getGetOblicListingCapacity,
   getGetOblicDirectorySettings,
+  getGetOblicProspectLinkPresence,
   hasOrganizationAlreadyConsumedListing,
+  selectLatestReleasedGetOblicLink,
 } from "../../services/getoblicDirectory/getoblicDirectoryService";
 
 const originalFrom = supabaseAdmin.from.bind(supabaseAdmin);
@@ -511,5 +515,128 @@ describe("GetOblic claim lookup and availability (service)", () => {
     );
     assert.ok(lookup);
     assert.equal("organization_id" in (lookup?.filters ?? {}), false);
+  });
+});
+
+describe("GetOblic released-link reclaim lookup", () => {
+  it("selects the latest released row by released_at then created_at", () => {
+    const older = completeLink({
+      id: "released-old",
+      organization_id: ORG_A,
+      prospect_id: PROSPECT_A,
+      wordpress_listing_id: 4401,
+      relationship_status: "released",
+      released_at: "2026-07-01T00:00:00.000Z",
+      created_at: "2026-07-01T00:00:00.000Z",
+    });
+    const newerCreated = completeLink({
+      id: "released-newer-created",
+      organization_id: ORG_A,
+      prospect_id: PROSPECT_B,
+      wordpress_listing_id: 4401,
+      relationship_status: "released",
+      released_at: "2026-08-01T00:00:00.000Z",
+      created_at: "2026-08-02T00:00:00.000Z",
+    });
+    const newerReleased = completeLink({
+      id: "released-newer",
+      organization_id: ORG_A,
+      prospect_id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      wordpress_listing_id: 4401,
+      relationship_status: "released",
+      released_at: "2026-08-01T00:00:00.000Z",
+      created_at: "2026-08-01T00:00:00.000Z",
+    });
+    const selected = selectLatestReleasedGetOblicLink(
+      [older, newerReleased, newerCreated] as GetOblicListingLink[],
+    );
+    assert.equal(selected?.id, "released-newer-created");
+    assert.equal(selected?.prospect_id, PROSPECT_B);
+  });
+
+  it("returns only same-org released history for a listing", async () => {
+    const { calls } = installFixture({
+      links: [
+        completeLink({
+          id: "released-own",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 4401,
+          relationship_status: "released",
+          released_at: "2026-08-01T00:00:00.000Z",
+        }),
+        completeLink({
+          id: "released-other",
+          organization_id: ORG_B,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 4401,
+          relationship_status: "released",
+          released_at: "2026-09-01T00:00:00.000Z",
+        }),
+        completeLink({
+          id: "linked-own",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 4401,
+          relationship_status: "linked",
+        }),
+      ],
+    });
+
+    const link = await findLatestReleasedGetOblicLinkForListing(ORG_A, 4401);
+    assert.ok(link);
+    assert.equal(link?.id, "released-own");
+    assert.equal(link?.organization_id, ORG_A);
+    assert.equal(link?.prospect_id, PROSPECT_A);
+    const lookup = calls.find(
+      (call) => call.table === "athena_getoblic_listing_links",
+    );
+    assert.equal(lookup?.filters.organization_id, ORG_A);
+    assert.equal(lookup?.filters.wordpress_listing_id, 4401);
+    assert.equal(lookup?.filters.relationship_status, "released");
+  });
+});
+
+describe("GetOblic library link presence", () => {
+  it("classifies history vs active relationships for library filtering", async () => {
+    const { calls } = installFixture({
+      links: [
+        completeLink({
+          id: "linked",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 10,
+          relationship_status: "linked",
+        }),
+        completeLink({
+          id: "released",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 11,
+          relationship_status: "released",
+        }),
+        completeLink({
+          id: "other-org",
+          organization_id: ORG_B,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 12,
+          relationship_status: "linked",
+        }),
+      ],
+    });
+
+    const presence = await getGetOblicProspectLinkPresence(ORG_A, [
+      PROSPECT_A,
+      PROSPECT_B,
+      "dddddddd-dddd-dddd-dddd-dddddddddddd",
+    ]);
+    assert.equal(presence.historyProspectIds.has(PROSPECT_A), true);
+    assert.equal(presence.activeProspectIds.has(PROSPECT_A), true);
+    assert.equal(presence.historyProspectIds.has(PROSPECT_B), true);
+    assert.equal(presence.activeProspectIds.has(PROSPECT_B), false);
+    const lookup = calls.find(
+      (call) => call.table === "athena_getoblic_listing_links",
+    );
+    assert.equal(lookup?.filters.organization_id, ORG_A);
   });
 });

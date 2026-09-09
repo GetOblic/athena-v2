@@ -19,6 +19,7 @@ import {
   type ClaimListingVerification,
 } from "@/services/getoblicDirectory/getoblicDirectoryClaimService";
 import {
+  findLatestReleasedGetOblicLinkForListing,
   getActiveGetOblicClaimByWordPressListingId,
   getGetOblicAllocationUsage,
   getGetOblicDirectorySettings,
@@ -28,6 +29,7 @@ import { googleBusinessIdsEqual } from "@/services/getoblicDirectory/getoblicGoo
 import {
   isGetOblicInventoryPoolAuthor,
   type ActiveGetOblicRelationshipStatus,
+  type GetOblicListingLink,
 } from "@/services/getoblicDirectory/getoblicDirectoryTypes";
 import {
   getWordpressListingById,
@@ -126,6 +128,10 @@ export type GetOblicConvertDependencies = {
     organizationId: string,
     wordpressListingId: number,
   ) => Promise<Prospect | null>;
+  findReleasedLinkForListing: (
+    organizationId: string,
+    wordpressListingId: number,
+  ) => Promise<GetOblicListingLink | null>;
   createProspect: typeof createProspect;
   updateProspect: typeof updateProspect;
   deleteProspect: typeof deleteProspect;
@@ -143,6 +149,7 @@ const defaultDependencies: GetOblicConvertDependencies = {
   findProspectByNameAndCity,
   findProspectByWebsite,
   findOriginProspectByListingId: findGetOblicOriginProspectByListingId,
+  findReleasedLinkForListing: findLatestReleasedGetOblicLinkForListing,
   createProspect,
   updateProspect,
   deleteProspect,
@@ -405,6 +412,32 @@ export function mergeGetOblicWebsiteAttribution(
   return existing;
 }
 
+async function resolveReleasedLinkProspect(args: {
+  organizationId: string;
+  releasedLink: GetOblicListingLink | null;
+  dependencies: Pick<GetOblicConvertDependencies, "getProspectById">;
+}): Promise<Prospect | null> {
+  const link = args.releasedLink;
+  if (!link) {
+    return null;
+  }
+  if (
+    link.organization_id !== args.organizationId ||
+    link.relationship_status !== "released"
+  ) {
+    return null;
+  }
+
+  const prospect = await args.dependencies.getProspectById(
+    link.prospect_id,
+    args.organizationId,
+  );
+  if (!prospect || prospect.organization_id !== args.organizationId) {
+    return null;
+  }
+  return prospect;
+}
+
 export async function findGetOblicOriginProspectByListingId(
   organizationId: string,
   wordpressListingId: number,
@@ -473,8 +506,12 @@ export async function convertGetOblicDirectoryListing(
     return emptyResult("settings_missing");
   }
 
-  const [usage, originProspect] = await Promise.all([
+  const [usage, releasedLink, originProspect] = await Promise.all([
     dependencies.getAllocationUsage(organizationId, input.now),
+    dependencies.findReleasedLinkForListing(
+      organizationId,
+      wordpressListingId,
+    ),
     dependencies.findOriginProspectByListingId(
       organizationId,
       wordpressListingId,
@@ -483,6 +520,25 @@ export async function convertGetOblicDirectoryListing(
 
   if (usage.configured && usage.available <= 0) {
     return emptyResult("capacity_exceeded");
+  }
+
+  const reclaimedProspect = await resolveReleasedLinkProspect({
+    organizationId,
+    releasedLink,
+    dependencies,
+  });
+  if (reclaimedProspect) {
+    return finishExistingProspect({
+      organizationId,
+      wordpressListingId,
+      prospect: reclaimedProspect,
+      listing: null,
+      observed,
+      created: false,
+      input,
+      dependencies,
+      wordpress,
+    });
   }
 
   if (originProspect) {

@@ -175,6 +175,7 @@ function deps(
     findProspectByNameAndCity: async () => null,
     findProspectByWebsite: async () => null,
     findOriginProspectByListingId: async () => null,
+    findReleasedLinkForListing: async () => null,
     createProspect: async (input) => {
       const row = prospect({
         business_name: input.business_name,
@@ -402,6 +403,131 @@ describe("GetOblic directory convert orchestration", () => {
     assert.equal(port.claimed.length, 1);
   });
 
+  it("reclaims the exact same-org Prospect from released link history", async () => {
+    const discussionId = "discussion-original";
+    const existing = prospect({
+      id: PROSPECT_A,
+      linked_discussion_id: discussionId,
+      website_intelligence: { summary: "preserved" },
+    });
+    const historical = link({
+      id: "released-historical",
+      prospect_id: PROSPECT_A,
+      relationship_status: "released",
+      released_at: "2026-08-01T00:00:00.000Z",
+    });
+    const updates: Array<Record<string, unknown>> = [];
+    const port = deps({
+      findReleasedLinkForListing: async () => historical,
+      findOriginProspectByListingId: async () =>
+        prospect({ id: PROSPECT_B, business_name: "Origin Fallback" }),
+      getProspectById: async (id) => (id === PROSPECT_A ? existing : null),
+      updateProspect: async (id, _organizationId, input) => {
+        updates.push(input as Record<string, unknown>);
+        return prospect({ ...existing, ...input, id });
+      },
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "reused");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(result.generation_queued, false);
+    assert.equal(result.allocated, true);
+    assert.equal(port.created.length, 0);
+    assert.equal(port.queued.length, 0);
+    assert.equal(port.claimed.length, 1);
+    assert.equal(
+      (port.claimed[0] as { prospectId?: string }).prospectId,
+      PROSPECT_A,
+    );
+    assert.equal(existing.linked_discussion_id, discussionId);
+    assert.deepEqual(existing.website_intelligence, { summary: "preserved" });
+    assert.equal(
+      updates.some((patch) => "linked_discussion_id" in patch),
+      false,
+    );
+    assert.equal(
+      updates.some((patch) => "website_intelligence" in patch),
+      false,
+    );
+  });
+
+  it("does not reuse another organization's released Prospect", async () => {
+    const foreign = link({
+      id: "released-other-org",
+      organization_id: ORG_B,
+      prospect_id: PROSPECT_B,
+      relationship_status: "released",
+      released_at: "2026-08-01T00:00:00.000Z",
+    });
+    const port = deps({
+      findReleasedLinkForListing: async () => foreign,
+      getProspectById: async () =>
+        prospect({
+          id: PROSPECT_B,
+          organization_id: ORG_B,
+        }),
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "created");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(port.created.length, 1);
+    assert.notEqual(port.created[0].id, PROSPECT_B);
+    assert.notEqual(port.created[0].organization_id, ORG_B);
+  });
+
+  it("keeps an active other-org claim unavailable even with same-org released history", async () => {
+    const port = deps({
+      getActiveListingClaim: async () => ({
+        found: true,
+        organization_id: ORG_B,
+        prospect_id: PROSPECT_B,
+        relationship_status: "linked",
+      }),
+      findReleasedLinkForListing: async () =>
+        link({
+          id: "released-own",
+          prospect_id: PROSPECT_A,
+          relationship_status: "released",
+          released_at: "2026-08-01T00:00:00.000Z",
+        }),
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "unavailable");
+    assert.equal(result.prospect_id, null);
+    assert.equal(port.created.length, 0);
+    assert.equal(port.claimed.length, 0);
+  });
+
+  it("still consumes capacity on same-org reclaim and does not queue generation", async () => {
+    const existing = prospect({
+      id: PROSPECT_A,
+      linked_discussion_id: "discussion-original",
+    });
+    const port = deps({
+      getAllocationUsage: async () => ({
+        configured: true,
+        listingCapacity: 2,
+        currentlyHeld: 1,
+        available: 1,
+      }),
+      findReleasedLinkForListing: async () =>
+        link({
+          id: "released-historical",
+          prospect_id: PROSPECT_A,
+          relationship_status: "released",
+          released_at: "2026-08-01T00:00:00.000Z",
+        }),
+      getProspectById: async () => existing,
+    });
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "reused");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(result.allocated, true);
+    assert.equal(result.generation_queued, false);
+    assert.equal(port.queued.length, 0);
+    assert.equal(port.created.length, 0);
+  });
+
   it("resolves a same-org claim race to the winning Prospect", async () => {
     const winner = prospect({ id: PROSPECT_B, business_name: "Winner" });
     let lookups = 0;
@@ -544,6 +670,13 @@ describe("GetOblic directory convert orchestration", () => {
         available: 0,
       }),
       hasAlreadyConsumedListing: async () => true,
+      findReleasedLinkForListing: async () =>
+        link({
+          id: "released-historical",
+          prospect_id: PROSPECT_B,
+          relationship_status: "released",
+          released_at: "2026-08-01T00:00:00.000Z",
+        }),
       findOriginProspectByListingId: async () => prospect({ id: PROSPECT_B }),
     });
     const result = await convertGetOblicDirectoryListing(convertInput(), port);
@@ -927,6 +1060,22 @@ describe("GetOblic concurrent conversion persistence", () => {
             row.source === GETOBLIC_PROSPECT_SOURCE &&
             Number(row.raw_json?.wordpress_listing_id) === listingId,
         ) ?? null,
+      findReleasedLinkForListing: async (organizationId, listingId) => {
+        const released = links.filter(
+          (row) =>
+            row.organization_id === organizationId &&
+            row.wordpress_listing_id === listingId &&
+            row.relationship_status === "released",
+        );
+        if (released.length === 0) return null;
+        return [...released].sort((left, right) => {
+          const releasedAt = String(right.released_at ?? "").localeCompare(
+            String(left.released_at ?? ""),
+          );
+          if (releasedAt !== 0) return releasedAt;
+          return String(right.created_at).localeCompare(String(left.created_at));
+        })[0] ?? null;
+      },
       findProspectByNameAndCity: async (organizationId, name, city) =>
         prospects.find(
           (row) =>
@@ -1798,5 +1947,17 @@ describe("GetOblic directory convert source contract", () => {
     assert.doesNotMatch(service, /type GetOblicProspect\b/);
     assert.doesNotMatch(service, /create table/i);
     assert.doesNotMatch(service, /from\("getoblic_prospects"\)/);
+  });
+
+  it("treats released-link history as authoritative reclaim before origin fallback", () => {
+    const service = read(
+      "services/getoblicDirectory/getoblicDirectoryConvertService.ts",
+    );
+    const page = read("app/prospects/page.tsx");
+    assert.match(service, /findReleasedLinkForListing/);
+    assert.match(service, /resolveReleasedLinkProspect/);
+    assert.match(service, /findOriginProspectByListingId/);
+    assert.match(page, /loadProspectsForLibrary/);
+    assert.doesNotMatch(page, /getProspects\(/);
   });
 });

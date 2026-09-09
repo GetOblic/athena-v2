@@ -22,7 +22,11 @@ import {
   normalizeProspectLifecycleStatus,
   type ProspectLifecycleStatus,
 } from "@/services/prospects/prospectLifecycle";
-import type { Prospect } from "@/services/prospects/prospectService";
+import {
+  getProspects,
+  type Prospect,
+} from "@/services/prospects/prospectService";
+import { getGetOblicProspectLinkPresence } from "@/services/getoblicDirectory/getoblicDirectoryService";
 
 export type ProspectLibraryRow = Prospect & {
   /** Intelligence readiness (Queued / Ready / …). */
@@ -46,6 +50,41 @@ function isCompleteCurrentVersionRow(row: {
   const cta = row.intelligence?.analysis?.suggested_cta ?? "";
   return isCompleteProspectDeploymentAssetSet(
     extractProspectDeploymentAssetKeys(cta),
+  );
+}
+
+export function excludeReleasedOnlyGetOblicProspectsFromLibrary<
+  T extends { id: string },
+>(
+  prospects: readonly T[],
+  presence: {
+    historyProspectIds: ReadonlySet<string>;
+    activeProspectIds: ReadonlySet<string>;
+  },
+): T[] {
+  return prospects.filter((prospect) => {
+    if (!presence.historyProspectIds.has(prospect.id)) {
+      return true;
+    }
+    return presence.activeProspectIds.has(prospect.id);
+  });
+}
+
+/**
+ * /prospects library loader. Leaves shared getProspects() unchanged so
+ * Estimate, Ads, and Social Planner selectors keep all-org semantics.
+ */
+export async function loadProspectsForLibrary(
+  organizationId: string,
+): Promise<ProspectLibraryRow[]> {
+  const prospects = await getProspects(organizationId);
+  const presence = await getGetOblicProspectLinkPresence(
+    organizationId,
+    prospects.map((prospect) => prospect.id),
+  );
+  return enrichProspectsForLibrary(
+    excludeReleasedOnlyGetOblicProspectsFromLibrary(prospects, presence),
+    organizationId,
   );
 }
 
