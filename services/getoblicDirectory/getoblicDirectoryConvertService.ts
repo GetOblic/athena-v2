@@ -34,6 +34,7 @@ import {
 import {
   GetOblicWordpressError,
   type GetOblicWordpressListing,
+  type GetOblicWordpressSocialLink,
   type GetOblicWordpressTaxonomyTerm,
   type GetOblicWordpressWorkHours,
 } from "@/services/getoblicDirectory/getoblicWordpressTypes";
@@ -42,6 +43,7 @@ import {
   createProspect,
   deleteProspect,
   findProspectByNameAndCity,
+  findProspectByWebsite,
   getProspectById,
   updateProspect,
   type Prospect,
@@ -111,6 +113,7 @@ export type GetOblicConvertDependencies = {
   getListingById: typeof getWordpressListingById;
   getProspectById: typeof getProspectById;
   findProspectByNameAndCity: typeof findProspectByNameAndCity;
+  findProspectByWebsite: typeof findProspectByWebsite;
   findOriginProspectByListingId: (
     organizationId: string,
     wordpressListingId: number,
@@ -130,6 +133,7 @@ const defaultDependencies: GetOblicConvertDependencies = {
   getListingById: getWordpressListingById,
   getProspectById,
   findProspectByNameAndCity,
+  findProspectByWebsite,
   findOriginProspectByListingId: findGetOblicOriginProspectByListingId,
   createProspect,
   updateProspect,
@@ -304,7 +308,6 @@ export function isDisposableLosingConversionProspect(input: {
   if (input.hasActiveGetOblicClaim) return false;
   if (input.loser.source !== GETOBLIC_PROSPECT_SOURCE) return false;
   if (input.loser.status !== "Saved") return false;
-  if (normalizeWebsiteUrl(input.loser.website)) return false;
   if (input.loser.linked_discussion_id) return false;
   if (input.loser.website_intelligence) return false;
   return isSameGetOblicListingIdentity(input.loser, input.wordpressListingId);
@@ -333,7 +336,13 @@ export function buildGetOblicProspectProvenance(input: {
       region: sanitizeListingRegion(listing?.region),
       address: imported.address,
       phone: imported.phone,
-      whatsapp: compactText(listing?.whatsapp, 120),
+      whatsapp: imported.whatsapp,
+      website: imported.website,
+      email: imported.email,
+      facebook: imported.facebook,
+      instagram: imported.instagram,
+      linkedin: imported.linkedin,
+      social: sanitizeListingSocial(listing?.social),
       location_display: input.observed.location_display,
       lat: listing?.lat ?? input.observed.lat,
       lng: listing?.lng ?? input.observed.lng,
@@ -365,7 +374,13 @@ export function buildGetOblicProspectProvenance(input: {
       google_business_url: input.googleBusinessUrl
         ? "getoblic_listing_detail"
         : null,
-      website: null,
+      website: imported.website ? "getoblic_listing_detail" : null,
+      email: imported.email ? "getoblic_listing_detail" : null,
+      facebook: imported.facebook ? "getoblic_listing_detail" : null,
+      instagram: imported.instagram ? "getoblic_listing_detail" : null,
+      linkedin: imported.linkedin ? "getoblic_listing_detail" : null,
+      whatsapp: imported.whatsapp ? "getoblic_listing_detail" : null,
+      timezone: imported.timezone ? "getoblic_listing_detail" : null,
     },
   };
 }
@@ -532,27 +547,15 @@ export async function convertGetOblicDirectoryListing(
 
   let created: Prospect;
   try {
-    const persisted = await dependencies.createProspect({
-      organization_id: organizationId,
-      user_id: input.actorUserId,
-      business_name: businessName,
-      website: null,
-      category: imported.category,
-      phone: imported.phone,
-      address: imported.address,
-      source: GETOBLIC_PROSPECT_SOURCE,
-      getoblic_type: null,
-      google_business_url: imported.googleBusinessUrl,
-      status: "Saved",
-      raw_json: provenance,
+    created = await persistConvertedProspect({
+      organizationId,
+      actorUserId: input.actorUserId,
+      businessName,
+      imported,
+      provenance,
+      persistWebsite: true,
+      dependencies,
     });
-    if (!persisted) {
-      throw new GetOblicDirectoryError(
-        "GETOBLIC_CONCURRENCY_CONFLICT",
-        "Athena couldn’t add this business. Try again.",
-      );
-    }
-    created = persisted;
   } catch (error) {
     if (error instanceof GetOblicDirectoryError) {
       throw error;
@@ -564,6 +567,8 @@ export async function convertGetOblicDirectoryListing(
         businessName,
         listing,
         observed,
+        imported,
+        persistWebsite: true,
         input,
         dependencies,
         wordpress,
@@ -647,11 +652,13 @@ async function resolveCreateRace(args: {
   businessName: string;
   listing: GetOblicWordpressListing;
   observed: GetOblicConvertObservedSnapshot;
+  imported: GetOblicListingImportFields;
+  persistWebsite: boolean;
   input: GetOblicConvertInput;
   dependencies: GetOblicConvertDependencies;
   wordpress?: ClaimKnownListingWordpressPort;
 }): Promise<GetOblicConvertResult> {
-  const [origin, nameMatch, activeClaim] = await Promise.all([
+  const [origin, nameMatch, websiteMatch, activeClaim] = await Promise.all([
     args.dependencies.findOriginProspectByListingId(
       args.organizationId,
       args.wordpressListingId,
@@ -661,6 +668,12 @@ async function resolveCreateRace(args: {
       args.businessName,
       null,
     ),
+    args.imported.website
+      ? args.dependencies.findProspectByWebsite(
+          args.organizationId,
+          args.imported.website,
+        )
+      : Promise.resolve(null),
     args.dependencies.getActiveListingClaim(args.wordpressListingId),
   ]);
 
@@ -679,12 +692,15 @@ async function resolveCreateRace(args: {
     }
   }
 
-  const candidate = origin ?? nameMatch;
-  if (candidate && isSameGetOblicListingIdentity(candidate, args.wordpressListingId)) {
+  const sameListingCandidate = [origin, nameMatch, websiteMatch].find(
+    (row): row is Prospect =>
+      row != null && isSameGetOblicListingIdentity(row, args.wordpressListingId),
+  );
+  if (sameListingCandidate) {
     return finishExistingProspect({
       organizationId: args.organizationId,
       wordpressListingId: args.wordpressListingId,
-      prospect: candidate,
+      prospect: sameListingCandidate,
       listing: args.listing,
       observed: args.observed,
       created: false,
@@ -694,7 +710,54 @@ async function resolveCreateRace(args: {
     });
   }
 
-  if (candidate) {
+  if (
+    args.persistWebsite &&
+    args.imported.website &&
+    websiteMatch &&
+    !isSameGetOblicListingIdentity(websiteMatch, args.wordpressListingId)
+  ) {
+    try {
+      const created = await persistConvertedProspect({
+        organizationId: args.organizationId,
+        actorUserId: args.input.actorUserId,
+        businessName: args.businessName,
+        imported: args.imported,
+        provenance: buildGetOblicProspectProvenance({
+          wordpressListingId: args.wordpressListingId,
+          observed: args.observed,
+          listing: args.listing,
+          googleBusinessUrl: args.imported.googleBusinessUrl,
+          category: args.imported.category,
+        }),
+        persistWebsite: false,
+        dependencies: args.dependencies,
+      });
+      return finishExistingProspect({
+        organizationId: args.organizationId,
+        wordpressListingId: args.wordpressListingId,
+        prospect: created,
+        listing: args.listing,
+        observed: args.observed,
+        created: true,
+        input: args.input,
+        dependencies: args.dependencies,
+        wordpress: args.wordpress,
+      });
+    } catch (error) {
+      if (error instanceof GetOblicDirectoryError) {
+        throw error;
+      }
+      if (isPostgresUniqueViolation(error as { code?: string; message?: string })) {
+        return resolveCreateRace({
+          ...args,
+          persistWebsite: false,
+        });
+      }
+      throw error;
+    }
+  }
+
+  if (nameMatch) {
     return emptyResult("name_collision");
   }
 
@@ -912,7 +975,12 @@ async function finalizeAfterClaim(args: {
     args.dependencies,
   );
   const imported = resolveGetOblicListingImport(listing, args.observed);
-  const fillEmpty = buildReuseFillEmptyPatch(prospect, imported);
+  const fillEmpty = await omitCollidingImportedWebsite({
+    organizationId: args.organizationId,
+    prospectId: prospect.id,
+    fillEmpty: buildReuseFillEmptyPatch(prospect, imported),
+    dependencies: args.dependencies,
+  });
   const provenance = mergeGetOblicListingProvenance(
     prospect.raw_json,
     buildGetOblicProspectProvenance({
@@ -924,14 +992,13 @@ async function finalizeAfterClaim(args: {
     }),
   );
 
-  const updated = await args.dependencies.updateProspect(
-    prospect.id,
-    args.organizationId,
-    {
-      ...fillEmpty,
-      raw_json: provenance,
-    },
-  );
+  const updated = await persistImportedProspectFields({
+    prospectId: prospect.id,
+    organizationId: args.organizationId,
+    fillEmpty,
+    provenance,
+    dependencies: args.dependencies,
+  });
   if (updated) {
     prospect = updated;
   }
@@ -1228,6 +1295,14 @@ type GetOblicListingImportFields = {
   address: string | null;
   category: string | null;
   googleBusinessUrl: string | null;
+  website: string | null;
+  observedWebsite: string | null;
+  email: string | null;
+  facebook: string | null;
+  instagram: string | null;
+  linkedin: string | null;
+  whatsapp: string | null;
+  timezone: string | null;
 };
 
 function resolveGetOblicListingImport(
@@ -1235,6 +1310,7 @@ function resolveGetOblicListingImport(
   observed: GetOblicConvertObservedSnapshot,
 ): GetOblicListingImportFields {
   const listingCategories = sanitizeListingCategories(listing?.category);
+  const observedWebsite = compactText(listing?.website, URL_MAX);
   return {
     phone: compactText(listing?.phone, 120),
     address: compactText(listing?.address),
@@ -1244,24 +1320,103 @@ function resolveGetOblicListingImport(
     googleBusinessUrl:
       compactText(listing?.google_place_url, URL_MAX) ??
       compactText(observed.google_place_url, URL_MAX),
+    website: resolveImportedWebsite(observedWebsite, listing, observed),
+    observedWebsite,
+    email: compactEmail(listing?.email),
+    facebook: compactText(listing?.facebook, URL_MAX),
+    instagram: compactText(listing?.instagram, URL_MAX),
+    linkedin: compactText(listing?.linkedin, URL_MAX),
+    whatsapp: compactText(listing?.whatsapp, 120),
+    timezone: compactText(listing?.timezone, 120),
   };
 }
 
-function buildReuseFillEmptyPatch(
-  prospect: Pick<Prospect, "phone" | "address" | "category" | "google_business_url">,
-  imported: GetOblicListingImportFields,
-): {
+function resolveImportedWebsite(
+  observedWebsite: string | null,
+  listing: GetOblicWordpressListing | null,
+  observed: GetOblicConvertObservedSnapshot,
+): string | null {
+  const normalized = observedWebsite
+    ? normalizeWebsiteUrl(observedWebsite)
+    : null;
+  if (!normalized) {
+    return null;
+  }
+  const permalink = compactText(observed.permalink, URL_MAX);
+  if (permalink && normalizeWebsiteUrl(permalink) === normalized) {
+    return null;
+  }
+  const googleUrl =
+    compactText(listing?.google_place_url, URL_MAX) ??
+    compactText(observed.google_place_url, URL_MAX);
+  if (googleUrl && normalizeWebsiteUrl(googleUrl) === normalized) {
+    return null;
+  }
+  try {
+    const parsed = new URL(normalized);
+    const host = parsed.hostname.replace(/^www\./i, "");
+    if (host === "getoblic.com" && /\/listing\//i.test(parsed.pathname)) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+  return normalized;
+}
+
+type GetOblicReuseFillEmptyPatch = {
+  website?: string;
+  email?: string;
+  facebook?: string;
+  instagram?: string;
+  linkedin?: string;
+  whatsapp_number?: string;
+  timezone?: string;
   phone?: string;
   address?: string;
   category?: string;
   google_business_url?: string;
-} {
-  const patch: {
-    phone?: string;
-    address?: string;
-    category?: string;
-    google_business_url?: string;
-  } = {};
+};
+
+function buildReuseFillEmptyPatch(
+  prospect: Pick<
+    Prospect,
+    | "website"
+    | "email"
+    | "facebook"
+    | "instagram"
+    | "linkedin"
+    | "whatsapp_number"
+    | "timezone"
+    | "phone"
+    | "address"
+    | "category"
+    | "google_business_url"
+  >,
+  imported: GetOblicListingImportFields,
+): GetOblicReuseFillEmptyPatch {
+  const patch: GetOblicReuseFillEmptyPatch = {};
+  if (isBlankProspectText(prospect.website) && imported.website) {
+    patch.website = imported.website;
+  }
+  if (isBlankProspectText(prospect.email) && imported.email) {
+    patch.email = imported.email;
+  }
+  if (isBlankProspectText(prospect.facebook) && imported.facebook) {
+    patch.facebook = imported.facebook;
+  }
+  if (isBlankProspectText(prospect.instagram) && imported.instagram) {
+    patch.instagram = imported.instagram;
+  }
+  if (isBlankProspectText(prospect.linkedin) && imported.linkedin) {
+    patch.linkedin = imported.linkedin;
+  }
+  if (isBlankProspectText(prospect.whatsapp_number) && imported.whatsapp) {
+    patch.whatsapp_number = imported.whatsapp;
+  }
+  if (isBlankProspectText(prospect.timezone) && imported.timezone) {
+    patch.timezone = imported.timezone;
+  }
   if (isBlankProspectText(prospect.phone) && imported.phone) {
     patch.phone = imported.phone;
   }
@@ -1278,6 +1433,101 @@ function buildReuseFillEmptyPatch(
     patch.google_business_url = imported.googleBusinessUrl;
   }
   return patch;
+}
+
+async function omitCollidingImportedWebsite(args: {
+  organizationId: string;
+  prospectId: string;
+  fillEmpty: GetOblicReuseFillEmptyPatch;
+  dependencies: GetOblicConvertDependencies;
+}): Promise<GetOblicReuseFillEmptyPatch> {
+  if (!args.fillEmpty.website) {
+    return args.fillEmpty;
+  }
+  const owner = await args.dependencies.findProspectByWebsite(
+    args.organizationId,
+    args.fillEmpty.website,
+  );
+  if (!owner || owner.id === args.prospectId) {
+    return args.fillEmpty;
+  }
+  const withoutWebsite = { ...args.fillEmpty };
+  delete withoutWebsite.website;
+  return withoutWebsite;
+}
+
+async function persistConvertedProspect(args: {
+  organizationId: string;
+  actorUserId: string | null;
+  businessName: string;
+  imported: GetOblicListingImportFields;
+  provenance: Record<string, unknown>;
+  persistWebsite: boolean;
+  dependencies: GetOblicConvertDependencies;
+}): Promise<Prospect> {
+  const persisted = await args.dependencies.createProspect({
+    organization_id: args.organizationId,
+    user_id: args.actorUserId,
+    business_name: args.businessName,
+    website: args.persistWebsite ? args.imported.website : null,
+    email: args.imported.email,
+    facebook: args.imported.facebook,
+    instagram: args.imported.instagram,
+    linkedin: args.imported.linkedin,
+    whatsapp_number: args.imported.whatsapp,
+    timezone: args.imported.timezone,
+    category: args.imported.category,
+    phone: args.imported.phone,
+    address: args.imported.address,
+    source: GETOBLIC_PROSPECT_SOURCE,
+    getoblic_type: null,
+    google_business_url: args.imported.googleBusinessUrl,
+    status: "Saved",
+    raw_json: args.provenance,
+  });
+  if (!persisted) {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_CONCURRENCY_CONFLICT",
+      "Athena couldn’t add this business. Try again.",
+    );
+  }
+  return persisted;
+}
+
+async function persistImportedProspectFields(args: {
+  prospectId: string;
+  organizationId: string;
+  fillEmpty: GetOblicReuseFillEmptyPatch;
+  provenance: Record<string, unknown>;
+  dependencies: GetOblicConvertDependencies;
+}): Promise<Prospect | null> {
+  try {
+    return await args.dependencies.updateProspect(
+      args.prospectId,
+      args.organizationId,
+      {
+        ...args.fillEmpty,
+        raw_json: args.provenance,
+      },
+    );
+  } catch (error) {
+    if (
+      !args.fillEmpty.website ||
+      !isPostgresUniqueViolation(error as { code?: string; message?: string })
+    ) {
+      throw error;
+    }
+    const withoutWebsite = { ...args.fillEmpty };
+    delete withoutWebsite.website;
+    return args.dependencies.updateProspect(
+      args.prospectId,
+      args.organizationId,
+      {
+        ...withoutWebsite,
+        raw_json: args.provenance,
+      },
+    );
+  }
 }
 
 function mergeGetOblicListingProvenance(
@@ -1411,6 +1661,27 @@ function sanitizeListingGallery(value: string[] | null | undefined): string[] {
   return urls;
 }
 
+function sanitizeListingSocial(
+  value: GetOblicWordpressSocialLink[] | null | undefined,
+): GetOblicWordpressSocialLink[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const links: GetOblicWordpressSocialLink[] = [];
+  for (const item of value) {
+    const network = compactText(item?.network, 80);
+    const url = compactText(item?.url, URL_MAX);
+    if (!network || !url) {
+      continue;
+    }
+    links.push({ network, url });
+    if (links.length >= 24) {
+      break;
+    }
+  }
+  return links;
+}
+
 function sanitizeListingTags(
   value: GetOblicWordpressTaxonomyTerm[] | null | undefined,
 ): GetOblicWordpressTaxonomyTerm[] {
@@ -1471,6 +1742,14 @@ function sanitizeObservedCategory(
     slug,
     name,
   };
+}
+
+function compactEmail(value: unknown): string | null {
+  const text = compactText(value, 300);
+  if (!text || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+    return null;
+  }
+  return text;
 }
 
 function compactText(value: unknown, max = TEXT_MAX): string | null {

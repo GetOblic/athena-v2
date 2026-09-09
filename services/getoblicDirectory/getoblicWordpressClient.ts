@@ -16,6 +16,7 @@ import {
   type GetOblicWordpressSearchHit,
   type GetOblicWordpressSearchRequest,
   type GetOblicWordpressSearchResponse,
+  type GetOblicWordpressSocialLink,
   type GetOblicWordpressTaxonomyTerm,
   type GetOblicWordpressUserResolution,
   type GetOblicWordpressWorkHours,
@@ -212,7 +213,27 @@ function parseListing(payload: unknown): GetOblicWordpressListing {
     listing_type: readNullableString(source, "listing_type"),
     category: parseListingCategories(source.category),
     tags: parseListingTags(source.tags),
+    website: readNullableString(source, "website"),
+    email: readNullableEmail(source, "email"),
+    facebook: readNullableString(source, "facebook"),
+    instagram: readNullableString(source, "instagram"),
+    linkedin: readNullableString(source, "linkedin"),
+    social: parseListingSocial(source.social),
   };
+}
+
+function readNullableEmail(
+  record: Record<string, unknown>,
+  key: string,
+): string | null {
+  const value = readNullableString(record, key);
+  if (!value) {
+    return null;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    return null;
+  }
+  return value;
 }
 
 function parseUserResolution(payload: unknown): GetOblicWordpressUserResolution {
@@ -414,6 +435,34 @@ function readWorkHours(value: unknown): GetOblicWordpressWorkHours {
   } catch {
     return null;
   }
+}
+
+const LISTING_SOCIAL_MAX = 24;
+
+function parseListingSocial(value: unknown): GetOblicWordpressSocialLink[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const links: GetOblicWordpressSocialLink[] = [];
+  for (const item of value) {
+    const record = asRecord(item);
+    if (!record) {
+      continue;
+    }
+    const network = readString(record, "network");
+    const url = readString(record, "url");
+    if (!network || !url) {
+      continue;
+    }
+    links.push({
+      network: network.slice(0, 80),
+      url: url.slice(0, 500),
+    });
+    if (links.length >= LISTING_SOCIAL_MAX) {
+      break;
+    }
+  }
+  return links;
 }
 
 function readUrlList(value: unknown): string[] {

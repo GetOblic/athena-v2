@@ -389,8 +389,15 @@ describe("GetOblic WordPress client operations", () => {
               { term_id: 9, slug: "hair-salons", name: "Hair Salons" },
             ],
             tags: ["Color", { term_id: 3, slug: "fade", name: "Fade" }],
-            website: "https://should-not-be-invented.example",
-            facebook: "https://facebook.com/should-not-parse",
+            website: "https://acme.example",
+            email: "hello@acme.example",
+            facebook: "https://facebook.com/acme",
+            instagram: "https://instagram.com/acme",
+            linkedin: "https://linkedin.com/company/acme",
+            social: [
+              { network: "facebook", url: "https://facebook.com/acme" },
+              { network: "youtube", url: "https://youtube.com/@acme" },
+            ],
             unknown_internal: "drop-me",
           },
         }),
@@ -427,9 +434,86 @@ describe("GetOblic WordPress client operations", () => {
     assert.equal(listing.category[0]?.name, "Hair Salons");
     assert.equal(listing.tags[0]?.name, "Color");
     assert.equal(listing.knowledge_base, "secret-notes");
-    assert.equal("website" in listing, false);
-    assert.equal("facebook" in listing, false);
+    assert.equal(listing.website, "https://acme.example");
+    assert.equal(listing.email, "hello@acme.example");
+    assert.equal(listing.facebook, "https://facebook.com/acme");
+    assert.equal(listing.instagram, "https://instagram.com/acme");
+    assert.equal(listing.linkedin, "https://linkedin.com/company/acme");
+    assert.deepEqual(listing.social, [
+      { network: "facebook", url: "https://facebook.com/acme" },
+      { network: "youtube", url: "https://youtube.com/@acme" },
+    ]);
     assert.equal("unknown_internal" in listing, false);
+  });
+
+  it("parses website, email, and social fields and fails closed on malformed values", async () => {
+    process.env.ATHENA_V2_DIRECTORY_API_KEY = "test-directory-key";
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify({
+          wordpress_listing_id: 1000,
+          status: "publish",
+          title: "Contact Parse",
+          author_id: 271519816,
+          google_id: null,
+          google_place_url: null,
+          knowledge_base: null,
+          website: "  https://salon.example  ",
+          email: "owner@salon.example",
+          facebook: "https://facebook.com/salon",
+          instagram: "https://instagram.com/salon",
+          linkedin: "https://linkedin.com/company/salon",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    const { getWordpressListingById } = await import(
+      "../../services/getoblicDirectory/getoblicWordpressClient"
+    );
+    const listing = await getWordpressListingById(1000);
+    assert.equal(listing.website, "https://salon.example");
+    assert.equal(listing.email, "owner@salon.example");
+    assert.equal(listing.facebook, "https://facebook.com/salon");
+    assert.equal(listing.instagram, "https://instagram.com/salon");
+    assert.equal(listing.linkedin, "https://linkedin.com/company/salon");
+  });
+
+  it("ignores unknown listing keys and nulls malformed contact values", async () => {
+    process.env.ATHENA_V2_DIRECTORY_API_KEY = "test-directory-key";
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify({
+          wordpress_listing_id: 1000,
+          status: "publish",
+          title: "Bad Contact",
+          author_id: 271519816,
+          google_id: null,
+          google_place_url: null,
+          knowledge_base: null,
+          website: { href: "https://bad.example" },
+          email: "not-an-email",
+          facebook: ["https://facebook.com/bad"],
+          instagram: { url: "https://instagram.com/bad" },
+          linkedin: 9,
+          social: [{ network: "tiktok" }, "nope"],
+          mystery_key: "drop-me",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    const { getWordpressListingById } = await import(
+      "../../services/getoblicDirectory/getoblicWordpressClient"
+    );
+    const listing = await getWordpressListingById(1000);
+    assert.equal(listing.website, null);
+    assert.equal(listing.email, null);
+    assert.equal(listing.facebook, null);
+    assert.equal(listing.instagram, null);
+    assert.equal(listing.linkedin, null);
+    assert.deepEqual(listing.social, []);
+    assert.equal("mystery_key" in listing, false);
   });
 
   it("fails safely on malformed optional listing detail fields", async () => {
@@ -461,6 +545,11 @@ describe("GetOblic WordPress client operations", () => {
           listing_type: { slug: "barbershop" },
           category: "Hair Salons",
           tags: { name: 9 },
+          website: ["https://bad.example"],
+          email: { address: "nope@example.com" },
+          facebook: { url: "https://facebook.com/nope" },
+          instagram: 0,
+          linkedin: { href: "https://linkedin.com/nope" },
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
@@ -489,5 +578,10 @@ describe("GetOblic WordPress client operations", () => {
     assert.equal(listing.listing_type, null);
     assert.deepEqual(listing.category, []);
     assert.deepEqual(listing.tags, []);
+    assert.equal(listing.website, null);
+    assert.equal(listing.email, null);
+    assert.equal(listing.facebook, null);
+    assert.equal(listing.instagram, null);
+    assert.equal(listing.linkedin, null);
   });
 });

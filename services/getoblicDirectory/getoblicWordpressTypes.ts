@@ -49,6 +49,11 @@ export type GetOblicWordpressWorkHours =
   | unknown[]
   | null;
 
+export type GetOblicWordpressSocialLink = {
+  network: string;
+  url: string;
+};
+
 export type GetOblicWordpressListing = {
   wordpress_listing_id: number;
   status: string | null;
@@ -74,6 +79,12 @@ export type GetOblicWordpressListing = {
   listing_type?: string | null;
   category?: GetOblicWordpressSearchCategory[];
   tags?: GetOblicWordpressTaxonomyTerm[];
+  website?: string | null;
+  email?: string | null;
+  facebook?: string | null;
+  instagram?: string | null;
+  linkedin?: string | null;
+  social?: GetOblicWordpressSocialLink[];
 };
 
 export type GetOblicWordpressUserResolution = {
