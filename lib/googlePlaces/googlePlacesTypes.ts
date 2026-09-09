@@ -38,14 +38,18 @@ export type GoogleBusinessPayload = {
   tags?: string;
   business_phone?: string;
   website?: string;
-  opening_hours?: string;
-  opening_hours_json?: string;
+  opening_hours: string;
+  opening_hours_json: string;
   timezone?: string;
 };
 
+export const GOOGLE_BUSINESS_EMPTY_OPENING_HOURS_JSON = JSON.stringify({
+  periods: [],
+});
+
 export type GoogleBusinessOptionalField = Exclude<
   keyof GoogleBusinessPayload,
-  "action" | "company_name" | "google_id"
+  "action" | "company_name" | "google_id" | "opening_hours" | "opening_hours_json"
 >;
 
 export const GOOGLE_BUSINESS_OPTIONAL_FIELDS = [
@@ -61,8 +65,6 @@ export const GOOGLE_BUSINESS_OPTIONAL_FIELDS = [
   "tags",
   "business_phone",
   "website",
-  "opening_hours",
-  "opening_hours_json",
   "timezone",
 ] as const satisfies readonly GoogleBusinessOptionalField[];
 

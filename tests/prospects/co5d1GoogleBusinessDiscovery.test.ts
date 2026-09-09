@@ -85,9 +85,11 @@ function validPayload(overrides: Record<string, unknown> = {}) {
     business_phone: "+1 214-555-0100",
     website: "https://oak.example",
     opening_hours: "Monday: 9:00 AM – 5:00 PM | Tuesday: 9:00 AM – 5:00 PM",
-    opening_hours_json: JSON.stringify([
-      { open: { day: 1, time: "0900" }, close: { day: 1, time: "1700" } },
-    ]),
+    opening_hours_json: JSON.stringify({
+      periods: [
+        { open: { day: 1, time: "0900" }, close: { day: 1, time: "1700" } },
+      ],
+    }),
     timezone: "-300",
     ...overrides,
   };
@@ -219,9 +221,11 @@ describe("CO-5D1 Google loader and payload", () => {
     );
     assert.equal(
       payload.opening_hours_json,
-      JSON.stringify([
-        { open: { day: 1, time: "0900" }, close: { day: 1, time: "1700" } },
-      ]),
+      JSON.stringify({
+        periods: [
+          { open: { day: 1, time: "0900" }, close: { day: 1, time: "1700" } },
+        ],
+      }),
     );
     assert.equal(payload.timezone, "-300");
     assert.equal(
@@ -232,6 +236,24 @@ describe("CO-5D1 Google loader and payload", () => {
       flattenGoogleBusinessPlace({ place_id: "abc" }),
       null,
     );
+  });
+
+  it("flattens missing weekday_text and periods to empty Make hours fields", () => {
+    const withoutHours = flattenGoogleBusinessPlace({
+      ...placeFixture(),
+      opening_hours: undefined,
+    });
+    assert.ok(withoutHours);
+    assert.equal(withoutHours.opening_hours, "");
+    assert.equal(withoutHours.opening_hours_json, '{"periods":[]}');
+
+    const emptyHours = flattenGoogleBusinessPlace({
+      ...placeFixture(),
+      opening_hours: {},
+    });
+    assert.ok(emptyHours);
+    assert.equal(emptyHours.opening_hours, "");
+    assert.equal(emptyHours.opening_hours_json, '{"periods":[]}');
   });
 });
 
@@ -246,6 +268,7 @@ describe("CO-5D1 security and D1 boundaries", () => {
       assert.doesNotMatch(source, /organization_id\s*:/);
       assert.doesNotMatch(source, /licensee_id\s*:/);
       assert.doesNotMatch(source, /licenseeAccountId/);
+      assert.doesNotMatch(source, /funnel_name/);
     }
     const google = read("components/prospects/GoogleBusinessDiscovery.tsx");
     assert.match(google, /JSON\.stringify\(selected\)/);
@@ -289,6 +312,7 @@ describe("CO-5D1 server Make integration", () => {
         organizationId: ORG_A,
         licensee_id: "lic-1",
         extra: "drop-me",
+        funnel_name: "browser-override",
       }),
     );
     assert.equal(sanitized.action, GOOGLE_BUSINESS_ADD_ACTION);
@@ -296,6 +320,7 @@ describe("CO-5D1 server Make integration", () => {
     assert.equal(sanitized.google_id, "ChIJexamplePlace");
     assert.equal(Object.hasOwn(sanitized, "author_id"), false);
     assert.equal(Object.hasOwn(sanitized, "organization_id"), false);
+    assert.equal(Object.hasOwn(sanitized, "funnel_name"), false);
     assert.equal(Object.hasOwn(sanitized, "extra"), false);
     assert.throws(
       () => sanitizeGoogleBusinessPayload({ company_name: "X" }),
@@ -315,6 +340,7 @@ describe("CO-5D1 server Make integration", () => {
         payload: validPayload({
           author_id: 999,
           organization_id: "should-not-win",
+          funnel_name: "browser-override",
         }),
       },
       {
@@ -345,6 +371,8 @@ describe("CO-5D1 server Make integration", () => {
     assert.equal(url.searchParams.get("author_id"), "42");
     assert.notEqual(url.searchParams.get("author_id"), "999");
     assert.equal(url.searchParams.get("organization_id"), null);
+    assert.equal(url.searchParams.get("funnel_name"), "athena");
+    assert.notEqual(url.searchParams.get("funnel_name"), "browser-override");
     assert.equal(url.searchParams.get("city"), "Dallas");
     assert.equal(url.searchParams.get("state"), "TX");
     assert.equal(url.searchParams.get("zip"), "75201");
@@ -363,7 +391,48 @@ describe("CO-5D1 server Make integration", () => {
     assert.equal(url.searchParams.get("timezone"), "-300");
     assert.equal(url.searchParams.get("latitude"), "32.7767");
     assert.equal(url.searchParams.get("longitude"), "-96.797");
-    assert.match(url.searchParams.get("opening_hours_json") ?? "", /0900/);
+    assert.equal(
+      url.searchParams.get("opening_hours_json"),
+      JSON.stringify({
+        periods: [
+          { open: { day: 1, time: "0900" }, close: { day: 1, time: "1700" } },
+        ],
+      }),
+    );
+    assert.equal(url.searchParams.get("google_url"), "https://maps.google.com/?cid=1");
+    assert.equal(url.searchParams.get("address"), "100 Oak St, Dallas, TX 75201, USA");
+  });
+
+  it("always sends empty hours defaults and a server funnel_name to Make", async () => {
+    const calls: Array<{ url: string }> = [];
+    await addGoogleBusinessListing(
+      {
+        organizationId: ORG_A,
+        payload: {
+          action: GOOGLE_BUSINESS_ADD_ACTION,
+          company_name: "Oak Street Salon",
+          google_id: "ChIJexamplePlace",
+          funnel_name: "browser-override",
+        },
+      },
+      {
+        getSettings: async () => settingsResult(42),
+        readWebhookUrl: () => WEBHOOK,
+        fetchImpl: (async (input) => {
+          calls.push({ url: String(input) });
+          return new Response(
+            JSON.stringify({ listing_id: "8801", google_id: "ChIJexamplePlace" }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }) as typeof fetch,
+      },
+    );
+
+    const url = new URL(calls[0]!.url);
+    assert.equal(url.searchParams.get("opening_hours"), "");
+    assert.equal(url.searchParams.get("opening_hours_json"), '{"periods":[]}');
+    assert.equal(url.searchParams.get("funnel_name"), "athena");
+    assert.equal(url.searchParams.get("author_id"), "42");
   });
 
   it("fails closed when the GetOblic author mapping is missing", async () => {
@@ -572,6 +641,8 @@ describe("CO-5D1 server Make integration", () => {
     assert.match(service, /AbortController/);
     assert.match(service, /method: "GET"/);
     assert.match(service, /Never log the webhook URL or query string/);
+    assert.match(service, /funnel_name/);
+    assert.match(service, /GOOGLE_BUSINESS_FUNNEL_NAME/);
   });
 });
 

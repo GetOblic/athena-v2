@@ -6,11 +6,13 @@
 
 import {
   GOOGLE_BUSINESS_ADD_ACTION,
+  GOOGLE_BUSINESS_EMPTY_OPENING_HOURS_JSON,
   GOOGLE_BUSINESS_OPTIONAL_FIELDS,
   type GoogleBusinessPayload,
 } from "@/lib/googlePlaces/googlePlacesTypes";
 import { getGetOblicDirectorySettings } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import {
+  GOOGLE_BUSINESS_FUNNEL_NAME,
   GOOGLE_BUSINESS_MAKE_TIMEOUT_MS,
   GOOGLE_BUSINESS_MAKE_WEBHOOK_ENV,
   GoogleBusinessMakeError,
@@ -78,6 +80,9 @@ export function sanitizeGoogleBusinessPayload(
     action: GOOGLE_BUSINESS_ADD_ACTION,
     company_name: clipField(companyName),
     google_id: clipField(googleId),
+    opening_hours:
+      typeof raw.opening_hours === "string" ? clipField(raw.opening_hours) : "",
+    opening_hours_json: sanitizeOpeningHoursJson(raw.opening_hours_json),
   };
 
   for (const field of GOOGLE_BUSINESS_OPTIONAL_FIELDS) {
@@ -88,6 +93,16 @@ export function sanitizeGoogleBusinessPayload(
   }
 
   return payload;
+}
+
+function sanitizeOpeningHoursJson(value: unknown): string {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed) {
+      return clipField(trimmed);
+    }
+  }
+  return GOOGLE_BUSINESS_EMPTY_OPENING_HOURS_JSON;
 }
 
 export function readPositiveInteger(value: unknown): number | null {
@@ -135,6 +150,9 @@ function buildMakeQuery(
     }
   }
 
+  params.set("opening_hours", payload.opening_hours);
+  params.set("opening_hours_json", payload.opening_hours_json);
+  params.set("funnel_name", GOOGLE_BUSINESS_FUNNEL_NAME);
   params.set("author_id", String(authorId));
   return params;
 }

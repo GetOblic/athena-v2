@@ -82,10 +82,10 @@ export function flattenGoogleBusinessPlace(
     tags: optionalString(types.join(",")),
     business_phone: optionalString(place.international_phone_number ?? ""),
     website: optionalString(place.website ?? ""),
-    opening_hours: optionalString(weekdayText.join(" | ")),
-    opening_hours_json: place.opening_hours?.periods
-      ? JSON.stringify(place.opening_hours.periods)
-      : undefined,
+    opening_hours: weekdayText.join(" | "),
+    opening_hours_json: JSON.stringify({
+      periods: place.opening_hours?.periods ?? [],
+    }),
     timezone:
       place.utc_offset_minutes != null
         ? String(place.utc_offset_minutes)
