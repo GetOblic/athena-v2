@@ -9,6 +9,7 @@ import {
   GETOBLIC_WORDPRESS_DEFAULT_TIMEOUT_MS,
   GetOblicWordpressError,
   type GetOblicWordpressAuthorAssignment,
+  type GetOblicWordpressDescriptionUpdate,
   type GetOblicWordpressErrorCode,
   type GetOblicWordpressKnowledgeBaseUpdate,
   type GetOblicWordpressListing,
@@ -720,6 +721,35 @@ function parseBoundedInteger(
   throw new GetOblicWordpressError("VALIDATION", message, 400, remoteCode);
 }
 
+function parseDescriptionUpdate(
+  payload: unknown,
+  fallbackListingId: number,
+): GetOblicWordpressDescriptionUpdate {
+  const root = asRecord(payload);
+  if (!root) {
+    throw new GetOblicWordpressError(
+      "INVALID_RESPONSE",
+      "WordPress returned an invalid description payload.",
+      502,
+    );
+  }
+
+  const changed = readBoolean(root, "changed");
+  if (changed == null) {
+    throw new GetOblicWordpressError(
+      "INVALID_RESPONSE",
+      "WordPress description response is missing changed.",
+      502,
+    );
+  }
+
+  return {
+    wordpress_listing_id:
+      readInteger(root, "wordpress_listing_id") ?? fallbackListingId,
+    changed,
+  };
+}
+
 function parseKnowledgeBaseUpdate(
   payload: unknown,
   fallbackListingId: number,
@@ -922,6 +952,26 @@ export async function assignWordpressListingAuthor(
     body: { wordpress_user_id: wordpressUserId },
   });
   return parseAuthorAssignment(payload, id);
+}
+
+export async function putWordpressListingDescription(
+  wordpressListingId: number,
+  description: string,
+): Promise<GetOblicWordpressDescriptionUpdate> {
+  const id = parseGetOblicWordpressListingId(wordpressListingId);
+  if (typeof description !== "string") {
+    throw new GetOblicWordpressError(
+      "VALIDATION",
+      "description must be a string.",
+      400,
+    );
+  }
+
+  const { payload } = await wordpressFetch(`/listings/${id}/description`, {
+    method: "PUT",
+    body: { description },
+  });
+  return parseDescriptionUpdate(payload, id);
 }
 
 export async function putWordpressListingKnowledgeBase(

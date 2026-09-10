@@ -516,6 +516,78 @@ describe("GetOblic WordPress client operations", () => {
     assert.equal("mystery_key" in listing, false);
   });
 
+  it("PUTs only the description payload to /listings/{id}/description", async () => {
+    process.env.ATHENA_V2_DIRECTORY_API_KEY = "test-directory-key";
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+    globalThis.fetch = (async (input, init) => {
+      calls.push({ url: String(input), init });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          wordpress_listing_id: 36440,
+          changed: false,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    const { putWordpressListingDescription } = await import(
+      "../../services/getoblicDirectory/getoblicWordpressClient"
+    );
+    const result = await putWordpressListingDescription(
+      36440,
+      "Athena-generated directory copy.",
+    );
+    assert.equal(result.wordpress_listing_id, 36440);
+    assert.equal(result.changed, false);
+    assert.equal(
+      calls[0]?.url,
+      "https://getoblic.com/wp-json/athena/v1/listings/36440/description",
+    );
+    assert.equal(calls[0]?.init?.method, "PUT");
+    assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)), {
+      description: "Athena-generated directory copy.",
+    });
+    const headers = new Headers(calls[0]?.init?.headers);
+    assert.equal(headers.get("x-api-key"), "test-directory-key");
+    assert.equal(headers.get("Authorization"), null);
+    assert.equal(headers.get("Content-Type"), "application/json");
+  });
+
+  it("normalizes a remote description error without leaking the API key", async () => {
+    process.env.ATHENA_V2_DIRECTORY_API_KEY = "super-secret-directory-key";
+    globalThis.fetch = (async () => {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          code: "DESCRIPTION_UPDATE_FAILED",
+          message: "Could not update description.",
+        }),
+        { status: 502, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    const { putWordpressListingDescription } = await import(
+      "../../services/getoblicDirectory/getoblicWordpressClient"
+    );
+    const { GetOblicWordpressError } = await import(
+      "../../services/getoblicDirectory/getoblicWordpressTypes"
+    );
+
+    await assert.rejects(
+      () => putWordpressListingDescription(36440, "copy"),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicWordpressError);
+        assert.equal(error.code, "REMOTE_ERROR");
+        assert.equal(error.status, 502);
+        assert.match(error.message, /Could not update description/);
+        assert.doesNotMatch(error.message, /super-secret-directory-key/);
+        assert.doesNotMatch(JSON.stringify(error), /super-secret-directory-key/);
+        return true;
+      },
+    );
+  });
+
   it("fails safely on malformed optional listing detail fields", async () => {
     process.env.ATHENA_V2_DIRECTORY_API_KEY = "test-directory-key";
     globalThis.fetch = (async () => {

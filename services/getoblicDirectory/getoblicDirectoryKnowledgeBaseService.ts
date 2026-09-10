@@ -223,6 +223,19 @@ async function hasReleasedLinkForProspect(
   return Boolean(data);
 }
 
+export function hasCurrentKnowledgeBaseAsset(intelligence: unknown): boolean {
+  const suggestedCta = readSuggestedCta(intelligence);
+  const assets = parseLabeledDeploymentAssets(suggestedCta);
+  const matches = assets.filter(
+    (asset) => asset.assetKey === KNOWLEDGE_BASE_ASSET_KEY,
+  );
+  if (matches.length !== 1) {
+    return false;
+  }
+  const body = matches[0]?.content;
+  return typeof body === "string" && body.length > 0;
+}
+
 function extractKnowledgeBaseBody(intelligence: unknown): string {
   const suggestedCta = readSuggestedCta(intelligence);
   const assets = parseLabeledDeploymentAssets(suggestedCta);

@@ -104,6 +104,11 @@ export type GetOblicWordpressKnowledgeBaseUpdate = {
   changed: boolean;
 };
 
+export type GetOblicWordpressDescriptionUpdate = {
+  wordpress_listing_id: number;
+  changed: boolean;
+};
+
 export type GetOblicWordpressSearchRequest = {
   keywords: string;
   listing_type: string;

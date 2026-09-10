@@ -9,6 +9,7 @@ import { parseLabeledDeploymentAssets } from "../../lib/deploymentAssets";
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import { GetOblicDirectoryError } from "../../services/getoblicDirectory/getoblicDirectoryErrors";
 import {
+  hasCurrentKnowledgeBaseAsset,
   hashKnowledgeBaseContent,
   syncGetOblicListingKnowledgeBase,
   toPublicGetOblicKnowledgeBaseSync,
@@ -364,6 +365,14 @@ describe("GetOblic Knowledge Base orchestration", () => {
     const kb = parsed.find((asset) => asset.assetKey === "knowledge_base_enhancement");
     assert.equal(kb?.content, KB_BODY);
     assert.equal(hashKnowledgeBaseContent(KB_BODY), EXPECTED_SHA);
+    assert.equal(
+      hasCurrentKnowledgeBaseAsset({ analysis: { suggested_cta: KB_LABELED } }),
+      true,
+    );
+    assert.equal(
+      hasCurrentKnowledgeBaseAsset({ analysis: { suggested_cta: "HIDDEN_GEMS:\nOnly." } }),
+      false,
+    );
 
     const store = readyStore();
     const wordpress = successWordpress();
@@ -858,6 +867,7 @@ describe("GetOblic Knowledge Base route contract", () => {
     assert.match(service, /knowledge_base_enhancement/);
     assert.match(service, /getCurrentExecutiveVersion/);
     assert.match(service, /is_current/);
+    assert.match(service, /hasCurrentKnowledgeBaseAsset/);
     assert.match(service, /putWordpressListingKnowledgeBase/);
     assert.match(service, /createHash\("sha256"\)/);
     assert.match(service, /already_current/);

@@ -18,6 +18,7 @@ import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectL
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import { ProspectDeepScrapeWebsiteButton } from "@/components/prospects/ProspectDeepScrapeWebsiteButton";
 import { ProspectHeaderDeleteButton } from "@/components/prospects/ProspectHeaderDeleteButton";
+import { GetOblicListingOutboundControls } from "@/components/prospects/GetOblicListingOutboundControls";
 import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicListingReleaseControl";
 import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
 import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
@@ -56,6 +57,7 @@ import { getOrganizationAiWorkspacePreferences } from "@/services/identity/aiWor
 import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
 import { toBlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import { hasCurrentKnowledgeBaseAsset } from "@/services/getoblicDirectory/getoblicDirectoryKnowledgeBaseService";
 import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { readObservedListingDescription } from "@/services/prospects/prospectGetoblicDescription";
 import { getProspectById } from "@/services/prospects/prospectService";
@@ -349,7 +351,19 @@ export default async function ProspectDetailsPage({
       {activeGetOblicLink &&
       (activeGetOblicLink.relationship_status === "linked" ||
         activeGetOblicLink.relationship_status === "claiming") ? (
-        <div className="mb-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
+          {activeGetOblicLink.relationship_status === "linked" ? (
+            <GetOblicListingOutboundControls
+              prospectId={prospect.id}
+              hasGeneratedDescription={Boolean(
+                prospect.generated_listing_description?.description.trim(),
+              )}
+              hasCurrentKnowledgeBase={hasCurrentKnowledgeBaseAsset(
+                versionState.current?.intelligence,
+              )}
+              messages={messages}
+            />
+          ) : null}
           <GetOblicListingReleaseControl
             prospectId={prospect.id}
             relationshipStatus={activeGetOblicLink.relationship_status}

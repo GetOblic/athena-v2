@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { FileText, Sparkles } from "lucide-react";
 import { CopyButton } from "@/components/deployment/CopyButton";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
@@ -47,6 +48,7 @@ export function ProspectGetoblicDescriptionCard({
   messages,
   defaultOpen = false,
 }: ProspectGetoblicDescriptionCardProps) {
+  const refreshPage = useSafeRouterRefresh();
   const [generated, setGenerated] = useState<ProspectGeneratedListingDescription | null>(
     generatedListingDescription,
   );
@@ -82,6 +84,7 @@ export function ProspectGetoblicDescriptionCard({
       }
 
       setGenerated(payload.generatedListingDescription);
+      refreshPage();
     } catch {
       setError(messages.failed);
     } finally {
@@ -171,4 +174,15 @@ export function ProspectGetoblicDescriptionCard({
       </div>
     </AthenaCollapsibleSection>
   );
+}
+
+function useSafeRouterRefresh(): () => void {
+  try {
+    const router = useRouter();
+    return () => {
+      router.refresh();
+    };
+  } catch {
+    return () => {};
+  }
 }

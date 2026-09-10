@@ -1944,6 +1944,22 @@ export const en = {
       releasingGetOblic: "Releasing…",
       releaseGetOblicFailed: "Athena couldn’t release this GetOblic listing.",
       getoblicReleased: "This GetOblic listing was released.",
+      sendDescriptionToGetOblic: "Send Description to GetOblic",
+      sendKnowledgeBaseToGetOblic: "Send Knowledge Base to GetOblic",
+      sendingToGetOblic: "Sending…",
+      sentToGetOblic: "Sent successfully",
+      sendDescriptionToGetOblicFailed:
+        "Athena couldn’t send this description to GetOblic. Try again.",
+      sendKnowledgeBaseToGetOblicFailed:
+        "Athena couldn’t send this Knowledge Base to GetOblic. Try again.",
+      sendDescriptionToGetOblicOverwrite:
+        "This overwrites the current GetOblic listing description.",
+      sendKnowledgeBaseToGetOblicOverwrite:
+        "This overwrites the current GetOblic listing Knowledge Base.",
+      sendDescriptionToGetOblicDisabled:
+        "Generate a GetOblic description first.",
+      sendKnowledgeBaseToGetOblicDisabled:
+        "Current Executive Version has no Knowledge Base asset.",
       workflowProgress: "Workflow Progress",
       workflowAnalysis: "Analysis",
       workflowOpportunity: "Opportunity",

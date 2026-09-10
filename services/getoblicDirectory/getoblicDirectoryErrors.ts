@@ -16,6 +16,7 @@ export function directoryErrorStatus(code: GetOblicDirectoryErrorCode): number {
     case "GETOBLIC_REMOTE_TRANSIENT":
     case "GETOBLIC_WORDPRESS_AUTHOR_FAILED":
     case "GETOBLIC_WORDPRESS_KB_WRITE_FAILED":
+    case "GETOBLIC_WORDPRESS_DESCRIPTION_WRITE_FAILED":
       return 502;
     case "GETOBLIC_KB_SYNC_PERSISTENCE_FAILED":
       return 500;

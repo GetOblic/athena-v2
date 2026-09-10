@@ -208,6 +208,9 @@ describe("GetOblic Description UI", () => {
       2,
     );
     assert.match(source, /setGenerated\(payload\.generatedListingDescription\)/);
+    assert.match(source, /refreshPage\(\)/);
+    assert.match(source, /router\.refresh\(\)/);
+    assert.match(source, /useRouter/);
     assert.doesNotMatch(
       source,
       /catch \{[\s\S]*setError\(messages\.failed\)[\s\S]*setGenerated/,

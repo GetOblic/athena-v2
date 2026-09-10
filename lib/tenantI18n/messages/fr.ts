@@ -1983,6 +1983,22 @@ export const fr: TenantMessages = {
       releasingGetOblic: "Libération…",
       releaseGetOblicFailed: "Athena n’a pas pu libérer ce listing GetOblic.",
       getoblicReleased: "Ce listing GetOblic a été libéré.",
+      sendDescriptionToGetOblic: "Envoyer la description à GetOblic",
+      sendKnowledgeBaseToGetOblic: "Envoyer la Knowledge Base à GetOblic",
+      sendingToGetOblic: "Envoi…",
+      sentToGetOblic: "Envoyé",
+      sendDescriptionToGetOblicFailed:
+        "Athena n’a pas pu envoyer cette description à GetOblic. Réessayez.",
+      sendKnowledgeBaseToGetOblicFailed:
+        "Athena n’a pas pu envoyer cette Knowledge Base à GetOblic. Réessayez.",
+      sendDescriptionToGetOblicOverwrite:
+        "Cela remplace la description actuelle du listing GetOblic.",
+      sendKnowledgeBaseToGetOblicOverwrite:
+        "Cela remplace la Knowledge Base actuelle du listing GetOblic.",
+      sendDescriptionToGetOblicDisabled:
+        "Générez d’abord une description GetOblic.",
+      sendKnowledgeBaseToGetOblicDisabled:
+        "La Version exécutive actuelle n’a pas d’asset Knowledge Base.",
       workflowProgress: "Progression du workflow",
       workflowAnalysis: "Analyse",
       workflowOpportunity: "Opportunité",
