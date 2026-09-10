@@ -184,8 +184,11 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
       assert.doesNotMatch(source, /Next task|Next action due|Assigned action/);
       assert.doesNotMatch(source, /marked done automatically/);
     }
-    assert.match(intelligence, /recommended_action/);
-    assert.match(intelligence, /convert\.recommendedHelper/);
+    const recommendation = read(
+      "components/prospects/ProspectAthenaRecommendation.tsx",
+    );
+    assert.match(recommendation, /recommended_action/);
+    assert.match(recommendation, /convert\.recommendedHelper/);
   });
 
   it("adopts TenantAppShell on import with manual first and CSV collapsed", () => {
@@ -289,17 +292,30 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
 
   it("redesigns prospect detail around the accepted question and CTA state machine", () => {
     const page = read("app/prospects/[id]/page.tsx");
+    const header = read("components/prospects/ProspectDetailHeader.tsx");
+    const sections = read(
+      "components/prospects/ProspectIntelligenceSections.tsx",
+    );
     assert.match(page, /copy\.detail\.question/);
     assert.match(page, /hasCurrentVersion=\{hasCurrentVersion\}/);
     assert.match(page, /intelligenceStatus=\{intelligenceReadiness\}/);
+    assert.match(page, /ProspectDetailHeader/);
+    assert.match(page, /ProspectIntelligenceScore/);
+    assert.match(page, /computeProspectIntelligenceCompleteness/);
+    assert.doesNotMatch(page, /TractionPageHeader/);
     assert.doesNotMatch(page, /DiscussionWorkflowStrip/);
     assert.doesNotMatch(page, /workflowProgress|workflowAnalysis/);
     assert.doesNotMatch(page, /HeaderMetric|xl:grid-cols-4/);
     assert.doesNotMatch(page, /copy\.detail\.opportunityScore/);
+    assert.doesNotMatch(header, /opportunityScore|Opportunity Score/);
     assert.match(page, /savedBanner|processingBanner|failedBanner/);
     assert.match(page, /ProspectHeaderDeleteButton/);
     assert.match(page, /sourceKind="prospect"/);
     assert.match(page, /tenantMessages=\{messages\}/);
+    assert.match(page, /GetOblicListingReleaseControl/);
+    assert.match(sections, /ProspectExecutiveSnapshot/);
+    assert.match(sections, /ProspectAthenaRecommendation/);
+    assert.match(sections, /defaultOpen=\{false\}/);
     assert.doesNotMatch(page, /\/licensee\/estimate/);
   });
 
@@ -322,7 +338,7 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
     );
   });
 
-  it("groups outreach drafts open and other drafts collapsed", () => {
+  it("groups outreach drafts collapsed and other drafts collapsed", () => {
     const grouped = groupProspectOutreachAssets([
       {
         assetKey: "email_outreach",
@@ -342,8 +358,13 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
     const workspace = read(
       "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
     );
-    assert.match(workspace, /defaultOpen/);
+    const outreachBlock = workspace.slice(
+      workspace.indexOf("outreach-drafts-"),
+      workspace.indexOf("other-drafts-"),
+    );
+    assert.match(outreachBlock, /defaultOpen=\{false\}/);
     assert.match(workspace, /otherDrafts/);
+    assert.doesNotMatch(outreachBlock, /defaultOpen\s*$/);
   });
 
   it("derives factual summary only from loaded rows", () => {
@@ -396,6 +417,11 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
       "prospects.websiteCompletion.addWebsiteToStartResearch",
       "prospects.convert.saved",
       "prospects.readiness.saved",
+      "prospects.score.label",
+      "prospects.score.help",
+      "prospects.detail.askAthena",
+      "prospects.detail.openWebsite",
+      "prospects.detail.editProfile",
     ];
     const canonical = collectKeyPaths(en);
     for (const path of required) {
@@ -447,7 +473,7 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
       "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
     );
     assert.match(workspace, /isPersona/);
-    assert.match(workspace, /groupAudienceAnalysisAssets/);
+    assert.match(workspace, /PersonaAudienceJourney/);
     assert.match(workspace, /AthenaRecommendationRibbon/);
     assert.match(workspace, /ExecutiveIntelligenceCard/);
     const discussionPage = read("app/discussions/[id]/page.tsx");

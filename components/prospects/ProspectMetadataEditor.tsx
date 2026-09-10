@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Pencil } from "lucide-react";
 import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
 import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import {
@@ -10,6 +11,13 @@ import {
 } from "@/lib/discussionRegenerationStatus";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  PROSPECT_DETAIL_ANCHORS,
+  PROSPECT_DETAIL_ICON,
+  PROSPECT_EDIT_PROFILE_EVENT,
+  PROSPECT_EDITOR_FIELD_CLASS,
+  PROSPECT_IDENTITY_SURFACE,
+} from "@/lib/prospects/prospectDetailPresentation";
 import { PROSPECT_GETOBLIC_TYPES } from "@/services/prospects/prospectGetOblicType";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 import { buildWhatsAppMeUrl } from "@/services/prospects/prospectWhatsApp";
@@ -18,8 +26,7 @@ import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type ProspectMetadataChrome = TenantMessages["prospects"]["metadata"];
 
-const fieldClassName =
-  "w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none";
+const fieldClassName = PROSPECT_EDITOR_FIELD_CLASS
 
 type ProspectMetadataEditorProps = {
   prospect: Prospect;
@@ -259,6 +266,21 @@ export function ProspectMetadataEditor({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sectionOpen, setSectionOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    function openFromHeader() {
+      setSectionOpen(true);
+      setForm(savedForm);
+      setIsEditing(true);
+      setMessage(null);
+      setError(null);
+    }
+    window.addEventListener(PROSPECT_EDIT_PROFILE_EVENT, openFromHeader);
+    return () => {
+      window.removeEventListener(PROSPECT_EDIT_PROFILE_EVENT, openFromHeader);
+    };
+  }, [savedForm]);
 
   function beginEdit() {
     setForm(savedForm);
@@ -334,6 +356,7 @@ export function ProspectMetadataEditor({
 
   return (
     <AthenaCollapsibleSection
+      id={PROSPECT_DETAIL_ANCHORS.profile}
       title={
         isEditing
           ? (chrome?.titleEdit ?? "Edit profile")
@@ -341,6 +364,12 @@ export function ProspectMetadataEditor({
       }
       eyebrow={chrome?.eyebrow ?? "Prospect profile"}
       defaultOpen={defaultOpen}
+      open={sectionOpen}
+      onOpenChange={setSectionOpen}
+      tone="intelligence"
+      icon={<Pencil />}
+      iconClassName={PROSPECT_DETAIL_ICON.cyan}
+      className={PROSPECT_IDENTITY_SURFACE}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>

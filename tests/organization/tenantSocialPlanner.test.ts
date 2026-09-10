@@ -155,8 +155,8 @@ describe("V31 L3.9 tenant social planner — list chrome", () => {
       assert.notEqual(dictionary.socialPlanner.title, en.socialPlanner.title);
     }
     assert.match(fr.socialPlanner.generateMyWeek, /semaine/i);
-    assert.match(es.socialPlanner.openCalendar, /calendario/i);
-    assert.match(itMessages.socialPlanner.historyTitle, /calendari/i);
+    assert.match(es.socialPlanner.openCalendar, /semana/i);
+    assert.match(itMessages.socialPlanner.historyTitle, /settimane/i);
     assert.match(de.socialPlanner.selectWeek, /Woche/i);
     assert.match(pt.socialPlanner.noSearchMatch, /calend/i);
   });
@@ -208,7 +208,7 @@ describe("V31 L3.9 tenant social planner — detail chrome and content boundary"
     assert.match(card, /\{asset\.concept\}/);
     assert.match(card, /\{asset\.audience\}/);
     assert.match(card, /\{asset\.hook\}/);
-    assert.match(card, /previewSocialCopy\(asset\.socialCopy\)/);
+    assert.doesNotMatch(card, /previewSocialCopy\(asset\.socialCopy\)/);
     assert.match(card, /value=\{asset\.socialCopy\}/);
     assert.match(card, /value=\{asset\.cta\}/);
     assert.doesNotMatch(detail, /translateConcept|localizeSocialCopy/);

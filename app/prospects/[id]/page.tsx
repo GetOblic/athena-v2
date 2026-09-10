@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import {
   DiscussionRegenerationProgress,
   DiscussionRegenerationProvider,
@@ -8,7 +9,11 @@ import {
 import { ExecutiveIntelligenceWorkspace } from "@/components/discussions/ExecutiveIntelligenceWorkspace";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { AppendProspectInformationForm } from "@/components/prospects/AppendProspectInformationForm";
+import { ProspectDetailHeader } from "@/components/prospects/ProspectDetailHeader";
+import { ProspectGetoblicDescriptionCard } from "@/components/prospects/ProspectGetoblicDescriptionCard";
 import { ProspectHomepageIntelligence } from "@/components/prospects/ProspectHomepageIntelligence";
+import { ProspectIdentityContactGlance } from "@/components/prospects/ProspectIdentityContactGlance";
+import { ProspectIntelligenceScore } from "@/components/prospects/ProspectIntelligenceScore";
 import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectLifecycleStatusControl";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import { ProspectDeepScrapeWebsiteButton } from "@/components/prospects/ProspectDeepScrapeWebsiteButton";
@@ -16,12 +21,15 @@ import { ProspectHeaderDeleteButton } from "@/components/prospects/ProspectHeade
 import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicListingReleaseControl";
 import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
 import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
-import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
-import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import { PROSPECT_BACK_LINK_CLASS } from "@/lib/prospects/prospectDetailPresentation";
 import {
   resolveProspectDisplayStatus,
   resolveProspectOpportunityScore,
 } from "@/services/prospects/prospectDisplay";
+import {
+  computeProspectIntelligenceCompleteness,
+  hasActiveGetOblicListingLink,
+} from "@/services/prospects/prospectIntelligenceCompleteness";
 import { getActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
@@ -49,6 +57,7 @@ import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityS
 import { toBlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
+import { readObservedListingDescription } from "@/services/prospects/prospectGetoblicDescription";
 import { getProspectById } from "@/services/prospects/prospectService";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 
@@ -69,11 +78,9 @@ export default async function ProspectDetailsPage({
   if (!prospect) {
     return (
       <TenantAppShell currentPath={`/prospects/${id}`} messages={messages}>
-        <Link
-          href="/prospects"
-          className="mb-6 inline-flex text-sm text-[var(--athena-orange)]"
-        >
-          {copy.backToProspects}
+        <Link href="/prospects" className={PROSPECT_BACK_LINK_CLASS}>
+          <ArrowLeft className="size-4" aria-hidden="true" />
+          {messages.nav.prospects}
         </Link>
         <h1 className="text-4xl font-semibold">{copy.notFound}</h1>
       </TenantAppShell>
@@ -181,6 +188,12 @@ export default async function ProspectDetailsPage({
   const intelligenceFailed = isProspectIntelligenceFailed(intelligenceReadiness);
   const createdLabel = formatTenantDate(prospect.created_at, language);
   const updatedLabel = formatTenantDate(prospect.updated_at, language);
+  const ready = intelligenceReadiness === "Ready";
+  const completeness = computeProspectIntelligenceCompleteness({
+    prospect,
+    hasCurrentExecutiveVersion: hasCurrentVersion,
+    hasActiveGetOblicListingLink: hasActiveGetOblicListingLink(activeGetOblicLink),
+  });
 
   const profileEditor = (
     <ProspectMetadataEditor
@@ -198,19 +211,26 @@ export default async function ProspectDetailsPage({
   );
 
   const websiteResearch = (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-semibold">
-        {copy.convert.websiteResearch}
-      </h2>
-      <p className="text-sm leading-6 text-white/45">
-        {copy.convert.websiteResearchAlt}
-      </p>
-      <ProspectHomepageIntelligence
-        websiteIntelligence={prospect.website_intelligence}
-        scrapeStatus={scrapeStatus}
-        chrome={copy.homepage}
-      />
-    </div>
+    <ProspectHomepageIntelligence
+      websiteIntelligence={prospect.website_intelligence}
+      scrapeStatus={scrapeStatus}
+      chrome={copy.homepage}
+      heading={copy.convert.websiteResearch}
+      help={copy.convert.websiteResearchAlt}
+    />
+  );
+
+  const getoblicDescription = (
+    <ProspectGetoblicDescriptionCard
+      prospectId={prospect.id}
+      currentListingCopy={readObservedListingDescription(prospect.raw_json)}
+      generatedListingDescription={prospect.generated_listing_description}
+      messages={copy.getoblicDescription}
+    />
+  );
+
+  const identityGlance = (
+    <ProspectIdentityContactGlance prospect={prospect} messages={copy} />
   );
 
   const addInformation = discussion ? (
@@ -221,39 +241,73 @@ export default async function ProspectDetailsPage({
     />
   ) : null;
 
+  const generateActions = offerFullIntelligence ? (
+    <ProspectRefreshIntelligenceButton
+      prospectId={prospect.id}
+      discussionId={discussion?.id ?? prospect.linked_discussion_id ?? null}
+      chrome={copy.detail}
+      hasCurrentVersion={hasCurrentVersion}
+      intelligenceStatus={intelligenceReadiness}
+    />
+  ) : (
+    <p className="text-sm leading-6 text-white/55">
+      {copy.websiteCompletion.addWebsiteToStartResearch}
+    </p>
+  );
+
   const pageBody = (
     <TenantAppShell currentPath={`/prospects/${id}`} messages={messages}>
-      <Link
-        href="/prospects"
-        className="mb-6 inline-flex text-sm text-[var(--athena-orange)]"
-      >
-        {copy.backToProspects}
-      </Link>
-
-      <TractionPageHeader
+      <ProspectDetailHeader
+        backHref="/prospects"
+        backLabel={messages.nav.prospects}
         eyebrow={copy.detail.eyebrow}
         title={prospect.business_name}
         question={copy.detail.question}
         subtitle={subtitleParts.length > 0 ? subtitleParts.join(" · ") : undefined}
-        badge={
-          <span className="rounded-full border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--athena-orange)]">
-            {getProspectIntelligenceStatusLabel(messages, intelligenceReadiness)}
-          </span>
+        websiteHref={websiteHref}
+        websiteLabel={prospect.website}
+        intelligenceLabel={getProspectIntelligenceStatusLabel(
+          messages,
+          intelligenceReadiness,
+        )}
+        intelligenceStatus={intelligenceReadiness}
+        ready={ready}
+        hasDiscussion={Boolean(discussion)}
+        askAthenaLabel={copy.detail.askAthena}
+        addObservationLabel={copy.detail.addObservation}
+        editProfileLabel={copy.detail.editProfile}
+        openWebsiteLabel={copy.detail.openWebsite}
+        completenessScore={
+          <ProspectIntelligenceScore
+            score={completeness.score}
+            messages={copy.score}
+          />
         }
-      >
-        {websiteHref ? (
-          <p className="mt-3 text-sm">
-            <a
-              href={websiteHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="break-all text-[var(--athena-orange)] underline underline-offset-2"
-            >
-              {prospect.website}
-            </a>
-          </p>
-        ) : null}
-      </TractionPageHeader>
+        generateActions={generateActions}
+        researchAction={
+          <ProspectDeepScrapeWebsiteButton
+            prospectId={prospect.id}
+            initiallyAvailable={hasCurrentVersion && Boolean(prospect.website)}
+            messages={copy.deepScrape}
+            locale={locale}
+          />
+        }
+        lifecycleAction={
+          <ProspectLifecycleStatusControl
+            prospect={prospect}
+            messages={messages}
+            compact
+          />
+        }
+        destructiveAction={
+          <ProspectHeaderDeleteButton
+            prospectId={prospect.id}
+            confirmMessage={copy.detail.deleteConfirm}
+            errorFallback={copy.detail.deleteFailed}
+            chrome={messages.common}
+          />
+        }
+      />
 
       {prospect.source === "getoblic" && !prospect.website ? (
         <GetOblicWebsiteCompletionCard
@@ -292,40 +346,6 @@ export default async function ProspectDetailsPage({
         </div>
       ) : null}
 
-      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        {offerFullIntelligence ? (
-          <ProspectRefreshIntelligenceButton
-            prospectId={prospect.id}
-            discussionId={
-              discussion?.id ?? prospect.linked_discussion_id ?? null
-            }
-            chrome={copy.detail}
-            hasCurrentVersion={hasCurrentVersion}
-            intelligenceStatus={intelligenceReadiness}
-          />
-        ) : (
-          <p className="text-sm leading-6 text-white/55">
-            {copy.websiteCompletion.addWebsiteToStartResearch}
-          </p>
-        )}
-        <ProspectDeepScrapeWebsiteButton
-          prospectId={prospect.id}
-          initiallyAvailable={hasCurrentVersion && Boolean(prospect.website)}
-          messages={copy.deepScrape}
-          locale={locale}
-        />
-        <ProspectLifecycleStatusControl
-          prospect={prospect}
-          messages={messages}
-        />
-        <ProspectHeaderDeleteButton
-          prospectId={prospect.id}
-          confirmMessage={copy.detail.deleteConfirm}
-          errorFallback={copy.detail.deleteFailed}
-          chrome={messages.common}
-        />
-      </div>
-
       {activeGetOblicLink &&
       (activeGetOblicLink.relationship_status === "linked" ||
         activeGetOblicLink.relationship_status === "claiming") ? (
@@ -356,10 +376,21 @@ export default async function ProspectDetailsPage({
             conversationChrome={copy.conversation}
             assetChrome={getSharedAssetChrome(messages)}
             tenantMessages={messages}
+            afterProspectRecommendation={
+              hasCurrentVersion ? (
+                <div className="mt-8 space-y-8">
+                  {identityGlance}
+                  {websiteResearch}
+                  {getoblicDescription}
+                </div>
+              ) : null
+            }
             afterBlueprint={
               <div className="mt-8 space-y-8">
+                {!hasCurrentVersion ? identityGlance : null}
+                {!hasCurrentVersion ? websiteResearch : null}
+                {!hasCurrentVersion ? getoblicDescription : null}
                 {profileEditor}
-                {websiteResearch}
                 {addInformation}
               </div>
             }
@@ -385,17 +416,17 @@ export default async function ProspectDetailsPage({
         </>
       ) : (
         <div className="space-y-8">
-          <div
-            className={`rounded-[24px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-8`}
-          >
+          <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-8">
             <p className="max-w-3xl text-sm leading-7 text-white/50">
               {offerFullIntelligence
                 ? copy.detail.noDiscussion
                 : copy.websiteCompletion.addWebsiteToStartResearch}
             </p>
           </div>
-          {profileEditor}
+          {identityGlance}
           {websiteResearch}
+          {getoblicDescription}
+          {profileEditor}
         </div>
       )}
     </TenantAppShell>

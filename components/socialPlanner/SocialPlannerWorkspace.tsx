@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Search } from "lucide-react";
 import {
   SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
   type SocialCalendarHistoryPaginationDto,
@@ -17,6 +18,10 @@ import {
   isSocialPlannerInFlight,
   type SocialPlannerCreatePayload,
 } from "@/components/socialPlanner/socialPlannerClient";
+import {
+  SOCIAL_SEARCH_FIELD_CLASS,
+  SOCIAL_SEARCH_SURFACE,
+} from "@/lib/socialPlanner/socialPlannerPagePresentation";
 import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
 import { en } from "@/lib/tenantI18n/messages/en";
 import { getSocialPlannerErrorChrome } from "@/lib/tenantI18n/socialPlannerPresentation";
@@ -178,15 +183,21 @@ export function SocialPlannerWorkspace({
       />
 
       {loadError ? null : (
-        <label className="block text-sm text-white/50">
-          {copy.search}
-          <input
-            value={search}
-            onChange={(event) => handleSearchChange(event.target.value)}
-            placeholder={copy.searchPlaceholder}
-            className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
-          />
-        </label>
+        <div className={SOCIAL_SEARCH_SURFACE}>
+          <label className="relative block">
+            <span className="sr-only">{copy.search}</span>
+            <Search
+              className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-white/35"
+              aria-hidden="true"
+            />
+            <input
+              value={search}
+              onChange={(event) => handleSearchChange(event.target.value)}
+              placeholder={copy.searchPlaceholder}
+              className={SOCIAL_SEARCH_FIELD_CLASS}
+            />
+          </label>
+        </div>
       )}
 
       <SocialPlannerHistory

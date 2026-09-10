@@ -148,6 +148,7 @@ function stubProspect(overrides: Partial<Prospect> = {}): Prospect {
       email: "should-not-appear@example.com",
     },
     raw_json: { secret: true },
+    generated_listing_description: null,
     last_activity: null,
     import_batch_id: null,
     ...overrides,

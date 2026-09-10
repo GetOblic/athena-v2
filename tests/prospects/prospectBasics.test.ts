@@ -243,6 +243,7 @@ describe("public prospect DTO", () => {
       priority: 1,
       website_intelligence: null,
       raw_json: null,
+      generated_listing_description: null,
       last_activity: null,
       import_batch_id: null,
     });

@@ -36,8 +36,9 @@ describe("Generate Intelligence header placement", () => {
 
   it("3. Prospect header renders generate / refresh / try another approach", () => {
     const page = read("app/prospects/[id]/page.tsx");
+    const header = read("components/prospects/ProspectDetailHeader.tsx");
     assert.match(page, /ProspectRefreshIntelligenceButton/);
-    assert.match(page, /flex flex-col gap-3 sm:flex-row sm:flex-wrap/);
+    assert.match(header, /flex flex-col gap-3 sm:flex-row sm:flex-wrap/);
     assert.match(page, /prospectId=\{prospect\.id\}/);
 
     const prospectButton = read(
@@ -189,9 +190,9 @@ describe("Generate Intelligence header placement", () => {
     const header = read("components/discussions/DiscussionHeaderActions.tsx");
     assert.match(header, /flex flex-wrap/);
 
-    const prospectPage = read("app/prospects/[id]/page.tsx");
+    const prospectHeader = read("components/prospects/ProspectDetailHeader.tsx");
     assert.match(
-      prospectPage,
+      prospectHeader,
       /flex flex-col gap-3 sm:flex-row sm:flex-wrap/,
     );
   });

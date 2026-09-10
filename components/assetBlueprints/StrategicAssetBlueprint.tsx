@@ -56,6 +56,11 @@ type StrategicAssetBlueprintProps = {
   /** Identifiers only — blueprint body is resolved server-side. */
   onDiscussWithAthena?: (payload: BlueprintDiscussPayload) => void;
   chrome?: StrategicAssetBlueprintChrome | null;
+  /**
+   * gallery: shared Discussions/Prospects chrome (default).
+   * embedded: persona-only — hide nested Strategic Output H2.
+   */
+  variant?: "gallery" | "embedded";
 };
 
 export function StrategicAssetBlueprint({
@@ -67,6 +72,7 @@ export function StrategicAssetBlueprint({
   continuationPreferences = null,
   onDiscussWithAthena,
   chrome,
+  variant = "gallery",
 }: StrategicAssetBlueprintProps) {
   const executiveVersionId = copyContext?.executiveVersionId?.trim() || null;
   const discussEnabled = Boolean(executiveVersionId && onDiscussWithAthena);
@@ -84,22 +90,39 @@ export function StrategicAssetBlueprint({
     brandDirection,
   );
 
+  const embedded = variant === "embedded";
+  const blockPresentation = embedded ? ("persona" as const) : ("default" as const);
+
   return (
     <section
-      className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 shadow-[0_0_40px_rgba(255,102,0,0.06)] lg:p-10`}
+      data-blueprint-chrome={embedded ? "embedded" : "gallery"}
+      className={
+        embedded
+          ? "space-y-6"
+          : `rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 shadow-[0_0_40px_rgba(255,102,0,0.06)] lg:p-10`
+      }
     >
-      <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-        {chrome?.eyebrow ?? "Strategic Output"}
-      </div>
+      {embedded ? (
+        <p className="max-w-2xl text-sm leading-6 text-white/50">
+          {chrome?.help ??
+            "Reusable strategic asset specification — prompts ready for image, PDF, and social production."}
+        </p>
+      ) : (
+        <>
+          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
+            {chrome?.eyebrow ?? "Strategic Output"}
+          </div>
 
-      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
-        Strategic Asset Blueprint
-      </h2>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+            Strategic Asset Blueprint
+          </h2>
 
-      <p className="mt-2 max-w-2xl text-base text-white/50">
-        {chrome?.help ??
-          "Reusable strategic asset specification — prompts ready for image, PDF, and social production."}
-      </p>
+          <p className="mt-2 max-w-2xl text-base text-white/50">
+            {chrome?.help ??
+              "Reusable strategic asset specification — prompts ready for image, PDF, and social production."}
+          </p>
+        </>
+      )}
 
       {readinessBadges.length > 0 && (
         <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
@@ -161,6 +184,8 @@ export function StrategicAssetBlueprint({
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <CollapsiblePromptBlock
+          presentation={blockPresentation}
+          personaAccent="orange"
           label={chrome?.imagePrompt ?? "Image Prompt"}
           text={imagePromptText}
           assetType={BLUEPRINT_ASSET_TYPES.image_prompt}
@@ -187,6 +212,8 @@ export function StrategicAssetBlueprint({
           }
         />
         <CollapsiblePromptBlock
+          presentation={blockPresentation}
+          personaAccent="orange"
           label={chrome?.pdfPrompt ?? "PDF Prompt"}
           text={pdfPromptText}
           assetType={BLUEPRINT_ASSET_TYPES.pdf_prompt}
@@ -213,6 +240,8 @@ export function StrategicAssetBlueprint({
           }
         />
         <CollapsiblePromptBlock
+          presentation={blockPresentation}
+          personaAccent="orange"
           label={chrome?.socialPrompt ?? "Social Prompt"}
           text={blueprint.social_prompt}
           assetType={BLUEPRINT_ASSET_TYPES.social_prompt}
@@ -239,6 +268,8 @@ export function StrategicAssetBlueprint({
           }
         />
         <CollapsiblePromptBlock
+          presentation={blockPresentation}
+          personaAccent="orange"
           label={chrome?.trendSocialPrompt ?? "Trend Social Prompt"}
           text={blueprint.trend_social_prompt}
           assetType={BLUEPRINT_ASSET_TYPES.trend_social_prompt}
@@ -265,6 +296,8 @@ export function StrategicAssetBlueprint({
           }
         />
         <CollapsiblePromptBlock
+          presentation={blockPresentation}
+          personaAccent="orange"
           label={chrome?.notes ?? "Notes"}
           text={blueprint.notes}
           fullWidth

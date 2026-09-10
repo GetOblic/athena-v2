@@ -1,10 +1,15 @@
 import type { ReactNode } from "react";
+import { GraduationCap } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import {
   TrainAthenaForm,
   TrainAthenaSubmitButton,
 } from "@/components/identity/TrainAthenaSubmitButton";
-import { IDENTITY_FIELD_ANCHORS } from "@/components/identity/identityPagePresentation";
+import {
+  IDENTITY_CARD_ICON_CLASS,
+  IDENTITY_FIELD_ANCHORS,
+  IDENTITY_SUCCESS_SECTION_CONTOUR_CLASS,
+} from "@/components/identity/identityPagePresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { AthenaIdentity } from "@/services/identity/identityService";
 
@@ -17,7 +22,6 @@ type IdentityTeachAthenaSectionProps = {
   identity: AthenaIdentity | null;
   messages: IdentityCopy;
   action: (formData: FormData) => Promise<void>;
-  defaultOpen: boolean;
   trainLabel: string;
   pendingLabel: string;
 };
@@ -26,7 +30,6 @@ export function IdentityTeachAthenaSection({
   identity,
   messages,
   action,
-  defaultOpen,
   trainLabel,
   pendingLabel,
 }: IdentityTeachAthenaSectionProps) {
@@ -39,8 +42,16 @@ export function IdentityTeachAthenaSection({
 
   return (
     <AthenaCollapsibleSection
+      id={IDENTITY_FIELD_ANCHORS.teach}
       title={page.teachTitle}
-      defaultOpen={defaultOpen}
+      summary={
+        trainedHelper ? page.teachTrainedHelper : page.teachUntrainedHelper
+      }
+      defaultOpen={false}
+      tone="identity"
+      icon={<GraduationCap size={20} />}
+      iconClassName={IDENTITY_CARD_ICON_CLASS.green}
+      className={`${IDENTITY_SUCCESS_SECTION_CONTOUR_CLASS} scroll-mt-24`}
     >
       <TrainAthenaForm action={action} className="grid gap-8">
         <p className="text-sm leading-6 text-white/50">
@@ -118,7 +129,18 @@ export function IdentityTeachAthenaSection({
           </label>
         </FieldGroup>
 
-        <TrainAthenaSubmitButton label={trainLabel} pendingLabel={pendingLabel} />
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <TrainAthenaSubmitButton
+            label={trainLabel}
+            pendingLabel={pendingLabel}
+          />
+          <a
+            href={`#${IDENTITY_FIELD_ANCHORS.websiteKnowledge}`}
+            className="inline-flex w-full items-center justify-center rounded-full border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-8 py-4 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 sm:w-auto"
+          >
+            {messages.deepScrape.button}
+          </a>
+        </div>
       </TrainAthenaForm>
     </AthenaCollapsibleSection>
   );

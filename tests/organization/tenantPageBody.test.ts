@@ -367,11 +367,13 @@ describe("V31 L3.3 tenant page body — Athena Brain", () => {
         language: "fr",
       }),
     );
-    assert.match(html, /Generated executive summary stays English\./);
-    assert.match(html, /Stored overview stays\./);
     assert.ok(html.includes(fr.identity.page.knowsTitle));
+    assert.match(html, /aria-expanded="false"/);
     assert.doesNotMatch(html, /What Athena understands about your business/);
     assert.doesNotMatch(html, /What Athena knows/);
+    const knowsSource = read("components/identity/IdentityWhatAthenaKnows.tsx");
+    assert.match(knowsSource, /\{executive\.executive_summary\}/);
+    assert.match(knowsSource, /\{value\}/);
     const executive = readIdentityExecutiveIntelligence({
       executive_intelligence: {
         executive_summary: STORED_EI_SUMMARY,
@@ -650,6 +652,8 @@ describe("V31 L3.3 tenant page body — boundaries", () => {
     assert.ok(canonical.includes("dashboard.goodMorning"));
     assert.ok(canonical.includes("gettingStarted.step1Title"));
     assert.ok(canonical.includes("identity.accountLanguage"));
+    assert.ok(canonical.includes("identity.knowledgeScore"));
+    assert.ok(canonical.includes("identity.brainCompletion"));
     assert.ok(canonical.includes("identity.businessModel.business_overview"));
     assert.ok(canonical.includes("identity.deepScrape.queued"));
     assert.ok(canonical.includes("identity.brainStatusValues.ready"));

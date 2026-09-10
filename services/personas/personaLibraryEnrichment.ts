@@ -25,6 +25,8 @@ export type PersonaLibraryRow = PublicPersona & {
   display_opportunity_score_label: string;
   display_location: string | null;
   display_reference_website: string | null;
+  /** Current EV analysis.confidence. Null until list-side attach; 0 stays stored 0. */
+  display_confidence: number | null;
 };
 
 export function enrichPersonasForLibrary(
@@ -50,6 +52,7 @@ export function enrichPersonasForLibrary(
       display_reference_website: formatPersonaReferenceWebsiteDisplay(
         persona.reference_website,
       ),
+      display_confidence: null,
     };
   });
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { WebsiteAnalyzedPagesList } from "@/components/websiteLearning/WebsiteAnalyzedPagesList";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import type { SeoWebsitePagesAnalyzed } from "@/services/seo/seoReportTypes";
@@ -18,11 +19,19 @@ export type SeoWebsitePagesAnalyzedChrome = {
 type SeoWebsitePagesAnalyzedSectionProps = {
   inventory: SeoWebsitePagesAnalyzed | null | undefined;
   chrome?: SeoWebsitePagesAnalyzedChrome | null;
+  icon?: ReactNode;
+  iconClassName?: string;
+  className?: string;
+  tone?: "default" | "intelligence";
 };
 
 export function SeoWebsitePagesAnalyzedSection({
   inventory,
   chrome,
+  icon,
+  iconClassName,
+  className,
+  tone = "default",
 }: SeoWebsitePagesAnalyzedSectionProps) {
   const snapshot = inventory ?? emptySeoWebsitePagesAnalyzed();
   const pageCount =
@@ -41,7 +50,7 @@ export function SeoWebsitePagesAnalyzedSection({
     <AthenaCollapsibleSection
       title={chrome?.title ?? "Website Pages Analyzed"}
       defaultOpen={false}
-      showToggleLabel
+      showToggleLabel={tone === "default"}
       toggleLabels={
         chrome?.expand && chrome?.collapse
           ? { expand: chrome.expand, collapse: chrome.collapse }
@@ -49,6 +58,10 @@ export function SeoWebsitePagesAnalyzedSection({
       }
       summary={countLabel}
       contentClassName="space-y-4"
+      icon={icon}
+      iconClassName={iconClassName}
+      className={className}
+      tone={tone}
     >
       <WebsiteAnalyzedPagesList
         pages={snapshot.pages}

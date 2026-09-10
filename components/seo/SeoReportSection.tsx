@@ -37,6 +37,12 @@ type SeoReportSectionProps = {
   stars?: number;
   readingCorpus?: string;
   chrome?: SeoReportSectionChrome | null;
+  icon?: ReactNode;
+  iconClassName?: string;
+  className?: string;
+  tone?: "default" | "intelligence";
+  iconSize?: "lg" | "sm";
+  copyVariant?: "default" | "utility";
 };
 
 export function SeoReportSection({
@@ -50,6 +56,12 @@ export function SeoReportSection({
   stars,
   readingCorpus,
   chrome,
+  icon,
+  iconClassName,
+  className,
+  tone = "default",
+  iconSize = "lg",
+  copyVariant = "default",
 }: SeoReportSectionProps) {
   const corpus =
     readingCorpus ??
@@ -71,12 +83,17 @@ export function SeoReportSection({
       eyebrow={eyebrow}
       defaultOpen={defaultOpen}
       summary={summary}
-      showToggleLabel
+      showToggleLabel={tone === "default"}
       toggleLabels={
         chrome?.expand && chrome?.collapse
           ? { expand: chrome.expand, collapse: chrome.collapse }
           : null
       }
+      icon={icon}
+      iconClassName={iconClassName}
+      className={className}
+      tone={tone}
+      iconSize={iconSize}
       headerMeta={
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/50">
           {typeof stars === "number" ? (
@@ -104,6 +121,7 @@ export function SeoReportSection({
               tracking={null}
               showContinue={false}
               chrome={chrome?.copy}
+              variant={copyVariant}
             />
           </div>
           <div className="whitespace-pre-wrap break-all rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white/80">

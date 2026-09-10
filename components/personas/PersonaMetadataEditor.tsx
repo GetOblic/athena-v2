@@ -2,7 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { IdCard } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  PERSONA_DETAIL_ICON,
+  PERSONA_DETAIL_SURFACE,
+} from "@/lib/personas/personaPagePresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { normalizeWebsiteUrl } from "@/services/personas/personaUtils";
 import type { Persona } from "@/services/personas/personaService";
@@ -312,6 +317,10 @@ export function PersonaMetadataEditor({
       }
       eyebrow={chrome?.eyebrow ?? "Audience profile"}
       defaultOpen={defaultOpen}
+      tone="intelligence"
+      className={PERSONA_DETAIL_SURFACE.muted}
+      icon={<IdCard />}
+      iconClassName={PERSONA_DETAIL_ICON.muted}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>

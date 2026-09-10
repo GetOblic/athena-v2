@@ -391,6 +391,12 @@ export const en = {
     },
     lastTrained: "Last trained:",
     notYetTrained: "Not yet trained",
+    knowledgeScore: "Knowledge Score",
+    brainCompletion: "Your business brain is {percent}% complete",
+    knowledgeScoreLow: "Add more business knowledge",
+    knowledgeScoreMedium: "Good foundation. Keep teaching Athena.",
+    knowledgeScoreStrong: "Strong business knowledge",
+    knowledgeScoreExcellent: "Your business brain is highly complete",
     conversationTitle: "Ask Athena what it understands",
     conversationDescription:
       "Ask Athena about its current understanding of your business. Responses do not change the Brain.",
@@ -1082,6 +1088,8 @@ export const en = {
     emptyValue: "—",
     traction: {
       audiences: "Audiences",
+      audiencesHelp:
+        "Understand who you want to reach and what matters to them.",
       advertising: "Advertising",
       socialContent: "Social Content",
       advertisingHelp:
@@ -1132,6 +1140,39 @@ export const en = {
       sectionBlueprint: "Blueprint",
       sectionAdvanced: "Advanced",
     },
+    journey: {
+      discussWithAthena: "Discuss with Athena",
+      teachAthena: "Add observation",
+      executiveSnapshot: "Executive snapshot",
+      whoTheyAre: "Who they are",
+      whatTheyCareAbout: "What they care about",
+      whatGetsInTheWay: "What gets in the way",
+      howToReachThem: "How to reach them",
+      whatToCreate: "What to create for this audience",
+      strategicCreation: "Strategic creation guidance",
+      readyToUseAssets: "Ready-to-use assets",
+      evidenceSignals: "Evidence & signals",
+      identitySlice: "Identity",
+      messaging: "Messaging",
+      tone: "Tone",
+      channels: "Channels",
+      offerPositioning: "Offer positioning",
+      valueProposition: "Value proposition",
+      assetPersonaExecutiveProfile: "Persona Executive Profile",
+      assetMessagingFramework: "Messaging Framework",
+      assetValueProposition: "Value Proposition",
+      assetObjectionHandling: "Objection Handling",
+      assetLanguageAndTone: "Language and Tone Guide",
+      assetOfferPositioning: "Offer Positioning",
+      assetChannelStrategy: "Channel Strategy",
+      assetCampaignConcepts: "Campaign Concepts",
+      assetContentThemes: "Content Themes",
+      assetAdvertisementConcepts: "Advertisement Concepts",
+      assetLandingPageDirection: "Landing Page Direction",
+      assetVisualDirection: "Visual and Image Prompt Direction",
+      assetCustomerExperience: "Customer Experience Guidance",
+      assetValidationPlan: "Validation and Learning Plan",
+    },
     list: {
       emptyTitle: "No audiences are defined yet.",
       emptyBody:
@@ -1147,6 +1188,12 @@ export const en = {
       sortCreated: "Created",
       sortScore: "Opportunity Score",
       sortName: "Name",
+      sortRecentlyUpdated: "Recently updated",
+      sortOldestUpdated: "Oldest updated",
+      sortNameAsc: "Name A–Z",
+      sortNameDesc: "Name Z–A",
+      sortConfidenceHigh: "Confidence: highest",
+      sortConfidenceLow: "Confidence: lowest",
       filterEmptyTitle: "No audiences found.",
       filterEmptyBody: "Try a different search or working-status filter.",
       colPersona: "Audience",
@@ -1595,7 +1642,7 @@ export const en = {
         "Athena received an unexpected server response while queuing generation.",
       generationFailedLogs: "Generation failed. Please check logs.",
       generationUnknown: "Unknown error",
-      deploymentAssetsTitle: "Outreach drafts",
+      deploymentAssetsTitle: "Ready-to-use assets",
       analysisAssetsTitle: "Audience intelligence",
       strategicBlueprintTitle: "Blueprint",
       opportunityScore: "Opportunity Score",
@@ -1758,6 +1805,11 @@ export const en = {
       opportunityScoreHelp:
         "Stored system value. It is not a ranking of who to pursue.",
       moreAbout: "More about this business",
+      executiveSnapshot: "Executive snapshot",
+      identityContact: "Business identity & contact",
+      identityLocation: "Location",
+      identityPresence: "Presence",
+      commercialReasoning: "Detailed commercial reasoning",
     },
     import: {
       createTitle: "Add a prospect",
@@ -1881,6 +1933,10 @@ export const en = {
       deleteConfirm:
         "Delete this prospect permanently? The prospect, its linked intelligence, and generated drafts will be removed. This cannot be undone.",
       deleteFailed: "Failed to delete prospect.",
+      askAthena: "Ask Athena",
+      openWebsite: "Open website",
+      editProfile: "Edit profile",
+      addObservation: "Add observation",
       releaseGetOblicListing: "Release GetOblic listing",
       releaseGetOblicConfirm:
         "This GetOblic listing will be returned to the shared GetOblic inventory. It will no longer count against this account’s listing capacity. The Prospect and Athena research and intelligence will remain.",
@@ -1985,6 +2041,30 @@ export const en = {
       ready: "Ready",
       processingFailed: "Processing Failed",
       saved: "Saved",
+    },
+    score: {
+      label: "Prospect Completeness",
+      help: "How complete Athena’s evidence is for this business — profile, contact, website, and generated intelligence. This is not a ranking of who to pursue.",
+      bandLow: "Low",
+      bandMedium: "Medium",
+      bandStrong: "Strong",
+      bandExcellent: "Excellent",
+    },
+    getoblicDescription: {
+      title: "GetOblic Description",
+      help: "An enriched directory description created from verified business and website intelligence.",
+      empty:
+        "Create an enriched description using this prospect's business profile and available website intelligence.",
+      generate: "Generate description",
+      generating: "Generating…",
+      refresh: "Refresh",
+      ready: "Ready",
+      notGenerated: "Not generated",
+      copy: "Copy",
+      copied: "Copied",
+      failed: "Athena couldn’t generate this GetOblic description. Try again.",
+      currentListingCopy: "Current GetOblic listing description",
+      generatedDescription: "Athena-enriched GetOblic description",
     },
     homepage: {
       title: "Website research",
@@ -2413,11 +2493,22 @@ export const en = {
     },
     new: {
       eyebrow: "Advertising",
-      title: "New campaign",
+      title: "Create a new campaign",
       subtitle:
         "Tell Athena what you want, or leave this blank and let it propose a campaign from what it already knows.",
       briefOptional:
         "A brief is optional. Athena can propose a campaign from what it already knows about your business and audiences.",
+      contextTitle: "Athena already has context",
+      contextSourcesLead: "Athena can use:",
+      contextSourceBrain: "your Business Brain",
+      contextSourceAudiences: "saved audiences",
+      contextSourceProspects: "prospect intelligence",
+      contextSourceWebsite: "website context",
+      contextSourcesNote:
+        "These sources are automatically considered during generation.",
+      briefTitle: "Campaign brief",
+      briefHelper:
+        "Tell Athena anything useful. Leave fields blank when you want Athena to infer the direction from what it already knows.",
       nameLabel: "Campaign name (optional)",
       namePlaceholder: "Untitled campaign",
       guidanceLabel: "Anything Athena should keep in mind?",
@@ -2490,6 +2581,13 @@ export const en = {
       themeNMessage: "Theme {n} message angle",
       themeNLanding: "Theme {n} landing page",
       themeNNegative: "Theme {n} negative theme",
+      backLabel: "Advertising",
+      summaryFacebook: "Feed and placement creative",
+      summaryInstagram: "Feed, Reels, and Stories creative",
+      summaryTikTok: "Short-form video creative",
+      summaryGoogleSearch: "Search ads and extensions",
+      summaryKeywordThemes: "Inferred themes — not live search volume",
+      summaryAdvanced: "Strategy rationale and brief mode",
     },
     statusPanel: {
       generationStatus: "Campaign status",
@@ -2585,6 +2683,45 @@ export const en = {
       analysisNotFinished: "Analysis not finished",
       lastReadyStrategy: "Last Ready Visibility Strategy",
       lastReadyHealth: "Last Ready Website Technical Health",
+      contentCoverageScore: "Content Coverage Score",
+      contentCoverageScoreHelp:
+        "Based on Athena’s assessment of how comprehensively the analyzed content covers the strategic areas identified.",
+      technicalCompleteness: "On-page Technical Completeness",
+      technicalCompletenessHelp:
+        "This score describes the pages Athena analyzed. It does not represent every page on the website unless all were analyzed, and it is not a Google ranking, traffic, or Search Console score.",
+      scoreUnavailable: "Not available",
+      scoreUnavailableHelp:
+        "Athena needs a Ready analysis with enough structured evidence to calculate this score.",
+      needsAttention: "Needs attention",
+      developing: "Developing",
+      strong: "Strong",
+      excellentCoverage: "Excellent coverage",
+      contentCoverageBandNeedsAttention:
+        "Content coverage needs attention across the areas identified in this analysis.",
+      contentCoverageBandDeveloping:
+        "Content coverage is developing across the areas identified in this analysis.",
+      contentCoverageBandStrong:
+        "Content coverage is strong across the areas identified in this analysis.",
+      contentCoverageBandExcellent:
+        "Content coverage is excellent across the areas identified in this analysis.",
+      technicalBandNeedsAttention:
+        "On-page technical completeness needs attention on the pages Athena analyzed.",
+      technicalBandDeveloping:
+        "On-page technical completeness is developing on the pages Athena analyzed.",
+      technicalBandStrong:
+        "On-page technical completeness is strong on the pages Athena analyzed.",
+      technicalBandExcellent:
+        "On-page technical completeness is excellent on the pages Athena analyzed.",
+      noAnalysisYet: "No analysis yet",
+      lastReadyScoreNote: "Score from the last Ready analysis.",
+      previousReadyScoreNote: "Score from the previous Ready analysis.",
+      coverageInventorySummary:
+        "{well} well covered · {weak} weakly covered · {missing} missing",
+      pagesAnalyzedContext: "{count} pages analyzed",
+      strategyCardHelp:
+        "Strategic content intelligence: how comprehensively current content covers the areas people need in order to discover and understand what you offer.",
+      healthCardHelp:
+        "Deterministic on-page technical evidence for the pages Athena analyzed.",
     },
     new: {
       eyebrow: "SEO Workspace",
@@ -2697,6 +2834,7 @@ export const en = {
       athenasAssessment: "Athena’s assessment",
       recommendedImprovements: "Recommended improvements",
       supportingIntelligence: "Supporting intelligence",
+      detailedFindings: "Detailed findings",
       priorityAssignedNote:
         "Priorities shown as Athena assigned them in this analysis.",
       priorityHighest: "Highest priority",
@@ -2878,7 +3016,7 @@ export const en = {
   },
   socialPlanner: {
     backToDashboard: "← Dashboard",
-    backToSocialPlanner: "← Social Content",
+    backToSocialPlanner: "Back to Social Content",
     eyebrow: "Generate Traction",
     title: "Social Content",
     subtitle:
@@ -2913,6 +3051,7 @@ export const en = {
     next: "Next",
     yourSocialWeek: "Your social week",
     whyThisWeekWorks: "Why this week works",
+    productionGuidance: "Production guidance",
     createAnotherWeek: "Create another week",
     thinkDifferently: "Try another approach",
     thinkDifferentlyTitle: "Create a materially different version of this week.",

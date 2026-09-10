@@ -98,9 +98,18 @@ describe("Social Planner L8 Think Differently UI", () => {
       detail.indexOf("copy.createAnotherWeek") + 80,
     );
 
-    assert.match(prospect, /border-\[var\(--athena-success\)\]\/30/);
-    assert.match(prospect, /bg-\[var\(--athena-success\)\]\/15/);
-    assert.match(prospect, /text-\[var\(--athena-success\)\]/);
+    const prospectPresentation = read(
+      "lib/prospects/prospectDetailPresentation.ts",
+    );
+    assert.match(prospect, /PROSPECT_SECONDARY_GREEN_ACTION/);
+    assert.match(
+      prospectPresentation,
+      /PROSPECT_SECONDARY_GREEN_ACTION[\s\S]*border border-\[var\(--athena-success\)\]\/30/,
+    );
+    assert.match(
+      prospectPresentation,
+      /PROSPECT_SECONDARY_GREEN_ACTION[\s\S]*text-\[var\(--athena-success\)\]/,
+    );
     assert.match(thinkBlock, /border-\[var\(--athena-success\)\]\/30/);
     assert.match(thinkBlock, /bg-\[var\(--athena-success\)\]\/15/);
     assert.match(thinkBlock, /text-\[var\(--athena-success\)\]/);
@@ -122,29 +131,43 @@ describe("Social Planner L8 Think Differently UI", () => {
     const prospectWorkspace = read(
       "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
     );
-    const helperStart = history.indexOf("function generationModeBadgeClass");
-    const helper = history.slice(
-      helperStart,
-      history.indexOf("export function SocialPlannerHistory"),
+    const presentation = read(
+      "lib/socialPlanner/socialPlannerPagePresentation.ts",
     );
-    const thinkBranch = helper.slice(
-      helper.indexOf('generationMode === "think_differently"'),
-      helper.indexOf("return \"inline-flex rounded-full border border-white/15"),
+    const helperStart = presentation.indexOf(
+      "export function socialPlannerGenerationModeBadgeClass",
     );
-    const otherBranch = helper.slice(
-      helper.indexOf("return \"inline-flex rounded-full border border-white/15"),
-    );
+    const helper = presentation.slice(helperStart);
 
     assert.match(
       prospectWorkspace,
       /border-\[var\(--athena-success\)\]\/30 bg-\[var\(--athena-success\)\]\/10[\s\S]*text-\[var\(--athena-success\)\]/,
     );
-    assert.match(thinkBranch, /border-\[var\(--athena-success\)\]\/30/);
-    assert.match(thinkBranch, /bg-\[var\(--athena-success\)\]\/10/);
-    assert.match(thinkBranch, /text-\[var\(--athena-success\)\]/);
-    assert.doesNotMatch(otherBranch, /athena-success/);
-    assert.match(otherBranch, /border-white\/15/);
-    assert.match(otherBranch, /text-white\/50/);
+    assert.match(
+      presentation,
+      /SOCIAL_MODE_THINK_CLASS[\s\S]*border border-\[var\(--athena-success\)\]\/25/,
+    );
+    assert.match(
+      presentation,
+      /SOCIAL_MODE_THINK_CLASS[\s\S]*bg-\[var\(--athena-success\)\]\/\[0\.08\]/,
+    );
+    assert.match(
+      presentation,
+      /SOCIAL_MODE_THINK_CLASS[\s\S]*text-\[var\(--athena-success\)\]\/80/,
+    );
+    assert.match(
+      presentation,
+      /SOCIAL_MODE_BADGE_CLASS[\s\S]*border-white\/10/,
+    );
+    assert.match(
+      presentation,
+      /SOCIAL_MODE_BADGE_CLASS[\s\S]*text-white\/40/,
+    );
+    assert.match(
+      helper,
+      /generationMode === "think_differently"[\s\S]*return SOCIAL_MODE_THINK_CLASS/,
+    );
+    assert.match(helper, /return SOCIAL_MODE_BADGE_CLASS/);
     assert.match(
       history,
       /border-emerald-400\/25 bg-emerald-400\/10 text-emerald-200/,

@@ -16,11 +16,13 @@ import type { TenantMessages } from "@/lib/tenantI18n/types";
 type PersonaLifecycleStatusControlProps = {
   persona: Persona;
   messages?: TenantMessages;
+  compact?: boolean;
 };
 
 export function PersonaLifecycleStatusControl({
   persona,
   messages,
+  compact = false,
 }: PersonaLifecycleStatusControlProps) {
   const router = useRouter();
   const [lifecycleStatus, setLifecycleStatus] = useState<PersonaLifecycleStatus>(
@@ -80,12 +82,50 @@ export function PersonaLifecycleStatusControl({
     }
   }
 
+  const statusColor = getPersonaLifecycleColor(lifecycleStatus);
+  const label = messages?.personas.lifecycle.label ?? "Persona Status";
+
+  if (compact) {
+    return (
+      <div
+        data-persona-header-action="lifecycle"
+        className="inline-flex h-11 min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3"
+      >
+        <span className={statusColor} aria-hidden="true">
+          <span className="block size-1.5 rounded-full bg-current" />
+        </span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+          {label}
+        </span>
+        <select
+          value={lifecycleStatus}
+          onChange={(event) => void handleChange(event.target.value)}
+          disabled={isSaving}
+          aria-label={label}
+          className="h-8 min-w-0 rounded-xl border border-white/10 bg-black/30 px-2 text-xs text-white outline-none disabled:opacity-50"
+        >
+          {PERSONA_LIFECYCLE_STATUSES.map((option) => (
+            <option key={option} value={option}>
+              {messages
+                ? getLocalizedPersonaLifecycleLabel(messages, option)
+                : option}
+            </option>
+          ))}
+        </select>
+        {success ? (
+          <span className="text-[11px] text-emerald-300">{success}</span>
+        ) : null}
+        {error ? <span className="text-[11px] text-red-300">{error}</span> : null}
+      </div>
+    );
+  }
+
   return (
     <div
       className={`rounded-[20px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5`}
     >
       <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-        {messages?.personas.lifecycle.label ?? "Persona Status"}
+        {label}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -104,9 +144,7 @@ export function PersonaLifecycleStatusControl({
           ))}
         </select>
 
-        <span
-          className={`text-sm font-medium ${getPersonaLifecycleColor(lifecycleStatus)}`}
-        >
+        <span className={`text-sm font-medium ${statusColor}`}>
           {messages
             ? getLocalizedPersonaLifecycleLabel(messages, lifecycleStatus)
             : lifecycleStatus}

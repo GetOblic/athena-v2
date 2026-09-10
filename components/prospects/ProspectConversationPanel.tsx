@@ -10,6 +10,7 @@ import {
 } from "react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { writeClipboardText } from "@/lib/clipboard";
+import { PROSPECT_ASK_ATHENA_EVENT } from "@/lib/prospects/prospectDetailPresentation";
 import { postProspectConversation } from "@/services/prospectConversation/prospectConversationClient";
 import {
   clearProspectConversationSession,
@@ -193,6 +194,16 @@ function ProspectConversationPanelInner({
       inFlightRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    function openFromHeader() {
+      onOpenChange?.(true);
+    }
+    window.addEventListener(PROSPECT_ASK_ATHENA_EVENT, openFromHeader);
+    return () => {
+      window.removeEventListener(PROSPECT_ASK_ATHENA_EVENT, openFromHeader);
+    };
+  });
 
   function rollbackUserTurn(trimmed: string) {
     setMessages((prev) => {

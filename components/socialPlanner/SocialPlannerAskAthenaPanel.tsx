@@ -8,6 +8,13 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import { MessageCircleQuestionMark } from "lucide-react";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  SOCIAL_DETAIL_ASK_SURFACE,
+  SOCIAL_DETAIL_DEFAULT_OPEN,
+  SOCIAL_DETAIL_ICON,
+} from "@/lib/socialPlanner/socialPlannerDetailPresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import {
   SOCIAL_PLANNER_CONVERSATION_LIMITS,
@@ -41,6 +48,8 @@ type SocialPlannerAskAthenaPanelProps = {
   applyPending?: boolean;
   applyError?: string | null;
   onApply?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   messages?: TenantMessages;
 };
 
@@ -61,6 +70,8 @@ function SocialPlannerAskAthenaPanelInner({
   applyPending = false,
   applyError = null,
   onApply,
+  open,
+  onOpenChange,
   messages: tenantMessages,
 }: SocialPlannerAskAthenaPanelProps) {
   const copy = (tenantMessages ?? en).socialPlanner;
@@ -205,16 +216,19 @@ function SocialPlannerAskAthenaPanelInner({
   const composerDisabled = busy || loadingHistory;
 
   return (
-    <section
+    <AthenaCollapsibleSection
       id="social-planner-conversation"
-      className="scroll-mt-24 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-7"
-      data-social-planner-ask-athena=""
+      title={copy.askAthenaTitle}
+      summary={copy.askAthenaDescription}
+      defaultOpen={SOCIAL_DETAIL_DEFAULT_OPEN.askAthena}
+      open={open}
+      onOpenChange={onOpenChange}
+      tone="intelligence"
+      icon={<MessageCircleQuestionMark aria-hidden="true" />}
+      iconClassName={SOCIAL_DETAIL_ICON.violet}
+      className={`scroll-mt-24 ${SOCIAL_DETAIL_ASK_SURFACE}`}
     >
-      <h3 className="text-xl font-semibold">{copy.askAthenaTitle}</h3>
-      <p className="mt-2 text-sm leading-6 text-white/50">
-        {copy.askAthenaDescription}
-      </p>
-
+      <div data-social-planner-ask-athena="">
       {discussFocusLabel ? (
         <div
           className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/70"
@@ -322,7 +336,8 @@ function SocialPlannerAskAthenaPanelInner({
           ) : null}
         </div>
       ) : null}
-    </section>
+      </div>
+    </AthenaCollapsibleSection>
   );
 }
 

@@ -9,9 +9,15 @@ import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/g
 import { normalizeOptionalProspectGetOblicType } from "@/services/prospects/prospectGetOblicType";
 import { normalizeProspectLifecycleStatus } from "@/services/prospects/prospectLifecycle";
 import {
+  parseProspectGeneratedListingDescription,
+  type ProspectGeneratedListingDescription,
+} from "@/services/prospects/prospectGeneratedListingDescription";
+import {
   buildProspectAnalysisBody,
   normalizeWebsiteUrl,
 } from "@/services/prospects/prospectUtils";
+
+export type { ProspectGeneratedListingDescription };
 
 export { buildProspectAnalysisBody, normalizeWebsiteUrl };
 export {
@@ -70,6 +76,7 @@ export type Prospect = {
   priority: number;
   website_intelligence: Record<string, unknown> | null;
   raw_json: Record<string, unknown> | null;
+  generated_listing_description: ProspectGeneratedListingDescription | null;
   last_activity: string | null;
   import_batch_id: string | null;
 };
@@ -125,6 +132,7 @@ export type UpdateProspectInput = Partial<
   opportunity_score?: number;
   priority?: number;
   website_intelligence?: Record<string, unknown> | null;
+  generated_listing_description?: ProspectGeneratedListingDescription | null;
   last_activity?: string | null;
   lifecycle_status?: string;
   ads_content?: string | null;
@@ -147,6 +155,9 @@ function mapProspectRow(data: Prospect): Prospect {
     timezone: data.timezone ?? null,
     whatsapp_number: data.whatsapp_number ?? null,
     getoblic_type: data.getoblic_type ?? null,
+    generated_listing_description: parseProspectGeneratedListingDescription(
+      data.generated_listing_description,
+    ),
   };
 }
 
@@ -448,6 +459,9 @@ export async function updateProspect(
   if (input.priority !== undefined) payload.priority = input.priority;
   if (input.website_intelligence !== undefined) {
     payload.website_intelligence = input.website_intelligence;
+  }
+  if (input.generated_listing_description !== undefined) {
+    payload.generated_listing_description = input.generated_listing_description;
   }
   if (input.last_activity !== undefined) {
     payload.last_activity = input.last_activity;

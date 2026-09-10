@@ -6,6 +6,12 @@ import {
   type CopyButtonChrome,
 } from "@/components/deployment/CopyButton";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  AD_DETAIL_FIELD_LABEL_CLASS,
+  AD_DETAIL_FIELD_LIST_CLASS,
+  AD_DETAIL_FIELD_ROW_CLASS,
+  AD_DETAIL_FIELD_VALUE_CLASS,
+} from "@/lib/ads/adCampaignDetailPresentation";
 
 export type AdAssetField = {
   label: string;
@@ -20,6 +26,12 @@ type AdAssetSectionProps = {
   footer?: ReactNode;
   emptyValue?: string;
   copy?: CopyButtonChrome | null;
+  tone?: "default" | "intelligence";
+  icon?: ReactNode;
+  iconClassName?: string;
+  className?: string;
+  summary?: string;
+  copyVariant?: "default" | "utility";
 };
 
 export function AdAssetSection({
@@ -30,28 +42,38 @@ export function AdAssetSection({
   footer,
   emptyValue = "—",
   copy,
+  tone = "default",
+  icon,
+  iconClassName,
+  className,
+  summary,
+  copyVariant = "default",
 }: AdAssetSectionProps) {
   return (
     <AthenaCollapsibleSection
       title={title}
       eyebrow={eyebrow}
       defaultOpen={defaultOpen}
-      contentClassName="space-y-5"
+      summary={summary}
+      icon={icon}
+      iconClassName={iconClassName}
+      className={className}
+      tone={tone}
+      contentClassName={AD_DETAIL_FIELD_LIST_CLASS}
     >
       {fields.map((field) => (
-        <div key={field.label} className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-              {field.label}
-            </div>
+        <div key={field.label} className={AD_DETAIL_FIELD_ROW_CLASS}>
+          <div className="flex items-start justify-between gap-3">
+            <div className={AD_DETAIL_FIELD_LABEL_CLASS}>{field.label}</div>
             <CopyButton
               text={field.value}
               tracking={null}
               showContinue={false}
               chrome={copy}
+              variant={copyVariant}
             />
           </div>
-          <div className="whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white/80">
+          <div className={AD_DETAIL_FIELD_VALUE_CLASS}>
             {field.value || emptyValue}
           </div>
         </div>

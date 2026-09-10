@@ -1,5 +1,6 @@
 "use client";
 
+import { Globe } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
@@ -74,11 +75,17 @@ const DATETIME_FORMAT: Intl.DateTimeFormatOptions = {
 function ButtonSpinner() {
   return (
     <span
-      className="mr-2 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white"
+      className="inline-block size-4 animate-spin rounded-full border-2 border-[var(--athena-success)]/30 border-t-[var(--athena-success)]"
       aria-hidden="true"
     />
   );
 }
+
+const DEFAULT_BUTTON_CLASS =
+  "inline-flex w-full items-center justify-center gap-2 rounded-full border border-[var(--athena-success)]/50 bg-[var(--athena-success)]/15 px-6 py-3.5 text-sm font-semibold text-[var(--athena-success)] shadow-[0_0_18px_rgba(0,208,132,0.1)] transition hover:border-[var(--athena-success)]/70 hover:bg-[var(--athena-success)]/25 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto";
+
+const COMPACT_BUTTON_CLASS =
+  "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-[var(--athena-success)]/50 bg-[var(--athena-success)]/15 px-4 text-sm font-semibold text-[var(--athena-success)] shadow-[0_0_18px_rgba(0,208,132,0.1)] transition hover:border-[var(--athena-success)]/70 hover:bg-[var(--athena-success)]/25 disabled:cursor-not-allowed disabled:opacity-40";
 
 export function DeepScrapeWebsiteButton(props: {
   initiallyAvailable: boolean;
@@ -86,6 +93,7 @@ export function DeepScrapeWebsiteButton(props: {
   initialLastDeepScrapePages?: number | null;
   messages?: DeepScrapeMessages;
   locale?: TenantFormattingLocale;
+  variant?: "default" | "compact";
 }) {
   const messages = props.messages ?? DEFAULT_DEEP_SCRAPE_MESSAGES;
   const locale = props.locale ?? "en-US";
@@ -218,22 +226,27 @@ export function DeepScrapeWebsiteButton(props: {
   }
 
   const busy = queuing || isActive;
+  const compact = props.variant === "compact";
 
   return (
-    <div className="mt-8 space-y-3">
+    <div className={compact ? "flex min-w-0 flex-col gap-1" : "space-y-3"}>
       <button
         type="button"
         onClick={() => void startDeepScrape()}
         disabled={busy}
-        className="inline-flex w-full items-center justify-center rounded-full border border-[var(--athena-orange)]/40 bg-black/20 px-6 py-3 text-sm font-semibold text-white transition hover:bg-black/30 disabled:cursor-not-allowed disabled:opacity-40"
+        className={compact ? COMPACT_BUTTON_CLASS : DEFAULT_BUTTON_CLASS}
       >
-        {busy ? <ButtonSpinner /> : null}
+        {busy ? (
+          <ButtonSpinner />
+        ) : (
+          <Globe className="size-4" aria-hidden="true" />
+        )}
         {busy ? label || messages.button : messages.button}
       </button>
-      {busy && label ? (
+      {!compact && busy && label ? (
         <p className="text-sm text-white/55">{label}</p>
       ) : null}
-      {lastAt ? (
+      {!compact && lastAt ? (
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/50">
           <div className="text-xs uppercase tracking-[0.25em] text-white/35">
             {messages.lastTitle}
@@ -252,7 +265,11 @@ export function DeepScrapeWebsiteButton(props: {
           ) : null}
         </div>
       ) : null}
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
+      {error ? (
+        <div className={compact ? "text-xs text-red-300" : "text-sm text-red-300"}>
+          {error}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,13 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react";
 import { AthenaRecommendationRibbon } from "@/components/discussions/AthenaRecommendationRibbon";
 import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
 import { ExecutiveIntelligenceCard } from "@/components/discussions/ExecutiveIntelligenceCard";
 import { RegenerationMetadata } from "@/components/discussions/RegenerationMetadata";
 import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
+import { PersonaAudienceJourney } from "@/components/personas/PersonaAudienceJourney";
 import { PersonaDiscussProvider } from "@/components/personas/personaDiscussContext";
+import type { PersonaJourneyChrome } from "@/lib/personas/personaDetailPresentation";
+import type { Persona } from "@/services/personas/personaService";
 import { ProspectConversationPanel } from "@/components/prospects/ProspectConversationPanel";
 import {
   ProspectIntelligenceSections,
@@ -16,8 +25,14 @@ import {
 import {
   groupProspectOutreachAssets,
 } from "@/lib/prospects/prospectOutreachAssetGroups";
+import { Compass } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import {
+  PERSONA_DETAIL_ICON,
+  PERSONA_DETAIL_SURFACE,
+  PERSONA_NESTED_CARD_CLASS,
+} from "@/lib/personas/personaPagePresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 import { isAssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
@@ -54,7 +69,6 @@ import {
 import type { DeploymentAssetsChrome } from "@/components/deployment/DeploymentAssets";
 import type { ProspectConversationChrome } from "@/components/prospects/ProspectConversationPanel";
 import {
-  groupAudienceAnalysisAssets,
   type AudienceAnalysisTitleKey,
 } from "@/lib/personas/audienceAnalysisSections";
 
@@ -141,6 +155,8 @@ type ExecutiveIntelligenceWorkspaceProps = {
   originalDiscussionSection: ReactNode;
   /** Rendered between blueprint and the bottom grid (e.g. append update form). */
   afterBlueprint?: ReactNode;
+  /** Prospect-only: identity glance + website research after recommendation. */
+  afterProspectRecommendation?: ReactNode;
   /** Rendered after the bottom grid (e.g. prospect lifecycle footer). */
   afterDetailedReasoning?: ReactNode;
   /** Isolated source wording. Defaults to discussion labels. */
@@ -164,6 +180,16 @@ type ExecutiveIntelligenceWorkspaceProps = {
   personaSectionTitles?: Partial<Record<AudienceAnalysisTitleKey, string>> | null;
   /** Prospect-only presentation dictionary. Unused for other source kinds. */
   tenantMessages?: ProspectWorkspaceMessages | null;
+  /** Persona detail stored profile. Unused for other source kinds. */
+  persona?: Persona | null;
+  /** Persona Phase-1 journey chrome. Unused for other source kinds. */
+  personaJourneyChrome?: PersonaJourneyChrome | null;
+  /** Persona library/detail messages for confidence + snapshot. */
+  personaLibraryMessages?: ComponentProps<
+    typeof PersonaAudienceJourney
+  >["messages"] | null;
+  personaProfileEditor?: ReactNode;
+  personaCrossLinks?: ReactNode;
 };
 
 function formatVersionGeneratedAt(
@@ -234,6 +260,7 @@ export function ExecutiveIntelligenceWorkspace({
   fallbackIntelligence,
   originalDiscussionSection,
   afterBlueprint,
+  afterProspectRecommendation = null,
   afterDetailedReasoning,
   sourceKind = "discussion",
   brandDirection = null,
@@ -244,6 +271,11 @@ export function ExecutiveIntelligenceWorkspace({
   assetChrome = null,
   personaSectionTitles = null,
   tenantMessages = null,
+  persona = null,
+  personaJourneyChrome = null,
+  personaLibraryMessages = null,
+  personaProfileEditor = null,
+  personaCrossLinks = null,
 }: ExecutiveIntelligenceWorkspaceProps) {
   const { isGenerating, isCompleted } = useDiscussionRegeneration();
   const isProspect = sourceKind === "prospect";
@@ -575,6 +607,33 @@ export function ExecutiveIntelligenceWorkspace({
         </>,
       );
     }
+    if (
+      isPersona &&
+      persona &&
+      personaJourneyChrome &&
+      personaLibraryMessages
+    ) {
+      return wrapWithPersonaDiscuss(
+        <>
+          <PersonaAudienceJourney
+            persona={persona}
+            analysis={null}
+            analysisAssets={[]}
+            deploymentAssets={[]}
+            chrome={personaJourneyChrome}
+            messages={personaLibraryMessages}
+            executiveChrome={chrome}
+            locale={locale}
+            profileEditor={personaProfileEditor}
+            crossLinks={personaCrossLinks}
+            previousIntelligence={null}
+            evidenceExtra={originalDiscussionSection}
+            blueprint={null}
+          />
+          {afterDetailedReasoning}
+        </>,
+      );
+    }
     return wrapWithPersonaDiscuss(
       <>
         <div
@@ -794,7 +853,7 @@ export function ExecutiveIntelligenceWorkspace({
           </div>
         )}
 
-        {!isProspect ? (
+        {!isProspect && !isPersona ? (
           <div className="mt-8">
             <AthenaRecommendationRibbon
               analysis={viewModel.analysis}
@@ -811,7 +870,7 @@ export function ExecutiveIntelligenceWorkspace({
           </div>
         ) : null}
 
-        {!isProspect ? (
+        {!isProspect && !isPersona ? (
           <div id="executive-intelligence" className="mt-6 scroll-mt-24">
             <ExecutiveIntelligenceCard
               analysis={viewModel.analysis}
@@ -856,6 +915,7 @@ export function ExecutiveIntelligenceWorkspace({
               opportunity={intelligence.opportunity}
               assets={deploymentAssets}
               messages={tenantMessages}
+              afterRecommendation={afterProspectRecommendation}
             />
           </div>
         ) : null}
@@ -873,7 +933,7 @@ export function ExecutiveIntelligenceWorkspace({
                         chrome?.deploymentAssetsTitle ??
                         "Outreach drafts"
                       }
-                      defaultOpen
+                      defaultOpen={false}
                       className="mt-8"
                     >
                       <DeploymentAssets
@@ -925,166 +985,177 @@ export function ExecutiveIntelligenceWorkspace({
             })()
           : null}
 
-        {isPersona
-          ? groupAudienceAnalysisAssets(viewModel.personaAnalysisAssets).map(
-              ({ def, asset }) => (
+        {isPersona &&
+        persona &&
+        personaJourneyChrome &&
+        personaLibraryMessages ? (
+          <PersonaAudienceJourney
+            persona={persona}
+            analysis={viewModel.analysis}
+            analysisAssets={viewModel.personaAnalysisAssets}
+            deploymentAssets={deploymentAssets}
+            chrome={personaJourneyChrome}
+            messages={personaLibraryMessages}
+            executiveChrome={chrome}
+            locale={locale}
+            generatedAt={viewModel.displayGeneratedAt}
+            profileEditor={personaProfileEditor}
+            crossLinks={personaCrossLinks}
+            evidenceExtra={originalDiscussionSection}
+            executiveVersionId={viewModel.executiveVersionId}
+            copyContext={copyContext}
+            doneByAssetType={doneByAssetType}
+            tagsByAssetType={tagsByAssetType}
+            continuationPreferences={continuationPreferences}
+            onDiscussWithAthena={handleDiscussWithAthena}
+            assetChrome={assetChrome}
+            blueprint={
+              viewModel.blueprint ? (
                 <AthenaCollapsibleSection
-                  key={`persona-analysis-${def.id}-${viewModel.executiveVersionId ?? "none"}`}
                   title={
-                    personaSectionTitles?.[def.titleKey] ??
-                    chrome?.analysisAssetsTitle ??
-                    asset.title
+                    chrome?.strategicBlueprintTitle ??
+                    "Persona Strategic Blueprint"
                   }
-                  defaultOpen={def.defaultOpen}
-                  className="mt-8"
+                  defaultOpen={false}
+                  tone="intelligence"
+                  className={PERSONA_DETAIL_SURFACE.orange}
+                  icon={<Compass />}
+                  iconClassName={PERSONA_DETAIL_ICON.orange}
                 >
-                  <DeploymentAssets
-                    executiveVersionId={viewModel.executiveVersionId}
-                    assets={[asset]}
+                  <StrategicAssetBlueprint
+                    blueprint={viewModel.blueprint}
                     copyContext={copyContext}
                     doneByAssetType={doneByAssetType}
                     tagsByAssetType={tagsByAssetType}
+                    brandDirection={brandDirection}
                     continuationPreferences={continuationPreferences}
                     onDiscussWithAthena={handleDiscussWithAthena}
                     chrome={assetChrome}
+                    variant="embedded"
                   />
                 </AthenaCollapsibleSection>
-              ),
-            )
-          : null}
+              ) : viewModel.isHistorical ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
+                  {chrome?.blueprintUnavailable ??
+                    "Strategic Asset Blueprint is unavailable in this archived Executive Version snapshot."}
+                </div>
+              ) : null
+            }
+            previousIntelligence={
+              sortedVersions.length > 0 ? (
+                <div data-persona-previous-intelligence="true">
+                  <p className="mb-6 max-w-2xl text-sm leading-6 text-white/45">
+                    {chrome?.versionsHelp ??
+                      "Browse Athena's complete strategic understanding over time. Opening a previous version is view-only and never regenerates intelligence."}
+                  </p>
+                  <div className="space-y-3">
+                    {sortedVersions.map((version) => {
+                      const expanded = expandedVersionIds.has(version.id);
+                      const selected = selectedVersion?.id === version.id;
+                      const title = versionTitle(
+                        version,
+                        oldestVersionNumber,
+                        chrome,
+                      );
+                      return (
+                        <div
+                          key={version.id}
+                          className={`${PERSONA_NESTED_CARD_CLASS} ${selected ? "border-[rgba(167,139,250,0.28)]" : ""}`}
+                        >
+                          <div>
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <h3 className="text-base font-semibold tracking-tight text-white">
+                                    {title}
+                                  </h3>
+                                  {version.is_current ? (
+                                    <span className="rounded-full border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--athena-orange)]">
+                                      {chrome?.currentBadge ?? "Current ✓"}
+                                    </span>
+                                  ) : (
+                                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-white/40">
+                                      {chrome?.archivedBadge ?? "Archived"}
+                                    </span>
+                                  )}
+                                  {isThinkDifferentlyExecutiveVersion(
+                                    version,
+                                  ) ? (
+                                    <span className="rounded-full border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--athena-success)]">
+                                      Think Differently
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="mt-3 space-y-1 text-sm text-white/45">
+                                  <div>
+                                    <span className="text-white/30">
+                                      {chrome?.generatedPrefix ?? "Generated "}
+                                    </span>
+                                    <span className="text-white/65">
+                                      {formatVersionGeneratedAt(
+                                        resolveExecutiveVersionDisplayTimestamp(
+                                          version,
+                                        ),
+                                        true,
+                                        locale,
+                                      )}
+                                    </span>
+                                  </div>
+                                  {version.models_used ? (
+                                    <div className="text-white/55">
+                                      {version.models_used}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => onViewVersion(version.id)}
+                                className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/[0.06] hover:text-white"
+                                aria-expanded={expanded}
+                              >
+                                {expanded && selected
+                                  ? (chrome?.hide ?? "▲ Hide")
+                                  : (chrome?.view ?? "▼ View")}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null
+            }
+          />
+        ) : null}
 
-        {isPersona && deploymentAssets.length > 0 ? (
+        {viewModel.blueprint && !isProspect && !isPersona ? (
           <AthenaCollapsibleSection
-            key={`deployment-assets-section-${viewModel.executiveVersionId ?? "none"}`}
             title={
-              chrome?.deploymentAssetsTitle ?? "Outreach drafts"
+              chrome?.strategicBlueprintTitle ?? "Strategic Asset Blueprint"
             }
             defaultOpen={false}
             className="mt-8"
           >
-            <DeploymentAssets
-              key={`deployment-assets-${viewModel.executiveVersionId ?? "none"}`}
-              executiveVersionId={viewModel.executiveVersionId}
-              assets={deploymentAssets}
+            <StrategicAssetBlueprint
+              blueprint={viewModel.blueprint}
               copyContext={copyContext}
               doneByAssetType={doneByAssetType}
               tagsByAssetType={tagsByAssetType}
+              brandDirection={brandDirection}
               continuationPreferences={continuationPreferences}
-              onDiscussWithAthena={handleDiscussWithAthena}
+              onDiscussWithAthena={
+                isProspect ? handleDiscussWithAthena : undefined
+              }
               chrome={assetChrome}
             />
           </AthenaCollapsibleSection>
-        ) : isPersona &&
-          (viewModel.isHistorical ||
-            viewModel.personaAnalysisAssets.length > 0) ? (
-          <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
-            {chrome?.deploymentAssetsUnavailable ??
-              "Outreach drafts are unavailable in this intelligence snapshot."}
-          </div>
-        ) : null}
-
-        {viewModel.blueprint && !isProspect ? (
-          isPersona ? (
-            <AthenaCollapsibleSection
-              title={
-                chrome?.strategicBlueprintTitle ?? "Persona Strategic Blueprint"
-              }
-              defaultOpen={false}
-              className="mt-8"
-            >
-              <StrategicAssetBlueprint
-                blueprint={viewModel.blueprint}
-                copyContext={copyContext}
-                doneByAssetType={doneByAssetType}
-                tagsByAssetType={tagsByAssetType}
-                brandDirection={brandDirection}
-                continuationPreferences={continuationPreferences}
-                onDiscussWithAthena={handleDiscussWithAthena}
-                chrome={assetChrome}
-              />
-            </AthenaCollapsibleSection>
-          ) : (
-            <AthenaCollapsibleSection
-              title={
-                chrome?.strategicBlueprintTitle ?? "Strategic Asset Blueprint"
-              }
-              defaultOpen={false}
-              className="mt-8"
-            >
-              <StrategicAssetBlueprint
-                blueprint={viewModel.blueprint}
-                copyContext={copyContext}
-                doneByAssetType={doneByAssetType}
-                tagsByAssetType={tagsByAssetType}
-                brandDirection={brandDirection}
-                continuationPreferences={continuationPreferences}
-                onDiscussWithAthena={
-                  isProspect ? handleDiscussWithAthena : undefined
-                }
-                chrome={assetChrome}
-              />
-            </AthenaCollapsibleSection>
-          )
-        ) : !isProspect && viewModel.isHistorical ? (
+        ) : !isProspect && !isPersona && viewModel.isHistorical ? (
           <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/55">
             {chrome?.blueprintUnavailable ??
               "Strategic Asset Blueprint is unavailable in this archived Executive Version snapshot."}
           </div>
-        ) : null}
-
-        {isPersona && sortedVersions.length > 0 ? (
-          <AthenaCollapsibleSection
-            title={chrome?.versionsTitle ?? "Previous intelligence"}
-            defaultOpen={Boolean(selectedVersion && !selectedVersion.is_current)}
-            className="mt-8"
-          >
-            <p className="mb-8 max-w-2xl text-sm leading-6 text-white/45">
-              {chrome?.versionsHelp ??
-                "Browse Athena's complete strategic understanding over time. Opening a previous version is view-only and never regenerates intelligence."}
-            </p>
-            <div className="space-y-0">
-              {sortedVersions.map((version, index) => {
-                const expanded = expandedVersionIds.has(version.id);
-                const selected = selectedVersion?.id === version.id;
-                const title = versionTitle(version, oldestVersionNumber, chrome);
-                return (
-                  <div key={version.id}>
-                    {index > 0 && <div className="border-t border-white/10" />}
-                    <div className={`py-5 ${selected ? "bg-white/[0.02]" : ""}`}>
-                      <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <h3 className="text-lg font-semibold text-white">
-                              {title}
-                            </h3>
-                            {version.is_current ? (
-                              <span className="rounded-full border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--athena-orange)]">
-                                {chrome?.currentBadge ?? "Current ✓"}
-                              </span>
-                            ) : (
-                              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-white/40">
-                                {chrome?.archivedBadge ?? "Archived"}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => onViewVersion(version.id)}
-                          className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/[0.06] hover:text-white"
-                          aria-expanded={expanded}
-                        >
-                          {expanded && selected
-                            ? (chrome?.hide ?? "▲ Hide")
-                            : (chrome?.view ?? "▼ View")}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </AthenaCollapsibleSection>
         ) : null}
       </div>
 
@@ -1211,7 +1282,7 @@ export function ExecutiveIntelligenceWorkspace({
         </AthenaCollapsibleSection>
       ) : null}
 
-      {!isProspect ? (
+      {!isProspect && !isPersona ? (
       <div className="mt-8 grid gap-8 lg:grid-cols-3">
         <AthenaCollapsibleSection
           title={sourceContextTitle}

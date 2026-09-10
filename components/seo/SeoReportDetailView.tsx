@@ -2,13 +2,43 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  Brain,
+  CheckCircle,
+  Globe,
+  Info,
+  Layers,
+  ShieldCheck,
+  Target,
+  Telescope,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import { SeoRecommendationCard } from "@/components/seo/SeoRecommendationCard";
 import { SeoReportHeaderDeleteButton } from "@/components/seo/SeoReportHeaderDeleteButton";
 import { SeoReportSection } from "@/components/seo/SeoReportSection";
 import { SeoReportStatusPanel } from "@/components/seo/SeoReportStatusPanel";
+import { SeoScoreCard } from "@/components/seo/SeoScoreCard";
+import {
+  SEO_STRATEGY_CATEGORY_SURFACE,
+  SEO_STRATEGY_COVERAGE,
+  SEO_STRATEGY_COVERAGE_LABEL,
+  SEO_STRATEGY_ICON,
+  SEO_STRATEGY_SURFACE,
+  strategyRoadmapPriorityAccent,
+  strategyRoadmapPriorityPill,
+  type SeoStrategyCoverageTone,
+} from "@/components/seo/seoStrategyReportPresentation";
+import {
+  SEO_TECHNICAL_ICON,
+  SEO_TECHNICAL_SURFACE,
+} from "@/components/seo/seoTechnicalReportPresentation";
 import { SeoWebsitePagesAnalyzedSection } from "@/components/seo/SeoWebsitePagesAnalyzedSection";
 import { VisibilityPageHeader } from "@/components/seo/VisibilityPageHeader";
+import { computeContentCoverageScoreFromPackage } from "@/lib/seo/seoScorePresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
 import { en } from "@/lib/tenantI18n/messages/en";
@@ -131,7 +161,8 @@ function SeoIntelligenceReportDetailView({
   const createdDate = formatTenantDate(report.createdAt, language);
   const summary = pkg?.executiveAssessment.summary.trim() ?? "";
   const overall = pkg?.executiveAssessment.overallAssessment.trim() ?? "";
-  const showOverall = Boolean(overall && overall !== summary);
+  const leadAssessment = summary || overall;
+  const contentCoverageScore = computeContentCoverageScoreFromPackage(pkg);
   const lensLabel = getLocalizedSeoLensLabel(dictionary, "intelligence");
 
   async function handleRegenerate() {
@@ -175,10 +206,18 @@ function SeoIntelligenceReportDetailView({
           title={report.name}
           subtitle=""
           badge={
-            <SeoGenerationTypeBadge
-              generationType="intelligence"
-              label={lensLabel}
-            />
+            <span className="inline-flex items-center gap-2">
+              <span
+                className={`grid size-8 place-items-center rounded-xl ${SEO_STRATEGY_ICON.violet}`}
+                aria-hidden="true"
+              >
+                <Telescope size={16} />
+              </span>
+              <SeoGenerationTypeBadge
+                generationType="intelligence"
+                label={lensLabel}
+              />
+            </span>
           }
         >
           <div className="mt-4 flex min-w-0 flex-wrap items-center gap-3">
@@ -202,7 +241,7 @@ function SeoIntelligenceReportDetailView({
               type="button"
               onClick={() => void handleRegenerate()}
               disabled={regenerating}
-              className="w-full rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/85 disabled:opacity-60 sm:w-auto"
+              className="w-full rounded-2xl border border-white/12 bg-white/[0.03] px-5 py-3 text-sm font-semibold text-white/75 transition hover:border-white/20 hover:text-white disabled:opacity-60 sm:w-auto"
             >
               {regenerating ? copy.detail.starting : copy.detail.regenerate}
             </button>
@@ -231,38 +270,57 @@ function SeoIntelligenceReportDetailView({
 
       {pkg && presentation ? (
         <div className="space-y-6">
-          <section className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
-            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-orange)]">
-              {copy.detail.athenasAssessment}
-            </div>
-            <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-white/80">
-              {pkg.executiveAssessment.summary}
-            </p>
-            {showOverall ? (
-              <div className="mt-5">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-                  {copy.detail.overallAssessment}
+          <SeoScoreCard
+            family="strategy"
+            score={contentCoverageScore}
+            label={copy.visibility.contentCoverageScore}
+            help={copy.visibility.contentCoverageScoreHelp}
+            unavailableLabel={copy.visibility.scoreUnavailable}
+            unavailableHelp={copy.visibility.scoreUnavailableHelp}
+            icon={<Target />}
+            messages={copy.visibility}
+          />
+
+          <section className={SEO_STRATEGY_SURFACE.assessment}>
+            <div className="flex items-start gap-4">
+              <span
+                className={`grid size-10 shrink-0 place-items-center rounded-2xl ${SEO_STRATEGY_ICON.violet}`}
+                aria-hidden="true"
+              >
+                <Brain size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold uppercase tracking-[0.28em] text-violet-300">
+                  {copy.detail.athenasAssessment}
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-white/70">
-                  {pkg.executiveAssessment.overallAssessment}
+                <p className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-white/80">
+                  {leadAssessment}
                 </p>
               </div>
-            ) : null}
+            </div>
           </section>
 
           <section className="space-y-4">
-            <div>
-              <h2 className="text-2xl font-semibold">
-                {copy.detail.recommendedImprovements}
-              </h2>
-              {pkg.ninetyDayRoadmap.overview ? (
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/70">
-                  {pkg.ninetyDayRoadmap.overview}
+            <div className="flex items-start gap-3">
+              <span
+                className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${SEO_STRATEGY_ICON.orange}`}
+                aria-hidden="true"
+              >
+                <Target size={20} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  {copy.detail.recommendedImprovements}
+                </h2>
+                {pkg.ninetyDayRoadmap.overview ? (
+                  <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-white/70">
+                    {pkg.ninetyDayRoadmap.overview}
+                  </p>
+                ) : null}
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-white/45">
+                  {copy.detail.priorityAssignedNote}
                 </p>
-              ) : null}
-              <p className="mt-3 text-sm leading-6 text-white/45">
-                {copy.detail.priorityAssignedNote}
-              </p>
+              </div>
             </div>
             <div className="space-y-4">
               {presentation.roadmapItems.map((item, index) => (
@@ -275,6 +333,8 @@ function SeoIntelligenceReportDetailView({
                     dictionary,
                     item.priority,
                   )}
+                  priorityClassName={strategyRoadmapPriorityPill(item.priority)}
+                  priorityAccent={strategyRoadmapPriorityAccent(item.priority)}
                   effort={getLocalizedSeoEffortLabel(
                     dictionary,
                     item.estimatedEffort,
@@ -284,18 +344,22 @@ function SeoIntelligenceReportDetailView({
                   chrome={cardChrome}
                   defaultOpen={index === 0}
                   evidenceDefaultOpen={false}
+                  copyVariant="utility"
                 />
               ))}
             </div>
           </section>
 
           <SeoReportSection
-            title={copy.detail.supportingIntelligence}
+            title={copy.detail.detailedFindings}
             defaultOpen={false}
             chrome={sectionChrome}
-            summary={pkg.executiveAssessment.summary}
+            tone="intelligence"
+            icon={<Layers size={20} />}
+            iconClassName={SEO_STRATEGY_ICON.violet}
+            className={SEO_STRATEGY_SURFACE.findingsParent}
+            copyVariant="utility"
             readingCorpus={sectionReadingCorpus([
-              pkg.executiveAssessment.overallAssessment,
               pkg.contentCoverage.analysis,
               pkg.customerIntent.buyerIntentSummary,
               pkg.commercialOpportunities.summary,
@@ -306,20 +370,27 @@ function SeoIntelligenceReportDetailView({
               title={copy.detail.executiveAssessment}
               defaultOpen={false}
               chrome={sectionChrome}
-              summary={pkg.executiveAssessment.summary}
+              tone="intelligence"
+              iconSize="sm"
+              icon={<Brain size={16} />}
+              iconClassName={SEO_STRATEGY_ICON.muted}
+              className={SEO_STRATEGY_CATEGORY_SURFACE.muted}
+              copyVariant="utility"
               readingCorpus={sectionReadingCorpus([
-                pkg.executiveAssessment.overallAssessment,
-                pkg.executiveAssessment.summary,
                 pkg.executiveAssessment.seoReadiness,
                 pkg.executiveAssessment.businessVisibilityAssessment,
                 ...pkg.executiveAssessment.strengths,
                 ...pkg.executiveAssessment.weaknesses,
               ])}
               fields={[
-                {
-                  label: copy.detail.overallAssessment,
-                  value: pkg.executiveAssessment.overallAssessment,
-                },
+                ...(leadAssessment !== pkg.executiveAssessment.overallAssessment.trim()
+                  ? [
+                      {
+                        label: copy.detail.overallAssessment,
+                        value: pkg.executiveAssessment.overallAssessment,
+                      },
+                    ]
+                  : []),
                 {
                   label: copy.detail.strengths,
                   value: joinLines(pkg.executiveAssessment.strengths),
@@ -343,6 +414,12 @@ function SeoIntelligenceReportDetailView({
               title={copy.detail.contentCoverageV2}
               defaultOpen={false}
               chrome={sectionChrome}
+              tone="intelligence"
+              iconSize="sm"
+              icon={<Target size={16} />}
+              iconClassName={SEO_STRATEGY_ICON.violet}
+              className={SEO_STRATEGY_CATEGORY_SURFACE.violet}
+              copyVariant="utility"
               summary={pkg.contentCoverage.analysis}
               readingCorpus={sectionReadingCorpus([
                 pkg.contentCoverage.analysis,
@@ -360,32 +437,46 @@ function SeoIntelligenceReportDetailView({
                 <NarrativeBlock
                   label={copy.detail.wellCovered}
                   value={joinLines(pkg.contentCoverage.wellCoveredServices)}
+                  tone="well"
+                  icon={<CheckCircle size={14} />}
                 />
                 <NarrativeBlock
                   label={copy.detail.weaklyCovered}
                   value={joinLines(pkg.contentCoverage.weaklyCoveredServices)}
+                  tone="weak"
+                  icon={<AlertCircle size={14} />}
                 />
                 <NarrativeBlock
                   label={copy.detail.missingServices}
                   value={joinLines(pkg.contentCoverage.missingServices)}
+                  tone="missing"
+                  icon={<AlertTriangle size={14} />}
                 />
                 <NarrativeBlock
                   label={copy.detail.missingCustomerQuestions}
                   value={joinLines(pkg.contentCoverage.missingCustomerQuestions)}
+                  tone="missing"
+                  icon={<AlertTriangle size={14} />}
                 />
                 <NarrativeBlock
                   label={copy.detail.missingTrustContent}
                   value={joinLines(pkg.contentCoverage.missingTrustContent)}
+                  tone="missing"
+                  icon={<AlertTriangle size={14} />}
                 />
                 <NarrativeBlock
                   label={copy.detail.missingEducationalContent}
                   value={joinLines(
                     pkg.contentCoverage.missingEducationalContent,
                   )}
+                  tone="missing"
+                  icon={<AlertTriangle size={14} />}
                 />
                 <NarrativeBlock
                   label={copy.detail.missingConversionContent}
                   value={joinLines(pkg.contentCoverage.missingConversionContent)}
+                  tone="missing"
+                  icon={<AlertTriangle size={14} />}
                 />
               </div>
               <NarrativeBlock
@@ -404,6 +495,12 @@ function SeoIntelligenceReportDetailView({
               title={copy.detail.customerIntentV2}
               defaultOpen={false}
               chrome={sectionChrome}
+              tone="intelligence"
+              iconSize="sm"
+              icon={<Users size={16} />}
+              iconClassName={SEO_STRATEGY_ICON.cyan}
+              className={SEO_STRATEGY_CATEGORY_SURFACE.cyan}
+              copyVariant="utility"
               summary={pkg.customerIntent.buyerIntentSummary}
               readingCorpus={sectionReadingCorpus([
                 pkg.customerIntent.buyerIntentSummary,
@@ -441,6 +538,7 @@ function SeoIntelligenceReportDetailView({
                     futureActionKinds={gap.futureActionKinds}
                     chrome={cardChrome}
                     defaultOpen={false}
+                    copyVariant="utility"
                   />
                 ))}
               </div>
@@ -456,6 +554,12 @@ function SeoIntelligenceReportDetailView({
               title={copy.detail.commercialOpportunitiesV2}
               defaultOpen={false}
               chrome={sectionChrome}
+              tone="intelligence"
+              iconSize="sm"
+              icon={<TrendingUp size={16} />}
+              iconClassName={SEO_STRATEGY_ICON.green}
+              className={SEO_STRATEGY_CATEGORY_SURFACE.green}
+              copyVariant="utility"
               summary={pkg.commercialOpportunities.summary}
               readingCorpus={sectionReadingCorpus([
                 pkg.commercialOpportunities.summary,
@@ -484,6 +588,7 @@ function SeoIntelligenceReportDetailView({
                     chrome={cardChrome}
                     defaultOpen={false}
                     evidenceDefaultOpen={false}
+                    copyVariant="utility"
                   />
                 ))}
               </div>
@@ -493,6 +598,12 @@ function SeoIntelligenceReportDetailView({
               title={copy.detail.trustAndAuthorityV2}
               defaultOpen={false}
               chrome={sectionChrome}
+              tone="intelligence"
+              iconSize="sm"
+              icon={<ShieldCheck size={16} />}
+              iconClassName={SEO_STRATEGY_ICON.violet}
+              className={SEO_STRATEGY_CATEGORY_SURFACE.violet}
+              copyVariant="utility"
               summary={pkg.trustAndAuthority.authorityMessaging}
               readingCorpus={sectionReadingCorpus([
                 pkg.trustAndAuthority.trustSignals,
@@ -545,7 +656,7 @@ function SeoIntelligenceReportDetailView({
                 {pkg.trustAndAuthority.recommendations.map((recommendation) => (
                   <div
                     key={recommendation}
-                    className="rounded-2xl border border-white/10 bg-black/20 px-5 py-4 text-sm leading-7 text-white/80"
+                    className="rounded-2xl border border-[rgba(167,139,250,0.18)] bg-black/20 bg-[linear-gradient(180deg,rgba(167,139,250,0.06),transparent_70%)] px-5 py-4 text-sm leading-7 text-white/80"
                     data-future-action-kinds="generate_trust_page,generate_article"
                   >
                     {recommendation}
@@ -564,9 +675,21 @@ function SeoIntelligenceReportDetailView({
           <SeoWebsitePagesAnalyzedSection
             inventory={pkg.websitePagesAnalyzed}
             chrome={getSeoWebsitePagesChrome(dictionary)}
+            tone="intelligence"
+            icon={<Globe size={20} />}
+            iconClassName={SEO_TECHNICAL_ICON.cyan}
+            className={SEO_TECHNICAL_SURFACE.pages}
           />
 
-          <p className="text-xs leading-6 text-white/35">{pkg.disclaimer}</p>
+          <div className={SEO_TECHNICAL_SURFACE.disclaimer}>
+            <Info
+              className="mt-0.5 size-4 shrink-0 text-white/35"
+              aria-hidden="true"
+            />
+            <p className="max-w-3xl text-xs leading-6 text-white/40">
+              {pkg.disclaimer}
+            </p>
+          </div>
         </div>
       ) : null}
     </div>
@@ -576,17 +699,36 @@ function SeoIntelligenceReportDetailView({
 function NarrativeBlock({
   label,
   value,
+  tone,
+  icon,
 }: {
   label: string;
   value: string;
+  tone?: SeoStrategyCoverageTone;
+  icon?: ReactNode;
 }) {
   if (!value.trim()) return null;
+  const surface = tone
+    ? SEO_STRATEGY_COVERAGE[tone]
+    : "rounded-2xl border border-white/10 bg-black/20 px-4 py-3";
+  const labelClass = tone
+    ? SEO_STRATEGY_COVERAGE_LABEL[tone]
+    : "text-white/40";
   return (
     <div className="space-y-2">
-      <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-        {label}
+      <div
+        className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] ${labelClass}`}
+      >
+        {icon ? (
+          <span className="shrink-0" aria-hidden="true">
+            {icon}
+          </span>
+        ) : null}
+        <span className="min-w-0">{label}</span>
       </div>
-      <div className="whitespace-pre-wrap break-words rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-7 text-white/80">
+      <div
+        className={`whitespace-pre-wrap break-words text-sm leading-7 text-white/80 ${surface}`}
+      >
         {value}
       </div>
     </div>

@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
+import { Globe, RefreshCw } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
-import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import { WebsiteAnalyzedPagesList } from "@/components/websiteLearning/WebsiteAnalyzedPagesList";
 import {
   groupSourcePages,
+  IDENTITY_CARD_ICON_CLASS,
+  IDENTITY_CARD_SURFACE_CLASS,
   IDENTITY_FIELD_ANCHORS,
+  IDENTITY_HEADER_RETRAIN_ACTION_CLASS,
   localizePageGroup,
   readWebsiteKnowledgeFlags,
 } from "@/components/identity/identityPagePresentation";
@@ -59,15 +62,29 @@ export function IdentityWebsiteKnowledge({
       : null;
 
   return (
-    <section
+    <AthenaCollapsibleSection
       id={IDENTITY_FIELD_ANCHORS.websiteKnowledge}
-      className={`scroll-mt-24 rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-6 sm:p-8`}
+      title={page.websiteKnowledgeTitle}
+      summary={page.websiteDeepScrapeHelp}
+      defaultOpen={false}
+      tone="identity"
+      icon={<Globe size={20} />}
+      iconClassName={IDENTITY_CARD_ICON_CLASS.blue}
+      className={`${IDENTITY_CARD_SURFACE_CLASS.blue} scroll-mt-24`}
+      headerActions={
+        <div className="flex flex-wrap items-center gap-2">
+          {deepScrape}
+          <a
+            href={`#${IDENTITY_FIELD_ANCHORS.teach}`}
+            className={IDENTITY_HEADER_RETRAIN_ACTION_CLASS}
+          >
+            <RefreshCw size={16} aria-hidden="true" />
+            {trained ? messages.retrainAthena : messages.trainAthena}
+          </a>
+        </div>
+      }
     >
-      <h2 className="text-2xl font-semibold tracking-tight">
-        {page.websiteKnowledgeTitle}
-      </h2>
-
-      <div className="mt-5 space-y-4 text-sm leading-6 text-white/65">
+      <div className="space-y-4 text-sm leading-6 text-white/65">
         {!flags.hasWebsiteUrl ? (
           <p>{page.websiteNoUrl}</p>
         ) : !trained ? (
@@ -133,7 +150,6 @@ export function IdentityWebsiteKnowledge({
       <p className="mt-6 text-sm leading-6 text-white/50">
         {page.websiteDeepScrapeHelp}
       </p>
-      <div className="w-full">{deepScrape}</div>
-    </section>
+    </AthenaCollapsibleSection>
   );
 }

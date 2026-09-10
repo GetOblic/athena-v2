@@ -1,10 +1,12 @@
 export const dynamic = "force-dynamic";
 
+import { MessagesSquare } from "lucide-react";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { SocialPlannerWorkspace } from "@/components/socialPlanner/SocialPlannerWorkspace";
 import { SOCIAL_PLANNER_CALENDAR_ID_RE } from "@/components/socialPlanner/socialPlannerClient";
 import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
 import { TractionSiblingNav } from "@/components/traction/TractionSiblingNav";
+import { SOCIAL_PAGE_HEADER_ICON } from "@/lib/socialPlanner/socialPlannerPagePresentation";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import {
   SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
@@ -59,6 +61,11 @@ export default async function SocialPlannerPage({
 
   return (
     <TenantAppShell currentPath="/social-planner" messages={messages}>
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <span className={SOCIAL_PAGE_HEADER_ICON} aria-hidden="true">
+          <MessagesSquare className="size-5" />
+        </span>
+      </div>
       <TractionPageHeader
         eyebrow={copy.eyebrow}
         title={copy.title}
@@ -81,9 +88,6 @@ export default async function SocialPlannerPage({
             },
           ]}
         />
-        <p className="mt-4 text-sm leading-6 text-white/50">
-          {copy.traction.helper}
-        </p>
       </TractionPageHeader>
 
       <SocialPlannerWorkspace

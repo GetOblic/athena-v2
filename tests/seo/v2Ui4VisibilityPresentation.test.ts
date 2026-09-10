@@ -77,14 +77,44 @@ describe("V2-UI-4C Build Visibility presentation", () => {
   it("keeps /seo to a single New analysis path without dual generate CTAs", () => {
     const landing = read("app/seo/page.tsx");
     const library = read("components/seo/SeoLibraryClient.tsx");
-    assert.match(landing, /copy\.visibility\.analyzeCta|copy\.visibility\.newAnalysisCta/);
+    assert.match(landing, /copy\.visibility\.newAnalysisCta/);
     assert.match(landing, /href="\/seo\/new"/);
+    assert.equal((landing.match(/href="\/seo\/new"/g) ?? []).length, 1);
     assert.doesNotMatch(landing, /copy\.generateIntelligence/);
     assert.doesNotMatch(landing, /copy\.generateTechnical/);
     assert.doesNotMatch(library, /copy\.generateIntelligence/);
     assert.doesNotMatch(library, /copy\.generateTechnical/);
     assert.match(library, /copy\.visibility\.historyTitle/);
     assert.match(library, /copy\.visibility\.analysisNotFinished/);
+  });
+
+  it("renders a type-first landing with independent scores and no combined SEO score", () => {
+    const landing = read("app/seo/page.tsx");
+    const typeCard = read("components/seo/SeoAnalysisTypeCard.tsx");
+    const scoreCard = read("components/seo/SeoScoreCard.tsx");
+    const header = read("components/seo/VisibilityPageHeader.tsx");
+    assert.match(header, /action\?:/);
+    assert.match(landing, /VisibilityPageHeader/);
+    assert.match(landing, /SEO_HEADER_CTA_CLASS/);
+    assert.match(landing, /SeoAnalysisTypeCard/);
+    assert.match(landing, /generationType="intelligence"/);
+    assert.match(landing, /generationType="technical"/);
+    assert.match(landing, /computeContentCoverageScoreFromPackage/);
+    assert.match(landing, /computeTechnicalCompletenessScoreFromPackage/);
+    assert.match(landing, /SeoLibraryClient/);
+    assert.doesNotMatch(landing, /TwoLensExplanation/);
+    assert.doesNotMatch(landing, /LatestReportCard/);
+    assert.doesNotMatch(landing, /copy\.visibility\.lensesHeading/);
+    assert.doesNotMatch(landing, /copy\.visibility\.latestAnalysis/);
+    assert.doesNotMatch(landing, /Overall SEO Score|Combined Score|Average Score|Visibility Score/i);
+    assert.doesNotMatch(landing, /computeOverallSeoScore/);
+    assert.doesNotMatch(typeCard, /IdentityKnowledgeScore/);
+    assert.doesNotMatch(scoreCard, /IdentityKnowledgeScore/);
+    assert.match(typeCard, /contentCoverageScore/);
+    assert.match(typeCard, /technicalCompleteness/);
+    assert.match(typeCard, /<Telescope /);
+    assert.match(typeCard, /<Gauge /);
+    assert.equal(en.seo.visibility.historyTitle, "Previous analyses");
   });
 
   it("makes /seo/new type-first with one Start analysis submit and the existing evidence gate", () => {
@@ -116,10 +146,11 @@ describe("V2-UI-4C Build Visibility presentation", () => {
     assert.doesNotMatch(technical, /Visibility Score|health score|discoverability score/i);
     assert.doesNotMatch(technical, /stars=\{/);
     assert.match(intelligence, /copy\.detail\.recommendedImprovements/);
-    assert.match(intelligence, /copy\.detail\.supportingIntelligence/);
+    assert.match(intelligence, /copy\.detail\.detailedFindings/);
+    assert.doesNotMatch(intelligence, /copy\.detail\.supportingIntelligence/);
     const roadmapIndex = intelligence.indexOf("copy.detail.recommendedImprovements");
-    const supportingIndex = intelligence.indexOf("copy.detail.supportingIntelligence");
-    assert.ok(roadmapIndex > 0 && roadmapIndex < supportingIndex);
+    const findingsIndex = intelligence.indexOf("copy.detail.detailedFindings");
+    assert.ok(roadmapIndex > 0 && roadmapIndex < findingsIndex);
   });
 
   it("keeps technical action plan before coverage and diagnostics", () => {
@@ -219,6 +250,16 @@ describe("V2-UI-4C Build Visibility presentation", () => {
       "seo.lenses.technical",
       "seo.visibility.title",
       "seo.visibility.analyzeCta",
+      "seo.visibility.newAnalysisCta",
+      "seo.visibility.historyTitle",
+      "seo.visibility.contentCoverageScore",
+      "seo.visibility.technicalCompleteness",
+      "seo.visibility.scoreUnavailable",
+      "seo.visibility.needsAttention",
+      "seo.visibility.developing",
+      "seo.visibility.strong",
+      "seo.visibility.excellentCoverage",
+      "seo.detail.detailedFindings",
       "seo.new.startAnalysis",
       "seo.detail.provenance",
       "seo.technical.coverageScope",

@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { SocialPlannerDetailWorkspace } from "@/components/socialPlanner/SocialPlannerDetailWorkspace";
 import { SOCIAL_PLANNER_CALENDAR_ID_RE } from "@/components/socialPlanner/socialPlannerClient";
+import { SOCIAL_DETAIL_BACK_LINK } from "@/lib/socialPlanner/socialPlannerDetailPresentation";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { toSocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
 import { getSocialCalendarById } from "@/services/socialPlanner/socialCalendarService";
@@ -42,8 +44,9 @@ export default async function SocialPlannerDetailPage({
     <TenantAppShell currentPath={`/social-planner/${id}`} messages={messages}>
       <Link
         href="/social-planner"
-        className="mb-6 inline-flex text-sm text-[var(--athena-orange)]"
+        className={`mb-6 ${SOCIAL_DETAIL_BACK_LINK}`}
       >
+        <ArrowLeft className="size-4" aria-hidden="true" />
         {copy.backToSocialPlanner}
       </Link>
       <SocialPlannerDetailWorkspace

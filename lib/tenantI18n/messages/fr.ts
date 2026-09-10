@@ -394,6 +394,12 @@ export const fr: TenantMessages = {
     },
     lastTrained: "Dernier entraînement :",
     notYetTrained: "Pas encore entraîné",
+    knowledgeScore: "Score de connaissance",
+    brainCompletion: "Le cerveau de votre entreprise est complet à {percent} %",
+    knowledgeScoreLow: "Ajoutez davantage de connaissances sur votre entreprise",
+    knowledgeScoreMedium: "Bonne base. Continuez à enseigner à Athena.",
+    knowledgeScoreStrong: "Solide connaissance de l’entreprise",
+    knowledgeScoreExcellent: "Le cerveau de votre entreprise est très complet",
     conversationTitle: "Ask Athena ce qu’elle comprend",
     conversationDescription:
       "Ask Athena à propos de sa compréhension actuelle de votre activité. Les réponses ne modifient pas le Brain.",
@@ -1100,6 +1106,8 @@ export const fr: TenantMessages = {
       "Qui dois-je atteindre, qu’est-ce qui compte pour eux, et que dois-je créer pour attirer leur attention ?",
     traction: {
       audiences: "Audiences",
+      audiencesHelp:
+        "Comprenez qui vous voulez atteindre et ce qui compte pour eux.",
       advertising: "Publicité",
       socialContent: "Contenu social",
       advertisingHelp:
@@ -1150,6 +1158,39 @@ export const fr: TenantMessages = {
       sectionBlueprint: "Blueprint",
       sectionAdvanced: "Avancé",
     },
+    journey: {
+      discussWithAthena: "Discuter avec Athena",
+      teachAthena: "Ajouter une observation",
+      executiveSnapshot: "Instantané exécutif",
+      whoTheyAre: "Qui ils sont",
+      whatTheyCareAbout: "Ce qui compte pour eux",
+      whatGetsInTheWay: "Ce qui les bloque",
+      howToReachThem: "Comment les atteindre",
+      whatToCreate: "Que créer pour cette audience",
+      strategicCreation: "Orientation de création stratégique",
+      readyToUseAssets: "Contenus prêts à l’emploi",
+      evidenceSignals: "Preuves et signaux",
+      identitySlice: "Identité",
+      messaging: "Messages",
+      tone: "Ton",
+      channels: "Canaux",
+      offerPositioning: "Positionnement de l’offre",
+      valueProposition: "Proposition de valeur",
+      assetPersonaExecutiveProfile: "Profil exécutif d’audience",
+      assetMessagingFramework: "Cadre de messages",
+      assetValueProposition: "Proposition de valeur",
+      assetObjectionHandling: "Traitement des objections",
+      assetLanguageAndTone: "Guide de langage et de ton",
+      assetOfferPositioning: "Positionnement de l’offre",
+      assetChannelStrategy: "Stratégie de canaux",
+      assetCampaignConcepts: "Concepts de campagne",
+      assetContentThemes: "Thèmes de contenu",
+      assetAdvertisementConcepts: "Concepts publicitaires",
+      assetLandingPageDirection: "Direction de la page d’atterrissage",
+      assetVisualDirection: "Direction visuelle et prompts d’image",
+      assetCustomerExperience: "Orientation d’expérience client",
+      assetValidationPlan: "Plan de validation et d’apprentissage",
+    },
     list: {
       emptyTitle: "Aucune audience n’est encore définie.",
       emptyBody:
@@ -1165,6 +1206,12 @@ export const fr: TenantMessages = {
       sortCreated: "Création",
       sortScore: "Score d’opportunité",
       sortName: "Nom de la Persona",
+      sortRecentlyUpdated: "Mise à jour récente",
+      sortOldestUpdated: "Plus ancienne mise à jour",
+      sortNameAsc: "Nom A–Z",
+      sortNameDesc: "Nom Z–A",
+      sortConfidenceHigh: "Confiance : plus élevée",
+      sortConfidenceLow: "Confiance : plus faible",
       filterEmptyTitle: "Aucune persona trouvée.",
       filterEmptyBody:
         "Essayez une autre recherche ou un autre filtre de cycle de vie.",
@@ -1396,7 +1443,7 @@ export const fr: TenantMessages = {
       currentNotes: "Notes actuelles",
       field: "Interaction",
       placeholder: "Décrivez l’interaction, l’observation ou le retour…",
-      cta: "Ajouter l’interaction et régénérer",
+      cta: "Ajouter une observation",
       appending: "Ajout…",
       failed: "Échec de l’ajout de l’interaction.",
       unexpected:
@@ -1626,7 +1673,7 @@ export const fr: TenantMessages = {
       generationFailedLogs:
         "La génération a échoué. Veuillez consulter les journaux.",
       generationUnknown: "Erreur inconnue",
-      deploymentAssetsTitle: "Brouillons d’approche",
+      deploymentAssetsTitle: "Contenus prêts à l’emploi",
       analysisAssetsTitle: "Intelligence d’audience",
       strategicBlueprintTitle: "Persona Strategic Blueprint",
       opportunityScore: "Score d’opportunité",
@@ -1794,6 +1841,11 @@ export const fr: TenantMessages = {
       opportunityScoreHelp:
         "Valeur système stockée. Ce n’est pas un classement de qui poursuivre.",
       moreAbout: "Plus sur cette entreprise",
+      executiveSnapshot: "Instantané exécutif",
+      identityContact: "Identité et contact",
+      identityLocation: "Localisation",
+      identityPresence: "Présence",
+      commercialReasoning: "Raisonnement commercial détaillé",
     },
     import: {
       createTitle: "Ajouter un prospect",
@@ -1920,6 +1972,10 @@ export const fr: TenantMessages = {
       deleteConfirm:
         "Supprimer définitivement ce prospect ? Le prospect, son intelligence liée et les brouillons générés seront supprimés. Cette action est irréversible.",
       deleteFailed: "Échec de la suppression du prospect.",
+      askAthena: "Ask Athena",
+      openWebsite: "Ouvrir le site",
+      editProfile: "Modifier le profil",
+      addObservation: "Ajouter une observation",
       releaseGetOblicListing: "Libérer le listing GetOblic",
       releaseGetOblicConfirm:
         "Ce listing GetOblic sera renvoyé à l’inventaire GetOblic partagé. Il ne comptera plus dans la capacité de listings de ce compte. Le Prospect et les recherches et l’intelligence Athena resteront.",
@@ -2026,6 +2082,31 @@ export const fr: TenantMessages = {
       ready: "Prêt",
       processingFailed: "Échec du traitement",
       saved: "Enregistré",
+    },
+    score: {
+      label: "Complétude du prospect",
+      help: "À quel point les preuves d’Athena sont complètes pour cette entreprise — profil, contact, site et intelligence générée. Ce n’est pas un classement de qui poursuivre.",
+      bandLow: "Faible",
+      bandMedium: "Moyenne",
+      bandStrong: "Solide",
+      bandExcellent: "Excellente",
+    },
+    getoblicDescription: {
+      title: "Description GetOblic",
+      help: "Une description d’annuaire enrichie, créée à partir de l’intelligence vérifiée de l’entreprise et du site.",
+      empty:
+        "Créez une description enrichie à partir du profil de ce prospect et de l’intelligence de site disponible.",
+      generate: "Générer la description",
+      generating: "Génération…",
+      refresh: "Actualiser",
+      ready: "Prêt",
+      notGenerated: "Non générée",
+      copy: "Copier",
+      copied: "Copié",
+      failed:
+        "Athena n’a pas pu générer cette description GetOblic. Réessayez.",
+      currentListingCopy: "Description actuelle de l’annonce GetOblic",
+      generatedDescription: "Description GetOblic enrichie par Athena",
     },
     homepage: {
       title: "Recherche du site",
@@ -2469,26 +2550,37 @@ export const fr: TenantMessages = {
     },
     new: {
       eyebrow: "Publicité",
-      title: "Nouvelle campagne",
+      title: "Créer une nouvelle campagne",
       subtitle:
         "Fournissez une orientation facultative, ou laissez tout vide et laissez Athena déduire la plus forte opportunité de campagne.",
       briefOptional:
-        "Un brief est facultatif. Athena peut générer une campagne complète au niveau de l’organisation à partir de l’intelligence existante, sans aucun brief.",
+        "Un brief est facultatif. Athena peut proposer une campagne à partir de ce qu’elle sait déjà de votre entreprise et de vos audiences.",
+      contextTitle: "Athena a déjà du contexte",
+      contextSourcesLead: "Athena peut s’appuyer sur :",
+      contextSourceBrain: "votre Business Brain",
+      contextSourceAudiences: "vos audiences enregistrées",
+      contextSourceProspects: "l’intelligence prospect",
+      contextSourceWebsite: "le contexte du site web",
+      contextSourcesNote:
+        "Ces sources sont automatiquement prises en compte lors de la génération.",
+      briefTitle: "Brief de campagne",
+      briefHelper:
+        "Indiquez à Athena tout ce qui peut l’aider. Laissez les champs vides si vous voulez qu’elle déduise la direction à partir de ce qu’elle sait déjà.",
       nameLabel: "Nom de la campagne (facultatif)",
       namePlaceholder: "Campagne publicitaire sans titre",
       guidanceLabel: "Athena doit-elle garder quelque chose à l’esprit ?",
       guidancePlaceholder:
         "Direction libre facultative pour la campagne. Laissez vide pour qu’Athena déduise la plus forte opportunité.",
-      moreDetail: "Plus de détails",
-      objectiveLabel: "Objectif (facultatif)",
-      offerLabel: "Offre (facultatif)",
-      audienceLabel: "Audience (facultatif)",
+      moreDetail: "Avancé",
+      objectiveLabel: "Que cherchez-vous à accomplir ?",
+      offerLabel: "Que promouvez-vous ?",
+      audienceLabel: "Pour qui est-ce ?",
       geographyLabel: "Géographie (facultatif)",
       landingPageLabel: "Page d’atterrissage (facultatif)",
       constraintsLabel: "Contraintes (facultatif)",
-      generate: "Générer des Publicités",
+      generate: "Créer une campagne",
       starting: "Démarrage…",
-      generateFailed: "Échec du démarrage de la génération Publicités.",
+      generateFailed: "Échec du démarrage de la création de campagne.",
     },
     detail: {
       eyebrow: "Publicités organisationnelles",
@@ -2546,6 +2638,13 @@ export const fr: TenantMessages = {
       themeNMessage: "Angle de message du thème {n}",
       themeNLanding: "Page d’atterrissage du thème {n}",
       themeNNegative: "Thème négatif du thème {n}",
+      backLabel: "Publicités",
+      summaryFacebook: "Créatif feed et emplacements",
+      summaryInstagram: "Créatif feed, Reels et Stories",
+      summaryTikTok: "Créatif vidéo court",
+      summaryGoogleSearch: "Annonces Search et extensions",
+      summaryKeywordThemes: "Thèmes inférés — pas de volume de recherche en direct",
+      summaryAdvanced: "Justification stratégique et mode de brief",
     },
     statusPanel: {
       generationStatus: "Statut de génération",
@@ -2642,6 +2741,45 @@ export const fr: TenantMessages = {
       analysisNotFinished: "Analyse non terminée",
       lastReadyStrategy: "Dernière stratégie de visibilité Ready",
       lastReadyHealth: "Dernière santé technique du site Ready",
+      contentCoverageScore: "Score de couverture de contenu",
+      contentCoverageScoreHelp:
+        "Fondé sur l’évaluation d’Athena de la couverture des zones stratégiques identifiées par le contenu analysé.",
+      technicalCompleteness: "Complétude technique on-page",
+      technicalCompletenessHelp:
+        "Ce score décrit les pages analysées par Athena. Il ne représente pas toutes les pages du site sauf si toutes ont été analysées, et ce n’est pas un score Google, de trafic ou de Search Console.",
+      scoreUnavailable: "Non disponible",
+      scoreUnavailableHelp:
+        "Athena a besoin d’une analyse Ready avec assez de preuves structurées pour calculer ce score.",
+      needsAttention: "À surveiller",
+      developing: "En développement",
+      strong: "Solide",
+      excellentCoverage: "Excellente couverture",
+      contentCoverageBandNeedsAttention:
+        "La couverture de contenu nécessite de l’attention sur les zones identifiées dans cette analyse.",
+      contentCoverageBandDeveloping:
+        "La couverture de contenu se développe sur les zones identifiées dans cette analyse.",
+      contentCoverageBandStrong:
+        "La couverture de contenu est solide sur les zones identifiées dans cette analyse.",
+      contentCoverageBandExcellent:
+        "La couverture de contenu est excellente sur les zones identifiées dans cette analyse.",
+      technicalBandNeedsAttention:
+        "La complétude technique on-page nécessite de l’attention sur les pages analysées par Athena.",
+      technicalBandDeveloping:
+        "La complétude technique on-page se développe sur les pages analysées par Athena.",
+      technicalBandStrong:
+        "La complétude technique on-page est solide sur les pages analysées par Athena.",
+      technicalBandExcellent:
+        "La complétude technique on-page est excellente sur les pages analysées par Athena.",
+      noAnalysisYet: "Aucune analyse pour le moment",
+      lastReadyScoreNote: "Score de la dernière analyse Ready.",
+      previousReadyScoreNote: "Score de l’analyse Ready précédente.",
+      coverageInventorySummary:
+        "{well} bien couverts · {weak} faiblement couverts · {missing} manquants",
+      pagesAnalyzedContext: "{count} pages analysées",
+      strategyCardHelp:
+        "Intelligence stratégique de contenu : dans quelle mesure le contenu actuel couvre les zones dont les personnes ont besoin pour découvrir et comprendre votre offre.",
+      healthCardHelp:
+        "Preuves techniques on-page déterministes pour les pages analysées par Athena.",
     },
     new: {
       eyebrow: "Espace de travail SEO",
@@ -2756,6 +2894,7 @@ export const fr: TenantMessages = {
       athenasAssessment: "Évaluation d’Athena",
       recommendedImprovements: "Améliorations recommandées",
       supportingIntelligence: "Intelligence complémentaire",
+      detailedFindings: "Constatations détaillées",
       priorityAssignedNote:
         "Priorités telles qu’Athena les a attribuées dans cette analyse.",
       priorityHighest: "Priorité la plus élevée",
@@ -2939,7 +3078,7 @@ export const fr: TenantMessages = {
   },
   socialPlanner: {
     backToDashboard: "← Tableau de bord",
-    backToSocialPlanner: "← Retour à Social Planner",
+    backToSocialPlanner: "Retour au contenu social",
     eyebrow: "Generate Traction",
     title: "Contenu social",
     subtitle:
@@ -2955,22 +3094,22 @@ export const fr: TenantMessages = {
     guidancePlaceholder:
       "Thème, offre, événement, audience, ton, ou tout ce qu’Athena doit garder à l’esprit. Laissez vide et Athena décidera.",
     guidanceHelp:
-      "Athena décide de la stratégie de la semaine à partir de tout ce qu’elle sait sur l’entreprise.",
+      "Athena utilise l’intelligence disponible sur l’entreprise et les audiences.",
     chooseStartDate: "Choisissez une date de début pour votre semaine.",
     chooseValidStartDate:
       "Choisissez une date de début valide pour votre semaine.",
-    generateMyWeek: "Générer ma semaine",
+    generateMyWeek: "Générer cette semaine",
     starting: "Démarrage…",
     search: "Rechercher",
     searchPlaceholder:
       "Rechercher des calendriers, dates, stratégies, types d’actifs…",
-    historyTitle: "Vos calendriers sociaux",
+    historyTitle: "Semaines précédentes",
     historySubtitle:
       "Les plus récents d’abord. Ouvrez n’importe quelle semaine sans la régénérer.",
     noSearchMatch: "Aucun calendrier ne correspond à votre recherche.",
     stillPlanning: "Athena planifie encore cette semaine.",
     generationFailedTryAgain: "La génération a échoué. Veuillez réessayer.",
-    openCalendar: "Ouvrir le calendrier",
+    openCalendar: "Ouvrir cette semaine",
     assetsCount: "{count} actifs",
     assetsCountWithTypes: "{count} actifs · {types}",
     versionN: "Version {n}",
@@ -2979,8 +3118,9 @@ export const fr: TenantMessages = {
     next: "Suivant",
     yourSocialWeek: "Votre semaine sociale",
     whyThisWeekWorks: "Pourquoi cette semaine fonctionne",
+    productionGuidance: "Conseils de production",
     createAnotherWeek: "Créer une autre semaine",
-    thinkDifferently: "Think Differently",
+    thinkDifferently: "Essayer une autre approche",
     thinkDifferentlyTitle:
       "Créer une version matériellement différente de cette semaine.",
     notFound: "Ce calendrier est introuvable.",
@@ -2991,8 +3131,8 @@ export const fr: TenantMessages = {
     jumpToDayAria: "Aller à {label}",
     discussing: "Discussion : {day} — {assetType}",
     calendarOpportunity: "Opportunité calendrier : {label}",
-    openAsset: "Ouvrir l’actif",
-    closeAsset: "Fermer l’actif",
+    openAsset: "Afficher plus",
+    closeAsset: "Afficher moins",
     discussWithAthena: "Ask Athena à propos de ce jour",
     whoThisIsFor: "À qui s’adresse ce contenu",
     traction: {
@@ -3014,7 +3154,7 @@ export const fr: TenantMessages = {
     failedThinkDifferently: "Échec du démarrage de Think Differently.",
     cannotApplyYet: "Cette conversation ne peut pas encore être appliquée.",
     failedApply: "Échec de l’application des suggestions d’Athena.",
-    askAthenaTitle: "Ask Athena à propos de ce calendrier",
+    askAthenaTitle: "Ask Athena à propos de cette semaine",
     askAthenaDescription:
       "La conversation ne modifie pas cette semaine enregistrée. Utilisez Appliquer les suggestions d’Athena pour un nouveau calendrier révisé.",
     clearTarget: "Effacer la cible",
@@ -3023,9 +3163,9 @@ export const fr: TenantMessages = {
       "Impossible de charger l’historique de conversation.",
     couldNotAnswer: "Athena n’a pas pu répondre pour le moment.",
     askAboutAsset: "Ask Athena à propos de l’actif de ce jour",
-    askAboutCalendar: "Ask Athena à propos de ce calendrier",
+    askAboutCalendar: "Ask Athena à propos de cette semaine",
     askAboutAssetPlaceholder: "Ask Athena à propos de l’actif de ce jour…",
-    askAboutCalendarPlaceholder: "Ask Athena à propos de ce calendrier…",
+    askAboutCalendarPlaceholder: "Ask Athena à propos de cette semaine…",
     sending: "Envoi…",
     send: "Envoyer",
     applySuggestions: "Appliquer les suggestions d’Athena",

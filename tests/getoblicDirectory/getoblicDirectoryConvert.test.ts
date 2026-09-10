@@ -85,6 +85,7 @@ function prospect(overrides: Partial<Prospect> = {}): Prospect {
       origin: "getoblic_directory",
       wordpress_listing_id: LISTING_ID,
     },
+    generated_listing_description: null,
     last_activity: null,
     import_batch_id: null,
     ...overrides,

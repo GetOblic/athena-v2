@@ -8,6 +8,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { Sparkles } from "lucide-react";
 import {
   SOCIAL_CALENDAR_USER_GUIDANCE_MAX_CHARS,
   parseSocialCalendarDate,
@@ -20,6 +21,15 @@ import {
   todayLocalCalendarDate,
 } from "@/components/socialPlanner/socialPlannerDates";
 import { buildSocialCalendarCreateBody } from "@/components/socialPlanner/socialPlannerClient";
+import {
+  SOCIAL_COMPOSER_ICON,
+  SOCIAL_COMPOSER_SURFACE,
+  SOCIAL_FIELD_CLASS,
+  SOCIAL_FIELD_HELP_CLASS,
+  SOCIAL_FIELD_LABEL_CLASS,
+  SOCIAL_PRIMARY_CLASS,
+  SOCIAL_TEXTAREA_CLASS,
+} from "@/lib/socialPlanner/socialPlannerPagePresentation";
 import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
 import { en } from "@/lib/tenantI18n/messages/en";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
@@ -106,21 +116,26 @@ export const SocialPlannerCreateForm = forwardRef<
     <section
       ref={composerRef}
       id="social-planner-composer"
-      className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6 sm:p-8"
+      className={SOCIAL_COMPOSER_SURFACE}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-semibold">{copy.selectWeek}</h2>
-          <p className="mt-2 text-sm leading-6 text-white/50">
-            {copy.selectWeekHelp}
-          </p>
+        <div className="flex items-start gap-4">
+          <span className={SOCIAL_COMPOSER_ICON} aria-hidden="true">
+            <Sparkles className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold tracking-tight text-white sm:text-xl">
+              {copy.selectWeek}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-white/50">
+              {copy.selectWeekHelp}
+            </p>
+          </div>
         </div>
 
         <div className="space-y-3">
           <label className="block space-y-2" htmlFor="social-planner-week-start">
-            <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-              {copy.weekStarts}
-            </span>
+            <span className={SOCIAL_FIELD_LABEL_CLASS}>{copy.weekStarts}</span>
             <input
               ref={dateInputRef}
               id="social-planner-week-start"
@@ -128,7 +143,7 @@ export const SocialPlannerCreateForm = forwardRef<
               value={periodStart}
               onChange={(event) => setPeriodStart(event.target.value)}
               required
-              className="w-full min-w-0 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+              className={SOCIAL_FIELD_CLASS}
             />
           </label>
 
@@ -141,7 +156,7 @@ export const SocialPlannerCreateForm = forwardRef<
                 </span>
                 {period.preview}
               </p>
-              <p className="text-xs leading-6 text-white/40">
+              <p className={`${SOCIAL_FIELD_HELP_CLASS} leading-6`}>
                 {period.dates
                   .map((date) => date.slice(8, 10))
                   .join(" · ")}
@@ -151,7 +166,7 @@ export const SocialPlannerCreateForm = forwardRef<
         </div>
 
         <label className="block space-y-2" htmlFor="social-planner-guidance">
-          <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
+          <span className={SOCIAL_FIELD_LABEL_CLASS}>
             {copy.optionalDirection}
           </span>
           <textarea
@@ -164,11 +179,11 @@ export const SocialPlannerCreateForm = forwardRef<
             }
             maxLength={SOCIAL_CALENDAR_USER_GUIDANCE_MAX_CHARS}
             rows={5}
-            className="min-h-[140px] w-full min-w-0 resize-y rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+            className={SOCIAL_TEXTAREA_CLASS}
             placeholder={copy.guidancePlaceholder}
           />
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <p className="text-xs leading-5 text-white/40">{copy.guidanceHelp}</p>
+            <p className={SOCIAL_FIELD_HELP_CLASS}>{copy.guidanceHelp}</p>
             {guidance.length > 0 ? (
               <p className="shrink-0 text-xs tabular-nums text-white/35">
                 {guidance.length} / {SOCIAL_CALENDAR_USER_GUIDANCE_MAX_CHARS}
@@ -186,8 +201,9 @@ export const SocialPlannerCreateForm = forwardRef<
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:opacity-60 sm:w-auto"
+          className={SOCIAL_PRIMARY_CLASS}
         >
+          <Sparkles className="size-4" aria-hidden="true" />
           {submitting ? copy.starting : copy.generateMyWeek}
         </button>
       </form>

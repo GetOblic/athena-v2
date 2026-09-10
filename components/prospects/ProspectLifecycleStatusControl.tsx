@@ -9,18 +9,21 @@ import {
   type ProspectLifecycleStatus,
 } from "@/services/prospects/prospectLifecycle";
 import type { Prospect } from "@/services/prospects/prospectService";
-import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import { ListChecks } from "lucide-react";
+import { PROSPECT_LIFECYCLE_COMPACT_CLASS } from "@/lib/prospects/prospectDetailPresentation";
 import { getLocalizedProspectLifecycleLabel } from "@/lib/tenantI18n/prospectPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type ProspectLifecycleStatusControlProps = {
   prospect: Prospect;
   messages?: TenantMessages;
+  compact?: boolean;
 };
 
 export function ProspectLifecycleStatusControl({
   prospect,
   messages,
+  compact = true,
 }: ProspectLifecycleStatusControlProps) {
   const router = useRouter();
   const [lifecycleStatus, setLifecycleStatus] = useState<ProspectLifecycleStatus>(
@@ -78,12 +81,48 @@ export function ProspectLifecycleStatusControl({
     }
   }
 
+  const label = messages?.prospects.lifecycle.label ?? "Prospect Status";
+  const statusColor = getProspectLifecycleColor(lifecycleStatus);
+
+  if (compact) {
+    return (
+      <div
+        data-prospect-header-action="lifecycle"
+        className={PROSPECT_LIFECYCLE_COMPACT_CLASS}
+      >
+        <span className={statusColor} aria-hidden="true">
+          <ListChecks className="size-4" />
+        </span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+          {label}
+        </span>
+        <select
+          value={lifecycleStatus}
+          onChange={(event) => void handleChange(event.target.value)}
+          disabled={isSaving}
+          aria-label={label}
+          className="h-8 min-w-0 rounded-xl border border-white/10 bg-black/30 px-2 text-xs text-white outline-none disabled:opacity-50"
+        >
+          {PROSPECT_LIFECYCLE_STATUSES.map((option) => (
+            <option key={option} value={option}>
+              {messages
+                ? getLocalizedProspectLifecycleLabel(messages, option)
+                : option}
+            </option>
+          ))}
+        </select>
+        {success ? (
+          <span className="text-[11px] text-emerald-300">{success}</span>
+        ) : null}
+        {error ? <span className="text-[11px] text-red-300">{error}</span> : null}
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`rounded-[20px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-5`}
-    >
+    <div className="rounded-[20px] border border-white/10 bg-[var(--athena-card)] p-5">
       <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-        {messages?.prospects.lifecycle.label ?? "Prospect Status"}
+        {label}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -102,9 +141,7 @@ export function ProspectLifecycleStatusControl({
           ))}
         </select>
 
-        <span
-          className={`text-sm font-medium ${getProspectLifecycleColor(lifecycleStatus)}`}
-        >
+        <span className={`text-sm font-medium ${statusColor}`}>
           {messages
             ? getLocalizedProspectLifecycleLabel(messages, lifecycleStatus)
             : lifecycleStatus}

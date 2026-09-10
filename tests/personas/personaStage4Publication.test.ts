@@ -154,20 +154,17 @@ describe("persona stage-4 workspace and Think Differently", () => {
     );
 
     assert.match(workspace, /sourceKind\?: "discussion" \| "prospect" \| "persona"/);
-    assert.match(workspace, /Persona Assessment/);
-    assert.match(workspace, /Outreach drafts/);
-    assert.match(workspace, /groupAudienceAnalysisAssets/);
+    assert.match(workspace, /PersonaAudienceJourney/);
+    assert.match(workspace, /personaJourneyChrome/);
     assert.match(workspace, /Persona Strategic Blueprint/);
     assert.doesNotMatch(
       workspace.split('sourceKind === "persona"')[0] ?? "",
       /Ask Athena/,
     );
 
-    // Audience intelligence first, outreach drafts demoted, then blueprint
-    const analysisIdx = workspace.indexOf("groupAudienceAnalysisAssets");
-    const depIdx = workspace.indexOf("Outreach drafts");
+    const journeyIdx = workspace.indexOf("PersonaAudienceJourney");
     const bpIdx = workspace.indexOf("Persona Strategic Blueprint");
-    assert.ok(analysisIdx > 0 && depIdx > analysisIdx && bpIdx > depIdx);
+    assert.ok(journeyIdx > 0 && bpIdx > journeyIdx);
 
     assert.match(card, /Persona Assessment/);
     assert.match(page, /sourceKind="persona"/);

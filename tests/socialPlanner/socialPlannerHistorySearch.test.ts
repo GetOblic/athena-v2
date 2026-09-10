@@ -605,7 +605,8 @@ describe("Social Planner history search UI and polling", () => {
     const searchIdx = workspace.indexOf("copy.searchPlaceholder");
     const historyIdx = workspace.indexOf("<SocialPlannerHistory");
     assert.ok(createIdx >= 0 && searchIdx > createIdx && historyIdx > searchIdx);
-    assert.match(workspace, /className="mt-2 w-full rounded-2xl border border-white\/10 bg-black\/30 px-4 py-3 text-sm text-white outline-none"/);
+    assert.match(workspace, /SOCIAL_SEARCH_SURFACE/);
+    assert.match(workspace, /SOCIAL_SEARCH_FIELD_CLASS/);
     assert.match(history, /copy\.historyTitle/);
     assert.match(history, /copy\.noSearchMatch/);
     assert.doesNotMatch(workspace, /\bStatus\b|\bSort\b|Import/);

@@ -175,7 +175,12 @@ describe("prospect details read-only / edit UX contracts", () => {
       join(ROOT, "components/prospects/ProspectHomepageIntelligence.tsx"),
       "utf8",
     );
-    assert.match(source, /aria-expanded/);
+    assert.match(source, /AthenaCollapsibleSection/);
+    const collapsible = readFileSync(
+      join(ROOT, "components/ui/AthenaCollapsibleSection.tsx"),
+      "utf8",
+    );
+    assert.match(collapsible, /aria-expanded=\{open\}/);
     assert.match(source, /Positioning/);
     assert.match(source, /Brand Tone/);
   });

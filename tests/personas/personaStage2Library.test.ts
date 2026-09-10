@@ -173,6 +173,7 @@ describe("persona stage-2 display helpers", () => {
     );
     assert.equal(rows[0].display_status, "Profile Created");
     assert.equal(rows[0].display_opportunity_score_label, "—");
+    assert.equal(rows[0].display_confidence, null);
     assert.equal("linked_discussion_id" in rows[0], false);
   });
 });
@@ -182,9 +183,8 @@ describe("persona stage-2 library UX contracts", () => {
     const client = read("components/personas/PersonasLibraryClient.tsx");
     assert.match(client, /const PAGE_SIZE = 25/);
     assert.match(client, /display_label/);
-    assert.match(client, /display_reference_website/);
+    assert.match(client, /persona\.reference_website/);
     assert.doesNotMatch(client, /Opportunity Score/);
-    assert.match(client, /Create audience|createCta/);
     assert.match(client, /Unable to load audiences/);
     assert.doesNotMatch(client, /display_opportunity_score == null/);
   });
@@ -194,7 +194,10 @@ describe("persona stage-2 library UX contracts", () => {
     assert.match(page, /loadError/);
     assert.match(page, /getPersonas\(organizationId\)/);
     assert.match(page, /enrichPersonasForLibrary/);
+    assert.match(page, /attachPersonaLibraryConfidence/);
+    assert.match(page, /copy\.list\.createCta/);
     assert.doesNotMatch(page, /from\("personas"\)/);
+    assert.doesNotMatch(page, /getLatestDiscussionAnalysis/);
   });
 });
 

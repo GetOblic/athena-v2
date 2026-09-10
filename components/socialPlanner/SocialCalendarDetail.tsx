@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AlertTriangle, MessagesSquare, RefreshCw, Target } from "lucide-react";
 import type { SocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
 import type { SocialPlannerConversationAssetReference } from "@/services/socialPlanner/conversation/socialPlannerConversationTypes";
 import { SocialCalendarDayCard } from "@/components/socialPlanner/SocialCalendarDayCard";
@@ -11,13 +12,33 @@ import {
 } from "@/components/socialPlanner/socialPlannerDates";
 import { isSocialPlannerInFlight } from "@/components/socialPlanner/socialPlannerClient";
 import { SocialPlannerAskAthenaPanel } from "@/components/socialPlanner/SocialPlannerAskAthenaPanel";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  SOCIAL_DETAIL_CHIP_META,
+  SOCIAL_DETAIL_DAY_NAV_CHIP,
+  SOCIAL_DETAIL_DEFAULT_OPEN,
+  SOCIAL_DETAIL_FAILED_SURFACE,
+  SOCIAL_DETAIL_HEADER_WELL,
+  SOCIAL_DETAIL_ICON,
+  SOCIAL_DETAIL_ICON_WELL,
+  SOCIAL_DETAIL_SNAPSHOT,
+  SOCIAL_DETAIL_STRATEGY_SURFACE,
+  SOCIAL_DETAIL_UNAVAILABLE_SURFACE,
+  SOCIAL_DETAIL_UTILITY_ACTION,
+  presentSocialDetailSnapshot,
+  shouldShowSocialDetailGenerationMode,
+  socialPlannerDetailStatusChipClass,
+} from "@/lib/socialPlanner/socialPlannerDetailPresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
 import { en } from "@/lib/tenantI18n/messages/en";
 import {
   formatSocialPlannerDiscussingLabel,
   formatSocialPlannerJumpToDayAria,
+  formatSocialPlannerVersionLabel,
   getLocalizedSocialPlannerAssetTypeLabel,
+  getLocalizedSocialPlannerGenerationModeLabel,
+  getLocalizedSocialPlannerHistoryStatusLabel,
 } from "@/lib/tenantI18n/socialPlannerPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
@@ -76,19 +97,31 @@ export function SocialCalendarDetail({
 
   if (calendar.status === "Processing Failed") {
     return (
-      <section className="rounded-[28px] border border-rose-400/25 bg-rose-500/10 p-6 sm:p-8">
-        <div className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-200">
-          {copy.status.failed}
+      <section className={SOCIAL_DETAIL_FAILED_SURFACE}>
+        <div className="flex items-start gap-3">
+          <span
+            className={`${SOCIAL_DETAIL_ICON_WELL} ${SOCIAL_DETAIL_ICON.rose}`}
+            aria-hidden="true"
+          >
+            <AlertTriangle className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <span className={socialPlannerDetailStatusChipClass(calendar.status)}>
+              {copy.status.failed}
+            </span>
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight">
+              {copy.couldNotFinish}
+            </h2>
+          </div>
         </div>
-        <h2 className="mt-3 text-2xl font-semibold">{copy.couldNotFinish}</h2>
-        <p className="mt-3 text-sm leading-7 text-rose-100/75">
+        <p className="mt-4 text-sm leading-7 text-rose-100/75">
           {calendar.error?.message || copy.generationFailedTryAgain}
         </p>
         <div className="mt-6" data-ready-actions="">
           <button
             type="button"
             onClick={onCreateAnotherWeek}
-            className="w-full rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white sm:w-auto"
+            className={SOCIAL_DETAIL_UTILITY_ACTION}
           >
             {copy.createAnotherWeek}
           </button>
@@ -99,14 +132,16 @@ export function SocialCalendarDetail({
 
   if (calendar.packageUnavailable || !calendar.package) {
     return (
-      <section className="rounded-[28px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-8">
-        <h2 className="text-2xl font-semibold">{copy.couldNotDisplay}</h2>
+      <section className={SOCIAL_DETAIL_UNAVAILABLE_SURFACE}>
+        <h2 className="text-2xl font-semibold tracking-tight">
+          {copy.couldNotDisplay}
+        </h2>
         <p className="mt-3 text-sm leading-7 text-white/50">{periodLabel}</p>
         <div className="mt-6" data-ready-actions="">
           <button
             type="button"
             onClick={onCreateAnotherWeek}
-            className="w-full rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white sm:w-auto"
+            className={SOCIAL_DETAIL_UTILITY_ACTION}
           >
             {copy.createAnotherWeek}
           </button>
@@ -165,8 +200,18 @@ function SocialCalendarReadyDetail({
   );
   const socialPackage = calendar.package;
   const assets = socialPackage.assets.slice(0, 7);
+  const snapshot = presentSocialDetailSnapshot({
+    userGuidance: calendar.userGuidance,
+    strategySummary: socialPackage.strategySummary,
+  });
+  const showGenerationMode = shouldShowSocialDetailGenerationMode(
+    calendar.generationMode,
+  );
   const [discussAssetReference, setDiscussAssetReference] =
     useState<SocialPlannerConversationAssetReference | null>(null);
+  const [askOpen, setAskOpen] = useState<boolean>(
+    SOCIAL_DETAIL_DEFAULT_OPEN.askAthena,
+  );
   const [doneByAssetType, setDoneByAssetType] = useState<
     Record<string, boolean>
   >({});
@@ -225,13 +270,14 @@ function SocialCalendarReadyDetail({
 
   function handleDiscussWithAthena(reference: SocialPlannerConversationAssetReference) {
     setDiscussAssetReference({ date: reference.date });
+    setAskOpen(true);
     if (typeof window !== "undefined") {
       window.setTimeout(() => {
         document
           .getElementById("social-planner-conversation")
           ?.scrollIntoView({ behavior: "smooth", block: "start" });
         document.getElementById("social-planner-conversation-input")?.focus();
-      }, 0);
+      }, 50);
     }
   }
 
@@ -254,33 +300,58 @@ function SocialCalendarReadyDetail({
     : null;
 
   return (
-    <section className="space-y-8">
+    <section className="space-y-6">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            {copy.status.ready}
+          <div className="flex flex-wrap items-center gap-3">
+            <span className={SOCIAL_DETAIL_HEADER_WELL} aria-hidden="true">
+              <MessagesSquare className="size-5" />
+            </span>
+            <div className="text-xs font-semibold uppercase tracking-[0.35em] text-cyan-200/80">
+              {copy.title}
+            </div>
           </div>
-          <h2 className="mt-3 text-4xl font-semibold tracking-tight">
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
             {copy.yourSocialWeek}
           </h2>
-          <p className="mt-3 text-base text-white/55">{periodLabel}</p>
+          <p className="mt-2 text-base text-white/55">{periodLabel}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className={socialPlannerDetailStatusChipClass(calendar.status)}>
+              {getLocalizedSocialPlannerHistoryStatusLabel(
+                messages,
+                calendar.status,
+              )}
+            </span>
+            <span className={SOCIAL_DETAIL_CHIP_META}>
+              {formatSocialPlannerVersionLabel(messages, calendar.versionNumber)}
+            </span>
+            {showGenerationMode ? (
+              <span className={SOCIAL_DETAIL_CHIP_META}>
+                {getLocalizedSocialPlannerGenerationModeLabel(
+                  messages,
+                  calendar.generationMode,
+                )}
+              </span>
+            ) : null}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-3" data-ready-actions="">
+        <div className="flex flex-wrap items-center gap-2" data-ready-actions="">
           {onThinkDifferently ? (
             <button
               type="button"
               title={copy.thinkDifferentlyTitle}
               disabled={thinkDifferentlyPending}
               onClick={onThinkDifferently}
-              className="w-full rounded-2xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-5 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-5 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
             >
+              <RefreshCw className="size-4" aria-hidden="true" />
               {copy.thinkDifferently}
             </button>
           ) : null}
           <button
             type="button"
             onClick={onCreateAnotherWeek}
-            className="w-full rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/85 sm:w-auto"
+            className={SOCIAL_DETAIL_UTILITY_ACTION}
           >
             {copy.createAnotherWeek}
           </button>
@@ -291,17 +362,64 @@ function SocialCalendarReadyDetail({
         <p className="text-sm text-rose-100/80">{thinkDifferentlyError}</p>
       ) : null}
 
-      <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-7">
+      <div className={SOCIAL_DETAIL_SNAPSHOT}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={SOCIAL_DETAIL_CHIP_META}>{periodLabel}</span>
+          <span className={socialPlannerDetailStatusChipClass(calendar.status)}>
+            {getLocalizedSocialPlannerHistoryStatusLabel(
+              messages,
+              calendar.status,
+            )}
+          </span>
+          <span className={SOCIAL_DETAIL_CHIP_META}>
+            {formatSocialPlannerVersionLabel(messages, calendar.versionNumber)}
+          </span>
+          {showGenerationMode ? (
+            <span className={SOCIAL_DETAIL_CHIP_META}>
+              {getLocalizedSocialPlannerGenerationModeLabel(
+                messages,
+                calendar.generationMode,
+              )}
+            </span>
+          ) : null}
+        </div>
+        {snapshot.userGuidance ? (
+          <p className="mt-2 text-sm leading-6 text-white/50">
+            <span className="text-white/35">{copy.optionalDirection}: </span>
+            {snapshot.userGuidance}
+          </p>
+        ) : null}
+        {snapshot.strategyPreview ? (
+          <p className="mt-2 text-sm leading-6 text-white/45">
+            {snapshot.strategyPreview}
+          </p>
+        ) : null}
+      </div>
+
+      <AthenaCollapsibleSection
+        title={copy.whyThisWeekWorks}
+        summary={snapshot.strategyPreview ?? undefined}
+        defaultOpen={SOCIAL_DETAIL_DEFAULT_OPEN.strategy}
+        tone="intelligence"
+        icon={<Target aria-hidden="true" />}
+        iconClassName={SOCIAL_DETAIL_ICON.violet}
+        className={SOCIAL_DETAIL_STRATEGY_SURFACE}
+      >
         {socialPackage.strategySummary ? (
-          <p className="text-sm leading-7 text-white/50">
+          <p className="text-sm leading-7 text-white/70">
             {socialPackage.strategySummary}
           </p>
         ) : null}
-        <h3 className="mt-4 text-xl font-semibold">{copy.whyThisWeekWorks}</h3>
-        <p className="mt-3 text-sm leading-7 text-white/70">
+        <p
+          className={
+            socialPackage.strategySummary
+              ? "mt-4 text-sm leading-7 text-white/70"
+              : "text-sm leading-7 text-white/70"
+          }
+        >
           {socialPackage.whyThisWeekWorks}
         </p>
-      </div>
+      </AthenaCollapsibleSection>
 
       <nav
         data-day-navigation=""
@@ -328,7 +446,7 @@ function SocialCalendarReadyDetail({
                       block: "start",
                     });
                 }}
-                className="shrink-0 whitespace-nowrap rounded-2xl border border-white/15 px-3 py-2 text-xs font-semibold text-white/80 transition hover:border-[var(--athena-orange)]/40 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+                className={SOCIAL_DETAIL_DAY_NAV_CHIP}
               >
                 {label}
               </button>
@@ -337,7 +455,7 @@ function SocialCalendarReadyDetail({
         </div>
       </nav>
 
-      <div className="space-y-5">
+      <div className="space-y-4">
         {assets.map((asset) => {
           const interactionKey = buildSocialCalendarAssetInteractionType(
             asset.date,
@@ -371,6 +489,8 @@ function SocialCalendarReadyDetail({
           applyPending={applyPending}
           applyError={applyError}
           onApply={onApplySuggestions}
+          open={askOpen}
+          onOpenChange={setAskOpen}
           messages={messages}
         />
       </div>

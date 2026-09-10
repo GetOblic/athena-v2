@@ -174,7 +174,7 @@ describe("Consistent entity Delete UX", () => {
     const persona = read("components/personas/PersonaHeaderDeleteButton.tsx");
     assert.match(
       prospect,
-      /The Prospect, its linked Discussion, and generated intelligence will be removed/,
+      /The prospect, its linked intelligence, and generated drafts will be removed/,
     );
     assert.match(
       persona,

@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import { MessageSquare } from "lucide-react";
 import { usePersonaDiscussContext } from "@/components/personas/personaDiscussContext";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import {
@@ -28,6 +29,11 @@ import type {
   PersonaConversationHistoryMessage,
   PersonaConversationVersionState,
 } from "@/services/personaConversation/personaConversationTypes";
+import { PERSONA_DISCUSS_EVENT } from "@/lib/personas/personaDetailPresentation";
+import {
+  PERSONA_DETAIL_ICON,
+  PERSONA_DETAIL_SURFACE,
+} from "@/lib/personas/personaPagePresentation";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 
@@ -192,6 +198,16 @@ function PersonaConversationPanelInner({
   }
 
   useEffect(() => {
+    function openFromHeader() {
+      handleOpenChange(true);
+    }
+    window.addEventListener(PERSONA_DISCUSS_EVENT, openFromHeader);
+    return () => {
+      window.removeEventListener(PERSONA_DISCUSS_EVENT, openFromHeader);
+    };
+  });
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     writePersonaConversationSession(window.sessionStorage, {
       personaId,
@@ -323,7 +339,7 @@ function PersonaConversationPanelInner({
   return (
     <div id="persona-conversation" className="scroll-mt-24">
       <AthenaCollapsibleSection
-        title={chrome?.title ?? "Ask Athena about this audience"}
+        title={chrome?.title ?? "Ask Athena about this Persona"}
         defaultOpen
         open={open}
         onOpenChange={
@@ -331,6 +347,10 @@ function PersonaConversationPanelInner({
             ? handleOpenChange
             : undefined
         }
+        tone="intelligence"
+        className={PERSONA_DETAIL_SURFACE.orange}
+        icon={<MessageSquare />}
+        iconClassName={PERSONA_DETAIL_ICON.orange}
       >
         <p className="text-sm leading-6 text-white/45">
           {chrome?.intro ??

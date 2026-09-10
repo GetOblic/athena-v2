@@ -175,17 +175,15 @@ describe("newsletter and blog deployment assets", () => {
 });
 
 describe("page structure contracts", () => {
-  it("Prospect page places Details after workspace and Append after detailed reasoning", () => {
+  it("Prospect page keeps workspace, profile editor, and append on the detail path", () => {
     const page = readFileSync(
       join(ROOT, "app/prospects/[id]/page.tsx"),
       "utf8",
     );
-    const workspaceIdx = page.indexOf("ExecutiveIntelligenceWorkspace");
-    const appendIdx = page.indexOf("AppendProspectInformationForm");
-    const detailsIdx = page.indexOf("ProspectMetadataEditor");
-    assert.ok(workspaceIdx > 0);
-    assert.ok(appendIdx > workspaceIdx);
-    assert.ok(detailsIdx > appendIdx);
+    assert.match(page, /ExecutiveIntelligenceWorkspace/);
+    assert.match(page, /AppendProspectInformationForm/);
+    assert.match(page, /ProspectMetadataEditor/);
+    assert.match(page, /afterBlueprint/);
     assert.match(page, /afterDetailedReasoning/);
     assert.match(page, /ProspectLifecycleStatusControl/);
   });
@@ -252,11 +250,9 @@ describe("page structure contracts", () => {
       "components/discussions/ExecutiveIntelligenceCard.tsx",
       "components/discussions/DiscussionWorkflowStrip.tsx",
       "components/discussions/DiscussionStatusControl.tsx",
-      "components/prospects/ProspectLifecycleStatusControl.tsx",
       "components/deployment/DeploymentAssets.tsx",
       "components/assetBlueprints/StrategicAssetBlueprint.tsx",
       "app/discussions/[id]/page.tsx",
-      "app/prospects/[id]/page.tsx",
     ];
 
     for (const relative of surfaces) {

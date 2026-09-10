@@ -2,10 +2,28 @@
 
 import { useState, type ReactNode } from "react";
 import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  ChevronDown,
+  FileText,
+  Lightbulb,
+  Target,
+} from "lucide-react";
+import {
   CopyButton,
   type CopyButtonChrome,
 } from "@/components/deployment/CopyButton";
 import { SeoPriorityBadge } from "@/components/seo/SeoPriorityBadge";
+import {
+  SEO_STRATEGY_PRIORITY_CARD,
+  SEO_STRATEGY_PRIORITY_ICON,
+  type SeoStrategyPriorityAccent,
+} from "@/components/seo/seoStrategyReportPresentation";
+import {
+  SEO_TECHNICAL_PRIORITY_CARD,
+  SEO_TECHNICAL_PRIORITY_ICON,
+} from "@/components/seo/seoTechnicalReportPresentation";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import type {
   SeoFutureActionKind,
@@ -35,6 +53,7 @@ type SeoRecommendationCardProps = {
   priorityVisual?: SeoPriorityVisual;
   priorityLabel?: string;
   priorityClassName?: string;
+  priorityAccent?: SeoStrategyPriorityAccent;
   effort?: string;
   recommendedAction?: string;
   affectedPages?: string[];
@@ -47,6 +66,7 @@ type SeoRecommendationCardProps = {
   chrome?: SeoRecommendationCardChrome | null;
   defaultOpen?: boolean;
   evidenceDefaultOpen?: boolean;
+  copyVariant?: "default" | "utility";
 };
 
 function FieldBlock({
@@ -54,29 +74,75 @@ function FieldBlock({
   value,
   emphasize = false,
   breakAll = false,
+  icon,
 }: {
   label: string;
   value: string;
   emphasize?: boolean;
   breakAll?: boolean;
+  icon?: ReactNode;
 }) {
   if (!value.trim()) return null;
   return (
-    <div className="space-y-1.5">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">
-        {label}
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        {icon ? (
+          <span
+            className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/55 [&_svg]:size-3.5"
+            aria-hidden="true"
+          >
+            {icon}
+          </span>
+        ) : null}
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
+          {label}
+        </div>
       </div>
       <p
         className={`${
           emphasize
             ? "text-sm leading-7 text-white/90"
             : "text-sm leading-7 text-white/70"
-        } ${breakAll ? "break-all" : "break-words"}`}
+        } ${breakAll ? "break-all" : "break-words"} ${icon ? "sm:pl-9" : ""}`}
       >
         {value}
       </p>
     </div>
   );
+}
+
+function PriorityMark({
+  accent,
+}: {
+  accent?: SeoStrategyPriorityAccent;
+}) {
+  if (accent === "critical") {
+    return <AlertTriangle size={16} />;
+  }
+  if (accent === "high") {
+    return <AlertCircle size={16} />;
+  }
+  if (accent === "improvement") {
+    return <CheckCircle size={16} />;
+  }
+  if (accent === "strategic") {
+    return <Target size={16} />;
+  }
+  return null;
+}
+
+function priorityCardClass(accent?: SeoStrategyPriorityAccent): string {
+  if (!accent) {
+    return "relative overflow-hidden rounded-2xl border border-white/10 bg-black/20";
+  }
+  if (accent === "strategic") return SEO_STRATEGY_PRIORITY_CARD.strategic;
+  return SEO_TECHNICAL_PRIORITY_CARD[accent];
+}
+
+function priorityIconClass(accent?: SeoStrategyPriorityAccent): string {
+  if (accent === "strategic") return SEO_STRATEGY_PRIORITY_ICON.strategic;
+  if (accent) return SEO_TECHNICAL_PRIORITY_ICON[accent];
+  return "border border-white/10 bg-white/[0.04] text-white/55";
 }
 
 export function SeoRecommendationCard({
@@ -87,6 +153,7 @@ export function SeoRecommendationCard({
   priorityVisual,
   priorityLabel,
   priorityClassName,
+  priorityAccent,
   effort,
   recommendedAction,
   affectedPages = [],
@@ -98,6 +165,7 @@ export function SeoRecommendationCard({
   chrome,
   defaultOpen = true,
   evidenceDefaultOpen = false,
+  copyVariant = "default",
 }: SeoRecommendationCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const whyLabel = chrome?.whyLabel ?? "Why Athena recommends this";
@@ -109,7 +177,7 @@ export function SeoRecommendationCard({
   const expand = chrome?.expand ?? "▼ Expand";
   const collapse = chrome?.collapse ?? "▲ Collapse";
   const resolvedPriority = priorityLabel || priorityVisual?.label || "";
-  const collapsedSummary = [resolvedPriority, title, effort]
+  const collapsedSummary = [why, noticed, effort]
     .filter((part) => part && String(part).trim())
     .join(" · ");
   const copyText = [
@@ -136,20 +204,30 @@ export function SeoRecommendationCard({
   ]
     .filter(Boolean)
     .join("\n\n");
+  const cardClassName = priorityCardClass(priorityAccent);
+  const resolvedPriorityIconClass = priorityIconClass(priorityAccent);
 
   return (
     <article
-      className="rounded-2xl border border-white/10 bg-black/20 px-5 py-5"
+      className={cardClassName}
       data-future-action-kinds={futureActionKinds.join(",")}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-stretch">
         <button
           type="button"
           onClick={() => setOpen((current) => !current)}
-          className="min-w-0 flex-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+          className="flex min-w-0 flex-1 items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-white/[0.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
           aria-expanded={open}
         >
-          <div className="min-w-0 space-y-3">
+          {priorityAccent ? (
+            <span
+              className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl ${resolvedPriorityIconClass}`}
+              aria-hidden="true"
+            >
+              <PriorityMark accent={priorityAccent} />
+            </span>
+          ) : null}
+          <div className="min-w-0 flex-1 space-y-2.5">
             {priorityVisual ? (
               <SeoPriorityBadge visual={priorityVisual} />
             ) : resolvedPriority ? (
@@ -165,8 +243,8 @@ export function SeoRecommendationCard({
             <h3 className="break-words text-lg font-semibold tracking-tight text-white">
               {title}
             </h3>
-            {!open ? (
-              <p className="break-words text-sm leading-6 text-white/55">
+            {!open && collapsedSummary ? (
+              <p className="line-clamp-2 break-words text-sm leading-6 text-white/50">
                 {collapsedSummary}
               </p>
             ) : null}
@@ -177,22 +255,41 @@ export function SeoRecommendationCard({
             ) : null}
           </div>
         </button>
-        <div className="flex shrink-0 flex-col items-end gap-2">
+        <div
+          className="flex shrink-0 items-center gap-2 px-3 py-4 sm:px-4"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
           <CopyButton
             text={copyText}
             tracking={null}
             showContinue={false}
             chrome={chrome?.copy}
+            variant={copyVariant}
           />
-          <span className="text-xs text-white/45" aria-hidden="true">
-            {open ? collapse : expand}
-          </span>
+          <button
+            type="button"
+            onClick={() => setOpen((current) => !current)}
+            className="flex min-h-10 min-w-10 items-center justify-center text-white/45 transition-colors hover:text-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+            aria-expanded={open}
+            aria-label={open ? collapse : expand}
+          >
+            <ChevronDown
+              className={`size-5 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+              aria-hidden="true"
+            />
+          </button>
         </div>
       </div>
 
       {open ? (
-        <div className="mt-5 space-y-4 border-t border-white/10 pt-4">
-          <FieldBlock label={whyLabel} value={why} emphasize />
+        <div className="space-y-5 border-t border-white/10 px-5 pb-5 pt-4">
+          <FieldBlock
+            label={whyLabel}
+            value={why}
+            emphasize
+            icon={<Lightbulb />}
+          />
           {noticed ? (
             <FieldBlock
               label={noticedLabel ?? "What Athena noticed"}
@@ -202,14 +299,26 @@ export function SeoRecommendationCard({
           {impact ? <FieldBlock label={impactLabel} value={impact} /> : null}
           {effort ? <FieldBlock label={effortLabel} value={effort} /> : null}
           {recommendedAction ? (
-            <FieldBlock label={actionLabel} value={recommendedAction} />
+            <FieldBlock
+              label={actionLabel}
+              value={recommendedAction}
+              icon={<CheckCircle />}
+            />
           ) : null}
           {affectedPages.length > 0 ? (
-            <div className="space-y-1.5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">
-                {pagesLabel}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-white/55"
+                  aria-hidden="true"
+                >
+                  <FileText size={14} />
+                </span>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                  {pagesLabel}
+                </div>
               </div>
-              <ul className="space-y-1.5 text-sm leading-6 text-white/65">
+              <ul className="space-y-1.5 text-sm leading-6 text-white/65 sm:pl-9">
                 {affectedPages.map((page) => (
                   <li key={page} className="break-all">
                     {page}

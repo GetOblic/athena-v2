@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { MessageSquarePlus } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
 import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
@@ -9,6 +10,12 @@ import {
   emptyRegenerationSnapshot,
   fetchRegenerationStatus,
 } from "@/lib/discussionRegenerationStatus";
+import {
+  PROSPECT_ADD_OBSERVATION_EVENT,
+  PROSPECT_DETAIL_ANCHORS,
+  PROSPECT_DETAIL_ICON,
+  PROSPECT_DETAIL_SURFACE,
+} from "@/lib/prospects/prospectDetailPresentation";
 
 type ProspectAppendChrome = {
   title: string;
@@ -62,9 +69,26 @@ export function AppendProspectInformationForm({
   const { trackQueuedGeneration, isGenerating } = useDiscussionRegeneration();
   const [body, setBody] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(
     null,
   );
+
+  useEffect(() => {
+    function openFromHeader() {
+      setSectionOpen(true);
+    }
+    window.addEventListener(PROSPECT_ADD_OBSERVATION_EVENT, openFromHeader);
+    return () => {
+      window.removeEventListener(PROSPECT_ADD_OBSERVATION_EVENT, openFromHeader);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (result) {
+      setSectionOpen(true);
+    }
+  }, [result]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -126,8 +150,15 @@ export function AppendProspectInformationForm({
 
   return (
     <AthenaCollapsibleSection
+      id={PROSPECT_DETAIL_ANCHORS.observation}
       title={chrome?.title ?? "Append Information"}
-      defaultOpen={Boolean(result)}
+      defaultOpen={false}
+      open={sectionOpen}
+      onOpenChange={setSectionOpen}
+      tone="intelligence"
+      icon={<MessageSquarePlus />}
+      iconClassName={PROSPECT_DETAIL_ICON.violet}
+      className={`mt-8 ${PROSPECT_DETAIL_SURFACE.violet}`}
     >
     <form onSubmit={handleSubmit}>
       <p className="text-sm leading-6 text-white/45">
@@ -140,6 +171,7 @@ export function AppendProspectInformationForm({
           {chrome?.field ?? "Additional Information"}
         </span>
         <textarea
+          id={PROSPECT_DETAIL_ANCHORS.observationField}
           value={body}
           onChange={(event) => setBody(event.target.value)}
           required

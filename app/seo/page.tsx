@@ -2,113 +2,22 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
-import { SeoGenerationTypeBadge } from "@/components/seo/SeoGenerationTypeBadge";
+import { SeoAnalysisTypeCard } from "@/components/seo/SeoAnalysisTypeCard";
 import { SeoLibraryClient } from "@/components/seo/SeoLibraryClient";
 import { VisibilityPageHeader } from "@/components/seo/VisibilityPageHeader";
+import { SEO_HEADER_CTA_CLASS } from "@/components/seo/seoPagePresentation";
 import {
-  deriveVisibilityLandingState,
-  olderReadyThanLatest,
-  otherReadyLens,
-  type VisibilityLandingReport,
-} from "@/lib/seo/visibilityLandingState";
-import { formatTenantDate } from "@/lib/tenantI18n/format";
+  computeContentCoverageScoreFromPackage,
+  computeTechnicalCompletenessScoreFromPackage,
+  contentCoverageInventoryFromPackage,
+} from "@/lib/seo/seoScorePresentation";
+import { deriveVisibilityTypeCardState } from "@/lib/seo/visibilityTypeCards";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
-import {
-  getLocalizedSeoLensLabel,
-  getLocalizedSeoReportStatusLabel,
-} from "@/lib/tenantI18n/seoPresentation";
-import type { TenantMessages } from "@/lib/tenantI18n/types";
-import type { OrganizationLanguage } from "@/services/organizationLanguage";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { toPublicSeoReportSummary } from "@/services/seo/seoReportPublic";
 import { listSeoReports } from "@/services/seo/seoReportService";
-
-function LatestReportCard({
-  report,
-  heading,
-  note,
-  messages,
-  language,
-  showSummary = false,
-}: {
-  report: VisibilityLandingReport;
-  heading: string;
-  note?: string;
-  messages: TenantMessages;
-  language: OrganizationLanguage;
-  showSummary?: boolean;
-}) {
-  const copy = messages.seo;
-  const date = formatTenantDate(report.createdAt, language);
-
-  return (
-    <section className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
-      <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-orange)]">
-        {heading}
-      </div>
-      <div className="mt-4 flex min-w-0 flex-wrap items-center gap-3">
-        <SeoGenerationTypeBadge
-          generationType={report.generationType}
-          label={getLocalizedSeoLensLabel(messages, report.generationType)}
-        />
-        <span className="text-sm text-white/50">
-          {getLocalizedSeoReportStatusLabel(messages, report.status)}
-        </span>
-        {date ? <span className="text-sm text-white/50">{date}</span> : null}
-      </div>
-      <h2 className="mt-4 break-words text-xl font-semibold">{report.name}</h2>
-      {note ? (
-        <p className="mt-3 text-sm leading-6 text-white/55">{note}</p>
-      ) : null}
-      {showSummary && report.summary ? (
-        <p className="mt-3 line-clamp-4 text-sm leading-7 text-white/70">
-          {report.summary}
-        </p>
-      ) : null}
-      <div className="mt-5 flex w-full flex-col gap-3 sm:flex-row">
-        <Link
-          href={`/seo/${report.id}`}
-          className="w-full rounded-2xl border border-white/15 px-5 py-3 text-center text-sm font-semibold text-white/85 sm:w-auto"
-        >
-          {copy.visibility.openAnalysis}
-        </Link>
-      </div>
-    </section>
-  );
-}
-
-function TwoLensExplanation({
-  messages,
-  compact,
-}: {
-  messages: TenantMessages;
-  compact?: boolean;
-}) {
-  const copy = messages.seo.visibility;
-  return (
-    <section className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
-      <h2 className="text-lg font-semibold">{copy.lensesHeading}</h2>
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <div className="min-w-0">
-          <div className="break-words text-sm font-semibold">
-            {messages.seo.lenses.intelligence}
-          </div>
-          <p className="mt-2 text-sm leading-6 text-white/55">
-            {copy.strategyLensHelp}
-          </p>
-        </div>
-        <div className="min-w-0">
-          <div className="break-words text-sm font-semibold">
-            {messages.seo.lenses.technical}
-          </div>
-          <p className="mt-2 text-sm leading-6 text-white/55">
-            {compact ? copy.healthLensHelp : copy.healthLensExplanatory}
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
+import { isSeoTechnicalPackage } from "@/services/seo/seoReportTypes";
 
 export default async function SeoIntelligencePage() {
   const { organizationId } = await requireCurrentOrganizationContext();
@@ -116,21 +25,79 @@ export default async function SeoIntelligencePage() {
   const copy = messages.seo;
 
   let reports: ReturnType<typeof toPublicSeoReportSummary>[] = [];
+  let intelligenceScore: number | null = null;
+  let technicalScore: number | null = null;
+  let intelligenceInsight: string | null = null;
+  let technicalPageCount: number | null = null;
   let loadError: string | null = null;
 
   try {
-    reports = (await listSeoReports(organizationId)).map(
-      toPublicSeoReportSummary,
-    );
+    // listSeoReports already returns package_json. Scores are computed from the
+    // last Ready report of each type in that in-memory list — no extra query.
+    const storedReports = await listSeoReports(organizationId);
+    reports = storedReports.map(toPublicSeoReportSummary);
+
+    const intelligenceReadyId = reports.find(
+      (report) =>
+        report.status === "Ready" && report.generationType === "intelligence",
+    )?.id;
+    const technicalReadyId = reports.find(
+      (report) =>
+        report.status === "Ready" && report.generationType === "technical",
+    )?.id;
+
+    const intelligencePackage =
+      storedReports.find((report) => report.id === intelligenceReadyId)
+        ?.package_json ?? null;
+    const technicalPackage =
+      storedReports.find((report) => report.id === technicalReadyId)
+        ?.package_json ?? null;
+
+    intelligenceScore =
+      computeContentCoverageScoreFromPackage(intelligencePackage);
+    technicalScore =
+      computeTechnicalCompletenessScoreFromPackage(technicalPackage);
+
+    const inventory = contentCoverageInventoryFromPackage(intelligencePackage);
+    const wellCount = Array.isArray(inventory?.wellCovered)
+      ? inventory.wellCovered.length
+      : 0;
+    const weakCount = Array.isArray(inventory?.weakCoverage)
+      ? inventory.weakCoverage.length
+      : 0;
+    const missingCount = Array.isArray(inventory?.missingCoverage)
+      ? inventory.missingCoverage.length
+      : 0;
+    if (wellCount + weakCount + missingCount > 0) {
+      intelligenceInsight = interpolateTenantMessage(
+        copy.visibility.coverageInventorySummary.includes("{well}")
+          ? copy.visibility.coverageInventorySummary
+          : "{well} / {weak} / {missing}",
+        {
+          well: wellCount,
+          weak: weakCount,
+          missing: missingCount,
+        },
+      );
+    }
+
+    if (isSeoTechnicalPackage(technicalPackage)) {
+      technicalPageCount =
+        technicalPackage.technicalCoverage.analyzedPageCount ??
+        technicalPackage.websitePagesAnalyzed.pagesAnalyzedCount ??
+        null;
+    }
   } catch (error) {
     console.error("[SEO_LIBRARY] load_failed", error);
     loadError =
       error instanceof Error ? error.message : copy.loadFailed;
   }
 
-  const state = deriveVisibilityLandingState(reports);
-  const olderReady = olderReadyThanLatest(state.latest, state.lastReady);
-  const otherLens = otherReadyLens(state.latest, state);
+  const intelligenceState = deriveVisibilityTypeCardState(
+    reports,
+    "intelligence",
+  );
+  const technicalState = deriveVisibilityTypeCardState(reports, "technical");
 
   return (
     <TenantAppShell currentPath="/seo" messages={messages}>
@@ -138,10 +105,18 @@ export default async function SeoIntelligencePage() {
         eyebrow={copy.visibility.eyebrow}
         title={copy.visibility.title}
         subtitle={copy.visibility.subtitle}
+        action={
+          <Link
+            href="/seo/new"
+            className={`${SEO_HEADER_CTA_CLASS} bg-[var(--athena-orange)]`}
+          >
+            {copy.visibility.newAnalysisCta}
+          </Link>
+        }
       />
 
       {loadError ? (
-        <div className="rounded-[24px] border border-rose-400/30 bg-rose-500/10 p-10 text-center">
+        <div className="rounded-[28px] border border-rose-400/30 bg-rose-500/10 p-10 text-center">
           <h2 className="text-2xl font-semibold text-rose-100">
             {copy.unableToLoad}
           </h2>
@@ -149,94 +124,34 @@ export default async function SeoIntelligencePage() {
             {loadError}
           </p>
         </div>
-      ) : reports.length === 0 ? (
-        <div className="space-y-6">
-          <section className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-8 sm:p-10">
-            <h2 className="text-2xl font-semibold">{copy.visibility.emptyTitle}</h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/50">
-              {copy.visibility.emptyBody}
-            </p>
-            <Link
-              href="/seo/new"
-              className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
-            >
-              {copy.visibility.analyzeCta}
-            </Link>
-          </section>
-          <TwoLensExplanation messages={messages} />
-        </div>
       ) : (
-        <div className="space-y-8">
-          {state.latest ? (
-            <LatestReportCard
-              report={state.latest}
-              heading={copy.visibility.latestAnalysis}
-              note={
-                state.latest.status === "Queued"
-                  ? copy.visibility.queuedNote
-                  : state.latest.status === "Processing"
-                    ? copy.visibility.processingNote
-                    : state.latest.status === "Processing Failed"
-                      ? copy.visibility.failedNote
-                      : undefined
-              }
-              showSummary={state.latest.status === "Ready"}
+        <div className="space-y-10">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <SeoAnalysisTypeCard
+              generationType="intelligence"
+              state={intelligenceState}
+              score={intelligenceScore}
+              insight={intelligenceInsight}
               messages={messages}
               language={language}
             />
-          ) : null}
-
-          {state.latest?.status === "Ready" && otherLens ? (
-            <LatestReportCard
-              report={otherLens}
-              heading={
-                otherLens.generationType === "technical"
-                  ? copy.visibility.lastReadyHealth
-                  : copy.visibility.lastReadyStrategy
-              }
-              showSummary
+            <SeoAnalysisTypeCard
+              generationType="technical"
+              state={technicalState}
+              score={technicalScore}
+              analyzedPageCount={technicalPageCount}
               messages={messages}
               language={language}
             />
-          ) : null}
-
-          {state.latest &&
-          state.latest.status !== "Ready" &&
-          olderReady ? (
-            <LatestReportCard
-              report={olderReady}
-              heading={
-                olderReady.generationType === "technical"
-                  ? copy.visibility.lastReadyHealth
-                  : copy.visibility.lastReadyStrategy
-              }
-              note={
-                state.latest.status === "Processing Failed"
-                  ? copy.visibility.priorReadyAvailable
-                  : undefined
-              }
-              showSummary
-              messages={messages}
-              language={language}
-            />
-          ) : null}
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/seo/new"
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
-            >
-              {copy.visibility.newAnalysisCta}
-            </Link>
           </div>
 
-          <TwoLensExplanation messages={messages} compact />
-
-          <SeoLibraryClient
-            reports={reports}
-            messages={messages}
-            language={language}
-          />
+          {reports.length > 0 ? (
+            <SeoLibraryClient
+              reports={reports}
+              messages={messages}
+              language={language}
+            />
+          ) : null}
         </div>
       )}
     </TenantAppShell>

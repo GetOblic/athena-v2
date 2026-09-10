@@ -272,7 +272,7 @@ describe("Social Planner L7 ready and production display", () => {
     );
     assert.match(card, /copy\.openAsset/);
     assert.match(card, /aria-expanded/);
-    assert.match(card, /previewSocialCopy/);
+    assert.doesNotMatch(card, /previewSocialCopy/);
     assert.match(card, /formatSocialPlannerCalendarOpportunity/);
     assert.match(card, /recommendedPlatforms/);
   });
@@ -411,12 +411,16 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.match(page, /getTenantLocalization/);
     assert.match(page, /locale/);
     assert.doesNotMatch(workspace, /replaceState|selectCalendar|SocialCalendarDetail/);
-    assert.match(form, /w-full/);
+    assert.match(form, /SOCIAL_FIELD_CLASS/);
     assert.match(form, /copy\.generateMyWeek/);
     assert.match(card, /min-w-0/);
     assert.match(card, /break-words/);
     assert.match(card, /flex-wrap/);
-    assert.match(history, /flex-col/);
+    assert.match(history, /SOCIAL_WEEK_CARD_CLASS/);
+    assert.match(
+      read("lib/socialPlanner/socialPlannerPagePresentation.ts"),
+      /w-full[\s\S]*flex-col|flex-col[\s\S]*w-full/,
+    );
     assert.doesNotMatch(card, /min-w-\[8|w-\[8|grid-cols-7/);
     assert.doesNotMatch(history, /<table/);
     assert.doesNotMatch(workspace, /<table/);
@@ -476,7 +480,11 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.match(status, /aria-live="polite"/);
     assert.match(form, /htmlFor="social-planner-week-start"/);
     assert.match(form, /htmlFor="social-planner-guidance"/);
-    assert.match(form, /focus-visible:outline/);
+    assert.match(form, /SOCIAL_FIELD_CLASS/);
+    assert.match(
+      read("lib/socialPlanner/socialPlannerPagePresentation.ts"),
+      /focus-visible:outline/,
+    );
   });
 
   it("does not query Supabase from UI and adds no L7 migration or dependency", () => {
@@ -650,7 +658,11 @@ describe("Social Planner 7-day quick navigation", () => {
     );
     assert.match(nav, /overflow-x-auto/);
     assert.match(nav, /flex flex-nowrap/);
-    assert.match(nav, /whitespace-nowrap/);
+    assert.match(nav, /SOCIAL_DETAIL_DAY_NAV_CHIP/);
+    assert.match(
+      read("lib/socialPlanner/socialPlannerDetailPresentation.ts"),
+      /whitespace-nowrap/,
+    );
     assert.doesNotMatch(nav, /flex-wrap/);
     assert.doesNotMatch(nav, /history\.|router\.|replaceState|#social-planner-day/);
     assert.doesNotMatch(nav, /setDiscussAssetReference|onThinkDifferently|onApply/);

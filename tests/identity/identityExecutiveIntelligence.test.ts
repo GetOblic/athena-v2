@@ -401,5 +401,13 @@ describe("Identity Executive Intelligence — UI and safety", () => {
       trainedBlock.indexOf("IdentityWhatAthenaKnows") <
         trainedBlock.indexOf("{brandIdentity}"),
     );
+    assert.ok(
+      trainedBlock.indexOf("{brandIdentity}") <
+        trainedBlock.indexOf("IdentityAdvancedUnderstanding"),
+    );
+    assert.ok(
+      trainedBlock.indexOf("IdentityAdvancedUnderstanding") <
+        trainedBlock.indexOf("IdentityWebsiteKnowledge"),
+    );
   });
 });

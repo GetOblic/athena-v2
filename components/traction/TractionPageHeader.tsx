@@ -6,6 +6,7 @@ type TractionPageHeaderProps = {
   question?: string;
   subtitle?: string;
   badge?: ReactNode;
+  action?: ReactNode;
   children?: ReactNode;
 };
 
@@ -15,6 +16,7 @@ export function TractionPageHeader({
   question,
   subtitle,
   badge,
+  action,
   children,
 }: TractionPageHeaderProps) {
   return (
@@ -25,9 +27,18 @@ export function TractionPageHeader({
         </div>
         {badge}
       </div>
-      <h1 className="mt-4 break-words text-3xl font-semibold tracking-tight sm:text-5xl">
-        {title}
-      </h1>
+      {action ? (
+        <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <h1 className="min-w-0 break-words text-3xl font-semibold tracking-tight sm:text-5xl">
+            {title}
+          </h1>
+          <div className="w-full shrink-0 sm:w-auto">{action}</div>
+        </div>
+      ) : (
+        <h1 className="mt-4 break-words text-3xl font-semibold tracking-tight sm:text-5xl">
+          {title}
+        </h1>
+      )}
       {question?.trim() ? (
         <p className="mt-4 max-w-3xl text-lg leading-8 text-white/70">
           {question}

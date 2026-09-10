@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Copy } from "lucide-react";
 import { AssetUsageTagControls } from "@/components/deployment/AssetUsageTagControls";
 import { ContinueButton } from "@/components/deployment/ContinueButton";
 import { writeClipboardText } from "@/lib/clipboard";
@@ -44,6 +45,8 @@ type CopyButtonProps = {
   onTagsChange?: (tags: AssetUsageTag[]) => void;
   /** Show Continue beside Copy (default true for shared asset cards). */
   showContinue?: boolean;
+  /** Utility is a compact secondary action. Default keeps the existing orange Copy. */
+  variant?: "default" | "utility";
   /** Asset type for Continue destination routing (falls back to tracking.assetType). */
   assetType?: string | null;
   continuationPreferences?: AiWorkspacePreferences | null;
@@ -81,6 +84,7 @@ export function CopyButton({
   assetType = null,
   continuationPreferences = null,
   chrome,
+  variant = "default",
 }: CopyButtonProps) {
   const labels = resolveCopyChrome(chrome);
   const [copied, setCopied] = useState(false);
@@ -187,9 +191,16 @@ export function CopyButton({
           onClick={() => void handleCopy()}
           aria-live="polite"
           aria-label={copied ? labels.copiedAria : labels.copyAria}
-          className="rounded-xl border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-4 py-2 text-sm font-medium text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/20"
-          style={{ minWidth: "5.5rem" }}
+          className={
+            variant === "utility"
+              ? "inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-medium text-white/60 transition hover:border-[var(--athena-orange)]/35 hover:bg-[var(--athena-orange)]/10 hover:text-[var(--athena-orange)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+              : "rounded-xl border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-4 py-2 text-sm font-medium text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/20"
+          }
+          style={variant === "utility" ? undefined : { minWidth: "5.5rem" }}
         >
+          {variant === "utility" ? (
+            <Copy className="size-3.5" aria-hidden="true" />
+          ) : null}
           {copied ? labels.copied : labels.copy}
         </button>
       </div>

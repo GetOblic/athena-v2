@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertTriangle } from "lucide-react";
 import type { SocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
 import { SocialCalendarDetail } from "@/components/socialPlanner/SocialCalendarDetail";
 import {
@@ -12,6 +13,13 @@ import {
   isSocialPlannerInFlight,
   thinkDifferentlySocialCalendarRequest,
 } from "@/components/socialPlanner/socialPlannerClient";
+import {
+  SOCIAL_DETAIL_FAILED_SURFACE,
+  SOCIAL_DETAIL_ICON,
+  SOCIAL_DETAIL_ICON_WELL,
+  SOCIAL_DETAIL_UNAVAILABLE_SURFACE,
+  SOCIAL_DETAIL_UTILITY_ACTION,
+} from "@/lib/socialPlanner/socialPlannerDetailPresentation";
 import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
 import { en } from "@/lib/tenantI18n/messages/en";
 import { getSocialPlannerErrorChrome } from "@/lib/tenantI18n/socialPlannerPresentation";
@@ -181,13 +189,21 @@ export function SocialPlannerDetailWorkspace({
   return (
     <div className="mx-auto w-full max-w-4xl space-y-10">
       {detailError === "not_found" ? (
-        <section className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-8">
-          <h2 className="text-2xl font-semibold">{copy.notFound}</h2>
+        <section className={SOCIAL_DETAIL_UNAVAILABLE_SURFACE}>
+          <div className="flex items-start gap-3">
+            <span
+              className={`${SOCIAL_DETAIL_ICON_WELL} ${SOCIAL_DETAIL_ICON.rose}`}
+              aria-hidden="true"
+            >
+              <AlertTriangle className="size-5" />
+            </span>
+            <h2 className="text-2xl font-semibold tracking-tight">{copy.notFound}</h2>
+          </div>
           <div className="mt-6">
             <button
               type="button"
               onClick={handleCreateAnotherWeek}
-              className="w-full rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white sm:w-auto"
+              className={SOCIAL_DETAIL_UTILITY_ACTION}
             >
               {copy.createAnotherWeek}
             </button>
@@ -196,13 +212,23 @@ export function SocialPlannerDetailWorkspace({
       ) : null}
 
       {detailError === "load_failed" ? (
-        <section className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6 sm:p-8">
-          <h2 className="text-2xl font-semibold">{copy.couldNotDisplay}</h2>
+        <section className={SOCIAL_DETAIL_FAILED_SURFACE}>
+          <div className="flex items-start gap-3">
+            <span
+              className={`${SOCIAL_DETAIL_ICON_WELL} ${SOCIAL_DETAIL_ICON.rose}`}
+              aria-hidden="true"
+            >
+              <AlertTriangle className="size-5" />
+            </span>
+            <h2 className="text-2xl font-semibold tracking-tight">
+              {copy.couldNotDisplay}
+            </h2>
+          </div>
           <div className="mt-6">
             <button
               type="button"
               onClick={handleCreateAnotherWeek}
-              className="w-full rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white sm:w-auto"
+              className={SOCIAL_DETAIL_UTILITY_ACTION}
             >
               {copy.createAnotherWeek}
             </button>

@@ -117,7 +117,7 @@ describe("V2-UI-5C Generate Traction presentation", () => {
     assert.equal(en.personas.list.createFirstCta, "Define your first audience");
     assert.equal(en.personas.metadata.personaName, "Audience name");
     assert.equal(en.personas.conversation.title, "Ask Athena about this audience");
-    assert.equal(en.personas.executive.deploymentAssetsTitle, "Outreach drafts");
+    assert.equal(en.personas.executive.deploymentAssetsTitle, "Ready-to-use assets");
     const library = read("components/personas/PersonasLibraryClient.tsx");
     const generate = read("components/personas/PersonaGenerateForm.tsx");
     assert.doesNotMatch(library, /display_opportunity_score_label/);
@@ -276,6 +276,7 @@ describe("V2-UI-5C Generate Traction presentation", () => {
     const required = [
       "personas.question",
       "personas.traction.audiences",
+      "personas.traction.audiencesHelp",
       "personas.list.createFirstCta",
       "personas.import.createThisAudience",
       "personas.detail.refreshIntelligence",
@@ -295,6 +296,14 @@ describe("V2-UI-5C Generate Traction presentation", () => {
         `${language} missing Traction keys`,
       );
     }
+    assert.equal(
+      en.personas.traction.audiencesHelp,
+      "Understand who you want to reach and what matters to them.",
+    );
+    assert.notEqual(
+      fr.personas.traction.audiencesHelp,
+      en.personas.traction.audiencesHelp,
+    );
     assert.notEqual(fr.personas.list.createCta, en.personas.list.createCta);
     assert.notEqual(es.ads.title, en.ads.title);
     assert.notEqual(de.socialPlanner.title, en.socialPlanner.title);

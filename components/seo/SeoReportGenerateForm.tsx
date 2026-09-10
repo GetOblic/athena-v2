@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Gauge, Telescope } from "lucide-react";
+import { SEO_CHOICE_CARD } from "@/components/seo/seoPagePresentation";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { en } from "@/lib/tenantI18n/messages/en";
@@ -20,6 +22,7 @@ export function SeoReportGenerateForm({
 }: SeoReportGenerateFormProps) {
   const copy = messages?.seo.new ?? en.seo.new;
   const lenses = messages?.seo.lenses ?? en.seo.lenses;
+  const visibility = messages?.seo.visibility ?? en.seo.visibility;
   const expand = messages?.seo.expand ?? en.seo.expand;
   const collapse = messages?.seo.collapse ?? en.seo.collapse;
   const router = useRouter();
@@ -103,7 +106,13 @@ export function SeoReportGenerateForm({
           {copy.chooseWhat}
         </legend>
         <div className="grid gap-3">
-          <label className="flex min-w-0 cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+          <label
+            className={
+              generationType === "intelligence"
+                ? SEO_CHOICE_CARD.strategySelected
+                : SEO_CHOICE_CARD.strategy
+            }
+          >
             <input
               type="radio"
               name="generationType"
@@ -112,18 +121,29 @@ export function SeoReportGenerateForm({
               onChange={() => setGenerationType("intelligence")}
               className="mt-1"
             />
+            <span
+              className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl border border-[rgba(167,139,250,0.32)] bg-[rgba(167,139,250,0.13)] text-violet-300"
+              aria-hidden="true"
+            >
+              <Telescope size={16} />
+            </span>
             <span className="min-w-0">
               <span className="block break-words text-sm font-semibold text-white">
                 {lenses.intelligence}
               </span>
+              <span className="mt-1 block text-sm leading-6 text-white/50">
+                {visibility.strategyCardHelp}
+              </span>
             </span>
           </label>
           <label
-            className={`flex min-w-0 items-start gap-3 rounded-2xl border px-4 py-4 ${
-              technicalSelectable
-                ? "cursor-pointer border-white/10 bg-black/20"
-                : "cursor-not-allowed border-white/5 bg-black/10 opacity-70"
-            }`}
+            className={
+              !technicalSelectable
+                ? SEO_CHOICE_CARD.technicalDisabled
+                : generationType === "technical"
+                  ? SEO_CHOICE_CARD.technicalSelected
+                  : SEO_CHOICE_CARD.technical
+            }
           >
             <input
               type="radio"
@@ -136,9 +156,18 @@ export function SeoReportGenerateForm({
               }}
               className="mt-1"
             />
+            <span
+              className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.13)] text-sky-300"
+              aria-hidden="true"
+            >
+              <Gauge size={16} />
+            </span>
             <span className="min-w-0">
               <span className="block break-words text-sm font-semibold text-white">
                 {lenses.technical}
+              </span>
+              <span className="mt-1 block text-sm leading-6 text-white/50">
+                {visibility.healthCardHelp}
               </span>
               {!technicalSelectable ? (
                 <span className="mt-2 block text-sm leading-6 text-white/55">
@@ -210,7 +239,7 @@ export function SeoReportGenerateForm({
       <button
         type="submit"
         disabled={submitting || (generationType === "technical" && !technicalSelectable)}
-        className="w-full rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto"
+        className="w-full rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 disabled:opacity-60 sm:w-auto"
       >
         {submitting ? copy.starting : copy.startAnalysis}
       </button>

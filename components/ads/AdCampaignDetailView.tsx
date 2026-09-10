@@ -3,9 +3,33 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import {
+  ArrowLeft,
+  Image,
+  Layers,
+  ListChecks,
+  Megaphone,
+  Monitor,
+  RefreshCw,
+  Search,
+  Target,
+  Video,
+} from "lucide-react";
 import { AdAssetSection } from "@/components/ads/AdAssetSection";
 import { AdCampaignHeaderDeleteButton } from "@/components/ads/AdCampaignHeaderDeleteButton";
 import { AdCampaignStatusPanel } from "@/components/ads/AdCampaignStatusPanel";
+import {
+  AD_BACK_LINK_CLASS,
+  AD_CHIP_META,
+  AD_DETAIL_DEFAULT_OPEN,
+  AD_DETAIL_ICON,
+  AD_DETAIL_SURFACE,
+  AD_HEADER_ICON_WELL,
+  AD_HEADER_PRIMARY_CLASS,
+  adCampaignStatusChipClass,
+  presentAdCampaignDirectionSummary,
+  presentAdCampaignSnapshot,
+} from "@/lib/ads/adCampaignDetailPresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import {
@@ -34,6 +58,17 @@ export function AdCampaignDetailView({
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pkg = campaign.package;
+  const snapshot = presentAdCampaignSnapshot({
+    name: campaign.name,
+    objective: campaign.objective,
+    campaignTheme: campaign.campaignTheme,
+    strategyAudience: pkg?.strategy.audience,
+    strategyObjective: pkg?.strategy.objective,
+    strategyCampaignName: pkg?.strategy.campaignName,
+    strategyCampaignTheme: pkg?.googleSearch.campaignTheme,
+  });
+  const canCreateAnotherVersion =
+    campaign.status === "Ready" || campaign.status === "Processing Failed";
 
   async function handleRegenerate() {
     if (regenerating) return;
@@ -70,44 +105,70 @@ export function AdCampaignDetailView({
 
   return (
     <div className="min-w-0 text-white">
-      <Link href="/ads" className="text-sm text-[var(--athena-orange)]">
-        {copy.backToAds}
+      <Link href="/ads" className={AD_BACK_LINK_CLASS}>
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        {copy.detail.backLabel}
       </Link>
 
-      <div className="mb-8 mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            {copy.detail.eyebrow}
+      <header className="mb-8 mt-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={AD_HEADER_ICON_WELL} aria-hidden="true">
+                <Megaphone className="size-5" />
+              </span>
+              <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
+                {copy.detail.eyebrow}
+              </div>
+            </div>
+            <h1 className="mt-4 break-words text-3xl font-semibold tracking-tight text-white sm:text-5xl">
+              {campaign.name}
+            </h1>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className={adCampaignStatusChipClass(campaign.status)}>
+                {getLocalizedAdCampaignStatusLabel(dictionary, campaign.status)}
+              </span>
+              {snapshot.objective ? (
+                <span className={AD_CHIP_META}>
+                  {copy.detail.objective}: {snapshot.objective}
+                </span>
+              ) : null}
+              {snapshot.campaignTheme ? (
+                <span className={AD_CHIP_META}>{snapshot.campaignTheme}</span>
+              ) : null}
+            </div>
+            {snapshot.audience ? (
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-white/50">
+                {copy.detail.audience}: {snapshot.audience}
+              </p>
+            ) : null}
+            {campaign.status === "Ready" ? (
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-white/40">
+                {copy.traction.readyStay}
+              </p>
+            ) : null}
           </div>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">
-            {campaign.name}
-          </h1>
-          <p className="mt-3 text-sm text-white/50">
-            {copy.detail.statusLabel}:{" "}
-            {getLocalizedAdCampaignStatusLabel(dictionary, campaign.status)}
-            {campaign.objective ? ` · ${campaign.objective}` : ""}
-          </p>
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-start">
+            {canCreateAnotherVersion ? (
+              <button
+                type="button"
+                onClick={() => void handleRegenerate()}
+                disabled={regenerating}
+                className={AD_HEADER_PRIMARY_CLASS}
+              >
+                <RefreshCw className="size-4" aria-hidden="true" />
+                {regenerating ? copy.detail.starting : copy.detail.regenerate}
+              </button>
+            ) : null}
+            <AdCampaignHeaderDeleteButton
+              campaignId={campaign.id}
+              confirmMessage={copy.delete.confirm}
+              errorFallback={copy.delete.failed}
+              chrome={getAdsConfirmDeleteChrome(dictionary)}
+            />
+          </div>
         </div>
-        <div className="flex flex-wrap gap-3">
-          {(campaign.status === "Ready" ||
-            campaign.status === "Processing Failed") && (
-            <button
-              type="button"
-              onClick={() => void handleRegenerate()}
-              disabled={regenerating}
-              className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/85 disabled:opacity-60"
-            >
-              {regenerating ? copy.detail.starting : copy.detail.regenerate}
-            </button>
-          )}
-          <AdCampaignHeaderDeleteButton
-            campaignId={campaign.id}
-            confirmMessage={copy.delete.confirm}
-            errorFallback={copy.delete.failed}
-            chrome={getAdsConfirmDeleteChrome(dictionary)}
-          />
-        </div>
-      </div>
+      </header>
 
       {error ? (
         <p className="mb-6 text-sm text-rose-200">{error}</p>
@@ -123,17 +184,20 @@ export function AdCampaignDetailView({
 
       {pkg ? (
         <div className="space-y-6">
-          {campaign.status === "Ready" ? (
-            <p className="text-sm leading-6 text-white/50">
-              {copy.traction.readyStay}
-            </p>
-          ) : null}
-
           <AdAssetSection
             title={copy.detail.campaignStrategy}
-            eyebrow="1"
             emptyValue={emptyValue}
             copy={copyChrome}
+            tone="intelligence"
+            icon={<Target aria-hidden="true" />}
+            iconClassName={AD_DETAIL_ICON.violet}
+            className={AD_DETAIL_SURFACE.violet}
+            defaultOpen={AD_DETAIL_DEFAULT_OPEN.campaignStrategy}
+            summary={presentAdCampaignDirectionSummary({
+              audience: pkg.strategy.audience,
+              objective: pkg.strategy.objective,
+            }) ?? undefined}
+            copyVariant="utility"
             fields={[
               { label: copy.detail.audience, value: pkg.strategy.audience },
               {
@@ -160,9 +224,15 @@ export function AdCampaignDetailView({
 
           <AdAssetSection
             title={copy.detail.facebook}
-            eyebrow="2"
             emptyValue={emptyValue}
             copy={copyChrome}
+            tone="intelligence"
+            icon={<Monitor aria-hidden="true" />}
+            iconClassName={AD_DETAIL_ICON.cyan}
+            className={AD_DETAIL_SURFACE.cyan}
+            defaultOpen={AD_DETAIL_DEFAULT_OPEN.facebook}
+            summary={copy.detail.summaryFacebook}
+            copyVariant="utility"
             fields={[
               { label: copy.detail.primaryText, value: pkg.facebook.primaryText },
               { label: copy.detail.headline, value: pkg.facebook.headline },
@@ -185,9 +255,15 @@ export function AdCampaignDetailView({
 
           <AdAssetSection
             title={copy.detail.instagram}
-            eyebrow="3"
             emptyValue={emptyValue}
             copy={copyChrome}
+            tone="intelligence"
+            icon={<Image aria-hidden="true" />}
+            iconClassName={AD_DETAIL_ICON.cyan}
+            className={AD_DETAIL_SURFACE.cyan}
+            defaultOpen={AD_DETAIL_DEFAULT_OPEN.instagram}
+            summary={copy.detail.summaryInstagram}
+            copyVariant="utility"
             fields={[
               { label: copy.detail.feedCaption, value: pkg.instagram.feedCaption },
               { label: copy.detail.openingHook, value: pkg.instagram.openingHook },
@@ -214,9 +290,15 @@ export function AdCampaignDetailView({
 
           <AdAssetSection
             title={copy.detail.tiktok}
-            eyebrow="4"
             emptyValue={emptyValue}
             copy={copyChrome}
+            tone="intelligence"
+            icon={<Video aria-hidden="true" />}
+            iconClassName={AD_DETAIL_ICON.cyan}
+            className={AD_DETAIL_SURFACE.cyan}
+            defaultOpen={AD_DETAIL_DEFAULT_OPEN.tiktok}
+            summary={copy.detail.summaryTikTok}
+            copyVariant="utility"
             fields={[
               { label: copy.detail.openingHook, value: pkg.tiktok.openingHook },
               {
@@ -236,9 +318,15 @@ export function AdCampaignDetailView({
 
           <AdAssetSection
             title={copy.detail.googleSearchAds}
-            eyebrow="5"
             emptyValue={emptyValue}
             copy={copyChrome}
+            tone="intelligence"
+            icon={<Search aria-hidden="true" />}
+            iconClassName={AD_DETAIL_ICON.cyan}
+            className={AD_DETAIL_SURFACE.cyan}
+            defaultOpen={AD_DETAIL_DEFAULT_OPEN.googleSearchAds}
+            summary={copy.detail.summaryGoogleSearch}
+            copyVariant="utility"
             fields={[
               {
                 label: copy.detail.campaignTheme,
@@ -281,9 +369,15 @@ export function AdCampaignDetailView({
 
           <AdAssetSection
             title={copy.detail.recommendedKeywordThemes}
-            eyebrow="6"
             emptyValue={emptyValue}
             copy={copyChrome}
+            tone="intelligence"
+            icon={<ListChecks aria-hidden="true" />}
+            iconClassName={AD_DETAIL_ICON.amber}
+            className={AD_DETAIL_SURFACE.amber}
+            defaultOpen={AD_DETAIL_DEFAULT_OPEN.recommendedKeywordThemes}
+            summary={copy.detail.summaryKeywordThemes}
+            copyVariant="utility"
             fields={[
               { label: copy.detail.keywordLabel, value: pkg.keywordThemes.label },
               {
@@ -322,9 +416,15 @@ export function AdCampaignDetailView({
           {pkg.strategy.rationale || pkg.strategy.briefMode ? (
             <AdAssetSection
               title={copy.traction.advanced}
-              eyebrow=""
               emptyValue={emptyValue}
               copy={copyChrome}
+              tone="intelligence"
+              icon={<Layers aria-hidden="true" />}
+              iconClassName={AD_DETAIL_ICON.muted}
+              className={AD_DETAIL_SURFACE.muted}
+              defaultOpen={AD_DETAIL_DEFAULT_OPEN.advanced}
+              summary={copy.detail.summaryAdvanced}
+              copyVariant="utility"
               fields={[
                 { label: copy.detail.rationale, value: pkg.strategy.rationale },
                 { label: copy.detail.briefMode, value: pkg.strategy.briefMode },

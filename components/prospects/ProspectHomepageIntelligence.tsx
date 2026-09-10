@@ -1,6 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Globe } from "lucide-react";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  PROSPECT_DETAIL_ANCHORS,
+  PROSPECT_DETAIL_ICON,
+  PROSPECT_WEBSITE_SURFACE,
+} from "@/lib/prospects/prospectDetailPresentation";
 
 type HomepageSection = {
   key: string;
@@ -29,6 +35,8 @@ type ProspectHomepageIntelligenceProps = {
   websiteIntelligence: Record<string, unknown> | null | undefined;
   scrapeStatus: string;
   chrome?: ProspectHomepageChrome | null;
+  heading?: string;
+  help?: string;
 };
 
 const SECTION_DEFS: Array<{
@@ -85,28 +93,23 @@ export function ProspectHomepageIntelligence({
   websiteIntelligence,
   scrapeStatus,
   chrome = null,
+  heading,
+  help,
 }: ProspectHomepageIntelligenceProps) {
   const sections = sectionsFromIntelligence(websiteIntelligence, chrome);
-  const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set());
-
-  function toggle(key: string) {
-    setOpenKeys((previous) => {
-      const next = new Set(previous);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  }
 
   return (
-    <section className="mt-8">
-      <div className="text-sm text-white/40">
-        {chrome?.title ?? "Homepage Intelligence"}
-      </div>
-      <div className="mt-2 text-xs text-white/35">{scrapeStatus}</div>
+    <AthenaCollapsibleSection
+      id={PROSPECT_DETAIL_ANCHORS.website}
+      title={heading ?? chrome?.title ?? "Website research"}
+      summary={help ?? scrapeStatus}
+      defaultOpen={false}
+      tone="intelligence"
+      icon={<Globe />}
+      iconClassName={PROSPECT_DETAIL_ICON.blue}
+      className={PROSPECT_WEBSITE_SURFACE}
+    >
+      <div className="text-xs text-white/35">{scrapeStatus}</div>
 
       {sections.length === 0 ? (
         <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/50">
@@ -114,38 +117,23 @@ export function ProspectHomepageIntelligence({
         </div>
       ) : (
         <div className="mt-4 space-y-3">
-          {sections.map((section) => {
-            const open = openKeys.has(section.key);
-            return (
-              <article
-                key={section.key}
-                className="rounded-2xl border border-white/10 bg-black/25"
-              >
-                <button
-                  type="button"
-                  onClick={() => toggle(section.key)}
-                  className="flex w-full items-center justify-between gap-4 p-5 text-left transition hover:bg-white/[0.02]"
-                  aria-expanded={open}
-                >
-                  <span className="text-sm font-medium text-white/70">
-                    {section.label}
-                  </span>
-                  <span className="text-xs text-white/30">
-                    {open ? "▲" : "▼"}
-                  </span>
-                </button>
-                {open && (
-                  <div className="border-t border-white/10 px-5 pb-5 pt-4">
-                    <p className="whitespace-pre-wrap text-sm leading-7 text-white/75">
-                      {section.value}
-                    </p>
-                  </div>
-                )}
-              </article>
-            );
-          })}
+          {sections.map((section) => (
+            <AthenaCollapsibleSection
+              key={section.key}
+              title={section.label}
+              defaultOpen={false}
+              tone="intelligence"
+              iconSize="sm"
+              iconClassName={PROSPECT_DETAIL_ICON.blue}
+              className="!rounded-2xl"
+            >
+              <p className="whitespace-pre-wrap text-sm leading-7 text-white/75">
+                {section.value}
+              </p>
+            </AthenaCollapsibleSection>
+          ))}
         </div>
       )}
-    </section>
+    </AthenaCollapsibleSection>
   );
 }

@@ -2,7 +2,23 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertTriangle, Brain, SlidersHorizontal, Target } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  AD_CREATE_ADVANCED_ICON,
+  AD_CREATE_ADVANCED_SURFACE,
+  AD_CREATE_BRIEF_ICON,
+  AD_CREATE_BRIEF_SURFACE,
+  AD_CREATE_CARD_SHELL,
+  AD_CREATE_CONTEXT_ICON,
+  AD_CREATE_CONTEXT_SURFACE,
+  AD_CREATE_ERROR_CLASS,
+  AD_CREATE_FIELD_CLASS,
+  AD_CREATE_FIELD_HELP_CLASS,
+  AD_CREATE_FIELD_LABEL_CLASS,
+  AD_CREATE_PRIMARY_CLASS,
+  AD_CREATE_TEXTAREA_CLASS,
+} from "@/lib/ads/adCampaignCreatePresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { en } from "@/lib/tenantI18n/messages/en";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
@@ -15,6 +31,8 @@ export function AdCampaignGenerateForm({
   messages,
 }: AdCampaignGenerateFormProps) {
   const copy = messages?.ads.new ?? en.ads.new;
+  const audienceHelp =
+    messages?.ads.traction.audienceHelp ?? en.ads.traction.audienceHelp;
   const router = useRouter();
   const submittingRef = useRef(false);
   const [name, setName] = useState("");
@@ -78,77 +96,131 @@ export function AdCampaignGenerateForm({
     [copy.constraintsLabel, constraints, setConstraints, 1000, "textarea"],
   ] as const;
 
+  const contextSources = [
+    copy.contextSourceBrain,
+    copy.contextSourceAudiences,
+    copy.contextSourceProspects,
+    copy.contextSourceWebsite,
+  ];
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
-        <p className="text-sm leading-7 text-white/60">{copy.briefOptional}</p>
-      </div>
-
-      <label className="block space-y-2">
-        <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-          {copy.objectiveLabel}
-        </span>
-        <textarea
-          value={objective}
-          onChange={(event) => setObjective(event.target.value)}
-          className="min-h-[88px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-          maxLength={500}
-        />
-      </label>
-
-      <label className="block space-y-2">
-        <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-          {copy.offerLabel}
-        </span>
-        <textarea
-          value={offer}
-          onChange={(event) => setOffer(event.target.value)}
-          className="min-h-[88px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-          maxLength={500}
-        />
-      </label>
-
-      <label className="block space-y-2">
-        <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-          {copy.audienceLabel}
-        </span>
-        <textarea
-          value={audience}
-          onChange={(event) => setAudience(event.target.value)}
-          className="min-h-[88px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-          maxLength={500}
-        />
-        <p className="text-xs leading-5 text-white/40">
-          {messages?.ads.traction.audienceHelp ??
-            en.ads.traction.audienceHelp}
+      <section className={`${AD_CREATE_CARD_SHELL} ${AD_CREATE_CONTEXT_SURFACE}`}>
+        <div className="flex items-start gap-4">
+          <span
+            className={`grid size-10 shrink-0 place-items-center rounded-2xl ${AD_CREATE_CONTEXT_ICON}`}
+            aria-hidden="true"
+          >
+            <Brain className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold tracking-tight text-white sm:text-xl">
+              {copy.contextTitle}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-white/55">
+              {copy.briefOptional}
+            </p>
+          </div>
+        </div>
+        <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
+          {copy.contextSourcesLead}
         </p>
-      </label>
+        <ul className="mt-2 space-y-1 text-sm leading-6 text-white/55">
+          {contextSources.map((source) => (
+            <li key={source}>{source}</li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm leading-6 text-white/40">
+          {copy.contextSourcesNote}
+        </p>
+      </section>
 
-      <label className="block space-y-2">
-        <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-          {copy.guidanceLabel}
-        </span>
-        <textarea
-          value={guidance}
-          onChange={(event) => setGuidance(event.target.value)}
-          className="min-h-[160px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
-          placeholder={copy.guidancePlaceholder}
-          maxLength={4000}
-        />
-      </label>
+      <section className={`${AD_CREATE_CARD_SHELL} ${AD_CREATE_BRIEF_SURFACE}`}>
+        <div className="flex items-start gap-4">
+          <span
+            className={`grid size-10 shrink-0 place-items-center rounded-2xl ${AD_CREATE_BRIEF_ICON}`}
+            aria-hidden="true"
+          >
+            <Target className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold tracking-tight text-white sm:text-xl">
+              {copy.briefTitle}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-white/50">
+              {copy.briefHelper}
+            </p>
+          </div>
+        </div>
 
-      <AthenaCollapsibleSection title={copy.moreDetail} defaultOpen={false}>
-        <div className="space-y-4">
+        <div className="mt-6 space-y-5">
+          <label className="block space-y-2">
+            <span className={AD_CREATE_FIELD_LABEL_CLASS}>
+              {copy.objectiveLabel}
+            </span>
+            <textarea
+              value={objective}
+              onChange={(event) => setObjective(event.target.value)}
+              className={`${AD_CREATE_TEXTAREA_CLASS} min-h-[88px]`}
+              maxLength={500}
+            />
+          </label>
+
+          <label className="block space-y-2">
+            <span className={AD_CREATE_FIELD_LABEL_CLASS}>{copy.offerLabel}</span>
+            <textarea
+              value={offer}
+              onChange={(event) => setOffer(event.target.value)}
+              className={`${AD_CREATE_TEXTAREA_CLASS} min-h-[88px]`}
+              maxLength={500}
+            />
+          </label>
+
+          <label className="block space-y-2">
+            <span className={AD_CREATE_FIELD_LABEL_CLASS}>
+              {copy.audienceLabel}
+            </span>
+            <textarea
+              value={audience}
+              onChange={(event) => setAudience(event.target.value)}
+              className={`${AD_CREATE_TEXTAREA_CLASS} min-h-[88px]`}
+              maxLength={500}
+            />
+            <p className={AD_CREATE_FIELD_HELP_CLASS}>{audienceHelp}</p>
+          </label>
+
+          <label className="block space-y-2">
+            <span className={AD_CREATE_FIELD_LABEL_CLASS}>
+              {copy.guidanceLabel}
+            </span>
+            <textarea
+              value={guidance}
+              onChange={(event) => setGuidance(event.target.value)}
+              className={`${AD_CREATE_TEXTAREA_CLASS} min-h-[160px]`}
+              placeholder={copy.guidancePlaceholder}
+              maxLength={4000}
+            />
+          </label>
+        </div>
+      </section>
+
+      <AthenaCollapsibleSection
+        title={copy.moreDetail}
+        defaultOpen={false}
+        tone="intelligence"
+        icon={<SlidersHorizontal aria-hidden="true" />}
+        iconClassName={AD_CREATE_ADVANCED_ICON}
+        className={AD_CREATE_ADVANCED_SURFACE}
+      >
+        <div className="space-y-5">
           {advancedFields.map(([label, value, setter, max, kind]) => (
             <label key={label} className="block space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-                {label}
-              </span>
+              <span className={AD_CREATE_FIELD_LABEL_CLASS}>{label}</span>
               {kind === "input" ? (
                 <input
                   value={value}
                   onChange={(event) => setter(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
+                  className={AD_CREATE_FIELD_CLASS}
                   placeholder={
                     label === copy.nameLabel ? copy.namePlaceholder : undefined
                   }
@@ -158,7 +230,7 @@ export function AdCampaignGenerateForm({
                 <textarea
                   value={value}
                   onChange={(event) => setter(event.target.value)}
-                  className="min-h-[88px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
+                  className={`${AD_CREATE_TEXTAREA_CLASS} min-h-[88px]`}
                   maxLength={max}
                 />
               )}
@@ -167,12 +239,17 @@ export function AdCampaignGenerateForm({
         </div>
       </AthenaCollapsibleSection>
 
-      {error ? <p className="text-sm text-rose-200">{error}</p> : null}
+      {error ? (
+        <div className={AD_CREATE_ERROR_CLASS} role="alert">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p>{error}</p>
+        </div>
+      ) : null}
 
       <button
         type="submit"
         disabled={submitting}
-        className="rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
+        className={AD_CREATE_PRIMARY_CLASS}
       >
         {submitting ? copy.starting : copy.generate}
       </button>

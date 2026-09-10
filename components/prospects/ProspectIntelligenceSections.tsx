@@ -1,5 +1,15 @@
+import type { ReactNode } from "react";
+import { AlertTriangle, Clock3, Compass, Layers } from "lucide-react";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import { ProspectAthenaRecommendation } from "@/components/prospects/ProspectAthenaRecommendation";
+import { ProspectExecutiveSnapshot } from "@/components/prospects/ProspectExecutiveSnapshot";
 import type { DeploymentAsset } from "@/components/deployment/DeploymentAssets";
-import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import {
+  PROSPECT_COMMERCIAL_SURFACE,
+  PROSPECT_CONTEXT_SURFACE,
+  PROSPECT_DETAIL_ICON,
+  PROSPECT_RISK_SURFACE,
+} from "@/lib/prospects/prospectDetailPresentation";
 import { findProspectAssetByKeys } from "@/lib/prospects/prospectOutreachAssetGroups";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import { normalizeAnalysisForDisplay } from "@/services/executiveVersions/analysisNormalization";
@@ -20,27 +30,11 @@ type ProspectIntelligenceSectionsProps = {
   opportunity?: { urgency?: string | null } | null;
   assets?: DeploymentAsset[];
   messages: ProspectWorkspaceMessages;
+  afterRecommendation?: ReactNode;
 };
 
 function hasText(value?: string | null): value is string {
   return Boolean(value && value.trim());
-}
-
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      className={`mt-8 rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-6 sm:p-8`}
-    >
-      <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
-      <div className="mt-6 space-y-5">{children}</div>
-    </section>
-  );
 }
 
 function Field({
@@ -72,6 +66,7 @@ export function ProspectIntelligenceSections({
   opportunity = null,
   assets = [],
   messages,
+  afterRecommendation = null,
 }: ProspectIntelligenceSectionsProps) {
   const display = normalizeAnalysisForDisplay(analysis);
   const convert = messages.prospects.convert;
@@ -79,18 +74,8 @@ export function ProspectIntelligenceSections({
   const valueProposition = findProspectAssetByKeys(assets, [
     "personalized_value_proposition",
   ]);
-  const recommendedCta = findProspectAssetByKeys(assets, [
-    "recommended_cta",
-    "call_to_action",
-  ]);
 
   const whyFields: Array<{ label: string; value: string; helper?: string }> = [];
-  if (hasText(display.opportunity_reason)) {
-    whyFields.push({
-      label: executive.opportunityReason,
-      value: display.opportunity_reason,
-    });
-  }
   if (analysis.opportunity_detected != null) {
     whyFields.push({
       label: convert.opportunityDetected,
@@ -105,24 +90,12 @@ export function ProspectIntelligenceSections({
       value: valueProposition.content.trim(),
     });
   }
-  if (typeof display.confidence === "number" && display.confidence > 0) {
-    whyFields.push({
-      label: executive.confidence,
-      value: `${display.confidence}%`,
-    });
-  }
 
   const needFields: Array<{ label: string; value: string }> = [];
   if (hasText(display.pain_points)) {
     needFields.push({
       label: executive.painPoints,
       value: display.pain_points,
-    });
-  }
-  if (hasText(display.summary)) {
-    needFields.push({
-      label: executive.summary,
-      value: display.summary,
     });
   }
 
@@ -145,12 +118,6 @@ export function ProspectIntelligenceSections({
       value: opportunity.urgency.trim(),
     });
   }
-  if (hasText(display.risk_level)) {
-    timingFields.push({
-      label: executive.riskLevel,
-      value: display.risk_level,
-    });
-  }
 
   const riskFields: Array<{ label: string; value: string }> = [];
   if (hasText(display.risk_level)) {
@@ -160,60 +127,106 @@ export function ProspectIntelligenceSections({
     });
   }
 
-  const recommendValue = hasText(display.recommended_action)
-    ? display.recommended_action
-    : "";
+  const reasoningFields: Array<{ label: string; value: string }> = [];
+  if (hasText(display.opportunity_reason)) {
+    reasoningFields.push({
+      label: executive.opportunityReason,
+      value: display.opportunity_reason,
+    });
+  }
 
   return (
     <>
+      <ProspectExecutiveSnapshot
+        analysis={analysis}
+        convert={convert}
+        executive={executive}
+      />
+      <div className="mt-8">
+        <ProspectAthenaRecommendation
+          analysis={analysis}
+          assets={assets}
+          convert={convert}
+          executive={executive}
+        />
+      </div>
+      {afterRecommendation}
+
       {whyFields.length > 0 ? (
-        <Section title={convert.whyMatters}>
+        <AthenaCollapsibleSection
+          title={convert.whyMatters}
+          defaultOpen={false}
+          tone="intelligence"
+          icon={<Compass />}
+          iconClassName={PROSPECT_DETAIL_ICON.violet}
+          className={`mt-8 ${PROSPECT_CONTEXT_SURFACE}`}
+        >
           {whyFields.map((field) => (
             <Field key={field.label} {...field} />
           ))}
-        </Section>
+        </AthenaCollapsibleSection>
       ) : null}
 
       {needFields.length > 0 ? (
-        <Section title={convert.whatTheyNeed}>
+        <AthenaCollapsibleSection
+          title={convert.whatTheyNeed}
+          defaultOpen={false}
+          tone="intelligence"
+          icon={<Layers />}
+          iconClassName={PROSPECT_DETAIL_ICON.violet}
+          className={`mt-8 ${PROSPECT_CONTEXT_SURFACE}`}
+        >
           {needFields.map((field) => (
             <Field key={field.label} {...field} />
           ))}
-        </Section>
+        </AthenaCollapsibleSection>
       ) : null}
 
       {timingFields.length > 0 ? (
-        <Section title={convert.timingAndIntent}>
+        <AthenaCollapsibleSection
+          title={convert.timingAndIntent}
+          defaultOpen={false}
+          tone="intelligence"
+          icon={<Clock3 />}
+          iconClassName={PROSPECT_DETAIL_ICON.amber}
+          className={`mt-8 ${PROSPECT_COMMERCIAL_SURFACE}`}
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             {timingFields.map((field) => (
               <Field key={field.label} {...field} />
             ))}
           </div>
-        </Section>
+        </AthenaCollapsibleSection>
       ) : null}
 
       {riskFields.length > 0 ? (
-        <Section title={convert.risksAndObjections}>
+        <AthenaCollapsibleSection
+          title={convert.risksAndObjections}
+          defaultOpen={false}
+          tone="intelligence"
+          icon={<AlertTriangle />}
+          iconClassName={PROSPECT_DETAIL_ICON.rose}
+          className={`mt-8 ${PROSPECT_RISK_SURFACE}`}
+        >
           {riskFields.map((field) => (
             <Field key={field.label} {...field} />
           ))}
-        </Section>
+        </AthenaCollapsibleSection>
       ) : null}
 
-      {recommendValue ? (
-        <Section title={convert.whatAthenaRecommends}>
-          <Field
-            label={executive.recommendedAction}
-            value={recommendValue}
-            helper={convert.recommendedHelper}
-          />
-          {hasText(recommendedCta?.content) ? (
-            <Field
-              label={convert.draftNextStep}
-              value={recommendedCta.content.trim()}
-            />
-          ) : null}
-        </Section>
+      {reasoningFields.length > 0 ? (
+        <AthenaCollapsibleSection
+          title={convert.commercialReasoning}
+          defaultOpen={false}
+          tone="intelligence"
+          icon={<Layers />}
+          iconClassName={PROSPECT_DETAIL_ICON.amber}
+          className={`mt-8 ${PROSPECT_COMMERCIAL_SURFACE}`}
+        >
+          {reasoningFields.map((field) => (
+            <Field key={field.label} {...field} />
+          ))}
+        </AthenaCollapsibleSection>
       ) : null}
     </>
   );

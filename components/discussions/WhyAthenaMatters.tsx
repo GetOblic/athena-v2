@@ -1,15 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown, Lightbulb } from "lucide-react";
+import {
+  PERSONA_DETAIL_ICON,
+  PERSONA_NESTED_CARD_CLASS,
+} from "@/lib/personas/personaPagePresentation";
 
 type WhyAthenaMattersProps = {
   bullets: string[];
   title?: string;
+  /** Persona-only opt-in. Default keeps Discussions chrome. */
+  presentation?: "default" | "persona";
 };
 
 export function WhyAthenaMatters({
   bullets,
   title = "Why Athena thinks this matters",
+  presentation = "default",
 }: WhyAthenaMattersProps) {
   const [open, setOpen] = useState(false);
 
@@ -17,17 +25,48 @@ export function WhyAthenaMatters({
     return null;
   }
 
+  const personaSurface = presentation === "persona";
+
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20">
+    <div
+      className={
+        personaSurface
+          ? PERSONA_NESTED_CARD_CLASS
+          : "rounded-2xl border border-white/10 bg-black/20"
+      }
+    >
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
       >
-        <span className="text-sm font-medium text-white/70">
-          {title}
+        <span className="flex min-w-0 items-center gap-3">
+          {personaSurface ? (
+            <span
+              className={`grid size-8 shrink-0 place-items-center rounded-xl ${PERSONA_DETAIL_ICON.blue}`}
+              aria-hidden="true"
+            >
+              <Lightbulb className="size-4" />
+            </span>
+          ) : null}
+          <span
+            className={
+              personaSurface
+                ? "text-sm font-semibold tracking-tight text-white"
+                : "text-sm font-medium text-white/70"
+            }
+          >
+            {title}
+          </span>
         </span>
-        <span className="text-sm text-white/35">{open ? "−" : "+"}</span>
+        {personaSurface ? (
+          <ChevronDown
+            className={`size-5 shrink-0 text-white/45 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        ) : (
+          <span className="text-sm text-white/35">{open ? "−" : "+"}</span>
+        )}
       </button>
 
       {open && (

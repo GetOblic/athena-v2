@@ -60,6 +60,7 @@ const DICTIONARIES: Record<string, TenantMessages> = {
 
 const NEW_PAGE_COMPONENTS = [
   "components/identity/IdentityPageHeader.tsx",
+  "components/identity/IdentityKnowledgeScore.tsx",
   "components/identity/IdentityWhatAthenaKnows.tsx",
   "components/identity/IdentityTeachAthenaSection.tsx",
   "components/identity/IdentityCalibrationGaps.tsx",
@@ -212,33 +213,48 @@ describe("V2-UI-3C Identity page composition", () => {
     assert.match(trainedBlock, /IdentityCalibrationGaps/);
     assert.ok(
       trainedBlock.indexOf("IdentityWhatAthenaKnows") <
-        trainedBlock.indexOf("{teachAthena}"),
+        trainedBlock.indexOf("IdentityCalibrationGaps"),
     );
     assert.ok(
-      trainedBlock.indexOf("{teachAthena}") <
-        trainedBlock.indexOf("IdentityWebsiteKnowledge"),
-    );
-    assert.ok(
-      trainedBlock.indexOf("IdentityWebsiteKnowledge") <
-        trainedBlock.indexOf("{brandIdentity}"),
-    );
-    assert.ok(
-      trainedBlock.indexOf("{brandIdentity}") <
+      trainedBlock.indexOf("IdentityCalibrationGaps") <
         trainedBlock.indexOf("{askAthena}"),
     );
     assert.ok(
       trainedBlock.indexOf("{askAthena}") <
+        trainedBlock.indexOf("{teachAthena}"),
+    );
+    assert.ok(
+      trainedBlock.indexOf("{teachAthena}") <
+        trainedBlock.indexOf("{brandIdentity}"),
+    );
+    assert.ok(
+      trainedBlock.indexOf("{brandIdentity}") <
+        trainedBlock.indexOf("{otherTools}"),
+    );
+    assert.ok(
+      trainedBlock.indexOf("{otherTools}") <
         trainedBlock.indexOf("IdentityAdvancedUnderstanding"),
     );
+    assert.ok(
+      trainedBlock.indexOf("IdentityAdvancedUnderstanding") <
+        trainedBlock.indexOf("IdentityWebsiteKnowledge"),
+    );
     assert.doesNotMatch(untrainedBlock, /IdentityWhatAthenaKnows/);
-    assert.match(untrainedBlock, /\{teachAthena\}/);
+    assert.doesNotMatch(untrainedBlock, /IdentityCalibrationGaps/);
+    assert.doesNotMatch(untrainedBlock, /IdentityWebsiteKnowledge/);
+    assert.doesNotMatch(untrainedBlock, /IdentityAdvancedUnderstanding/);
+    assert.match(untrainedBlock, /\{askAthena\}/);
+    assert.ok(
+      untrainedBlock.indexOf("{askAthena}") <
+        untrainedBlock.indexOf("{teachAthena}"),
+    );
     assert.ok(
       untrainedBlock.indexOf("{teachAthena}") <
         untrainedBlock.indexOf("{brandIdentity}"),
     );
     assert.ok(
       untrainedBlock.indexOf("{brandIdentity}") <
-        untrainedBlock.indexOf("{askAthena}"),
+        untrainedBlock.indexOf("{otherTools}"),
     );
     assert.equal(hasSuccessfulAthenaTraining(null), false);
     assert.equal(hasSuccessfulAthenaTraining(sampleIdentity()), true);
@@ -270,6 +286,63 @@ describe("V2-UI-3C Identity page composition", () => {
       }),
       true,
     );
+    assert.doesNotMatch(page, /shouldOpenTeachAthena/);
+    assert.doesNotMatch(page, /teachAthenaOpen/);
+  });
+
+  it("defaults all top-level Identity cards closed and keeps Teach auto-open overridden", () => {
+    const page = read("app/identity/page.tsx");
+    const teach = read("components/identity/IdentityTeachAthenaSection.tsx");
+    const knows = read("components/identity/IdentityWhatAthenaKnows.tsx");
+    const gaps = read("components/identity/IdentityCalibrationGaps.tsx");
+    const website = read("components/identity/IdentityWebsiteKnowledge.tsx");
+    const advanced = read(
+      "components/identity/IdentityAdvancedUnderstanding.tsx",
+    );
+    const other = read("components/identity/IdentityOtherTools.tsx");
+    for (const source of [teach, knows, gaps, website, advanced, other]) {
+      assert.match(source, /defaultOpen=\{false\}/);
+    }
+    assert.match(page, /defaultOpen=\{false\}/);
+    assert.doesNotMatch(page, /defaultOpen=\{true\}/);
+    assert.doesNotMatch(page, /shouldOpenTeachAthena/);
+    assert.match(teach, /GraduationCap/);
+    assert.match(knows, /<Brain /);
+    assert.match(gaps, /<Target /);
+    assert.match(page, /MessageCircleQuestionMark/);
+    assert.match(page, /<Palette /);
+    assert.match(other, /<Wrench /);
+    assert.match(advanced, /<BarChart3 /);
+    assert.match(website, /<Globe /);
+    assert.match(teach, /IDENTITY_SUCCESS_SECTION_CONTOUR_CLASS/);
+    assert.match(page, /IDENTITY_SUCCESS_SECTION_CONTOUR_CLASS/);
+    assert.match(
+      read("components/identity/identityPagePresentation.ts"),
+      /border-\[var\(--athena-success\)\]\/35/,
+    );
+    assert.match(
+      read("components/identity/TrainAthenaSubmitButton.tsx"),
+      /bg-\[var\(--athena-orange\)\]/,
+    );
+    assert.match(teach, /IDENTITY_FIELD_ANCHORS\.websiteKnowledge/);
+    assert.match(teach, /messages\.deepScrape\.button/);
+    assert.doesNotMatch(teach, /DeepScrapeWebsiteButton/);
+    assert.doesNotMatch(teach, /\/api\/identity\/deep-scrape/);
+    assert.equal(
+      (page.match(/<DeepScrapeWebsiteButton/g) ?? []).length,
+      1,
+    );
+    assert.match(page, /deepScrape=\{deepScrape\}/);
+    assert.match(website, /\{deepScrape\}/);
+    assert.match(website, /headerActions/);
+    assert.match(page, /<IdentityKnowledgeScore/);
+    assert.match(page, /computeIdentityKnowledgeScore/);
+    for (const source of [knows, gaps, website, teach]) {
+      assert.doesNotMatch(source, /conic-gradient|Brain score/i);
+      assert.doesNotMatch(source, /computeBrainCompletenessScore/);
+      assert.doesNotMatch(source, /computeIdentityKnowledgeScore/);
+    }
+    assert.doesNotMatch(page, /computeBrainCompletenessScore/);
   });
 
   it("promotes calibration gaps with localized update_location mapping only", () => {
@@ -306,12 +379,15 @@ describe("V2-UI-3C Identity page composition", () => {
         messages: fr.identity,
       }),
     );
-    assert.match(html, /Offer priority/);
-    assert.match(html, /href="#identity-voice"/);
-    assert.ok(html.includes(fr.identity.page.updateLocationVoice));
-    assert.doesNotMatch(html, /Apply|saved|100%|fully ready|complete/i);
+    assert.ok(html.includes(fr.identity.page.gapsTitle));
+    assert.match(html, /aria-expanded="false"/);
+    const gapsSource = read("components/identity/IdentityCalibrationGaps.tsx");
+    assert.match(gapsSource, /href=\{href\}/);
+    assert.match(gapsSource, /gap\.what_is_unclear/);
+    assert.match(gapsSource, /defaultOpen=\{false\}/);
+    assert.doesNotMatch(gapsSource, /Apply|saved|100%|fully ready|complete/i);
     assert.doesNotMatch(
-      read("components/identity/IdentityCalibrationGaps.tsx"),
+      gapsSource,
       /fetch\(|upsertAthenaIdentity|saveIdentity/,
     );
   });
@@ -339,7 +415,13 @@ describe("V2-UI-3C Identity page composition", () => {
         deepScrape: null,
       }),
     );
-    assert.match(html, /Athena will study the homepage when you select Train Athena/);
+    assert.match(html, /Website knowledge/);
+    assert.match(html, /id="identity-website-knowledge"/);
+    assert.match(html, /aria-expanded="false"/);
+    const website = read("components/identity/IdentityWebsiteKnowledge.tsx");
+    assert.match(website, /page\.websiteWillStudy/);
+    assert.match(website, /id=\{IDENTITY_FIELD_ANCHORS\.websiteKnowledge\}/);
+    assert.match(website, /defaultOpen=\{false\}/);
     assert.doesNotMatch(html, /Athena learned from the homepage during training/);
     assert.doesNotMatch(html, /Pages analyzed/);
     assert.doesNotMatch(read("app/identity/page.tsx"), /pagesAnalyzed = 1/);
@@ -355,10 +437,12 @@ describe("V2-UI-3C Identity page composition", () => {
       }),
     );
     assert.match(html, /What Athena knows/);
-    assert.match(html, /current understanding, not a confirmed fact sheet/);
-    assert.match(html, /last successful understanding/);
-    assert.match(html, /A clinic serving local clients/);
-    assert.match(html, /Medical aesthetics clinic/);
+    assert.match(html, /aria-expanded="false"/);
+    const knows = read("components/identity/IdentityWhatAthenaKnows.tsx");
+    assert.match(knows, /page\.knowsAttribution/);
+    assert.match(knows, /page\.knowsLastSuccessful/);
+    assert.match(knows, /executive\.executive_summary/);
+    assert.match(knows, /defaultOpen=\{false\}/);
     assert.doesNotMatch(html, /master_profile/);
     assert.doesNotMatch(html, /"executive_intelligence"/);
   });
@@ -390,6 +474,8 @@ describe("V2-UI-3C Identity page composition", () => {
     assert.notEqual(fr.identity.title, en.identity.title);
     assert.equal(en.identity.retrainAthena, "Retrain Athena");
     assert.notEqual(fr.identity.retrainAthena, en.identity.retrainAthena);
+    assert.equal(en.identity.knowledgeScore, "Knowledge Score");
+    assert.notEqual(fr.identity.knowledgeScore, en.identity.knowledgeScore);
     assert.match(en.identity.page.gapsEmpty, /Nothing material/);
     assert.doesNotMatch(en.identity.page.gapsEmpty, /complete|100%|fully ready/i);
   });

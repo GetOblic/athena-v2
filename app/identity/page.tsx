@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { MessageCircleQuestionMark, Palette } from "lucide-react";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { AiWorkspacePreferencesSection } from "@/components/identity/AiWorkspacePreferencesSection";
 import { BrandIdentitySection } from "@/components/identity/BrandIdentitySection";
@@ -8,15 +9,16 @@ import { IdentityAdvancedUnderstanding } from "@/components/identity/IdentityAdv
 import { IdentityCalibrationGaps } from "@/components/identity/IdentityCalibrationGaps";
 import { IdentityConversationPanel } from "@/components/identity/IdentityConversationPanel";
 import { IdentityOtherTools } from "@/components/identity/IdentityOtherTools";
+import { IdentityKnowledgeScore } from "@/components/identity/IdentityKnowledgeScore";
 import { IdentityPageHeader } from "@/components/identity/IdentityPageHeader";
 import { IdentityTeachAthenaSection } from "@/components/identity/IdentityTeachAthenaSection";
 import { IdentityWebsiteKnowledge } from "@/components/identity/IdentityWebsiteKnowledge";
 import { IdentityWhatAthenaKnows } from "@/components/identity/IdentityWhatAthenaKnows";
 import {
-  hasMaterialCalibrationGaps,
   hasSuccessfulAthenaTraining,
-  isAthenaBrainTraining,
-  shouldOpenTeachAthena,
+  IDENTITY_CARD_ICON_CLASS,
+  IDENTITY_CARD_SURFACE_CLASS,
+  IDENTITY_SUCCESS_SECTION_CONTOUR_CLASS,
 } from "@/components/identity/identityPagePresentation";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { getLocalizedBrainStatus } from "@/lib/tenantI18n/brainStatus";
@@ -42,6 +44,7 @@ import {
   updateOrganizationBrandIdentity,
 } from "@/services/identity/brandIdentityService";
 import { readIdentityExecutiveIntelligence } from "@/services/identity/identityExecutiveIntelligence";
+import { computeIdentityKnowledgeScore } from "@/services/identity/identityKnowledgeScore";
 import {
   getAthenaIdentityByUserId,
   upsertAthenaIdentity,
@@ -209,12 +212,10 @@ export default async function IdentityPage({
 
   const hasWebsite = Boolean(identity?.website?.trim());
   const trained = hasSuccessfulAthenaTraining(identity);
-  const training = isAthenaBrainTraining(identity);
   const executive = readIdentityExecutiveIntelligence(identity?.master_profile);
-  const teachAthenaOpen = shouldOpenTeachAthena({
-    trained,
-    training,
-    hasCalibrationGaps: hasMaterialCalibrationGaps(executive?.calibration_gaps),
+  const knowledge = computeIdentityKnowledgeScore({
+    identity,
+    brand: organizationBrand,
   });
   const trainLabel = trained ? copy.retrainAthena : copy.trainAthena;
   const trainPendingLabel = trained
@@ -240,14 +241,21 @@ export default async function IdentityPage({
       identity={identity}
       messages={copy}
       action={saveIdentity}
-      defaultOpen={teachAthenaOpen}
       trainLabel={trainLabel}
       pendingLabel={trainPendingLabel}
     />
   );
 
   const brandIdentity = (
-    <AthenaCollapsibleSection title={copy.brand.title} defaultOpen={false}>
+    <AthenaCollapsibleSection
+      title={copy.brand.title}
+      summary={copy.brand.description}
+      defaultOpen={false}
+      tone="identity"
+      icon={<Palette size={20} />}
+      iconClassName={IDENTITY_CARD_ICON_CLASS.green}
+      className={IDENTITY_SUCCESS_SECTION_CONTOUR_CLASS}
+    >
       <BrandIdentitySection
         key={[
           organizationId,
@@ -280,6 +288,10 @@ export default async function IdentityPage({
       title={copy.conversationTitle}
       summary={copy.page.askAthenaSummary}
       defaultOpen={false}
+      tone="identity"
+      icon={<MessageCircleQuestionMark size={20} />}
+      iconClassName={IDENTITY_CARD_ICON_CLASS.violet}
+      className={IDENTITY_CARD_SURFACE_CLASS.violet}
     >
       <IdentityConversationPanel
         opaqueScope={buildConversationScopeFingerprint({
@@ -319,6 +331,7 @@ export default async function IdentityPage({
       }
       messages={copy.deepScrape}
       locale={locale}
+      variant="compact"
     />
   );
 
@@ -364,6 +377,9 @@ export default async function IdentityPage({
             ? formatTenantDateTime(identity.brain_last_updated, language)
             : copy.notYetTrained
         }
+        knowledgeScore={
+          <IdentityKnowledgeScore score={knowledge.score} messages={copy} />
+        }
       />
 
       {params.saved === "true" && (
@@ -388,7 +404,16 @@ export default async function IdentityPage({
                 messages={copy}
               />
             ) : null}
+            {askAthena}
             {teachAthena}
+            {brandIdentity}
+            {otherTools}
+            {executive ? (
+              <IdentityAdvancedUnderstanding
+                executive={executive}
+                messages={copy}
+              />
+            ) : null}
             <IdentityWebsiteKnowledge
               identity={identity}
               messages={copy}
@@ -396,21 +421,12 @@ export default async function IdentityPage({
               trained={trained}
               deepScrape={deepScrape}
             />
-            {brandIdentity}
-            {askAthena}
-            {executive ? (
-              <IdentityAdvancedUnderstanding
-                executive={executive}
-                messages={copy}
-              />
-            ) : null}
-            {otherTools}
           </>
         ) : (
           <>
+            {askAthena}
             {teachAthena}
             {brandIdentity}
-            {askAthena}
             {otherTools}
           </>
         )}

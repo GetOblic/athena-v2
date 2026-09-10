@@ -1018,14 +1018,21 @@ describe("GetOblic Links — Worker client fetch", () => {
 });
 
 describe("GetOblic Links — API route and Identity contracts", () => {
-  it("Identity page mounts GetOblicLinksCard after DeepScrapeWebsiteButton", () => {
+  it("Identity page mounts GetOblicLinksCard in Other tools and a single DeepScrapeWebsiteButton in Website Knowledge", () => {
     const page = read("app/identity/page.tsx");
     assert.match(page, /GetOblicLinksCard/);
     assert.match(page, /DeepScrapeWebsiteButton/);
-    const deepIdx = page.indexOf("<DeepScrapeWebsiteButton");
-    const linksIdx = page.indexOf("<GetOblicLinksCard");
-    assert.ok(deepIdx > 0);
-    assert.ok(linksIdx > deepIdx);
+    assert.equal((page.match(/<DeepScrapeWebsiteButton/g) ?? []).length, 1);
+    const trainedStart = page.indexOf("{trained ? (");
+    const trainedBlock = page.slice(
+      trainedStart,
+      page.indexOf(") : (", trainedStart),
+    );
+    assert.ok(
+      trainedBlock.indexOf("{otherTools}") <
+        trainedBlock.indexOf("IdentityWebsiteKnowledge"),
+    );
+    assert.match(page, /deepScrape=\{deepScrape\}/);
   });
 
   it("API routes use node runtime, force-dynamic, org auth, and no-store", () => {
@@ -1144,12 +1151,19 @@ describe("GetOblic Links — containment", () => {
     assert.doesNotMatch(card, /link\.getoblic\.com\/api/);
   });
 
-  it("Identity page renders GetOblicLinksCard after DeepScrapeWebsiteButton", () => {
+  it("Identity page keeps GetOblicLinksCard in Other tools and one DeepScrapeWebsiteButton in Website Knowledge", () => {
     const page = read("app/identity/page.tsx");
-    const deepIdx = page.indexOf("<DeepScrapeWebsiteButton");
-    const linksIdx = page.indexOf("<GetOblicLinksCard");
-    assert.ok(deepIdx >= 0);
-    assert.ok(linksIdx > deepIdx);
+    assert.match(page, /<GetOblicLinksCard/);
+    assert.equal((page.match(/<DeepScrapeWebsiteButton/g) ?? []).length, 1);
+    const trainedStart = page.indexOf("{trained ? (");
+    const trainedBlock = page.slice(
+      trainedStart,
+      page.indexOf(") : (", trainedStart),
+    );
+    assert.ok(
+      trainedBlock.indexOf("{otherTools}") <
+        trainedBlock.indexOf("IdentityWebsiteKnowledge"),
+    );
   });
 
   it("GetOblic Links card does not couple into Deep Scrape internals", () => {

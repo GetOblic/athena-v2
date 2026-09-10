@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
+import { Wrench } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  IDENTITY_CARD_ICON_CLASS,
+  IDENTITY_CARD_SURFACE_CLASS,
+} from "@/components/identity/identityPagePresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type IdentityCopy = TenantMessages["identity"];
@@ -21,6 +26,10 @@ export function IdentityOtherTools({
     <AthenaCollapsibleSection
       title={messages.page.otherToolsTitle}
       defaultOpen={false}
+      tone="identity"
+      icon={<Wrench size={20} />}
+      iconClassName={IDENTITY_CARD_ICON_CLASS.warm}
+      className={IDENTITY_CARD_SURFACE_CLASS.warm}
     >
       <div className="grid gap-8">
         <div className="rounded-2xl border border-white/10 bg-black/20 p-5">

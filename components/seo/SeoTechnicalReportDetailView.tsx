@@ -3,14 +3,39 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import {
+  Brain,
+  Braces,
+  Code2,
+  FileText,
+  Gauge,
+  GitBranch,
+  Globe,
+  Image as ImageIcon,
+  Info,
+  Layers,
+  ListChecks,
+  ScanSearch,
+  Wrench,
+} from "lucide-react";
 import { SeoCoverageMeter } from "@/components/seo/SeoCoverageMeter";
 import { SeoGenerationTypeBadge } from "@/components/seo/SeoGenerationTypeBadge";
 import { SeoRecommendationCard } from "@/components/seo/SeoRecommendationCard";
 import { SeoReportHeaderDeleteButton } from "@/components/seo/SeoReportHeaderDeleteButton";
 import { SeoReportSection } from "@/components/seo/SeoReportSection";
 import { SeoReportStatusPanel } from "@/components/seo/SeoReportStatusPanel";
+import { SeoScoreCard } from "@/components/seo/SeoScoreCard";
 import { SeoWebsitePagesAnalyzedSection } from "@/components/seo/SeoWebsitePagesAnalyzedSection";
+import {
+  SEO_TECHNICAL_CATEGORY_SURFACE,
+  SEO_TECHNICAL_ICON,
+  SEO_TECHNICAL_PRIORITY_PILL,
+  SEO_TECHNICAL_SURFACE,
+  technicalCoverageMeterAccent,
+  type SeoTechnicalPriorityAccent,
+} from "@/components/seo/seoTechnicalReportPresentation";
 import { VisibilityPageHeader } from "@/components/seo/VisibilityPageHeader";
+import { computeTechnicalCompletenessScoreFromPackage } from "@/lib/seo/seoScorePresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
@@ -42,12 +67,20 @@ type SeoTechnicalReportDetailViewProps = {
 
 function priorityClass(priority: SeoTechnicalPriority): string {
   if (priority === "Critical") {
-    return "border-rose-400/30 bg-rose-500/10 text-rose-100";
+    return SEO_TECHNICAL_PRIORITY_PILL.critical;
   }
   if (priority === "High") {
-    return "border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 text-[var(--athena-orange)]";
+    return SEO_TECHNICAL_PRIORITY_PILL.high;
   }
-  return "border-[var(--athena-success)]/30 bg-[var(--athena-success)]/10 text-[var(--athena-success)]";
+  return SEO_TECHNICAL_PRIORITY_PILL.improvement;
+}
+
+function priorityAccent(
+  priority: SeoTechnicalPriority,
+): SeoTechnicalPriorityAccent {
+  if (priority === "Critical") return "critical";
+  if (priority === "High") return "high";
+  return "improvement";
 }
 
 function joinLines(values: string[], emptyValue: string): string {
@@ -79,43 +112,67 @@ function TechnicalCoveragePanel({
   ).sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
-      <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-success)]">
-        {copy.whatAthenaFound}
+    <div className={SEO_TECHNICAL_SURFACE.evidence}>
+      <div className="flex items-start gap-4">
+        <span
+          className={`grid size-10 shrink-0 place-items-center rounded-2xl ${SEO_TECHNICAL_ICON.cyan}`}
+          aria-hidden="true"
+        >
+          <ScanSearch size={20} />
+        </span>
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-300">
+            {copy.whatAthenaFound}
+          </div>
+          <p className="mt-3 max-w-3xl text-sm text-white/55">
+            {interpolateTenantMessage(
+              copy.pagesAnalyzedFromEvidence.includes("{count}")
+                ? copy.pagesAnalyzedFromEvidence
+                : en.seo.technical.pagesAnalyzedFromEvidence,
+              { count: pkg.technicalCoverage.analyzedPageCount },
+            )}
+          </p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-white/45">
+            {copy.coverageScope}
+          </p>
+        </div>
       </div>
-      <p className="mt-3 text-sm text-white/55">
-        {interpolateTenantMessage(
-          copy.pagesAnalyzedFromEvidence.includes("{count}")
-            ? copy.pagesAnalyzedFromEvidence
-            : en.seo.technical.pagesAnalyzedFromEvidence,
-          { count: pkg.technicalCoverage.analyzedPageCount },
-        )}
-      </p>
-      <p className="mt-2 text-sm leading-6 text-white/45">{copy.coverageScope}</p>
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <SeoCoverageMeter
           label={copy.pagesWithTitle}
           percent={coverage.titleCoveragePercent}
+          accent={technicalCoverageMeterAccent(coverage.titleCoveragePercent)}
         />
         <SeoCoverageMeter
           label={copy.pagesWithDescription}
           percent={coverage.descriptionCoveragePercent}
+          accent={technicalCoverageMeterAccent(
+            coverage.descriptionCoveragePercent,
+          )}
         />
         <SeoCoverageMeter
           label={copy.pagesWithMainHeading}
           percent={coverage.h1CoveragePercent}
+          accent={technicalCoverageMeterAccent(coverage.h1CoveragePercent)}
         />
         <SeoCoverageMeter
           label={copy.pagesWithPreferredUrl}
           percent={coverage.canonicalCoveragePercent}
+          accent={technicalCoverageMeterAccent(
+            coverage.canonicalCoveragePercent,
+          )}
         />
         <SeoCoverageMeter
           label={copy.pagesWithStructuredInfo}
           percent={coverage.schemaCoveragePercent}
+          accent={technicalCoverageMeterAccent(coverage.schemaCoveragePercent)}
         />
         <SeoCoverageMeter
           label={copy.imagesWithTextDescription}
           percent={coverage.imageAltCoveragePercent}
+          accent={technicalCoverageMeterAccent(
+            coverage.imageAltCoveragePercent,
+          )}
           detail={
             pkg.technicalCoverage.images.totalImages > 0
               ? interpolateTenantMessage(
@@ -137,9 +194,11 @@ function TechnicalCoveragePanel({
             {pageTypes.map(([type, count]) => (
               <span
                 key={type}
-                className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-white/70"
+                className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(56,189,248,0.18)] bg-sky-400/10 px-3 py-1 text-xs"
               >
-                {type}: {count}
+                <Layers size={12} className="text-sky-300" aria-hidden="true" />
+                <span className="font-medium text-white/80">{type}</span>
+                <span className="tabular-nums text-white/50">{count}</span>
               </span>
             ))}
           </div>
@@ -179,7 +238,9 @@ export function SeoTechnicalReportDetailView({
   const createdDate = formatTenantDate(report.createdAt, language);
   const summary = pkg?.executiveEvaluation.summary.trim() ?? "";
   const overall = pkg?.executiveEvaluation.overallAssessment.trim() ?? "";
-  const showOverall = Boolean(overall && overall !== summary);
+  const leadAssessment = summary || overall;
+  const technicalCompletenessScore =
+    computeTechnicalCompletenessScoreFromPackage(pkg);
   const lensLabel = getLocalizedSeoLensLabel(dictionary, "technical");
 
   async function handleRegenerate() {
@@ -223,10 +284,18 @@ export function SeoTechnicalReportDetailView({
           title={report.name}
           subtitle=""
           badge={
-            <SeoGenerationTypeBadge
-              generationType="technical"
-              label={lensLabel}
-            />
+            <span className="inline-flex items-center gap-2">
+              <span
+                className={`grid size-8 place-items-center rounded-xl ${SEO_TECHNICAL_ICON.cyan}`}
+                aria-hidden="true"
+              >
+                <Gauge size={16} />
+              </span>
+              <SeoGenerationTypeBadge
+                generationType="technical"
+                label={lensLabel}
+              />
+            </span>
           }
         >
           <div className="mt-4 flex min-w-0 flex-wrap items-center gap-3">
@@ -250,7 +319,7 @@ export function SeoTechnicalReportDetailView({
               type="button"
               onClick={() => void handleRegenerate()}
               disabled={regenerating}
-              className="w-full rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/85 disabled:opacity-60 sm:w-auto"
+              className="w-full rounded-2xl border border-white/12 bg-white/[0.03] px-5 py-3 text-sm font-semibold text-white/75 transition hover:border-white/20 hover:text-white disabled:opacity-60 sm:w-auto"
             >
               {regenerating ? copy.detail.starting : copy.detail.regenerate}
             </button>
@@ -279,35 +348,53 @@ export function SeoTechnicalReportDetailView({
 
       {pkg ? (
         <div className="mt-6 space-y-6">
-          <section className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
-            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-success)]">
-              {copy.detail.athenasAssessment}
-            </div>
-            <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-white/80">
-              {pkg.executiveEvaluation.summary}
-            </p>
-            {showOverall ? (
-              <div className="mt-5">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
-                  {technical.overallAssessment}
+          <SeoScoreCard
+            family="technical"
+            score={technicalCompletenessScore}
+            label={copy.visibility.technicalCompleteness}
+            help={copy.visibility.technicalCompletenessHelp}
+            unavailableLabel={copy.visibility.scoreUnavailable}
+            unavailableHelp={copy.visibility.scoreUnavailableHelp}
+            messages={copy.visibility}
+          />
+
+          <section className={SEO_TECHNICAL_SURFACE.assessment}>
+            <div className="flex items-start gap-4">
+              <span
+                className={`grid size-10 shrink-0 place-items-center rounded-2xl ${SEO_TECHNICAL_ICON.cyan}`}
+                aria-hidden="true"
+              >
+                <Brain size={20} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-300">
+                  {copy.detail.athenasAssessment}
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-white/70">
-                  {pkg.executiveEvaluation.overallAssessment}
+                <p className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-white/80">
+                  {leadAssessment}
                 </p>
               </div>
-            ) : null}
+            </div>
           </section>
 
           <section className="space-y-4">
-            <div>
-              <h2 className="text-2xl font-semibold">
-                {technical.recommendedImprovements}
-              </h2>
-              {pkg.actionPlan.overview ? (
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-white/70">
-                  {pkg.actionPlan.overview}
-                </p>
-              ) : null}
+            <div className="flex items-start gap-3">
+              <span
+                className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${SEO_TECHNICAL_ICON.amber}`}
+                aria-hidden="true"
+              >
+                <ListChecks size={20} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  {technical.recommendedImprovements}
+                </h2>
+                {pkg.actionPlan.overview ? (
+                  <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-white/70">
+                    {pkg.actionPlan.overview}
+                  </p>
+                ) : null}
+              </div>
             </div>
             <div className="space-y-4">
               {pkg.actionPlan.items.map((item, index) => (
@@ -323,9 +410,11 @@ export function SeoTechnicalReportDetailView({
                     item.priority,
                   )}
                   priorityClassName={priorityClass(item.priority)}
+                  priorityAccent={priorityAccent(item.priority)}
                   chrome={cardChrome}
                   defaultOpen={index === 0}
                   evidenceDefaultOpen={false}
+                  copyVariant="utility"
                 />
               ))}
             </div>
@@ -338,11 +427,22 @@ export function SeoTechnicalReportDetailView({
             defaultOpen={false}
             chrome={sectionChrome}
             summary={pkg.executiveEvaluation.summary}
+            tone="intelligence"
+            icon={<Layers size={20} />}
+            iconClassName={SEO_TECHNICAL_ICON.muted}
+            className={SEO_TECHNICAL_SURFACE.diagnosticsParent}
+            copyVariant="utility"
           >
             <SeoReportSection
               title={technical.pageLevelMetadataV2}
               defaultOpen={false}
               chrome={sectionChrome}
+              tone="intelligence"
+              iconSize="sm"
+              icon={<FileText size={16} />}
+              iconClassName={SEO_TECHNICAL_ICON.cyan}
+              className={SEO_TECHNICAL_CATEGORY_SURFACE.cyan}
+              copyVariant="utility"
               summary={
                 pkg.pageMetadata.length
                   ? interpolateTenantMessage(
@@ -439,6 +539,12 @@ export function SeoTechnicalReportDetailView({
               title={technical.siteArchitectureV2}
               defaultOpen={false}
               chrome={sectionChrome}
+              tone="intelligence"
+              iconSize="sm"
+              icon={<GitBranch size={16} />}
+              iconClassName={SEO_TECHNICAL_ICON.violet}
+              className={SEO_TECHNICAL_CATEGORY_SURFACE.violet}
+              copyVariant="utility"
               summary={pkg.siteArchitecture.summary}
               fields={[
                 {
@@ -480,6 +586,12 @@ export function SeoTechnicalReportDetailView({
               title={technical.contentHtmlFindingsV2}
               defaultOpen={false}
               chrome={sectionChrome}
+              tone="intelligence"
+              iconSize="sm"
+              icon={<Code2 size={16} />}
+              iconClassName={SEO_TECHNICAL_ICON.amber}
+              className={SEO_TECHNICAL_CATEGORY_SURFACE.amber}
+              copyVariant="utility"
               summary={pkg.contentHtmlFindings.summary}
               fields={[
                 {
@@ -517,6 +629,12 @@ export function SeoTechnicalReportDetailView({
               title={technical.structuredDataV2}
               defaultOpen={false}
               chrome={sectionChrome}
+              tone="intelligence"
+              iconSize="sm"
+              icon={<Braces size={16} />}
+              iconClassName={SEO_TECHNICAL_ICON.violet}
+              className={SEO_TECHNICAL_CATEGORY_SURFACE.violet}
+              copyVariant="utility"
               summary={pkg.structuredData.summary}
               fields={[
                 {
@@ -557,6 +675,12 @@ export function SeoTechnicalReportDetailView({
               title={technical.imageSeoV2}
               defaultOpen={false}
               chrome={sectionChrome}
+              tone="intelligence"
+              iconSize="sm"
+              icon={<ImageIcon size={16} />}
+              iconClassName={SEO_TECHNICAL_ICON.green}
+              className={SEO_TECHNICAL_CATEGORY_SURFACE.green}
+              copyVariant="utility"
               summary={pkg.imageSeo.summary}
               fields={[
                 {
@@ -578,6 +702,12 @@ export function SeoTechnicalReportDetailView({
               title={technical.crawlFindingsV2}
               defaultOpen={false}
               chrome={sectionChrome}
+              tone="intelligence"
+              iconSize="sm"
+              icon={<ScanSearch size={16} />}
+              iconClassName={SEO_TECHNICAL_ICON.orange}
+              className={SEO_TECHNICAL_CATEGORY_SURFACE.orange}
+              copyVariant="utility"
               summary={pkg.crawlFindings.summary}
               fields={[
                 {
@@ -604,6 +734,11 @@ export function SeoTechnicalReportDetailView({
             title={technical.implementationGuidanceTitle}
             defaultOpen={false}
             chrome={sectionChrome}
+            tone="intelligence"
+            icon={<Wrench size={20} />}
+            iconClassName={SEO_TECHNICAL_ICON.green}
+            className={SEO_TECHNICAL_SURFACE.implementation}
+            copyVariant="utility"
             summary={pkg.implementationAssets.metadataTableNotes}
             fields={[
               {
@@ -647,9 +782,21 @@ export function SeoTechnicalReportDetailView({
           <SeoWebsitePagesAnalyzedSection
             inventory={pkg.websitePagesAnalyzed}
             chrome={getSeoWebsitePagesChrome(dictionary)}
+            tone="intelligence"
+            icon={<Globe size={20} />}
+            iconClassName={SEO_TECHNICAL_ICON.cyan}
+            className={SEO_TECHNICAL_SURFACE.pages}
           />
 
-          <p className="text-xs leading-6 text-white/35">{pkg.disclaimer}</p>
+          <div className={SEO_TECHNICAL_SURFACE.disclaimer}>
+            <Info
+              className="mt-0.5 size-4 shrink-0 text-white/35"
+              aria-hidden="true"
+            />
+            <p className="max-w-3xl text-xs leading-6 text-white/40">
+              {pkg.disclaimer}
+            </p>
+          </div>
         </div>
       ) : null}
     </div>

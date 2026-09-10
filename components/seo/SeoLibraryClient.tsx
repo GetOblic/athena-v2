@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { SeoGenerationTypeBadge } from "@/components/seo/SeoGenerationTypeBadge";
 import { SeoReportHeaderDeleteButton } from "@/components/seo/SeoReportHeaderDeleteButton";
-import { ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS } from "@/components/ui/athenaIntelligenceRow";
+import { SEO_HISTORY_ROW_CLASS } from "@/components/seo/seoPagePresentation";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
 import {
   getLocalizedSeoLensLabel,
@@ -89,15 +89,9 @@ export function SeoLibraryClient({
 
       <div className="space-y-3">
         {filtered.map((report) => (
-          <div
-            key={report.id}
-            className={`${ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS} flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between`}
-          >
+          <div key={report.id} className={SEO_HISTORY_ROW_CLASS}>
             <Link href={`/seo/${report.id}`} className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                <div className="min-w-0 break-words text-lg font-semibold">
-                  {report.name}
-                </div>
                 <SeoGenerationTypeBadge
                   generationType={report.generationType ?? "intelligence"}
                   label={getLocalizedSeoLensLabel(
@@ -105,21 +99,22 @@ export function SeoLibraryClient({
                     report.generationType ?? "intelligence",
                   )}
                 />
+                <div className="min-w-0 break-words text-lg font-semibold">
+                  {report.name}
+                </div>
               </div>
-              <div className="mt-2 line-clamp-2 break-words text-sm text-white/50">
-                {report.status === "Ready"
-                  ? report.summary || copy.emptyValue
-                  : copy.visibility.analysisNotFinished}
-              </div>
-              <div className="mt-2 text-xs text-white/35">
+              <div className="mt-2 text-sm text-white/50">
                 {formatDate(report.createdAt, language, copy.emptyValue)} ·{" "}
                 {getLocalizedSeoReportStatusLabel(dictionary, report.status)}
+                {report.status !== "Ready"
+                  ? ` · ${copy.visibility.analysisNotFinished}`
+                  : null}
               </div>
             </Link>
             <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
               <Link
                 href={`/seo/${report.id}`}
-                className="w-full rounded-2xl border border-white/15 px-4 py-2 text-center text-sm text-white/80 sm:w-auto"
+                className="w-full rounded-2xl border border-white/15 px-4 py-2 text-center text-sm font-semibold text-white/80 sm:w-auto"
               >
                 {copy.actionOpen}
               </Link>

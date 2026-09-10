@@ -39,6 +39,11 @@ export type DeploymentAssetsChrome = {
   discussWithAthena?: string;
   noPromptGeneratedYet?: string;
   heading?: string;
+  /** Persona-only opt-in: hide the shared gallery H2 + help chrome. */
+  hideGalleryChrome?: boolean;
+  /** Persona-only opt-in card grammar. */
+  cardPresentation?: "default" | "persona";
+  personaAccent?: "violet" | "orange";
 };
 
 type DeploymentAssetsProps = {
@@ -55,6 +60,11 @@ type DeploymentAssetsProps = {
   /** Identifiers only — never pass asset body/title as trusted input. */
   onDiscussWithAthena?: (payload: DeploymentDiscussPayload) => void;
   chrome?: DeploymentAssetsChrome | null;
+  /**
+   * gallery: shared Discussions/Prospects chrome (default).
+   * embedded: heading-less prompt blocks for persona journey sections.
+   */
+  variant?: "gallery" | "embedded";
 };
 
 /**
@@ -91,6 +101,7 @@ export function DeploymentAssets({
   continuationPreferences = null,
   onDiscussWithAthena,
   chrome,
+  variant = "gallery",
 }: DeploymentAssetsProps) {
   const cards = buildDeploymentAssetCards(assets, executiveVersionId);
 
@@ -98,9 +109,61 @@ export function DeploymentAssets({
     return null;
   }
 
+  const hideGalleryChrome =
+    variant === "embedded" || Boolean(chrome?.hideGalleryChrome);
+  const cardPresentation =
+    chrome?.cardPresentation ??
+    (variant === "embedded" ? "persona" : "default");
+  const personaAccent = chrome?.personaAccent ?? "violet";
+
+  const blocks = cards.map((card) => (
+    <CollapsiblePromptBlock
+      key={card.key}
+      label={card.label}
+      description={card.description}
+      text={card.text}
+      defaultOpen={false}
+      assetType={card.assetType}
+      copyContext={copyContext}
+      copyChrome={chrome?.copy}
+      discussWithAthenaLabel={chrome?.discussWithAthena}
+      emptyPromptLabel={chrome?.noPromptGeneratedYet}
+      presentation={cardPresentation}
+      personaAccent={personaAccent}
+      initiallyDone={Boolean(doneByAssetType[card.assetType])}
+      initiallyTags={tagsByAssetType[card.assetType] ?? []}
+      continuationPreferences={continuationPreferences}
+      discussAssetKind={
+        executiveVersionId && onDiscussWithAthena ? "deployment" : null
+      }
+      onDiscussWithAthena={
+        executiveVersionId && onDiscussWithAthena
+          ? (payload) =>
+              onDiscussWithAthena({
+                ...payload,
+                executiveVersionId,
+              })
+          : undefined
+      }
+    />
+  ));
+
+  if (hideGalleryChrome) {
+    return (
+      <div
+        data-executive-version-id={executiveVersionId ?? undefined}
+        data-deployment-chrome="embedded"
+        className="grid gap-5 lg:grid-cols-2"
+      >
+        {blocks}
+      </div>
+    );
+  }
+
   return (
     <section
       data-executive-version-id={executiveVersionId ?? undefined}
+      data-deployment-chrome="gallery"
       className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-8 shadow-[0_0_40px_rgba(255,102,0,0.06)] lg:p-10`}
     >
       <h2 className="text-3xl font-semibold tracking-tight text-[var(--athena-orange)]">
@@ -112,39 +175,7 @@ export function DeploymentAssets({
           "Ready-to-use content generated from Athena's analysis."}
       </p>
 
-      <div className="mt-8 grid gap-5 lg:grid-cols-2">
-        {cards.map((card) => (
-          <CollapsiblePromptBlock
-            key={card.key}
-            label={card.label}
-            description={card.description}
-            text={card.text}
-            defaultOpen={false}
-            assetType={card.assetType}
-            copyContext={copyContext}
-            copyChrome={chrome?.copy}
-            discussWithAthenaLabel={chrome?.discussWithAthena}
-            emptyPromptLabel={chrome?.noPromptGeneratedYet}
-            initiallyDone={Boolean(doneByAssetType[card.assetType])}
-            initiallyTags={tagsByAssetType[card.assetType] ?? []}
-            continuationPreferences={continuationPreferences}
-            discussAssetKind={
-              executiveVersionId && onDiscussWithAthena
-                ? "deployment"
-                : null
-            }
-            onDiscussWithAthena={
-              executiveVersionId && onDiscussWithAthena
-                ? (payload) =>
-                    onDiscussWithAthena({
-                      ...payload,
-                      executiveVersionId,
-                    })
-                : undefined
-            }
-          />
-        ))}
-      </div>
+      <div className="mt-8 grid gap-5 lg:grid-cols-2">{blocks}</div>
     </section>
   );
 }

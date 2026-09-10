@@ -320,7 +320,7 @@ describe("V31 L3.6 tenant personas + prospects — conversation", () => {
     const prospectPanel = read(
       "components/prospects/ProspectConversationPanel.tsx",
     );
-    assert.match(personaPanel, /chrome\?\.title \?\? "Ask Athena about this audience"/);
+    assert.match(personaPanel, /chrome\?\.title \?\? "Ask Athena about this Persona"/);
     assert.match(personaPanel, /chrome\?\.send \?\? "Send"/);
     assert.match(prospectPanel, /chrome\?: ProspectConversationChrome/);
     assert.equal(

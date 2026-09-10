@@ -1,5 +1,10 @@
+import { BarChart3 } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
-import { localizeConfidence } from "@/components/identity/identityPagePresentation";
+import {
+  IDENTITY_CARD_ICON_CLASS,
+  IDENTITY_CARD_SURFACE_CLASS,
+  localizeConfidence,
+} from "@/components/identity/identityPagePresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type {
   IdentityConfidenceLevel,
@@ -21,7 +26,15 @@ export function IdentityAdvancedUnderstanding({
   const page = messages.page;
 
   return (
-    <AthenaCollapsibleSection title={page.advancedTitle} defaultOpen={false}>
+    <AthenaCollapsibleSection
+      title={page.advancedTitle}
+      summary={copy.diagnosticTitle}
+      defaultOpen={false}
+      tone="identity"
+      icon={<BarChart3 size={20} />}
+      iconClassName={IDENTITY_CARD_ICON_CLASS.magenta}
+      className={IDENTITY_CARD_SURFACE_CLASS.magenta}
+    >
       <div className="space-y-3">
         <DiagnosticRow
           label={copy.understandingConfidence}

@@ -1,6 +1,10 @@
-import { splitBusinessModelEntries } from "@/components/identity/identityPagePresentation";
+import { Brain } from "lucide-react";
+import {
+  IDENTITY_CARD_ICON_CLASS,
+  IDENTITY_CARD_SURFACE_CLASS,
+  splitBusinessModelEntries,
+} from "@/components/identity/identityPagePresentation";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
-import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import { readIdentityExecutiveIntelligence } from "@/services/identity/identityExecutiveIntelligence";
 import type { AthenaIdentity } from "@/services/identity/identityService";
@@ -25,16 +29,19 @@ export function IdentityWhatAthenaKnows({
   if (!executive) {
     if (identity.brain_status === "ready" && identity.master_profile) {
       return (
-        <section
-          className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-6 sm:p-8`}
+        <AthenaCollapsibleSection
+          title={page.knowsTitle}
+          summary={page.knowsAttribution}
+          defaultOpen={false}
+          tone="identity"
+          icon={<Brain size={20} />}
+          iconClassName={IDENTITY_CARD_ICON_CLASS.orange}
+          className={IDENTITY_CARD_SURFACE_CLASS.orange}
         >
-          <h2 className="text-2xl font-semibold tracking-tight">
-            {page.knowsTitle}
-          </h2>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/55">
+          <p className="max-w-3xl text-sm leading-7 text-white/55">
             {copy.legacyBody}
           </p>
-        </section>
+        </AthenaCollapsibleSection>
       );
     }
     return null;
@@ -46,55 +53,34 @@ export function IdentityWhatAthenaKnows({
   const lastSuccessful = identity.brain_status === "processing";
 
   return (
-    <section className="space-y-6">
-      <article
-        className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-6 sm:p-8`}
-      >
-        <h2 className="text-2xl font-semibold tracking-tight">
-          {page.knowsTitle}
-        </h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-white/50">
-          {page.knowsAttribution}
+    <AthenaCollapsibleSection
+      title={page.knowsTitle}
+      summary={page.knowsAttribution}
+      defaultOpen={false}
+      tone="identity"
+      icon={<Brain size={20} />}
+      iconClassName={IDENTITY_CARD_ICON_CLASS.orange}
+      className={IDENTITY_CARD_SURFACE_CLASS.orange}
+    >
+      <p className="max-w-3xl text-sm leading-6 text-white/50">
+        {page.knowsAttribution}
+      </p>
+      {lastSuccessful ? (
+        <p className="mt-3 text-sm leading-6 text-amber-100/90">
+          {page.knowsLastSuccessful}
         </p>
-        {lastSuccessful ? (
-          <p className="mt-3 text-sm leading-6 text-amber-100/90">
-            {page.knowsLastSuccessful}
-          </p>
-        ) : null}
-        <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-white/75">
-          {executive.executive_summary}
-        </p>
+      ) : null}
+      <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-white/75">
+        {executive.executive_summary}
+      </p>
 
-        {primary.length > 0 ? (
-          <div className="mt-8">
-            <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-              {page.knowsUnderstandingPrefix}
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {primary.map(([key, value]) => (
-                <div
-                  key={key}
-                  className="rounded-2xl border border-white/10 bg-black/20 p-5"
-                >
-                  <div className="text-xs uppercase tracking-[0.2em] text-white/35">
-                    {messages.businessModel[key]}
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-white/70">{value}</p>
-                </div>
-              ))}
-            </div>
+      {primary.length > 0 ? (
+        <div className="mt-8">
+          <div className="text-xs uppercase tracking-[0.2em] text-white/35">
+            {page.knowsUnderstandingPrefix}
           </div>
-        ) : null}
-      </article>
-
-      {secondary.length > 0 ? (
-        <AthenaCollapsibleSection
-          eyebrow={copy.businessModelEyebrow}
-          title={copy.businessModelTitle}
-          defaultOpen={false}
-        >
-          <div className="grid gap-3 md:grid-cols-2">
-            {secondary.map(([key, value]) => (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {primary.map(([key, value]) => (
               <div
                 key={key}
                 className="rounded-2xl border border-white/10 bg-black/20 p-5"
@@ -106,8 +92,32 @@ export function IdentityWhatAthenaKnows({
               </div>
             ))}
           </div>
-        </AthenaCollapsibleSection>
+        </div>
       ) : null}
-    </section>
+
+      {secondary.length > 0 ? (
+        <div className="mt-6">
+          <AthenaCollapsibleSection
+            eyebrow={copy.businessModelEyebrow}
+            title={copy.businessModelTitle}
+            defaultOpen={false}
+          >
+            <div className="grid gap-3 md:grid-cols-2">
+              {secondary.map(([key, value]) => (
+                <div
+                  key={key}
+                  className="rounded-2xl border border-white/10 bg-black/20 p-5"
+                >
+                  <div className="text-xs uppercase tracking-[0.2em] text-white/35">
+                    {messages.businessModel[key]}
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-white/70">{value}</p>
+                </div>
+              ))}
+            </div>
+          </AthenaCollapsibleSection>
+        </div>
+      ) : null}
+    </AthenaCollapsibleSection>
   );
 }

@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertTriangle, LoaderCircle } from "lucide-react";
+import {
+  AD_HEADER_PRIMARY_CLASS,
+  AD_STATUS_ICON_FAILED,
+  AD_STATUS_ICON_PROGRESS,
+  AD_STATUS_PANEL_FAILED,
+  AD_STATUS_PANEL_PROGRESS,
+} from "@/lib/ads/adCampaignDetailPresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import {
@@ -60,6 +68,7 @@ export function AdCampaignStatusPanel({
   const [actionError, setActionError] = useState<string | null>(null);
 
   const inFlight = status === "Queued" || status === "Processing";
+  const isFailed = status === "Processing Failed";
 
   useEffect(() => {
     if (!inFlight) return;
@@ -174,44 +183,64 @@ export function AdCampaignStatusPanel({
   );
 
   return (
-    <div className="mb-8 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-6">
-      <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--athena-orange)]">
-        {copy.generationStatus}
-      </div>
-      <h2 className="mt-3 text-2xl font-semibold">
-        {getLocalizedAdCampaignStatusLabel(dictionary, status)}
-      </h2>
-      {inFlight ? (
-        <p className="mt-3 text-sm leading-7 text-white/60">{leaveAndReturn}</p>
-      ) : null}
-      {status === "Processing Failed" ? (
-        <div className="mt-4 space-y-4">
-          <p className="text-sm leading-7 text-rose-100/80">
-            {errorMessage || copy.generationFailed}
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => void handleRetryGenerate()}
-              disabled={regenerating}
-              className="rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {regenerating ? copy.working : copy.retry}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleRegenerate()}
-              disabled={regenerating}
-              className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 disabled:opacity-60"
-            >
-              {copy.regenerateAsNew}
-            </button>
+    <div
+      className={`mb-8 ${isFailed ? AD_STATUS_PANEL_FAILED : AD_STATUS_PANEL_PROGRESS}`}
+    >
+      <div className="flex items-start gap-4">
+        <span
+          className={isFailed ? AD_STATUS_ICON_FAILED : AD_STATUS_ICON_PROGRESS}
+          aria-hidden="true"
+        >
+          {isFailed ? (
+            <AlertTriangle className="size-5" />
+          ) : (
+            <LoaderCircle className="size-5 animate-spin" />
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div
+            className={`text-xs font-semibold uppercase tracking-[0.28em] ${
+              isFailed ? "text-rose-200/80" : "text-sky-200/80"
+            }`}
+          >
+            {copy.generationStatus}
           </div>
+          <h2 className="mt-3 text-2xl font-semibold">
+            {getLocalizedAdCampaignStatusLabel(dictionary, status)}
+          </h2>
+          {inFlight ? (
+            <p className="mt-3 text-sm leading-7 text-white/60">{leaveAndReturn}</p>
+          ) : null}
+          {isFailed ? (
+            <div className="mt-4 space-y-4">
+              <p className="text-sm leading-7 text-rose-100/80">
+                {errorMessage || copy.generationFailed}
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleRetryGenerate()}
+                  disabled={regenerating}
+                  className={AD_HEADER_PRIMARY_CLASS}
+                >
+                  {regenerating ? copy.working : copy.retry}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRegenerate()}
+                  disabled={regenerating}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/15 px-5 text-sm font-semibold text-white/80 disabled:opacity-60"
+                >
+                  {copy.regenerateAsNew}
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {actionError ? (
+            <p className="mt-3 text-sm text-rose-200">{actionError}</p>
+          ) : null}
         </div>
-      ) : null}
-      {actionError ? (
-        <p className="mt-3 text-sm text-rose-200">{actionError}</p>
-      ) : null}
+      </div>
     </div>
   );
 }

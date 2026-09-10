@@ -2,6 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RefreshCw, Shuffle } from "lucide-react";
+import {
+  PERSONA_HEADER_ALTERNATIVE_CLASS,
+  PERSONA_HEADER_GENERATE_CLASS,
+  PERSONA_HEADER_REFRESH_CLASS,
+} from "@/lib/personas/personaPagePresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type PersonaGenerateChrome = {
@@ -43,7 +49,7 @@ const POLL_MS = 5_000;
 function ButtonSpinner() {
   return (
     <span
-      className="mr-2 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white"
+      className="inline-block size-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white"
       aria-hidden="true"
     />
   );
@@ -190,65 +196,77 @@ export function PersonaGenerateIntelligenceButton({
     busy && queueingKind === "think_differently";
 
   return (
-    <div className="flex flex-col items-stretch gap-2">
-      <div className="flex flex-wrap items-center gap-3">
-        {!ready || failed ? (
-          <button
-            type="button"
-            onClick={() => void queueAction("generate_intelligence")}
-            disabled={busy}
-            className="inline-flex items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {generatingIntelligence ? <ButtonSpinner /> : null}
-            {generatingIntelligence
-              ? (chrome?.generatingIntelligence ??
-                "Generating audience intelligence…")
-              : failed
-                ? (chrome?.retryGenerateIntelligence ??
-                  "Try generating again")
-                : (chrome?.generateIntelligence ??
-                  "Generate audience intelligence")}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void queueAction("generate_intelligence")}
-            disabled={busy}
-            className="inline-flex items-center justify-center rounded-2xl border border-white/15 px-6 py-3 text-sm font-semibold text-white/85 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {generatingIntelligence ? <ButtonSpinner /> : null}
-            {generatingIntelligence
-              ? (chrome?.refreshingIntelligence ??
-                chrome?.generatingIntelligence ??
-                "Refreshing intelligence…")
-              : (chrome?.refreshIntelligence ?? "Refresh intelligence")}
-          </button>
-        )}
-        {canThinkDifferently ? (
-          <button
-            type="button"
-            onClick={() => void queueAction("think_differently")}
-            disabled={busy}
-            className="inline-flex items-center justify-center rounded-2xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-6 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {thinkingDifferently ? (
-              <span
-                className="mr-2 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--athena-success)]/30 border-t-[var(--athena-success)]"
-                aria-hidden="true"
-              />
-            ) : null}
-            {thinkingDifferently
-              ? (chrome?.thinkingDifferently ?? "Trying another approach…")
-              : (chrome?.thinkDifferently ?? "Try another approach")}
-          </button>
-        ) : null}
-      </div>
+    <>
+      {!ready || failed ? (
+        <button
+          type="button"
+          data-persona-header-action="generate"
+          onClick={() => void queueAction("generate_intelligence")}
+          disabled={busy}
+          className={PERSONA_HEADER_GENERATE_CLASS}
+        >
+          {generatingIntelligence ? (
+            <ButtonSpinner />
+          ) : (
+            <RefreshCw className="size-4" />
+          )}
+          {generatingIntelligence
+            ? (chrome?.generatingIntelligence ??
+              "Generating audience intelligence…")
+            : failed
+              ? (chrome?.retryGenerateIntelligence ?? "Try generating again")
+              : (chrome?.generateIntelligence ??
+                "Generate audience intelligence")}
+        </button>
+      ) : (
+        <button
+          type="button"
+          data-persona-header-action="refresh"
+          onClick={() => void queueAction("generate_intelligence")}
+          disabled={busy}
+          className={PERSONA_HEADER_REFRESH_CLASS}
+        >
+          {generatingIntelligence ? (
+            <ButtonSpinner />
+          ) : (
+            <RefreshCw className="size-4" />
+          )}
+          {generatingIntelligence
+            ? (chrome?.refreshingIntelligence ??
+              chrome?.generatingIntelligence ??
+              "Refreshing intelligence…")
+            : (chrome?.refreshIntelligence ?? "Refresh intelligence")}
+        </button>
+      )}
+      {canThinkDifferently ? (
+        <button
+          type="button"
+          data-persona-header-action="think-differently"
+          onClick={() => void queueAction("think_differently")}
+          disabled={busy}
+          className={PERSONA_HEADER_ALTERNATIVE_CLASS}
+        >
+          {thinkingDifferently ? (
+            <span
+              className="inline-block size-3.5 animate-spin rounded-full border-2 border-[var(--athena-success)]/30 border-t-[var(--athena-success)]"
+              aria-hidden="true"
+            />
+          ) : (
+            <Shuffle className="size-4" />
+          )}
+          {thinkingDifferently
+            ? (chrome?.thinkingDifferently ?? "Trying another approach…")
+            : (chrome?.thinkDifferently ?? "Try another approach")}
+        </button>
+      ) : null}
       {message ? (
-        <p className="text-sm text-white/60 whitespace-pre-wrap sm:text-right">
+        <p className="basis-full text-sm whitespace-pre-wrap text-white/60">
           {message}
         </p>
       ) : null}
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
-    </div>
+      {error ? (
+        <div className="basis-full text-sm text-red-300">{error}</div>
+      ) : null}
+    </>
   );
 }

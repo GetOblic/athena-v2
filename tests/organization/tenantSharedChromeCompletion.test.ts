@@ -100,7 +100,7 @@ describe("V31 L3.10.3 shared chrome — EI Copy / Done / Continue / tags", () =>
     assert.match(personaPage, /assetChrome=\{getSharedAssetChrome\(messages\)\}/);
     assert.match(prospectPage, /assetChrome=\{getSharedAssetChrome\(messages\)\}/);
     assert.match(workspace, /chrome=\{assetChrome\}/);
-    assert.equal((workspace.match(/chrome=\{assetChrome\}/g) ?? []).length, 5);
+    assert.equal((workspace.match(/chrome=\{assetChrome\}/g) ?? []).length, 4);
 
     const french = getSharedAssetChrome(fr);
     assert.equal(french.copy.copy, fr.common.copy);

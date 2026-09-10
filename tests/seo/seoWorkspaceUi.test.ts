@@ -75,7 +75,7 @@ describe("seo workspace UI", () => {
     assert.doesNotMatch(detail, /SeoExecutiveOverview/);
     assert.match(detail, /copy\.detail\.athenasAssessment/);
     assert.match(detail, /copy\.detail\.recommendedImprovements/);
-    assert.match(detail, /copy\.detail\.supportingIntelligence/);
+    assert.match(detail, /copy\.detail\.detailedFindings/);
     assert.match(detail, /copy\.detail\.executiveAssessment/);
     assert.match(detail, /copy\.detail\.contentCoverageV2/);
     assert.match(detail, /copy\.detail\.customerIntentV2/);

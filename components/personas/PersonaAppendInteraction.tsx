@@ -1,8 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { MessageSquarePlus } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  PERSONA_DETAIL_ANCHORS,
+  PERSONA_TEACH_EVENT,
+} from "@/lib/personas/personaDetailPresentation";
+import {
+  PERSONA_DETAIL_ICON,
+  PERSONA_DETAIL_SURFACE,
+} from "@/lib/personas/personaPagePresentation";
 import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import {
@@ -82,6 +91,23 @@ export function PersonaAppendInteraction({
     message: string;
     persistenceOk?: boolean;
   } | null>(null);
+  const [sectionOpen, setSectionOpen] = useState(false);
+
+  useEffect(() => {
+    function openFromHeader() {
+      setSectionOpen(true);
+    }
+    window.addEventListener(PERSONA_TEACH_EVENT, openFromHeader);
+    return () => {
+      window.removeEventListener(PERSONA_TEACH_EVENT, openFromHeader);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (result) {
+      setSectionOpen(true);
+    }
+  }, [result]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -166,9 +192,16 @@ export function PersonaAppendInteraction({
   }
 
   return (
+    <div id={PERSONA_DETAIL_ANCHORS.observation} className="scroll-mt-24">
     <AthenaCollapsibleSection
       title={chrome?.title ?? "Append Interaction"}
       defaultOpen={Boolean(result)}
+      open={sectionOpen}
+      onOpenChange={setSectionOpen}
+      tone="intelligence"
+      className={PERSONA_DETAIL_SURFACE.violet}
+      icon={<MessageSquarePlus />}
+      iconClassName={PERSONA_DETAIL_ICON.violet}
     >
       <form onSubmit={handleSubmit}>
         <p className="text-sm leading-6 text-white/45">
@@ -192,6 +225,7 @@ export function PersonaAppendInteraction({
             {chrome?.field ?? "Interaction"}
           </span>
           <textarea
+            id={PERSONA_DETAIL_ANCHORS.observationField}
             value={interaction}
             onChange={(event) => setInteraction(event.target.value)}
             required
@@ -232,5 +266,6 @@ export function PersonaAppendInteraction({
         </div>
       </form>
     </AthenaCollapsibleSection>
+    </div>
   );
 }

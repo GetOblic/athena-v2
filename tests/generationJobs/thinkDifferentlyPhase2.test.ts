@@ -297,8 +297,19 @@ describe("Think Differently Phase 2 — UI", () => {
       /\/api\/prospects\/\$\{prospectId\}\/think-differently/,
     );
     assert.match(prospectButton, /disabled=\{busy\}/);
-    assert.match(prospectButton, /--athena-success/);
-    assert.match(prospectButton, /--athena-orange/);
+    const prospectPresentation = read(
+      "lib/prospects/prospectDetailPresentation.ts",
+    );
+    assert.match(prospectButton, /PROSPECT_SECONDARY_GREEN_ACTION/);
+    assert.match(prospectButton, /PROSPECT_PRIMARY_ACTION/);
+    assert.match(
+      prospectPresentation,
+      /PROSPECT_SECONDARY_GREEN_ACTION[\s\S]*athena-success/,
+    );
+    assert.match(
+      prospectPresentation,
+      /PROSPECT_PRIMARY_ACTION[\s\S]*athena-orange/,
+    );
   });
 });
 

@@ -1,7 +1,10 @@
-import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import { Target } from "lucide-react";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { IdentityCalibrationGap } from "@/services/identity/identityExecutiveIntelligence";
 import {
+  IDENTITY_CARD_ICON_CLASS,
+  IDENTITY_CARD_SURFACE_CLASS,
   IDENTITY_UPDATE_LOCATION_HREFS,
   localizeUpdateLocation,
 } from "@/components/identity/identityPagePresentation";
@@ -22,15 +25,19 @@ export function IdentityCalibrationGaps({
   const materialGaps = gaps.filter((gap) => gap.what_is_unclear.trim());
 
   return (
-    <section
-      className={`rounded-[28px] ${ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS} bg-[var(--athena-card)] p-6 sm:p-8`}
+    <AthenaCollapsibleSection
+      title={page.gapsTitle}
+      summary={copy.calibrationTitle}
+      defaultOpen={false}
+      tone="identity"
+      icon={<Target size={20} />}
+      iconClassName={IDENTITY_CARD_ICON_CLASS.blue}
+      className={IDENTITY_CARD_SURFACE_CLASS.blue}
     >
-      <h2 className="text-2xl font-semibold tracking-tight">{page.gapsTitle}</h2>
-
       {materialGaps.length === 0 ? (
-        <p className="mt-4 text-sm leading-7 text-white/55">{page.gapsEmpty}</p>
+        <p className="text-sm leading-7 text-white/55">{page.gapsEmpty}</p>
       ) : (
-        <ul className="mt-6 space-y-4">
+        <ul className="space-y-4">
           {materialGaps.map((gap) => {
             const href = IDENTITY_UPDATE_LOCATION_HREFS[gap.update_location];
             const locationLabel = localizeUpdateLocation(
@@ -62,6 +69,6 @@ export function IdentityCalibrationGaps({
           })}
         </ul>
       )}
-    </section>
+    </AthenaCollapsibleSection>
   );
 }

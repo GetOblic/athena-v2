@@ -56,22 +56,40 @@ describe("identity conversation UI", () => {
     ]);
   });
 
-  it("page mounts the panel after Brand Identity and below Teach Athena", () => {
+  it("places Ask Athena at trained #3 and untrained #1 without flattening the double-collapse", () => {
     const page = read("app/identity/page.tsx");
     assert.match(page, /IdentityConversationPanel/);
     assert.match(page, /buildConversationScopeFingerprint/);
     assert.match(page, /scope:\s*"identity"/);
     assert.doesNotMatch(page, /lg:grid-cols-\[2fr_1fr\]/);
 
-    const panelIndex = page.indexOf("<IdentityConversationPanel");
-    const brandIndex = page.indexOf("<BrandIdentitySection");
-    const teachIndex = page.indexOf("<IdentityTeachAthenaSection");
-    const deepScrapeIndex = page.indexOf("<DeepScrapeWebsiteButton");
-    assert.ok(panelIndex > 0);
-    assert.ok(teachIndex > 0);
-    assert.ok(brandIndex > teachIndex);
-    assert.ok(panelIndex > brandIndex);
-    assert.ok(deepScrapeIndex > 0);
+    const trainedStart = page.indexOf("{trained ? (");
+    const splitAt = page.indexOf(") : (", trainedStart);
+    const trainedBlock = page.slice(trainedStart, splitAt);
+    const untrainedBlock = page.slice(splitAt);
+    assert.ok(
+      trainedBlock.indexOf("{askAthena}") <
+        trainedBlock.indexOf("{teachAthena}"),
+    );
+    assert.ok(
+      trainedBlock.indexOf("{askAthena}") >
+        trainedBlock.indexOf("IdentityCalibrationGaps"),
+    );
+    assert.ok(
+      untrainedBlock.indexOf("{askAthena}") <
+        untrainedBlock.indexOf("{teachAthena}"),
+    );
+    assert.ok(
+      untrainedBlock.indexOf("{askAthena}") <
+        untrainedBlock.indexOf("{brandIdentity}"),
+    );
+    assert.match(page, /<IdentityConversationPanel/);
+    assert.match(page, /<DeepScrapeWebsiteButton/);
+    assert.equal((page.match(/<DeepScrapeWebsiteButton/g) ?? []).length, 1);
+    const conversation = read(
+      "components/identity/IdentityConversationPanel.tsx",
+    );
+    assert.match(conversation, /defaultOpen=\{false\}/);
   });
 
   it("panel stays outside mutation surfaces", () => {

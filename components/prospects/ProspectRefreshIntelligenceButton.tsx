@@ -2,12 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Lightbulb, RefreshCw, Sparkles } from "lucide-react";
 import { useDiscussionRegeneration } from "@/components/discussions/DiscussionRegenerationProvider";
 import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import {
   emptyRegenerationSnapshot,
   fetchRegenerationStatus,
 } from "@/lib/discussionRegenerationStatus";
+import {
+  PROSPECT_PRIMARY_ACTION,
+  PROSPECT_SECONDARY_GREEN_ACTION,
+  PROSPECT_UTILITY_ACTION,
+} from "@/lib/prospects/prospectDetailPresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 
 type ProspectRefreshChrome = {
@@ -163,37 +169,50 @@ export function ProspectRefreshIntelligenceButton({
   return (
     <div className="flex flex-col items-stretch gap-2">
       <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void queueAction("generate_intelligence")}
-          disabled={busy}
-          className="inline-flex items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {generatingIntelligence ? <ButtonSpinner /> : null}
-          {primaryLabel}
-        </button>
         {hasCurrentVersion ? (
           <button
             type="button"
+            data-prospect-header-action="think-differently"
             onClick={() => {
-              // Unlock inside the click stack before any async work.
               unlockCompletionSound();
               void queueAction("think_differently");
             }}
             disabled={busy}
-            className="inline-flex items-center justify-center rounded-2xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-6 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40"
+            className={PROSPECT_SECONDARY_GREEN_ACTION}
           >
             {thinkingDifferently ? (
               <span
-                className="mr-2 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--athena-success)]/30 border-t-[var(--athena-success)]"
+                className="inline-block size-3.5 animate-spin rounded-full border-2 border-[var(--athena-success)]/30 border-t-[var(--athena-success)]"
                 aria-hidden="true"
               />
-            ) : null}
+            ) : (
+              <Lightbulb className="size-4" />
+            )}
             {thinkingDifferently
               ? (chrome?.thinkingDifferently ?? "Trying another approach…")
               : (chrome?.thinkDifferently ?? "Try another approach")}
           </button>
         ) : null}
+        <button
+          type="button"
+          data-prospect-header-action={ready || hasCurrentVersion ? "refresh" : "generate"}
+          onClick={() => void queueAction("generate_intelligence")}
+          disabled={busy}
+          className={
+            ready || hasCurrentVersion
+              ? PROSPECT_UTILITY_ACTION
+              : PROSPECT_PRIMARY_ACTION
+          }
+        >
+          {generatingIntelligence ? (
+            <ButtonSpinner />
+          ) : ready || hasCurrentVersion ? (
+            <RefreshCw className="size-4" />
+          ) : (
+            <Sparkles className="size-4" />
+          )}
+          {primaryLabel}
+        </button>
       </div>
       {message ? (
         <p className="text-sm text-white/60 whitespace-pre-wrap sm:text-right">

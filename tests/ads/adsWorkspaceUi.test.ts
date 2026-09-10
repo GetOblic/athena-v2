@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { dashboardNavItems } from "../../components/dashboard/DashboardSidebar";
+import {
+  AD_DETAIL_DEFAULT_OPEN,
+  AD_DETAIL_SECTION_KEYS,
+} from "../../lib/ads/adCampaignDetailPresentation";
 import { en } from "../../lib/tenantI18n/messages/en";
 
 const ROOT = process.cwd();
@@ -66,6 +70,10 @@ describe("ads workspace UI", () => {
     assert.match(detail, /copy\.detail\.tiktok/);
     assert.match(detail, /copy\.detail\.googleSearchAds/);
     assert.match(detail, /copy\.detail\.recommendedKeywordThemes/);
+    for (const key of AD_DETAIL_SECTION_KEYS) {
+      assert.equal(AD_DETAIL_DEFAULT_OPEN[key], false);
+      assert.match(detail, new RegExp(`defaultOpen=\\{AD_DETAIL_DEFAULT_OPEN\\.${key}\\}`));
+    }
     assert.match(detail, /AdCampaignStatusPanel/);
     assert.match(detail, /copy\.detail\.regenerate/);
 

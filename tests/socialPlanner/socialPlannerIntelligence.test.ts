@@ -320,6 +320,7 @@ function fakeProspect(
     priority: 0,
     website_intelligence: null,
     raw_json: { secret: "prospect-secret" },
+    generated_listing_description: null,
     last_activity: null,
     import_batch_id: null,
     ...extras,

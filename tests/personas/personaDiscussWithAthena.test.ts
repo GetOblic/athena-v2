@@ -265,16 +265,9 @@ describe("persona Discuss with Athena UI wiring", () => {
     // Persona Deployment Assets section wires the handler (not Prospect-gated).
     assert.match(
       workspace,
-      /chrome\?\.deploymentAssetsTitle \?\? "Persona Deployment Assets"/,
+      /chrome\?\.strategicBlueprintTitle \?\?\s*"Persona Strategic Blueprint"/,
     );
-    assert.match(
-      workspace,
-      /chrome\?\.analysisAssetsTitle \?\? "Persona Analysis Assets"/,
-    );
-    assert.match(
-      workspace,
-      /chrome\?\.strategicBlueprintTitle \?\? "Persona Strategic Blueprint"/,
-    );
+    assert.match(workspace, /PersonaAudienceJourney/);
     assert.match(workspace, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
     assert.match(workspace, /getElementById\("persona-conversation"\)/);
     assert.match(

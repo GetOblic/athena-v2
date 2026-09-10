@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ArrowRight, ArrowUpDown, Filter, Search, Users } from "lucide-react";
+import { PersonaConfidenceScore } from "@/components/personas/PersonaConfidenceScore";
 import { PERSONA_LIFECYCLE_STATUSES } from "@/services/personas/personaLifecycle";
 import type { PersonaLibraryRow } from "@/services/personas/personaLibraryEnrichment";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
@@ -10,6 +12,19 @@ import {
   getAudienceIntelligenceStatusLabel,
   getAudienceWorkingStatusLabel,
 } from "@/lib/personas/audienceReadinessPresentation";
+import {
+  PERSONA_CARD_ICON_WELL_CLASS,
+  PERSONA_CARD_SURFACE_CLASS,
+  PERSONA_TOOLBAR_FIELD_CLASS,
+  PERSONA_TOOLBAR_SURFACE_CLASS,
+  personaIntelligenceChipClass,
+} from "@/lib/personas/personaPagePresentation";
+import {
+  DEFAULT_PERSONA_LIBRARY_SORT,
+  isPersonaLibrarySortKey,
+  sortPersonaLibraryRows,
+  type PersonaLibrarySortKey,
+} from "@/lib/personas/personaLibrarySort";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
@@ -41,7 +56,9 @@ export function PersonasLibraryClient({
   const emptyValue = messages?.personas.emptyValue ?? "—";
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
-  const [sort, setSort] = useState<"updated" | "created" | "name">("updated");
+  const [sort, setSort] = useState<PersonaLibrarySortKey>(
+    DEFAULT_PERSONA_LIBRARY_SORT,
+  );
   const [page, setPage] = useState(1);
 
   const statuses = useMemo(() => {
@@ -50,7 +67,7 @@ export function PersonasLibraryClient({
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    let rows = personas.filter((persona) => {
+    const rows = personas.filter((persona) => {
       if (
         status !== "all" &&
         persona.display_lifecycle_status !== status
@@ -77,21 +94,7 @@ export function PersonasLibraryClient({
       return haystack.includes(needle);
     });
 
-    rows = [...rows].sort((a, b) => {
-      if (sort === "name") {
-        return a.display_label.localeCompare(b.display_label);
-      }
-      if (sort === "created") {
-        return (
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-      }
-      return (
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      );
-    });
-
-    return rows;
+    return sortPersonaLibraryRows(rows, sort);
   }, [personas, query, sort, status]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -124,78 +127,90 @@ export function PersonasLibraryClient({
           {list?.emptyBody ??
             "Athena needs audience context to reason more specifically about who you want to reach."}
         </p>
-        <Link
-          href="/personas/import"
-          className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
-        >
-          {list?.createFirstCta ?? "Define your first audience"}
-        </Link>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="grid flex-1 gap-3 md:grid-cols-3">
-          <label className="block text-sm text-white/50">
+      <div className={PERSONA_TOOLBAR_SURFACE_CLASS}>
+        <label className="block text-sm text-white/50">
+          <span className="inline-flex items-center gap-1.5">
+            <Search className="size-3.5" aria-hidden="true" />
             {list?.search ?? "Search"}
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(1);
-              }}
-              placeholder={
-                list?.searchPlaceholder ??
-                "Name, description, category, location…"
-              }
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
-            />
-          </label>
-          <label className="block text-sm text-white/50">
+          </span>
+          <input
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(1);
+            }}
+            placeholder={
+              list?.searchPlaceholder ??
+              "Name, description, category, location…"
+            }
+            className={`mt-2 ${PERSONA_TOOLBAR_FIELD_CLASS}`}
+          />
+        </label>
+        <label className="block text-sm text-white/50">
+          <span className="inline-flex items-center gap-1.5">
+            <Filter className="size-3.5" aria-hidden="true" />
             {list?.status ?? "Working status"}
-            <select
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value);
-                setPage(1);
-              }}
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
-            >
-              {statuses.map((value) => (
-                <option key={value} value={value}>
-                  {value === "all"
-                    ? (list?.allStatuses ?? "All statuses")
-                    : messages
-                      ? getAudienceWorkingStatusLabel(messages, value)
-                      : value}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm text-white/50">
+          </span>
+          <select
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value);
+              setPage(1);
+            }}
+            className={`mt-2 ${PERSONA_TOOLBAR_FIELD_CLASS}`}
+          >
+            {statuses.map((value) => (
+              <option key={value} value={value}>
+                {value === "all"
+                  ? (list?.allStatuses ?? "All statuses")
+                  : messages
+                    ? getAudienceWorkingStatusLabel(messages, value)
+                    : value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm text-white/50">
+          <span className="inline-flex items-center gap-1.5">
+            <ArrowUpDown className="size-3.5" aria-hidden="true" />
             {list?.sort ?? "Sort"}
-            <select
-              value={sort}
-              onChange={(event) =>
-                setSort(event.target.value as typeof sort)
+          </span>
+          <select
+            value={sort}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (isPersonaLibrarySortKey(next)) {
+                setSort(next);
               }
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
-            >
-              <option value="updated">{list?.sortUpdated ?? "Updated"}</option>
-              <option value="created">{list?.sortCreated ?? "Created"}</option>
-              <option value="name">{list?.sortName ?? "Name"}</option>
-            </select>
-          </label>
-        </div>
-
-        <Link
-          href="/personas/import"
-          className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
-        >
-          {list?.createCta ?? "Create audience"}
-        </Link>
+            }}
+            className={`mt-2 ${PERSONA_TOOLBAR_FIELD_CLASS}`}
+          >
+            <option value="updated_desc">
+              {list?.sortRecentlyUpdated ?? "Recently updated"}
+            </option>
+            <option value="updated_asc">
+              {list?.sortOldestUpdated ?? "Oldest updated"}
+            </option>
+            <option value="name_asc">
+              {list?.sortNameAsc ?? "Name A–Z"}
+            </option>
+            <option value="name_desc">
+              {list?.sortNameDesc ?? "Name Z–A"}
+            </option>
+            <option value="confidence_desc">
+              {list?.sortConfidenceHigh ?? "Confidence: highest"}
+            </option>
+            <option value="confidence_asc">
+              {list?.sortConfidenceLow ?? "Confidence: lowest"}
+            </option>
+          </select>
+        </label>
       </div>
 
       {filtered.length === 0 ? (
@@ -217,46 +232,88 @@ export function PersonasLibraryClient({
             ]
               .filter(Boolean)
               .join(" · ");
+            const intelligenceLabel = messages
+              ? getAudienceIntelligenceStatusLabel(
+                  messages,
+                  persona.display_status,
+                )
+              : persona.display_status;
+            const showLifecycle =
+              persona.display_lifecycle_status !== "New";
+            const updatedLabel = [
+              messages?.personas.detail.updated ?? "Updated",
+              formatDate(persona.updated_at, language, emptyValue),
+            ]
+              .filter(Boolean)
+              .join(" ");
+            const shortDescription = persona.short_description?.trim() ?? "";
             return (
               <Link
                 key={persona.id}
                 href={`/personas/${persona.id}`}
-                className="min-w-0 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-5 transition hover:border-white/20 hover:bg-white/[0.03]"
+                className={PERSONA_CARD_SURFACE_CLASS}
               >
-                <h3 className="break-words text-lg font-semibold text-white">
-                  {persona.display_label}
-                </h3>
-                {persona.short_description ? (
-                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-white/55">
-                    {persona.short_description}
+                <div className="flex items-start gap-3">
+                  <div className={PERSONA_CARD_ICON_WELL_CLASS} aria-hidden="true">
+                    <Users className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="break-words text-base font-semibold text-white sm:text-lg">
+                      {persona.display_label}
+                    </h3>
+                    {meta ? (
+                      <p className="mt-0.5 truncate text-xs text-white/45">
+                        {meta}
+                      </p>
+                    ) : null}
+                  </div>
+                  {messages ? (
+                    <PersonaConfidenceScore
+                      confidence={persona.display_confidence}
+                      messages={messages.personas}
+                    />
+                  ) : null}
+                </div>
+                {shortDescription ? (
+                  <p className="mt-2.5 line-clamp-2 break-words text-sm leading-6 text-white/60">
+                    {shortDescription}
                   </p>
                 ) : null}
-                <div className="mt-3 text-sm text-[var(--athena-orange)]">
-                  {messages
-                    ? getAudienceIntelligenceStatusLabel(
-                        messages,
-                        persona.display_status,
-                      )
-                    : persona.display_status}
-                </div>
-                <div className="mt-1 hidden text-xs text-white/35 lg:block">
-                  {messages
-                    ? getAudienceWorkingStatusLabel(
-                        messages,
-                        persona.display_lifecycle_status,
-                      )
-                    : persona.display_lifecycle_status}
-                </div>
-                {meta ? (
-                  <div className="mt-3 text-sm text-white/50">{meta}</div>
-                ) : null}
-                {persona.display_reference_website ? (
-                  <div className="mt-1 truncate text-sm text-white/40">
-                    {persona.display_reference_website}
+                <div className="mt-3 flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {intelligenceLabel ? (
+                        <span
+                          className={personaIntelligenceChipClass(
+                            persona.display_status,
+                          )}
+                        >
+                          <span
+                            className="size-1.5 rounded-full bg-current"
+                            aria-hidden="true"
+                          />
+                          {intelligenceLabel}
+                        </span>
+                      ) : null}
+                      {showLifecycle ? (
+                        <span className="inline-flex items-center rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[11px] text-white/40">
+                          {messages
+                            ? getAudienceWorkingStatusLabel(
+                                messages,
+                                persona.display_lifecycle_status,
+                              )
+                            : persona.display_lifecycle_status}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1.5 text-xs text-white/35">
+                      {updatedLabel}
+                    </div>
                   </div>
-                ) : null}
-                <div className="mt-3 text-xs text-white/40">
-                  {formatDate(persona.updated_at, language, emptyValue)}
+                  <ArrowRight
+                    className="size-4 shrink-0 text-white/35"
+                    aria-hidden="true"
+                  />
                 </div>
               </Link>
             );

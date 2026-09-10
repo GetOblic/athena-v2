@@ -1,11 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown, FileText } from "lucide-react";
 import {
   CopyButton,
   type AssetCopyTrackingContext,
   type CopyButtonChrome,
 } from "@/components/deployment/CopyButton";
+import {
+  PERSONA_ASSET_CARD_ORANGE_CLASS,
+  PERSONA_ASSET_CARD_VIOLET_CLASS,
+  PERSONA_DETAIL_ICON,
+} from "@/lib/personas/personaPagePresentation";
 import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
 import type { AssetUsageTag } from "@/services/assetInteractions/assetUsageTags";
 
@@ -33,6 +39,11 @@ type CollapsiblePromptBlockProps = {
   copyChrome?: CopyButtonChrome | null;
   discussWithAthenaLabel?: string;
   emptyPromptLabel?: string;
+  /**
+   * Persona-only opt-in. Default keeps Discussions / Prospects / Ads chrome.
+   */
+  presentation?: "default" | "persona";
+  personaAccent?: "violet" | "orange";
 };
 
 export function CollapsiblePromptBlock({
@@ -51,6 +62,8 @@ export function CollapsiblePromptBlock({
   copyChrome,
   discussWithAthenaLabel = "Discuss with Athena",
   emptyPromptLabel = "No prompt generated yet.",
+  presentation = "default",
+  personaAccent = "violet",
 }: CollapsiblePromptBlockProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const content = text?.trim();
@@ -61,12 +74,21 @@ export function CollapsiblePromptBlock({
     Boolean(discussAssetKind) &&
     Boolean(assetType?.trim()) &&
     hasContent;
+  const personaSurface = presentation === "persona";
+  const cardClass = personaSurface
+    ? personaAccent === "orange"
+      ? PERSONA_ASSET_CARD_ORANGE_CLASS
+      : PERSONA_ASSET_CARD_VIOLET_CLASS
+    : "rounded-2xl border border-white/10 bg-black/25";
+  const iconWellClass =
+    personaAccent === "orange"
+      ? PERSONA_DETAIL_ICON.orange
+      : PERSONA_DETAIL_ICON.violet;
 
   return (
     <article
-      className={`rounded-2xl border border-white/10 bg-black/25 ${
-        fullWidth ? "lg:col-span-2" : ""
-      }`}
+      className={`${cardClass} ${fullWidth ? "lg:col-span-2" : ""}`}
+      data-asset-presentation={personaSurface ? "persona" : "default"}
     >
       <div className="flex w-full items-center justify-between gap-4 p-5 transition hover:bg-white/[0.02]">
         <button
@@ -75,8 +97,22 @@ export function CollapsiblePromptBlock({
           className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
           aria-expanded={isOpen}
         >
+          {personaSurface ? (
+            <span
+              className={`grid size-8 shrink-0 place-items-center rounded-xl ${iconWellClass}`}
+              aria-hidden="true"
+            >
+              <FileText className="size-4" />
+            </span>
+          ) : null}
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium text-white/55">
+            <span
+              className={
+                personaSurface
+                  ? "block text-sm font-semibold tracking-tight text-white"
+                  : "block text-sm font-medium text-white/55"
+              }
+            >
               {label}
             </span>
             {descriptionText ? (
@@ -85,9 +121,16 @@ export function CollapsiblePromptBlock({
               </span>
             ) : null}
           </span>
-          <span className="shrink-0 text-xs text-white/30">
-            {isOpen ? "▲" : "▼"}
-          </span>
+          {personaSurface ? (
+            <ChevronDown
+              className={`size-5 shrink-0 text-white/45 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+              aria-hidden="true"
+            />
+          ) : (
+            <span className="shrink-0 text-xs text-white/30">
+              {isOpen ? "▲" : "▼"}
+            </span>
+          )}
         </button>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {canDiscuss ? (
