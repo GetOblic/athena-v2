@@ -2093,9 +2093,9 @@ export const fr: TenantMessages = {
     },
     getoblicDescription: {
       title: "Description GetOblic",
-      help: "Une description d’annuaire enrichie, créée à partir de l’intelligence vérifiée de l’entreprise et du site.",
+      help: "Une description d’annuaire créée à partir de l’intelligence de site déjà stockée par Athena. La description actuelle de l’annonce GetOblic est affichée uniquement à titre de comparaison.",
       empty:
-        "Créez une description enrichie à partir du profil de ce prospect et de l’intelligence de site disponible.",
+        "Créez une description d’annuaire à partir de l’intelligence de site qu’Athena a déjà recueillie sur le site de ce prospect.",
       generate: "Générer la description",
       generating: "Génération…",
       refresh: "Actualiser",
@@ -2106,7 +2106,7 @@ export const fr: TenantMessages = {
       failed:
         "Athena n’a pas pu générer cette description GetOblic. Réessayez.",
       currentListingCopy: "Description actuelle de l’annonce GetOblic",
-      generatedDescription: "Description GetOblic enrichie par Athena",
+      generatedDescription: "Description GetOblic générée par Athena",
     },
     homepage: {
       title: "Recherche du site",

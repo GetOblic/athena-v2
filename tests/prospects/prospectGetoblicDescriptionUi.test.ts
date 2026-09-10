@@ -81,7 +81,8 @@ describe("GetOblic Description UI", () => {
       }),
     );
     assert.match(empty, /GetOblic Description/);
-    assert.match(empty, /An enriched directory description created from verified business and website intelligence/);
+    assert.match(empty, /A directory description created from Athena&#x27;s stored Website Intelligence/);
+    assert.match(empty, /The current GetOblic listing description is shown for comparison only/);
     assert.match(empty, /aria-expanded="false"/);
     assert.match(empty, /Not generated/);
     assert.match(empty, /lucide-file-text/);
@@ -118,9 +119,11 @@ describe("GetOblic Description UI", () => {
       }),
     );
     assert.match(html, /GetOblic Description/);
-    assert.match(html, /An enriched directory description created from verified business and website intelligence/);
+    assert.match(html, /A directory description created from Athena&#x27;s stored Website Intelligence/);
+    assert.match(html, /The current GetOblic listing description is shown for comparison only/);
     assert.match(html, /Current GetOblic listing description/);
-    assert.match(html, /Athena-enriched GetOblic description/);
+    assert.match(html, /Imported GetOblic listing copy/);
+    assert.match(html, /Athena-generated GetOblic description/);
     assert.match(html, /aria-expanded="true"/);
     assert.match(html, />Ready</);
     assert.doesNotMatch(html, /Current listing copy/);
@@ -149,8 +152,17 @@ describe("GetOblic Description UI", () => {
       assert.match(block.generatedDescription, /GetOblic/);
       assert.match(
         block.help,
-        /enrich|enrichie|enriquecid|arricchita|angereicherte/i,
-        `${language}.help should emphasize enrichment`,
+        /Website Intelligence|Website-Intelligence|intelligence de site|inteligencia web|intelligence del sito|inteligência de sítio/i,
+        `${language}.help should name stored Website Intelligence`,
+      );
+      assert.match(
+        block.help,
+        /comparison only|uniquement à titre de comparaison|solo para comparación|solo per confronto|nur zum Vergleich|apenas para comparação/i,
+        `${language}.help should keep the listing display-only`,
+      );
+      assert.doesNotMatch(
+        block.help,
+        /verified business and website intelligence|intelligence vérifiée de l’entreprise|inteligencia verificada del negocio|intelligence verificata dell’azienda|geprüfter Geschäfts- und Website|inteligência verificada do negócio/i,
       );
       assert.match(
         block.generatedDescription,
@@ -160,7 +172,11 @@ describe("GetOblic Description UI", () => {
     }
     assert.match(
       en.prospects.getoblicDescription.help,
-      /enriched directory description created from verified business and website intelligence/i,
+      /created from Athena's stored Website Intelligence/i,
+    );
+    assert.match(
+      en.prospects.getoblicDescription.empty,
+      /Website Intelligence Athena has already gathered/i,
     );
     assert.equal(
       en.prospects.getoblicDescription.currentListingCopy,
@@ -168,7 +184,7 @@ describe("GetOblic Description UI", () => {
     );
     assert.equal(
       en.prospects.getoblicDescription.generatedDescription,
-      "Athena-enriched GetOblic description",
+      "Athena-generated GetOblic description",
     );
     for (const language of ORGANIZATION_LANGUAGES.filter((code) => code !== "en")) {
       assert.notEqual(

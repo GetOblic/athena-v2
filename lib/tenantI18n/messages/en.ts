@@ -2052,9 +2052,9 @@ export const en = {
     },
     getoblicDescription: {
       title: "GetOblic Description",
-      help: "An enriched directory description created from verified business and website intelligence.",
+      help: "A directory description created from Athena's stored Website Intelligence. The current GetOblic listing description is shown for comparison only.",
       empty:
-        "Create an enriched description using this prospect's business profile and available website intelligence.",
+        "Create a directory description from the Website Intelligence Athena has already gathered from this prospect's website.",
       generate: "Generate description",
       generating: "Generating…",
       refresh: "Refresh",
@@ -2064,7 +2064,7 @@ export const en = {
       copied: "Copied",
       failed: "Athena couldn’t generate this GetOblic description. Try again.",
       currentListingCopy: "Current GetOblic listing description",
-      generatedDescription: "Athena-enriched GetOblic description",
+      generatedDescription: "Athena-generated GetOblic description",
     },
     homepage: {
       title: "Website research",

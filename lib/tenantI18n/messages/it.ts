@@ -2090,9 +2090,9 @@ export const it: TenantMessages = {
     },
     getoblicDescription: {
       title: "Descrizione GetOblic",
-      help: "Una descrizione di directory arricchita, creata dall’intelligence verificata dell’azienda e del sito.",
+      help: "Una descrizione di directory creata dall’intelligence del sito già memorizzata da Athena. La descrizione attuale dell’inserzione GetOblic è mostrata solo per confronto.",
       empty:
-        "Crea una descrizione arricchita usando il profilo di questo prospect e l’intelligence del sito disponibile.",
+        "Crea una descrizione di directory dall’intelligence del sito che Athena ha già raccolto dal sito di questo prospect.",
       generate: "Genera descrizione",
       generating: "Generazione…",
       refresh: "Aggiorna",
@@ -2103,7 +2103,7 @@ export const it: TenantMessages = {
       failed:
         "Athena non è riuscita a generare questa descrizione GetOblic. Riprova.",
       currentListingCopy: "Descrizione attuale dell’inserzione GetOblic",
-      generatedDescription: "Descrizione GetOblic arricchita da Athena",
+      generatedDescription: "Descrizione GetOblic generata da Athena",
     },
     homepage: {
       title: "Ricerca del sito",

@@ -28,6 +28,8 @@ describe("GetOblic Description API", () => {
     assert.match(route, /404/);
     assert.match(route, /generatedListingDescription/);
     assert.match(route, /maxDuration = 60/);
+    assert.match(route, /error\.code/);
+    assert.match(route, /error\.httpStatus|error\.code === "NOT_FOUND"/);
   });
 
   it("persists through the isolated generator and supports refresh on the same POST", () => {
@@ -42,8 +44,11 @@ describe("GetOblic Description API", () => {
 
   it("returns a safe error payload and does not call claim, release, KB, or scrape", () => {
     const route = read("app/api/prospects/[id]/getoblic-description/route.ts");
+    const service = read("services/prospects/prospectGetoblicDescription.ts");
     assert.match(route, /GENERATION_FAILED/);
     assert.match(route, /ok: false/);
+    assert.match(service, /WEBSITE_INTELLIGENCE_REQUIRED/);
+    assert.match(service, /INVALID_OUTPUT/);
     assert.doesNotMatch(route, /claimGetOblicListing|releaseGetOblicListing/);
     assert.doesNotMatch(route, /knowledge-base|knowledgeBase/);
     assert.doesNotMatch(route, /getoblicWordpressClient|updateListing|putListing/);

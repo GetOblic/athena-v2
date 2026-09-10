@@ -2095,9 +2095,9 @@ export const de: TenantMessages = {
     },
     getoblicDescription: {
       title: "GetOblic-Beschreibung",
-      help: "Eine angereicherte Verzeichnisbeschreibung aus geprüfter Geschäfts- und Website-Intelligence.",
+      help: "Eine Verzeichnisbeschreibung aus der von Athena gespeicherten Website-Intelligence. Die aktuelle GetOblic-Listing-Beschreibung dient nur zum Vergleich.",
       empty:
-        "Erstellen Sie eine angereicherte Beschreibung aus dem Geschäftsprofil und der verfügbaren Website-Intelligence.",
+        "Erstellen Sie eine Verzeichnisbeschreibung aus der Website-Intelligence, die Athena bereits von der Website dieses Prospects erfasst hat.",
       generate: "Beschreibung erzeugen",
       generating: "Wird erzeugt…",
       refresh: "Aktualisieren",
@@ -2108,7 +2108,7 @@ export const de: TenantMessages = {
       failed:
         "Athena konnte diese GetOblic-Beschreibung nicht erzeugen. Bitte erneut versuchen.",
       currentListingCopy: "Aktuelle GetOblic-Listing-Beschreibung",
-      generatedDescription: "Von Athena angereicherte GetOblic-Beschreibung",
+      generatedDescription: "Von Athena erzeugte GetOblic-Beschreibung",
     },
     homepage: {
       title: "Website-Recherche",

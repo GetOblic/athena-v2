@@ -10,12 +10,14 @@ import { describe, it } from "node:test";
 import {
   buildGetoblicDescriptionContext,
   classifyGetoblicDescriptionEvidence,
+  containsGetoblicDescriptionContamination,
   extractUsableWebsiteIntelligence,
   formatGetoblicDescriptionUserPrompt,
   generateProspectGetoblicDescription,
   GETOBLIC_DESCRIPTION_DEPTH_TARGETS,
   GETOBLIC_DESCRIPTION_MAX_CHARS,
   GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
+  hasUsableWebsiteIntelligence,
   persistGeneratedListingDescription,
   ProspectGetoblicDescriptionError,
   readObservedListingDescription,
@@ -123,25 +125,45 @@ function sampleProspect(overrides: Partial<Prospect> = {}): Prospect {
   };
 }
 
+const DISTINCTIVE_LISTING_COPY =
+  "UNIQUE_JETSONS_LISTING_COPY orange shag carpet steam special 1973.";
+
 describe("GetOblic Description context", () => {
-  it("builds trusted context from the prospect profile", () => {
+  it("builds only minimal identity anchors for generation", () => {
     const context = buildGetoblicDescriptionContext(sampleProspect());
-    assert.equal(context.business.name, "Acme Clinic");
-    assert.equal(context.business.category, "Clinics");
-    assert.equal(context.business.industry, "Healthcare");
-    assert.equal(context.business.website, "https://acme.example");
-    assert.equal(context.business.city, "Dallas");
-    assert.equal(context.business.phone, "555-0100");
-    assert.equal(context.business.email, "hello@acme.example");
+    assert.equal(context.identity.name, "Acme Clinic");
+    assert.equal(context.identity.city, "Dallas");
+    assert.equal(context.identity.state, "TX");
+    assert.equal(context.identity.country, "United States");
+    assert.equal(
+      JSON.stringify(Object.keys(context.identity).sort()),
+      JSON.stringify(["city", "country", "name", "state"]),
+    );
+    assert.equal("business" in context, false);
+    assert.equal("currentListingDescription" in context, false);
+    assert.equal("listingProvenance" in context, false);
+    assert.equal("socialPresence" in context, false);
+    assert.equal("operatorNotes" in context, false);
+    assert.equal("additionalContext" in context, false);
+    assert.doesNotMatch(JSON.stringify(context), /Clinics|Healthcare|555-0100|hello@acme/);
   });
 
-  it("includes the imported observed listing description when present", () => {
-    const context = buildGetoblicDescriptionContext(sampleProspect());
-    assert.equal(context.currentListingDescription, "Imported GetOblic listing copy.");
+  it("keeps the current listing description display-only and out of generation context", () => {
+    const prospect = sampleProspect({
+      raw_json: {
+        origin: "getoblic_directory",
+        observed: { description: DISTINCTIVE_LISTING_COPY },
+      },
+    });
+    const context = buildGetoblicDescriptionContext(prospect);
+    const prompt = formatGetoblicDescriptionUserPrompt(context);
     assert.equal(
-      readObservedListingDescription(sampleProspect().raw_json),
-      "Imported GetOblic listing copy.",
+      readObservedListingDescription(prospect.raw_json),
+      DISTINCTIVE_LISTING_COPY,
     );
+    assert.equal("currentListingDescription" in context, false);
+    assert.doesNotMatch(prompt, /UNIQUE_JETSONS_LISTING_COPY|orange shag carpet/);
+    assert.doesNotMatch(JSON.stringify(context), /UNIQUE_JETSONS_LISTING_COPY/);
   });
 
   it("includes existing usable website intelligence and skips unsupported claims", () => {
@@ -173,31 +195,23 @@ describe("GetOblic Description context", () => {
     assert.doesNotMatch(extracted.business_knowledge, /\$99|Best clinic/);
   });
 
-  it("uses website intelligence as a major enrichment source, not a listing rewrite", () => {
+  it("supplies Website Intelligence facts and excludes listing, profile, and social sources", () => {
     const context = buildGetoblicDescriptionContext(sampleProspect());
     const prompt = formatGetoblicDescriptionUserPrompt(context);
-    const factsIndex = prompt.indexOf("Structured business facts:");
+    const identityIndex = prompt.indexOf(
+      "Identity anchors (who and where only; not descriptive evidence):",
+    );
     const wiIndex = prompt.indexOf(
-      "Stored website intelligence (major enrichment source",
+      "Stored Website Intelligence (sole descriptive evidence):",
     );
-    const listingIndex = prompt.indexOf(
-      "Current GetOblic listing description (factual source/provenance; not the ceiling)",
-    );
-    assert.ok(factsIndex > 0);
-    assert.ok(wiIndex > factsIndex);
-    assert.ok(listingIndex > wiIndex);
-    assert.equal(context.listingProvenance?.hours, "Monday–Friday 8:00 AM–6:00 PM");
-    assert.match(prompt, /Monday–Friday 8:00 AM–6:00 PM/);
-    assert.match(prompt, /not a rewrite of the current listing description/);
-    assert.match(prompt, /It is not the ceiling/);
-    assert.match(
-      prompt,
-      /When stored website intelligence contains useful facts that are not in the current listing/,
-    );
+    assert.ok(identityIndex > 0);
+    assert.ok(wiIndex > identityIndex);
     assert.match(prompt, /Pediatric wellness and weekday primary care/);
     assert.match(prompt, /Same-day sick-visit appointments/);
-    assert.match(prompt, /Internally select the useful supported facts, then write editorial synthesis/);
-    assert.match(prompt, /Preserve important supported facts/);
+    assert.match(prompt, /Primary care and wellness visits/);
+    assert.match(prompt, /A neighborhood clinic serving local families/);
+    assert.match(prompt, /Physician-led clinic/);
+    assert.match(prompt, /Website Intelligence is the sole descriptive evidence/);
     assert.match(prompt, /Use the business name naturally/);
     assert.match(prompt, /do not repeat the business name as the subject of every sentence/);
     assert.match(prompt, /Prefer restructuring sentences over mechanically substituting The business or The company/);
@@ -205,8 +219,22 @@ describe("GetOblic Description context", () => {
     assert.match(prompt, /Distinguish FACT from MARKETING CLAIM/);
     assert.match(prompt, /Do not scrape or request new website intelligence/);
     assert.match(prompt, /Never infer a service area/);
+    assert.match(prompt, /Name: Acme Clinic/);
+    assert.match(prompt, /City: Dallas/);
+    assert.match(prompt, /State: TX/);
+    assert.match(prompt, /Country: United States/);
+    assert.doesNotMatch(prompt, /Imported GetOblic listing copy/);
+    assert.doesNotMatch(prompt, /Neighborhood care/);
+    assert.doesNotMatch(prompt, /Monday–Friday 8:00 AM–6:00 PM/);
+    assert.doesNotMatch(prompt, /Clinics|Healthcare/);
+    assert.doesNotMatch(prompt, /https:\/\/linkedin\.com\/company\/acme/);
+    assert.doesNotMatch(prompt, /https:\/\/maps\.google\.com\/\?cid=1/);
+    assert.doesNotMatch(prompt, /Prefers weekday appointments|Family-owned since the owner mentioned it privately/);
+    assert.doesNotMatch(prompt, /100 Main St|555-0100|hello@acme\.example|https:\/\/acme\.example/);
+    assert.doesNotMatch(prompt, /getoblic_directory|wordpress_listing_id|listing\/acme/);
+    assert.doesNotMatch(prompt, /Current GetOblic listing description|factual source\/provenance|SOURCE HIERARCHY/);
+    assert.doesNotMatch(prompt, /FACT SELECTION|STAGE 1|STAGE 2|editorial synthesis/);
     assert.doesNotMatch(prompt, /North Texas|north-texas/);
-    assert.doesNotMatch(prompt, /primary factual source to synthesize and improve/);
     assert.doesNotMatch(prompt, /500–900 characters/);
     assert.match(
       prompt,
@@ -214,16 +242,16 @@ describe("GetOblic Description context", () => {
     );
   });
 
-  it("drops placeholder listing taglines and does not pass directory region taxonomy", () => {
+  it("never sends listing facts, hours, taglines, or directory region taxonomy to generation", () => {
     const context = buildGetoblicDescriptionContext(
       sampleProspect({
         raw_json: {
           origin: "getoblic_directory",
           wordpress_listing_id: 44,
           observed: {
-            description: "Imported GetOblic listing copy.",
-            tagline: "Your business tagline here",
-            text_hours: "Saturday 9:00 AM–1:00 PM",
+            description: DISTINCTIVE_LISTING_COPY,
+            tagline: "UNIQUE_TAGLINE_NEIGHBORHOOD_CARE",
+            text_hours: "UNIQUE_HOURS_SATURDAY 9:00 AM–1:00 PM",
             region: { name: "Los Angeles", slug: "los-angeles" },
             tags: [{ name: "Your service" }, { name: "Your value" }],
           },
@@ -231,14 +259,13 @@ describe("GetOblic Description context", () => {
       }),
     );
     const prompt = formatGetoblicDescriptionUserPrompt(context);
-    assert.equal(context.listingProvenance?.tagline, null);
-    assert.equal(context.listingProvenance?.hours, "Saturday 9:00 AM–1:00 PM");
-    assert.doesNotMatch(prompt, /Your business tagline here|Your service|Your value/);
+    assert.doesNotMatch(prompt, /UNIQUE_JETSONS_LISTING_COPY|UNIQUE_TAGLINE_NEIGHBORHOOD_CARE/);
+    assert.doesNotMatch(prompt, /UNIQUE_HOURS_SATURDAY|Your service|Your value/);
     assert.doesNotMatch(prompt, /Los Angeles|los-angeles/);
-    assert.match(prompt, /Saturday 9:00 AM–1:00 PM/);
+    assert.doesNotMatch(prompt, /getoblic_directory|wordpress_listing_id/);
   });
 
-  it("locks the enrichment, adaptive-depth, and factuality contract without requiring exact model prose", () => {
+  it("locks the Website-Intelligence-only, adaptive-depth, and factuality contract without requiring exact model prose", () => {
     assert.deepEqual(GETOBLIC_DESCRIPTION_DEPTH_TARGETS, {
       low: { min: 400, max: 700 },
       medium: { min: 700, max: 1100 },
@@ -252,15 +279,17 @@ describe("GetOblic Description context", () => {
     );
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
-      /not a safer rewrite of the current GetOblic listing description/,
+      /Stored Website Intelligence is the sole descriptive evidence source/,
     );
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
-      /ONE source\. It is not the ceiling/,
+      /Do not use, rewrite, compare against, or fall back to any current or imported GetOblic listing description/,
     );
-    assert.match(GETOBLIC_DESCRIPTION_SYSTEM_PROMPT, /FACT SELECTION/);
-    assert.match(GETOBLIC_DESCRIPTION_SYSTEM_PROMPT, /EDITORIAL SYNTHESIS/);
-    assert.match(GETOBLIC_DESCRIPTION_SYSTEM_PROMPT, /factual enrichment and synthesis/);
+    assert.match(GETOBLIC_DESCRIPTION_SYSTEM_PROMPT, /IDENTITY ANCHORS/);
+    assert.match(
+      GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
+      /They are not descriptive evidence/,
+    );
     assert.match(GETOBLIC_DESCRIPTION_SYSTEM_PROMPT, /INFORMATION DENSITY/);
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
@@ -294,7 +323,7 @@ describe("GetOblic Description context", () => {
     );
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
-      /If trusted source material is sparse, a shorter description is appropriate/,
+      /If Website Intelligence is sparse, a shorter description is appropriate/,
     );
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
@@ -328,14 +357,7 @@ describe("GetOblic Description context", () => {
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
       /that may be used as a factual service or process statement/,
     );
-    assert.match(
-      GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
-      /SOURCE HIERARCHY[\s\S]*Structured business facts[\s\S]*Stored website intelligence[\s\S]*current GetOblic listing description/,
-    );
-    assert.match(
-      GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
-      /Stored website intelligence\. This is a major enrichment source/,
-    );
+    assert.match(GETOBLIC_DESCRIPTION_SYSTEM_PROMPT, /WEBSITE INTELLIGENCE ONLY/);
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
       /Do not request, assume, or invent a new website scrape/,
@@ -343,10 +365,6 @@ describe("GetOblic Description context", () => {
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
       /Never infer a service area from city, address, region taxonomy, nearby metro, permalink, or directory hierarchy/,
-    );
-    assert.match(
-      GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
-      /Never expand geography beyond explicitly supported source data/,
     );
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
@@ -382,11 +400,7 @@ describe("GetOblic Description context", () => {
     );
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
-      /Hours may be included when they improve the description/,
-    );
-    assert.match(
-      GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
-      /Do not include them solely to satisfy length/,
+      /HARD OUTPUT CONTRACT/,
     );
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
@@ -394,11 +408,23 @@ describe("GetOblic Description context", () => {
     );
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
-      /Return only the final directory description/,
+      /Return only the final customer-facing directory description/,
     );
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
       /Pricing is intentionally excluded from public GetOblic Description generation because it may change/,
+    );
+    assert.doesNotMatch(GETOBLIC_DESCRIPTION_SYSTEM_PROMPT, /STAGE 1|STAGE 2/);
+    assert.doesNotMatch(GETOBLIC_DESCRIPTION_SYSTEM_PROMPT, /FACT SELECTION/);
+    assert.doesNotMatch(GETOBLIC_DESCRIPTION_SYSTEM_PROMPT, /EDITORIAL SYNTHESIS/);
+    assert.doesNotMatch(GETOBLIC_DESCRIPTION_SYSTEM_PROMPT, /SOURCE HIERARCHY/);
+    assert.doesNotMatch(
+      GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
+      /current GetOblic listing description/,
+    );
+    assert.doesNotMatch(
+      GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
+      /If no website intelligence is available, generate from the remaining trusted sources/,
     );
     assert.doesNotMatch(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
@@ -418,7 +444,7 @@ describe("GetOblic Description context", () => {
     );
   });
 
-  it("classifies evidence-adaptive depth and does not require padding", () => {
+  it("classifies evidence-adaptive depth from Website Intelligence only", () => {
     const rich = classifyGetoblicDescriptionEvidence(
       buildGetoblicDescriptionContext(sampleProspect()),
     );
@@ -435,12 +461,6 @@ describe("GetOblic Description context", () => {
             about: "A neighborhood clinic serving local families in Dallas.",
             services: "Primary care and wellness visits on weekdays.",
           },
-          raw_json: {
-            observed: {
-              description:
-                "Acme Clinic is a neighborhood clinic in Dallas offering weekday primary care for local families who want convenient appointments close to home.",
-            },
-          },
         }),
       ),
     );
@@ -448,42 +468,63 @@ describe("GetOblic Description context", () => {
     assert.equal(medium.preferredMin, 700);
     assert.equal(medium.preferredMax, 1100);
 
-    const low = classifyGetoblicDescriptionEvidence(
+    const longListing = `${"Acme Clinic neighborhood care. ".repeat(40)}${DISTINCTIVE_LISTING_COPY}`;
+    assert.ok(longListing.length >= 200);
+    const lowDespiteLongListing = classifyGetoblicDescriptionEvidence(
       buildGetoblicDescriptionContext(
         sampleProspect({
-          website_intelligence: null,
-          notes: null,
-          additional_context: null,
+          website_intelligence: { about: "Neighborhood clinic." },
+          raw_json: { observed: { description: longListing } },
+        }),
+      ),
+    );
+    const lowWithoutListing = classifyGetoblicDescriptionEvidence(
+      buildGetoblicDescriptionContext(
+        sampleProspect({
+          website_intelligence: { about: "Neighborhood clinic." },
           raw_json: { observed: { description: "A clinic in Dallas." } },
         }),
       ),
     );
-    assert.equal(low.band, "low");
-    assert.equal(low.preferredMin, 400);
-    assert.equal(low.preferredMax, 700);
-    assert.equal(low.websiteIntelligenceFieldCount, 0);
+    assert.equal(lowDespiteLongListing.band, "low");
+    assert.equal(lowWithoutListing.band, "low");
+    assert.equal(lowDespiteLongListing.band, lowWithoutListing.band);
+    assert.equal(lowDespiteLongListing.preferredMin, 400);
+    assert.equal(lowDespiteLongListing.preferredMax, 700);
+    assert.ok(lowDespiteLongListing.websiteIntelligenceChars < 80);
+
+    const emptyContext = buildGetoblicDescriptionContext(
+      sampleProspect({
+        website_intelligence: null,
+        raw_json: { observed: { description: longListing } },
+      }),
+    );
+    const empty = classifyGetoblicDescriptionEvidence(emptyContext);
+    assert.equal(empty.band, "low");
+    assert.equal(empty.websiteIntelligenceFieldCount, 0);
+    assert.equal(hasUsableWebsiteIntelligence(emptyContext.websiteIntelligence), false);
 
     const richPrompt = formatGetoblicDescriptionUserPrompt(
       buildGetoblicDescriptionContext(sampleProspect()),
     );
-    assert.match(richPrompt, /Evidence available for this business is RICH/);
+    assert.match(richPrompt, /Website Intelligence available for this business is RICH/);
     assert.match(richPrompt, /approximately 900–1500 characters/);
     assert.match(richPrompt, /maximum useful factual information density, not maximum length/);
 
     const lowPrompt = formatGetoblicDescriptionUserPrompt(
       buildGetoblicDescriptionContext(
         sampleProspect({
-          website_intelligence: null,
-          notes: null,
-          additional_context: null,
-          raw_json: { observed: { description: "A clinic in Dallas." } },
+          website_intelligence: { about: "Neighborhood clinic." },
+          raw_json: { observed: { description: longListing } },
         }),
       ),
     );
-    assert.match(lowPrompt, /Evidence available for this business is LOW/);
+    assert.match(lowPrompt, /Website Intelligence available for this business is LOW/);
     assert.match(lowPrompt, /approximately 400–700 characters/);
     assert.match(lowPrompt, /Never invent, repeat, or pad to reach it/);
-    assert.doesNotMatch(lowPrompt, /Stored website intelligence \(major enrichment source/);
+    assert.match(lowPrompt, /Neighborhood clinic/);
+    assert.doesNotMatch(lowPrompt, /UNIQUE_JETSONS_LISTING_COPY/);
+    assert.doesNotMatch(lowPrompt, /Current GetOblic listing description/);
   });
 
   it("does not treat marketing claims as automatic facts", () => {
@@ -537,14 +578,16 @@ describe("GetOblic Description context", () => {
     assert.doesNotMatch(JSON.stringify(context), /opportunity_score|recommended_action/);
   });
 
-  it("does not dump raw_json or executive analysis into the prompt", () => {
+  it("does not dump raw_json, listing copy, or executive analysis into the prompt", () => {
     const prompt = formatGetoblicDescriptionUserPrompt(
       buildGetoblicDescriptionContext(sampleProspect()),
     );
     assert.doesNotMatch(prompt, /wordpress_listing_id":44|analysis/);
-    assert.match(prompt, /Imported GetOblic listing copy/);
-    assert.match(prompt, /https:\/\/acme\.example/);
-    assert.match(prompt, /Current GetOblic listing description \(factual source\/provenance; not the ceiling\)/);
+    assert.doesNotMatch(prompt, /Imported GetOblic listing copy/);
+    assert.doesNotMatch(prompt, /https:\/\/acme\.example/);
+    assert.doesNotMatch(prompt, /Current GetOblic listing description/);
+    assert.match(prompt, /Stored Website Intelligence \(sole descriptive evidence\)/);
+    assert.match(prompt, /Acme Clinic/);
   });
 });
 
@@ -662,7 +705,9 @@ describe("GetOblic Description volatile pricing exclusion", () => {
     assert.match(prompt, /Barrier cream/);
     assert.match(prompt, /Custom facial/);
     assert.match(prompt, /Skin analysis before product selection/);
-    assert.match(prompt, /Monday–Friday 8:00 AM–6:00 PM/);
+    assert.doesNotMatch(prompt, /Monday–Friday 8:00 AM–6:00 PM/);
+    assert.doesNotMatch(prompt, /Mention the \$42 SPF|Competitively priced versus nearby spas/);
+    assert.doesNotMatch(prompt, /Clinic copy with prices start at/);
     assert.match(
       GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
       /keep the product or service fact and omit the price/,
@@ -696,6 +741,7 @@ describe("GetOblic Description volatile pricing exclusion", () => {
         generateReview: async (prompt) => {
           assert.match(prompt, /Invisible Daily SPF/);
           assert.doesNotMatch(prompt, /\$42|\$36\.00/);
+          assert.doesNotMatch(prompt, /SOURCE LISTING COPY MUST STAY/);
           assert.doesNotMatch(prompt, /deep-scrape|queueDeepScrape|scrape the website/);
           return "Acme Clinic offers Invisible Daily SPF in Dallas.";
         },
@@ -759,6 +805,40 @@ describe("GetOblic Description output validation", () => {
     assert.equal(validateGeneratedListingDescription(shortCopy), shortCopy);
   });
 
+  it("rejects Jetsons-style reasoning scaffolding and does not salvage a final paragraph", () => {
+    const contaminated = [
+      "STAGE 1 — FACT SELECTION",
+      "Synthesized Fact List",
+      "Confidence Score: 0.91",
+      "Strategizing for Synthesis",
+      "STAGE 2 — EDITORIAL SYNTHESIS",
+      "Acme Clinic provides neighborhood primary care in Dallas.",
+    ].join("\n");
+    assert.equal(containsGetoblicDescriptionContamination(contaminated), true);
+    assert.throws(
+      () => validateGeneratedListingDescription(contaminated),
+      (error: unknown) =>
+        error instanceof ProspectGetoblicDescriptionError &&
+        error.code === "INVALID_OUTPUT" &&
+        error.httpStatus === 502,
+    );
+    assert.throws(
+      () =>
+        validateGeneratedListingDescription(
+          `Description:\n${contaminated}`,
+        ),
+      (error: unknown) =>
+        error instanceof ProspectGetoblicDescriptionError &&
+        error.code === "INVALID_OUTPUT",
+    );
+    assert.throws(
+      () => validateGeneratedListingDescription(`\`\`\`\n${contaminated}\n\`\`\``),
+      (error: unknown) =>
+        error instanceof ProspectGetoblicDescriptionError &&
+        error.code === "INVALID_OUTPUT",
+    );
+  });
+
   it("does not apply a post-generation phrase rejection filter", () => {
     const copy =
       "Acme Clinic aims to provide neighborhood primary care in Dallas.";
@@ -790,8 +870,12 @@ describe("GetOblic Description generation and persistence", () => {
         generateReview: async (prompt, meta) => {
           generateCalls += 1;
           assert.match(prompt, /Acme Clinic/);
-          assert.match(prompt, /Imported GetOblic listing copy/);
+          assert.match(prompt, /Dallas/);
           assert.match(prompt, /Primary care and wellness visits/);
+          assert.doesNotMatch(prompt, /Imported GetOblic listing copy/);
+          assert.doesNotMatch(prompt, /Neighborhood care|Monday–Friday 8:00 AM–6:00 PM/);
+          assert.doesNotMatch(prompt, /https:\/\/linkedin\.com\/company\/acme|https:\/\/maps\.google\.com/);
+          assert.doesNotMatch(prompt, /Prefers weekday appointments|Family-owned since/);
           assert.doesNotMatch(prompt, /opportunity_score|recommended_action/);
           assert.doesNotMatch(prompt, /\$99|\$36|affordable|20% off/);
           assert.equal(meta?.systemPrompt, GETOBLIC_DESCRIPTION_SYSTEM_PROMPT);
@@ -825,6 +909,88 @@ describe("GetOblic Description generation and persistence", () => {
       (prospect.raw_json?.observed as { description?: string }).description,
       sourceDescription,
     );
+  });
+
+  it("does not call the model or overwrite generated copy when Website Intelligence is missing", async () => {
+    const previous = {
+      description: "Previous generated copy.",
+      generatedAt: "2026-09-01T00:00:00.000Z",
+    };
+    const prospect = sampleProspect({
+      website_intelligence: null,
+      generated_listing_description: previous,
+    });
+    let generateCalls = 0;
+    let persistCalls = 0;
+
+    await assert.rejects(
+      () =>
+        generateProspectGetoblicDescription(
+          { prospectId: prospect.id, organizationId: prospect.organization_id },
+          {
+            getProspect: async () => prospect,
+            generateReview: async () => {
+              generateCalls += 1;
+              return "Should not be generated.";
+            },
+            persistGeneratedListingDescription: async () => {
+              persistCalls += 1;
+              throw new Error("should not persist");
+            },
+          },
+        ),
+      (error: unknown) =>
+        error instanceof ProspectGetoblicDescriptionError &&
+        error.code === "WEBSITE_INTELLIGENCE_REQUIRED" &&
+        error.httpStatus === 422,
+    );
+
+    assert.equal(generateCalls, 0);
+    assert.equal(persistCalls, 0);
+    assert.deepEqual(prospect.generated_listing_description, previous);
+    assert.equal(
+      (prospect.raw_json?.observed as { description?: string }).description,
+      "Imported GetOblic listing copy.",
+    );
+  });
+
+  it("does not persist Jetsons-style contaminated output", async () => {
+    const previous = {
+      description: "Previous generated copy.",
+      generatedAt: "2026-09-01T00:00:00.000Z",
+    };
+    const prospect = sampleProspect({
+      generated_listing_description: previous,
+    });
+    let persistCalls = 0;
+
+    await assert.rejects(
+      () =>
+        generateProspectGetoblicDescription(
+          { prospectId: prospect.id, organizationId: prospect.organization_id },
+          {
+            getProspect: async () => prospect,
+            generateReview: async () =>
+              [
+                "STAGE 1 — FACT SELECTION",
+                "Synthesized Fact List",
+                "Confidence Score",
+                "Strategizing for Synthesis",
+                "Acme Clinic provides neighborhood primary care in Dallas.",
+              ].join("\n"),
+            persistGeneratedListingDescription: async () => {
+              persistCalls += 1;
+              throw new Error("should not persist");
+            },
+          },
+        ),
+      (error: unknown) =>
+        error instanceof ProspectGetoblicDescriptionError &&
+        error.code === "INVALID_OUTPUT",
+    );
+
+    assert.equal(persistCalls, 0);
+    assert.deepEqual(prospect.generated_listing_description, previous);
   });
 
   it("does not persist malformed output and leaves the previous generated copy intact", async () => {

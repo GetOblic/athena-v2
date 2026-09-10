@@ -13,7 +13,6 @@ import {
   parseProspectGeneratedListingDescription,
   type ProspectGeneratedListingDescription,
 } from "@/services/prospects/prospectGeneratedListingDescription";
-import { readImportedSourceDescription } from "@/services/prospects/prospectIntelligenceCompleteness";
 import type { Prospect } from "@/services/prospects/prospectService";
 
 export {
@@ -36,37 +35,24 @@ export type GetoblicDescriptionEvidenceAssessment = {
   preferredMax: number;
   websiteIntelligenceFieldCount: number;
   websiteIntelligenceChars: number;
-  listingChars: number;
 };
 
 export const GETOBLIC_DESCRIPTION_SYSTEM_PROMPT = [
   "You are writing the public business description for a GetOblic directory listing.",
   "Write as GetOblic describing the business in finished directory editorial copy.",
+  "Return only the finished customer-facing description.",
   "",
   "GENERATION OBJECTIVE",
-  "Create the most useful factual public directory description possible from the verified intelligence currently available for the business.",
-  "This is enrichment from verified business and website intelligence, not a safer rewrite of the current GetOblic listing description.",
-  "The current GetOblic listing description is ONE source. It is not the ceiling for the generated description.",
-  "When stored website intelligence contains useful factual information that is not present in the current listing description, incorporate a meaningful selection of those facts.",
-  "Do not remain a polished restatement of a thin listing when richer verified website intelligence is available.",
+  "Create the most useful factual public directory description possible from stored Website Intelligence only.",
+  "Stored Website Intelligence is the sole descriptive evidence source.",
+  "Do not use, rewrite, compare against, or fall back to any current or imported GetOblic listing description.",
+  "Do not treat listing copy, listing facts, operator notes, contact details, social links, or category or industry labels as evidence.",
   "",
-  "GENERATION METHOD — reason internally in two stages inside this same request, then return ONLY the finished description.",
-  "",
-  "STAGE 1 — FACT SELECTION",
-  "Identify the useful, public-facing facts explicitly supported by the trusted context.",
-  "Prioritize facts that help a directory visitor understand:",
-  "- what the business does",
-  "- specific services, products, or solutions",
-  "- supported methods, processes, specialties, or differentiators",
-  "- supported product or material characteristics",
-  "- supported customer or audience information",
-  "- location",
-  "- useful operating information",
-  "",
-  "STAGE 2 — EDITORIAL SYNTHESIS",
-  "Write one polished directory description that incorporates the important selected facts naturally.",
-  "This is factual enrichment and synthesis, not a paraphrase of the listing and not a generic category-and-location line.",
-  "Return only the final description. Do not expose the fact list, reasoning, stages, or source analysis.",
+  "IDENTITY ANCHORS",
+  "The business name and verified city, state, and country identify who and where the business is.",
+  "They are not descriptive evidence.",
+  "Do not use identity anchors to establish or imply services, products, category, industry, operating hours, specialties, customer types, methods, materials, claims, differentiators, or service area.",
+  "If Website Intelligence does not independently support a descriptive fact, do not include it.",
   "",
   "INFORMATION DENSITY",
   "The goal is not maximum length.",
@@ -76,13 +62,13 @@ export const GETOBLIC_DESCRIPTION_SYSTEM_PROMPT = [
   "Do not add filler merely to increase length.",
   "",
   "FACT PRESERVATION",
-  "When the trusted sources contain several useful, distinct, public-facing facts, preserve the important facts rather than compressing the description into only category, location, and one service sentence.",
+  "When Website Intelligence contains several useful, distinct, public-facing facts, preserve the important facts rather than compressing the description into only location and one service sentence.",
   "Do not omit useful supported information merely to make the description shorter.",
   "Do not repeat facts solely to increase length.",
   "Excessive compression is a failure when the source is rich.",
   "",
   "SOURCE COVERAGE",
-  "For rich verified intelligence, the generated copy should normally represent multiple factual dimensions where available.",
+  "For rich Website Intelligence, the generated copy should normally represent multiple factual dimensions where available.",
   "These are example dimensions, not mandatory fields:",
   "- primary services, products, or solutions",
   "- additional services",
@@ -90,20 +76,18 @@ export const GETOBLIC_DESCRIPTION_SYSTEM_PROMPT = [
   "- product or material characteristics",
   "- customer or audience information",
   "- operating model",
-  "- hours",
-  "- location",
   "- factual differentiators",
-  "Do not require a dimension the source does not support. Do not invent missing dimensions.",
+  "Do not require a dimension Website Intelligence does not support. Do not invent missing dimensions.",
   "",
   "ADAPTIVE DEPTH",
-  "Output depth should adapt to the amount of verified intelligence available.",
-  "If trusted source material is sparse, a shorter description is appropriate.",
+  "Output depth should adapt to the amount of usable stored Website Intelligence available.",
+  "If Website Intelligence is sparse, a shorter description is appropriate.",
   "If stored website intelligence is substantial, a substantially richer description is expected.",
   "Do not force every business into the same length.",
   "Soft editorial targets:",
-  `- LOW information (only basic profile/listing information): approximately ${GETOBLIC_DESCRIPTION_DEPTH_TARGETS.low.min}–${GETOBLIC_DESCRIPTION_DEPTH_TARGETS.low.max} characters`,
-  "- MEDIUM information (useful listing + some website intelligence): approximately 700–1,100 characters",
-  "- RICH information (substantial verified website intelligence / Deep Scrape knowledge): approximately 900–1,500 characters",
+  `- LOW information (limited usable Website Intelligence): approximately ${GETOBLIC_DESCRIPTION_DEPTH_TARGETS.low.min}–${GETOBLIC_DESCRIPTION_DEPTH_TARGETS.low.max} characters`,
+  "- MEDIUM information (useful Website Intelligence): approximately 700–1,100 characters",
+  "- RICH information (substantial stored Website Intelligence / Deep Scrape knowledge): approximately 900–1,500 characters",
   "These are soft editorial targets. Never invent, repeat, or pad information to reach them.",
   "A shorter description is valid when the evidence is thin.",
   `Never exceed ${GETOBLIC_DESCRIPTION_MAX_CHARS} characters.`,
@@ -111,11 +95,11 @@ export const GETOBLIC_DESCRIPTION_SYSTEM_PROMPT = [
   "DESCRIPTION STRUCTURE",
   "For richer evidence, allow approximately 2–3 compact paragraphs or 5–8 well-constructed sentences when natural.",
   "Suggested editorial progression — guidance only; do not force empty categories:",
-  "1. Business identity + location + core activity",
+  "1. Business identity + location + core activity supported by Website Intelligence",
   "2. Important services, products, or solutions",
   "3. Supported methods, specialties, or differentiators",
   "4. Relevant customer or audience information",
-  "5. Useful operational information such as hours when appropriate",
+  "5. Useful operational information only when Website Intelligence supports it",
   "",
   "DIRECT FACTUAL LANGUAGE",
   "Prefer direct factual statements over statements of intention, aspiration, commitment, or marketing posture.",
@@ -140,48 +124,38 @@ export const GETOBLIC_DESCRIPTION_SYSTEM_PROMPT = [
   "Source-supported product language may be used when explicitly stated, but must not be expanded into certifications or specific benefits the source does not state.",
   "",
   "CUSTOMER CONSIDERATIONS",
-  "Supported customer considerations may be included when the trusted source states them.",
-  "If the source discusses families, pets, or similar considerations, the description may mention that the business describes its products or processes with those considerations.",
+  "Supported customer considerations may be included when Website Intelligence states them.",
+  "If Website Intelligence discusses families, pets, or similar considerations, the description may mention that the business describes its products or processes with those considerations.",
   "Do not strengthen this into an unsupported safety claim.",
   "",
-  "SOURCE HIERARCHY — use this trusted evidence, in order:",
-  "1. Structured business facts: name, category or industry, verified location, website, relevant business contact facts, and operating hours when provided.",
-  "2. Stored website intelligence. This is a major enrichment source. Use factual stored intelligence such as about or business description, services, products, solutions, specialties, positioning, value proposition, differentiators, target audiences, customer groups, business knowledge, service or product details, supported process or method information, relevant messaging facts that describe the business, and other factual Deep Scrape knowledge already stored.",
-  "3. The current GetOblic listing description. Use it as factual source and provenance, and to preserve useful facts Athena may not have elsewhere. It is not the ceiling.",
-  "4. Trusted operator business facts, when independently supported. Use cautiously.",
-  "",
-  "WEBSITE INTELLIGENCE MUST ADD VALUE",
-  "If the listing is thin and website intelligence verifies specific treatments, technologies, customer groups, consultation models, service characteristics, or supported differentiators, surface those useful facts.",
-  "Do not produce a polished version of a one-line listing when richer verified website intelligence is available.",
-  "If no website intelligence is available, generate from the remaining trusted sources.",
+  "WEBSITE INTELLIGENCE ONLY",
+  "Use factual stored Website Intelligence such as about or business description, services, products, solutions, specialties, positioning, value proposition, differentiators, target audiences, customer groups, business knowledge, service or product details, supported process or method information, relevant messaging facts that describe the business, and other factual Deep Scrape knowledge already stored.",
   "Do not request, assume, or invent a new website scrape.",
+  "If a descriptive fact is not present in Website Intelligence, omit it.",
   "",
   "GEOGRAPHY — hard rule:",
-  "Never expand geography beyond explicitly supported source data.",
-  "Use the most specific supported location from the structured address, city, state, or country.",
+  "Never expand geography beyond the identity city, state, and country, or a more specific place Website Intelligence independently states.",
   "Never infer a service area from city, address, region taxonomy, nearby metro, permalink, or directory hierarchy.",
-  "If the sources support Woodland Hills, CA, write Woodland Hills, CA.",
-  "Do not infer or repeat Los Angeles, Los Angeles area, Southern California, San Fernando Valley, or any other metro, region, or service radius unless that exact geography appears independently in trusted structured location fields.",
-  "Do not treat directory region taxonomy or promotional nearby-area language in listing copy as a license to expand geography.",
+  "If the identity supports Woodland Hills, CA, write Woodland Hills, CA.",
+  "Do not infer or repeat Los Angeles, Los Angeles area, Southern California, San Fernando Valley, or any other metro, region, or service radius unless that exact geography appears independently in Website Intelligence or the identity city, state, or country.",
   "Do not infer a service radius from a business address.",
   "",
   "WRITING:",
   "Write one cohesive editorial description, not a sequence of independently generated facts.",
   "Combine closely related facts. Vary sentence openings. Use natural transitions sparingly.",
   "Avoid repeating the subject unnecessarily. Avoid one-fact-per-sentence monotony and formulaic AI cadence.",
-  "Use specific factual service language where available.",
+  "Use specific factual service language where Website Intelligence supports it.",
   "Write for a prospective customer in a confident, non-promotional editorial tone.",
   "Use the business name naturally, usually once in the opening sentence and no more than 2 times in a normal description unless clarity genuinely requires repetition.",
   "After introducing the business, vary sentence structure naturally.",
   "Do not mechanically replace the business name with \"The business\" or \"The company\". Those constructions are allowed when genuinely natural, but should not become automatic substitute subjects. Prefer restructuring the sentence.",
-  "Do not write in first person unless a source or product convention explicitly requires it.",
-  "Hours may be included when they improve the description. Integrate them naturally. Do not include them solely to satisfy length.",
+  "Do not write in first person unless Website Intelligence or a product convention explicitly requires it.",
   "",
   "Editorial variety must not introduce promotional adjectives, unsupported superlatives, keyword repetition, calls to action, or sales slogans.",
   "Do not use \"trusted\", \"leading\", \"premier\", \"best\", or \"top-rated\" unless explicitly supported and appropriate.",
   "This remains factual directory copy.",
   "",
-  "Do not invent awards, certifications, years in business, ratings, reviews, guarantees, staff size, service areas, specialties, customer types, processes, equipment, products, or environmental claims unless explicitly supported.",
+  "Do not invent awards, certifications, years in business, ratings, reviews, guarantees, staff size, service areas, specialties, customer types, processes, equipment, products, or environmental claims unless explicitly supported by Website Intelligence.",
   "",
   "PRICING — hard rule:",
   "Pricing is intentionally excluded from public GetOblic Description generation because it may change.",
@@ -189,44 +163,24 @@ export const GETOBLIC_DESCRIPTION_SYSTEM_PROMPT = [
   "Do not write constructions such as \"prices start at\", \"from $\", or \"between $X and $Y\".",
   "If a product or service record also contains a price, keep the product or service fact and omit the price.",
   "",
-  "Operator notes are wording guidance only. They must not override trusted source facts.",
   "Do not mention Athena, GetOblic intelligence, AI, analysis, prospecting, sales, outreach, scores, confidence, or internal sources.",
   "",
   "Do not keyword-stuff.",
-  "Return only the final directory description. No headings, bullets, \"Description:\", markdown, source notes, analysis, fact inventory, or reasoning.",
+  "HARD OUTPUT CONTRACT:",
+  "Return only the final customer-facing directory description.",
+  "No headings, markdown, bullets, \"Description:\", analysis, source notes, fact lists, confidence scores, strategy, reasoning, stage labels, or meta commentary.",
 ].join("\n");
 
+export type GetoblicDescriptionIdentityAnchors = {
+  name: string;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+};
+
 export type GetoblicDescriptionTrustedContext = {
-  business: {
-    name: string;
-    category: string | null;
-    industry: string | null;
-    website: string | null;
-    address: string | null;
-    city: string | null;
-    state: string | null;
-    country: string | null;
-    phone: string | null;
-    email: string | null;
-  };
-  currentListingDescription: string | null;
-  listingProvenance: {
-    origin: string | null;
-    wordpressListingId: string | null;
-    permalink: string | null;
-    listingType: string | null;
-    tagline: string | null;
-    hours: string | null;
-  } | null;
-  socialPresence: {
-    linkedin: string | null;
-    facebook: string | null;
-    instagram: string | null;
-    googleBusinessUrl: string | null;
-  };
+  identity: GetoblicDescriptionIdentityAnchors;
   websiteIntelligence: Record<string, string>;
-  operatorNotes: string | null;
-  additionalContext: string | null;
 };
 
 export type GenerateProspectGetoblicDescriptionInput = {
@@ -439,15 +393,6 @@ const BUSINESS_KNOWLEDGE_KEYS = [
   "methods",
 ] as const;
 
-const LISTING_PLACEHOLDER_TEXT =
-  /^(your(?:\s+business)?\s+tagline(?:\s+here)?|your\s+service|your\s+value|your\s+difference|lorem ipsum|placeholder|n\/a|tbd)$/i;
-
-function isUsablePublicListingText(value: string | null): value is string {
-  if (!value) return false;
-  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  return Boolean(normalized) && !LISTING_PLACEHOLDER_TEXT.test(normalized);
-}
-
 export function extractUsableWebsiteIntelligence(
   websiteIntelligence?: Record<string, unknown> | null,
 ): Record<string, string> {
@@ -482,29 +427,32 @@ export function extractUsableWebsiteIntelligence(
   return extracted;
 }
 
+export function hasUsableWebsiteIntelligence(
+  websiteIntelligence: Record<string, string>,
+): boolean {
+  return Object.values(websiteIntelligence).some(
+    (value) => typeof value === "string" && value.trim().length > 0,
+  );
+}
+
 export function classifyGetoblicDescriptionEvidence(
-  context: Pick<
-    GetoblicDescriptionTrustedContext,
-    "currentListingDescription" | "websiteIntelligence"
-  >,
+  context: Pick<GetoblicDescriptionTrustedContext, "websiteIntelligence">,
 ): GetoblicDescriptionEvidenceAssessment {
   const websiteIntelligenceChars = Object.values(context.websiteIntelligence).reduce(
     (total, value) => total + value.length,
     0,
   );
   const websiteIntelligenceFieldCount = Object.keys(context.websiteIntelligence).length;
-  const listingChars = context.currentListingDescription?.length ?? 0;
   const hasBusinessKnowledge = Boolean(context.websiteIntelligence.business_knowledge);
   const substantialWebsiteIntelligence =
     websiteIntelligenceChars >= 400 &&
     (websiteIntelligenceFieldCount >= 4 ||
       (hasBusinessKnowledge && websiteIntelligenceFieldCount >= 3));
   const someWebsiteIntelligence = websiteIntelligenceChars >= 80;
-  const usefulListing = listingChars >= 200;
 
   const band: GetoblicDescriptionEvidenceBand = substantialWebsiteIntelligence
     ? "rich"
-    : someWebsiteIntelligence || usefulListing
+    : someWebsiteIntelligence
       ? "medium"
       : "low";
   const target = GETOBLIC_DESCRIPTION_DEPTH_TARGETS[band];
@@ -515,93 +463,25 @@ export function classifyGetoblicDescriptionEvidence(
     preferredMax: target.max,
     websiteIntelligenceFieldCount,
     websiteIntelligenceChars,
-    listingChars,
-  };
-}
-
-function extractListingProvenance(
-  rawJson?: Record<string, unknown> | null,
-): GetoblicDescriptionTrustedContext["listingProvenance"] {
-  const root = asRecord(rawJson);
-  if (!root) return null;
-  const observed = asRecord(root.observed);
-  const origin = compactText(root.origin, 120);
-  const listingId = compactText(
-    root.wordpress_listing_id ?? observed?.wordpress_listing_id,
-    80,
-  );
-  const permalink = compactText(observed?.permalink ?? root.permalink, 400);
-  const listingType = compactText(observed?.listing_type, 120);
-  const taglineRaw = compactPublicCopy(observed?.tagline, 240);
-  const tagline = isUsablePublicListingText(taglineRaw) ? taglineRaw : null;
-  const hours = compactText(observed?.text_hours, 400);
-  if (!origin && !listingId && !permalink && !listingType && !tagline && !hours) {
-    return null;
-  }
-  return {
-    origin,
-    wordpressListingId: listingId,
-    permalink,
-    listingType,
-    tagline,
-    hours,
   };
 }
 
 export function buildGetoblicDescriptionContext(
   prospect: Pick<
     Prospect,
-    | "business_name"
-    | "category"
-    | "industry"
-    | "website"
-    | "address"
-    | "city"
-    | "state"
-    | "country"
-    | "phone"
-    | "email"
-    | "linkedin"
-    | "facebook"
-    | "instagram"
-    | "google_business_url"
-    | "notes"
-    | "additional_context"
-    | "website_intelligence"
-    | "raw_json"
-    | "opportunity_score"
+    "business_name" | "city" | "state" | "country" | "website_intelligence"
   >,
 ): GetoblicDescriptionTrustedContext {
   return {
-    business: {
+    identity: {
       name: prospect.business_name.trim(),
-      category: compactText(prospect.category, 160),
-      industry: compactText(prospect.industry, 160),
-      website: compactText(prospect.website, 400),
-      address: compactText(prospect.address, 240),
       city: compactText(prospect.city, 120),
       state: compactText(prospect.state, 120),
       country: compactText(prospect.country, 120),
-      phone: compactText(prospect.phone, 80),
-      email: compactText(prospect.email, 160),
-    },
-    currentListingDescription: compactPublicCopy(
-      readObservedListingDescription(prospect.raw_json) ??
-        readImportedSourceDescription(prospect.raw_json),
-      GETOBLIC_DESCRIPTION_MAX_CHARS,
-    ),
-    listingProvenance: extractListingProvenance(prospect.raw_json),
-    socialPresence: {
-      linkedin: compactText(prospect.linkedin, 400),
-      facebook: compactText(prospect.facebook, 400),
-      instagram: compactText(prospect.instagram, 400),
-      googleBusinessUrl: compactText(prospect.google_business_url, 400),
     },
     websiteIntelligence: extractUsableWebsiteIntelligence(
       prospect.website_intelligence,
     ),
-    operatorNotes: compactPublicCopy(prospect.notes, 1200),
-    additionalContext: compactPublicCopy(prospect.additional_context, 1200),
   };
 }
 
@@ -620,7 +500,7 @@ function formatOptionalBlock(
 export function formatGetoblicDescriptionUserPrompt(
   context: GetoblicDescriptionTrustedContext,
 ): string {
-  const location = [context.business.city, context.business.state, context.business.country]
+  const location = [context.identity.city, context.identity.state, context.identity.country]
     .filter(Boolean)
     .join(", ");
   const evidence = classifyGetoblicDescriptionEvidence(context);
@@ -628,13 +508,11 @@ export function formatGetoblicDescriptionUserPrompt(
 
   const sections = [
     [
-      "Create the most useful factual public GetOblic directory description from the verified intelligence below.",
-      "This is enrichment from verified business and website intelligence, not a rewrite of the current listing description.",
-      "Internally select the useful supported facts, then write editorial synthesis. Return only the finished description.",
-      "The current GetOblic listing description is one factual source and provenance. It is not the ceiling.",
-      "When stored website intelligence contains useful facts that are not in the current listing, incorporate a meaningful selection of those facts.",
-      "Preserve important supported facts. Represent multiple factual dimensions when the intelligence is rich. Do not compress rich website intelligence into category, location, and one service sentence.",
-      `Evidence available for this business is ${depthLabel}. Soft editorial target: approximately ${evidence.preferredMin}–${evidence.preferredMax} characters. Never invent, repeat, or pad to reach it.`,
+      "Create the most useful factual public GetOblic directory description from the stored Website Intelligence below.",
+      "Website Intelligence is the sole descriptive evidence. Return only the finished customer-facing description.",
+      "Identity anchors identify who and where. They are not descriptive evidence and must not imply services, products, category, industry, hours, specialties, or service area.",
+      "Preserve important supported Website Intelligence facts. Represent multiple factual dimensions when the intelligence is rich. Do not compress rich website intelligence into location and one service sentence.",
+      `Website Intelligence available for this business is ${depthLabel}. Soft editorial target: approximately ${evidence.preferredMin}–${evidence.preferredMax} characters. Never invent, repeat, or pad to reach it.`,
       "The goal is maximum useful factual information density, not maximum length.",
       "Use the business name naturally, usually once in the opening sentence and no more than twice unless clarity requires it. After introducing the business, vary sentence openings; do not repeat the business name as the subject of every sentence.",
       "Prefer restructuring sentences over mechanically substituting The business or The company as the subject.",
@@ -642,49 +520,23 @@ export function formatGetoblicDescriptionUserPrompt(
       "Prefer direct factual language. State what the business does or offers, not what it aims, strives, or is committed to do.",
       "Distinguish FACT from MARKETING CLAIM. Do not automatically publish ranking or #1 claims from website positioning.",
       "Pricing is intentionally excluded because it may change. Do not include prices, price ranges, discounts, or qualitative pricing claims.",
-      "Hours may be included when they improve the description; integrate them naturally rather than appending them to pad length.",
-      "Do not expand geography beyond the structured address, city, state, and country. Never infer a service area from city, address, region taxonomy, nearby metro, permalink, or directory hierarchy.",
-      "Do not scrape or request new website intelligence. Use only the stored sources below.",
+      "Do not expand geography beyond the identity city, state, and country, or a more specific place Website Intelligence independently states. Never infer a service area from city, address, region taxonomy, nearby metro, permalink, or directory hierarchy.",
+      "Do not scrape or request new website intelligence. Use only the stored Website Intelligence below.",
     ].join("\n"),
-    formatOptionalBlock("Structured business facts:", [
-      ["Name", context.business.name],
-      ["Category", context.business.category],
-      ["Industry", context.business.industry],
+    formatOptionalBlock("Identity anchors (who and where only; not descriptive evidence):", [
+      ["Name", context.identity.name],
+      ["City", context.identity.city],
+      ["State", context.identity.state],
+      ["Country", context.identity.country],
       ["Location", location || null],
-      ["Address", context.business.address],
-      ["Website", context.business.website],
-      ["Phone", context.business.phone],
-      ["Email", context.business.email],
-      ["Hours", context.listingProvenance?.hours ?? null],
     ]),
     formatOptionalBlock(
-      "Stored website intelligence (major enrichment source; use useful facts not already in the listing):",
+      "Stored Website Intelligence (sole descriptive evidence):",
       Object.entries(context.websiteIntelligence).map(([key, value]) => [
         key,
         value,
       ]),
     ),
-    `Current GetOblic listing description (factual source/provenance; not the ceiling):\n${
-      context.currentListingDescription ?? "None available"
-    }`,
-    formatOptionalBlock("GetOblic listing facts:", [
-      ["Origin", context.listingProvenance?.origin ?? null],
-      ["Listing id", context.listingProvenance?.wordpressListingId ?? null],
-      ["Permalink", context.listingProvenance?.permalink ?? null],
-      ["Listing type", context.listingProvenance?.listingType ?? null],
-      ["Tagline", context.listingProvenance?.tagline ?? null],
-      ["Hours", context.listingProvenance?.hours ?? null],
-    ]),
-    formatOptionalBlock("Social / Google Business presence (evidence of presence only):", [
-      ["LinkedIn", context.socialPresence.linkedin],
-      ["Facebook", context.socialPresence.facebook],
-      ["Instagram", context.socialPresence.instagram],
-      ["Google Business", context.socialPresence.googleBusinessUrl],
-    ]),
-    formatOptionalBlock("Operator guidance (wording only; do not override trusted source facts):", [
-      ["Operator notes", context.operatorNotes],
-      ["Additional operator context", context.additionalContext],
-    ]),
   ].filter(Boolean);
 
   return sections.join("\n\n");
@@ -705,8 +557,35 @@ export function sanitizeGeneratedListingDescription(raw: string): string {
   return text.replace(/\s+\n/g, "\n").trim();
 }
 
+const CONTAMINATED_OUTPUT_MARKERS: RegExp[] = [
+  /\bSTAGE\s*1\b/i,
+  /\bSTAGE\s*2\b/i,
+  /\bFACT\s+SELECTION\b/i,
+  /\bEDITORIAL\s+SYNTHESIS\b/i,
+  /\bSynthesized\s+Fact\s+List\b/i,
+  /\bConfidence\s+Score\b/i,
+  /\bStrategizing\s+for\s+Synthesis\b/i,
+  /\bsource\s+analysis\b/i,
+  /\bfact\s+inventory\b/i,
+  /\bsource\s+inventory\b/i,
+  /\bgeneration\s+method\b/i,
+  /\bmeta[- ]analysis\b/i,
+];
+
+export function containsGetoblicDescriptionContamination(text: string): boolean {
+  return CONTAMINATED_OUTPUT_MARKERS.some((pattern) => pattern.test(text));
+}
+
 export function validateGeneratedListingDescription(raw: unknown): string {
   if (typeof raw !== "string") {
+    throw new ProspectGetoblicDescriptionError(
+      "INVALID_OUTPUT",
+      "Athena returned an unusable GetOblic description.",
+      502,
+    );
+  }
+
+  if (containsGetoblicDescriptionContamination(raw)) {
     throw new ProspectGetoblicDescriptionError(
       "INVALID_OUTPUT",
       "Athena returned an unusable GetOblic description.",
@@ -719,6 +598,14 @@ export function validateGeneratedListingDescription(raw: unknown): string {
     throw new ProspectGetoblicDescriptionError(
       "INVALID_OUTPUT",
       "Athena returned an empty GetOblic description.",
+      502,
+    );
+  }
+
+  if (containsGetoblicDescriptionContamination(sanitized)) {
+    throw new ProspectGetoblicDescriptionError(
+      "INVALID_OUTPUT",
+      "Athena returned an unusable GetOblic description.",
       502,
     );
   }
@@ -794,6 +681,14 @@ export async function generateProspectGetoblicDescription(
   }
 
   const context = buildGetoblicDescriptionContext(prospect);
+  if (!hasUsableWebsiteIntelligence(context.websiteIntelligence)) {
+    throw new ProspectGetoblicDescriptionError(
+      "WEBSITE_INTELLIGENCE_REQUIRED",
+      "Athena needs stored Website Intelligence before generating a GetOblic description.",
+      422,
+    );
+  }
+
   const userPrompt = formatGetoblicDescriptionUserPrompt(context);
 
   let rawOutput: string;
