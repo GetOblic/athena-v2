@@ -73,7 +73,12 @@ export function ProspectGetoblicDescriptionCard({
       }>(response);
 
       if (!response.ok || !payload.ok || !payload.generatedListingDescription?.description) {
-        throw new Error(payload.error?.message || messages.failed);
+        const apiMessage =
+          typeof payload.error?.message === "string"
+            ? payload.error.message.trim()
+            : "";
+        setError(apiMessage || messages.failed);
+        return;
       }
 
       setGenerated(payload.generatedListingDescription);

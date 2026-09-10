@@ -128,6 +128,15 @@ function sampleProspect(overrides: Partial<Prospect> = {}): Prospect {
 const DISTINCTIVE_LISTING_COPY =
   "UNIQUE_JETSONS_LISTING_COPY orange shag carpet steam special 1973.";
 
+function omittedWebsiteIntelligenceFields() {
+  return {
+    cta: "Book a weekday clinic visit online.",
+    trust_signals: "Physician-led neighborhood clinic care.",
+    contact_information: "Use the website contact form for appointments.",
+    brand_tone: "Warm, professional, and family-focused.",
+  };
+}
+
 describe("GetOblic Description context", () => {
   it("builds only minimal identity anchors for generation", () => {
     const context = buildGetoblicDescriptionContext(sampleProspect());
@@ -193,6 +202,76 @@ describe("GetOblic Description context", () => {
     assert.match(extracted.business_knowledge, /Nurse triage/);
     assert.equal(extracted.pricing, undefined);
     assert.doesNotMatch(extracted.business_knowledge, /\$99|Best clinic/);
+  });
+
+  it("treats stored Website Intelligence using previously omitted website-derived fields as usable", () => {
+    const extracted = extractUsableWebsiteIntelligence({
+      ...omittedWebsiteIntelligenceFields(),
+      provider: "homepage_only",
+      url: "https://acme.example",
+      scraped_at: "2026-09-10T00:00:00.000Z",
+      title: "Acme Clinic | Home",
+      headings: "Home\nServices\nContact",
+      paragraphs: "Raw homepage paragraph dump that is not a research section.",
+      business_knowledge: {
+        cta: "Request a same-day sick visit.",
+        trust_signals: "Board-certified family physicians.",
+        contact_information: "Appointments through the clinic website.",
+        brand_tone: "Calm and direct.",
+        pricing: "$99 visits",
+        testimonials: "Best clinic in Texas",
+      },
+    });
+    assert.equal(extracted.cta, "Book a weekday clinic visit online.");
+    assert.equal(
+      extracted.trust_signals,
+      "Physician-led neighborhood clinic care.",
+    );
+    assert.equal(
+      extracted.contact_information,
+      "Use the website contact form for appointments.",
+    );
+    assert.equal(
+      extracted.brand_tone,
+      "Warm, professional, and family-focused.",
+    );
+    assert.match(extracted.business_knowledge, /Request a same-day sick visit/);
+    assert.match(extracted.business_knowledge, /Board-certified family physicians/);
+    assert.match(extracted.business_knowledge, /Appointments through the clinic website/);
+    assert.match(extracted.business_knowledge, /Calm and direct/);
+    assert.equal(extracted.headings, undefined);
+    assert.equal(extracted.paragraphs, undefined);
+    assert.equal(extracted.title, undefined);
+    assert.equal(extracted.provider, undefined);
+    assert.equal(extracted.url, undefined);
+    assert.equal(extracted.pricing, undefined);
+    assert.doesNotMatch(extracted.business_knowledge, /\$99|Best clinic/);
+    assert.equal(hasUsableWebsiteIntelligence(extracted), true);
+  });
+
+  it("does not let listing copy, identity, or placeholder-only Website Intelligence become usable evidence", () => {
+    const listingOnly = sampleProspect({
+      website_intelligence: {
+        about: "",
+        cta: "n/a",
+        trust_signals: "none",
+        contact_information: "placeholder",
+        brand_tone: "TBD",
+        headings: "Home\nAbout",
+        paragraphs: "A long raw homepage dump.",
+        provider: "homepage_only",
+      },
+      raw_json: { observed: { description: DISTINCTIVE_LISTING_COPY } },
+    });
+    const context = buildGetoblicDescriptionContext(listingOnly);
+    assert.equal(hasUsableWebsiteIntelligence(context.websiteIntelligence), false);
+    assert.equal(Object.keys(context.websiteIntelligence).length, 0);
+    assert.doesNotMatch(
+      JSON.stringify(context),
+      /UNIQUE_JETSONS_LISTING_COPY|orange shag carpet/,
+    );
+    assert.equal(context.identity.name, "Acme Clinic");
+    assert.equal(context.identity.city, "Dallas");
   });
 
   it("supplies Website Intelligence facts and excludes listing, profile, and social sources", () => {
@@ -527,6 +606,49 @@ describe("GetOblic Description context", () => {
     assert.doesNotMatch(lowPrompt, /Current GetOblic listing description/);
   });
 
+  it("classifies omitted website-derived fields as Website Intelligence only", () => {
+    const longListing = `${"Acme Clinic neighborhood care. ".repeat(40)}${DISTINCTIVE_LISTING_COPY}`;
+    const omittedOnly = sampleProspect({
+      website_intelligence: omittedWebsiteIntelligenceFields(),
+      raw_json: { observed: { description: longListing } },
+    });
+    const withListing = classifyGetoblicDescriptionEvidence(
+      buildGetoblicDescriptionContext(omittedOnly),
+    );
+    const withoutListing = classifyGetoblicDescriptionEvidence(
+      buildGetoblicDescriptionContext(
+        sampleProspect({
+          website_intelligence: omittedWebsiteIntelligenceFields(),
+          raw_json: { observed: { description: "A clinic in Dallas." } },
+          business_name: "Different Clinic Name",
+          city: "Austin",
+          state: "TX",
+          country: "United States",
+        }),
+      ),
+    );
+    assert.equal(withListing.band, withoutListing.band);
+    assert.equal(
+      withListing.websiteIntelligenceFieldCount,
+      withoutListing.websiteIntelligenceFieldCount,
+    );
+    assert.equal(
+      withListing.websiteIntelligenceChars,
+      withoutListing.websiteIntelligenceChars,
+    );
+    assert.ok(withListing.websiteIntelligenceFieldCount >= 4);
+    assert.equal(withListing.band, "medium");
+    const prompt = formatGetoblicDescriptionUserPrompt(
+      buildGetoblicDescriptionContext(omittedOnly),
+    );
+    assert.match(prompt, /Book a weekday clinic visit online/);
+    assert.match(prompt, /Physician-led neighborhood clinic care/);
+    assert.match(prompt, /Use the website contact form for appointments/);
+    assert.match(prompt, /Warm, professional, and family-focused/);
+    assert.doesNotMatch(prompt, /UNIQUE_JETSONS_LISTING_COPY/);
+    assert.doesNotMatch(prompt, /555-0100|hello@acme\.example/);
+  });
+
   it("does not treat marketing claims as automatic facts", () => {
     const extracted = extractUsableWebsiteIntelligence({
       about: "Family carpet cleaning in Woodland Hills.",
@@ -676,6 +798,26 @@ describe("GetOblic Description volatile pricing exclusion", () => {
       extracted.methods,
       "Mineral filters and barrier-supportive formulas.",
     );
+  });
+
+  it("excludes pricing from previously omitted website-derived fields", () => {
+    const extracted = extractUsableWebsiteIntelligence({
+      cta: "Book a weekday visit — prices start at $99.",
+      trust_signals: "Affordable physician-led care with 20% off new patients.",
+      contact_information: "Use the website contact form.",
+      brand_tone: "Warm and professional.",
+      business_knowledge: {
+        cta: "Request a consult from $180.",
+        trust_signals: "Competitively priced neighborhood care.",
+      },
+    });
+    assert.match(extracted.cta, /Book a weekday visit/);
+    assert.match(extracted.trust_signals, /physician-led care/);
+    assert.equal(extracted.contact_information, "Use the website contact form.");
+    assert.equal(extracted.brand_tone, "Warm and professional.");
+    assert.doesNotMatch(extracted.cta, /\$99|prices start at/);
+    assert.doesNotMatch(extracted.trust_signals, /affordable|20% off/i);
+    assert.doesNotMatch(extracted.business_knowledge, /\$180|competitively priced/i);
   });
 
   it("does not pass stripped pricing into the generation prompt", () => {
@@ -911,6 +1053,39 @@ describe("GetOblic Description generation and persistence", () => {
     );
   });
 
+  it("reaches generation from previously omitted website-derived Website Intelligence only", async () => {
+    const prospect = sampleProspect({
+      website_intelligence: omittedWebsiteIntelligenceFields(),
+      raw_json: { observed: { description: DISTINCTIVE_LISTING_COPY } },
+    });
+    let generateCalls = 0;
+
+    const generated = await generateProspectGetoblicDescription(
+      { prospectId: prospect.id, organizationId: prospect.organization_id },
+      {
+        getProspect: async () => prospect,
+        generateReview: async (prompt) => {
+          generateCalls += 1;
+          assert.match(prompt, /Book a weekday clinic visit online/);
+          assert.match(prompt, /Physician-led neighborhood clinic care/);
+          assert.match(prompt, /Use the website contact form for appointments/);
+          assert.match(prompt, /Warm, professional, and family-focused/);
+          assert.doesNotMatch(prompt, /UNIQUE_JETSONS_LISTING_COPY|orange shag carpet/);
+          assert.doesNotMatch(prompt, /Imported GetOblic listing copy/);
+          assert.doesNotMatch(prompt, /Clinics|Healthcare|555-0100|hello@acme/);
+          return "Acme Clinic offers weekday clinic visits in Dallas.";
+        },
+        persistGeneratedListingDescription: async (_current, value) => value,
+      },
+    );
+
+    assert.equal(generateCalls, 1);
+    assert.equal(
+      generated.description,
+      "Acme Clinic offers weekday clinic visits in Dallas.",
+    );
+  });
+
   it("does not call the model or overwrite generated copy when Website Intelligence is missing", async () => {
     const previous = {
       description: "Previous generated copy.",
@@ -952,6 +1127,53 @@ describe("GetOblic Description generation and persistence", () => {
       (prospect.raw_json?.observed as { description?: string }).description,
       "Imported GetOblic listing copy.",
     );
+  });
+
+  it("still requires Website Intelligence when only listing copy or placeholders are present", async () => {
+    const previous = {
+      description: "Previous generated copy.",
+      generatedAt: "2026-09-01T00:00:00.000Z",
+    };
+    const prospect = sampleProspect({
+      website_intelligence: {
+        cta: "n/a",
+        trust_signals: "none",
+        contact_information: "",
+        brand_tone: "placeholder",
+        headings: "Home",
+        paragraphs: "Raw dump.",
+      },
+      generated_listing_description: previous,
+      raw_json: { observed: { description: DISTINCTIVE_LISTING_COPY } },
+    });
+    let generateCalls = 0;
+    let persistCalls = 0;
+
+    await assert.rejects(
+      () =>
+        generateProspectGetoblicDescription(
+          { prospectId: prospect.id, organizationId: prospect.organization_id },
+          {
+            getProspect: async () => prospect,
+            generateReview: async () => {
+              generateCalls += 1;
+              return "Should not be generated.";
+            },
+            persistGeneratedListingDescription: async () => {
+              persistCalls += 1;
+              throw new Error("should not persist");
+            },
+          },
+        ),
+      (error: unknown) =>
+        error instanceof ProspectGetoblicDescriptionError &&
+        error.code === "WEBSITE_INTELLIGENCE_REQUIRED" &&
+        error.httpStatus === 422,
+    );
+
+    assert.equal(generateCalls, 0);
+    assert.equal(persistCalls, 0);
+    assert.deepEqual(prospect.generated_listing_description, previous);
   });
 
   it("does not persist Jetsons-style contaminated output", async () => {

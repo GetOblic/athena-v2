@@ -49,6 +49,12 @@ describe("GetOblic Description API", () => {
     assert.match(route, /ok: false/);
     assert.match(service, /WEBSITE_INTELLIGENCE_REQUIRED/);
     assert.match(service, /INVALID_OUTPUT/);
+    assert.match(route, /message: error\.message/);
+    assert.match(
+      service,
+      /Athena needs stored Website Intelligence before generating a GetOblic description/,
+    );
+    assert.match(service, /Athena returned an unusable GetOblic description/);
     assert.doesNotMatch(route, /claimGetOblicListing|releaseGetOblicListing/);
     assert.doesNotMatch(route, /knowledge-base|knowledgeBase/);
     assert.doesNotMatch(route, /getoblicWordpressClient|updateListing|putListing/);

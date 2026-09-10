@@ -14,6 +14,7 @@ import {
   type ProspectGeneratedListingDescription,
 } from "@/services/prospects/prospectGeneratedListingDescription";
 import type { Prospect } from "@/services/prospects/prospectService";
+import type { HomepageIntelligence } from "@/services/prospects/prospectWebsiteIntelligence";
 
 export {
   GETOBLIC_DESCRIPTION_MAX_CHARS,
@@ -220,6 +221,29 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+const PLACEHOLDER_ONLY_VALUES = new Set([
+  "na",
+  "n/a",
+  "tbd",
+  "todo",
+  "none",
+  "null",
+  "undefined",
+  "xxx",
+  "placeholder",
+]);
+
+function isPlaceholderOnly(value: string): boolean {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return true;
+  const normalized = trimmed.replace(/[^a-z0-9]+/g, "");
+  if (!normalized) return true;
+  return (
+    PLACEHOLDER_ONLY_VALUES.has(trimmed) ||
+    PLACEHOLDER_ONLY_VALUES.has(normalized)
+  );
+}
+
 function compactText(value: unknown, max = 2000): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.replace(/\s+/g, " ").trim();
@@ -310,8 +334,9 @@ export function stripVolatilePricing(value: string): string {
 
 function compactPublicCopy(value: unknown, max = 2000): string | null {
   const text = compactText(value, max);
-  if (!text) return null;
+  if (!text || isPlaceholderOnly(text)) return null;
   const stripped = compactText(stripVolatilePricing(text), max);
+  if (!stripped || isPlaceholderOnly(stripped)) return null;
   return stripped;
 }
 
@@ -350,24 +375,42 @@ export function readObservedListingDescription(
   return compactText(observed?.description, GETOBLIC_DESCRIPTION_MAX_CHARS);
 }
 
-const WEBSITE_INTELLIGENCE_KEYS = [
+/**
+ * Descriptive HomepageIntelligence sections already presented as Website research.
+ * Excludes scrape metadata (provider/url/scraped_at/error) and raw dumps
+ * (title/headings/paragraphs) that are not Website research sections.
+ */
+const HOMEPAGE_WEBSITE_INTELLIGENCE_KEYS = [
   "about",
   "services",
   "products",
-  "solutions",
-  "specialties",
   "positioning",
   "value_proposition",
   "differentiators",
   "target_audience",
-  "customer_groups",
   "messaging",
+  "cta",
+  "trust_signals",
+  "contact_information",
+  "brand_tone",
+] as const satisfies ReadonlyArray<keyof HomepageIntelligence>;
+
+/** Additional stored website-derived fields used by Deep WI / compat readers. */
+const ADDITIONAL_WEBSITE_INTELLIGENCE_KEYS = [
+  "solutions",
+  "specialties",
+  "customer_groups",
   "process",
   "methods",
   "categories",
 ] as const;
 
-const WEBSITE_INTELLIGENCE_LIST_KEYS = new Set([
+const WEBSITE_INTELLIGENCE_KEYS = [
+  ...HOMEPAGE_WEBSITE_INTELLIGENCE_KEYS,
+  ...ADDITIONAL_WEBSITE_INTELLIGENCE_KEYS,
+] as const;
+
+const WEBSITE_INTELLIGENCE_LIST_KEYS = new Set<string>([
   "categories",
   "services",
   "products",
@@ -375,22 +418,22 @@ const WEBSITE_INTELLIGENCE_LIST_KEYS = new Set([
   "specialties",
   "customer_groups",
   "methods",
+  "cta",
+  "trust_signals",
+  "contact_information",
 ]);
 
 const BUSINESS_KNOWLEDGE_KEYS = [
-  "about",
-  "services",
-  "products",
+  ...HOMEPAGE_WEBSITE_INTELLIGENCE_KEYS,
   "solutions",
   "specialties",
-  "positioning",
-  "value_proposition",
-  "differentiators",
-  "target_audience",
   "customer_groups",
-  "messaging",
   "process",
   "methods",
+  "training",
+  "faq",
+  "team",
+  "case_studies",
 ] as const;
 
 export function extractUsableWebsiteIntelligence(

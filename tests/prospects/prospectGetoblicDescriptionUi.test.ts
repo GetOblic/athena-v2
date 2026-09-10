@@ -3,11 +3,13 @@
  */
 
 import assert from "node:assert/strict";
-import { createElement } from "react";
+import { createElement, act } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { JSDOM } from "jsdom";
 import { ProspectGetoblicDescriptionCard } from "../../components/prospects/ProspectGetoblicDescriptionCard";
 import { de } from "../../lib/tenantI18n/messages/de";
 import { en } from "../../lib/tenantI18n/messages/en";
@@ -194,4 +196,213 @@ describe("GetOblic Description UI", () => {
       );
     }
   });
+
+  it("surfaces API error messages and does not swallow WEBSITE_INTELLIGENCE_REQUIRED or INVALID_OUTPUT", () => {
+    const source = read("components/prospects/ProspectGetoblicDescriptionCard.tsx");
+    assert.match(source, /payload\.error\?\.message/);
+    assert.match(source, /setError\(apiMessage \|\| messages\.failed\)/);
+    assert.match(source, /} catch \{\s*setError\(messages\.failed\);/s);
+    assert.doesNotMatch(source, /throw new Error\(payload\.error/);
+    assert.equal(
+      [...source.matchAll(/onClick=\{\(\) => void runGeneration\(\)\}/g)].length,
+      2,
+    );
+    assert.match(source, /setGenerated\(payload\.generatedListingDescription\)/);
+    assert.doesNotMatch(
+      source,
+      /catch \{[\s\S]*setError\(messages\.failed\)[\s\S]*setGenerated/,
+    );
+  });
+
+  it("surfaces the API error on failed Refresh and keeps the previous generated description", async () => {
+    const previousCopy = "Previous generated copy remains visible.";
+    const apiMessage =
+      "Athena needs stored Website Intelligence before generating a GetOblic description.";
+    const { root, container, restore } = mountGetoblicDescriptionCard({
+      description: previousCopy,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      jsonResponse(
+        {
+          ok: false,
+          error: { code: "WEBSITE_INTELLIGENCE_REQUIRED", message: apiMessage },
+        },
+        422,
+      )) as typeof fetch;
+
+    try {
+      await clickLabeledButton(container, en.prospects.getoblicDescription.refresh);
+      assert.match(container.textContent ?? "", new RegExp(previousCopy));
+      assert.match(container.textContent ?? "", new RegExp(apiMessage));
+      assert.doesNotMatch(
+        container.textContent ?? "",
+        new RegExp(en.prospects.getoblicDescription.failed),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      restore(root);
+    }
+  });
+
+  it("does not swallow INVALID_OUTPUT and still preserves generated copy", async () => {
+    const previousCopy = "Previous generated copy remains visible.";
+    const apiMessage = "Athena returned an unusable GetOblic description.";
+    const { root, container, restore } = mountGetoblicDescriptionCard({
+      description: previousCopy,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      jsonResponse(
+        {
+          ok: false,
+          error: { code: "INVALID_OUTPUT", message: apiMessage },
+        },
+        502,
+      )) as typeof fetch;
+
+    try {
+      await clickLabeledButton(container, en.prospects.getoblicDescription.refresh);
+      assert.match(container.textContent ?? "", new RegExp(previousCopy));
+      assert.match(container.textContent ?? "", new RegExp(apiMessage));
+    } finally {
+      globalThis.fetch = originalFetch;
+      restore(root);
+    }
+  });
+
+  it("falls back to the failed message on unexpected network errors", async () => {
+    const previousCopy = "Previous generated copy remains visible.";
+    const { root, container, restore } = mountGetoblicDescriptionCard({
+      description: previousCopy,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      throw new Error("ECONNRESET stack should stay internal");
+    }) as typeof fetch;
+
+    try {
+      await clickLabeledButton(container, en.prospects.getoblicDescription.refresh);
+      assert.match(container.textContent ?? "", new RegExp(previousCopy));
+      assert.match(
+        container.textContent ?? "",
+        new RegExp(en.prospects.getoblicDescription.failed),
+      );
+      assert.doesNotMatch(container.textContent ?? "", /ECONNRESET|stack should stay internal/);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restore(root);
+    }
+  });
+
+  it("replaces generated state after a successful Refresh", async () => {
+    const previousCopy = "Previous generated copy remains visible.";
+    const refreshedCopy = "Fresh Athena-generated GetOblic description.";
+    const { root, container, restore } = mountGetoblicDescriptionCard({
+      description: previousCopy,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      jsonResponse({
+        ok: true,
+        generatedListingDescription: {
+          description: refreshedCopy,
+          generatedAt: "2026-09-10T13:00:00.000Z",
+        },
+      })) as typeof fetch;
+
+    try {
+      await clickLabeledButton(container, en.prospects.getoblicDescription.refresh);
+      assert.match(container.textContent ?? "", new RegExp(refreshedCopy));
+      assert.doesNotMatch(container.textContent ?? "", new RegExp(previousCopy));
+    } finally {
+      globalThis.fetch = originalFetch;
+      restore(root);
+    }
+  });
 });
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function ensureDom(): HTMLElement {
+  if (globalThis.document?.getElementById("getoblic-description-test-root")) {
+    return globalThis.document.getElementById("getoblic-description-test-root")!;
+  }
+
+  const dom = new JSDOM(
+    "<!doctype html><html><body><div id='getoblic-description-test-root'></div></body></html>",
+    { url: "http://localhost/", pretendToBeVisual: true },
+  );
+  const { window } = dom;
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    writable: true,
+    value: window,
+  });
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    writable: true,
+    value: window.document,
+  });
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    writable: true,
+    value: window.navigator,
+  });
+  globalThis.HTMLElement = window.HTMLElement;
+  globalThis.Node = window.Node;
+  globalThis.MutationObserver = window.MutationObserver;
+  globalThis.getComputedStyle = window.getComputedStyle.bind(window);
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
+    true;
+  return window.document.getElementById("getoblic-description-test-root")!;
+}
+
+function mountGetoblicDescriptionCard(input: { description: string }): {
+  root: Root;
+  container: HTMLElement;
+  restore: (root: Root) => void;
+} {
+  const container = ensureDom();
+  container.replaceChildren();
+  const root = createRoot(container);
+  act(() => {
+    root.render(
+      createElement(ProspectGetoblicDescriptionCard, {
+        prospectId: "p1",
+        currentListingCopy: "Imported GetOblic listing copy.",
+        generatedListingDescription: {
+          description: input.description,
+          generatedAt: "2026-09-01T00:00:00.000Z",
+        },
+        messages: en.prospects.getoblicDescription,
+        defaultOpen: true,
+      }),
+    );
+  });
+  return {
+    root,
+    container,
+    restore(mounted) {
+      act(() => {
+        mounted.unmount();
+      });
+      container.replaceChildren();
+    },
+  };
+}
+
+async function clickLabeledButton(container: HTMLElement, label: string) {
+  const button = [...container.querySelectorAll("button")].find((node) =>
+    (node.textContent ?? "").includes(label),
+  );
+  assert.ok(button, `missing button labeled ${label}`);
+  await act(async () => {
+    button.dispatchEvent(new globalThis.window.MouseEvent("click", { bubbles: true }));
+  });
+}
