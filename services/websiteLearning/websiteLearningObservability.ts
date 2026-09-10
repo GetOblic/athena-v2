@@ -29,6 +29,7 @@ export function toProspectWebsiteLearningLogReason(
       return "stored_intelligence_present";
     case "initial_import":
     case "import_retry_resume":
+    case "initial_generate_missing_stored":
       return "initial_import_missing_intelligence";
   }
 }

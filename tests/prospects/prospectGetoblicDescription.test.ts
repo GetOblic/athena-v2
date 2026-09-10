@@ -1301,6 +1301,245 @@ describe("GetOblic Description generation and persistence", () => {
     );
   });
 
+  it("accepts a homepage_only pipeline-shaped Website Intelligence contract", async () => {
+    const homepageOnlyPipeline = {
+      provider: "homepage_only",
+      url: "https://tuli.example",
+      scraped_at: "2026-09-10T00:00:00.000Z",
+      title: "TULI Royal Beauty Salon Miami",
+      headings: "Facials\nBrows\nBridal",
+      paragraphs: "Raw homepage paragraph dump that is not a research section.",
+      about: "A Miami beauty salon focused on brows, facials, and bridal prep.",
+      services: "Brow sculpting, hydrafacials, and bridal makeup.",
+      products: "In-salon brow aftercare kits.",
+      positioning: "Neighborhood luxury beauty in Miami.",
+      value_proposition: "Appointment-based brow and facial care.",
+      differentiators: "Bridal prep with the same brow artist every visit.",
+      target_audience: "Miami clients booking brows and facials.",
+      messaging: "Royal beauty, appointment-only.",
+      cta: "Book a brow or facial appointment.",
+      trust_signals: "Repeat bridal clients in Miami.",
+      contact_information: "Use the salon website booking form.",
+      brand_tone: "Warm and polished.",
+    };
+    const prospect = sampleProspect({
+      business_name: "TULI Royal Beauty Salon Miami",
+      website_intelligence: homepageOnlyPipeline,
+    });
+    const extracted = extractUsableWebsiteIntelligence(prospect.website_intelligence);
+    assert.equal(hasUsableWebsiteIntelligence(extracted), true);
+    assert.equal(
+      extracted.about,
+      "A Miami beauty salon focused on brows, facials, and bridal prep.",
+    );
+    assert.equal(
+      extracted.services,
+      "Brow sculpting, hydrafacials, and bridal makeup.",
+    );
+    assert.equal(extracted.provider, undefined);
+    assert.equal(extracted.title, undefined);
+    assert.equal(extracted.headings, undefined);
+    assert.equal(extracted.paragraphs, undefined);
+
+    let generateCalls = 0;
+    const generated = await generateProspectGetoblicDescription(
+      { prospectId: prospect.id, organizationId: prospect.organization_id },
+      {
+        getProspect: async () => prospect,
+        generateReview: async (prompt) => {
+          generateCalls += 1;
+          assert.match(prompt, /A Miami beauty salon focused on brows/);
+          assert.match(prompt, /Brow sculpting, hydrafacials, and bridal makeup/);
+          assert.doesNotMatch(prompt, /Raw homepage paragraph dump/);
+          return "TULI Royal Beauty Salon Miami offers appointment-based brow and facial care.";
+        },
+        persistGeneratedListingDescription: async (_current, value) => value,
+      },
+    );
+    assert.equal(generateCalls, 1);
+    assert.match(generated.description, /TULI Royal Beauty Salon Miami/);
+  });
+
+  it("accepts a deep_v1 pipeline-shaped Website Intelligence contract and ignores pages excerpts", async () => {
+    const distinctiveExcerpt =
+      "PAGES_EXCERPT_MUST_NOT_BECOME_EVIDENCE secret menu and unpublished hours.";
+    const deepV1Pipeline = {
+      provider: "deep_v1",
+      url: "https://tracyhudson.example",
+      scraped_at: "2026-09-10T00:00:00.000Z",
+      pages_analyzed: 5,
+      pages: [
+        {
+          url: "https://tracyhudson.example",
+          title: "Tracy Hudson Skin Care",
+          page_type: "home",
+          excerpt: distinctiveExcerpt,
+        },
+        {
+          url: "https://tracyhudson.example/services",
+          title: "Services",
+          page_type: "services",
+          excerpt: "PAGES_EXCERPT_SERVICES_MUST_NOT_BECOME_EVIDENCE laser add-on.",
+        },
+      ],
+      business_knowledge: {
+        about: "Physician-informed skin care for daily barrier support.",
+        services: "Custom facials and mineral sun care consults.",
+        products: "Invisible Daily SPF and barrier cream.",
+        solutions: "Barrier-supportive routines after in-studio analysis.",
+        specialties: "Mineral SPF and post-facial aftercare.",
+        target_audience: "Clients who want physician-informed skin care.",
+        customer_groups: "Adults booking facials and SPF consults.",
+        differentiators: "In-studio analysis before product selection.",
+        process: "Skin analysis before the first treatment.",
+        methods: "Mineral filters and barrier-supportive formulas.",
+        positioning: "Clinical skin care without a medical-spa pitch.",
+        messaging: "Protect the barrier first.",
+        value_proposition: "Custom facial protocols with daily SPF.",
+        cta: "Book a skin analysis.",
+        trust_signals: "Repeat facial clients.",
+        contact_information: "Book through the studio website.",
+        brand_tone: "Clinical and calm.",
+        training: "",
+        faq: "",
+        team: "",
+        case_studies: "",
+        pricing: "$180 facials",
+        testimonials: "Best clinic in Texas",
+      },
+      crawl_summary: {
+        pages_analyzed: 5,
+        services_discovered: 2,
+        faqs_discovered: 0,
+        testimonials_discovered: 0,
+        team_pages_discovered: 0,
+        commercial_pages_discovered: 1,
+      },
+      about: "Physician-informed skin care for daily barrier support.",
+      services: "Custom facials and mineral sun care consults.",
+      products: "Invisible Daily SPF and barrier cream.",
+      positioning: "Clinical skin care without a medical-spa pitch.",
+      target_audience: "Clients who want physician-informed skin care.",
+      messaging: "Protect the barrier first.",
+      value_proposition: "Custom facial protocols with daily SPF.",
+      cta: "Book a skin analysis.",
+      differentiators: "In-studio analysis before product selection.",
+      trust_signals: "Repeat facial clients.",
+      contact_information: "Book through the studio website.",
+      brand_tone: "Clinical and calm.",
+      headings: "Home\nServices\nContact",
+      paragraphs: "Raw deep-scrape paragraph dump that is not a research section.",
+    };
+    const prospect = sampleProspect({
+      business_name: "Tracy Hudson Skin Care",
+      website_intelligence: deepV1Pipeline,
+    });
+    const extracted = extractUsableWebsiteIntelligence(prospect.website_intelligence);
+    assert.equal(hasUsableWebsiteIntelligence(extracted), true);
+    assert.equal(
+      extracted.about,
+      "Physician-informed skin care for daily barrier support.",
+    );
+    assert.equal(
+      extracted.services,
+      "Custom facials and mineral sun care consults.",
+    );
+    assert.match(extracted.business_knowledge, /Physician-informed skin care/);
+    assert.match(extracted.business_knowledge, /Custom facials and mineral sun care/);
+    assert.doesNotMatch(
+      JSON.stringify(extracted),
+      /PAGES_EXCERPT_MUST_NOT_BECOME_EVIDENCE|PAGES_EXCERPT_SERVICES_MUST_NOT_BECOME_EVIDENCE/,
+    );
+    assert.equal(extracted.headings, undefined);
+    assert.equal(extracted.paragraphs, undefined);
+    assert.doesNotMatch(extracted.business_knowledge, /\$180|Best clinic/);
+
+    let generateCalls = 0;
+    const generated = await generateProspectGetoblicDescription(
+      { prospectId: prospect.id, organizationId: prospect.organization_id },
+      {
+        getProspect: async () => prospect,
+        generateReview: async (prompt) => {
+          generateCalls += 1;
+          assert.match(prompt, /Physician-informed skin care for daily barrier support/);
+          assert.match(prompt, /Custom facials and mineral sun care consults/);
+          assert.match(prompt, /Invisible Daily SPF and barrier cream/);
+          assert.doesNotMatch(prompt, /PAGES_EXCERPT_MUST_NOT_BECOME_EVIDENCE/);
+          assert.doesNotMatch(prompt, /PAGES_EXCERPT_SERVICES_MUST_NOT_BECOME_EVIDENCE/);
+          assert.doesNotMatch(prompt, /Raw deep-scrape paragraph dump/);
+          return "Tracy Hudson Skin Care offers custom facials and mineral sun care consults.";
+        },
+        persistGeneratedListingDescription: async (_current, value) => value,
+      },
+    );
+    assert.equal(generateCalls, 1);
+    assert.match(generated.description, /Tracy Hudson Skin Care/);
+  });
+
+  it("still requires Website Intelligence when Ready executive intelligence exists and WI is null", async () => {
+    const previous = {
+      description: "Previous generated copy.",
+      generatedAt: "2026-09-01T00:00:00.000Z",
+    };
+    const prospect = sampleProspect({
+      business_name: "K's Hamburger Shop",
+      website: "https://kshamburgershop.example",
+      source: "getoblic",
+      status: "Ready",
+      opportunity_score: 80,
+      website_intelligence: null,
+      ads_content: "KS_KNOWLEDGE_BASE smash burgers and weekday lunch specials.",
+      notes: "KS_EXECUTIVE_ANALYSIS operator should call this week.",
+      additional_context: "KS_KB_ENHANCEMENT family counter-service since 1982.",
+      generated_listing_description: previous,
+      raw_json: {
+        origin: "getoblic_directory",
+        observed: {
+          description: "KS_LISTING_COPY juicy smash burgers downtown.",
+        },
+        analysis: {
+          executive_summary: "KS_EXECUTIVE_VERSION Ready at 80% completeness.",
+        },
+      },
+    });
+    let generateCalls = 0;
+    let persistCalls = 0;
+
+    await assert.rejects(
+      () =>
+        generateProspectGetoblicDescription(
+          { prospectId: prospect.id, organizationId: prospect.organization_id },
+          {
+            getProspect: async () => prospect,
+            generateReview: async () => {
+              generateCalls += 1;
+              return "Should not be generated.";
+            },
+            persistGeneratedListingDescription: async () => {
+              persistCalls += 1;
+              throw new Error("should not persist");
+            },
+          },
+        ),
+      (error: unknown) =>
+        error instanceof ProspectGetoblicDescriptionError &&
+        error.code === "WEBSITE_INTELLIGENCE_REQUIRED" &&
+        error.httpStatus === 422,
+    );
+
+    assert.equal(generateCalls, 0);
+    assert.equal(persistCalls, 0);
+    assert.deepEqual(prospect.generated_listing_description, previous);
+    assert.equal(prospect.website_intelligence, null);
+    assert.equal(prospect.status, "Ready");
+    const context = buildGetoblicDescriptionContext(prospect);
+    assert.equal(hasUsableWebsiteIntelligence(context.websiteIntelligence), false);
+    assert.doesNotMatch(
+      JSON.stringify(context),
+      /KS_LISTING_COPY|KS_EXECUTIVE_ANALYSIS|KS_KNOWLEDGE_BASE|KS_KB_ENHANCEMENT|KS_EXECUTIVE_VERSION/,
+    );
+  });
+
   it("rejects a missing org-scoped prospect", async () => {
     await assert.rejects(
       () =>

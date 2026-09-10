@@ -215,8 +215,9 @@ export async function ensureProspectGenerationQueued(
 /**
  * Worker pre-step before the canonical pipeline.
  *
- * Live website learning runs only for initial import triggers
- * (`discussion_import`) when usable stored intelligence is absent.
+ * Live website learning runs for discussion_import and for the first
+ * Generate Intelligence (manual_refresh) when usable stored intelligence
+ * is absent. Both use the existing homepage scrape/persist path.
  * Refresh / Append / metadata regeneration reuse stored website_intelligence
  * and never crawl.
  */

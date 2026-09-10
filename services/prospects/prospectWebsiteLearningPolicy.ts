@@ -1,8 +1,10 @@
 /**
  * Authoritative Prospect website-learning trigger policy.
  *
- * Website learning is an ingestion concern (Manual/CSV import),
- * not a regeneration concern (Refresh / Append / metadata edits).
+ * Website learning runs on first ingestion (Manual/CSV import) and on the
+ * first Generate Intelligence (manual_refresh) when usable stored Website
+ * Intelligence is absent. Refresh / Append / metadata edits reuse stored
+ * intelligence and do not crawl.
  */
 
 import type { AthenaGenerationTriggerType } from "@/services/generationJobs/generationJobTypes";
@@ -15,6 +17,7 @@ export type WebsiteLearningDecision = {
     | "initial_import"
     | "import_retry_resume"
     | "import_retry_reuse_stored"
+    | "initial_generate_missing_stored"
     | "intelligence_refresh"
     | "non_import_trigger"
     | "no_website";
@@ -60,8 +63,15 @@ export function websiteIntelligenceHasUsableContent(
 /**
  * Decide whether this Prospect generation job may perform live website learning.
  *
- * Allowed: discussion_import when usable website_intelligence is not yet stored.
- * Denied: manual_refresh, discussion_update, and any other non-import trigger.
+ * Allowed:
+ * - discussion_import when usable website_intelligence is not yet stored
+ * - manual_refresh when a website is present and usable website_intelligence
+ *   is not yet stored (first Generate Intelligence)
+ *
+ * Denied:
+ * - manual_refresh when usable website_intelligence is already stored
+ * - prospect_deep_scrape (deep-scrape follow-on; never homepage-crawls)
+ * - discussion_update and any other non-import trigger
  */
 export function resolveProspectWebsiteLearningDecision(input: {
   triggerType: AthenaGenerationTriggerType | string | null | undefined;
@@ -74,10 +84,18 @@ export function resolveProspectWebsiteLearningDecision(input: {
 
   const trigger = String(input.triggerType ?? "").trim();
 
-  if (trigger !== "discussion_import") {
-    if (trigger === "manual_refresh" || trigger === "prospect_deep_scrape") {
+  if (trigger === "prospect_deep_scrape") {
+    return { shouldCrawl: false, reason: "intelligence_refresh" };
+  }
+
+  if (trigger === "manual_refresh") {
+    if (websiteIntelligenceHasUsableContent(input.websiteIntelligence)) {
       return { shouldCrawl: false, reason: "intelligence_refresh" };
     }
+    return { shouldCrawl: true, reason: "initial_generate_missing_stored" };
+  }
+
+  if (trigger !== "discussion_import") {
     return { shouldCrawl: false, reason: "non_import_trigger" };
   }
 

@@ -184,6 +184,137 @@ describe("Prospect initial-only website scraping", () => {
     assert.match(refreshRoute, /triggerType:\s*"manual_refresh"/);
   });
 
+  it("manual_refresh with a website and null Website Intelligence crawls once", () => {
+    const decision = resolveProspectWebsiteLearningDecision({
+      triggerType: "manual_refresh",
+      hasWebsite: true,
+      websiteIntelligence: null,
+    });
+    assert.equal(decision.shouldCrawl, true);
+    assert.equal(decision.reason, "initial_generate_missing_stored");
+    assert.equal(websiteIntelligenceHasUsableContent(null), false);
+  });
+
+  it("manual_refresh with usable homepage_only Website Intelligence does not crawl", () => {
+    const decision = resolveProspectWebsiteLearningDecision({
+      triggerType: "manual_refresh",
+      hasWebsite: true,
+      websiteIntelligence: usableIntel,
+    });
+    assert.equal(decision.shouldCrawl, false);
+    assert.equal(decision.reason, "intelligence_refresh");
+    assert.equal(websiteIntelligenceHasUsableContent(usableIntel), true);
+  });
+
+  it("manual_refresh with usable deep_v1 Website Intelligence does not crawl", () => {
+    const deepIntel = {
+      provider: "deep_v1",
+      url: "https://acme.com",
+      scraped_at: "2026-07-14T00:00:00.000Z",
+      pages_analyzed: 4,
+      about: "We help operators scale",
+      services: "Automation",
+      products: "Platform",
+      positioning: "Operator infrastructure",
+      business_knowledge: {
+        about: "We help operators scale",
+        services: "Automation",
+      },
+      pages: [
+        {
+          url: "https://acme.com",
+          title: "Acme",
+          page_type: "home",
+          excerpt: "PAGES_EXCERPT_MUST_NOT_TRIGGER_RECRAWL",
+        },
+      ],
+    };
+    const decision = resolveProspectWebsiteLearningDecision({
+      triggerType: "manual_refresh",
+      hasWebsite: true,
+      websiteIntelligence: deepIntel,
+    });
+    assert.equal(decision.shouldCrawl, false);
+    assert.equal(decision.reason, "intelligence_refresh");
+    assert.equal(websiteIntelligenceHasUsableContent(deepIntel), true);
+  });
+
+  it("manual_refresh without a website does not crawl", () => {
+    const decision = resolveProspectWebsiteLearningDecision({
+      triggerType: "manual_refresh",
+      hasWebsite: false,
+      websiteIntelligence: null,
+    });
+    assert.equal(decision.shouldCrawl, false);
+    assert.equal(decision.reason, "no_website");
+  });
+
+  it("first Generate Intelligence prep invokes the existing homepage learning path when WI is missing", () => {
+    const firstGenerate = resolveProspectWebsiteLearningDecision({
+      triggerType: "manual_refresh",
+      hasWebsite: true,
+      websiteIntelligence: null,
+    });
+    assert.equal(firstGenerate.shouldCrawl, true);
+    assert.equal(firstGenerate.reason, "initial_generate_missing_stored");
+
+    const importer = readFileSync(
+      path.join(ROOT, "services/prospects/prospectImporter.ts"),
+      "utf8",
+    );
+    const prepFn = importer.slice(
+      importer.indexOf(
+        "export async function prepareProspectBridgeBeforeGeneration",
+      ),
+      importer.indexOf("export async function markProspectGenerationReady"),
+    );
+    const crawlBranch = prepFn.slice(
+      prepFn.indexOf("if (decision.shouldCrawl && current.website)"),
+      prepFn.indexOf("} else {"),
+    );
+    const reuseBranch = prepFn.slice(prepFn.indexOf("} else {"));
+
+    assert.match(prepFn, /resolveProspectWebsiteLearningDecision/);
+    assert.match(prepFn, /scrapeHomepageIntelligence\(current\.website\)/);
+    assert.match(crawlBranch, /scrapeHomepageIntelligence\(current\.website\)/);
+    assert.match(crawlBranch, /website_intelligence: intelligence/);
+    assert.match(crawlBranch, /Learning from Website/);
+    assert.doesNotMatch(reuseBranch, /scrapeHomepageIntelligence/);
+    assert.match(
+      reuseBranch,
+      /Never mutate website_intelligence on refresh \/ non-import \/ reuse paths/,
+    );
+  });
+
+  it("subsequent manual_refresh with stored usable WI does not invoke the scraper", () => {
+    const subsequent = resolveProspectWebsiteLearningDecision({
+      triggerType: "manual_refresh",
+      hasWebsite: true,
+      websiteIntelligence: usableIntel,
+    });
+    assert.equal(subsequent.shouldCrawl, false);
+    assert.equal(subsequent.reason, "intelligence_refresh");
+    assert.equal(websiteIntelligenceHasUsableContent(usableIntel), true);
+
+    const importer = readFileSync(
+      path.join(ROOT, "services/prospects/prospectImporter.ts"),
+      "utf8",
+    );
+    const prepFn = importer.slice(
+      importer.indexOf(
+        "export async function prepareProspectBridgeBeforeGeneration",
+      ),
+      importer.indexOf("export async function markProspectGenerationReady"),
+    );
+    const reuseBranch = prepFn.slice(prepFn.indexOf("} else {"));
+    assert.doesNotMatch(reuseBranch, /scrapeHomepageIntelligence/);
+    assert.doesNotMatch(reuseBranch, /website_intelligence:/);
+    assert.match(
+      reuseBranch,
+      /Never mutate website_intelligence on refresh \/ non-import \/ reuse paths/,
+    );
+  });
+
   it("Prospect append does not scrape", () => {
     const decision = resolveProspectWebsiteLearningDecision({
       triggerType: "discussion_update",
