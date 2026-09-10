@@ -627,3 +627,73 @@ describe("Think Differently generated_at publication (retained from 37104da)", (
     );
   });
 });
+
+describe("Prospect Previous Intelligence version-row provenance", () => {
+  const PROSPECT_VERSION_LIST_START =
+    "{isProspect && sortedVersions.length > 0 ? (";
+  const PROSPECT_VERSION_LIST_END = "{isProspect && viewModel.blueprint ? (";
+
+  function prospectPreviousIntelligenceBranch(): string {
+    const workspace = read(
+      "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
+    );
+    assert.equal(
+      workspace.split(PROSPECT_VERSION_LIST_START).length - 1,
+      1,
+      "Prospect version list must be a single dedicated branch",
+    );
+    const start = workspace.indexOf(PROSPECT_VERSION_LIST_START);
+    assert.ok(start >= 0, "Prospect Previous Intelligence branch missing");
+    const end = workspace.indexOf(PROSPECT_VERSION_LIST_END, start);
+    assert.ok(end > start, "Prospect version list must end before blueprint");
+    const branch = workspace.slice(start, end);
+    assert.match(branch, /Previous intelligence/);
+    assert.doesNotMatch(branch, /previousIntelligence=/);
+    assert.doesNotMatch(branch, /!isPersona && !isProspect/);
+    return branch;
+  }
+
+  it("Prospect version rows use chrome prefix, display timestamp, and models_used", () => {
+    const branch = prospectPreviousIntelligenceBranch();
+
+    assert.match(branch, /chrome\?\.generatedPrefix \?\? "Generated "/);
+    assert.match(
+      branch,
+      /formatVersionGeneratedAt\(\s*resolveExecutiveVersionDisplayTimestamp\(version\),\s*true,\s*locale,?\s*\)/,
+    );
+    assert.match(branch, /mt-3 space-y-1 text-sm text-white\/45/);
+    assert.match(branch, /text-white\/30/);
+    assert.match(branch, /text-white\/65/);
+    assert.match(branch, /text-white\/55/);
+    assert.doesNotMatch(branch, /routing_profile/);
+    assert.doesNotMatch(branch, /generation_duration_ms/);
+    assert.doesNotMatch(branch, /Think Differently/);
+    assert.doesNotMatch(branch, /Gemini|Claude|Sonnet/);
+  });
+
+  it("models_used renders only when present; Generated timestamp is unconditional", () => {
+    const branch = prospectPreviousIntelligenceBranch();
+    const generatedStart = branch.indexOf("chrome?.generatedPrefix");
+    const modelsStart = branch.indexOf("{version.models_used ? (");
+    assert.ok(generatedStart >= 0, "Generated prefix missing on Prospect rows");
+    assert.ok(modelsStart >= 0, "conditional models_used missing on Prospect rows");
+    assert.ok(
+      generatedStart < modelsStart,
+      "Generated timestamp must not be gated by models_used",
+    );
+
+    const generatedBlock = branch.slice(generatedStart, modelsStart);
+    assert.match(
+      generatedBlock,
+      /formatVersionGeneratedAt\(\s*resolveExecutiveVersionDisplayTimestamp\(version\),\s*true,\s*locale,?\s*\)/,
+    );
+    assert.doesNotMatch(generatedBlock, /version\.models_used/);
+
+    const modelsBlock = branch.slice(modelsStart);
+    assert.match(
+      modelsBlock,
+      /version\.models_used \?\s*\([\s\S]*?\{version\.models_used\}[\s\S]*?\)\s*:\s*null/,
+    );
+    assert.doesNotMatch(modelsBlock, /Gemini|Claude|Sonnet|"[A-Za-z].*model/i);
+  });
+});

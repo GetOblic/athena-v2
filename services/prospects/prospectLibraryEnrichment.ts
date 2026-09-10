@@ -1,9 +1,11 @@
 /**
  * Read-time Prospect library enrichment: status from durable job + validated
- * Current Version completeness, Opportunity Score from canonical opportunity.
+ * Current Version completeness, Prospect Completeness from the shared algorithm,
+ * current-version generated_at, and batched GetOblic relationship status.
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { readProspectLibraryGeneratedAt } from "@/lib/prospects/prospectLibraryFreshness";
 import {
   isCompleteProspectDeploymentAssetSet,
   extractProspectDeploymentAssetKeys,
@@ -18,6 +20,7 @@ import {
   resolveProspectOpportunityScore,
   type ProspectDisplayStatus,
 } from "@/services/prospects/prospectDisplay";
+import { computeProspectIntelligenceCompleteness } from "@/services/prospects/prospectIntelligenceCompleteness";
 import {
   normalizeProspectLifecycleStatus,
   type ProspectLifecycleStatus,
@@ -26,7 +29,11 @@ import {
   getProspects,
   type Prospect,
 } from "@/services/prospects/prospectService";
-import { getGetOblicProspectLinkPresence } from "@/services/getoblicDirectory/getoblicDirectoryService";
+import {
+  getGetOblicProspectLinkPresence,
+  type GetOblicProspectLinkPresence,
+} from "@/services/getoblicDirectory/getoblicDirectoryService";
+import type { ActiveGetOblicRelationshipStatus } from "@/services/getoblicDirectory/getoblicDirectoryTypes";
 
 export type ProspectLibraryRow = Prospect & {
   /** Intelligence readiness (Queued / Ready / …). */
@@ -35,6 +42,9 @@ export type ProspectLibraryRow = Prospect & {
   display_lifecycle_status: ProspectLifecycleStatus;
   display_opportunity_score: number | null;
   display_opportunity_score_label: string;
+  display_completeness_score: number;
+  display_intelligence_generated_at: string | null;
+  getoblic_relationship_status: ActiveGetOblicRelationshipStatus | null;
 };
 
 function isCompleteCurrentVersionRow(row: {
@@ -70,6 +80,18 @@ export function excludeReleasedOnlyGetOblicProspectsFromLibrary<
   });
 }
 
+export function buildProspectLibraryCompleteness(input: {
+  prospect: Prospect;
+  hasCurrentVersion: boolean;
+  getoblicRelationshipStatus: ActiveGetOblicRelationshipStatus | null;
+}): number {
+  return computeProspectIntelligenceCompleteness({
+    prospect: input.prospect,
+    hasCurrentExecutiveVersion: input.hasCurrentVersion,
+    hasActiveGetOblicListingLink: input.getoblicRelationshipStatus != null,
+  }).score;
+}
+
 /**
  * /prospects library loader. Leaves shared getProspects() unchanged so
  * Estimate, Ads, and Social Planner selectors keep all-org semantics.
@@ -85,12 +107,14 @@ export async function loadProspectsForLibrary(
   return enrichProspectsForLibrary(
     excludeReleasedOnlyGetOblicProspectsFromLibrary(prospects, presence),
     organizationId,
+    presence,
   );
 }
 
 export async function enrichProspectsForLibrary(
   prospects: Prospect[],
   organizationId: string,
+  presence?: Pick<GetOblicProspectLinkPresence, "activeStatusByProspectId">,
 ): Promise<ProspectLibraryRow[]> {
   if (prospects.length === 0) return [];
 
@@ -101,6 +125,7 @@ export async function enrichProspectsForLibrary(
   const opportunityScoreByDiscussion = new Map<string, number>();
   const hasCurrentVersionByDiscussion = new Map<string, boolean>();
   const hasCompleteCurrentVersionByDiscussion = new Map<string, boolean>();
+  const generatedAtByDiscussion = new Map<string, string>();
 
   if (discussionIds.length > 0) {
     const [{ data: opportunities }, { data: versions }] = await Promise.all([
@@ -111,7 +136,9 @@ export async function enrichProspectsForLibrary(
         .in("discussion_id", discussionIds),
       supabaseAdmin
         .from("athena_executive_intelligence_versions")
-        .select("discussion_id, is_current, blueprint_id, intelligence")
+        .select(
+          "discussion_id, is_current, blueprint_id, intelligence, generated_at",
+        )
         .eq("organization_id", organizationId)
         .in("discussion_id", discussionIds)
         .eq("is_current", true),
@@ -135,6 +162,12 @@ export async function enrichProspectsForLibrary(
         row.discussion_id,
         isCompleteCurrentVersionRow(row),
       );
+      const generatedAt = readProspectLibraryGeneratedAt(
+        (row as { generated_at?: unknown }).generated_at,
+      );
+      if (generatedAt) {
+        generatedAtByDiscussion.set(row.discussion_id, generatedAt);
+      }
     }
   }
 
@@ -154,6 +187,8 @@ export async function enrichProspectsForLibrary(
       const hasCompleteCurrentVersion = discussionId
         ? Boolean(hasCompleteCurrentVersionByDiscussion.get(discussionId))
         : false;
+      const getoblic_relationship_status =
+        presence?.activeStatusByProspectId.get(prospect.id) ?? null;
 
       const hasTerminalJobFailure = Boolean(
         !activeJob &&
@@ -187,6 +222,15 @@ export async function enrichProspectsForLibrary(
         display_opportunity_score_label: formatProspectOpportunityScore(
           display_opportunity_score,
         ),
+        display_completeness_score: buildProspectLibraryCompleteness({
+          prospect,
+          hasCurrentVersion,
+          getoblicRelationshipStatus: getoblic_relationship_status,
+        }),
+        display_intelligence_generated_at: discussionId
+          ? generatedAtByDiscussion.get(discussionId) ?? null
+          : null,
+        getoblic_relationship_status,
       };
     }),
   );

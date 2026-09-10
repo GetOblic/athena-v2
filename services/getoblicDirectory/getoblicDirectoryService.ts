@@ -29,6 +29,7 @@ import {
   GETOBLIC_LISTING_LINKS_TABLE,
   getCurrentGetOblicAllocationPeriodStart,
   isActiveGetOblicRelationshipStatus,
+  type ActiveGetOblicRelationshipStatus,
   type GetOblicActiveListingClaimLookup,
   type GetOblicListingCapacityResult,
   type GetOblicDirectorySearchClaimOverlay,
@@ -250,6 +251,7 @@ export async function getActiveGetOblicClaimOrganizationIdsByWordPressListingIds
 export type GetOblicProspectLinkPresence = {
   historyProspectIds: Set<string>;
   activeProspectIds: Set<string>;
+  activeStatusByProspectId: Map<string, ActiveGetOblicRelationshipStatus>;
 };
 
 /**
@@ -266,8 +268,12 @@ export async function getGetOblicProspectLinkPresence(
   ];
   const historyProspectIds = new Set<string>();
   const activeProspectIds = new Set<string>();
+  const activeStatusByProspectId = new Map<
+    string,
+    ActiveGetOblicRelationshipStatus
+  >();
   if (uniqueIds.length === 0) {
-    return { historyProspectIds, activeProspectIds };
+    return { historyProspectIds, activeProspectIds, activeStatusByProspectId };
   }
 
   const { data, error } = await supabaseAdmin
@@ -278,7 +284,7 @@ export async function getGetOblicProspectLinkPresence(
 
   if (error) {
     console.error("Error batch-looking up GetOblic Prospect link presence:", error);
-    return { historyProspectIds, activeProspectIds };
+    return { historyProspectIds, activeProspectIds, activeStatusByProspectId };
   }
 
   for (const row of data ?? []) {
@@ -291,10 +297,11 @@ export async function getGetOblicProspectLinkPresence(
     historyProspectIds.add(prospectId);
     if (isActiveGetOblicRelationshipStatus(status)) {
       activeProspectIds.add(prospectId);
+      activeStatusByProspectId.set(prospectId, status);
     }
   }
 
-  return { historyProspectIds, activeProspectIds };
+  return { historyProspectIds, activeProspectIds, activeStatusByProspectId };
 }
 
 export function selectLatestReleasedGetOblicLink(

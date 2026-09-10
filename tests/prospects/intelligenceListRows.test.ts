@@ -16,8 +16,8 @@ function read(relative: string) {
 describe("Standardized clickable intelligence rows", () => {
   it("Prospect rows remain fully clickable", () => {
     const source = read("components/prospects/ProspectsLibraryClient.tsx");
+    assert.match(source, /AthenaIntelligenceListRow/);
     assert.match(source, /href=\{`\/prospects\/\$\{prospect\.id\}`\}/);
-    assert.match(source, /<Link[\s\S]*prospect\.id[\s\S]*<\/Link>/);
     assert.match(source, /grid-cols-1 gap-4 md:grid-cols-2/);
   });
 
@@ -100,7 +100,8 @@ describe("Standardized clickable intelligence rows", () => {
     assert.match(row, /router\.push\(href\)/);
 
     const prospects = read("components/prospects/ProspectsLibraryClient.tsx");
-    assert.match(prospects, /<Link[\s\S]*href=\{`\/prospects/);
+    assert.match(prospects, /AthenaIntelligenceListRow/);
+    assert.match(prospects, /href=\{`\/prospects\/\$\{prospect\.id\}`\}/);
   });
 
   it("All four list surfaces use the shared orange row-outline treatment", () => {
@@ -114,6 +115,7 @@ describe("Standardized clickable intelligence rows", () => {
     );
 
     const prospects = read("components/prospects/ProspectsLibraryClient.tsx");
+    assert.match(prospects, /AthenaIntelligenceListRow/);
     assert.match(prospects, /href=\{`\/prospects\/\$\{prospect\.id\}`\}/);
 
     const rowComponent = read("components/ui/AthenaIntelligenceListRow.tsx");

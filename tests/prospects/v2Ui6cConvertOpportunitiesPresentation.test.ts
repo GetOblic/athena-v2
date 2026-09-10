@@ -109,13 +109,15 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
 
   it("replaces the wide operator table with cards and hides Opportunity Score", () => {
     const library = read("components/prospects/ProspectsLibraryClient.tsx");
+    const card = read("components/prospects/ProspectLibraryCard.tsx");
     assert.match(library, /grid-cols-1 gap-4 md:grid-cols-2/);
     assert.doesNotMatch(library, /min-w-\[1100px\]/);
     assert.doesNotMatch(library, /sortScore|Opportunity Score/);
     assert.doesNotMatch(library, /display_opportunity_score_label/);
+    assert.doesNotMatch(card, /Opportunity Score|display_opportunity_score_label/);
     assert.match(library, /Working status/);
-    assert.match(library, /getProspectWorkingStatusLabel/);
-    assert.match(library, /getProspectIntelligenceStatusLabel/);
+    assert.match(card, /getProspectWorkingStatusLabel/);
+    assert.match(card, /getProspectIntelligenceStatusLabel/);
     assert.match(library, /href=\{`\/prospects\/\$\{prospect\.id\}`\}/);
     assert.doesNotMatch(library, /Proposal|Customer/);
   });
@@ -137,7 +139,7 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
   });
 
   it("keeps working status visible on the mobile card contract", () => {
-    const library = read("components/prospects/ProspectsLibraryClient.tsx");
+    const library = read("components/prospects/ProspectLibraryCard.tsx");
     const working = library.slice(
       library.indexOf("getProspectWorkingStatusLabel"),
     );
@@ -309,7 +311,7 @@ describe("V2-UI-6C Convert Opportunities presentation", () => {
     assert.doesNotMatch(page, /copy\.detail\.opportunityScore/);
     assert.doesNotMatch(header, /opportunityScore|Opportunity Score/);
     assert.match(page, /savedBanner|processingBanner|failedBanner/);
-    assert.match(page, /ProspectHeaderDeleteButton/);
+    assert.doesNotMatch(page, /ProspectHeaderDeleteButton/);
     assert.match(page, /sourceKind="prospect"/);
     assert.match(page, /tenantMessages=\{messages\}/);
     assert.match(page, /GetOblicListingReleaseControl/);

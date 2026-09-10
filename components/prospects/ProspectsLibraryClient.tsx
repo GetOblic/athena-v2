@@ -2,14 +2,29 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ArrowUpDown, Filter, Search } from "lucide-react";
+import { AthenaIntelligenceListRow } from "@/components/ui/AthenaIntelligenceListRow";
+import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicListingReleaseControl";
+import { ProspectLibraryCard } from "@/components/prospects/ProspectLibraryCard";
 import { PROSPECT_LIFECYCLE_STATUSES } from "@/services/prospects/prospectLifecycle";
 import type { ProspectLibraryRow } from "@/services/prospects/prospectLibraryEnrichment";
-import { formatTenantDate } from "@/lib/tenantI18n/format";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import {
-  getProspectIntelligenceStatusLabel,
-  getProspectWorkingStatusLabel,
-} from "@/lib/prospects/prospectReadinessPresentation";
+  PROSPECT_CARD_SURFACE_CLASS,
+  PROSPECT_LIBRARY_PRIMARY_ACTION,
+  PROSPECT_LIBRARY_SECONDARY_ACTION,
+  PROSPECT_TOOLBAR_FIELD_CLASS,
+  PROSPECT_TOOLBAR_SURFACE_CLASS,
+  shouldShowProspectLibraryReleaseCta,
+} from "@/lib/prospects/prospectLibraryPresentation";
+import { getProspectWorkingStatusLabel } from "@/lib/prospects/prospectReadinessPresentation";
+import {
+  DEFAULT_PROSPECT_LIBRARY_SORT,
+  PROSPECT_LIBRARY_PAGE_SIZE,
+  buildProspectLibraryView,
+  isProspectLibrarySortKey,
+  type ProspectLibrarySortKey,
+} from "@/lib/prospects/prospectLibrarySort";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
@@ -19,34 +34,17 @@ type ProspectsLibraryClientProps = {
   language?: OrganizationLanguage;
 };
 
-const PAGE_SIZE = 25;
-
-function formatDate(
-  value: string | null | undefined,
-  language: OrganizationLanguage,
-  emptyValue: string,
-) {
-  if (!value) return emptyValue;
-  return formatTenantDate(value, language) || emptyValue;
-}
-
-function formatProspectLocation(prospect: ProspectLibraryRow): string {
-  return [prospect.city, prospect.state, prospect.country]
-    .map((part) => String(part ?? "").trim())
-    .filter(Boolean)
-    .join(", ");
-}
-
 export function ProspectsLibraryClient({
   prospects,
   messages,
   language = "en",
 }: ProspectsLibraryClientProps) {
   const list = messages?.prospects.list;
-  const emptyValue = messages?.prospects.emptyValue ?? "—";
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
-  const [sort, setSort] = useState<"updated" | "created" | "name">("updated");
+  const [sort, setSort] = useState<ProspectLibrarySortKey>(
+    DEFAULT_PROSPECT_LIBRARY_SORT,
+  );
   const [page, setPage] = useState(1);
 
   const statuses = useMemo(() => {
@@ -59,54 +57,15 @@ export function ProspectsLibraryClient({
     return ["all", ...Array.from(set).sort()];
   }, [prospects]);
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    let rows = prospects.filter((prospect) => {
-      if (
-        status !== "all" &&
-        prospect.display_lifecycle_status !== status
-      ) {
-        return false;
-      }
-      if (!needle) return true;
-      const haystack = [
-        prospect.business_name,
-        prospect.website,
-        prospect.decision_maker,
-        prospect.category,
-        prospect.industry,
-        prospect.email,
-        prospect.city,
-        prospect.country,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(needle);
-    });
-
-    rows = [...rows].sort((a, b) => {
-      if (sort === "name") {
-        return a.business_name.localeCompare(b.business_name);
-      }
-      if (sort === "created") {
-        return (
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-      }
-      return (
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      );
-    });
-
-    return rows;
-  }, [prospects, query, sort, status]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pageRows = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+  const { filtered, pageRows, currentPage, totalPages } = useMemo(
+    () =>
+      buildProspectLibraryView(prospects, {
+        query,
+        status,
+        sort,
+        page,
+      }),
+    [prospects, query, sort, status, page],
   );
 
   if (prospects.length === 0) {
@@ -130,13 +89,13 @@ export function ProspectsLibraryClient({
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
           <Link
             href="/prospects/find"
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
+            className={PROSPECT_LIBRARY_PRIMARY_ACTION}
           >
             {list?.findOpportunitiesCta ?? "Find opportunities"}
           </Link>
           <Link
             href="/prospects/import"
-            className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 px-6 py-3 text-sm font-semibold text-white sm:w-auto"
+            className={PROSPECT_LIBRARY_SECONDARY_ACTION}
           >
             {list?.addProspectYourselfCta ??
               list?.createFirstCta ??
@@ -150,74 +109,85 @@ export function ProspectsLibraryClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-3">
-          <label className="block text-sm text-white/50">
+      <div className={PROSPECT_TOOLBAR_SURFACE_CLASS}>
+        <label className="block text-sm text-white/50">
+          <span className="inline-flex items-center gap-1.5">
+            <Search className="size-3.5" aria-hidden="true" />
             {list?.search ?? "Search"}
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setPage(1);
-              }}
-              placeholder={
-                list?.searchPlaceholder ??
-                "Business, website, decision maker, category…"
-              }
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
-            />
-          </label>
-          <label className="block text-sm text-white/50">
+          </span>
+          <input
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(1);
+            }}
+            placeholder={
+              list?.searchPlaceholder ??
+              "Business, website, decision maker, category…"
+            }
+            className={`mt-2 ${PROSPECT_TOOLBAR_FIELD_CLASS}`}
+          />
+        </label>
+        <label className="block text-sm text-white/50">
+          <span className="inline-flex items-center gap-1.5">
+            <Filter className="size-3.5" aria-hidden="true" />
             {list?.status ?? "Working status"}
-            <select
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value);
-                setPage(1);
-              }}
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
-            >
-              {statuses.map((value) => (
-                <option key={value} value={value}>
-                  {value === "all"
-                    ? (list?.allStatuses ?? "All statuses")
-                    : messages
-                      ? getProspectWorkingStatusLabel(messages, value)
-                      : value}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm text-white/50">
+          </span>
+          <select
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value);
+              setPage(1);
+            }}
+            className={`mt-2 ${PROSPECT_TOOLBAR_FIELD_CLASS}`}
+          >
+            {statuses.map((value) => (
+              <option key={value} value={value}>
+                {value === "all"
+                  ? (list?.allStatuses ?? "All statuses")
+                  : messages
+                    ? getProspectWorkingStatusLabel(messages, value)
+                    : value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm text-white/50">
+          <span className="inline-flex items-center gap-1.5">
+            <ArrowUpDown className="size-3.5" aria-hidden="true" />
             {list?.sort ?? "Sort"}
-            <select
-              value={sort}
-              onChange={(event) =>
-                setSort(event.target.value as typeof sort)
+          </span>
+          <select
+            value={sort}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (isProspectLibrarySortKey(next)) {
+                setSort(next);
+                setPage(1);
               }
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
-            >
-              <option value="updated">{list?.sortUpdated ?? "Updated"}</option>
-              <option value="created">{list?.sortCreated ?? "Created"}</option>
-              <option value="name">{list?.sortName ?? "Name"}</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-          <Link
-            href="/prospects/find"
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
+            }}
+            className={`mt-2 ${PROSPECT_TOOLBAR_FIELD_CLASS}`}
           >
-            {list?.findOpportunitiesCta ?? "Find opportunities"}
-          </Link>
-          <Link
-            href="/prospects/import"
-            className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 px-6 py-3 text-sm font-semibold text-white sm:w-auto"
-          >
-            {list?.importCta ?? "Add prospect"}
-          </Link>
-        </div>
+            <option value="updated_desc">
+              {list?.sortRecentlyUpdated ?? "Recently updated"}
+            </option>
+            <option value="updated_asc">
+              {list?.sortOldestUpdated ?? "Oldest updated"}
+            </option>
+            <option value="name_asc">
+              {list?.sortNameAsc ?? "Name A–Z"}
+            </option>
+            <option value="name_desc">
+              {list?.sortNameDesc ?? "Name Z–A"}
+            </option>
+            <option value="score_desc">
+              {list?.sortCompletenessHigh ?? "Completeness: high to low"}
+            </option>
+            <option value="score_asc">
+              {list?.sortCompletenessLow ?? "Completeness: low to high"}
+            </option>
+          </select>
+        </label>
       </div>
 
       {filtered.length === 0 ? (
@@ -233,74 +203,58 @@ export function ProspectsLibraryClient({
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {pageRows.map((prospect) => {
-            const categoryOrIndustry =
-              prospect.category?.trim() || prospect.industry?.trim() || "";
-            const location = formatProspectLocation(prospect);
-            const meta = [categoryOrIndustry, location]
-              .filter(Boolean)
-              .join(" · ");
+            const releaseStatus = prospect.getoblic_relationship_status;
             return (
-              <Link
+              <AthenaIntelligenceListRow
                 key={prospect.id}
                 href={`/prospects/${prospect.id}`}
-                className="min-w-0 rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-5 transition hover:border-white/20 hover:bg-white/[0.03]"
+                ariaLabel={
+                  messages
+                    ? interpolateTenantMessage(
+                        messages.prospects.list.openProspectAria,
+                        { name: prospect.business_name },
+                      )
+                    : prospect.business_name
+                }
+                className={PROSPECT_CARD_SURFACE_CLASS}
               >
-                <h3 className="break-words text-lg font-semibold text-white">
-                  {prospect.business_name}
-                </h3>
-                {meta ? (
-                  <p className="mt-2 break-words text-sm text-white/50">
-                    {meta}
-                  </p>
-                ) : null}
-                {prospect.decision_maker ? (
-                  <p className="mt-2 break-words text-sm text-white/55">
-                    {prospect.decision_maker}
-                  </p>
-                ) : null}
-                <div className="mt-3 text-sm text-[var(--athena-orange)]">
-                  {messages
-                    ? getProspectWorkingStatusLabel(
-                        messages,
-                        prospect.display_lifecycle_status,
-                      )
-                    : prospect.display_lifecycle_status}
-                </div>
-                <div className="mt-1 text-sm text-white/45">
-                  {messages
-                    ? getProspectIntelligenceStatusLabel(
-                        messages,
-                        prospect.display_status,
-                      )
-                    : prospect.display_status}
-                </div>
-                <div className="mt-3 text-xs text-white/40">
-                  {formatDate(prospect.updated_at, language, emptyValue)}
-                </div>
-                {prospect.website ? (
-                  <div className="mt-1 truncate text-sm text-white/40">
-                    {prospect.website}
-                  </div>
-                ) : null}
-              </Link>
+                <ProspectLibraryCard
+                  prospect={prospect}
+                  messages={messages}
+                  language={language}
+                  release={
+                    messages &&
+                    shouldShowProspectLibraryReleaseCta(releaseStatus) ? (
+                      <GetOblicListingReleaseControl
+                        prospectId={prospect.id}
+                        relationshipStatus={releaseStatus}
+                        messages={messages}
+                      />
+                    ) : null
+                  }
+                />
+              </AthenaIntelligenceListRow>
             );
           })}
         </div>
       )}
 
-      {filtered.length > PAGE_SIZE && (
+      {filtered.length > 0 && totalPages > 1 ? (
         <div className="flex flex-col gap-3 text-sm text-white/45 sm:flex-row sm:items-center sm:justify-between">
           <div>
             {interpolateTenantMessage(
               list?.showing ?? "Showing {start}–{end} of {total}",
               {
-                start: (currentPage - 1) * PAGE_SIZE + 1,
-                end: Math.min(currentPage * PAGE_SIZE, filtered.length),
+                start: (currentPage - 1) * PROSPECT_LIBRARY_PAGE_SIZE + 1,
+                end: Math.min(
+                  currentPage * PROSPECT_LIBRARY_PAGE_SIZE,
+                  filtered.length,
+                ),
                 total: filtered.length,
               },
             )}
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               disabled={currentPage <= 1}
@@ -309,6 +263,12 @@ export function ProspectsLibraryClient({
             >
               {list?.previous ?? "Previous"}
             </button>
+            <span className="tabular-nums text-white/55">
+              {interpolateTenantMessage(
+                list?.pageOf ?? "Page {current} of {total}",
+                { current: currentPage, total: totalPages },
+              )}
+            </span>
             <button
               type="button"
               disabled={currentPage >= totalPages}
@@ -321,7 +281,7 @@ export function ProspectsLibraryClient({
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

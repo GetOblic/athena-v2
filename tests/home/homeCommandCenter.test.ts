@@ -1,42 +1,87 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildHomeAttention } from "../../lib/home/homeAttention";
-import type { HomeAttentionInput } from "../../lib/home/homeAttention";
+import { buildHomePriorities } from "../../lib/home/homeAttention";
+import type { HomePriorityInput } from "../../lib/home/homeAttention";
+import { emptyHomePipelineData, type HomePipelineData } from "../../lib/home/homePipeline";
+import type { HomeCapacityData } from "../../services/home/homeReadService";
 import {
+  deriveCapacityState,
   deriveConvertState,
   deriveDefineState,
   deriveTractionState,
   deriveVisibilityState,
 } from "../../lib/home/homeDomainState";
 
-function attentionInput(
-  partial: Partial<HomeAttentionInput> = {},
-): HomeAttentionInput {
+function pipeline(partial: Partial<HomePipelineData> = {}): HomePipelineData {
+  return { ...emptyHomePipelineData(), ...partial };
+}
+
+function configuredCapacity(
+  partial: Partial<Extract<HomeCapacityData, { configured: true }>> = {},
+): HomeCapacityData {
   return {
-    define: { status: "ok", data: null },
-    visibility: { status: "ok", data: { status: "Ready" } },
-    traction: { status: "ok", data: { audienceCount: 2 } },
-    convert: {
-      status: "ok",
-      data: { total: 3, newCount: 0, followUpCount: 0 },
-    },
+    configured: true,
+    listingCapacity: 5,
+    currentlyHeld: 2,
+    available: 3,
+    claiming: 0,
+    linked: 2,
+    remoteMissing: 0,
     ...partial,
   };
 }
 
-describe("V2-UI-2C Home attention rules", () => {
-  it("emits trainAthena when there is no identity", () => {
-    const items = buildHomeAttention(attentionInput());
-    assert.deepEqual(
-      items.map((item) => item.id),
-      ["trainAthena"],
+function readyWorkspace(
+  partial: Partial<HomePriorityInput> = {},
+): HomePriorityInput {
+  return {
+    define: {
+      status: "ok",
+      data: {
+        brainStatus: "ready",
+        hasVoice: true,
+        hasKnowledge: true,
+        hasWebsite: true,
+      },
+    },
+    visibility: { status: "ok", data: { status: "Ready" } },
+    traction: { status: "ok", data: { audienceCount: 2 } },
+    pipeline: {
+      status: "ok",
+      data: pipeline({
+        libraryCount: 3,
+        workingCount: 3,
+      }),
+    },
+    capacity: { status: "ok", data: configuredCapacity() },
+    ...partial,
+  };
+}
+
+describe("Home priorities", () => {
+  it("lets the Brain blocker lead when Identity is missing", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        define: { status: "ok", data: null },
+        pipeline: {
+          status: "ok",
+          data: pipeline({
+            libraryCount: 1,
+            workingCount: 1,
+            readyCount: 1,
+            readyIds: ["p1"],
+          }),
+        },
+      }),
     );
+    assert.equal(items[0]?.id, "trainAthena");
     assert.equal(items[0]?.href, "/identity");
+    assert.equal(items[1]?.id, "reviewReadyOpportunities");
   });
 
-  it("emits trainAthena when Brain is not ready and not processing", () => {
-    const items = buildHomeAttention(
-      attentionInput({
+  it("lets the Brain blocker lead when brain_status is not ready or processing", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
         define: {
           status: "ok",
           data: {
@@ -48,15 +93,12 @@ describe("V2-UI-2C Home attention rules", () => {
         },
       }),
     );
-    assert.deepEqual(
-      items.map((item) => item.id),
-      ["trainAthena"],
-    );
+    assert.equal(items[0]?.id, "trainAthena");
   });
 
-  it("produces no Train Athena item while Brain is processing", () => {
-    const items = buildHomeAttention(
-      attentionInput({
+  it("does not nag Train Athena while Brain is processing", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
         define: {
           status: "ok",
           data: {
@@ -74,275 +116,440 @@ describe("V2-UI-2C Home attention rules", () => {
     );
   });
 
-  it("emits completeDefinition when Brain is ready and a core field is missing", () => {
-    const items = buildHomeAttention(
-      attentionInput({
-        define: {
+  it("emits ready work and routes a single ready prospect to detail", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: {
           status: "ok",
-          data: {
-            brainStatus: "ready",
-            hasVoice: true,
-            hasKnowledge: true,
-            hasWebsite: false,
-          },
+          data: pipeline({
+            libraryCount: 1,
+            workingCount: 1,
+            readyCount: 1,
+            readyIds: ["ready-1"],
+          }),
+        },
+      }),
+    );
+    assert.equal(items[0]?.id, "reviewReadyOpportunities");
+    assert.equal(items[0]?.href, "/prospects/ready-1");
+    assert.equal(items[0]?.count, 1);
+  });
+
+  it("routes multiple ready prospects to /prospects", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: {
+          status: "ok",
+          data: pipeline({
+            libraryCount: 2,
+            workingCount: 2,
+            readyCount: 2,
+            readyIds: ["a", "b"],
+          }),
+        },
+      }),
+    );
+    assert.equal(items[0]?.id, "reviewReadyOpportunities");
+    assert.equal(items[0]?.href, "/prospects");
+  });
+
+  it("emits strong not progressing when that is the entire ready set", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: {
+          status: "ok",
+          data: pipeline({
+            libraryCount: 2,
+            workingCount: 2,
+            readyCount: 2,
+            readyIds: ["s1", "s2"],
+            strongCount: 2,
+            strongNotProgressingCount: 2,
+            strongNotProgressingIds: ["s1", "s2"],
+            workingAttentionCount: 2,
+            workingAttentionIds: ["s1", "s2"],
+          }),
         },
       }),
     );
     assert.deepEqual(
       items.map((item) => item.id),
-      ["completeDefinition"],
+      ["advanceStrongProspects"],
+    );
+    assert.equal(items[0]?.href, "/prospects");
+  });
+
+  it("deduplicates ready work from a strong subset of the same people", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: {
+          status: "ok",
+          data: pipeline({
+            libraryCount: 7,
+            workingCount: 7,
+            readyCount: 7,
+            readyIds: ["r1", "r2", "r3", "r4", "r5", "r6", "r7"],
+            strongCount: 5,
+            strongNotProgressingCount: 5,
+            strongNotProgressingIds: ["r1", "r2", "r3", "r4", "r5"],
+            workingAttentionCount: 5,
+            workingAttentionIds: ["r1", "r2", "r3", "r4", "r5"],
+          }),
+        },
+      }),
+    );
+    assert.equal(items[0]?.id, "reviewReadyOpportunities");
+    assert.equal(
+      items.some((item) => item.id === "advanceStrongProspects"),
+      false,
+    );
+    assert.equal(
+      items.some((item) => item.id === "workingItemsNeedingAttention"),
+      false,
     );
   });
 
-  it("emits establishVisibility when there is no SEO row", () => {
-    const items = buildHomeAttention(
-      attentionInput({
-        define: {
+  it("emits failed intelligence and routes a single failure to detail", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: {
           status: "ok",
-          data: {
-            brainStatus: "ready",
-            hasVoice: true,
-            hasKnowledge: true,
-            hasWebsite: true,
-          },
+          data: pipeline({
+            libraryCount: 1,
+            workingCount: 1,
+            failedCount: 1,
+            failedIds: ["fail-1"],
+          }),
         },
+      }),
+    );
+    assert.equal(items[0]?.id, "failedIntelligence");
+    assert.equal(items[0]?.href, "/prospects/fail-1");
+  });
+
+  it("emits missing intelligence when no ready-work recommendation dominates", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: {
+          status: "ok",
+          data: pipeline({
+            libraryCount: 3,
+            workingCount: 3,
+            missingCount: 3,
+            missingIds: ["m1", "m2", "m3"],
+          }),
+        },
+      }),
+    );
+    assert.equal(items[0]?.id, "missingIntelligence");
+    assert.equal(items[0]?.href, "/prospects");
+  });
+
+  it("does not emit missing intelligence when ready work already dominates", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: {
+          status: "ok",
+          data: pipeline({
+            libraryCount: 4,
+            workingCount: 4,
+            readyCount: 2,
+            readyIds: ["r1", "r2"],
+            missingCount: 2,
+            missingIds: ["m1", "m2"],
+          }),
+        },
+      }),
+    );
+    assert.equal(items[0]?.id, "reviewReadyOpportunities");
+    assert.equal(
+      items.some((item) => item.id === "missingIntelligence"),
+      false,
+    );
+  });
+
+  it("emits empty pipeline plus available capacity to /prospects/find", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: { status: "ok", data: pipeline({ workingCount: 0 }) },
+        capacity: {
+          status: "ok",
+          data: configuredCapacity({
+            listingCapacity: 4,
+            currentlyHeld: 1,
+            available: 3,
+          }),
+        },
+      }),
+    );
+    assert.equal(items[0]?.id, "emptyPipelineAvailableCapacity");
+    assert.equal(items[0]?.href, "/prospects/find");
+    assert.equal(items[0]?.count, 3);
+  });
+
+  it("emits full capacity to /prospects and never to Find", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: {
+          status: "ok",
+          data: pipeline({
+            libraryCount: 2,
+            workingCount: 2,
+            readyCount: 1,
+            readyIds: ["r1"],
+          }),
+        },
+        capacity: {
+          status: "ok",
+          data: configuredCapacity({
+            listingCapacity: 2,
+            currentlyHeld: 2,
+            available: 0,
+          }),
+        },
+      }),
+    );
+    const full = items.find((item) => item.id === "capacityFull");
+    assert.ok(full);
+    assert.equal(full?.href, "/prospects");
+    assert.equal(
+      items.some((item) => item.href === "/prospects/find"),
+      false,
+    );
+  });
+
+  it("treats capacity 0 as a valid configured full state", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: { status: "ok", data: pipeline({ workingCount: 0 }) },
+        capacity: {
+          status: "ok",
+          data: configuredCapacity({
+            listingCapacity: 0,
+            currentlyHeld: 0,
+            available: 0,
+          }),
+        },
+      }),
+    );
+    assert.equal(
+      items.some((item) => item.id === "capacityFull"),
+      true,
+    );
+    assert.equal(
+      items.some((item) => item.id === "emptyPipelineAvailableCapacity"),
+      false,
+    );
+  });
+
+  it("emits held listings without ready intelligence", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: {
+          status: "ok",
+          data: pipeline({
+            libraryCount: 1,
+            workingCount: 1,
+            inProgressCount: 1,
+            heldWithoutReadyCount: 1,
+            heldWithoutReadyIds: ["held-1"],
+          }),
+        },
+      }),
+    );
+    assert.equal(items[0]?.id, "heldWithoutReadyIntelligence");
+    assert.equal(items[0]?.href, "/prospects/held-1");
+  });
+
+  it("emits residual visibility only when no operational priority dominates", () => {
+    const residual = buildHomePriorities(
+      readyWorkspace({
         visibility: { status: "ok", data: null },
+        pipeline: { status: "ok", data: pipeline({ workingCount: 1 }) },
+        capacity: { status: "ok", data: { configured: false } },
       }),
     );
     assert.deepEqual(
-      items.map((item) => item.id),
+      residual.map((item) => item.id),
       ["establishVisibility"],
     );
-    assert.equal(items[0]?.href, "/seo");
-  });
 
-  it("emits reviewFailedVisibility when the latest SEO status failed", () => {
-    const items = buildHomeAttention(
-      attentionInput({
-        define: {
+    const dominated = buildHomePriorities(
+      readyWorkspace({
+        visibility: { status: "ok", data: null },
+        pipeline: {
           status: "ok",
-          data: {
-            brainStatus: "ready",
-            hasVoice: true,
-            hasKnowledge: true,
-            hasWebsite: true,
-          },
+          data: pipeline({
+            libraryCount: 1,
+            workingCount: 1,
+            readyCount: 1,
+            readyIds: ["r1"],
+          }),
         },
-        visibility: { status: "ok", data: { status: "Processing Failed" } },
       }),
     );
-    assert.deepEqual(
-      items.map((item) => item.id),
-      ["reviewFailedVisibility"],
+    assert.equal(
+      dominated.some((item) => item.id === "establishVisibility"),
+      false,
     );
   });
 
-  it("does not emit visibility attention for Ready or Processing reports", () => {
-    for (const status of ["Ready", "Processing", "Queued"]) {
-      const items = buildHomeAttention(
-        attentionInput({
-          define: {
-            status: "ok",
-            data: {
-              brainStatus: "ready",
-              hasVoice: true,
-              hasKnowledge: true,
-              hasWebsite: true,
-            },
-          },
-          visibility: { status: "ok", data: { status } },
-        }),
-      );
-      assert.equal(
-        items.some((item) => item.domain === "visibility"),
-        false,
-        status,
-      );
-    }
-  });
-
-  it("emits defineFirstAudience when audience count is zero", () => {
-    const items = buildHomeAttention(
-      attentionInput({
-        define: {
-          status: "ok",
-          data: {
-            brainStatus: "ready",
-            hasVoice: true,
-            hasKnowledge: true,
-            hasWebsite: true,
-          },
-        },
+  it("emits residual first Audience only when no operational priority dominates", () => {
+    const residual = buildHomePriorities(
+      readyWorkspace({
         traction: { status: "ok", data: { audienceCount: 0 } },
+        pipeline: { status: "ok", data: pipeline({ workingCount: 1 }) },
+        capacity: { status: "ok", data: { configured: false } },
       }),
     );
     assert.deepEqual(
-      items.map((item) => item.id),
+      residual.map((item) => item.id),
       ["defineFirstAudience"],
     );
-    assert.equal(items[0]?.href, "/personas");
+    assert.equal(residual[0]?.href, "/personas");
   });
 
-  it("emits findProspects when prospect total is zero", () => {
-    const items = buildHomeAttention(
-      attentionInput({
-        define: {
+  it("does not pad the list with irrelevant residual actions", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        visibility: { status: "ok", data: null },
+        traction: { status: "ok", data: { audienceCount: 0 } },
+        pipeline: {
           status: "ok",
-          data: {
-            brainStatus: "ready",
-            hasVoice: true,
-            hasKnowledge: true,
-            hasWebsite: true,
-          },
-        },
-        convert: {
-          status: "ok",
-          data: { total: 0, newCount: 0, followUpCount: 0 },
+          data: pipeline({
+            libraryCount: 1,
+            workingCount: 1,
+            readyCount: 1,
+            readyIds: ["r1"],
+          }),
         },
       }),
     );
     assert.deepEqual(
       items.map((item) => item.id),
-      ["findProspects"],
+      ["reviewReadyOpportunities"],
     );
   });
 
-  it("emits reviewNewProspects when only New is greater than zero", () => {
-    const items = buildHomeAttention(
-      attentionInput({
-        define: {
-          status: "ok",
-          data: {
-            brainStatus: "ready",
-            hasVoice: true,
-            hasKnowledge: true,
-            hasWebsite: true,
-          },
-        },
-        convert: {
-          status: "ok",
-          data: { total: 4, newCount: 2, followUpCount: 0 },
-        },
-      }),
-    );
-    assert.deepEqual(
-      items.map((item) => item.id),
-      ["reviewNewProspects"],
-    );
-  });
-
-  it("emits followUpProspects when only Follow-up is greater than zero", () => {
-    const items = buildHomeAttention(
-      attentionInput({
-        define: {
-          status: "ok",
-          data: {
-            brainStatus: "ready",
-            hasVoice: true,
-            hasKnowledge: true,
-            hasWebsite: true,
-          },
-        },
-        convert: {
-          status: "ok",
-          data: { total: 4, newCount: 0, followUpCount: 3 },
-        },
-      }),
-    );
-    assert.deepEqual(
-      items.map((item) => item.id),
-      ["followUpProspects"],
-    );
-  });
-
-  it("emits a combined Convert item when New and Follow-up are both greater than zero", () => {
-    const items = buildHomeAttention(
-      attentionInput({
-        define: {
-          status: "ok",
-          data: {
-            brainStatus: "ready",
-            hasVoice: true,
-            hasKnowledge: true,
-            hasWebsite: true,
-          },
-        },
-        convert: {
-          status: "ok",
-          data: { total: 8, newCount: 1, followUpCount: 2 },
-        },
-      }),
-    );
-    assert.deepEqual(
-      items.map((item) => item.id),
-      ["reviewNewAndFollowUp"],
-    );
-  });
-
-  it("keeps fixed domain order and at most one item per domain", () => {
-    const items = buildHomeAttention({
+  it("never emits more than 5 priorities", () => {
+    const items = buildHomePriorities({
       define: { status: "ok", data: null },
-      visibility: { status: "ok", data: null },
+      visibility: { status: "ok", data: { status: "Processing Failed" } },
       traction: { status: "ok", data: { audienceCount: 0 } },
-      convert: {
+      pipeline: {
         status: "ok",
-        data: { total: 5, newCount: 1, followUpCount: 1 },
+        data: pipeline({
+          libraryCount: 8,
+          workingCount: 8,
+          readyCount: 2,
+          readyIds: ["r1", "r2"],
+          failedCount: 1,
+          failedIds: ["f1"],
+          missingCount: 1,
+          missingIds: ["m1"],
+          workingAttentionCount: 2,
+          workingAttentionIds: ["w1", "w2"],
+          heldWithoutReadyCount: 1,
+          heldWithoutReadyIds: ["h1"],
+        }),
+      },
+      capacity: {
+        status: "ok",
+        data: configuredCapacity({
+          listingCapacity: 1,
+          currentlyHeld: 1,
+          available: 0,
+        }),
       },
     });
-    assert.deepEqual(
-      items.map((item) => item.domain),
-      ["define", "visibility", "traction", "convert"],
-    );
-    assert.deepEqual(
-      items.map((item) => item.id),
-      [
-        "trainAthena",
-        "establishVisibility",
-        "defineFirstAudience",
-        "reviewNewAndFollowUp",
-      ],
-    );
-    assert.equal(items.length <= 4, true);
-    assert.equal(new Set(items.map((item) => item.domain)).size, items.length);
+    assert.ok(items.length <= 5);
+    assert.equal(items[0]?.id, "trainAthena");
   });
 
-  it("skips error domains and never treats error as empty", () => {
-    const items = buildHomeAttention({
+  it("does not create a remote_missing release action", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: { status: "ok", data: pipeline({ workingCount: 1 }) },
+        capacity: {
+          status: "ok",
+          data: configuredCapacity({
+            listingCapacity: 3,
+            currentlyHeld: 3,
+            available: 0,
+            remoteMissing: 2,
+          }),
+        },
+      }),
+    );
+    assert.equal(
+      items.some((item) => /remote|release|missing listing/i.test(item.id)),
+      false,
+    );
+    assert.equal(
+      items.some((item) => item.id === "capacityFull"),
+      true,
+    );
+  });
+
+  it("does not create a claiming-stuck action", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        capacity: {
+          status: "ok",
+          data: configuredCapacity({ claiming: 4, linked: 0 }),
+        },
+      }),
+    );
+    assert.equal(
+      items.some((item) => /claim/i.test(item.id)),
+      false,
+    );
+  });
+
+  it("does not create a time-based stale action", () => {
+    const items = buildHomePriorities(readyWorkspace());
+    assert.equal(
+      items.some((item) => /stale|days|aging/i.test(item.id)),
+      false,
+    );
+  });
+
+  it("skips failed domains and never treats error as zero", () => {
+    const items = buildHomePriorities({
       define: { status: "error" },
       visibility: { status: "error" },
       traction: { status: "error" },
-      convert: { status: "error" },
+      pipeline: { status: "error" },
+      capacity: { status: "error" },
     });
     assert.deepEqual(items, []);
   });
 
-  it("does not emit zero-state attention from an error domain", () => {
-    const items = buildHomeAttention(
-      attentionInput({
-        define: {
-          status: "ok",
-          data: {
-            brainStatus: "ready",
-            hasVoice: true,
-            hasKnowledge: true,
-            hasWebsite: true,
-          },
-        },
+  it("does not generate dependent priorities from a failed domain", () => {
+    const items = buildHomePriorities(
+      readyWorkspace({
+        pipeline: { status: "error" },
+        capacity: { status: "error" },
         traction: { status: "error" },
-        convert: { status: "error" },
+        visibility: { status: "error" },
       }),
     );
     assert.equal(
-      items.some(
-        (item) =>
-          item.id === "defineFirstAudience" || item.id === "findProspects",
+      items.some((item) =>
+        [
+          "reviewReadyOpportunities",
+          "emptyPipelineAvailableCapacity",
+          "capacityFull",
+          "defineFirstAudience",
+          "establishVisibility",
+        ].includes(item.id),
       ),
       false,
     );
   });
 });
 
-describe("V2-UI-2C Home domain state", () => {
+describe("Home domain state", () => {
   it("maps identity query failure to unknown, not needs setup", () => {
     const state = deriveDefineState({ status: "error" });
     assert.equal(state.kind, "unknown");
@@ -420,63 +627,62 @@ describe("V2-UI-2C Home domain state", () => {
     assert.equal(state.audienceCount, null);
   });
 
-  it("maps traction zero / one / many without treating error as zero", () => {
-    assert.equal(
-      deriveTractionState({ status: "ok", data: { audienceCount: 0 } }).kind,
-      "none",
-    );
-    assert.equal(
-      deriveTractionState({ status: "ok", data: { audienceCount: 1 } }).kind,
-      "one",
-    );
-    assert.equal(
-      deriveTractionState({ status: "ok", data: { audienceCount: 4 } }).kind,
-      "many",
-    );
-  });
-
   it("maps convert query failure to unknown, not zero prospects", () => {
     const state = deriveConvertState({ status: "error" });
     assert.equal(state.kind, "unknown");
-    assert.equal(state.total, null);
+    assert.equal(state.workingCount, null);
     assert.equal(state.cta, "unavailable");
   });
 
-  it("maps convert CTA variants from stored counts", () => {
+  it("maps convert working / empty from pipeline data", () => {
     assert.equal(
       deriveConvertState({
         status: "ok",
-        data: { total: 0, newCount: 0, followUpCount: 0 },
-      }).cta,
-      "find",
+        data: pipeline({ workingCount: 0 }),
+      }).kind,
+      "none",
     );
     assert.equal(
       deriveConvertState({
         status: "ok",
-        data: { total: 2, newCount: 0, followUpCount: 0 },
-      }).cta,
-      "open",
+        data: pipeline({
+          workingCount: 4,
+          readyCount: 2,
+          newCount: 1,
+          followUpCount: 1,
+        }),
+      }).kind,
+      "active",
     );
-    assert.equal(
-      deriveConvertState({
-        status: "ok",
-        data: { total: 2, newCount: 1, followUpCount: 0 },
-      }).cta,
-      "reviewNew",
-    );
-    assert.equal(
-      deriveConvertState({
-        status: "ok",
-        data: { total: 2, newCount: 0, followUpCount: 1 },
-      }).cta,
-      "followUp",
-    );
-    assert.equal(
-      deriveConvertState({
-        status: "ok",
-        data: { total: 2, newCount: 1, followUpCount: 1 },
-      }).cta,
-      "reviewBoth",
-    );
+  });
+
+  it("maps capacity failure to unknown, not unconfigured zeros", () => {
+    const state = deriveCapacityState({ status: "error" });
+    assert.equal(state.kind, "unknown");
+  });
+
+  it("maps unconfigured capacity without fake zeros", () => {
+    const state = deriveCapacityState({
+      status: "ok",
+      data: { configured: false },
+    });
+    assert.equal(state.kind, "unconfigured");
+    assert.equal("listingCapacity" in state, false);
+  });
+
+  it("maps configured capacity including a zero allowance", () => {
+    const state = deriveCapacityState({
+      status: "ok",
+      data: configuredCapacity({
+        listingCapacity: 0,
+        currentlyHeld: 0,
+        available: 0,
+      }),
+    });
+    assert.equal(state.kind, "configured");
+    if (state.kind === "configured") {
+      assert.equal(state.listingCapacity, 0);
+      assert.equal(state.available, 0);
+    }
   });
 });

@@ -14,6 +14,7 @@ import {
   PROSPECT_ADD_OBSERVATION_EVENT,
   PROSPECT_ASK_ATHENA_EVENT,
   PROSPECT_BACK_LINK_CLASS,
+  PROSPECT_CTA_GROUP_LABEL,
   PROSPECT_DETAIL_ANCHORS,
   PROSPECT_EDIT_PROFILE_EVENT,
   PROSPECT_HEADER_ICON_WELL,
@@ -47,8 +48,36 @@ type ProspectDetailHeaderProps = {
   generateActions: ReactNode;
   researchAction: ReactNode;
   lifecycleAction: ReactNode;
-  destructiveAction: ReactNode;
+  directoryAction?: ReactNode;
+  intelligenceGroupLabel: string;
+  prospectToolsLabel: string;
+  directoryGroupLabel: string;
 };
+
+function ProspectHeaderActionGroup({
+  name,
+  label,
+  children,
+}: {
+  name: string;
+  label?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div data-prospect-header-actions={name}>
+      {label ? <div className={PROSPECT_CTA_GROUP_LABEL}>{label}</div> : null}
+      <div
+        className={
+          label
+            ? "mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
+            : "flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
+        }
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function ProspectDetailHeader({
   backHref = "/prospects",
@@ -71,7 +100,10 @@ export function ProspectDetailHeader({
   generateActions,
   researchAction,
   lifecycleAction,
-  destructiveAction,
+  directoryAction = null,
+  intelligenceGroupLabel,
+  prospectToolsLabel,
+  directoryGroupLabel,
 }: ProspectDetailHeaderProps) {
   const askAthenaButton = hasDiscussion ? (
     <button
@@ -138,6 +170,10 @@ export function ProspectDetailHeader({
     </a>
   ) : null;
 
+  const toolActions = [openWebsiteButton, editButton, observationButton].filter(
+    Boolean,
+  );
+
   return (
     <header data-prospect-detail="header" className="mb-8">
       <Link href={backHref} className={PROSPECT_BACK_LINK_CLASS}>
@@ -188,10 +224,10 @@ export function ProspectDetailHeader({
         <div className="shrink-0">{completenessScore}</div>
       </div>
 
-      <div className="mt-8 space-y-3">
-        <div
-          data-prospect-header-actions="primary"
-          className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
+      <div className="mt-8 space-y-6">
+        <ProspectHeaderActionGroup
+          name="intelligence"
+          label={intelligenceGroupLabel}
         >
           {ready ? (
             <>
@@ -204,20 +240,31 @@ export function ProspectDetailHeader({
               {askAthenaButton}
             </>
           )}
-        </div>
-        <div
-          data-prospect-header-actions="utility"
-          className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
-        >
           {researchAction}
-          {openWebsiteButton}
-          {editButton}
-          {observationButton}
-          {lifecycleAction}
-        </div>
-        <div data-prospect-header-actions="destructive">
-          {destructiveAction}
-        </div>
+        </ProspectHeaderActionGroup>
+
+        {toolActions.length > 0 ? (
+          <ProspectHeaderActionGroup name="tools" label={prospectToolsLabel}>
+            {openWebsiteButton}
+            {editButton}
+            {observationButton}
+          </ProspectHeaderActionGroup>
+        ) : null}
+
+        {lifecycleAction ? (
+          <ProspectHeaderActionGroup name="lifecycle">
+            {lifecycleAction}
+          </ProspectHeaderActionGroup>
+        ) : null}
+
+        {directoryAction ? (
+          <ProspectHeaderActionGroup
+            name="directory"
+            label={directoryGroupLabel}
+          >
+            {directoryAction}
+          </ProspectHeaderActionGroup>
+        ) : null}
       </div>
     </header>
   );

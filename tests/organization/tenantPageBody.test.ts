@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { HomeAttentionList } from "../../components/home/HomeAttentionList";
+import { HomePriorityList } from "../../components/home/HomePriorityList";
 import { HomeDomainCard } from "../../components/home/HomeDomainCard";
 import { GettingStartedConversationPanel } from "../../components/getting-started/GettingStartedConversationPanel";
 import { IdentityConversationPanel } from "../../components/identity/IdentityConversationPanel";
@@ -107,7 +107,7 @@ function dashboardPageUses(messages: TenantMessages): string[] {
     messages.dashboard.visibility.title,
     messages.dashboard.traction.title,
     messages.dashboard.convert.title,
-    messages.dashboard.attention.title,
+    messages.dashboard.next.title,
     messages.dashboard.goodMorning,
     messages.dashboard.goodAfternoon,
     messages.dashboard.goodEvening,
@@ -117,19 +117,19 @@ function dashboardPageUses(messages: TenantMessages): string[] {
 describe("V31 L3.3 tenant page body — dashboard", () => {
   it("keeps English Command Center chrome canonical", () => {
     const html = renderToStaticMarkup(
-      createElement(HomeAttentionList, {
-        title: en.dashboard.attention.title,
-        intro: en.dashboard.attention.intro,
+      createElement(HomePriorityList, {
+        title: en.dashboard.next.title,
+        intro: en.dashboard.next.intro,
         items: [],
-        emptyLabel: en.dashboard.attention.empty,
+        emptyLabel: en.dashboard.next.empty,
       }),
     );
-    assert.match(html, /What needs attention/);
-    assert.match(html, /Open items from your current workspace state/);
+    assert.match(html, /Athena — What to do next/);
+    assert.match(html, /next useful moves from your current pipeline/);
     assert.equal(en.dashboard.eyebrow, "Command Center");
     assert.equal(
       en.dashboard.subtitle,
-      "Here is where your business stands, and what you can work on now.",
+      "Keep a healthy pipeline and continuously move the best opportunities forward.",
     );
     assert.equal(en.dashboard.goodMorning, "Good morning");
     assert.equal(en.dashboard.goodAfternoon, "Good afternoon");
@@ -147,25 +147,25 @@ describe("V31 L3.3 tenant page body — dashboard", () => {
     for (const language of ["fr", "es", "it", "de", "pt"] as const) {
       const messages = DICTIONARIES[language];
       const html = renderToStaticMarkup(
-        createElement(HomeAttentionList, {
-          title: messages.dashboard.attention.title,
-          intro: messages.dashboard.attention.intro,
+        createElement(HomePriorityList, {
+          title: messages.dashboard.next.title,
+          intro: messages.dashboard.next.intro,
           items: [],
-          emptyLabel: messages.dashboard.attention.empty,
+          emptyLabel: messages.dashboard.next.empty,
         }),
       );
       assert.notEqual(messages.dashboard.eyebrow, en.dashboard.eyebrow);
       assert.notEqual(
-        messages.dashboard.attention.title,
-        en.dashboard.attention.title,
+        messages.dashboard.next.title,
+        en.dashboard.next.title,
       );
       assert.match(
         html,
         new RegExp(
-          messages.dashboard.attention.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+          messages.dashboard.next.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
         ),
       );
-      assert.doesNotMatch(html, /What needs attention/);
+      assert.doesNotMatch(html, /Athena — What to do next/);
       for (const greeting of dashboardPageUses(messages)) {
         assert.ok(greeting.trim());
       }

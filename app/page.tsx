@@ -1,32 +1,32 @@
 import { redirect } from "next/navigation";
-import { HomeAttentionList } from "@/components/home/HomeAttentionList";
-import {
-  HomeDomainCard,
-  type HomeDomainTone,
-} from "@/components/home/HomeDomainCard";
+import { HomeBusinessReadiness } from "@/components/home/HomeBusinessReadiness";
+import { HomeGetOblicCapacity } from "@/components/home/HomeGetOblicCapacity";
+import { HomeOpportunityPipeline } from "@/components/home/HomeOpportunityPipeline";
+import { HomePriorityList } from "@/components/home/HomePriorityList";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
-import { formatTenantDate } from "@/lib/tenantI18n/format";
-import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
-import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
-import type { TenantMessages } from "@/lib/tenantI18n/types";
+import { Brain, Search, Target, Users } from "lucide-react";
 import {
   allHomeDomainsErrored,
+  deriveCapacityState,
   deriveConvertState,
   deriveDefineState,
   deriveTractionState,
   deriveVisibilityState,
-  hasMissingCoreField,
-  toHomeAttentionInput,
-  type ConvertState,
-  type DefineState,
-  type TractionState,
-  type VisibilityState,
+  toHomePriorityInput,
 } from "@/lib/home/homeDomainState";
-import { buildHomeAttention } from "@/lib/home/homeAttention";
+import { buildHomePriorities } from "@/lib/home/homeAttention";
+import {
+  homePriorityCopy,
+  presentConvert,
+  presentDefine,
+  presentTraction,
+  presentVisibility,
+} from "@/lib/home/homePresentation";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadHomeSnapshot } from "@/services/home/homeReadService";
 import { requireTenantContext } from "@/services/tenantContext";
-import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
 function timeGreetingKey(): "goodMorning" | "goodAfternoon" | "goodEvening" {
   const hour = new Date().getHours();
@@ -55,13 +55,18 @@ export default async function Home() {
   const visibility = deriveVisibilityState(snapshot.visibility);
   const traction = deriveTractionState(snapshot.traction);
   const convert = deriveConvertState(snapshot.convert);
-  const attentionItems = buildHomeAttention(toHomeAttentionInput(snapshot));
+  const capacity = deriveCapacityState(snapshot.capacity);
+  const priorities = buildHomePriorities(toHomePriorityInput(snapshot));
   const dash = messages.dashboard;
   const name = define.greetingName || dash.greetingFallback;
+  const defineView = presentDefine(define, dash, language);
+  const visibilityView = presentVisibility(visibility, messages, language);
+  const tractionView = presentTraction(traction, dash);
+  const convertView = presentConvert(convert, dash);
 
   return (
     <TenantAppShell currentPath="/" messages={messages}>
-      <div className="mb-12">
+      <div className="mb-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
           {dash.eyebrow}
         </div>
@@ -75,343 +80,81 @@ export default async function Home() {
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <HomeDomainCard
-          stageNumber={1}
-          icon="brain"
-          title={dash.define.title}
-          question={dash.define.question}
-          href="/identity"
-          {...presentDefine(define, dash, language)}
-        />
-        <HomeDomainCard
-          stageNumber={2}
-          icon="visibility"
-          title={dash.visibility.title}
-          question={dash.visibility.question}
-          href="/seo"
-          {...presentVisibility(visibility, messages, language)}
-        />
-        <HomeDomainCard
-          stageNumber={3}
-          icon="traction"
-          title={dash.traction.title}
-          question={dash.traction.question}
-          href="/personas"
-          {...presentTraction(traction, dash)}
-        />
-        <HomeDomainCard
-          stageNumber={4}
-          icon="convert"
-          title={dash.convert.title}
-          question={dash.convert.question}
-          href="/prospects"
-          {...presentConvert(convert, dash)}
-        />
-      </div>
-
-      <HomeAttentionList
-        title={dash.attention.title}
-        intro={dash.attention.intro}
+      <HomePriorityList
+        title={dash.next.title}
+        intro={dash.next.intro}
         emptyLabel={
           allHomeDomainsErrored(snapshot)
-            ? dash.attention.loadFailed
-            : dash.attention.empty
+            ? dash.next.loadFailed
+            : dash.next.empty
         }
-        items={attentionItems.map((item) => ({
-          title: dash.attention[item.id].title,
-          body: dash.attention[item.id].body,
-          href: item.href,
-          cta: dash.attention.cta,
-        }))}
+        items={priorities.map((item, index) => {
+          const copy = homePriorityCopy(item.id, dash);
+          return {
+            id: item.id,
+            title: copy.title,
+            body: copy.body,
+            href: item.href,
+            cta: copy.cta,
+            countLabel:
+              item.count != null
+                ? interpolateTenantMessage(dash.next.count, {
+                    count: item.count,
+                  })
+                : null,
+            accent: item.accent,
+            featured: index === 0,
+          };
+        })}
+      />
+
+      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        <HomeOpportunityPipeline state={convert} messages={dash.pipeline} />
+        <HomeGetOblicCapacity state={capacity} messages={dash.capacity} />
+      </div>
+
+      <HomeBusinessReadiness
+        title={dash.readiness.title}
+        intro={dash.readiness.intro}
+        tiles={[
+          {
+            icon: Brain,
+            title: dash.define.title,
+            href: "/identity",
+            tone: defineView.tone,
+            statusLabel: defineView.statusLabel,
+            statusLine: defineView.statusLine,
+            ctaLabel: defineView.ctaLabel,
+          },
+          {
+            icon: Search,
+            title: dash.visibility.title,
+            href: "/seo",
+            tone: visibilityView.tone,
+            statusLabel: visibilityView.statusLabel,
+            statusLine: visibilityView.statusLine,
+            ctaLabel: visibilityView.ctaLabel,
+          },
+          {
+            icon: Target,
+            title: dash.traction.title,
+            href: "/personas",
+            tone: tractionView.tone,
+            statusLabel: tractionView.statusLabel,
+            statusLine: tractionView.statusLine,
+            ctaLabel: tractionView.ctaLabel,
+          },
+          {
+            icon: Users,
+            title: dash.convert.title,
+            href: "/prospects",
+            tone: convertView.tone,
+            statusLabel: convertView.statusLabel,
+            statusLine: convertView.statusLine,
+            ctaLabel: convertView.ctaLabel,
+          },
+        ]}
       />
     </TenantAppShell>
   );
-}
-
-function presentDefine(
-  state: DefineState,
-  dash: TenantMessages["dashboard"],
-  language: OrganizationLanguage,
-): {
-  tone: HomeDomainTone;
-  statusLabel: string;
-  statusLine: string;
-  details: string[];
-  ctaLabel: string;
-} {
-  const details: string[] = [];
-
-  if (state.kind !== "unknown") {
-    if (state.kind !== "ready" || hasMissingCoreField(state.missing)) {
-      details.push(...missingFieldDetails(state.missing, dash));
-    }
-    if (state.kind === "ready" && state.lastTrained) {
-      const date = formatTenantDate(state.lastTrained, language);
-      if (date) {
-        details.push(
-          interpolateTenantMessage(dash.define.lastTrained, { date }),
-        );
-      }
-    }
-    if (state.lastDeepScrapeAt) {
-      const date = formatTenantDate(state.lastDeepScrapeAt, language);
-      if (date) {
-        details.push(
-          interpolateTenantMessage(dash.define.websiteLearning, { date }),
-        );
-      }
-    }
-  }
-
-  if (state.kind === "unknown") {
-    return {
-      tone: "unknown",
-      statusLabel: dash.define.statusUnknown,
-      statusLine: dash.define.statusUnknown,
-      details: [],
-      ctaLabel: dash.define.ctaOpen,
-    };
-  }
-  if (state.kind === "needs_setup") {
-    return {
-      tone: "attention",
-      statusLabel: dash.define.labelNeedsSetup,
-      statusLine: dash.define.statusNeedsSetup,
-      details,
-      ctaLabel: dash.define.ctaTrain,
-    };
-  }
-  if (state.kind === "ready") {
-    return {
-      tone: "ready",
-      statusLabel: dash.define.labelReady,
-      statusLine: dash.define.statusReady,
-      details,
-      ctaLabel: dash.define.ctaOpen,
-    };
-  }
-  return {
-    tone: "progress",
-    statusLabel: dash.define.labelInProgress,
-    statusLine: state.isTraining
-      ? dash.define.statusTraining
-      : dash.define.statusInProgress,
-    details,
-    ctaLabel: dash.define.ctaTrain,
-  };
-}
-
-function missingFieldDetails(
-  missing: DefineState["missing"],
-  dash: TenantMessages["dashboard"],
-): string[] {
-  const absent = [
-    !missing.hasVoice,
-    !missing.hasKnowledge,
-    !missing.hasWebsite,
-  ];
-  if (absent.every(Boolean)) {
-    return [dash.define.missingAll];
-  }
-  const lines: string[] = [];
-  if (!missing.hasVoice) lines.push(dash.define.missingVoice);
-  if (!missing.hasKnowledge) lines.push(dash.define.missingKnowledge);
-  if (!missing.hasWebsite) lines.push(dash.define.missingWebsite);
-  return lines;
-}
-
-function presentVisibility(
-  state: VisibilityState,
-  messages: TenantMessages,
-  language: OrganizationLanguage,
-): {
-  tone: HomeDomainTone;
-  statusLabel: string;
-  statusLine: string;
-  details: string[];
-  ctaLabel: string;
-} {
-  const copy = messages.dashboard.visibility;
-  const details: string[] = [];
-  if (state.kind !== "unknown" && state.kind !== "none") {
-    const typeLabel = state.generationType
-      ? messages.seo.generationType[state.generationType]
-      : "";
-    const date = state.dateValue
-      ? formatTenantDate(state.dateValue, language)
-      : "";
-    if (state.name && typeLabel && date) {
-      details.push(
-        interpolateTenantMessage(copy.latestNamed, {
-          name: state.name,
-          type: typeLabel,
-          date,
-        }),
-      );
-    } else if (typeLabel && date) {
-      details.push(
-        interpolateTenantMessage(copy.latestMeta, {
-          type: typeLabel,
-          date,
-        }),
-      );
-    }
-  }
-
-  switch (state.kind) {
-    case "unknown":
-      return {
-        tone: "unknown",
-        statusLabel: copy.statusUnknown,
-        statusLine: copy.statusUnknown,
-        details: [],
-        ctaLabel: copy.ctaReview,
-      };
-    case "none":
-      return {
-        tone: "attention",
-        statusLabel: copy.labelNone,
-        statusLine: copy.statusNone,
-        details: [],
-        ctaLabel: copy.ctaEstablish,
-      };
-    case "processing":
-      return {
-        tone: "progress",
-        statusLabel: copy.labelProcessing,
-        statusLine: copy.statusProcessing,
-        details,
-        ctaLabel: copy.ctaReview,
-      };
-    case "ready":
-      return {
-        tone: "ready",
-        statusLabel: copy.labelReady,
-        statusLine: copy.statusReady,
-        details,
-        ctaLabel: copy.ctaReview,
-      };
-    case "needs_attention":
-      return {
-        tone: "danger",
-        statusLabel: copy.labelNeedsAttention,
-        statusLine: copy.statusFailed,
-        details,
-        ctaLabel: copy.ctaReviewFailed,
-      };
-  }
-}
-
-function presentTraction(
-  state: TractionState,
-  dash: TenantMessages["dashboard"],
-): {
-  tone: HomeDomainTone;
-  statusLabel: string;
-  statusLine: string;
-  details: string[];
-  ctaLabel: string;
-} {
-  const copy = dash.traction;
-  if (state.kind === "unknown") {
-    return {
-      tone: "unknown",
-      statusLabel: copy.statusUnknown,
-      statusLine: copy.statusUnknown,
-      details: [],
-      ctaLabel: copy.ctaOpen,
-    };
-  }
-  if (state.kind === "none") {
-    return {
-      tone: "attention",
-      statusLabel: copy.statusZero,
-      statusLine: copy.statusZero,
-      details: [],
-      ctaLabel: copy.ctaDefineFirst,
-    };
-  }
-  if (state.kind === "one") {
-    return {
-      tone: "ready",
-      statusLabel: copy.statusOne,
-      statusLine: copy.statusOne,
-      details: [],
-      ctaLabel: copy.ctaOpen,
-    };
-  }
-  return {
-    tone: "ready",
-    statusLabel: interpolateTenantMessage(copy.statusMany, {
-      count: state.audienceCount ?? 0,
-    }),
-    statusLine: interpolateTenantMessage(copy.statusMany, {
-      count: state.audienceCount ?? 0,
-    }),
-    details: [],
-    ctaLabel: copy.ctaOpen,
-  };
-}
-
-function presentConvert(
-  state: ConvertState,
-  dash: TenantMessages["dashboard"],
-): {
-  tone: HomeDomainTone;
-  statusLabel: string;
-  statusLine: string;
-  details: string[];
-  ctaLabel: string;
-} {
-  const copy = dash.convert;
-  const ctaLabel =
-    state.cta === "find"
-      ? copy.ctaFind
-      : state.cta === "reviewNew"
-        ? copy.ctaReviewNew
-        : state.cta === "followUp"
-          ? copy.ctaFollowUp
-          : state.cta === "reviewBoth"
-            ? copy.ctaReviewBoth
-            : copy.ctaOpen;
-
-  if (state.kind === "unknown") {
-    return {
-      tone: "unknown",
-      statusLabel: copy.statusUnknown,
-      statusLine: copy.statusUnknown,
-      details: [],
-      ctaLabel,
-    };
-  }
-  if (state.kind === "none") {
-    return {
-      tone: "attention",
-      statusLabel: copy.statusZero,
-      statusLine: copy.statusZero,
-      details: [],
-      ctaLabel,
-    };
-  }
-
-  const details = [
-    interpolateTenantMessage(copy.newCount, { count: state.newCount ?? 0 }),
-    interpolateTenantMessage(copy.followUpCount, {
-      count: state.followUpCount ?? 0,
-    }),
-  ];
-  const hasOpenWork = (state.newCount ?? 0) > 0 || (state.followUpCount ?? 0) > 0;
-
-  return {
-    tone: hasOpenWork ? "attention" : "ready",
-    statusLabel: interpolateTenantMessage(copy.statusSome, {
-      count: state.total ?? 0,
-    }),
-    statusLine: interpolateTenantMessage(copy.statusSome, {
-      count: state.total ?? 0,
-    }),
-    details,
-    ctaLabel,
-  };
 }

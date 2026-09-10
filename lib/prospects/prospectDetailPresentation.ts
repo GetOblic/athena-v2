@@ -76,6 +76,9 @@ export const PROSPECT_DESTRUCTIVE_ACTION = `${PROSPECT_HEADER_ACTION_BASE} borde
 export const PROSPECT_LIFECYCLE_COMPACT_CLASS =
   "inline-flex h-11 min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3";
 
+export const PROSPECT_CTA_GROUP_LABEL =
+  "text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40";
+
 export const PROSPECT_SNAPSHOT_SURFACE =
   "relative !border-[rgba(167,139,250,0.30)] hover:!border-[rgba(167,139,250,0.48)] bg-[linear-gradient(180deg,rgba(167,139,250,0.07),transparent_48%)] shadow-[0_0_24px_rgba(167,139,250,0.04)] before:pointer-events-none before:absolute before:inset-y-5 before:left-0 before:w-[3px] before:rounded-r-full before:bg-[rgba(167,139,250,0.62)]";
 

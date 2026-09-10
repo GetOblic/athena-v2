@@ -267,7 +267,7 @@ describe("page structure contracts", () => {
 
   it("Prospect library displays Category and lifecycle Status", () => {
     const source = readFileSync(
-      join(ROOT, "components/prospects/ProspectsLibraryClient.tsx"),
+      join(ROOT, "components/prospects/ProspectLibraryCard.tsx"),
       "utf8",
     );
     assert.match(source, /prospect\.category/);

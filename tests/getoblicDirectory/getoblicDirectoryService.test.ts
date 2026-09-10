@@ -632,8 +632,10 @@ describe("GetOblic library link presence", () => {
     ]);
     assert.equal(presence.historyProspectIds.has(PROSPECT_A), true);
     assert.equal(presence.activeProspectIds.has(PROSPECT_A), true);
+    assert.equal(presence.activeStatusByProspectId.get(PROSPECT_A), "linked");
     assert.equal(presence.historyProspectIds.has(PROSPECT_B), true);
     assert.equal(presence.activeProspectIds.has(PROSPECT_B), false);
+    assert.equal(presence.activeStatusByProspectId.has(PROSPECT_B), false);
     const lookup = calls.find(
       (call) => call.table === "athena_getoblic_listing_links",
     );

@@ -2,15 +2,16 @@
  * Pure Home domain-state derivation. No I/O, no writes, no AI.
  */
 
+import type { HomePipelineData } from "@/lib/home/homePipeline";
+import type { HomePriorityInput } from "@/lib/home/homeAttention";
 import type {
-  HomeConvertData,
+  HomeCapacityData,
   HomeDomainResult,
   HomeIdentityRow,
   HomeSeoLatest,
   HomeSnapshot,
   HomeTractionData,
 } from "@/services/home/homeReadService";
-import type { HomeAttentionInput } from "@/lib/home/homeAttention";
 
 export type CoreFieldPresence = {
   hasVoice: boolean;
@@ -52,21 +53,36 @@ export type TractionState = {
 
 export type ConvertKind = "unknown" | "none" | "active";
 
-export type ConvertCta =
-  | "find"
-  | "open"
-  | "reviewNew"
-  | "followUp"
-  | "reviewBoth"
-  | "unavailable";
+export type ConvertCta = "open" | "unavailable";
 
 export type ConvertState = {
   kind: ConvertKind;
-  total: number | null;
+  workingCount: number | null;
+  readyCount: number | null;
+  missingCount: number | null;
+  inProgressCount: number | null;
+  failedCount: number | null;
+  strongCount: number | null;
   newCount: number | null;
+  reviewingCount: number | null;
   followUpCount: number | null;
   cta: ConvertCta;
 };
+
+export type CapacityKind = "unknown" | "unconfigured" | "configured";
+
+export type CapacityState =
+  | { kind: "unknown" }
+  | { kind: "unconfigured" }
+  | {
+      kind: "configured";
+      listingCapacity: number;
+      currentlyHeld: number;
+      available: number;
+      claiming: number | null;
+      linked: number | null;
+      remoteMissing: number | null;
+    };
 
 export function coreFieldPresence(
   row: HomeIdentityRow | null,
@@ -201,45 +217,78 @@ export function deriveTractionState(
 }
 
 export function deriveConvertState(
-  result: HomeDomainResult<HomeConvertData>,
+  result: HomeDomainResult<HomePipelineData>,
 ): ConvertState {
   if (result.status === "error") {
     return {
       kind: "unknown",
-      total: null,
+      workingCount: null,
+      readyCount: null,
+      missingCount: null,
+      inProgressCount: null,
+      failedCount: null,
+      strongCount: null,
       newCount: null,
+      reviewingCount: null,
       followUpCount: null,
       cta: "unavailable",
     };
   }
 
-  const { total, newCount, followUpCount } = result.data;
-  if (total === 0) {
+  const data = result.data;
+  if (data.workingCount === 0) {
     return {
       kind: "none",
-      total,
-      newCount,
-      followUpCount,
-      cta: "find",
+      workingCount: 0,
+      readyCount: data.readyCount,
+      missingCount: data.missingCount,
+      inProgressCount: data.inProgressCount,
+      failedCount: data.failedCount,
+      strongCount: data.strongCount,
+      newCount: data.newCount,
+      reviewingCount: data.reviewingCount,
+      followUpCount: data.followUpCount,
+      cta: "open",
     };
   }
 
-  let cta: ConvertCta = "open";
-  if (newCount > 0 && followUpCount > 0) cta = "reviewBoth";
-  else if (newCount > 0) cta = "reviewNew";
-  else if (followUpCount > 0) cta = "followUp";
-
   return {
     kind: "active",
-    total,
-    newCount,
-    followUpCount,
-    cta,
+    workingCount: data.workingCount,
+    readyCount: data.readyCount,
+    missingCount: data.missingCount,
+    inProgressCount: data.inProgressCount,
+    failedCount: data.failedCount,
+    strongCount: data.strongCount,
+    newCount: data.newCount,
+    reviewingCount: data.reviewingCount,
+    followUpCount: data.followUpCount,
+    cta: "open",
   };
 }
 
-export function toHomeAttentionInput(snapshot: HomeSnapshot): HomeAttentionInput {
-  const define: HomeAttentionInput["define"] =
+export function deriveCapacityState(
+  result: HomeDomainResult<HomeCapacityData>,
+): CapacityState {
+  if (result.status === "error") {
+    return { kind: "unknown" };
+  }
+  if (!result.data.configured) {
+    return { kind: "unconfigured" };
+  }
+  return {
+    kind: "configured",
+    listingCapacity: result.data.listingCapacity,
+    currentlyHeld: result.data.currentlyHeld,
+    available: result.data.available,
+    claiming: result.data.claiming,
+    linked: result.data.linked,
+    remoteMissing: result.data.remoteMissing,
+  };
+}
+
+export function toHomePriorityInput(snapshot: HomeSnapshot): HomePriorityInput {
+  const define: HomePriorityInput["define"] =
     snapshot.define.status === "error"
       ? { status: "error" }
       : snapshot.define.data == null
@@ -252,7 +301,7 @@ export function toHomeAttentionInput(snapshot: HomeSnapshot): HomeAttentionInput
             },
           };
 
-  const visibility: HomeAttentionInput["visibility"] =
+  const visibility: HomePriorityInput["visibility"] =
     snapshot.visibility.status === "error"
       ? { status: "error" }
       : {
@@ -262,17 +311,27 @@ export function toHomeAttentionInput(snapshot: HomeSnapshot): HomeAttentionInput
             : null,
         };
 
-  const traction: HomeAttentionInput["traction"] =
+  const traction: HomePriorityInput["traction"] =
     snapshot.traction.status === "error"
       ? { status: "error" }
       : { status: "ok", data: snapshot.traction.data };
 
-  const convert: HomeAttentionInput["convert"] =
+  const pipeline: HomePriorityInput["pipeline"] =
     snapshot.convert.status === "error"
       ? { status: "error" }
       : { status: "ok", data: snapshot.convert.data };
 
-  return { define, visibility, traction, convert };
+  const capacity: HomePriorityInput["capacity"] =
+    snapshot.capacity.status === "error"
+      ? { status: "error" }
+      : { status: "ok", data: snapshot.capacity.data };
+
+  return { define, visibility, traction, pipeline, capacity };
+}
+
+/** @deprecated Use toHomePriorityInput. */
+export function toHomeAttentionInput(snapshot: HomeSnapshot): HomePriorityInput {
+  return toHomePriorityInput(snapshot);
 }
 
 export function allHomeDomainsErrored(snapshot: HomeSnapshot): boolean {
@@ -280,6 +339,7 @@ export function allHomeDomainsErrored(snapshot: HomeSnapshot): boolean {
     snapshot.define.status === "error" &&
     snapshot.visibility.status === "error" &&
     snapshot.traction.status === "error" &&
-    snapshot.convert.status === "error"
+    snapshot.convert.status === "error" &&
+    snapshot.capacity.status === "error"
   );
 }

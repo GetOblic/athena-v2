@@ -163,7 +163,7 @@ describe("V31 L3.6 tenant personas + prospects — list chrome", () => {
 
   it("keeps persisted Persona and Prospect names and values verbatim", () => {
     const personaList = read("components/personas/PersonasLibraryClient.tsx");
-    const prospectList = read("components/prospects/ProspectsLibraryClient.tsx");
+    const prospectList = read("components/prospects/ProspectLibraryCard.tsx");
     assert.match(personaList, /persona\.display_label/);
     assert.match(personaList, /persona\.short_description/);
     assert.match(prospectList, /prospect\.business_name/);

@@ -17,7 +17,6 @@ import { ProspectIntelligenceScore } from "@/components/prospects/ProspectIntell
 import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectLifecycleStatusControl";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import { ProspectDeepScrapeWebsiteButton } from "@/components/prospects/ProspectDeepScrapeWebsiteButton";
-import { ProspectHeaderDeleteButton } from "@/components/prospects/ProspectHeaderDeleteButton";
 import { GetOblicListingOutboundControls } from "@/components/prospects/GetOblicListingOutboundControls";
 import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicListingReleaseControl";
 import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
@@ -286,13 +285,18 @@ export default async function ProspectDetailsPage({
           />
         }
         generateActions={generateActions}
+        intelligenceGroupLabel={copy.detail.intelligence}
+        prospectToolsLabel={copy.detail.prospectTools}
+        directoryGroupLabel={copy.detail.getoblicDirectory}
         researchAction={
-          <ProspectDeepScrapeWebsiteButton
-            prospectId={prospect.id}
-            initiallyAvailable={hasCurrentVersion && Boolean(prospect.website)}
-            messages={copy.deepScrape}
-            locale={locale}
-          />
+          hasCurrentVersion && Boolean(prospect.website) ? (
+            <ProspectDeepScrapeWebsiteButton
+              prospectId={prospect.id}
+              initiallyAvailable={hasCurrentVersion && Boolean(prospect.website)}
+              messages={copy.deepScrape}
+              locale={locale}
+            />
+          ) : null
         }
         lifecycleAction={
           <ProspectLifecycleStatusControl
@@ -301,13 +305,30 @@ export default async function ProspectDetailsPage({
             compact
           />
         }
-        destructiveAction={
-          <ProspectHeaderDeleteButton
-            prospectId={prospect.id}
-            confirmMessage={copy.detail.deleteConfirm}
-            errorFallback={copy.detail.deleteFailed}
-            chrome={messages.common}
-          />
+        directoryAction={
+          activeGetOblicLink &&
+          (activeGetOblicLink.relationship_status === "linked" ||
+            activeGetOblicLink.relationship_status === "claiming") ? (
+            <>
+              {activeGetOblicLink.relationship_status === "linked" ? (
+                <GetOblicListingOutboundControls
+                  prospectId={prospect.id}
+                  hasGeneratedDescription={Boolean(
+                    prospect.generated_listing_description?.description.trim(),
+                  )}
+                  hasCurrentKnowledgeBase={hasCurrentKnowledgeBaseAsset(
+                    versionState.current?.intelligence,
+                  )}
+                  messages={messages}
+                />
+              ) : null}
+              <GetOblicListingReleaseControl
+                prospectId={prospect.id}
+                relationshipStatus={activeGetOblicLink.relationship_status}
+                messages={messages}
+              />
+            </>
+          ) : null
         }
       />
 
@@ -345,30 +366,6 @@ export default async function ProspectDetailsPage({
           <p className="text-sm leading-6 text-rose-100/80">
             {copy.detail.failedBanner}
           </p>
-        </div>
-      ) : null}
-
-      {activeGetOblicLink &&
-      (activeGetOblicLink.relationship_status === "linked" ||
-        activeGetOblicLink.relationship_status === "claiming") ? (
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start">
-          {activeGetOblicLink.relationship_status === "linked" ? (
-            <GetOblicListingOutboundControls
-              prospectId={prospect.id}
-              hasGeneratedDescription={Boolean(
-                prospect.generated_listing_description?.description.trim(),
-              )}
-              hasCurrentKnowledgeBase={hasCurrentKnowledgeBaseAsset(
-                versionState.current?.intelligence,
-              )}
-              messages={messages}
-            />
-          ) : null}
-          <GetOblicListingReleaseControl
-            prospectId={prospect.id}
-            relationshipStatus={activeGetOblicLink.relationship_status}
-            messages={messages}
-          />
         </div>
       ) : null}
 

@@ -1197,6 +1197,25 @@ export function ExecutiveIntelligenceWorkspace({
                             </span>
                           )}
                         </div>
+                        <div className="mt-3 space-y-1 text-sm text-white/45">
+                          <div>
+                            <span className="text-white/30">
+                              {chrome?.generatedPrefix ?? "Generated "}
+                            </span>
+                            <span className="text-white/65">
+                              {formatVersionGeneratedAt(
+                                resolveExecutiveVersionDisplayTimestamp(version),
+                                true,
+                                locale,
+                              )}
+                            </span>
+                          </div>
+                          {version.models_used ? (
+                            <div className="text-white/55">
+                              {version.models_used}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                       <button
                         type="button"

@@ -190,9 +190,13 @@ describe("V2-UI-4C Build Visibility presentation", () => {
     assert.equal(en.seo.generationType.technical, "Technical SEO");
     assert.equal(en.seo.lenses.intelligence, "Visibility Strategy");
     assert.equal(en.seo.lenses.technical, "Website Technical Health");
-    const home = read("app/page.tsx");
-    assert.match(home, /messages\.seo\.generationType\[state\.generationType\]/);
-    assert.doesNotMatch(home, /messages\.seo\.lenses/);
+    const homePresentation = read("lib/home/homePresentation.ts");
+    assert.match(
+      homePresentation,
+      /messages\.seo\.generationType\[state\.generationType\]/,
+    );
+    assert.doesNotMatch(homePresentation, /messages\.seo\.lenses/);
+    assert.doesNotMatch(read("app/page.tsx"), /messages\.seo\.lenses/);
   });
 
   it("keeps TenantAppShell active behavior on /seo/new and /seo/[id]", () => {

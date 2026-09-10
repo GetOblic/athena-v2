@@ -69,6 +69,17 @@ describe("GetOblic outbound controls placement", () => {
       page.indexOf("GetOblicListingOutboundControls") <
         page.indexOf("GetOblicListingReleaseControl"),
     );
+    assert.equal(
+      (page.match(/<GetOblicListingOutboundControls/g) ?? []).length,
+      1,
+    );
+    assert.equal(
+      (page.match(/<GetOblicListingReleaseControl/g) ?? []).length,
+      1,
+    );
+    assert.match(page, /directoryAction=/);
+    assert.doesNotMatch(page, /destructiveAction/);
+    assert.doesNotMatch(page, /ProspectHeaderDeleteButton/);
     assert.doesNotMatch(card, /getoblic-directory\/description/);
     assert.doesNotMatch(card, /getoblic-directory\/knowledge-base/);
     assert.doesNotMatch(card, /Send Description to GetOblic/);

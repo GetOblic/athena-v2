@@ -113,6 +113,103 @@ export async function getLatestGenerationJobForDiscussion(
   return data ? mapGenerationJobRow(data) : null;
 }
 
+const HOME_JOB_STATE_COLUMNS =
+  "discussion_id, status, current_stage, created_at";
+const HOME_JOB_STATE_CHUNK = 100;
+const ACTIVE_GENERATION_JOB_STATUSES = [
+  "queued",
+  "processing",
+  "retryable",
+] as const;
+
+export type GenerationJobDiscussionState = {
+  active: Pick<AthenaGenerationJob, "status" | "current_stage"> | null;
+  latest: Pick<AthenaGenerationJob, "status" | "current_stage"> | null;
+};
+
+function asJobStateRow(row: Record<string, unknown>): {
+  discussionId: string;
+  status: AthenaGenerationJob["status"];
+  currentStage: string | null;
+  createdAt: string;
+} | null {
+  const discussionId = String(row.discussion_id ?? "").trim();
+  const status = String(row.status ?? "").trim();
+  if (!discussionId || !status) return null;
+  return {
+    discussionId,
+    status: status as AthenaGenerationJob["status"],
+    currentStage:
+      typeof row.current_stage === "string" ? row.current_stage : null,
+    createdAt: String(row.created_at ?? ""),
+  };
+}
+
+/**
+ * Read-only batch job state for Home. One query per discussion-id chunk.
+ * Does not create, claim, or mutate generation jobs.
+ */
+export async function getGenerationJobStateForDiscussions(
+  organizationId: string,
+  discussionIds: readonly string[],
+): Promise<Map<string, GenerationJobDiscussionState>> {
+  const uniqueIds = [
+    ...new Set(
+      discussionIds.filter((id) => typeof id === "string" && id.length > 0),
+    ),
+  ];
+  const byDiscussion = new Map<string, GenerationJobDiscussionState>();
+  if (uniqueIds.length === 0) {
+    return byDiscussion;
+  }
+
+  for (let index = 0; index < uniqueIds.length; index += HOME_JOB_STATE_CHUNK) {
+    const chunk = uniqueIds.slice(index, index + HOME_JOB_STATE_CHUNK);
+    const { data, error } = await supabaseAdmin
+      .from("athena_generation_jobs")
+      .select(HOME_JOB_STATE_COLUMNS)
+      .eq("organization_id", organizationId)
+      .in("discussion_id", chunk)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[ATHENA_JOB] Failed to load batched job state:", {
+        organizationId,
+        discussionCount: chunk.length,
+        error: error.message,
+      });
+      continue;
+    }
+
+    for (const raw of data ?? []) {
+      const row = asJobStateRow(raw as Record<string, unknown>);
+      if (!row) continue;
+      const current = byDiscussion.get(row.discussionId) ?? {
+        active: null,
+        latest: null,
+      };
+      const slim = {
+        status: row.status,
+        current_stage: row.currentStage,
+      };
+      if (!current.latest) {
+        current.latest = slim;
+      }
+      if (
+        !current.active &&
+        (ACTIVE_GENERATION_JOB_STATUSES as readonly string[]).includes(
+          row.status,
+        )
+      ) {
+        current.active = slim;
+      }
+      byDiscussion.set(row.discussionId, current);
+    }
+  }
+
+  return byDiscussion;
+}
+
 export async function getGenerationJobById(
   jobId: string,
   organizationId?: string,

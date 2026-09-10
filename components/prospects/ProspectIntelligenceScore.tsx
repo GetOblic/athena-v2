@@ -5,6 +5,7 @@ import {
   PROSPECT_COMPLETENESS_RING_PX,
   PROSPECT_COMPLETENESS_SURFACE,
 } from "@/lib/prospects/prospectDetailPresentation";
+import { PROSPECT_COMPLETENESS_LIST_RING_PX } from "@/lib/prospects/prospectLibraryPresentation";
 import {
   prospectCompletenessBand,
   type ProspectCompletenessBand,
@@ -15,6 +16,7 @@ type ProspectScoreCopy = TenantMessages["prospects"]["score"];
 type ProspectIntelligenceScoreProps = {
   score: number;
   messages: ProspectScoreCopy;
+  size?: "list" | "detail";
 };
 
 function bandLabel(
@@ -30,24 +32,30 @@ function bandLabel(
 export function ProspectIntelligenceScore({
   score,
   messages,
+  size = "detail",
 }: ProspectIntelligenceScoreProps) {
   const clamped = Math.min(100, Math.max(0, Math.round(score)));
   const band = prospectCompletenessBand(clamped);
   const percent = `${clamped}%`;
+  const ringPx =
+    size === "list"
+      ? PROSPECT_COMPLETENESS_LIST_RING_PX
+      : PROSPECT_COMPLETENESS_RING_PX;
 
   return (
     <div
       className={PROSPECT_COMPLETENESS_SURFACE[band]}
       data-prospect-completeness="ring"
       data-prospect-completeness-band={band}
+      data-prospect-completeness-size={size}
       title={messages.help}
     >
       <div className="flex items-center gap-2">
         <div
           className="relative grid shrink-0 place-items-center"
           style={{
-            width: PROSPECT_COMPLETENESS_RING_PX,
-            height: PROSPECT_COMPLETENESS_RING_PX,
+            width: ringPx,
+            height: ringPx,
           }}
           aria-hidden="true"
         >

@@ -20,14 +20,16 @@ function deleteProspectBlock(): string {
 }
 
 describe("Consistent entity Delete UX", () => {
-  it("1. Prospect header displays Delete", () => {
+  it("1. Prospect Detail no longer mounts Delete", () => {
     const page = read("app/prospects/[id]/page.tsx");
-    assert.match(page, /ProspectHeaderDeleteButton/);
-    assert.match(page, /prospectId=\{prospect\.id\}/);
+    const header = read("components/prospects/ProspectDetailHeader.tsx");
+    assert.doesNotMatch(page, /ProspectHeaderDeleteButton/);
+    assert.doesNotMatch(page, /destructiveAction/);
+    assert.doesNotMatch(header, /destructiveAction/);
+    assert.doesNotMatch(header, /data-prospect-header-actions="destructive"/);
     const headerDelete = read(
       "components/prospects/ProspectHeaderDeleteButton.tsx",
     );
-    assert.match(headerDelete, /ConfirmDeleteControl/);
     assert.match(headerDelete, /ConfirmDeleteControl/);
   });
 
@@ -53,7 +55,7 @@ describe("Consistent entity Delete UX", () => {
     const personaPage = read("app/personas/[id]/page.tsx");
     assert.equal(
       (prospectPage.match(/<ProspectHeaderDeleteButton/g) ?? []).length,
-      1,
+      0,
     );
     assert.equal(
       (personaPage.match(/<PersonaHeaderDeleteButton/g) ?? []).length,

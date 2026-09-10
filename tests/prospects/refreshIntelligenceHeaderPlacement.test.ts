@@ -171,7 +171,7 @@ describe("Generate Intelligence header placement", () => {
     assert.doesNotMatch(editor, /handleDelete/);
 
     const prospectPage = read("app/prospects/[id]/page.tsx");
-    assert.match(prospectPage, /ProspectHeaderDeleteButton/);
+    assert.doesNotMatch(prospectPage, /ProspectHeaderDeleteButton/);
 
     const workspace = read(
       "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
