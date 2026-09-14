@@ -344,69 +344,692 @@ export const pt: TenantMessages = {
     },
   },
   gettingStarted: {
-    eyebrow: "Primeiros passos",
-    title: "Bem-vindo à Athena",
-    tagline: "O seu parceiro de intelligence de mercado com IA",
+    eyebrow: "Centro de ajuda",
+    title: "Como a Athena funciona",
+    tagline: "A Athena aprende o seu negócio e, em seguida, ajuda-o a fazê-lo crescer.",
     intro:
-      "Importe as conversas que importam para o seu negócio e a Athena analisa-as para identificar oportunidades, gerar intelligence e preparar ativos estratégicos. Pense na Athena como um colega inteligente que o ajuda a analisar conversas de negócio importantes e a transformá-las em intelligence acionável.",
+      "Este Centro de ajuda é o guia do produto da Athena V2. A Athena ajuda-o a definir o negócio, a construir visibilidade, a gerar tração e a converter oportunidades. O Início diz-lhe o que fazer agora. Esta página explica o que é a Athena e como o trabalho é feito.",
+    findTopicLabel: "Encontrar um tópico",
+    findTopicPlaceholder: "Pesquisar a ajuda…",
+    findTopicClear: "Limpar pesquisa",
+    findTopicEmpty:
+      "Nenhum tópico de ajuda corresponde. Experimente outra frase, ou limpe a pesquisa para voltar ao guia.",
+    findTopicResults: "Tópicos correspondentes",
+    findTopicCount: "{count} tópicos correspondentes",
+    askAthenaCta: "Ask Athena",
+    askAthenaHint: "Pergunte como a Athena funciona",
     stepLabel: "Passo {n}",
-    step1Title: "Treinar Athena Brain",
-    step1Description:
-      "Comece por ensinar à Athena a sua voz, a sua experiência, o seu sítio web e as suas regras de negócio. Assim, cada resposta, briefing e ativo soará como si — não como um assistente genérico.",
-    step1Cta: "Abrir Athena Brain",
-    step2Title: "Adicionar conversas",
-    step2Description:
-      "Traga discussões do Facebook, Instagram, Reddit, LinkedIn, e-mail, conversas de suporte, entrevistas ou notas de reunião. Quanto mais conversas reais de mercado a Athena vir, mais pertinentes se tornam as suas análises.",
-    step2Cta: "Abrir caixa de entrada",
-    step3Title: "Rever discussões",
-    step3Description:
-      "A Athena analisa cada discussão e mostra-lhe a intenção, as preocupações do comprador, os sinais de oportunidade e os próximos passos recomendados — numa linguagem clara.",
-    step3Cta: "Ver discussões",
-    step4Title: "Rever oportunidades",
-    step4Description:
-      "Oportunidades filtra as discussões mais valiosas para que se concentre nas conversas com maior probabilidade de se tornarem negócio.",
-    step4Cta: "Ver oportunidades",
-    step5Title: "Ler briefings",
-    step5Description:
-      "Os briefings resumem os insights e a estratégia mais importantes de cada oportunidade — como uma síntese executiva concisa sobre a qual pode agir rapidamente.",
-    step5Cta: "Abrir briefings",
-    step6Title: "Utilizar Deployment Assets",
-    step6Description:
-      "Respostas prontas a copiar, mensagens privadas, seguimentos, chamadas à ação e publicações sociais — geradas para si e prontas a colar na sua plataforma, e-mail ou mensagens privadas.",
-    step7Title: "Utilizar Strategic Asset Blueprints",
-    step7Description:
-      "Prompts de ativos reutilizáveis para PDF, imagens, carrosséis, lead magnets e conteúdos educativos. Crie uma vez e reutilize em todos os seus canais de marketing.",
-    howItWorksEyebrow: "Como a Athena funciona",
-    howItWorksTitle: "Da conversa ao crescimento",
-    workflowConversation: "Conversa",
-    workflowAnalysis: "Análise Athena",
-    workflowOpportunity: "Deteção de oportunidades",
-    workflowExecutiveIntelligence: "Executive Intelligence",
-    workflowDeploymentAssets: "Deployment Assets",
-    workflowBlueprints: "Strategic Asset Blueprint",
-    workflowGrowth: "Crescimento do negócio",
-    bestPracticesEyebrow: "Boas práticas",
-    bestPracticesTitle: "Tire o máximo partido da Athena",
-    practice1: "Treine a Athena antes de importar discussões.",
-    practice2: "Reveja as oportunidades todos os dias.",
-    practice3: "Utilize os Deployment Assets em vez de escrever à mão.",
-    practice4: "Reutilize os Strategic Asset Blueprints em todos os canais.",
-    practice5: "Continue a alimentar a Athena com novas conversas.",
-    readyTitle: "Pronto a começar?",
-    readyBody:
-      "Treine a Athena, importe as discussões pertinentes e deixe a Athena transformá-las em intelligence acionável.",
-    readyCta: "Abrir Athena Brain",
-    conversationTitle: "Ask Athena: como funciona",
+    moreLabel: "Mais detalhe",
+    expectLabel: "O que esperar",
+    troubleLabel: "Se algo correr mal",
+    openHome: "Abrir o Início",
+    nav: {
+      start: "Comece aqui",
+      quickStart: "Início rápido",
+      define: "Defina o seu negócio",
+      visibility: "Construa visibilidade",
+      traction: "Gere tração",
+      convert: "Converta oportunidades",
+      concepts: "Como a Athena pensa",
+      howTo: "Como é que eu…?",
+      tools: "Ferramentas",
+      troubleshoot: "Resolução de problemas",
+      ask: "Ask Athena",
+    },
+    startHere: {
+      title: "Comece aqui",
+      summary:
+        "O que é a Athena V2, como funcionam os quatro resultados e como trabalha com a Athena.",
+      whatAthena:
+        "A Athena é um OS de intelligence que aprende o seu negócio e, em seguida, ajuda-o a ser encontrado, a chegar às pessoas certas e a perseguir oportunidades específicas.",
+      operatingModel:
+        "Trabalhe através de quatro resultados: Defina o seu negócio, Construa visibilidade, Gere tração e Converta oportunidades. Não precisa de concluir um para sempre antes de usar outro, mas ensinar o Athena Brain primeiro torna tudo o resto mais útil.",
+      relationship:
+        "Ensine, corrija e oriente a Athena. A Athena pesquisa, analisa e gera em segundo plano. Reveja o resultado e oriente o passo seguinte.",
+      homeVsHelp:
+        "O Início responde «O que devo fazer agora?» a partir do seu espaço de trabalho em direto. Este Centro de ajuda responde «O que é a Athena e como funciona?». Não substitui as recomendações do Início.",
+    },
+    quickStart: {
+      title: "Início rápido",
+      summary: "Quatro primeiros passos que correspondem ao produto Athena V2 atual.",
+      steps: {
+        trainBrain: {
+          title: "Ensine e treine o Athena Brain",
+          what: "Abra o Athena Brain e ensine a Voz, o Conhecimento de negócio e o seu sítio web. Depois, selecione Treinar Athena.",
+          why: "O Brain é o contexto de empresa de confiança que a Athena utiliza para visibilidade, audiências, anúncios, conteúdo social e prospects.",
+          expect:
+            "Após o treino, a Athena mostra o que sabe e o que ainda precisa. As edições não atualizam o Brain até Treinar ou Retreinar.",
+          cta: "Abrir Athena Brain",
+          keywords: "treinar brain identidade ensinar voz conhecimento sítio",
+        },
+        visibility: {
+          title: "Execute uma análise de Estratégia de visibilidade",
+          what: "Peça à Athena para analisar se as pessoas conseguem descobrir e compreender a sua oferta.",
+          why: "A visibilidade mostra com que clareza o negócio pode ser encontrado e compreendido antes de investir esforço em tração.",
+          expect:
+            "A Athena trabalha em segundo plano. Pode sair e voltar. As análises Ready permanecem em Visibilidade.",
+          cta: "Analisar visibilidade",
+          keywords: "seo visibilidade estratégia google descoberta",
+        },
+        audience: {
+          title: "Defina a primeira Audiência",
+          what: "Crie uma Audiência manualmente, importe uma lista, ou peça à Athena que sugira uma a partir do Athena Brain.",
+          why: "Uma Audiência é o segmento ou a pessoa que quer alcançar. Os anúncios e o conteúdo social tornam-se mais precisos quando existe uma.",
+          expect:
+            "Incompleta está bem. A Athena pode gerar inteligência de audiência depois de a Audiência ser guardada.",
+          cta: "Criar uma Audiência",
+          keywords: "audiência persona segmento sugerir importar",
+        },
+        prospect: {
+          title: "Adicione ou encontre o primeiro Prospect",
+          what: "Encontre um negócio no diretório GetOblic, procure um no Google, ou adicione um você mesmo.",
+          why: "Um Prospect é um negócio específico que pode perseguir — não um segmento de audiência.",
+          expect:
+            "A Athena aprende mais quando o Prospect tem um sítio web. As adições do diretório podem consumir capacidade de listings GetOblic.",
+          cta: "Encontrar um Prospect",
+          keywords: "prospect encontrar getoblic diretório google importar",
+        },
+      },
+    },
+    outcomes: {
+      title: "Quatro resultados de negócio",
+      summary: "O modelo operativo atual da Athena V2.",
+      define: {
+        title: "Defina o seu negócio",
+        purpose:
+          "Ensine à Athena quem é, como comunica e o que o negócio sabe.",
+        uses:
+          "A Athena utiliza a Voz, o Conhecimento de negócio, a inteligência do sítio e, mais tarde, a evidência de Deep Scrape como contexto de empresa de confiança.",
+        canDo:
+          "Treine ou retreine o Athena Brain, reveja o que a Athena sabe, preencha lacunas e execute Deep Scrape no seu sítio web.",
+        ready:
+          "Útil quando o Brain está Ready e a Athena consegue descrever o negócio na sua linguagem.",
+        moreTitle: "Quando este resultado está a funcionar",
+        moreBody:
+          "A Identidade não tem um fluxo de observações. Editar campos por si só não atualiza o Brain. A Identidade de marca, o Espaço de trabalho IA e os GetOblic Links vivem aqui como ferramentas secundárias.",
+        cta: "Abrir Athena Brain",
+        keywords: "definir negócio brain identidade treinar retreinar",
+      },
+      visibility: {
+        title: "Construa visibilidade",
+        purpose:
+          "Compreenda se as pessoas conseguem descobrir e perceber a oferta.",
+        uses:
+          "A Athena utiliza o Athena Brain, a inteligência do sítio e o contexto de audiência disponível. As pontuações não são ranking ou tráfego Google em direto.",
+        canDo:
+          "Execute uma análise de Estratégia de visibilidade e, em seguida, use a Saúde técnica do site depois de existir uma aprendizagem mais rica do sítio.",
+        ready:
+          "Útil quando pelo menos uma análise de Estratégia de visibilidade está Ready e pode agir sobre as lacunas.",
+        moreTitle: "Estratégia e saúde técnica",
+        moreBody:
+          "A Estratégia de visibilidade pergunta se as pessoas o conseguem encontrar e compreender. A Saúde técnica revê evidência on-page das páginas que a Athena já aprendeu. Pode sair enquanto a Athena trabalha e voltar às análises Ready anteriores.",
+        cta: "Abrir visibilidade",
+        keywords: "visibilidade seo estratégia saúde técnica sítio",
+      },
+      traction: {
+        title: "Gere tração",
+        purpose:
+          "Chegue às pessoas certas com Audiências, publicidade e conteúdo social.",
+        uses:
+          "A Athena utiliza o Athena Brain mais a Audiência selecionada quando escolhe uma. Sem uma Audiência selecionada, a Athena continua a usar o Brain e as audiências guardadas.",
+        canDo:
+          "Crie Audiências, gere uma semana de conteúdo social e crie campanhas publicitárias.",
+        ready:
+          "Útil quando tem pelo menos uma Audiência e pode gerar anúncios ou uma semana social a partir dela.",
+        moreTitle: "Audiências, anúncios e social",
+        moreBody:
+          "A inteligência de audiência é versionada. Atualizar inteligência mantém a inteligência anterior. Tentar outra abordagem cria uma leitura estratégica diferente. Os Anúncios usam Criar outra versão em vez de Think Differently.",
+        cta: "Abrir Audiências",
+        keywords: "tração audiências anúncios social planner conteúdo",
+      },
+      convert: {
+        title: "Converta oportunidades",
+        purpose: "Persiga negócios específicos que possam tornar-se clientes.",
+        uses:
+          "A Athena utiliza o Athena Brain, o sítio web do Prospect, as observações e os detalhes do listing GetOblic quando existem.",
+        canDo:
+          "Encontre ou adicione Prospects, pesquise o sítio deles, atualize a inteligência e avance o estado de trabalho.",
+        ready:
+          "Útil quando um Prospect tem inteligência Ready e o próximo passo comercial está claro.",
+        moreTitle: "Para que serve um Prospect",
+        moreBody:
+          "Um Prospect é um negócio, não um segmento. A Completude e a Pontuação de oportunidade são sinais de evidência, não um ranking de quem perseguir. Criar Audiência a partir de um Prospect precisa de inteligência Ready do Prospect.",
+        cta: "Abrir Prospects",
+        keywords: "converter prospects encontrar pesquisar getoblic abordagem",
+      },
+    },
+    concepts: {
+      title: "Como a Athena pensa",
+      summary:
+        "Os conceitos por detrás do Athena Brain, da inteligência, das Audiências e dos Prospects.",
+      brain: {
+        title: "Athena Brain / Business Brain",
+        summary: "Contexto de empresa de confiança ensinado em Identidade.",
+        body: "O Athena Brain é o que a Athena acredita sobre o seu negócio após Treinar ou Retreinar. A Visibilidade, as Audiências, os anúncios, o conteúdo social e os Prospects utilizam-no.",
+        keywords: "athena brain business brain identidade contexto",
+      },
+      trainVsRetrain: {
+        title: "Treinar vs Retreinar",
+        summary: "A ação que escreve o Brain.",
+        body: "Treinar cria o Brain pela primeira vez. Retreinar reconstrói-o depois de alterar a Voz, o Conhecimento de negócio ou o sítio web. Editar campos da Identidade não atualiza a Athena até Treinar ou Retreinar. Um Deep Scrape da Identidade bem-sucedido retreina automaticamente o Athena Brain — não precisa de um segundo Retreinar depois de terminar.",
+        keywords: "treinar retreinar guardar brain identidade edições",
+      },
+      websiteIntelligence: {
+        title: "Inteligência do sítio",
+        summary: "O que a Athena aprende a partir de sítios web.",
+        body: "Na Identidade, a Athena estuda a sua página inicial durante Treinar e pode aprender mais páginas com Deep Scrape. Numa Audiência, um sítio de referência é investigação opcional sobre o segmento. Num Prospect, o sítio é o do próprio negócio.",
+        keywords: "sítio página inicial inteligência pesquisa url",
+      },
+      deepScrape: {
+        title: "Deep Scrape / Pesquisar este sítio",
+        summary: "Aprendizagem mais ampla do sítio que inicia quando precisa.",
+        body: "O Deep Scrape na Identidade estuda mais o seu próprio sítio e retreina automaticamente o Athena Brain como parte desse fluxo. Não precisa de um segundo Retreinar depois de terminar. Pesquisar este sítio numa Audiência ou Prospect estuda o URL ligado. A pesquisa de Audiência e de Prospect participa na inteligência subsequente.",
+        keywords: "deep scrape pesquisar sítio percorrer páginas",
+      },
+      intelligence: {
+        title: "Inteligência",
+        summary: "A análise estruturada da Athena sobre a evidência atual.",
+        body: "A inteligência é a interpretação da Athena da evidência que tem, não as notas em bruto. A nova inteligência é versionada. A inteligência anterior permanece disponível.",
+        keywords: "inteligência análise versão evidência",
+      },
+      observation: {
+        title: "Observação",
+        summary: "Evidência do mundo real que adiciona.",
+        body: "Uma observação é uma nota sobre o que viu no mercado. Numa Audiência, acrescenta-se às notas e coloca nova inteligência em fila. Num Prospect, adicionar e atualizar faz o mesmo. A Identidade não tem um fluxo de observações.",
+        keywords: "observação nota evidência atualizar",
+      },
+      audience: {
+        title: "Audiência",
+        summary: "O segmento ou a pessoa que quer alcançar.",
+        body: "Uma Audiência é quem quer alcançar — um segmento de mercado, um comprador ou um papel. A rota é Audiências. Ecrãs mais antigos ainda podem dizer Persona; isso significa Audiência.",
+        keywords: "audiência persona segmento comprador papel",
+      },
+      prospect: {
+        title: "Prospect",
+        summary: "Um negócio específico que pode perseguir.",
+        body: "Um Prospect é uma empresa ou prática real com a qual pode trabalhar. A Athena pesquisa esse negócio. Não é um substituto de uma Audiência.",
+        keywords: "prospect empresa negócio oportunidade",
+      },
+      audienceVsProspect: {
+        title: "Audiência vs Prospect",
+        summary: "Quem alcançar versus que negócio perseguir.",
+        body: "Use uma Audiência quando quer falar com um tipo de pessoa ou mercado. Use um Prospect quando quer que a Athena pesquise um negócio nomeado. Mais tarde pode criar uma Audiência a partir de um Prospect Ready.",
+        keywords: "audiência vs prospect diferença comparar",
+      },
+      refresh: {
+        title: "Atualizar inteligência",
+        summary: "Nova análise a partir da evidência atual.",
+        body: "Atualizar cria uma nova versão de inteligência a partir da evidência que a Athena tem agora. A inteligência anterior é preservada. Use isto após observações, pesquisa do sítio ou edições relevantes do Prospect.",
+        keywords: "atualizar inteligência nova versão preservar",
+      },
+      discuss: {
+        title: "Discutir / Ask Athena",
+        summary: "Explicação só de leitura, salvo se a superfície oferecer Aplicar.",
+        body: "Discutir e Ask Athena explicam o objeto atual. Não guardam, não fazem scrape nem regeneram. A exceção é o Social Planner, onde Aplicar as sugestões da Athena pode criar uma semana revista.",
+        keywords: "discutir ask athena só leitura aplicar",
+      },
+      thinkDifferently: {
+        title: "Tentar outra abordagem / Think Differently",
+        summary: "Uma leitura estratégica diferente da mesma evidência.",
+        body: "Tentar outra abordagem pede à Athena uma interpretação diferente sem deitar fora a atual. Audiência, Prospect e Social Planner usam isto. Os Anúncios usam Criar outra versão, que inicia uma nova campanha e deixa a atual inalterada.",
+        keywords: "think differently tentar outra abordagem anúncios versão",
+      },
+      readyFailedRetry: {
+        title: "Pronto / Falhou / Tentar novamente",
+        summary: "Como a geração termina.",
+        body: "A Athena gera frequentemente em segundo plano. Pronto significa que pode usar o resultado. Falhou significa tentar novamente nesse objeto quando existe a ação Tentar novamente. Um Anúncio que falhou pode repetir a mesma campanha. Uma semana social que falhou é iniciada novamente como uma nova semana.",
+        keywords: "pronto falhou retry em fila a processar",
+      },
+      workingVsReadiness: {
+        title: "Estado de trabalho vs preparação da inteligência",
+        summary: "O seu pipeline não é o mesmo que o estado de geração da Athena.",
+        body: "O estado de trabalho é a sua etiqueta — Novo, Em utilização, Seguimento, Não adequado e semelhantes. A preparação da inteligência é o estado de geração da Athena — Em fila, A processar, Pronto ou Falhou. Alterar o estado de trabalho não gera nova inteligência.",
+        keywords: "estado de trabalho preparação pipeline arquivado",
+      },
+      savedWork: {
+        title: "Onde a Athena guarda o trabalho",
+        summary: "Cada módulo guarda o que criou.",
+        body: "O Athena Brain vive na Identidade. As análises de visibilidade vivem em Visibilidade. Audiências, campanhas publicitárias, semanas sociais e Prospects têm cada um a sua biblioteca. A geração em segundo plano pode continuar depois de sair da página.",
+        keywords: "trabalho guardado biblioteca onde encontrar criado",
+      },
+    },
+    howTo: {
+      title: "Como é que eu…?",
+      summary: "Fluxos práticos para o trabalho quotidiano na Athena V2.",
+      justJoined: {
+        title: "Acabei de entrar na Athena — o que devo fazer primeiro?",
+        summary:
+          "Comece pelo Athena Brain, depois a Visibilidade, uma Audiência e um Prospect.",
+        body: "O Início também pode indicar-lhe a próxima ação em direto. Esta sequência é o primeiro caminho habitual.",
+        expect:
+          "Não precisa da Caixa de entrada, das Discussões, das Oportunidades ou dos Briefings para começar.",
+        cta: "Abrir Athena Brain",
+        keywords: "primeiros passos integrar novo utilizador começar",
+        steps: {
+          s1: "Ensine e treine o Athena Brain.",
+          s2: "Execute uma análise de Estratégia de visibilidade.",
+          s3: "Crie ou sugira a primeira Audiência.",
+          s4: "Encontre ou adicione o primeiro Prospect.",
+        },
+      },
+      teachBusiness: {
+        title: "Ensinar à Athena o meu negócio",
+        summary:
+          "A Voz, o Conhecimento de negócio e o sítio web tornam-se o Brain após Treinar.",
+        body: "Não existe um guardar separado da Identidade. Treinar é a ação que escreve o Athena Brain.",
+        expect:
+          "A Athena estuda a página inicial durante Treinar quando existe um sítio web.",
+        cta: "Abrir Athena Brain",
+        keywords: "ensinar negócio voz conhecimento sítio treinar",
+        steps: {
+          s1: "Abra o Athena Brain.",
+          s2: "Escreva a Voz, o Conhecimento de negócio e o sítio web.",
+          s3: "Selecione Treinar Athena.",
+          s4: "Reveja o que a Athena sabe e o que ainda precisa.",
+        },
+      },
+      improveKnowledge: {
+        title: "Melhorar o que a Athena sabe",
+        summary:
+          "Atualize os factos ensináveis e, em seguida, retreine. Use Deep Scrape para mais evidência do sítio — o Deep Scrape retreina automaticamente o Athena Brain.",
+        body: "As lacunas de calibração na Identidade mostram o que a Athena ainda precisa. A Identidade não tem um fluxo de observações.",
+        expect:
+          "Um Deep Scrape da Identidade bem-sucedido retreina automaticamente o Athena Brain. Não precisa de um segundo Retreinar depois de terminar.",
+        cta: "Abrir Athena Brain",
+        keywords: "melhorar conhecimento retreinar deep scrape lacunas",
+        steps: {
+          s1: "Atualize a Voz, o Conhecimento de negócio ou o sítio web.",
+          s2: "Retreine a Athena.",
+          s3: "Opcionalmente, execute Deep Scrape para mais páginas.",
+          s4: "Se executou Deep Scrape, aguarde até terminar. Retreina automaticamente o Athena Brain — sem Retreinar extra.",
+        },
+      },
+      understandVisibility: {
+        title: "Compreender a minha visibilidade",
+        summary:
+          "Execute primeiro a Estratégia de visibilidade. Use a Saúde técnica após uma aprendizagem mais rica do sítio.",
+        body: "A Athena não está a ler o ranking Google em direto nem o tráfego do Search Console. Analisa a descoberta e a evidência on-page que já tem.",
+        expect:
+          "Pode sair enquanto a Athena trabalha. As análises Ready anteriores permanecem na biblioteca.",
+        cta: "Analisar visibilidade",
+        keywords: "compreender visibilidade seo saúde técnica",
+        steps: {
+          s1: "Abra Construa visibilidade.",
+          s2: "Inicie uma análise de Estratégia de visibilidade.",
+          s3: "Adicione orientação opcional se tiver um foco ou uma geografia.",
+          s4: "Volte quando a análise estiver Ready.",
+        },
+      },
+      createAudience: {
+        title: "Criar uma Audiência",
+        summary: "Criação manual, importação CSV ou uma sugestão a partir do Athena Brain.",
+        body: "Um sítio de referência é investigação opcional sobre o segmento. Não se assume que seja o sítio da própria pessoa.",
+        expect: "Guardar uma Audiência não regenera por si a inteligência.",
+        cta: "Criar uma Audiência",
+        keywords: "criar audiência manual csv importar",
+        steps: {
+          s1: "Abra Criar Audiência.",
+          s2: "Escreva quem são, ou importe um CSV.",
+          s3: "Opcionalmente, adicione um sítio de referência.",
+          s4: "Guarde e, em seguida, gere inteligência a partir da página da Audiência se necessário.",
+        },
+      },
+      suggestAudience: {
+        title: "Sugerir uma Audiência a partir do Athena Brain",
+        summary: "Peça à Athena que proponha uma Audiência a partir do que já sabe.",
+        body: "O Brain deve estar treinado primeiro. Pode adicionar uma instrução breve para orientar a sugestão.",
+        expect: "Reveja a sugestão antes de a criar. Continua no comando.",
+        cta: "Sugerir uma Audiência",
+        keywords: "sugerir audiência a partir do brain propor",
+        steps: {
+          s1: "Treine o Athena Brain se ainda não o fez.",
+          s2: "Abra Criar Audiência.",
+          s3: "Escolha Sugerir uma audiência.",
+          s4: "Reveja e crie a Audiência que quer manter.",
+        },
+      },
+      audienceFromProspect: {
+        title: "Criar uma Audiência a partir de um Prospect",
+        summary: "Transforme um negócio pesquisado num segmento que pode alcançar.",
+        body: "Esta ação permanece indisponível até a inteligência desse Prospect estar Ready.",
+        expect:
+          "A nova Audiência é um segmento inspirado nesse negócio, não um segundo Prospect.",
+        cta: "Abrir Prospects",
+        keywords: "criar audiência a partir de prospect ready",
+        steps: {
+          s1: "Abra um Prospect com inteligência Ready.",
+          s2: "Escolha Criar Audiência a partir do Prospect.",
+          s3: "Reveja a nova Audiência.",
+          s4: "Gere inteligência de audiência se quiser trabalho de tração a partir dela.",
+        },
+      },
+      socialForAudience: {
+        title: "Gerar conteúdo social para uma Audiência",
+        summary: "Planeie uma semana dirigida a uma Audiência selecionada.",
+        body: "A Athena utiliza o Athena Brain mais a inteligência dessa Audiência. Uma orientação em branco significa que a Athena decide a semana.",
+        expect:
+          "A Athena cria sete peças. Pode sair e voltar. Tentar outra abordagem mantém a semana atual.",
+        cta: "Abrir Conteúdo social",
+        keywords: "social planner semana audiência conteúdo",
+        steps: {
+          s1: "Abra uma Audiência ou Conteúdo social.",
+          s2: "Escolha a Audiência e uma data de início da semana.",
+          s3: "Adicione orientação opcional.",
+          s4: "Gere a semana e reveja cada dia.",
+        },
+      },
+      adsForAudience: {
+        title: "Gerar publicidade para uma Audiência",
+        summary: "Crie uma campanha dirigida a uma Audiência selecionada.",
+        body: "Quando abre a Publicidade a partir de uma Audiência, a Athena mantém essa Audiência como alvo da campanha e escreve a orientação da campanha mais o copy da plataforma.",
+        expect:
+          "Uma campanha Ready permanece como está. Criar outra versão inicia uma nova campanha.",
+        cta: "Criar publicidade",
+        keywords: "anúncios publicidade campanha audiência facebook instagram",
+        steps: {
+          s1: "Abra uma Audiência ou Publicidade.",
+          s2: "Crie uma campanha com essa Audiência selecionada.",
+          s3: "Adicione um brief opcional.",
+          s4: "Volte quando a campanha estiver Ready.",
+        },
+      },
+      genericAdsSocial: {
+        title: "Gerar anúncios ou conteúdo social genéricos sem selecionar uma Audiência",
+        summary: "A Athena ainda pode trabalhar a partir do Athena Brain e das audiências guardadas.",
+        body: "Selecionar uma Audiência é mais preciso, mas não é obrigatório. A Athena não inventa uma compra de media em direto nem publica por si.",
+        expect: "O resultado continua a ser guardado em Publicidade ou Conteúdo social.",
+        cta: "Abrir Publicidade",
+        keywords: "anúncios sociais genéricos sem audiência selecionada",
+        steps: {
+          s1: "Abra Publicidade ou Conteúdo social.",
+          s2: "Deixe a Audiência por selecionar se quiser um trabalho mais amplo.",
+          s3: "Adicione orientação opcional.",
+          s4: "Gere e reveja o resultado guardado.",
+        },
+      },
+      findProspect: {
+        title: "Encontrar ou importar um Prospect",
+        summary: "Diretório, Google, ou adicione um negócio você mesmo.",
+        body: "Encontrar oportunidades é o caminho principal. A importação manual ou CSV continua a funcionar quando já tem os detalhes do negócio.",
+        expect:
+          "As adições do diretório GetOblic podem consumir capacidade de listings. Um sítio web ajuda a Athena a pesquisar o negócio.",
+        cta: "Encontrar um Prospect",
+        keywords: "encontrar importar prospect diretório google csv",
+        steps: {
+          s1: "Abra Encontrar oportunidades.",
+          s2: "Pesquise no diretório GetOblic ou procure um negócio no Google.",
+          s3: "Ou adicione o negócio você mesmo se já o tiver.",
+          s4: "Abra o Prospect e adicione um sítio web se estiver em falta.",
+        },
+      },
+      researchProspect: {
+        title: "Pesquisar um Prospect",
+        summary:
+          "Dê à Athena o sítio deles e, em seguida, deixe a pesquisa e a inteligência correrem.",
+        body: "Os Prospects sem sítio web não conseguem gerar inteligência útil até ser adicionado um sítio.",
+        expect:
+          "A pesquisa pode continuar depois de sair. Atualize ou use Tentar outra abordagem quando quiser uma nova leitura.",
+        cta: "Abrir Prospects",
+        keywords: "pesquisar prospect sítio deep scrape",
+        steps: {
+          s1: "Abra o Prospect.",
+          s2: "Adicione ou confirme o sítio deles.",
+          s3: "Execute Pesquisar este sítio se precisar de evidência mais profunda.",
+          s4: "Aguarde a inteligência Ready e, em seguida, reveja a recomendação.",
+        },
+      },
+      moveProspect: {
+        title: "Avançar um Prospect",
+        summary:
+          "Use o estado de trabalho, os rascunhos de abordagem e a recomendação da Athena.",
+        body: "A recomendação é orientação, não uma lista de tarefas guardada. A Completude é completude da evidência, não um ranking de perseguição.",
+        expect: "Alterar o estado de trabalho não regenera a inteligência.",
+        cta: "Abrir Prospects",
+        keywords: "avançar prospect estado abordagem seguimento",
+        steps: {
+          s1: "Abra um Prospect com inteligência Ready.",
+          s2: "Leia a recomendação e os rascunhos de abordagem.",
+          s3: "Atualize o estado de trabalho à medida que a relação muda.",
+          s4: "Adicione uma observação e atualize quando surgirem factos novos.",
+        },
+      },
+      audienceVsProspect: {
+        title: "Compreender Audiência vs Prospect",
+        summary: "Segmento a alcançar versus um negócio a perseguir.",
+        body: "Se precisa de conteúdo ou anúncios para um tipo de comprador, comece com uma Audiência. Se precisa de compreender uma empresa nomeada, comece com um Prospect.",
+        expect:
+          "Pode criar uma Audiência a partir de um Prospect Ready quando esse negócio deve inspirar um segmento.",
+        cta: "Abrir Audiências",
+        keywords: "diferença audiência prospect compreender",
+        steps: {
+          s1: "Decida se precisa de um segmento ou de um negócio.",
+          s2: "Crie uma Audiência para alcançar um tipo de pessoa.",
+          s3: "Crie um Prospect para pesquisar uma empresa.",
+          s4: "Use Criar Audiência a partir do Prospect apenas depois de a inteligência do Prospect estar Ready.",
+        },
+      },
+      incompleteIntelligence: {
+        title: "Melhorar inteligência incompleta",
+        summary: "Adicione evidência e, em seguida, atualize ou gere novamente.",
+        body: "Guardar o perfil da Audiência não regenera a inteligência. Edições relevantes do Prospect podem colocar uma atualização em fila.",
+        expect: "A inteligência anterior permanece disponível após atualizar.",
+        cta: "Abrir Athena Brain",
+        keywords: "inteligência incompleta observação atualizar sítio",
+        steps: {
+          s1: "Verifique no Athena Brain se falta contexto de negócio.",
+          s2: "Adicione um sítio web ou uma observação na Audiência ou no Prospect.",
+          s3: "Atualize a inteligência, ou gere se ainda não existir nenhuma.",
+          s4: "Use Tentar outra abordagem quando a evidência está bem mas a leitura não.",
+        },
+      },
+      retryFailed: {
+        title: "Repetir uma geração que falhou",
+        summary: "Tente novamente no mesmo objeto quando essa ação existir.",
+        body: "O trabalho de Visibilidade, Audiência, Prospect e Anúncios que falhou pode geralmente ser repetido no mesmo objeto. Uma semana social que falhou é criada novamente como uma nova semana.",
+        expect:
+          "Pode sair e voltar enquanto a Athena tenta novamente em segundo plano.",
+        keywords: "retry falhou geração campanha semana",
+        steps: {
+          s1: "Abra o objeto que falhou.",
+          s2: "Leia o estado de falha.",
+          s3: "Escolha Tentar novamente quando for oferecido.",
+          s4: "Para uma semana social que falhou, crie uma nova semana.",
+        },
+      },
+      findSavedWork: {
+        title: "Encontrar o trabalho que a Athena já criou",
+        summary: "Cada biblioteca guarda o seu próprio trabalho.",
+        body: "A Athena não esconde o trabalho concluído quando sai de uma página. A geração em segundo plano pode terminar depois de avançar.",
+        expect:
+          "Abra o módulo correspondente em vez de procurar no Início a biblioteca completa.",
+        cta: "Abrir o Início",
+        keywords: "encontrar trabalho guardado biblioteca onde criado",
+        steps: {
+          s1: "O Athena Brain está na Identidade.",
+          s2: "As análises estão em Visibilidade.",
+          s3: "As Audiências, as campanhas e as semanas estão em Tração.",
+          s4: "Os Prospects estão em Converta oportunidades.",
+        },
+      },
+      getoblicCapacity: {
+        title: "Gerir a capacidade de listings GetOblic",
+        summary: "As reservas do diretório usam capacidade. Liberte um listing para libertar um lugar.",
+        body: "O Início e os Prospects mostram ambos a capacidade de listings. Libertar um listing GetOblic devolve capacidade. O Prospect e a pesquisa da Athena podem permanecer.",
+        expect: "Os listings GetOblic ligados não podem ser eliminados; podem ser libertados.",
+        cta: "Abrir Prospects",
+        keywords: "getoblic capacidade listing reserva libertar cheia",
+        steps: {
+          s1: "Abra Prospects ou o Início para ver a capacidade restante.",
+          s2: "Liberte um listing que já não precisa de manter ocupado.",
+          s3: "Depois, adicione outro negócio do diretório se necessário.",
+        },
+      },
+      applySocialSuggestions: {
+        title: "Aplicar as sugestões da Athena no Social Planner",
+        summary:
+          "Pergunte sobre um dia ou uma semana e, em seguida, Aplique para criar uma semana revista.",
+        body: "Esta é a exceção ao Ask Athena só de leitura. Aplicar cria uma nova semana de revisão da conversa e mantém a anterior.",
+        expect: "Os outros painéis Discutir não alteram o objeto subjacente.",
+        cta: "Abrir Conteúdo social",
+        keywords: "aplicar sugestões athena social planner semana",
+        steps: {
+          s1: "Abra uma semana social Ready.",
+          s2: "Use Ask Athena sobre o dia ou a semana.",
+          s3: "Reveja as sugestões.",
+          s4: "Escolha Aplicar as sugestões da Athena apenas se quiser uma nova versão da semana.",
+        },
+      },
+    },
+    tools: {
+      title: "Referência de ferramentas",
+      summary: "Salte para os módulos V2 atuais.",
+      brain: {
+        title: "Athena Brain",
+        summary: "Ensine e treine o contexto da empresa.",
+        body: "Defina o seu negócio. Treine, retreine, reveja o que a Athena sabe e execute Deep Scrape.",
+        cta: "Abrir Athena Brain",
+        keywords: "ferramenta athena brain identidade",
+      },
+      visibility: {
+        title: "Visibilidade",
+        summary: "Estratégia de visibilidade e Saúde técnica.",
+        body: "Veja se as pessoas conseguem descobrir a oferta e, em seguida, inspecione a saúde on-page após uma aprendizagem mais rica do sítio.",
+        cta: "Abrir visibilidade",
+        keywords: "ferramenta visibilidade seo",
+      },
+      audiences: {
+        title: "Audiências",
+        summary: "Segmentos que quer alcançar.",
+        body: "Crie, sugira, observe, atualize e gere anúncios ou semanas sociais a partir de uma Audiência.",
+        cta: "Abrir Audiências",
+        keywords: "ferramenta audiências personas",
+      },
+      ads: {
+        title: "Publicidade",
+        summary: "Campanhas guardadas que a Athena gerou.",
+        body: "Crie uma campanha com ou sem uma Audiência selecionada. As campanhas Ready usam Criar outra versão.",
+        cta: "Abrir Publicidade",
+        keywords: "ferramenta anúncios publicidade campanhas",
+      },
+      social: {
+        title: "Conteúdo social",
+        summary: "Uma semana planeada de cada vez.",
+        body: "Gere sete dias, tente outra abordagem, ou aplique as sugestões da Athena a partir de Ask Athena.",
+        cta: "Abrir Conteúdo social",
+        keywords: "ferramenta social planner conteúdo semana",
+      },
+      prospects: {
+        title: "Prospects",
+        summary: "Negócios específicos a perseguir.",
+        body: "Encontre, pesquise, atualize e avance Prospects. Vigie a capacidade de listings GetOblic.",
+        cta: "Abrir Prospects",
+        keywords: "ferramenta prospects converter",
+      },
+      identitySecondary: {
+        title: "Identidade de marca, Espaço de trabalho IA e GetOblic Links",
+        summary: "Ferramentas secundárias da Identidade.",
+        body: "A Identidade de marca guarda o logótipo, as cores e o tipo de letra para conteúdo de marca posterior. O Espaço de trabalho IA recorda os destinos de continuação preferidos. Os GetOblic Links são utilitários opcionais da Identidade, não um passo de crescimento.",
+        keywords: "identidade de marca espaço de trabalho ia getoblic links",
+      },
+      legacyNote: {
+        title: "Ferramentas de intelligence mais antigas",
+        summary: "Algumas ferramentas mais antigas ainda podem estar acessíveis.",
+        body: "Algumas ferramentas de intelligence mais antigas podem permanecer disponíveis neste espaço de trabalho. Não fazem parte do caminho de crescimento atual da Athena V2: Definir, Visibilidade, Tração e Converter.",
+        keywords: "legado ferramentas antigas",
+      },
+    },
+    troubleshoot: {
+      title: "Resolução de problemas",
+      summary: "O que fazer quando a Athena está lenta, incompleta ou errada.",
+      generationSlow: {
+        title: "A geração está a demorar",
+        summary: "A Athena pode continuar a trabalhar depois de sair da página.",
+        body: "Em fila e A processar significam que a Athena ainda está a trabalhar. Saia e volte ao mesmo objeto. O Início também pode mostrar trabalho que precisa de atenção.",
+        keywords: "geração lenta a processar em fila à espera",
+      },
+      generationFailed: {
+        title: "A geração falhou",
+        summary: "Tente novamente nesse objeto quando Tentar novamente existir.",
+        body: "Use Tentar novamente na análise de Visibilidade, Audiência, Prospect ou campanha de Anúncios que falhou. Para uma semana social que falhou, crie uma nova semana. Depois, deixe a Athena trabalhar em segundo plano.",
+        keywords: "geração falhou retry erro",
+      },
+      websiteResearch: {
+        title: "A pesquisa do sítio está indisponível ou em falta",
+        summary: "É necessário um URL de sítio utilizável.",
+        body: "O Deep Scrape da Identidade precisa de um Brain Ready e de um sítio web. A pesquisa de Audiência e de Prospect precisa de um URL nesse objeto. Os Prospects sem sítio web não conseguem gerar inteligência útil até ser adicionado um sítio.",
+        keywords: "pesquisa sítio indisponível em falta url",
+      },
+      technicalVisibility: {
+        title: "A Visibilidade técnica precisa de inteligência do sítio mais rica",
+        summary: "Ensine mais do seu sítio web primeiro.",
+        body: "A Saúde técnica do site revê páginas que a Athena já aprendeu. Abra Defina o seu negócio, adicione o sítio e retreine, ou execute Deep Scrape — o Deep Scrape retreina automaticamente o Athena Brain — e, em seguida, volte à Visibilidade.",
+        cta: "Abrir Athena Brain",
+        keywords: "visibilidade técnica sítio inteligência mais rica",
+      },
+      incompleteIntelligence: {
+        title: "A inteligência está incompleta",
+        summary: "Adicione evidência e, em seguida, atualize.",
+        body: "Adicione um sítio web, uma observação ou contexto em falta no Brain. Depois, atualize ou gere. Use Tentar outra abordagem apenas quando quiser uma leitura diferente de evidência em que já confia.",
+        keywords: "inteligência incompleta evidência em falta",
+      },
+      wrongAudience: {
+        title: "A Athena tem informação errada sobre a Audiência",
+        summary:
+          "Edite o perfil e, em seguida, gere ou atualize. Guardar por si só não chega.",
+        body: "Guardar o perfil da Audiência não regenera por si a inteligência. Corrija o perfil, adicione uma observação se tiver factos novos e, em seguida, gere ou atualize.",
+        keywords: "audiência errada editar perfil guardar regenerar",
+      },
+      wrongProspect: {
+        title: "A Athena tem informação errada sobre o Prospect",
+        summary: "Edite os factos. Edições relevantes podem colocar uma atualização em fila.",
+        body: "Corrija o perfil e o sítio do Prospect, adicione uma observação se necessário e, em seguida, atualize se a Athena ainda não tiver colocado uma em fila. A inteligência anterior permanece disponível.",
+        keywords: "prospect errado editar atualizar",
+      },
+      identityChanges: {
+        title: "As alterações da Identidade não apareceram",
+        summary: "É necessário Treinar ou Retreinar.",
+        body: "Editar a Voz, o Conhecimento de negócio ou o sítio web não atualiza o Athena Brain até Treinar ou Retreinar. Um Deep Scrape da Identidade bem-sucedido já retreina automaticamente o Athena Brain — não precisa de um segundo Retreinar depois de terminar.",
+        cta: "Abrir Athena Brain",
+        keywords: "alterações identidade não aparecem retreinar",
+      },
+      getoblicFull: {
+        title: "A capacidade GetOblic está esgotada",
+        summary: "Liberte um listing para libertar um lugar.",
+        body: "As reservas do diretório consomem capacidade de listings. Liberte um listing de que já não precisa. O Prospect e a pesquisa da Athena podem permanecer após a libertação.",
+        cta: "Abrir Prospects",
+        keywords: "getoblic capacidade esgotada listing libertar",
+      },
+      audienceFromProspectUnavailable: {
+        title: "Criar Audiência a partir do Prospect está indisponível",
+        summary: "Aguarde até a inteligência do Prospect estar Ready.",
+        body: "Gere ou tente novamente a inteligência do Prospect primeiro. A ação permanece indisponível enquanto o Prospect está em fila, a processar ou falhou.",
+        cta: "Abrir Prospects",
+        keywords: "criar audiência a partir de prospect indisponível desativado",
+      },
+      discussReadonly: {
+        title: "Ask ou Discutir não alterou o objeto subjacente",
+        summary: "Isto é esperado, exceto Aplicar no Social.",
+        body: "Discutir e Ask Athena são só de leitura. Explicam, não guardam nem regeneram. Apenas Aplicar as sugestões da Athena no Social Planner escreve uma nova semana a partir da conversa.",
+        keywords: "discutir ask não alterou aplicar social",
+      },
+    },
+    footer: {
+      title: "Pronto a continuar?",
+      body: "Use o Início quando quiser a próxima ação em direto. Use o Athena Brain quando ainda precisar de ensinar o negócio.",
+      homeCta: "Abrir o Início",
+      brainCta: "Abrir Athena Brain",
+    },
+    conversationTitle: "Ask Athena como usar a Athena",
     conversationDescription:
-      "Obtenha orientação sobre o fluxo de trabalho da Athena, o perfil de negócio, o conhecimento, as discussões, as oportunidades, a intelligence e os Deployment Assets.",
+      "Obtenha orientação sobre o Athena Brain, a Visibilidade, as Audiências, a publicidade, o conteúdo social, os Prospects e como estas partes trabalham em conjunto.",
     conversationPlaceholder: "Faça uma pergunta sobre a Athena…",
     conversationInputLabel: "Faça uma pergunta sobre a Athena",
     example1: "O que devo concluir primeiro?",
-    example2: "Qual é a diferença entre Voz e Conhecimento de negócio?",
-    example3: "Como é que a Athena utiliza o meu sítio web?",
-    example4: "Como é que a Athena identifica oportunidades?",
-    example5: "O que é a Executive Intelligence?",
-    example6: "O que acontece depois de importar uma discussão?",
+    example2: "Qual é a diferença entre uma Audiência e um Prospect?",
+    example3: "Como é que ensino à Athena o meu negócio?",
+    example4: "O que é o Athena Brain?",
+    example5: "Como é que executo uma análise de Visibilidade?",
+    example6: "Onde é que a Athena guardou o que criou?",
   },
   identity: {
     backToDashboard: "← Painel",

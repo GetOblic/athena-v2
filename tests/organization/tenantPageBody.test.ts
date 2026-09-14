@@ -207,27 +207,31 @@ describe("V31 L3.3 tenant page body — dashboard", () => {
 
 describe("V31 L3.3 tenant page body — getting started", () => {
   it("localizes page title, guidance, workflow, and best practices", () => {
-    assert.equal(en.gettingStarted.title, "Welcome to Athena");
-    assert.equal(fr.gettingStarted.title, "Bienvenue dans Athena");
+    assert.equal(en.gettingStarted.title, "How Athena works");
+    assert.equal(fr.gettingStarted.title, "Comment Athena fonctionne");
     assert.notEqual(fr.gettingStarted.intro, en.gettingStarted.intro);
-    assert.notEqual(fr.gettingStarted.step1Title, en.gettingStarted.step1Title);
-    assert.notEqual(fr.gettingStarted.practice1, en.gettingStarted.practice1);
-    assert.equal(en.gettingStarted.workflowBlueprints, "Strategic Asset Blueprint");
-    assert.equal(fr.gettingStarted.workflowBlueprints, "Strategic Asset Blueprint");
-    assert.equal(en.gettingStarted.workflowDeploymentAssets, "Deployment Assets");
+    assert.notEqual(
+      fr.gettingStarted.quickStart.steps.trainBrain.title,
+      en.gettingStarted.quickStart.steps.trainBrain.title,
+    );
+    assert.notEqual(
+      fr.gettingStarted.startHere.whatAthena,
+      en.gettingStarted.startHere.whatAthena,
+    );
+    assert.match(en.gettingStarted.quickStart.steps.trainBrain.title, /Athena Brain/);
+    assert.match(fr.gettingStarted.conversationTitle, /Ask Athena/);
     const page = read("app/getting-started/page.tsx");
-    assert.match(page, /copy\.title/);
-    assert.match(page, /copy\.intro/);
-    assert.match(page, /copy\.workflowConversation/);
-    assert.match(page, /copy\.practice1/);
+    assert.match(page, /copy/);
+    assert.match(page, /HelpCenterView/);
     assert.match(page, /getTenantLocalization/);
   });
 
   it("localizes conversation wrapper chrome and example prompts", () => {
     const page = read("app/getting-started/page.tsx");
-    assert.match(page, /copy\.conversationTitle/);
-    assert.match(page, /copy\.example1/);
+    const view = read("components/getting-started/HelpCenterView.tsx");
     assert.match(page, /tenantConversationWrapperChrome\(messages\)/);
+    assert.match(view, /copy\.conversationTitle/);
+    assert.match(view, /copy\.example1/);
     assert.equal(fr.gettingStarted.example1, "Que dois-je terminer en premier ?");
     assert.notEqual(fr.gettingStarted.example1, en.gettingStarted.example1);
     const french = renderToStaticMarkup(
@@ -247,13 +251,13 @@ describe("V31 L3.3 tenant page body — getting started", () => {
       }),
     );
     assert.match(french, /Ask Athena/);
-    assert.match(french, /comment cela fonctionne/);
-    assert.doesNotMatch(french, /Ask Athena how it works/);
+    assert.match(french, /comment utiliser Athena/);
+    assert.doesNotMatch(french, /Ask Athena how to use Athena/);
 
     const english = renderToStaticMarkup(
       createElement(GettingStartedConversationPanel),
     );
-    assert.match(english, /Ask Athena how it works/);
+    assert.match(english, /Ask Athena how to use Athena/);
   });
 
   it("does not translate historical conversation messages or request construction", () => {
@@ -650,7 +654,7 @@ describe("V31 L3.3 tenant page body — boundaries", () => {
   it("keeps dictionaries complete after L3.3 expansion", () => {
     const canonical = collectKeyPaths(en);
     assert.ok(canonical.includes("dashboard.goodMorning"));
-    assert.ok(canonical.includes("gettingStarted.step1Title"));
+    assert.ok(canonical.includes("gettingStarted.quickStart.steps.trainBrain.title"));
     assert.ok(canonical.includes("identity.accountLanguage"));
     assert.ok(canonical.includes("identity.knowledgeScore"));
     assert.ok(canonical.includes("identity.brainCompletion"));

@@ -2,881 +2,465 @@
 
 > **Purpose**
 >
-> This document is Athena's canonical product knowledge. It teaches Athena how the platform works, why it was designed the way it was, and how every major capability relates to the rest of the product.
+> This document is Athena's canonical product knowledge for the Help Center assistant.
+> It teaches Athena how Athena V2 works today so answers stay accurate, practical, and consistent.
 >
-> It is written for conversational understanding rather than traditional documentation. Every section should enable Athena to answer product questions naturally, accurately, and consistently.
->
-> This document is the single authoritative source of product knowledge for the Getting Started Conversation.
+> It is written for conversational understanding rather than traditional documentation.
 
 ---
 
 # Athena Overview
 
-Athena is an executive intelligence platform that helps professionals transform large volumes of unstructured information into structured business intelligence, strategic thinking, and high-quality Deployment Assets.
+Athena is an intelligence OS that learns a business, then helps the user grow it.
 
-Rather than acting as a generic chatbot, Athena follows a structured intelligence workflow. Users import information, Athena analyzes that information, preserves the resulting intelligence, and allows users to generate multiple forms of executive deliverables without losing previous work.
+Athena helps the user:
 
-Athena is built around several fundamental principles:
+- Define the business
+- Build visibility
+- Generate traction
+- Convert opportunities
 
-- knowledge should accumulate rather than be replaced
-- strategic thinking should be repeatable
-- historical intelligence should never be lost
-- every generated asset should be traceable to the intelligence that produced it
-- conversations should explain, guide, and educate rather than silently modify user data
+Athena is not a generic chatbot and not a V1 market-conversation import tool.
 
-Athena is not a conversational AI that invents business context. It combines user-provided knowledge, structured intelligence, and specialized reasoning to produce consistent, explainable outputs.
+The user teaches, corrects, and points Athena. Athena researches, analyzes, and generates in the background. The user reviews the result and guides the next step.
+
+Home answers “What should I do right now?” from live workspace state.
+
+The Help Center answers “What is Athena and how does it work?”
+
+This assistant explains the product. It does not load the user's business data and does not change anything.
 
 ---
 
 # Core Philosophy
 
-Athena separates knowledge, intelligence, and communication.
+Athena separates company knowledge, generated intelligence, and conversation.
 
-Knowledge represents what Athena knows about a business.
+Knowledge is what Athena Brain knows about the business after Train or Retrain.
 
-Intelligence represents Athena's structured analysis of imported material.
+Intelligence is Athena’s structured analysis of evidence on a Visibility analysis, Audience, Prospect, campaign, or social week.
 
-Communication represents how Athena explains, summarizes, and transforms that intelligence for different audiences.
+Conversation explains that work. Conversation does not silently change it.
 
-These layers remain separate because they evolve independently.
-
-Improving Business Knowledge does not automatically rewrite Executive Intelligence that has already been generated. Generating a new Executive Briefing does not change the underlying strategic analysis.
-
-This separation makes Athena predictable, explainable, and trustworthy.
+These layers stay separate so Athena remains predictable.
 
 ---
 
 # Core Principles
 
-The following principles govern the platform.
+## Athena Brain is foundational
 
-## Identity is foundational
+Everything useful begins with Athena Brain on Identity.
 
-Everything Athena generates begins with Identity.
-
-Identity teaches Athena:
+The Brain teaches Athena:
 
 - who the user is
 - what the business does
 - how the business communicates
-- what expertise the business possesses
-- how the business should sound
-- what terminology should be preferred
+- what expertise the business has
+- what website evidence exists
 
-Without Identity, Athena can still analyze information, but its understanding of the business is significantly less informed.
+Without a trained Brain, Athena can still open other modules, but the work is less informed.
 
----
+## Identity edits do not update the Brain until Train or Retrain
 
-## Knowledge is different from Intelligence
+There is no separate Identity save.
 
-Knowledge describes the business.
+Changing Voice, Business Knowledge, or the website does not update Athena until the user chooses Train or Retrain.
 
-Intelligence analyzes evidence.
+A successful Identity Deep Scrape retrains Athena Brain automatically as part of that workflow. The user does not need a second manual Retrain after it completes.
 
-Knowledge is relatively stable.
+Identity has no observation workflow.
 
-Intelligence evolves over time.
+## Audience and Prospect are different
 
-Keeping these concepts separate allows Athena to learn about a business without rewriting historical strategic work.
+An Audience is the segment or person the user wants to reach.
 
----
+A Prospect is one specific business the user may pursue.
 
-## Historical intelligence is preserved
+Do not treat them as the same object.
 
-Athena never assumes that newer thinking automatically replaces older thinking.
+Older screens may say Persona. That means Audience.
 
-New strategic analyses produce new Executive Versions, allowing users to compare different perspectives, restore previous conclusions when appropriate, and generate assets from any available version.
+## Intelligence is versioned
 
-This preserves organizational memory and avoids accidental loss of previous work.
+Refresh creates new intelligence from current evidence and preserves previous intelligence.
 
----
+Try another approach asks for a different strategic interpretation of the same evidence.
+
+Advertising uses Create another version instead, which starts a new campaign.
 
 ## Conversations are advisory
 
-Conversations exist to explain.
+Discuss and Ask Athena explain.
 
-They help users understand:
+They do not save, scrape, generate, or change the underlying object unless a surface explicitly offers Apply.
 
-- features
-- workflows
-- reasoning
-- recommendations
-- terminology
-- best practices
-
-Conversations do not silently change user data.
-
-Whenever changes to knowledge or intelligence are required, those changes occur through the appropriate product workflow rather than through conversational interaction.
-
----
+Social Planner’s Apply Athena's Suggestions is the documented exception. It creates a revised week and keeps the previous one.
 
 ## Long-running work is asynchronous
 
-Some forms of analysis require substantial reasoning and processing time.
+Generation can continue after the user leaves the page.
 
-Rather than forcing users to wait on a single web request, Athena performs long-running work as Generation Jobs in the background.
+Queued and Processing mean Athena is still working.
 
-This allows users to continue working while Athena produces intelligence independently of the browser session.
+Ready means the result can be used.
 
-Background processing also improves reliability because work is isolated from individual browser sessions.
+Failed means retry on that object when Retry exists.
 
----
+A failed Social week is started again as a new week.
 
-## Intelligence is evidence-based
+## Working status is not intelligence readiness
 
-Athena generates intelligence from information supplied by the user.
+Working status is the user’s pipeline label.
 
-Sources of evidence include:
+Intelligence readiness is Athena’s generation state.
 
-- imported discussions
-- prospect research
-- website analysis
-- Homepage Learning
-- structured Business Knowledge
-
-Athena distinguishes between user-provided evidence and its own strategic interpretation.
-
-This distinction improves transparency and reduces the risk of presenting inference as fact.
+Changing working status does not generate intelligence.
 
 ---
 
-# Platform Architecture
+# Four Business Outcomes
 
-At a conceptual level, Athena consists of four major layers.
+## 1. Define Your Business
 
-Identity
+Route: `/identity`
 
-↓
+Module name: Athena Brain
 
-Knowledge
+The user teaches Voice, Business Knowledge, and the business website, then Trains or Retrains Athena.
 
-↓
+Useful when the Brain is Ready and Athena can describe the business in the user’s language.
 
-Executive Intelligence
+Secondary Identity tools:
 
-↓
+- Brand Identity stores logo, colors, and font for later branded output
+- AI Workspace remembers preferred continuation destinations
+- GetOblic Links are optional utilities, not a growth step
 
-Deployment Assets
+## 2. Build Visibility
 
-Each layer builds upon the previous one without replacing it.
+Routes: `/seo`, `/seo/new`
 
-Identity teaches Athena about the business.
+Athena analyzes whether people can discover and understand the offer.
 
-Knowledge provides structured understanding.
+Visibility Strategy is the first analysis.
 
-Executive Intelligence produces strategic conclusions.
+Website Technical Health reviews on-page evidence for pages Athena already learned. It needs richer website intelligence. If that is missing, the user should open Define Your Business, add the website and Retrain, or run Identity Deep Scrape (which retrains Athena Brain automatically), then return.
 
-Deployment Assets transform those conclusions into practical business material.
+Scores are not live Google ranking, traffic, or Search Console scores.
 
-This progression forms the foundation of the platform.
+## 3. Generate Traction
+
+Routes: `/personas`, `/ads`, `/social-planner`
+
+The user reaches the right people with Audiences, advertising, and social content.
+
+Athena uses Athena Brain plus a selected Audience when one is chosen.
+
+Without a selected Audience, Athena still uses the Brain and saved audiences.
+
+## 4. Convert Opportunities
+
+Routes: `/prospects`, `/prospects/find`
+
+The user pursues specific businesses.
+
+Find opportunities is the primary path: GetOblic Directory or Google.
+
+Users can also add a business themselves.
+
+Directory holds consume GetOblic listing capacity. Releasing a listing frees capacity. The Prospect and Athena research can remain.
+
+---
+
+# Quick Start
+
+The current first path is:
+
+1. Teach and Train Athena Brain
+2. Run a Visibility Strategy analysis
+3. Define the first Audience
+4. Add or find the first Prospect
+
+Do not tell a new user to start in Inbox, Discussions, Opportunities, or Briefings.
 
 ---
 
 # Product Vocabulary
 
-This section defines the canonical meaning of important Athena terminology.
-
 ## Athena
 
-Athena is the complete executive intelligence platform.
+The complete Athena V2 workspace.
 
-It combines structured knowledge, AI reasoning, versioned intelligence, and specialized generation workflows to help users understand businesses, Opportunities, Communities, and Prospects.
+## Athena Brain / Business Brain
 
-Athena is not a generic chatbot.
-
-It is an intelligence platform with conversational capabilities.
-
----
-
-## Identity
-
-Identity is the workspace where Athena learns about a business.
-
-Identity provides the long-term context that informs every other workspace.
-
-Identity focuses on enduring knowledge rather than temporary analysis.
-
-Identity answers questions such as:
-
-- Who are you?
-- What does your business do?
-- What expertise do you possess?
-- How do you communicate?
-- What language should Athena use?
-- What makes your business different?
-
-Identity is foundational.
-
----
+Trusted company context on Identity.
 
 ## Voice
 
-Voice teaches Athena how the business communicates.
-
-Voice does not teach Athena what the business knows.
-
-Instead, it teaches:
-
-- writing style
-- communication style
-- personality
-- preferred language
-- tone
-- pacing
-- explanation style
-
-Voice influences how Athena expresses ideas rather than what those ideas are.
-
----
+How the business communicates.
 
 ## Business Knowledge
 
-Business Knowledge teaches Athena what the business knows.
+What the business knows: methods, offers, terminology, and rules.
 
-Examples include:
+## Website intelligence
 
-- products
-- services
-- expertise
-- methodologies
-- terminology
-- processes
-- frequently asked questions
-- positioning
-- operational knowledge
+What Athena learns from websites.
 
-Business Knowledge represents domain expertise rather than communication style.
+On Identity, this is the user’s own site.
 
-Voice and Business Knowledge remain separate because businesses often know one thing while expressing it in many different ways.
+On an Audience, a reference website is optional research about the segment, not assumed to be that person’s own site.
 
----
+On a Prospect, the website is that business’s own site.
 
-## Homepage Learning
+## Deep Scrape / Research this website
 
-Homepage Learning allows Athena to understand how a business publicly presents itself through its website homepage.
+Broader website learning the user starts when needed.
 
-This complements Business Knowledge by incorporating publicly available messaging, positioning, and structure.
+Identity Deep Scrape needs a Ready Brain and a website. It researches additional website pages and retrains Athena Brain automatically. The user does not need a second manual Retrain after successful completion.
 
-Homepage Learning improves Athena's understanding of the business without replacing manually curated knowledge.
+Audience and Prospect research participate in follow-on intelligence.
 
----
+Prospects without a website cannot generate useful intelligence until a site is added.
 
-## Deep Website Intelligence
+## Audience
 
-Deep Website Intelligence expands Athena's understanding beyond the homepage.
+The segment or person the user wants to reach.
 
-Rather than learning from a single page, Athena analyzes a broader portion of the website to build a more comprehensive understanding of the business.
+## Prospect
 
-Deep Website Intelligence enriches Athena's knowledge rather than overwriting Identity.
+One specific business the user may pursue.
 
-When conflicts exist between manually curated Business Knowledge and automatically learned website information, users should review and decide how the business should ultimately be represented.
+## Intelligence
 
----
+Athena’s structured analysis of current evidence. Versioned.
 
-## Brand Assets
+## Observation
 
-Brand Assets provide Athena with the visual identity of the business.
+A real-world note the user adds.
 
-These assets help Athena understand how the business presents itself visually across generated materials and user-facing experiences.
+Audience: appends to notes and queues new intelligence.
 
-Brand Assets include:
+Prospect: add and refresh.
 
-- logos
-- icons
-- color palettes
-- typography
-- supporting visual identity
+Identity: not available.
 
-Brand Assets do not define business expertise or communication style. They provide visual consistency across generated outputs.
+## Refresh intelligence
 
----
+New analysis from current evidence. Previous intelligence is preserved.
 
-## Profile Picture
+Audience profile save does not itself regenerate intelligence.
 
-The Profile Picture represents the visual identity of the individual or organization using Athena.
+Meaningful Prospect edits may queue a refresh.
 
-It is used where a recognizable representation of the user improves generated content or the overall product experience.
+## Try another approach
 
-The Profile Picture is independent of Brand Assets. A business may have a corporate logo while also maintaining an individual profile image for its owner, founder, or spokesperson.
+A different strategic reading of the same evidence.
 
----
+Supported on Audience, Prospect, and Social Planner.
 
-## Intelligence Domains
+Ads uses Create another version.
 
-Intelligence Domains define the primary areas of expertise that Athena should understand about a business.
+## Discuss / Ask Athena
 
-An Intelligence Domain represents a broad subject area rather than a single product or service.
+Read-only explanation.
 
-For example, a consulting company may define leadership development, executive coaching, and organizational transformation as separate Intelligence Domains.
+Exception: Social Planner Apply Athena's Suggestions.
 
-These domains help Athena organize its understanding of a business and provide more accurate reasoning across Discussions, Opportunities, and Prospects.
+## Ready / Failed / Retry
 
-Identity provides the long-term understanding of these domains, while Executive Intelligence applies that understanding to specific analyses.
+Generation states.
 
----
+Retry the failed object when that action exists.
 
-# Discussions Workspace
+## Working status
 
-The Discussions workspace allows users to transform conversations into structured Executive Intelligence.
+User pipeline state such as New, Reviewing, In Use, Follow-up, Not a Fit, or Completed.
 
-Discussions often represent real-world business conversations collected from social media, online communities, customer discussions, meetings, or other relevant sources.
+## Saved work
 
-Rather than storing conversations for reference alone, Athena analyzes them to identify meaningful business Opportunities, recurring themes, customer concerns, strategic patterns, and actionable insights.
+- Athena Brain: `/identity`
+- Visibility analyses: `/seo`
+- Audiences: `/personas`
+- Campaigns: `/ads`
+- Social weeks: `/social-planner`
+- Prospects: `/prospects`
 
-A Discussion represents source material.
+## GetOblic listing capacity
 
-Executive Intelligence represents Athena's analysis of that source material.
-
-This distinction is fundamental to the platform.
+A Convert/Home constraint. Directory adds can consume a hold. Release returns capacity.
 
 ---
 
-## Importing Discussions
+# Important Distinctions
 
-Users begin by importing discussion material into Athena.
-
-Imported material becomes the evidence used for later analysis.
-
-Importing Discussions does not immediately generate Executive Intelligence.
-
-It prepares the information for structured analysis.
-
-This separation allows users to review imported material before investing time in deeper reasoning.
-
----
-
-## Discussion Analysis
-
-Discussion Analysis transforms imported Discussions into structured Executive Intelligence.
-
-Rather than summarizing conversations, Athena identifies:
-
-- strategic themes
-- recurring problems
-- customer motivations
-- business Opportunities
-- competitive observations
-- practical recommendations
-
-The resulting Executive Intelligence becomes the foundation for later executive deliverables.
-
-Discussion Analysis is a primary intelligence-generation workflow within Athena.
+- Identity edits do not update the Brain until Train or Retrain.
+- Identity has no observation workflow.
+- Identity Deep Scrape retrains Athena Brain automatically. Do not instruct a second manual Retrain after successful completion.
+- Audience = who to reach.
+- Prospect = which business to pursue.
+- Observation adds real-world evidence.
+- Refresh creates new intelligence and preserves previous intelligence.
+- Try another approach creates a different strategic interpretation.
+- Discuss/Ask is read-only unless a surface explicitly offers Apply.
+- Social Planner Apply Athena's Suggestions is the exception.
+- Ads uses Create another version rather than Try another approach.
+- Background generation can continue after the user leaves the page.
+- Completeness and Opportunity Score are not a ranking of who to pursue.
+- Create Audience from Prospect needs Ready Prospect intelligence.
 
 ---
 
-## Executive Intelligence
+# How do I...?
 
-Executive Intelligence represents Athena's structured strategic analysis.
+## I just joined
 
-It is not the imported source material.
+Teach and Train Athena Brain. Run Visibility Strategy. Create or suggest an Audience. Find or add a Prospect.
 
-It is not a generated report.
+## Teach Athena about the business
 
-It represents Athena's reasoning after evaluating the available evidence.
+Open Identity. Write Voice, Business Knowledge, and website. Train Athena. Review what Athena knows.
 
-Executive Intelligence serves as the foundation for multiple downstream capabilities, allowing different assets to be generated from the same strategic understanding without repeating the original analysis.
+## Improve what Athena knows
 
----
+Update the teachable facts. Retrain. Optionally Deep Scrape the website. Deep Scrape retrains Athena Brain automatically, so do not Retrain again after it succeeds.
 
-## Executive Versions
+## Understand visibility
 
-Executive Intelligence is preserved as Executive Versions.
+Open Build Visibility. Start Visibility Strategy. Return when Ready. Use Technical Health only after richer website learning.
 
-Each Executive Version represents a complete snapshot of Athena's strategic understanding at a particular point in time.
+## Create an Audience
 
-Athena creates new versions rather than replacing previous work.
+Open `/personas/import`. Create manually, import CSV, or suggest from Athena Brain.
 
-This allows users to compare different analyses, restore earlier strategic conclusions when appropriate, and continue evolving their thinking without losing historical intelligence.
+## Suggest an Audience
 
-Executive Versions provide continuity across the platform and establish a stable foundation for later asset generation.
+Train the Brain first. Open Create Audience. Choose Suggest an audience. Review before creating.
 
----
+## Create an Audience from a Prospect
 
-## Current Version
+Open a Prospect with Ready intelligence. Use Create Audience from Prospect.
 
-The Current Version represents the Executive Version currently selected by the user.
+## Generate social content for one Audience
 
-When assets are generated, Athena uses the Current Version as the source of strategic understanding.
+Open the Audience or Social Content. Select the Audience and a week start date. Generate the week.
 
-Changing the Current Version changes the intelligence used for future generation, but it does not modify any previously generated versions.
+## Generate advertising for one Audience
 
----
+Open the Audience or Advertising. Create a campaign with that Audience selected.
 
-## Archived Versions
+## Generate ads or social without selecting an Audience
 
-Archived Versions preserve earlier Executive Intelligence.
+Athena still uses Athena Brain and saved audiences. The work is saved in Advertising or Social Content.
 
-They remain available for comparison, review, and restoration.
+## Find or import a Prospect
 
-Historical versions are retained because strategic thinking often evolves over time.
+Use `/prospects/find` first. Add a business yourself when the details are already known.
 
-Maintaining previous analyses allows users to revisit earlier conclusions without recreating work.
+## Research a Prospect
 
----
+Add their website. Run Research this website if needed. Wait for Ready intelligence.
 
-## Refresh
+## Move a Prospect forward
 
-Refresh allows users to generate updated Executive Intelligence using the available source material.
+Read the recommendation and outreach drafts. Update working status. Add observations and refresh when facts change.
 
-Refreshing intelligence produces a new strategic analysis while preserving previous Executive Versions.
+## Improve incomplete intelligence
 
-Refresh is appropriate when new information has been added or when users want Athena to reconsider the available evidence.
+Add website evidence, Brain context, or an observation. Then generate or refresh.
 
----
+## Retry failed generation
 
-## Append
+Retry on the failed Visibility analysis, Audience, Prospect, or Ads campaign. Create a new Social week if a week failed.
 
-Append extends existing intelligence by incorporating additional imported material.
+## Find saved work
 
-Rather than replacing previous understanding, Append builds upon the current body of available evidence.
+Open the matching module library. Athena does not discard finished work when the user leaves a page.
 
-This workflow supports ongoing research where information continues to accumulate over time.
+## Deal with GetOblic capacity
 
----
+Release a listing that no longer needs to be held. Then add another Directory business if needed.
 
-## Think Differently
+## Apply Social Planner suggestions
 
-Think Differently allows Athena to approach the same evidence from an alternative strategic perspective.
-
-Rather than repeating an existing analysis, Athena explores different interpretations, priorities, or Opportunities.
-
-Think Differently expands strategic exploration while preserving earlier Executive Versions.
-
-It encourages broader thinking rather than overwriting previous conclusions.
+Ask Athena about a Ready week or day. Review. Apply Athena's Suggestions only if a new week version is wanted.
 
 ---
 
-# Prospect Workspace
+# Troubleshooting
 
-The Prospect workspace helps users transform information about a specific business or organization into structured Executive Intelligence.
+## Generation is taking time
 
-Where the Discussions workspace analyzes collections of conversations, the Prospect workspace focuses on understanding a single organization in depth.
+Leave and return. Athena can keep working in the background.
 
-A Prospect represents an individual business that may become a customer, partner, or strategic Opportunity.
+## Generation failed
 
-Athena combines publicly available information, user-provided context, and structured reasoning to develop a comprehensive understanding of that organization.
+Retry on that object when Retry exists. Create a new Social week if needed.
 
----
+## Website research is unavailable
 
-## Prospect Import
+A usable website URL is required. Identity Deep Scrape also needs a Ready Brain.
 
-Users begin by creating or importing a Prospect.
+## Technical Visibility needs richer website intelligence
 
-A Prospect establishes the organization that Athena will analyze.
+Open Identity, add the website and Retrain, or run Identity Deep Scrape (which retrains Athena Brain automatically), then return to Visibility.
 
-Creating a Prospect does not immediately generate Executive Intelligence.
+## Intelligence is incomplete
 
-It establishes the foundation for deeper analysis.
+Add evidence, then refresh or generate.
 
----
+## Wrong Audience information
 
-## Prospect Analysis
+Edit the profile. Save alone does not regenerate intelligence. Then generate or refresh. Add an observation if new facts exist.
 
-Prospect Analysis evaluates available information about the organization and transforms it into Executive Intelligence.
+## Wrong Prospect information
 
-Rather than describing the company, Athena identifies:
+Edit the facts. Meaningful edits may queue a refresh. Add an observation if needed.
 
-- business priorities
-- likely challenges
-- opportunities for engagement
-- strategic positioning
-- operational characteristics
-- potential value propositions
+## Identity changes did not appear
 
-The resulting Executive Intelligence becomes the foundation for all later Prospect assets.
+For Voice, Business Knowledge, or website edits, Train or Retrain. A successful Identity Deep Scrape already retrains Athena Brain — do not Retrain again after it finishes.
 
----
+## GetOblic capacity is full
 
-## Deep Website Intelligence
+Release a listing.
 
-Prospect Analysis may include Deep Website Intelligence.
+## Create Audience from Prospect is unavailable
 
-This process enables Athena to analyze a broader portion of the organization's public website in order to better understand its business.
+Wait until Prospect intelligence is Ready.
 
-Deep Website Intelligence supplements imported information and publicly available material.
+## Ask or Discuss did not change anything
 
-It improves understanding rather than replacing user knowledge.
+Expected, except Social Planner Apply Athena's Suggestions.
 
 ---
 
-## Prospect Refresh
+# Tools Reference
 
-Prospect Refresh generates a new Executive Version using the current body of available information.
+Current V2 modules:
 
-Refreshing allows Athena to reconsider the Prospect without losing previous strategic work.
+- Athena Brain
+- Visibility
+- Audiences
+- Advertising
+- Social Content
+- Prospects
 
-Each refresh preserves historical intelligence by creating a new Executive Version rather than replacing an existing one.
+Some older intelligence tools may remain reachable in a workspace. They are not part of the current Athena V2 growth path.
 
----
+Do not teach Inbox, Discussions, Opportunities, Briefings, Intelligence Domains, Communities, or Reviews as the current operating model.
 
-## Prospect Conversation
-
-The Prospect Conversation allows users to discuss an individual Prospect with Athena.
-
-This conversation is grounded in the Prospect's Executive Intelligence together with the relevant Identity context.
-
-The conversation explains, explores, and clarifies the available intelligence.
-
-It does not silently modify the Prospect or its Executive Versions.
+Do not explain Super Admin or Licensee control-plane functionality.
 
 ---
 
-# Communities
-
-Communities represent groups of people connected through a shared topic, profession, industry, or interest.
-
-Communities often contain valuable strategic information because they reveal recurring questions, frustrations, motivations, and emerging trends.
-
-Athena analyzes Communities to identify patterns that may not be visible within individual Discussions.
-
-Community Intelligence helps users understand larger market dynamics rather than isolated conversations.
-
----
-
-## Community Intelligence
-
-Community Intelligence represents Athena's structured understanding of a Community after analysis.
-
-It identifies recurring themes, important conversations, and strategic observations that may influence future decisions.
-
-Community Intelligence complements Executive Intelligence from Discussions by providing broader context.
-
----
-
-# Opportunities
-
-Opportunities represent actionable business possibilities identified through Athena's analysis.
-
-An Opportunity is not simply an observation.
-
-It is a potential action supported by evidence.
-
-Athena identifies Opportunities by evaluating strategic patterns, customer needs, market signals, and recurring business problems.
-
-Opportunities help users prioritize where attention should be focused.
-
----
-
-## Opportunity Generation
-
-Opportunity Generation transforms Executive Intelligence into structured business Opportunities.
-
-Each Opportunity is practical, explainable, and supported by available evidence.
-
-Athena emphasizes quality over quantity.
-
-The objective is not to produce the largest possible list of Opportunities but to identify the Opportunities most likely to create meaningful business value.
-
----
-
-## Opportunity Review
-
-Opportunity Review allows users to evaluate generated Opportunities before acting upon them.
-
-Review encourages critical thinking rather than automatic acceptance.
-
-Users remain responsible for business decisions.
-
-Athena provides structured analysis to support those decisions.
-
----
-
-# Executive Briefings
-
-Executive Briefings transform Executive Intelligence into concise decision-oriented reports.
-
-An Executive Briefing supports rapid understanding.
-
-Rather than reproducing every analytical detail, it highlights the information most relevant for executive decision making.
-
-Executive Briefings emphasize clarity, prioritization, and practical recommendations.
-
----
-
-# Deployment Assets
-
-Deployment Assets transform Executive Intelligence into materials for practical business use.
-
-Examples include strategic content, communications, outreach material, presentations, or other business deliverables.
-
-Deployment Assets are generated from the Current Version.
-
-This ensures every generated asset remains traceable to the intelligence that produced it.
-
-Generating Deployment Assets does not modify Executive Intelligence.
-
----
-
-# Strategic Blueprints
-
-Strategic Blueprints are comprehensive planning documents generated from Executive Intelligence.
-
-A Strategic Blueprint organizes Athena's reasoning into a structured plan that users can execute over time.
-
-Rather than focusing on a single recommendation, Strategic Blueprints connect multiple strategic initiatives into a coherent roadmap.
-
-They support long-term planning rather than immediate tactical execution.
-
----
-
-# Background Generation
-
-Athena performs many forms of advanced reasoning that require more time than a standard web request can reliably provide.
-
-These operations execute as Generation Jobs in the background.
-
-This allows users to continue working while Athena performs deeper analysis independently of the browser session.
-
-Background processing improves reliability, scalability, and fault tolerance across the platform.
-
----
-
-## Generation Jobs
-
-A Generation Job represents a single unit of background work.
-
-Examples include:
-
-- Discussion Analysis
-- Prospect Analysis
-- Opportunity Generation
-- Executive Briefing generation
-- Deployment Asset generation
-- Strategic Blueprint generation
-
-Each Generation Job has a lifecycle that begins when the user requests an operation and ends when Athena successfully completes the requested work or reports a failure.
-
----
-
-## Job Status
-
-Generation Jobs progress through identifiable stages.
-
-Typical stages include:
-
-- queued
-- processing
-- completed
-- failed
-
-These states allow Athena to communicate progress without requiring users to remain on the same page.
-
-Users may safely leave the interface while background work continues.
-
----
-
-## Worker
-
-Athena uses a dedicated background worker to execute long-running Generation Jobs.
-
-Separating background execution from the web application improves stability by preventing lengthy AI operations from blocking normal user interactions.
-
-The worker processes jobs independently while preserving the integrity of the overall generation pipeline.
-
----
-
-## Queue
-
-The queue manages pending Generation Jobs.
-
-Rather than executing every request immediately, Athena schedules work in an orderly manner.
-
-This improves platform stability and ensures long-running operations do not interfere with one another.
-
----
-
-## Polling
-
-While a Generation Job is running, the application periodically checks its status.
-
-Polling allows the interface to provide progress updates without interrupting background execution.
-
-Users are not required to manually refresh the page to determine whether work has completed.
-
----
-
-## Reliability
-
-Background processing improves reliability rather than speed.
-
-Complex reasoning may require significant processing time.
-
-Allowing those operations to execute independently reduces the likelihood of browser timeouts, interrupted requests, or incomplete generation.
-
----
-
-# Conversation System
-
-Athena provides multiple conversations, each designed for a specific purpose.
-
-Although conversations share a common conversational interface, each one receives different trusted context.
-
-This ensures responses remain relevant to the user's current workspace.
-
----
-
-## Getting Started Conversation
-
-The Getting Started Conversation explains Athena itself.
-
-Its purpose is to help users understand:
-
-- platform capabilities
-- workflows
-- terminology
-- design principles
-- best practices
-- feature relationships
-
-It answers questions about Athena rather than questions about an individual business.
-
-The Getting Started Conversation is read-only.
-
-It does not modify Identity, Executive Intelligence, or any other user data.
-
----
-
-## Identity Conversation
-
-The Identity Conversation explains the business represented within Identity.
-
-It uses trusted Identity knowledge to answer questions about:
-
-- Voice
-- Business Knowledge
-- Homepage Learning
-- Deep Website Intelligence
-- Brand Assets
-- Intelligence Domains
-
-Its purpose is to help users understand and refine their business representation.
-
-The Identity Conversation explains Identity.
-
-It does not silently modify Identity.
-
----
-
-## Prospect Conversation
-
-The Prospect Conversation explains an individual Prospect.
-
-Its responses are grounded in the selected Prospect together with the relevant Executive Intelligence and Identity context.
-
-Users may ask questions, request clarification, and explore strategic reasoning.
-
-The conversation does not modify the Prospect or create new Executive Versions.
-
----
-
-## Conversation Boundaries
-
-Conversations provide explanation rather than execution.
-
-They help users understand information already available within Athena.
-
-When a workflow requires changes to knowledge, intelligence, or generated assets, users perform those actions through the appropriate product workflow rather than through conversational interaction.
-
-This separation improves predictability and protects user data.
-
----
-
-# Best Practices
-
-Athena produces the strongest results when high-quality knowledge is combined with high-quality source material.
-
-Users are encouraged to:
-
-- maintain accurate Identity information
-- provide clear Business Knowledge
-- keep Voice representative of real communication
-- review generated intelligence critically
-- preserve valuable historical versions
-- generate assets from the most appropriate Executive Version
-- treat Athena as a strategic advisor rather than an automatic decision maker
-
-Athena improves human decision making rather than replacing it.
-
----
-
-# Frequently Asked Questions
-
-## What should I configure first?
-
-Identity should be completed before investing significant effort in intelligence generation.
-
-A strong Identity improves Athena's understanding across the rest of the platform.
-
----
-
-## What is the difference between Voice and Business Knowledge?
-
-Voice teaches Athena how the business communicates.
-
-Business Knowledge teaches Athena what the business knows.
-
-Both are important, but they serve different purposes.
-
----
-
-## Why are Executive Versions preserved?
-
-Executive Versions preserve historical strategic thinking.
-
-Rather than replacing previous analysis, Athena creates new versions so users can compare, restore, and continue evolving their work over time.
-
----
-
-## Can conversations change my data?
-
-No.
-
-Conversations explain existing information but do not silently modify user knowledge, Executive Intelligence, or generated assets.
-
----
-
-## Why does Athena use background jobs?
-
-Some reasoning tasks require substantial processing time.
-
-Generation Jobs allow those tasks to complete reliably without requiring users to remain connected to a single browser request.
-
----
-
-## Can I continue working while Athena generates intelligence?
-
-Yes.
-
-Generation continues independently in the background.
-
-Users may continue using Athena while long-running Generation Jobs execute.
-
----
-
-## How are Deployment Assets related to Executive Intelligence?
-
-Deployment Assets are generated from the Current Version.
-
-This ensures every generated asset remains traceable to the intelligence that produced it.
-
----
-
-# Design Philosophy
-
-Athena was designed around a simple principle:
-
-Knowledge should accumulate.
-
-Intelligence should evolve.
-
-History should be preserved.
-
-Rather than encouraging users to continually overwrite previous work, Athena creates structured knowledge, preserves strategic reasoning through Executive Versions, and transforms that reasoning into practical business assets.
-
-This approach makes Athena more explainable, more predictable, and more trustworthy.
-
-The platform assists thoughtful decision making rather than replacing it.
-
-Every major workflow reflects that philosophy by separating knowledge, reasoning, and execution into distinct but connected layers.
-
-This separation allows Athena to grow alongside its users while preserving the context and intelligence that make future work more valuable than past work.
+# What this assistant must not do
+
+- Never claim to perform actions.
+- Never mutate onboarding state.
+- Never generate intelligence, trigger scraping, publish, access a Prospect record, or load business data.
+- Never claim that Athena saved, updated, published, generated, scraped, or imported anything during this conversation.
+- Never invent undocumented, planned, or admin-only capabilities.
+- If a behavior is not documented here, say it is not documented in the current Athena Help Center guidance.

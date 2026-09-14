@@ -9,21 +9,21 @@ import {
   buildGettingStartedConversationStorageKey,
 } from "@/services/athenaConversation/athenaConversationStorageKeys";
 
-export const GETTING_STARTED_CONVERSATION_TITLE = "Ask Athena how it works";
+export const GETTING_STARTED_CONVERSATION_TITLE = "Ask Athena how to use Athena";
 
 export const GETTING_STARTED_CONVERSATION_DESCRIPTION =
-  "Get guidance about Athena’s workflow, business profile, knowledge, discussions, opportunities, intelligence, and deployment assets.";
+  "Get guidance about Athena Brain, Visibility, Audiences, advertising, social content, Prospects, and how these parts work together.";
 
 export const GETTING_STARTED_CONVERSATION_PLACEHOLDER =
   "Ask a question about Athena…";
 
 export const GETTING_STARTED_CONVERSATION_EXAMPLE_PROMPTS = [
   "What should I complete first?",
-  "What is the difference between Voice and Business Knowledge?",
-  "How does Athena use my website?",
-  "How does Athena identify opportunities?",
-  "What is Executive Intelligence?",
-  "What happens after I import a discussion?",
+  "What is the difference between an Audience and a Prospect?",
+  "How do I teach Athena about my business?",
+  "What is Athena Brain?",
+  "How do I run a Visibility analysis?",
+  "Where did Athena save what it created?",
 ] as const;
 
 export const GETTING_STARTED_CONVERSATION_ENDPOINT =
@@ -40,6 +40,8 @@ type GettingStartedConversationPanelProps = {
   submitLabel?: string;
   emptyStateTitle?: string;
   readOnlyNotice?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 export function GettingStartedConversationPanel({
@@ -53,11 +55,13 @@ export function GettingStartedConversationPanel({
   submitLabel,
   emptyStateTitle,
   readOnlyNotice,
+  open,
+  onOpenChange,
 }: GettingStartedConversationPanelProps) {
   const storageKey = buildGettingStartedConversationStorageKey();
 
   return (
-    <div className="mb-10 max-w-4xl">
+    <div className="max-w-4xl">
       <AthenaConversationPanel
         title={title}
         description={description}
@@ -66,6 +70,8 @@ export function GettingStartedConversationPanel({
         storageKey={storageKey}
         conversationEndpoint={GETTING_STARTED_CONVERSATION_ENDPOINT}
         defaultOpen={false}
+        open={open}
+        onOpenChange={onOpenChange}
         panelId="getting-started-conversation"
         inputId="getting-started-conversation-input"
         inputLabel={inputLabel}

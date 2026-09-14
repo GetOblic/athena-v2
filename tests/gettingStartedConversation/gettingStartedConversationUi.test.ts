@@ -44,7 +44,7 @@ describe("getting started conversation UI", () => {
       GETTING_STARTED_CONVERSATION_PLACEHOLDER,
       "Ask a question about Athena…",
     );
-    assert.match(GETTING_STARTED_CONVERSATION_DESCRIPTION, /workflow/);
+    assert.match(GETTING_STARTED_CONVERSATION_DESCRIPTION, /Athena Brain/);
     assert.equal(GETTING_STARTED_CONVERSATION_EXAMPLE_PROMPTS.length, 6);
     assert.equal(
       GETTING_STARTED_CONVERSATION_ENDPOINT,
@@ -55,46 +55,46 @@ describe("getting started conversation UI", () => {
   it("example prompts match the approved Getting Started list", () => {
     assert.deepEqual([...GETTING_STARTED_CONVERSATION_EXAMPLE_PROMPTS], [
       "What should I complete first?",
-      "What is the difference between Voice and Business Knowledge?",
-      "How does Athena use my website?",
-      "How does Athena identify opportunities?",
-      "What is Executive Intelligence?",
-      "What happens after I import a discussion?",
+      "What is the difference between an Audience and a Prospect?",
+      "How do I teach Athena about my business?",
+      "What is Athena Brain?",
+      "How do I run a Visibility analysis?",
+      "Where did Athena save what it created?",
     ]);
   });
 
-  it("page mounts the panel after hero and before the first GuideCard without org provisioning", () => {
+  it("page composes Help Center and conversation without org provisioning", () => {
     const page = read("app/getting-started/page.tsx");
-    assert.match(page, /GettingStartedConversationPanel/);
+    const view = read("components/getting-started/HelpCenterView.tsx");
+    assert.match(page, /HelpCenterView/);
+    assert.match(view, /GettingStartedConversationPanel/);
     assert.doesNotMatch(page, /requireCurrentOrganizationContext/);
     assert.doesNotMatch(page, /organizationService/);
     assert.doesNotMatch(page, /buildConversationScopeFingerprint/);
     assert.doesNotMatch(page, /opaqueScope/);
     assert.doesNotMatch(page, /organizationId|userId/);
-
-    const panelIndex = page.indexOf("<GettingStartedConversationPanel");
-    const firstGuideIndex = page.indexOf("<GuideCard");
-    assert.ok(panelIndex > 0);
-    assert.ok(firstGuideIndex > panelIndex);
+    assert.doesNotMatch(page, /<GuideCard/);
   });
 
   it("visible Getting Started page copy does not claim autonomous market monitoring", () => {
     const page = read("app/getting-started/page.tsx");
+    const view = read("components/getting-started/HelpCenterView.tsx");
     assert.doesNotMatch(
       page,
       /monitors conversations happening across your market/i,
     );
-    assert.doesNotMatch(page, /watches your market/i);
-    assert.doesNotMatch(page, /watch your market/i);
+    assert.doesNotMatch(view, /watches your market/i);
+    assert.doesNotMatch(view, /watch your market/i);
     assert.doesNotMatch(page, /automatically monitors/i);
     assert.doesNotMatch(page, /continuously monitors/i);
-    assert.match(page, /copy\.intro/);
+    assert.match(page, /messages\.gettingStarted|copy/);
     const dictionary = read("lib/tenantI18n/messages/en.ts");
-    assert.match(
+    assert.match(dictionary, /Help Center is the product guide/);
+    assert.match(dictionary, /define the business, build visibility/);
+    assert.doesNotMatch(
       dictionary,
       /Import the conversations that matter to your business/,
     );
-    assert.match(dictionary, /Athena analyzes them/);
   });
 
   it("authenticated page rendering path does not invoke organization service", async () => {

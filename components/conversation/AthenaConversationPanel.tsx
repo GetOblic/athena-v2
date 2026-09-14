@@ -55,6 +55,9 @@ export type AthenaConversationPanelProps = {
   storageKey: string;
   conversationEndpoint: string;
   defaultOpen?: boolean;
+  /** Optional controlled open state. Other surfaces omit this and stay unchanged. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   /** Accessible label for the textarea. */
   inputLabel?: string;
   /** Optional DOM id for the outer panel wrapper. */
@@ -87,6 +90,8 @@ function AthenaConversationPanelInner({
   storageKey,
   conversationEndpoint,
   defaultOpen = false,
+  open,
+  onOpenChange,
   inputLabel,
   panelId,
   inputId,
@@ -277,7 +282,12 @@ function AthenaConversationPanelInner({
 
   return (
     <div id={panelId} className="scroll-mt-24">
-      <AthenaCollapsibleSection title={title} defaultOpen={defaultOpen}>
+      <AthenaCollapsibleSection
+        title={title}
+        defaultOpen={defaultOpen}
+        open={open}
+        onOpenChange={onOpenChange}
+      >
         <p className="max-w-2xl text-sm leading-6 text-white/45">
           {description}
         </p>

@@ -27,6 +27,7 @@ import {
   gettingStartedPromptContainsUncertaintyContract,
 } from "../../services/gettingStartedConversation/gettingStartedConversationPrompt";
 import {
+  GETTING_STARTED_PRODUCT_CONTEXT_VERSION,
   GETTING_STARTED_PRODUCT_TOPICS,
   formatGettingStartedProductContext,
 } from "../../services/gettingStartedConversation/gettingStartedProductContext";
@@ -88,43 +89,70 @@ describe("getting started conversation validation", () => {
 });
 
 describe("getting started product context", () => {
-  it("comes from the server-owned module with verified topics", () => {
+  it("comes from the server-owned module with verified V2 topics", () => {
     assert.ok(GETTING_STARTED_PRODUCT_TOPICS.length >= 10);
+    assert.equal(GETTING_STARTED_PRODUCT_CONTEXT_VERSION, "v2-help-center-1");
     const formatted = formatGettingStartedProductContext();
-    assert.match(formatted, /Train Athena Brain/);
-    assert.match(formatted, /Voice/);
-    assert.match(formatted, /Business Knowledge/);
-    assert.match(formatted, /Homepage learning/);
-    assert.match(formatted, /Deep website/);
-    assert.match(formatted, /Discussions/);
-    assert.match(formatted, /Opportunities/);
-    assert.match(formatted, /Briefings/);
-    assert.match(formatted, /Deployment Assets/);
-    assert.match(formatted, /Strategic Asset Blueprint/);
-    assert.match(formatted, /Executive Versions/);
+    assert.match(formatted, /Athena Brain/);
+    assert.match(formatted, /Define Your Business/);
+    assert.match(formatted, /Build Visibility/);
+    assert.match(formatted, /Generate Traction/);
+    assert.match(formatted, /Convert Opportunities/);
+    assert.match(formatted, /Audience/);
+    assert.match(formatted, /Prospect/);
+    assert.match(formatted, /Deep Scrape/);
+    assert.match(formatted, /Train or Retrain/);
+    assert.match(formatted, /Social Planner/);
+    assert.doesNotMatch(
+      formatted,
+      /The documented flow is: Conversation → Athena Analysis → Opportunity Detection/,
+    );
   });
 
-  it("describes import-then-analyze behavior without autonomous market monitoring", () => {
+  it("grounds Train/Retrain for Identity edits and auto-retrain after Deep Scrape", () => {
     const formatted = formatGettingStartedProductContext();
-    assert.match(formatted, /Users import relevant conversations or discussions/);
-    assert.match(formatted, /Athena analyzes that material/);
-    assert.match(formatted, /identifies signals and opportunities/);
-    assert.match(
-      formatted,
-      /uses the resulting intelligence to support strategic outputs/,
-    );
-    assert.match(
-      formatted,
-      /user supplies or imports the discussion material/,
-    );
+    const knowledge = read("knowledge/athena-product-knowledge.md");
+    const built = buildGettingStartedConversationPrompt({
+      assembled: assembleGettingStartedConversationContext({
+        organizationId: "org-1",
+        userId: "user-1",
+      }),
+      history: [],
+      userMessage: "Should I Retrain after Identity Deep Scrape?",
+    });
+    const grounded = `${formatted}\n${knowledge}\n${built.messages.map((message) => message.content).join("\n")}`;
 
+    assert.match(
+      formatted,
+      /Identity edits do not update Athena Brain until the user chooses Train or Retrain/,
+    );
+    assert.match(formatted, /retrains Athena Brain automatically/);
+    assert.match(knowledge, /Changing Voice, Business Knowledge, or the website does not update Athena until the user chooses Train or Retrain/);
+    assert.match(knowledge, /retrains Athena Brain automatically/);
+    assert.doesNotMatch(
+      grounded,
+      /After Identity Deep Scrape, the user should Retrain/,
+    );
+    assert.doesNotMatch(grounded, /After Identity Deep Scrape, Retrain\./);
+    assert.doesNotMatch(grounded, /Optionally Deep Scrape the website, then Retrain again/);
+    assert.doesNotMatch(grounded, /After Deep Scrape, Retrain so/);
+    assert.doesNotMatch(grounded, /Retrain again after Deep Scrape/);
+  });
+
+  it("teaches the V2 operating model without V1 onboarding or autonomous market monitoring", () => {
+    const formatted = formatGettingStartedProductContext();
+    assert.match(formatted, /Teach and train Athena Brain|teach and train Athena Brain|Define Your Business/);
+    assert.match(formatted, /not the current onboarding path/);
     assert.doesNotMatch(formatted, /automatically monitors the market/i);
     assert.doesNotMatch(formatted, /Athena monitors the market/i);
     assert.doesNotMatch(formatted, /continuous market monitoring/i);
     assert.doesNotMatch(formatted, /autonomous(?:ly)? monitors?/i);
-    assert.doesNotMatch(formatted, /background analysis/i);
     assert.doesNotMatch(formatted, /automatic opportunity discovery/i);
     assert.doesNotMatch(formatted, /imports conversations automatically/i);
+    assert.doesNotMatch(
+      formatted,
+      /recommended workflow ordering[\s\S]*Add Conversations \/ Inbox/,
+    );
   });
 
   it("assembler loads product context only — no Identity/Prospect/EV/asset bodies", () => {
@@ -134,7 +162,7 @@ describe("getting started product context", () => {
     });
     assert.equal(assembled.sections.length, 2);
     assert.equal(assembled.sections[0]?.type, "ATHENA_PRODUCT_CONTEXT");
-    assert.match(assembled.sections[0]?.content ?? "", /Getting Started workflow/);
+    assert.match(assembled.sections[0]?.content ?? "", /Athena V2 Help Center/);
     assert.equal(assembled.sections[1]?.type, "ATHENA_PRODUCT_KNOWLEDGE");
     assert.equal(assembled.sections[1]?.label, "ATHENA PRODUCT KNOWLEDGE");
     assert.match(assembled.sections[1]?.content ?? "", /Athena Product Knowledge/);
@@ -163,7 +191,7 @@ describe("getting started product context", () => {
     assert.match(user.content, /ATHENA PRODUCT KNOWLEDGE/);
     assert.match(user.content, /Athena Product Knowledge/);
     assert.match(user.content, /ATHENA_PRODUCT_CONTEXT|Athena product context/);
-    assert.match(user.content, /Getting Started workflow/);
+    assert.match(user.content, /Athena V2 Help Center/);
     assert.doesNotMatch(user.content, /knowledge\/athena-product-knowledge\.md/);
     assert.doesNotMatch(user.content, /lib\/server\/productKnowledge/);
   });
@@ -261,7 +289,7 @@ describe("getting started gemini + containment source contracts", () => {
       assert.doesNotMatch(source, /from ["']@\/workers\//);
       assert.doesNotMatch(source, /upsertAthenaIdentity/);
       assert.doesNotMatch(source, /compileMasterIdentityProfile/);
-      assert.doesNotMatch(source, /thinkDifferently/i);
+      assert.doesNotMatch(source, /from ["']@\/.*thinkDifferently/);
       assert.doesNotMatch(source, /from ["']@\/lib\/openrouter/);
     }
   });

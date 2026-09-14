@@ -1,25 +1,26 @@
 /**
  * Server-owned Getting Started product context.
- * Derived only from current authoritative user-facing Athena behavior.
+ * Derived only from current authoritative user-facing Athena V2 behavior.
  * Do not invent undocumented capabilities.
  */
 
 export type GettingStartedProductTopicId =
-  | "getting_started_workflow"
-  | "identity"
-  | "voice"
-  | "business_knowledge"
-  | "homepage_learning"
-  | "deep_website_learning"
-  | "discussions"
-  | "opportunities"
-  | "executive_briefings"
-  | "strategic_blueprint"
-  | "deployment_assets"
-  | "executive_versions"
-  | "stored_vs_generated"
-  | "workflow_ordering"
-  | "how_athena_uses_context";
+  | "athena_v2_overview"
+  | "four_outcomes"
+  | "home_vs_help"
+  | "athena_brain"
+  | "train_retrain"
+  | "website_intelligence"
+  | "audiences"
+  | "advertising"
+  | "social_planner"
+  | "prospects"
+  | "observations"
+  | "refresh_intelligence"
+  | "alternative_approach"
+  | "discuss_ask"
+  | "statuses_retry"
+  | "saved_work";
 
 export type GettingStartedProductTopic = {
   id: GettingStartedProductTopicId;
@@ -28,108 +29,110 @@ export type GettingStartedProductTopic = {
 };
 
 /**
- * Authoritative product explanations verified against:
- * - app/getting-started/page.tsx
- * - app/identity/page.tsx
- * - components/identity/IdentityExecutiveIntelligence.tsx
- * - app/page.tsx
- * - components/dashboard/DashboardSidebar.tsx
+ * Authoritative product explanations verified against current V2 surfaces:
+ * Identity, Home, Visibility, Audiences, Advertising, Social Planner, Prospects.
  */
 export const GETTING_STARTED_PRODUCT_TOPICS: readonly GettingStartedProductTopic[] =
   [
     {
-      id: "getting_started_workflow",
-      title: "Getting Started workflow",
+      id: "athena_v2_overview",
+      title: "Athena V2 Help Center",
       summary:
-        "Athena is presented as an AI Market Intelligence Partner. Getting Started guides users through training Athena Brain, adding conversations, reviewing discussions, reviewing opportunities, reading briefings, using Deployment Assets, and using Strategic Asset Blueprints. The documented flow is: Conversation → Athena Analysis → Opportunity Detection → Executive Intelligence → Deployment Assets → Strategic Asset Blueprint → Business Growth.",
+        "Athena is an intelligence OS that learns a business, then helps the user define the business, build visibility, generate traction, and convert opportunities. Users teach, correct, and point Athena. Athena researches, analyzes, and generates in the background. Users review the result and guide the next step. This assistant explains how Athena works. It does not load the user's business data or change anything.",
     },
     {
-      id: "identity",
-      title: "Identity / Athena Brain",
+      id: "four_outcomes",
+      title: "Four business outcomes",
       summary:
-        "Identity (Athena Brain at /identity) is where users teach Athena their voice, expertise, business knowledge, website, and professional rules. Athena uses this when generating replies, CTAs, briefings, and strategic asset blueprints. Brain Status tracks Voice learned, Expertise learned, Homepage learned, Professional terminology learned, and continuous learning.",
+        "The current operating model is: (1) Define Your Business on /identity through Athena Brain, (2) Build Visibility on /seo, (3) Generate Traction through Audiences, Advertising, and Social Content, (4) Convert Opportunities through Prospects. Inbox, Discussions, Opportunities, and Briefings are not the current onboarding path.",
     },
     {
-      id: "voice",
-      title: "Voice",
+      id: "home_vs_help",
+      title: "Home vs Help Center",
       summary:
-        "Voice (Your Voice / about_you) helps Athena understand how the user naturally communicates — thinking, speaking, teaching, and guiding. It is distinct from Business Knowledge. Best practice guidance says train Athena before importing discussions.",
+        "Home answers what the user should do right now from live workspace state. The Help Center at /getting-started explains what Athena is and how it works. This assistant must not invent live next-step recommendations from business data because it does not load that data.",
     },
     {
-      id: "business_knowledge",
-      title: "Business Knowledge",
+      id: "athena_brain",
+      title: "Athena Brain",
       summary:
-        "Business Knowledge (expertise) teaches Athena methodology, frameworks, FAQs, terminology, offers, and professional rules. It is the business-expertise counterpart to Voice, not the same field.",
+        "Athena Brain, also called Business Brain, lives on Identity at /identity. It is the trusted company context used by Visibility, Audiences, Advertising, Social Content, and Prospects. Users teach Voice, Business Knowledge, and the business website. Identity has no observation workflow.",
     },
     {
-      id: "homepage_learning",
-      title: "Homepage learning",
+      id: "train_retrain",
+      title: "Train and Retrain",
       summary:
-        "During Train Athena, Athena studies the business website homepage. Brain Status reflects whether homepage learning is present. Homepage learning contributes stored website understanding used by Athena Brain.",
+        "Identity edits do not update Athena Brain until the user chooses Train or Retrain. Train writes the Brain the first time. Retrain rebuilds it after Voice, Business Knowledge, or website changes. A successful Identity Deep Scrape retrains Athena Brain automatically as part of that workflow. The user does not need a second manual Retrain after Deep Scrape completes.",
     },
     {
-      id: "deep_website_learning",
-      title: "Deep website learning",
+      id: "website_intelligence",
+      title: "Website intelligence and Deep Scrape",
       summary:
-        "After training, users can run Deep Scrape Website for multi-page learning beyond the homepage. Deep scrape availability is tied to a ready brain and a configured website. It expands website evidence Athena can use for business understanding when the user initiates the scrape.",
+        "During Train, Athena can study the business homepage. Deep Scrape on Identity studies more pages of the user's own website, needs a Ready Brain plus a website, and automatically retrains Athena Brain as part of the Deep Scrape workflow. Research this website on an Audience studies an optional reference URL about the segment. On a Prospect it studies that business's own site and participates in follow-on intelligence. Prospects without a website cannot generate useful intelligence until a site is added.",
     },
     {
-      id: "discussions",
-      title: "Discussions",
+      id: "audiences",
+      title: "Audiences",
       summary:
-        "Users import relevant conversations or discussions into Athena via Inbox (for example from Facebook, Instagram, Reddit, LinkedIn, email, support conversations, interviews, or meeting notes). Athena analyzes that material, identifies signals and opportunities, and shows intent, buyer concern, opportunity signals, and recommended next steps in plain language on Discussions.",
+        "An Audience is the segment or person the user wants to reach. The library is /personas. Users can create one manually, import a CSV, ask Athena to suggest one from Athena Brain, or create one from a Prospect after that Prospect's intelligence is Ready. Audience profile save does not itself regenerate intelligence. Older screens may say Persona; that means Audience.",
     },
     {
-      id: "opportunities",
-      title: "Opportunities",
+      id: "advertising",
+      title: "Advertising",
       summary:
-        "Opportunities filters the most valuable imported discussions so users can focus on conversations most likely to turn into business. Dashboard and Getting Started both surface opportunity review as a core step. Best practice: review Opportunities daily.",
+        "Advertising at /ads generates saved campaigns. Users can target one Audience or generate without selecting an Audience. Athena still uses Athena Brain and available saved audiences. A Ready campaign stays unchanged. Create another version starts a new campaign. Failed campaigns can be retried in place.",
     },
     {
-      id: "executive_briefings",
-      title: "Executive Briefings",
+      id: "social_planner",
+      title: "Social Planner",
       summary:
-        "Briefings summarize the most important insights and strategy for each opportunity — like a concise executive summary users can act on quickly. Dashboard metrics include draft and approved briefings.",
+        "Social Content at /social-planner plans one week of posts. Users may select an Audience or leave it unselected. Try another approach creates a different week version. Ask Athena is read-only until the user chooses Apply Athena's Suggestions, which creates a revised week and keeps the previous one. A failed week is started again as a new week.",
     },
     {
-      id: "strategic_blueprint",
-      title: "Strategic Asset Blueprint",
+      id: "prospects",
+      title: "Prospects",
       summary:
-        "Strategic Asset Blueprints are reusable asset prompts for PDFs, images, carousels, lead magnets, and educational content. Create once, reuse across marketing channels. Best practice: reuse Strategic Asset Blueprints across channels.",
+        "A Prospect is one specific business the user may pursue, not an audience segment. The primary path is Find opportunities at /prospects/find using the GetOblic Directory or Google. Users can also add a business themselves. Completeness and Opportunity Score are evidence signals, not a ranking of who to pursue. GetOblic Directory holds consume listing capacity; releasing a listing frees capacity.",
     },
     {
-      id: "deployment_assets",
-      title: "Deployment Assets",
+      id: "observations",
+      title: "Observations",
       summary:
-        "Deployment Assets are copy-ready replies, private messages, follow-ups, calls to action, and social posts generated for the user and ready to paste into platforms, email, or DMs. Best practice: use Deployment Assets instead of writing manually.",
+        "An observation adds real-world evidence. On an Audience it appends to notes and queues new intelligence. On a Prospect, add and refresh does the same. Identity has no observation workflow.",
     },
     {
-      id: "executive_versions",
-      title: "Executive Versions",
+      id: "refresh_intelligence",
+      title: "Refresh intelligence",
       summary:
-        "In prospect and discussion Executive Intelligence workspaces, Athena can work with Current or Archived Executive Versions of generated intelligence and assets. Conversation about a prospect can target a selected Executive Version when one exists. Getting Started does not itself load Executive Version records.",
+        "Refresh creates new intelligence from current evidence and preserves previous intelligence. Meaningful Prospect edits may queue a refresh. Audience profile save does not. Use refresh after observations, website research, or corrected facts.",
     },
     {
-      id: "stored_vs_generated",
-      title: "Stored business knowledge vs generated intelligence",
+      id: "alternative_approach",
+      title: "Try another approach",
       summary:
-        "Stored business profile content (Voice, Business Knowledge, website learning, Identity Executive Intelligence understanding) is what Athena learns about the user's business on Identity. Generated intelligence (discussion analysis, opportunities, briefings, Deployment Assets, Strategic Blueprints, Executive Versions) is produced from imported market conversations and workflows after Athena has business context. Identity Executive Intelligence explains what Athena currently understands about the business; it is separate from prospect/discussion Executive Intelligence outputs.",
+        "Try another approach, also called Think Differently in some product language, asks Athena for a different strategic interpretation of the same evidence. Audience, Prospect, and Social Planner support this. Advertising uses Create another version instead, which creates a new campaign row.",
     },
     {
-      id: "workflow_ordering",
-      title: "Recommended workflow ordering",
+      id: "discuss_ask",
+      title: "Discuss and Ask Athena",
       summary:
-        "Verified ordering from Getting Started: (1) Train Athena Brain, (2) Add Conversations / Inbox, (3) Review Discussions, (4) Review Opportunities, (5) Read Briefings, (6) Use Deployment Assets, (7) Use Strategic Asset Blueprints. Best practices emphasize training before importing discussions and continuing to feed Athena new conversations.",
+        "Discuss and Ask Athena explain the current object and are read-only. They do not save, scrape, generate, or change the underlying object unless a surface explicitly offers Apply. Social Planner's Apply Athena's Suggestions is the documented exception.",
     },
     {
-      id: "how_athena_uses_context",
-      title: "How Athena uses business context",
+      id: "statuses_retry",
+      title: "Ready, Failed, Retry, and working status",
       summary:
-        "Once trained, Athena uses Voice, expertise, website learning, and professional rules so replies, briefings, and asset blueprints reflect the user's business rather than a generic assistant. Users import relevant conversations or discussions into Athena. Athena analyzes that material, identifies signals and opportunities, and uses the resulting intelligence to support strategic outputs. Athena helps users understand market conversations when the user supplies or imports the discussion material. Athena does not crawl the open web on its own, continuously search markets, or pull social-platform discussions without user import.",
+        "Generation can continue after the user leaves the page. Ready means the result can be used. Failed means retry on that object when Retry exists. Working status is the user's pipeline label and is separate from intelligence readiness. Changing working status does not generate intelligence.",
+    },
+    {
+      id: "saved_work",
+      title: "Where Athena saves work",
+      summary:
+        "Athena Brain is saved on Identity. Visibility analyses are saved in Visibility. Audiences are saved on /personas. Campaigns are saved on /ads. Social weeks are saved on /social-planner. Prospects are saved on /prospects. Open the matching module to find work Athena already created.",
     },
   ] as const;
 
-export const GETTING_STARTED_PRODUCT_CONTEXT_VERSION = "v12-getting-started-1";
+export const GETTING_STARTED_PRODUCT_CONTEXT_VERSION = "v2-help-center-1";
 
 export function formatGettingStartedProductContext(): string {
   return GETTING_STARTED_PRODUCT_TOPICS.map((topic) => {
