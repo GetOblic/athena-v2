@@ -699,6 +699,14 @@ export async function defaultLoadPersonas(organizationId: string): Promise<Perso
   return getPersonas(assertOrganizationId(organizationId));
 }
 
+export async function defaultLoadPersonaById(
+  personaId: string,
+  organizationId: string,
+): Promise<Persona | null> {
+  const { getPersonaById } = await import("@/services/personas/personaService");
+  return getPersonaById(personaId, assertOrganizationId(organizationId));
+}
+
 export async function defaultLoadProspects(organizationId: string): Promise<Prospect[]> {
   const { getProspects } = await import("@/services/prospects/prospectService");
   return getProspects(assertOrganizationId(organizationId));

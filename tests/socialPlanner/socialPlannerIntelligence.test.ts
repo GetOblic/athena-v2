@@ -555,6 +555,8 @@ describe("Social Planner L3 intelligence composer", () => {
     assert.equal(context.identityExecutiveIntelligence.available, false);
     assert.equal(context.websiteIntelligence.available, false);
     assert.equal(context.personas.includedCount, 0);
+    assert.equal(context.primaryTargetAudience, undefined);
+    assert.doesNotMatch(context.composedText, /PRIMARY TARGET AUDIENCE/);
     assert.equal(context.prospects.includedCount, 0);
     assert.equal(context.ads.length, 0);
     assert.equal(context.seoIntelligence.length, 0);

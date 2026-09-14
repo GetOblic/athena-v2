@@ -57,6 +57,13 @@ const SECTION_LABEL_KEYS = [
   "getoblicDirectory",
 ] as const;
 
+const CREATE_AUDIENCE_KEYS = [
+  "createAudienceFromProspect",
+  "creatingAudienceFromProspect",
+  "createAudienceFromProspectFailed",
+  "createAudienceRequiresIntelligence",
+] as const;
+
 function headerProps(
   overrides: Partial<Parameters<typeof ProspectDetailHeader>[0]> = {},
 ) {
@@ -245,6 +252,17 @@ describe("Prospect detail presentation", () => {
           `${language}.detail.${key} empty`,
         );
       }
+      for (const key of CREATE_AUDIENCE_KEYS) {
+        assert.equal(
+          typeof DICTIONARIES[language].prospects.detail[key],
+          "string",
+          `${language}.detail.${key}`,
+        );
+        assert.ok(
+          DICTIONARIES[language].prospects.detail[key].trim(),
+          `${language}.detail.${key} empty`,
+        );
+      }
     }
     for (const language of ORGANIZATION_LANGUAGES.filter((code) => code !== "en")) {
       assert.notEqual(
@@ -266,6 +284,11 @@ describe("Prospect detail presentation", () => {
         DICTIONARIES[language].prospects.detail.getoblicDirectory,
         en.prospects.detail.getoblicDirectory,
         `${language}.detail.getoblicDirectory`,
+      );
+      assert.notEqual(
+        DICTIONARIES[language].prospects.detail.createAudienceFromProspect,
+        en.prospects.detail.createAudienceFromProspect,
+        `${language}.detail.createAudienceFromProspect`,
       );
     }
   });
@@ -481,5 +504,62 @@ describe("Prospect detail presentation", () => {
       (html.match(new RegExp(en.prospects.detail.intelligence, "g")) ?? []).length,
       1,
     );
+  });
+
+  it("places Create Audience from Prospect in Prospect Tools with frozen visual language", () => {
+    const page = read("app/prospects/[id]/page.tsx");
+    const header = read("components/prospects/ProspectDetailHeader.tsx");
+    const button = read("components/prospects/ProspectCreateAudienceButton.tsx");
+
+    assert.match(page, /createAudienceAction=/);
+    assert.match(page, /ProspectCreateAudienceButton/);
+    assert.match(page, /canCreate=\{hasCurrentVersion\}/);
+    assert.match(header, /createAudienceAction/);
+    assert.match(header, /name="tools"/);
+    assert.doesNotMatch(header, /data-prospect-header-actions="create-audience"/);
+    assert.match(button, /data-prospect-header-action="create-audience"/);
+    assert.match(button, /PROSPECT_UTILITY_VIOLET_ACTION/);
+    assert.match(button, /\/api\/prospects\/\$\{prospectId\}\/create-audience/);
+    assert.match(button, /router\.push\(`\/personas\/\$\{payload\.personaId\}`\)/);
+    assert.match(button, /createAudienceRequiresIntelligence/);
+    assert.match(button, /disabled=\{!canCreate \|\| pending\}/);
+    assert.doesNotMatch(button, /<dialog|modal|dropdown|wizard/i);
+
+    const html = renderToStaticMarkup(
+      createElement(
+        ProspectDetailHeader,
+        headerProps({
+          websiteHref: "https://acme.example",
+          createAudienceAction: createElement(
+            "button",
+            {
+              type: "button",
+              "data-prospect-header-action": "create-audience",
+            },
+            "Create Audience from Prospect",
+          ),
+        }),
+      ),
+    );
+    const tools = html.indexOf('data-prospect-header-actions="tools"');
+    const intelligence = html.indexOf(
+      'data-prospect-header-actions="intelligence"',
+    );
+    const createAudience = html.indexOf(
+      'data-prospect-header-action="create-audience"',
+    );
+    const openWebsite = html.indexOf(
+      'data-prospect-header-action="open-website"',
+    );
+    assert.ok(tools > intelligence);
+    assert.ok(createAudience > tools);
+    assert.ok(openWebsite > createAudience);
+    assert.doesNotMatch(
+      html.slice(intelligence, tools),
+      /data-prospect-header-action="create-audience"/,
+    );
+    assert.match(html, new RegExp(en.prospects.detail.prospectTools));
+    assert.doesNotMatch(html, /data-prospect-header-actions="primary"/);
+    assert.doesNotMatch(html, /data-prospect-header-actions="create-audience"/);
   });
 });

@@ -60,6 +60,11 @@ export type PersonaGenerationPromptInput = {
   noveltyRetryHint?: string | null;
   /** Guidance from the Portfolio Coverage Planner (pre-generation). */
   coveragePlanBlock?: string | null;
+  /**
+   * Trusted Prospect-derived market evidence. Optional.
+   * Never merged into `instruction` — instruction remains untrusted guidance.
+   */
+  prospectContextBlock?: string | null;
 };
 
 export function buildPersonaGenerationPrompt(
@@ -92,8 +97,35 @@ ${input.coveragePlanBlock}
 `.trim()
     : "";
 
-  const retryBlock = input.noveltyRetryHint
+  const prospectContext = input.prospectContextBlock?.trim()
+    ? input.prospectContextBlock.trim()
+    : "";
+
+  const prospectContextBlock = prospectContext
     ? `
+=== TRUSTED PROSPECT-DERIVED MARKET EVIDENCE ===
+Treat the following as trusted Athena evidence about a real market archetype.
+This is PRIMARY generation evidence. It is not operator guidance.
+
+${prospectContext}
+`.trim()
+    : "";
+
+  const retryBlock = input.noveltyRetryHint
+    ? prospectContext
+      ? `
+=== NOVELTY RETRY CONSTRAINT ===
+A previous candidate was rejected as a superficial duplicate of an existing Persona.
+Generate a different Persona of the SAME Prospect-derived archetype.
+Prospect evidence remains PRIMARY. Portfolio context may help differentiate
+this archetype but must not redirect generation toward an unrelated portfolio gap.
+
+Detected overlap:
+${input.noveltyRetryHint}
+
+Do not fix this with only a new name, age, city, synonyms, or rewritten description.
+`.trim()
+      : `
 === NOVELTY RETRY CONSTRAINT ===
 A previous candidate was rejected as a superficial duplicate of an existing Persona.
 Generate a different Persona that still follows the Portfolio Coverage Plan and
@@ -103,6 +135,36 @@ Detected overlap:
 ${input.noveltyRetryHint}
 
 Do not fix this with only a new name, age, city, synonyms, or rewritten description.
+`.trim()
+    : "";
+
+  const prospectDerivedRules = prospectContext
+    ? `
+=== PROSPECT-DERIVED AUDIENCE RULES ===
+When trusted Prospect-derived market evidence is present:
+1. Treat the Prospect as real market evidence for an archetype — the TYPE OF
+   BUYER / OWNER / OPERATOR / DECISION-MAKER represented by the Prospect.
+2. Do not create a profile of the Prospect business itself.
+3. Do not copy the Prospect business name into persona_name.
+4. Do not automatically make the exact Prospect city part of persona_name
+   unless locality itself genuinely defines the archetype.
+5. Do not copy the Prospect website into reference_website. Always leave
+   reference_website null/empty.
+6. Do not expose contact PII, named decision makers, or Prospect identifiers.
+7. Infer only what is reasonably supported by the supplied evidence.
+8. Prospect evidence is PRIMARY. Portfolio / coverage context may help
+   differentiate this archetype but MUST NOT redirect generation toward an
+   unrelated portfolio gap.
+9. GEOGRAPHY IS A REQUIRED PERSONA DIMENSION. Always consider the Prospect
+   city, state/region, and country where available. Preserve meaningful
+   geographic market context in the generated Audience. Do not silently
+   discard geography. Determine the appropriate geographic scope (city,
+   regional, state, national, or otherwise) from the available evidence.
+   Do not invent unsupported geographic characteristics.
+10. Populate sufficiently rich Persona fields — including additional_context
+    where appropriate — so the normal Persona Executive Intelligence pipeline
+    can operate without reading the Prospect again.
+11. Produce a reusable Audience useful for Generate Traction.
 `.trim()
     : "";
 
@@ -124,11 +186,15 @@ represented and avoid superficial paraphrases.
 
 ${input.existingPersonasBlock || "No existing Personas."}
 
+${prospectContextBlock}
+
 ${coveragePlanBlock}
 
 ${instructionBlock}
 
 ${retryBlock}
+
+${prospectDerivedRules}
 
 === GENERATION RULES ===
 1. Analyze the client's actual business and market context from Athena Brain.

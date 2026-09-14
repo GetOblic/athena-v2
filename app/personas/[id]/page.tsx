@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { CalendarDays, Megaphone } from "lucide-react";
 import {
   DiscussionRegenerationProgress,
   DiscussionRegenerationProvider,
@@ -20,7 +21,10 @@ import { PersonaAudienceJourney } from "@/components/personas/PersonaAudienceJou
 import { PersonaDetailHeader } from "@/components/personas/PersonaDetailHeader";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import { buildPersonaJourneyChrome } from "@/lib/personas/personaDetailPresentation";
-import { PERSONA_NESTED_CARD_CLASS } from "@/lib/personas/personaPagePresentation";
+import {
+  PERSONA_HEADER_TOOL_CLASS,
+  PERSONA_NESTED_CARD_CLASS,
+} from "@/lib/personas/personaPagePresentation";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDiscussionById } from "@/services/discussionService";
 import {
@@ -189,26 +193,25 @@ export default async function PersonaDetailsPage({
     />
   );
 
-  const crossLinks = (
-    <div
-      data-persona-traction-next="true"
-      className="relative space-y-3 overflow-hidden rounded-[24px] border border-[rgba(255,102,0,0.24)] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(255,102,0,0.07),transparent_70%)] p-5 shadow-[0_0_22px_rgba(255,102,0,0.04)] before:pointer-events-none before:absolute before:inset-y-5 before:left-0 before:w-[3px] before:rounded-r-full before:bg-[rgba(255,102,0,0.68)]"
-    >
-      <Link href="/ads/new" className="block pl-2">
-        <div className="text-sm font-semibold tracking-tight text-white">
-          {copy.traction.createAdvertising}
-        </div>
-        <p className="mt-1 text-sm leading-6 text-white/50">
-          {copy.traction.createAdvertisingHelp}
-        </p>
+  const audienceToolsActions = (
+    <>
+      <Link
+        href="/ads/new"
+        data-persona-header-action="create-advertising"
+        className={PERSONA_HEADER_TOOL_CLASS}
+      >
+        <Megaphone className="size-4" />
+        {journeyChrome.createAdvertising}
       </Link>
       <Link
-        href="/social-planner"
-        className="block pl-2 text-sm font-semibold tracking-tight text-white"
+        href={`/social-planner?personaId=${persona.id}`}
+        data-persona-header-action="plan-social"
+        className={PERSONA_HEADER_TOOL_CLASS}
       >
-        {copy.traction.planSocial}
+        <CalendarDays className="size-4" />
+        {journeyChrome.planSocial}
       </Link>
-    </div>
+    </>
   );
 
   const evidenceExtra = (
@@ -272,7 +275,9 @@ export default async function PersonaDetailsPage({
       metaLine={headerMeta}
       discussLabel={journeyChrome.discussWithAthena}
       observationLabel={journeyChrome.addObservation}
-      primaryActions={
+      intelligenceGroupLabel={journeyChrome.intelligenceGroup}
+      audienceToolsGroupLabel={journeyChrome.audienceToolsGroup}
+      intelligenceActions={
         <PersonaGenerateIntelligenceButton
           personaId={persona.id}
           initialStatus={readiness}
@@ -281,6 +286,7 @@ export default async function PersonaDetailsPage({
           chrome={copy.detail}
         />
       }
+      audienceToolsActions={audienceToolsActions}
       utilityActions={
         <>
           <PersonaLifecycleStatusControl
@@ -362,7 +368,6 @@ export default async function PersonaDetailsPage({
             personaJourneyChrome={journeyChrome}
             personaLibraryMessages={copy}
             personaProfileEditor={profileEditor}
-            personaCrossLinks={crossLinks}
             afterBlueprint={null}
             afterDetailedReasoning={
               <div className="mt-8 space-y-8">
@@ -402,7 +407,6 @@ export default async function PersonaDetailsPage({
             chrome={journeyChrome}
             messages={copy}
             profileEditor={profileEditor}
-            crossLinks={crossLinks}
             previousIntelligence={null}
             evidenceExtra={evidenceExtra}
             blueprint={null}

@@ -205,10 +205,19 @@ Change only the repetitive creative elements. Preserve:
 - factual grounding from trusted context
 - user guidance
 - package schema and production-spec contracts
+${input.context.primaryTargetAudience
+  ? `
+- the selected primary Audience as the target for every asset
+- no rotation to another Persona
 
+You may change formats, hooks, angles, archetypes, objectives, visual styles,
+and calendar-opportunity selection when alternatives exist. Do not rotate the primary Audience.
+Do not assign another Persona as a target. Do not reintroduce audience diversity.
+Topics may change only when business context and user guidance permit.`
+  : `
 You may change formats, hooks, angles, archetypes, audiences, objectives, visual styles,
 and calendar-opportunity selection when alternatives exist. Topics may change only when
-business context and user guidance permit.
+business context and user guidance permit.`}
 
 Historical-diversity violations:
 ${violations.map((violation) => `- ${violation}`).join("\n") || "- none"}

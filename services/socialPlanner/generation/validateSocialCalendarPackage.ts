@@ -61,6 +61,10 @@ import {
 } from "@/services/socialPlanner/generation/socialPlannerCreativeFingerprint";
 import { SOCIAL_CALENDAR_PERIOD_DAYS } from "@/services/socialPlanner/socialCalendarTypes";
 import type { SocialPlannerGenerationContextV1 } from "@/services/socialPlanner/intelligence/socialPlannerIntelligenceTypes";
+import {
+  authorizedSocialPlannerTargetPersonaId,
+  socialPlannerHasPrimaryTargetAudience,
+} from "@/services/socialPlanner/socialPlannerTargetPersona";
 
 const LIMITS = SOCIAL_PLANNER_PACKAGE_LIMITS;
 const WEIGHTS = ["low", "moderate", "high"] as const;
@@ -723,9 +727,14 @@ function parseAsset(
       `${field}.personaIds exceeds ${LIMITS.personaIdsPerAssetMax} entries.`,
     );
   }
+  const authorizedTargetId = authorizedSocialPlannerTargetPersonaId(context);
   for (const personaId of personaIds) {
     if (!allowedPersonaIds.has(personaId)) {
       failures.push(`${field} invented Persona id ${personaId}.`);
+    } else if (authorizedTargetId && personaId !== authorizedTargetId) {
+      failures.push(
+        `${field} must not assign a Persona other than the primary target.`,
+      );
     }
   }
 
@@ -799,6 +808,19 @@ function parseAsset(
     new Set(calendarAnchors.map((anchor) => anchor.sourceCandidateId)),
     failures,
   );
+  if (authorizedTargetId) {
+    for (const [signalIndex, signal] of sourceSignals.entries()) {
+      if (
+        signal.type === "persona" &&
+        signal.id &&
+        signal.id !== authorizedTargetId
+      ) {
+        failures.push(
+          `${field}.sourceSignals[${signalIndex}] must not assign a Persona other than the primary target.`,
+        );
+      }
+    }
+  }
 
   if (
     !assetType ||
@@ -979,6 +1001,7 @@ function validatePortfolio(
     }
   }
   if (
+    !socialPlannerHasPrimaryTargetAudience(context) &&
     context.personas.includedCount >= 2 &&
     audiences.size < policy.minDistinctAudiencesWhenMultiplePersonas
   ) {
@@ -1076,6 +1099,16 @@ export function validateSocialPlannerWeeklyStrategy(
     const personaId = asNullableString(entry.personaId);
     if (personaId && !allowedPersonaIds.has(personaId)) {
       failures.push(`audiencePlan[${index}] invented Persona id ${personaId}.`);
+    }
+    const authorizedTargetId = authorizedSocialPlannerTargetPersonaId(context);
+    if (
+      personaId &&
+      authorizedTargetId &&
+      personaId !== authorizedTargetId
+    ) {
+      failures.push(
+        `audiencePlan[${index}] must not assign a Persona other than the primary target.`,
+      );
     }
     if (audience && role && (AUDIENCE_ROLES as readonly string[]).includes(role)) {
       audiencePlan.push({

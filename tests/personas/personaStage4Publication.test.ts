@@ -156,14 +156,15 @@ describe("persona stage-4 workspace and Think Differently", () => {
     assert.match(workspace, /sourceKind\?: "discussion" \| "prospect" \| "persona"/);
     assert.match(workspace, /PersonaAudienceJourney/);
     assert.match(workspace, /personaJourneyChrome/);
-    assert.match(workspace, /Persona Strategic Blueprint/);
+    assert.match(workspace, /personaJourneyChrome\.strategicAssetBlueprint/);
+    assert.doesNotMatch(workspace, /Persona Strategic Blueprint/);
     assert.doesNotMatch(
       workspace.split('sourceKind === "persona"')[0] ?? "",
       /Ask Athena/,
     );
 
     const journeyIdx = workspace.indexOf("PersonaAudienceJourney");
-    const bpIdx = workspace.indexOf("Persona Strategic Blueprint");
+    const bpIdx = workspace.indexOf("personaJourneyChrome.strategicAssetBlueprint");
     assert.ok(journeyIdx > 0 && bpIdx > journeyIdx);
 
     assert.match(card, /Persona Assessment/);

@@ -74,18 +74,25 @@ export type SocialPlannerCreatePayload = {
   periodStart: string;
   periodEnd: string;
   userGuidance: string;
+  personaId?: string;
 };
 
 export function buildSocialCalendarCreateBody(input: {
   periodStart: string;
   periodEnd: string;
   userGuidance: string;
+  personaId?: string | null;
 }): SocialPlannerCreatePayload {
-  return {
+  const body: SocialPlannerCreatePayload = {
     periodStart: input.periodStart,
     periodEnd: input.periodEnd,
     userGuidance: input.userGuidance.trim(),
   };
+  const personaId = input.personaId?.trim();
+  if (personaId && SOCIAL_PLANNER_CALENDAR_ID_RE.test(personaId)) {
+    body.personaId = personaId;
+  }
+  return body;
 }
 
 export function socialPlannerCreateBodyKeys(

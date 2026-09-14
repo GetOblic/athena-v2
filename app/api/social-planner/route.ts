@@ -13,6 +13,7 @@ import {
   normalizeSocialCalendarCreateRequest,
 } from "@/services/socialPlanner/socialCalendarRequest";
 import { listSocialCalendars } from "@/services/socialPlanner/socialCalendarService";
+import { resolveSocialPlannerTargetPersona } from "@/services/socialPlanner/socialPlannerTargetPersona";
 import {
   SocialCalendarGuidanceError,
   SocialCalendarLineageError,
@@ -90,12 +91,19 @@ export async function POST(request: Request) {
     }
 
     const createRequest = normalizeSocialCalendarCreateRequest(body);
+    const targetPersona = createRequest.personaId
+      ? await resolveSocialPlannerTargetPersona({
+          personaId: createRequest.personaId,
+          organizationId,
+        })
+      : null;
     const { calendar } = await createSocialCalendarWithJob({
       organizationId,
       userId,
       periodStart: createRequest.periodStart,
       periodEnd: createRequest.periodEnd,
       userGuidance: createRequest.userGuidance,
+      targetPersonaId: targetPersona?.id ?? null,
     });
 
     return json(

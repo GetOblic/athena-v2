@@ -8,6 +8,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import {
   SOCIAL_CALENDAR_USER_GUIDANCE_MAX_CHARS,
@@ -30,6 +31,12 @@ import {
   SOCIAL_PRIMARY_CLASS,
   SOCIAL_TEXTAREA_CLASS,
 } from "@/lib/socialPlanner/socialPlannerPagePresentation";
+import {
+  SOCIAL_PLANNER_TARGET_CLEAR_HREF,
+  SOCIAL_TARGET_CLEAR_CLASS,
+  SOCIAL_TARGET_SURFACE_CLASS,
+  type SocialPlannerTargetAudienceView,
+} from "@/lib/socialPlanner/socialPlannerTargetPresentation";
 import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
 import { en } from "@/lib/tenantI18n/messages/en";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
@@ -41,6 +48,7 @@ export type SocialPlannerCreateFormHandle = {
 type SocialPlannerCreateFormProps = {
   submitting: boolean;
   error: string | null;
+  targetAudience?: SocialPlannerTargetAudienceView | null;
   onSubmit: (body: ReturnType<typeof buildSocialCalendarCreateBody>) => void;
   messages?: TenantMessages;
   locale?: TenantFormattingLocale;
@@ -50,7 +58,7 @@ export const SocialPlannerCreateForm = forwardRef<
   SocialPlannerCreateFormHandle,
   SocialPlannerCreateFormProps
 >(function SocialPlannerCreateForm(
-  { submitting, error, onSubmit, messages, locale = "en-US" },
+  { submitting, error, targetAudience = null, onSubmit, messages, locale = "en-US" },
   ref,
 ) {
   const copy = (messages ?? en).socialPlanner;
@@ -102,6 +110,7 @@ export const SocialPlannerCreateForm = forwardRef<
           periodStart: start,
           periodEnd: end,
           userGuidance: guidance,
+          personaId: targetAudience?.personaId ?? null,
         }),
       );
     } catch {
@@ -164,6 +173,42 @@ export const SocialPlannerCreateForm = forwardRef<
             </div>
           ) : null}
         </div>
+
+        {targetAudience ? (
+          <div
+            data-social-planner-target="audience"
+            className={SOCIAL_TARGET_SURFACE_CLASS}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1">
+                <span className={SOCIAL_FIELD_LABEL_CLASS}>
+                  {copy.targetAudience}
+                </span>
+                <p
+                  data-social-planner-target-name=""
+                  className="text-sm font-medium text-white"
+                >
+                  {targetAudience.name}
+                </p>
+                {targetAudience.summary ? (
+                  <p
+                    data-social-planner-target-summary=""
+                    className="text-sm leading-6 text-white/55"
+                  >
+                    {targetAudience.summary}
+                  </p>
+                ) : null}
+              </div>
+              <Link
+                href={SOCIAL_PLANNER_TARGET_CLEAR_HREF}
+                data-social-planner-clear-target=""
+                className={SOCIAL_TARGET_CLEAR_CLASS}
+              >
+                {copy.clear}
+              </Link>
+            </div>
+          </div>
+        ) : null}
 
         <label className="block space-y-2" htmlFor="social-planner-guidance">
           <span className={SOCIAL_FIELD_LABEL_CLASS}>

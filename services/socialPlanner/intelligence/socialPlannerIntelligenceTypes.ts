@@ -163,6 +163,32 @@ export type SocialPlannerPersonaPortfolio = {
   personas: SocialPlannerPersonaIntelligence[];
 };
 
+export type SocialPlannerPrimaryTargetAudience = {
+  name: string;
+  shortDescription: string | null;
+  category: string | null;
+  occupation: string | null;
+  seniority: string | null;
+  industryContext: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  locationSummary: string | null;
+  goals: string | null;
+  needs: string | null;
+  valuesText: string | null;
+  motivations: string | null;
+  interests: string | null;
+  painPoints: string | null;
+  objections: string | null;
+  fears: string | null;
+  communicationStyle: string | null;
+  preferredChannels: string | null;
+  buyingTriggers: string | null;
+  decisionCriteria: string | null;
+  purchaseBehavior: string | null;
+};
+
 export type SocialPlannerProspectIntelligence = {
   id: string;
   businessName: string;
@@ -267,6 +293,8 @@ export type SocialPlannerGenerationContextV1 = {
   seoIntelligence: SocialPlannerSeoIntelligenceItem[];
   discussions: SocialPlannerDiscussionIntelligence[];
   personas: SocialPlannerPersonaPortfolio;
+  primaryTargetAudience?: SocialPlannerPrimaryTargetAudience;
+  authorizedTargetPersonaId?: string;
   prospects: SocialPlannerProspectPortfolio;
   opportunities: SocialPlannerOpportunityIntelligence[];
   ads: SocialPlannerAdsCampaignReference[];

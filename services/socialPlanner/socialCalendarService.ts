@@ -32,6 +32,7 @@ import {
   filterSocialCalendarsByHistorySearch,
   paginateSocialCalendarHistoryItems,
 } from "@/services/socialPlanner/socialCalendarHistorySearch";
+import { socialPlannerTargetPersonaProvenance } from "@/services/socialPlanner/socialPlannerTargetPersona";
 
 export type { SocialCalendar };
 export {
@@ -260,6 +261,7 @@ export async function createSocialCalendar(input: {
   periodStart: string;
   periodEnd: string;
   userGuidance: string | null;
+  targetPersonaId?: string | null;
 }): Promise<SocialCalendar> {
   const now = touch();
 
@@ -278,7 +280,7 @@ export async function createSocialCalendar(input: {
       status: "Queued",
       generation_stage: "queued",
       package_json: null,
-      provenance_json: {},
+      provenance_json: socialPlannerTargetPersonaProvenance(input.targetPersonaId),
       calendar_context_json: {},
       revision_context_json: null,
       error_code: null,

@@ -729,12 +729,14 @@ async function invokeModel(input: {
   requestId: string;
   attempt: number;
   generate: typeof generateReview;
+  prospectDerived?: boolean;
 }): Promise<string> {
   return input.generate(input.prompt, {
     generationKind: "generic_review",
     reasoningProfile: "BALANCED",
-    systemPrompt:
-      "You are Athena. Generate one commercially relevant Persona candidate as strict JSON from the provided Brain and existing-Persona context. Do not invent unsupported business facts.",
+    systemPrompt: input.prospectDerived
+      ? "You are Athena. Generate one commercially relevant Persona candidate as strict JSON. When trusted Prospect-derived market evidence is provided, treat it as primary evidence for a buyer/owner/operator archetype — not a profile of the Prospect business. Do not invent unsupported business facts."
+      : "You are Athena. Generate one commercially relevant Persona candidate as strict JSON from the provided Brain and existing-Persona context. Do not invent unsupported business facts.",
     regenerationRunId: `${input.requestId}:attempt-${input.attempt}`,
     stage: "persona_generation",
     promptSource: "services/ai/prompts/personaGenerationPrompt.ts",
@@ -747,6 +749,11 @@ async function invokeModel(input: {
 export async function generatePersonaCandidate(input: {
   organizationId: string;
   instruction?: string | null;
+  /**
+   * Trusted Prospect-derived market evidence. Optional.
+   * Never merged into `instruction`.
+   */
+  prospectContextBlock?: string | null;
   /** Ignored — organizationId is never accepted from the browser. */
   clientOrganizationId?: unknown;
   deps?: GeneratePersonaCandidateDeps;
@@ -766,6 +773,7 @@ export async function generatePersonaCandidate(input: {
   void input.clientOrganizationId;
 
   const instruction = normalizePersonaGenerationInstruction(input.instruction);
+  const prospectContextBlock = normalizeOptionalText(input.prospectContextBlock);
   const buildBrain =
     input.deps?.buildBrain ?? buildBrainContextForOrganization;
   const loadPersonas = input.deps?.getPersonas ?? getPersonas;
@@ -814,6 +822,7 @@ export async function generatePersonaCandidate(input: {
       instruction,
       noveltyRetryHint: noveltyHint,
       coveragePlanBlock,
+      prospectContextBlock,
     });
 
     let raw: string;
@@ -823,6 +832,7 @@ export async function generatePersonaCandidate(input: {
         requestId,
         attempt,
         generate,
+        prospectDerived: Boolean(prospectContextBlock),
       });
     } catch {
       throw new PersonaGenerationError({

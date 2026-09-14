@@ -1224,6 +1224,8 @@ export const fr: TenantMessages = {
       sectionAdvanced: "Avancé",
     },
     journey: {
+      intelligence: "Intelligence",
+      audienceTools: "Outils Audience",
       discussWithAthena: "Discuter avec Athena",
       teachAthena: "Ajouter une observation",
       executiveSnapshot: "Instantané exécutif",
@@ -1233,7 +1235,9 @@ export const fr: TenantMessages = {
       howToReachThem: "Comment les atteindre",
       whatToCreate: "Que créer pour cette audience",
       strategicCreation: "Orientation de création stratégique",
+      otherDrafts: "Autres brouillons",
       readyToUseAssets: "Contenus prêts à l’emploi",
+      strategicAssetBlueprint: "Blueprint d’actif stratégique",
       evidenceSignals: "Preuves et signaux",
       identitySlice: "Identité",
       messaging: "Messages",
@@ -2057,6 +2061,12 @@ export const fr: TenantMessages = {
       editProfile: "Modifier le profil",
       addObservation: "Ajouter une observation",
       prospectTools: "Outils Prospect",
+      createAudienceFromProspect: "Créer une audience à partir du prospect",
+      creatingAudienceFromProspect: "Création de l’audience…",
+      createAudienceFromProspectFailed:
+        "La création d’audience à partir du prospect a échoué.",
+      createAudienceRequiresIntelligence:
+        "Générez d’abord l’intelligence prospect",
       getoblicDirectory: "Répertoire GetOblic",
       releaseGetOblicListing: "Libérer le listing GetOblic",
       releaseGetOblicConfirm:
@@ -3189,6 +3199,8 @@ export const fr: TenantMessages = {
       "Choisissez le premier jour. Athena planifie les six jours suivants avec lui.",
     weekStarts: "La semaine commence",
     optionalDirection: "Orientation facultative",
+    targetAudience: "Audience cible",
+    clear: "Effacer",
     guidancePlaceholder:
       "Thème, offre, événement, audience, ton, ou tout ce qu’Athena doit garder à l’esprit. Laissez vide et Athena décidera.",
     guidanceHelp:

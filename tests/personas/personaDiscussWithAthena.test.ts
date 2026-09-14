@@ -263,10 +263,7 @@ describe("persona Discuss with Athena UI wiring", () => {
       "components/discussions/ExecutiveIntelligenceWorkspace.tsx",
     );
     // Persona Deployment Assets section wires the handler (not Prospect-gated).
-    assert.match(
-      workspace,
-      /chrome\?\.strategicBlueprintTitle \?\?\s*"Persona Strategic Blueprint"/,
-    );
+    assert.match(workspace, /personaJourneyChrome\.strategicAssetBlueprint/);
     assert.match(workspace, /PersonaAudienceJourney/);
     assert.match(workspace, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
     assert.match(workspace, /getElementById\("persona-conversation"\)/);

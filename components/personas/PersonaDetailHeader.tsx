@@ -10,6 +10,7 @@ import {
 } from "@/lib/personas/personaDetailPresentation";
 import {
   PERSONA_CARD_ICON_WELL_CLASS,
+  PERSONA_CTA_GROUP_LABEL,
   PERSONA_HEADER_OBSERVATION_CLASS,
   PERSONA_HEADER_PRIMARY_CLASS,
   personaIntelligenceChipClass,
@@ -26,10 +27,38 @@ type PersonaDetailHeaderProps = {
   metaLine?: ReactNode;
   discussLabel: string;
   observationLabel: string;
-  primaryActions: ReactNode;
+  intelligenceGroupLabel: string;
+  audienceToolsGroupLabel: string;
+  intelligenceActions: ReactNode;
+  audienceToolsActions: ReactNode;
   utilityActions: ReactNode;
   destructiveAction: ReactNode;
 };
+
+function PersonaHeaderActionGroup({
+  name,
+  label,
+  children,
+}: {
+  name: string;
+  label?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div data-persona-header-actions={name}>
+      {label ? <div className={PERSONA_CTA_GROUP_LABEL}>{label}</div> : null}
+      <div
+        className={
+          label
+            ? "mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
+            : "flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
+        }
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function PersonaDetailHeader({
   backLabel,
@@ -41,7 +70,10 @@ export function PersonaDetailHeader({
   metaLine,
   discussLabel,
   observationLabel,
-  primaryActions,
+  intelligenceGroupLabel,
+  audienceToolsGroupLabel,
+  intelligenceActions,
+  audienceToolsActions,
   utilityActions,
   destructiveAction,
 }: PersonaDetailHeaderProps) {
@@ -82,67 +114,67 @@ export function PersonaDetailHeader({
         </div>
       </div>
 
-      <div className="mt-8 space-y-3">
-        <div
-          data-persona-header-actions="workflow"
-          className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
+      <div className="mt-8 space-y-6">
+        <PersonaHeaderActionGroup
+          name="intelligence"
+          label={intelligenceGroupLabel}
         >
-          <div data-persona-header-actions="primary">
-            <button
-              type="button"
-              data-persona-header-action="discuss"
-              className={PERSONA_HEADER_PRIMARY_CLASS}
-              onClick={() => {
-                if (typeof window === "undefined") return;
-                window.dispatchEvent(new Event(PERSONA_DISCUSS_EVENT));
-                window.setTimeout(() => {
-                  document
-                    .getElementById(PERSONA_DETAIL_ANCHORS.conversation)
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  document
-                    .getElementById(PERSONA_DETAIL_ANCHORS.conversationInput)
-                    ?.focus();
-                }, 0);
-              }}
-            >
-              <MessageSquare className="size-4" />
-              {discussLabel}
-            </button>
-          </div>
-          <div
-            data-persona-header-actions="secondary"
-            className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
+          <button
+            type="button"
+            data-persona-header-action="discuss"
+            className={PERSONA_HEADER_PRIMARY_CLASS}
+            onClick={() => {
+              if (typeof window === "undefined") return;
+              window.dispatchEvent(new Event(PERSONA_DISCUSS_EVENT));
+              window.setTimeout(() => {
+                document
+                  .getElementById(PERSONA_DETAIL_ANCHORS.conversation)
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                document
+                  .getElementById(PERSONA_DETAIL_ANCHORS.conversationInput)
+                  ?.focus();
+              }, 0);
+            }}
           >
-            <button
-              type="button"
-              data-persona-header-action="observation"
-              className={PERSONA_HEADER_OBSERVATION_CLASS}
-              onClick={() => {
-                if (typeof window === "undefined") return;
-                window.dispatchEvent(new Event(PERSONA_TEACH_EVENT));
-                window.setTimeout(() => {
-                  document
-                    .getElementById(PERSONA_DETAIL_ANCHORS.observation)
-                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  document
-                    .getElementById(PERSONA_DETAIL_ANCHORS.observationField)
-                    ?.focus();
-                }, 40);
-              }}
-            >
-              <MessageSquarePlus className="size-4" />
-              {observationLabel}
-            </button>
-            {primaryActions}
-          </div>
-        </div>
-        <div
-          data-persona-header-actions="utility"
-          className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
+            <MessageSquare className="size-4" />
+            {discussLabel}
+          </button>
+          <button
+            type="button"
+            data-persona-header-action="observation"
+            className={PERSONA_HEADER_OBSERVATION_CLASS}
+            onClick={() => {
+              if (typeof window === "undefined") return;
+              window.dispatchEvent(new Event(PERSONA_TEACH_EVENT));
+              window.setTimeout(() => {
+                document
+                  .getElementById(PERSONA_DETAIL_ANCHORS.observation)
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                document
+                  .getElementById(PERSONA_DETAIL_ANCHORS.observationField)
+                  ?.focus();
+              }, 40);
+            }}
+          >
+            <MessageSquarePlus className="size-4" />
+            {observationLabel}
+          </button>
+          {intelligenceActions}
+        </PersonaHeaderActionGroup>
+
+        <PersonaHeaderActionGroup
+          name="audience-tools"
+          label={audienceToolsGroupLabel}
         >
+          {audienceToolsActions}
+        </PersonaHeaderActionGroup>
+
+        <PersonaHeaderActionGroup name="utility">
           {utilityActions}
-        </div>
-        <div data-persona-header-actions="destructive">{destructiveAction}</div>
+        </PersonaHeaderActionGroup>
+        <PersonaHeaderActionGroup name="destructive">
+          {destructiveAction}
+        </PersonaHeaderActionGroup>
       </div>
     </header>
   );

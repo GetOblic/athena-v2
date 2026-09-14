@@ -323,6 +323,8 @@ export async function importPersonaManual(input: {
   organizationId: string;
   userId: string | null;
   row: PersonaImportRow;
+  /** Internal provenance only. Never required for normal manual create. */
+  rawJson?: Record<string, unknown> | null;
 }): Promise<{
   persona: Persona;
   duplicate: boolean;
@@ -338,6 +340,9 @@ export async function importPersonaManual(input: {
     "manual",
     randomUUID(),
   );
+  if (input.rawJson && typeof input.rawJson === "object") {
+    mapped.raw_json = input.rawJson;
+  }
 
   const { normalizePersonaReferenceWebsite } = await import(
     "@/services/personas/personaUtils"

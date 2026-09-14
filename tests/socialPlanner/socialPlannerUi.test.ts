@@ -144,6 +144,8 @@ describe("Social Planner L7 form and week selection", () => {
       userGuidance: "  Launch week  ",
     });
     assert.equal(filled.userGuidance, "Launch week");
+    assert.doesNotMatch(form, /persona picker|audience picker/i);
+    assert.doesNotMatch(form, /required=\{Boolean\(targetAudience\)\}/);
   });
 
   it("POST body contains only period and guidance fields", () => {
@@ -163,6 +165,7 @@ describe("Social Planner L7 form and week selection", () => {
     assert.equal("generationMode" in body, false);
     assert.equal("package" in body, false);
     assert.equal("provenance" in body, false);
+    assert.equal("personaId" in body, false);
     const form = read("components/socialPlanner/SocialPlannerCreateForm.tsx");
     const client = read("components/socialPlanner/socialPlannerClient.ts");
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");

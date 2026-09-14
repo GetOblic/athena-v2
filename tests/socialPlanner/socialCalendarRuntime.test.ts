@@ -16,7 +16,9 @@ import {
 import type { AthenaSocialCalendarGenerationJob } from "../../services/socialPlanner/socialCalendarGenerationJobs/socialCalendarGenerationJobTypes";
 import { mapSocialCalendarRow } from "../../services/socialPlanner/socialCalendarMappers";
 import { buildFrozenSocialCalendarProvenance } from "../../services/socialPlanner/socialCalendarProvenance";
+import { readSocialPlannerTargetPersonaId } from "../../services/socialPlanner/socialPlannerTargetPersona";
 import type { SocialCalendar } from "../../services/socialPlanner/socialCalendarTypes";
+import type { SocialPlannerGenerationContextV1 } from "../../services/socialPlanner/intelligence/socialPlannerIntelligenceTypes";
 import {
   TEST_ORG,
   TEST_PERIOD_END,
@@ -24,6 +26,8 @@ import {
   buildGenerationContext,
   buildValidatedPackage,
 } from "./socialPlannerGenerationFixtures";
+
+const TARGET_ID = "8657e42c-3b06-4e83-ad6c-3c9e938491d6";
 
 function jobRow(): AthenaSocialCalendarGenerationJob {
   return {
@@ -76,6 +80,136 @@ function calendarRecord(
     updated_at: "2026-08-20T00:00:00.000Z",
     ...overrides,
   });
+}
+
+function targetedExecutorContext(): SocialPlannerGenerationContextV1 {
+  const context = buildGenerationContext();
+  const primary = context.personas.personas[0];
+  return {
+    ...context,
+    personas: {
+      ...context.personas,
+      personas: [
+        { ...primary, id: TARGET_ID, name: "Heritage Diner Owner" },
+        ...context.personas.personas.slice(1),
+      ],
+    },
+    primaryTargetAudience: {
+      name: "Heritage Diner Owner",
+      shortDescription: "Traditional diner owner/operator",
+      category: "Hospitality",
+      occupation: "Diner owner/operator",
+      seniority: "Owner",
+      industryContext: null,
+      city: "Troy",
+      state: "Ohio",
+      country: "United States",
+      locationSummary: "Troy, Ohio",
+      goals: "Fill weekday lunch",
+      needs: null,
+      valuesText: null,
+      motivations: null,
+      interests: null,
+      painPoints: "Empty midweek tables",
+      objections: null,
+      fears: null,
+      communicationStyle: null,
+      preferredChannels: null,
+      buyingTriggers: null,
+      decisionCriteria: null,
+      purchaseBehavior: null,
+    },
+    authorizedTargetPersonaId: TARGET_ID,
+  };
+}
+
+async function executeStandardAndCapture(input: {
+  calendar?: Partial<Record<string, unknown>>;
+  context: SocialPlannerGenerationContextV1;
+}) {
+  const socialPackage = buildValidatedPackage(buildGenerationContext());
+  let composeInput: Record<string, unknown> | null = null;
+  let completeInput: Record<string, unknown> | null = null;
+
+  const status = await executeClaimedSocialCalendarGenerationJob(
+    "worker-1",
+    { job: jobRow(), claimToken: "token-1" },
+    {
+      deps: {
+        getCalendar: async () => calendarRecord(input.calendar),
+        loadGeographyEvidence: async () => ({
+          executiveGeographicReach: "United States",
+        }),
+        composeIntelligence: async (args) => {
+          composeInput = args as unknown as Record<string, unknown>;
+          return input.context;
+        },
+        generate: async () => ({
+          package: socialPackage,
+          generationProvenance: {
+            ...socialPackage.generationMetadata,
+            socialMemorySchemaVersion: SOCIAL_PLANNER_SOCIAL_MEMORY_SCHEMA_VERSION,
+            diversityAlgorithmVersion: SOCIAL_PLANNER_DIVERSITY_ALGORITHM_VERSION,
+            historicalDiversityCheckVersion:
+              SOCIAL_PLANNER_DIVERSITY_ALGORITHM_VERSION,
+            historicalCalendarsConsidered: 1,
+            historicalAssetsConsidered: 7,
+            highestHistoricalSimilarity: 0.1,
+            weekHistoricalSimilarity: 0.1,
+            historicalDiversityRepairUsed: false,
+            diversityRepairPromptVersion: null,
+          },
+          socialMemory: {
+            schemaVersion: SOCIAL_PLANNER_SOCIAL_MEMORY_SCHEMA_VERSION,
+            organizationId: TEST_ORG,
+            calendarsConsidered: 1,
+            calendarsIncluded: 1,
+            historicalAssets: [],
+            historicalWeeks: [],
+            recencyWindow: {
+              maxCalendars: 10,
+              maxAssets: 70,
+              composedTextMaxChars: 8000,
+            },
+            diagnostics: {
+              calendarsConsidered: 1,
+              calendarsIncluded: 1,
+              assetsIncluded: 7,
+              earliestHistoricalCreatedAt: null,
+              latestHistoricalCreatedAt: null,
+              malformedPackagesSkipped: 0,
+              invalidFingerprintRowsSkipped: 0,
+              memoryCharacterCount: 0,
+              truncated: false,
+            },
+            composedText: "",
+          },
+          historicalDiversity: {
+            accepted: true,
+            overallScore: 0.1,
+            highestAssetSimilarity: 0.1,
+            weekSimilarity: 0.1,
+            violations: [],
+            warnings: [],
+            comparisons: [],
+          },
+        }),
+        historyLoader: {
+          async listReadyCalendars() {
+            return [];
+          },
+        },
+        heartbeat: async () => jobRow(),
+        complete: async (completeArgs) => {
+          completeInput = completeArgs as unknown as Record<string, unknown>;
+          return { ...jobRow(), status: "completed" };
+        },
+        fail: async () => ({ ...jobRow(), status: "failed" }),
+      },
+    },
+  );
+
+  return { status, composeInput, completeInput };
 }
 
 describe("Social Planner L6 executor", () => {
@@ -508,5 +642,59 @@ describe("Social Planner L6 executor", () => {
     assert.equal("composedText" in provenance, false);
     assert.equal("socialMemory" in provenance, false);
     assert.equal("calendarContext" in provenance, false);
+    assert.equal("targetPersonaId" in provenance, false);
+  });
+
+  it("standard completion keeps create-time targetPersonaId in the final payload", async () => {
+    const context = targetedExecutorContext();
+    assert.ok(context.primaryTargetAudience);
+    assert.equal(context.authorizedTargetPersonaId, TARGET_ID);
+
+    const { status, composeInput, completeInput } = await executeStandardAndCapture({
+      calendar: {
+        provenance_json: { targetPersonaId: TARGET_ID },
+      },
+      context,
+    });
+
+    assert.equal(status, "completed");
+    assert.equal(composeInput?.targetPersonaId, TARGET_ID);
+    assert.ok(completeInput);
+    const provenanceJson = completeInput.provenanceJson as Record<string, unknown>;
+    assert.equal(provenanceJson.targetPersonaId, TARGET_ID);
+    assert.equal(readSocialPlannerTargetPersonaId(provenanceJson), TARGET_ID);
+  });
+
+  it("generic standard completion omits targetPersonaId from the final payload", async () => {
+    const context = buildGenerationContext();
+    assert.equal(context.primaryTargetAudience, undefined);
+    assert.equal(context.authorizedTargetPersonaId, undefined);
+
+    const { status, composeInput, completeInput } = await executeStandardAndCapture({
+      calendar: { provenance_json: {} },
+      context,
+    });
+
+    assert.equal(status, "completed");
+    assert.equal(composeInput?.targetPersonaId, null);
+    assert.ok(completeInput);
+    const provenanceJson = completeInput.provenanceJson as Record<string, unknown>;
+    assert.equal("targetPersonaId" in provenanceJson, false);
+    assert.equal(readSocialPlannerTargetPersonaId(provenanceJson), null);
+  });
+
+  it("standard completion recovers only an already-authorized composed target", async () => {
+    const context = targetedExecutorContext();
+    const { status, composeInput, completeInput } = await executeStandardAndCapture({
+      calendar: { provenance_json: {} },
+      context,
+    });
+
+    assert.equal(status, "completed");
+    assert.equal(composeInput?.targetPersonaId, null);
+    assert.ok(completeInput);
+    const provenanceJson = completeInput.provenanceJson as Record<string, unknown>;
+    assert.equal(provenanceJson.targetPersonaId, TARGET_ID);
+    assert.equal(readSocialPlannerTargetPersonaId(provenanceJson), TARGET_ID);
   });
 });

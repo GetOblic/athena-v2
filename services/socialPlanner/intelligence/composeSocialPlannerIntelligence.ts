@@ -54,6 +54,7 @@ import {
   defaultLoadBlueprints,
   defaultLoadCurrentExecutiveVersions,
   defaultLoadDeepWebsiteIntelligence,
+  defaultLoadPersonaById,
   defaultLoadPersonas,
   defaultLoadProspects,
   defaultLoadSeoReports,
@@ -61,6 +62,12 @@ import {
   type SocialPlannerCurrentExecutiveVersionSource,
 } from "@/services/socialPlanner/intelligence/socialPlannerIntelligenceSources";
 import { validateSocialPlannerIntelligence } from "@/services/socialPlanner/intelligence/validateSocialPlannerIntelligence";
+import {
+  composeSocialPlannerPrimaryTargetAudience,
+  ensurePrimaryTargetInPersonaPortfolio,
+  resolvePrimaryTargetFromLoadedPersonas,
+  resolveSocialPlannerTargetPersona,
+} from "@/services/socialPlanner/socialPlannerTargetPersona";
 
 export type ComposeSocialPlannerIntelligenceDeps = {
   buildBrain?: (organizationId: string) => Promise<BrainEngineContext | null>;
@@ -68,6 +75,10 @@ export type ComposeSocialPlannerIntelligenceDeps = {
     organizationId: string,
   ) => Promise<DeepWebsiteIntelligence | null>;
   loadPersonas?: (organizationId: string) => Promise<Persona[]>;
+  loadPersonaById?: (
+    personaId: string,
+    organizationId: string,
+  ) => Promise<Persona | null>;
   loadProspects?: (organizationId: string) => Promise<Prospect[]>;
   loadSeoReports?: (organizationId: string) => Promise<SeoReport[]>;
   loadAdCampaigns?: (organizationId: string) => Promise<AdCampaign[]>;
@@ -85,6 +96,7 @@ export type ComposeSocialPlannerIntelligenceInput = {
   periodStart?: string;
   periodEnd?: string;
   geographyEvidence?: SocialPlannerGeographyEvidence;
+  targetPersonaId?: string | null;
   deps?: ComposeSocialPlannerIntelligenceDeps;
 };
 
@@ -254,6 +266,15 @@ function buildComposedText(context: Omit<SocialPlannerGenerationContextV1, "comp
     formatJsonSection("DISCUSSIONS / CURRENT EXECUTIVE VERSIONS", context.discussions),
     "",
     formatJsonSection("PERSONA PORTFOLIO", context.personas),
+    ...(context.primaryTargetAudience
+      ? [
+          "",
+          formatJsonSection(
+            "PRIMARY TARGET AUDIENCE",
+            context.primaryTargetAudience,
+          ),
+        ]
+      : []),
     "",
     formatJsonSection("PROSPECT PORTFOLIO", context.prospects),
     "",
@@ -415,7 +436,7 @@ export async function composeSocialPlannerIntelligence(
     composePersonaPortfolio(personaLoad.value),
     SOCIAL_PLANNER_INTELLIGENCE_SECTION_CHAR_CAPS.personas,
   );
-  const personas = {
+  let personas = {
     ...personaBound.value,
     includedCount: personaBound.value.personas.length,
     distinctCategories: [
@@ -440,6 +461,28 @@ export async function composeSocialPlannerIntelligence(
       ),
     ],
   };
+
+  const loadPersonaById =
+    input.deps?.loadPersonaById ?? defaultLoadPersonaById;
+  const reusedTarget = resolvePrimaryTargetFromLoadedPersonas({
+    targetPersonaId: input.targetPersonaId,
+    organizationId,
+    personas: personaLoad.value,
+  });
+  const resolvedTarget = input.targetPersonaId
+    ? reusedTarget ??
+      (await resolveSocialPlannerTargetPersona({
+        personaId: input.targetPersonaId,
+        organizationId,
+        loadPersonaById,
+      }))
+    : null;
+  const primaryTargetAudience = resolvedTarget
+    ? composeSocialPlannerPrimaryTargetAudience(resolvedTarget)
+    : undefined;
+  if (resolvedTarget) {
+    personas = ensurePrimaryTargetInPersonaPortfolio(personas, resolvedTarget);
+  }
 
   const prospectBound = fitSection(
     composeProspectPortfolio(prospectLoad.value),
@@ -518,6 +561,8 @@ export async function composeSocialPlannerIntelligence(
     seoIntelligence,
     discussions,
     personas,
+    ...(primaryTargetAudience ? { primaryTargetAudience } : {}),
+    ...(resolvedTarget ? { authorizedTargetPersonaId: resolvedTarget.id } : {}),
     prospects,
     opportunities,
     ads,

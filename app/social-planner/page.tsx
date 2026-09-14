@@ -15,13 +15,14 @@ import {
   type SocialCalendarListItemDto,
 } from "@/services/socialPlanner/socialCalendarDto";
 import { listSocialCalendars } from "@/services/socialPlanner/socialCalendarService";
+import { resolveSocialPlannerTargetAudienceView } from "@/services/socialPlanner/socialPlannerTargetPersona";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { redirect } from "next/navigation";
 
 export default async function SocialPlannerPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ id?: string }>;
+  searchParams?: Promise<{ id?: string; personaId?: string }>;
 }) {
   const { organizationId } = await requireCurrentOrganizationContext();
   const { language, locale, messages } = await getTenantLocalization();
@@ -35,6 +36,11 @@ export default async function SocialPlannerPage({
   if (requestedId) {
     redirect(`/social-planner/${requestedId}`);
   }
+
+  const targetAudience = await resolveSocialPlannerTargetAudienceView(
+    typeof params.personaId === "string" ? params.personaId : null,
+    organizationId,
+  );
 
   let calendars: SocialCalendarListItemDto[] = [];
   let pagination: SocialCalendarHistoryPaginationDto = {
@@ -94,6 +100,7 @@ export default async function SocialPlannerPage({
         initialCalendars={calendars}
         initialPagination={pagination}
         loadError={loadError}
+        targetAudience={targetAudience}
         messages={messages}
         language={language}
         locale={locale}

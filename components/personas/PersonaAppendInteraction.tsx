@@ -6,6 +6,7 @@ import { MessageSquarePlus } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import {
   PERSONA_DETAIL_ANCHORS,
+  PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN,
   PERSONA_TEACH_EVENT,
 } from "@/lib/personas/personaDetailPresentation";
 import {
@@ -192,10 +193,14 @@ export function PersonaAppendInteraction({
   }
 
   return (
-    <div id={PERSONA_DETAIL_ANCHORS.observation} className="scroll-mt-24">
+    <div
+      id={PERSONA_DETAIL_ANCHORS.observation}
+      className="scroll-mt-24"
+      data-persona-journey="add-observation"
+    >
     <AthenaCollapsibleSection
       title={chrome?.title ?? "Append Interaction"}
-      defaultOpen={Boolean(result)}
+      defaultOpen={PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN["add-observation"]}
       open={sectionOpen}
       onOpenChange={setSectionOpen}
       tone="intelligence"

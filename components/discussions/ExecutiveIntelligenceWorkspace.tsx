@@ -15,7 +15,10 @@ import { DeploymentAssets } from "@/components/deployment/DeploymentAssets";
 import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicAssetBlueprint";
 import { PersonaAudienceJourney } from "@/components/personas/PersonaAudienceJourney";
 import { PersonaDiscussProvider } from "@/components/personas/personaDiscussContext";
-import type { PersonaJourneyChrome } from "@/lib/personas/personaDetailPresentation";
+import {
+  PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN,
+  type PersonaJourneyChrome,
+} from "@/lib/personas/personaDetailPresentation";
 import type { Persona } from "@/services/personas/personaService";
 import { ProspectConversationPanel } from "@/components/prospects/ProspectConversationPanel";
 import {
@@ -1012,11 +1015,12 @@ export function ExecutiveIntelligenceWorkspace({
             blueprint={
               viewModel.blueprint ? (
                 <AthenaCollapsibleSection
-                  title={
-                    chrome?.strategicBlueprintTitle ??
-                    "Persona Strategic Blueprint"
+                  title={personaJourneyChrome.strategicAssetBlueprint}
+                  defaultOpen={
+                    PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN[
+                      "strategic-asset-blueprint"
+                    ]
                   }
-                  defaultOpen={false}
                   tone="intelligence"
                   className={PERSONA_DETAIL_SURFACE.orange}
                   icon={<Compass />}

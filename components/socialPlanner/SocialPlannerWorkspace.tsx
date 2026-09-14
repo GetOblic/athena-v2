@@ -26,12 +26,14 @@ import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
 import { en } from "@/lib/tenantI18n/messages/en";
 import { getSocialPlannerErrorChrome } from "@/lib/tenantI18n/socialPlannerPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
+import type { SocialPlannerTargetAudienceView } from "@/lib/socialPlanner/socialPlannerTargetPresentation";
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
 type SocialPlannerWorkspaceProps = {
   initialCalendars: SocialCalendarListItemDto[];
   initialPagination: SocialCalendarHistoryPaginationDto;
   loadError: string | null;
+  targetAudience?: SocialPlannerTargetAudienceView | null;
   messages?: TenantMessages;
   language?: OrganizationLanguage;
   locale?: TenantFormattingLocale;
@@ -41,6 +43,7 @@ export function SocialPlannerWorkspace({
   initialCalendars,
   initialPagination,
   loadError,
+  targetAudience = null,
   messages,
   locale = "en-US",
 }: SocialPlannerWorkspaceProps) {
@@ -177,6 +180,7 @@ export function SocialPlannerWorkspace({
       <SocialPlannerCreateForm
         submitting={submitting}
         error={createError}
+        targetAudience={targetAudience}
         onSubmit={(body) => void handleCreate(body)}
         messages={dictionary}
         locale={locale}

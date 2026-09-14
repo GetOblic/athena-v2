@@ -1016,6 +1016,7 @@ describe("persona generation — route and UI contracts", () => {
     assert.doesNotMatch(route, /importPersonaManual/);
     assert.doesNotMatch(route, /enqueueDiscussionGenerationJob/);
     assert.doesNotMatch(route, /from\("personas"\)\.insert/);
+    assert.doesNotMatch(route, /prospectContextBlock/);
   });
 
   it("confirmed create uses existing POST /api/personas with source generated", () => {
@@ -1224,5 +1225,224 @@ describe("persona creation blocks — collapsible layout and state", () => {
     const block = read("components/personas/PersonaCreationBlock.tsx");
     assert.match(block, /type="button"/);
     assert.doesNotMatch(block, /type="submit"/);
+  });
+});
+
+describe("persona generation — Prospect-derived trusted context", () => {
+  const prospectBlock = [
+    "TRUSTED PROSPECT-DERIVED MARKET EVIDENCE",
+    "business_name: Miami Glow Medical Spa",
+    "website: https://miamiglow.example",
+    "city: Miami",
+    "state: Florida",
+    "country: USA",
+  ].join("\n");
+
+  it("keeps prospectContextBlock as a separate trusted section", () => {
+    const prompt = buildPersonaGenerationPrompt({
+      brainContextBlock: "{}",
+      existingPersonasBlock: "None",
+      instruction: "Optional operator note",
+      prospectContextBlock: prospectBlock,
+    });
+    const trustedIdx = prompt.indexOf(
+      "=== TRUSTED PROSPECT-DERIVED MARKET EVIDENCE ===",
+    );
+    const instructionIdx = prompt.indexOf(
+      "=== OPTIONAL USER GUIDANCE (NOT TRUSTED FACTUAL BUSINESS DATA) ===",
+    );
+    assert.ok(trustedIdx >= 0);
+    assert.ok(instructionIdx > trustedIdx);
+    assert.match(prompt, /Miami Glow Medical Spa/);
+    assert.match(prompt, /PRIMARY generation evidence/);
+    assert.doesNotMatch(
+      prompt.slice(instructionIdx),
+      /TRUSTED PROSPECT-DERIVED MARKET EVIDENCE/,
+    );
+  });
+
+  it("keeps instruction separately labeled as untrusted", () => {
+    const prompt = buildPersonaGenerationPrompt({
+      brainContextBlock: "{}",
+      existingPersonasBlock: "None",
+      instruction: "Please invent a Miami Glow clone",
+      prospectContextBlock: prospectBlock,
+    });
+    assert.match(
+      prompt,
+      /OPTIONAL USER GUIDANCE \(NOT TRUSTED FACTUAL BUSINESS DATA\)/,
+    );
+    assert.match(prompt, /Please invent a Miami Glow clone/);
+    assert.match(prompt, /Treat the following as operator guidance only/);
+  });
+
+  it("leaves standard Persona generation unchanged without Prospect context", () => {
+    const standard = buildPersonaGenerationPrompt({
+      brainContextBlock: "{}",
+      existingPersonasBlock: "None",
+      instruction: null,
+    });
+    assert.doesNotMatch(standard, /TRUSTED PROSPECT-DERIVED MARKET EVIDENCE/);
+    assert.doesNotMatch(standard, /PROSPECT-DERIVED AUDIENCE RULES/);
+    assert.match(standard, /No optional instruction was provided/);
+    assert.match(standard, /strengthens portfolio coverage/i);
+    assert.match(standard, /Never set reference_website/);
+  });
+
+  it("prohibits Prospect business-name cloning and Prospect website identity", () => {
+    const prompt = buildPersonaGenerationPrompt({
+      brainContextBlock: "{}",
+      existingPersonasBlock: "None",
+      instruction: null,
+      prospectContextBlock: prospectBlock,
+    });
+    assert.match(prompt, /Do not copy the Prospect business name into persona_name/);
+    assert.match(prompt, /Do not copy the Prospect website into reference_website/);
+    assert.match(prompt, /Always leave\s+reference_website null\/empty/);
+    assert.match(prompt, /Do not create a profile of the Prospect business itself/);
+  });
+
+  it("treats geography as a required dimension without forcing exact city into persona_name", () => {
+    const prompt = buildPersonaGenerationPrompt({
+      brainContextBlock: "{}",
+      existingPersonasBlock: "None",
+      instruction: null,
+      prospectContextBlock: prospectBlock,
+    });
+    assert.match(prompt, /GEOGRAPHY IS A REQUIRED PERSONA DIMENSION/);
+    assert.match(
+      prompt,
+      /Do not automatically make the exact Prospect city part of persona_name/,
+    );
+    assert.match(prompt, /Do not silently\s+discard geography/);
+    assert.match(prompt, /Do not invent unsupported geographic characteristics/);
+  });
+
+  it("keeps Prospect archetype primary over portfolio optimization", () => {
+    const prompt = buildPersonaGenerationPrompt({
+      brainContextBlock: "{}",
+      existingPersonasBlock: "None",
+      instruction: null,
+      coveragePlanBlock:
+        "Generation guidance: Generate a Private Equity Partner buyer.",
+      prospectContextBlock: prospectBlock,
+      noveltyRetryHint: "Closest existing Persona overlaps on role/context.",
+    });
+    assert.match(prompt, /PORTFOLIO COVERAGE PLAN/);
+    assert.match(prompt, /Private Equity Partner/);
+    assert.match(prompt, /Prospect evidence is PRIMARY/);
+    assert.match(
+      prompt,
+      /MUST NOT redirect generation toward an\s+unrelated portfolio gap/,
+    );
+    assert.match(prompt, /SAME Prospect-derived archetype/);
+    assert.match(prompt, /must not redirect generation toward an unrelated portfolio gap/);
+  });
+
+  it("does not place Prospect intelligence into instruction during generation", async () => {
+    let capturedPrompt = "";
+    let plannedInstruction: string | null | undefined = "unset";
+
+    await generatePersonaCandidate({
+      organizationId: ORG,
+      instruction: "Keep this untrusted",
+      prospectContextBlock: prospectBlock,
+      deps: {
+        requestId: "req-prospect-context",
+        buildBrain: async () => makeBrain(),
+        getPersonas: async () => [],
+        planCoverage: async (input) => {
+          plannedInstruction = input.instruction;
+          return STUB_COVERAGE_PLAN;
+        },
+        generateReview: async (prompt) => {
+          capturedPrompt = prompt;
+          return JSON.stringify(distinctCandidate);
+        },
+      },
+    });
+
+    assert.equal(plannedInstruction, "Keep this untrusted");
+    assert.match(capturedPrompt, /TRUSTED PROSPECT-DERIVED MARKET EVIDENCE/);
+    assert.match(capturedPrompt, /Miami Glow Medical Spa/);
+    assert.match(
+      capturedPrompt,
+      /OPTIONAL USER GUIDANCE \(NOT TRUSTED FACTUAL BUSINESS DATA\)/,
+    );
+    assert.match(capturedPrompt, /Keep this untrusted/);
+    assert.doesNotMatch(
+      capturedPrompt.slice(
+        capturedPrompt.indexOf(
+          "=== OPTIONAL USER GUIDANCE (NOT TRUSTED FACTUAL BUSINESS DATA) ===",
+        ),
+      ),
+      /TRUSTED PROSPECT-DERIVED MARKET EVIDENCE/,
+    );
+  });
+
+  it("keeps existing novelty behavior intact with Prospect context", async () => {
+    let calls = 0;
+    const duplicate = {
+      ...baseExisting,
+      persona_name: "Near clone",
+      category: baseExisting.category,
+      occupation: baseExisting.occupation,
+      seniority: baseExisting.seniority,
+      industry_context: baseExisting.industry_context,
+      short_description: baseExisting.short_description,
+      country: baseExisting.country,
+      state: baseExisting.state,
+      city: baseExisting.city,
+      location_summary: baseExisting.location_summary,
+      goals: baseExisting.goals,
+      needs: baseExisting.needs,
+      motivations: baseExisting.motivations,
+      pain_points: baseExisting.pain_points,
+      fears: baseExisting.fears,
+      objections: baseExisting.objections,
+      buying_triggers: baseExisting.buying_triggers,
+      decision_criteria: baseExisting.decision_criteria,
+      purchase_behavior: baseExisting.purchase_behavior,
+      lifestyle: baseExisting.lifestyle,
+      additional_context: baseExisting.additional_context,
+    };
+
+    const result = await generatePersonaCandidate({
+      organizationId: ORG,
+      prospectContextBlock: prospectBlock,
+      deps: {
+        requestId: "req-prospect-novelty",
+        buildBrain: async () => makeBrain(),
+        getPersonas: async () => [baseExisting],
+        planCoverage: stubPlanCoverage,
+        generateReview: async () => {
+          calls += 1;
+          return JSON.stringify(calls === 1 ? duplicate : distinctCandidate);
+        },
+      },
+    });
+
+    assert.equal(calls, 2);
+    assert.equal(result.attempts, 2);
+    assert.equal(result.candidate.reference_website, "");
+  });
+
+  it("still blanks reference_website when Prospect context is present", async () => {
+    const result = await generatePersonaCandidate({
+      organizationId: ORG,
+      prospectContextBlock: prospectBlock,
+      deps: {
+        requestId: "req-prospect-website",
+        buildBrain: async () => makeBrain(),
+        getPersonas: async () => [],
+        planCoverage: stubPlanCoverage,
+        generateReview: async () =>
+          JSON.stringify({
+            ...distinctCandidate,
+            reference_website: "https://miamiglow.example",
+          }),
+      },
+    });
+    assert.equal(result.candidate.reference_website, "");
   });
 });

@@ -211,6 +211,37 @@ export function validateSocialPlannerIntelligence(
     "Ads context must remain existing campaign reference, not repeat instructions.",
   );
 
+  if (context.primaryTargetAudience) {
+    const target = context.primaryTargetAudience as Record<string, unknown>;
+    assert(
+      !("id" in target) &&
+        !("personaId" in target) &&
+        !("raw_json" in target) &&
+        !("profile_json" in target) &&
+        !("organizationId" in target) &&
+        !("organization_id" in target),
+      "Primary target audience must not expose internal ids or raw profile blobs.",
+    );
+    assert(
+      typeof context.primaryTargetAudience.name === "string" &&
+        context.primaryTargetAudience.name.trim().length > 0,
+      "Primary target audience requires a display name.",
+    );
+    if (context.authorizedTargetPersonaId) {
+      assert(
+        context.personas.personas.some(
+          (persona) => persona.id === context.authorizedTargetPersonaId,
+        ),
+        "Authorized primary target Persona must remain in the included portfolio.",
+      );
+    }
+  } else {
+    assert(
+      context.authorizedTargetPersonaId == null,
+      "Generic Social Planner context must not carry an authorized primary target.",
+    );
+  }
+
   const personaIds = new Set(context.personas.personas.map((persona) => persona.id));
   const prospectIds = new Set(context.prospects.prospects.map((prospect) => prospect.id));
   assert(

@@ -78,6 +78,9 @@ export const PERSONA_DETAIL_ICON: Record<PersonaDetailAccent, string> = {
     "border border-[rgba(167,139,250,0.22)] bg-[rgba(167,139,250,0.08)] text-violet-200/80 shadow-[0_0_12px_rgba(167,139,250,0.08)]",
 };
 
+export const PERSONA_CTA_GROUP_LABEL =
+  "text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40";
+
 export const PERSONA_HEADER_ACTION_BASE =
   "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -101,6 +104,8 @@ export const PERSONA_HEADER_GENERATE_CLASS =
 
 export const PERSONA_HEADER_ALTERNATIVE_CLASS =
   `${PERSONA_HEADER_ACTION_BASE} border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/[0.08] text-[var(--athena-success)] hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/12 focus-visible:ring-[var(--athena-success)]/40`;
+
+export const PERSONA_HEADER_TOOL_CLASS = PERSONA_HEADER_SECONDARY_CLASS;
 
 export const PERSONA_ASSET_CARD_VIOLET_CLASS =
   "relative overflow-hidden rounded-2xl border border-[rgba(167,139,250,0.24)] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(167,139,250,0.07),transparent_52%)] shadow-[0_0_18px_rgba(167,139,250,0.05)]";

@@ -20,6 +20,7 @@ import { ProspectDeepScrapeWebsiteButton } from "@/components/prospects/Prospect
 import { GetOblicListingOutboundControls } from "@/components/prospects/GetOblicListingOutboundControls";
 import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicListingReleaseControl";
 import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
+import { ProspectCreateAudienceButton } from "@/components/prospects/ProspectCreateAudienceButton";
 import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
 import { PROSPECT_BACK_LINK_CLASS } from "@/lib/prospects/prospectDetailPresentation";
 import {
@@ -285,6 +286,21 @@ export default async function ProspectDetailsPage({
           />
         }
         generateActions={generateActions}
+        createAudienceAction={
+          <ProspectCreateAudienceButton
+            prospectId={prospect.id}
+            canCreate={hasCurrentVersion}
+            chrome={{
+              createAudienceFromProspect: copy.detail.createAudienceFromProspect,
+              creatingAudienceFromProspect:
+                copy.detail.creatingAudienceFromProspect,
+              createAudienceFromProspectFailed:
+                copy.detail.createAudienceFromProspectFailed,
+              createAudienceRequiresIntelligence:
+                copy.detail.createAudienceRequiresIntelligence,
+            }}
+          />
+        }
         intelligenceGroupLabel={copy.detail.intelligence}
         prospectToolsLabel={copy.detail.prospectTools}
         directoryGroupLabel={copy.detail.getoblicDirectory}

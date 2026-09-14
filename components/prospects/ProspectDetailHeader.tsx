@@ -49,6 +49,7 @@ type ProspectDetailHeaderProps = {
   researchAction: ReactNode;
   lifecycleAction: ReactNode;
   directoryAction?: ReactNode;
+  createAudienceAction?: ReactNode;
   intelligenceGroupLabel: string;
   prospectToolsLabel: string;
   directoryGroupLabel: string;
@@ -101,6 +102,7 @@ export function ProspectDetailHeader({
   researchAction,
   lifecycleAction,
   directoryAction = null,
+  createAudienceAction = null,
   intelligenceGroupLabel,
   prospectToolsLabel,
   directoryGroupLabel,
@@ -170,9 +172,12 @@ export function ProspectDetailHeader({
     </a>
   ) : null;
 
-  const toolActions = [openWebsiteButton, editButton, observationButton].filter(
-    Boolean,
-  );
+  const toolActions = [
+    createAudienceAction,
+    openWebsiteButton,
+    editButton,
+    observationButton,
+  ].filter(Boolean);
 
   return (
     <header data-prospect-detail="header" className="mb-8">
@@ -245,6 +250,7 @@ export function ProspectDetailHeader({
 
         {toolActions.length > 0 ? (
           <ProspectHeaderActionGroup name="tools" label={prospectToolsLabel}>
+            {createAudienceAction}
             {openWebsiteButton}
             {editButton}
             {observationButton}

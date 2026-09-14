@@ -1222,6 +1222,8 @@ export const es: TenantMessages = {
       sectionAdvanced: "Avanzado",
     },
     journey: {
+      intelligence: "Inteligencia",
+      audienceTools: "Herramientas de audiencia",
       discussWithAthena: "Hablar con Athena",
       teachAthena: "Añadir observación",
       executiveSnapshot: "Instantánea ejecutiva",
@@ -1231,7 +1233,9 @@ export const es: TenantMessages = {
       howToReachThem: "Cómo llegar a ellos",
       whatToCreate: "Qué crear para esta audiencia",
       strategicCreation: "Orientación de creación estratégica",
+      otherDrafts: "Otros borradores",
       readyToUseAssets: "Recursos listos para usar",
+      strategicAssetBlueprint: "Blueprint de activo estratégico",
       evidenceSignals: "Evidencia y señales",
       identitySlice: "Identidad",
       messaging: "Mensajes",
@@ -2053,6 +2057,12 @@ export const es: TenantMessages = {
       editProfile: "Editar perfil",
       addObservation: "Añadir observación",
       prospectTools: "Herramientas del Prospect",
+      createAudienceFromProspect: "Crear audiencia a partir del prospect",
+      creatingAudienceFromProspect: "Creando audiencia…",
+      createAudienceFromProspectFailed:
+        "No se pudo crear la audiencia a partir del prospect.",
+      createAudienceRequiresIntelligence:
+        "Genera primero la inteligencia del prospect",
       getoblicDirectory: "Directorio GetOblic",
       releaseGetOblicListing: "Liberar listing GetOblic",
       releaseGetOblicConfirm:
@@ -3184,6 +3194,8 @@ export const es: TenantMessages = {
       "Elige el primer día. Athena planifica los seis días siguientes con él.",
     weekStarts: "La semana empieza",
     optionalDirection: "Orientación opcional",
+    targetAudience: "Audiencia objetivo",
+    clear: "Quitar",
     guidancePlaceholder:
       "Tema, oferta, evento, audiencia, tono o cualquier cosa que Athena deba tener en cuenta. Déjalo en blanco y Athena decidirá.",
     guidanceHelp:

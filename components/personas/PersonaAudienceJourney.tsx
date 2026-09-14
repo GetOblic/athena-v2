@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import {
+  FileText,
   Heart,
   Layers,
   Megaphone,
@@ -21,7 +22,9 @@ import {
   type DeploymentDiscussPayload,
 } from "@/components/deployment/DeploymentAssets";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import { groupDeploymentOutreachAssets } from "@/lib/deployment/deploymentAssetGroups";
 import {
+  PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN,
   PERSONA_HOW_TO_REACH_FIELDS,
   PERSONA_WHAT_GETS_IN_THE_WAY_FIELDS,
   PERSONA_WHAT_THEY_CARE_ABOUT_FIELDS,
@@ -59,7 +62,7 @@ type PersonaAudienceJourneyProps = {
   locale?: string | null;
   generatedAt?: string | null;
   profileEditor: ReactNode;
-  crossLinks: ReactNode;
+  crossLinks?: ReactNode;
   previousIntelligence: ReactNode;
   evidenceExtra: ReactNode;
   blueprint: ReactNode;
@@ -116,7 +119,6 @@ export function PersonaAudienceJourney({
   locale = null,
   generatedAt = null,
   profileEditor,
-  crossLinks,
   previousIntelligence,
   evidenceExtra,
   blueprint,
@@ -129,6 +131,9 @@ export function PersonaAudienceJourney({
   assetChrome = null,
 }: PersonaAudienceJourneyProps) {
   const grouped = groupPersonaJourneyAssets(analysisAssets);
+  const groupedDeployment = groupDeploymentOutreachAssets(deploymentAssets);
+  const otherDrafts = groupedDeployment.other;
+  const readyToUseAssets = groupedDeployment.outreach;
   const identityFields = presentPersonaFieldGroup(
     persona,
     PERSONA_WHO_THEY_ARE_FIELDS,
@@ -215,16 +220,17 @@ export function PersonaAudienceJourney({
         <PersonaAthenaRecommendation analysis={analysis} chrome={chrome} />
       ) : null}
 
+      <div data-persona-journey="who-they-are">
       <AthenaCollapsibleSection
         id="persona-who-they-are"
         title={chrome.whoTheyAre}
-        defaultOpen
+        defaultOpen={PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN["who-they-are"]}
         tone="intelligence"
         className={PERSONA_DETAIL_SURFACE.violet}
         icon={<UserRound />}
         iconClassName={PERSONA_DETAIL_ICON.violet}
       >
-        <div data-persona-journey="who-they-are" className="space-y-6">
+        <div className="space-y-6">
           {identityFields.length > 0 ? (
             <div>
               <h3 className="text-sm font-semibold text-white/80">
@@ -246,34 +252,39 @@ export function PersonaAudienceJourney({
           {profileEditor}
         </div>
       </AthenaCollapsibleSection>
+      </div>
 
+      <div data-persona-journey="what-they-care-about">
       <AthenaCollapsibleSection
         id="persona-what-they-care-about"
         title={chrome.whatTheyCareAbout}
-        defaultOpen
+        defaultOpen={
+          PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN["what-they-care-about"]
+        }
         tone="intelligence"
         className={PERSONA_DETAIL_SURFACE.green}
         icon={<Heart />}
         iconClassName={PERSONA_DETAIL_ICON.green}
       >
-        <div
-          data-persona-journey="what-they-care-about"
-          data-persona-care-source="stored-profile"
-        >
+        <div data-persona-care-source="stored-profile">
           <PersonaProfileFieldChips fields={careFields} />
         </div>
       </AthenaCollapsibleSection>
+      </div>
 
+      <div data-persona-journey="what-gets-in-the-way">
       <AthenaCollapsibleSection
         id="persona-what-gets-in-the-way"
         title={chrome.whatGetsInTheWay}
-        defaultOpen
+        defaultOpen={
+          PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN["what-gets-in-the-way"]
+        }
         tone="intelligence"
         className={PERSONA_DETAIL_SURFACE.amber}
         icon={<TriangleAlert />}
         iconClassName={PERSONA_DETAIL_ICON.amber}
       >
-        <div data-persona-journey="what-gets-in-the-way" className="space-y-6">
+        <div className="space-y-6">
           <PersonaProfileFieldChips fields={frictionFields} />
           {grouped.friction.length > 0 ? (
             <div data-persona-analysis-key="OBJECTION_HANDLING">
@@ -282,17 +293,19 @@ export function PersonaAudienceJourney({
           ) : null}
         </div>
       </AthenaCollapsibleSection>
+      </div>
 
+      <div data-persona-journey="how-to-reach-them">
       <AthenaCollapsibleSection
         id="persona-how-to-reach-them"
         title={chrome.howToReachThem}
-        defaultOpen
+        defaultOpen={PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN["how-to-reach-them"]}
         tone="intelligence"
         className={PERSONA_DETAIL_SURFACE.cyan}
         icon={<MessageSquare />}
         iconClassName={PERSONA_DETAIL_ICON.cyan}
       >
-        <div data-persona-journey="how-to-reach-them" className="space-y-5">
+        <div className="space-y-5">
           {reachFields.length > 0 ? (
             <PersonaProfileFieldChips fields={reachFields} />
           ) : null}
@@ -330,92 +343,127 @@ export function PersonaAudienceJourney({
           )}
         </div>
       </AthenaCollapsibleSection>
+      </div>
 
-      <div data-persona-journey="what-to-create">
+      <div data-persona-journey="strategic-creation">
       <AthenaCollapsibleSection
-        id="persona-what-to-create"
-        title={chrome.whatToCreate}
-        defaultOpen={false}
+        id="persona-strategic-creation"
+        title={chrome.strategicCreation}
+        defaultOpen={
+          PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN["strategic-creation"]
+        }
         tone="intelligence"
-        className={PERSONA_DETAIL_SURFACE.orange}
-        icon={<Megaphone />}
-        iconClassName={PERSONA_DETAIL_ICON.orange}
+        className={PERSONA_DETAIL_SURFACE.violet}
+        icon={<PenLine />}
+        iconClassName={PERSONA_DETAIL_ICON.violet}
       >
-        <div data-persona-journey="what-to-create" className="space-y-6">
-          <AthenaCollapsibleSection
-            title={chrome.strategicCreation}
-            defaultOpen={false}
-            tone="intelligence"
-            className={PERSONA_DETAIL_SURFACE.violet}
-            icon={<PenLine />}
-            iconClassName={PERSONA_DETAIL_ICON.violet}
-          >
+        <div data-persona-create-group="strategic" className="space-y-4">
+          {grouped.create.map((asset) => (
             <div
-              data-persona-create-group="strategic"
-              className="space-y-4"
+              key={asset.assetKey ?? asset.title}
+              data-persona-analysis-key={canonicalAnalysisKey(asset)}
             >
-              {grouped.create.map((asset) => (
-                <div
-                  key={asset.assetKey ?? asset.title}
-                  data-persona-analysis-key={canonicalAnalysisKey(asset)}
-                >
-                  <PersonaEmbeddedAssets assets={[asset]} {...assetProps} />
-                </div>
-              ))}
+              <PersonaEmbeddedAssets assets={[asset]} {...assetProps} />
             </div>
-          </AthenaCollapsibleSection>
-
-          {deploymentAssets.length > 0 ? (
-            <AthenaCollapsibleSection
-              title={chrome.readyToUseAssets}
-              defaultOpen={false}
-              tone="intelligence"
-              className={PERSONA_DETAIL_SURFACE.orange}
-              icon={<Megaphone />}
-              iconClassName={PERSONA_DETAIL_ICON.orange}
-            >
-              <div
-                data-persona-create-group="publishable"
-                data-persona-publishable-count={deploymentAssets.length}
-              >
-                <DeploymentAssets
-                  executiveVersionId={executiveVersionId}
-                  assets={deploymentAssets}
-                  copyContext={copyContext}
-                  doneByAssetType={doneByAssetType}
-                  tagsByAssetType={tagsByAssetType}
-                  continuationPreferences={continuationPreferences}
-                  onDiscussWithAthena={onDiscussWithAthena}
-                  chrome={{
-                    ...assetChrome,
-                    heading: chrome.readyToUseAssets,
-                    hideGalleryChrome: true,
-                    cardPresentation: "persona",
-                    personaAccent: "orange",
-                  }}
-                  variant="embedded"
-                />
-              </div>
-            </AthenaCollapsibleSection>
-          ) : null}
-
-          {blueprint}
+          ))}
         </div>
       </AthenaCollapsibleSection>
-      {crossLinks}
+      </div>
+
+      {otherDrafts.length > 0 ? (
+        <div data-persona-journey="other-drafts">
+        <AthenaCollapsibleSection
+          id="persona-other-drafts"
+          title={chrome.otherDrafts}
+          defaultOpen={PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN["other-drafts"]}
+          tone="intelligence"
+          className={PERSONA_DETAIL_SURFACE.orange}
+          icon={<FileText />}
+          iconClassName={PERSONA_DETAIL_ICON.orange}
+        >
+          <div
+            data-persona-create-group="other-drafts"
+            data-persona-other-drafts-count={otherDrafts.length}
+          >
+            <DeploymentAssets
+              executiveVersionId={executiveVersionId}
+              assets={otherDrafts}
+              copyContext={copyContext}
+              doneByAssetType={doneByAssetType}
+              tagsByAssetType={tagsByAssetType}
+              continuationPreferences={continuationPreferences}
+              onDiscussWithAthena={onDiscussWithAthena}
+              chrome={{
+                ...assetChrome,
+                heading: chrome.otherDrafts,
+                hideGalleryChrome: true,
+                cardPresentation: "persona",
+                personaAccent: "orange",
+              }}
+              variant="embedded"
+            />
+          </div>
+        </AthenaCollapsibleSection>
+        </div>
+      ) : null}
+
+      {readyToUseAssets.length > 0 ? (
+        <div data-persona-journey="ready-to-use-assets">
+        <AthenaCollapsibleSection
+          id="persona-ready-to-use-assets"
+          title={chrome.readyToUseAssets}
+          defaultOpen={
+            PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN["ready-to-use-assets"]
+          }
+          tone="intelligence"
+          className={PERSONA_DETAIL_SURFACE.orange}
+          icon={<Megaphone />}
+          iconClassName={PERSONA_DETAIL_ICON.orange}
+        >
+          <div
+            data-persona-create-group="publishable"
+            data-persona-publishable-count={readyToUseAssets.length}
+          >
+            <DeploymentAssets
+              executiveVersionId={executiveVersionId}
+              assets={readyToUseAssets}
+              copyContext={copyContext}
+              doneByAssetType={doneByAssetType}
+              tagsByAssetType={tagsByAssetType}
+              continuationPreferences={continuationPreferences}
+              onDiscussWithAthena={onDiscussWithAthena}
+              chrome={{
+                ...assetChrome,
+                heading: chrome.readyToUseAssets,
+                hideGalleryChrome: true,
+                cardPresentation: "persona",
+                personaAccent: "orange",
+              }}
+              variant="embedded"
+            />
+          </div>
+        </AthenaCollapsibleSection>
+        </div>
+      ) : null}
+
+      <div
+        data-persona-journey="strategic-asset-blueprint"
+        data-persona-create-group="blueprint"
+      >
+        {blueprint}
       </div>
 
       <div data-persona-journey="evidence-signals">
       <AthenaCollapsibleSection
         id="persona-evidence-signals"
         title={chrome.evidenceSignals}
-        defaultOpen={false}
+        defaultOpen={PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN["evidence-signals"]}
         tone="intelligence"
         className={PERSONA_DETAIL_SURFACE.blue}
         icon={<Signal />}
         iconClassName={PERSONA_DETAIL_ICON.blue}
       >
-        <div data-persona-journey="evidence-signals" className="space-y-6">
+        <div className="space-y-6">
           {analysis ? (
             <WhyAthenaMatters
               bullets={whyBullets(analysis, executiveChrome)}
@@ -440,13 +488,13 @@ export function PersonaAudienceJourney({
       <AthenaCollapsibleSection
         id="persona-advanced"
         title={chrome.advanced}
-        defaultOpen={false}
+        defaultOpen={PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN.advanced}
         tone="intelligence"
         className={PERSONA_DETAIL_SURFACE.muted}
         icon={<Layers />}
         iconClassName={PERSONA_DETAIL_ICON.muted}
       >
-        <div data-persona-journey="advanced" className="space-y-6">
+        <div className="space-y-6">
           {display ? (
             <div className="grid gap-3 sm:grid-cols-3">
               <AdvancedPill label={chrome.buyerStage} value={display.buyer_stage} />

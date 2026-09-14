@@ -111,6 +111,7 @@ describe("Social Planner L6 API contracts", () => {
     assert.equal(derived.periodEnd, TEST_PERIOD_END);
     assert.equal(derived.userGuidance, null);
     assert.equal(derived.generationMode, "standard");
+    assert.equal(derived.personaId, null);
     assert.equal(deriveSocialCalendarPeriodEnd(TEST_PERIOD_START), TEST_PERIOD_END);
   });
 

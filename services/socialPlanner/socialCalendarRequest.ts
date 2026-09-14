@@ -3,6 +3,7 @@
  * Server derives authoritative period, mode, and guidance.
  */
 
+import { normalizeSocialPlannerPersonaId } from "@/lib/socialPlanner/socialPlannerTargetPresentation";
 import {
   SOCIAL_CALENDAR_PERIOD_DAYS,
   SocialCalendarGuidanceError,
@@ -55,6 +56,7 @@ export type NormalizedSocialCalendarCreateRequest = {
   periodEnd: string;
   userGuidance: string | null;
   generationMode: "standard";
+  personaId: string | null;
 };
 
 function formatUtcDate(utc: number): string {
@@ -178,6 +180,9 @@ export function normalizeSocialCalendarCreateRequest(
     periodEnd: period.periodEnd,
     userGuidance,
     generationMode: "standard",
+    personaId: normalizeSocialPlannerPersonaId(
+      rest.personaId ?? rest.persona_id,
+    ),
   };
 }
 

@@ -314,6 +314,24 @@ describe("Social Planner L4 package validation", () => {
     const used = new Set(multiPkg.assets.flatMap((asset) => asset.personaIds));
     assert.ok(used.size >= 2);
 
+    const singleAudience = buildValidPackageRaw(
+      multi,
+      multi.calendarContext.period.dates.map(() => ({
+        audience: "Local families",
+        personaIds: ["persona-parent"],
+        sourceSignals: [
+          { type: "organization", id: "org-social-planner" },
+          { type: "persona", id: "persona-parent" },
+        ],
+      })),
+    );
+    const rotated = expectFailure(singleAudience, multi);
+    assert.ok(
+      rotated.failures.some((failure) =>
+        /must rotate audiences when multiple Personas exist/i.test(failure),
+      ),
+    );
+
     const sparse = buildGenerationContext({ personas: [] });
     const sparsePkg = validateAndNormalizeSocialCalendarPackage({
       raw: buildValidPackageRaw(sparse),

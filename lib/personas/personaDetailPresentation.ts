@@ -33,10 +33,46 @@ export const PERSONA_DETAIL_SECTION_ORDER = [
   "what-they-care-about",
   "what-gets-in-the-way",
   "how-to-reach-them",
-  "what-to-create",
+  "strategic-creation",
+  "other-drafts",
+  "ready-to-use-assets",
+  "strategic-asset-blueprint",
   "evidence-signals",
   "advanced",
 ] as const;
+
+export const PERSONA_DETAIL_COLLAPSIBLE_SECTIONS = [
+  "who-they-are",
+  "what-they-care-about",
+  "what-gets-in-the-way",
+  "how-to-reach-them",
+  "strategic-creation",
+  "other-drafts",
+  "ready-to-use-assets",
+  "strategic-asset-blueprint",
+  "evidence-signals",
+  "advanced",
+  "ask-athena",
+  "add-observation",
+] as const;
+
+export type PersonaDetailCollapsibleSectionId =
+  (typeof PERSONA_DETAIL_COLLAPSIBLE_SECTIONS)[number];
+
+export const PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN = {
+  "who-they-are": false,
+  "what-they-care-about": false,
+  "what-gets-in-the-way": false,
+  "how-to-reach-them": false,
+  "strategic-creation": false,
+  "other-drafts": false,
+  "ready-to-use-assets": false,
+  "strategic-asset-blueprint": false,
+  "evidence-signals": false,
+  "advanced": false,
+  "ask-athena": false,
+  "add-observation": false,
+} as const satisfies Record<PersonaDetailCollapsibleSectionId, false>;
 
 export type PersonaDetailSectionId =
   (typeof PERSONA_DETAIL_SECTION_ORDER)[number];
@@ -301,6 +337,10 @@ export function uniqueFrictionTexts(
 export type PersonaJourneyChrome = {
   discussWithAthena: string;
   addObservation: string;
+  intelligenceGroup: string;
+  audienceToolsGroup: string;
+  createAdvertising: string;
+  planSocial: string;
   executiveSnapshot: string;
   whoTheyAre: string;
   whatTheyCareAbout: string;
@@ -308,7 +348,9 @@ export type PersonaJourneyChrome = {
   howToReachThem: string;
   whatToCreate: string;
   strategicCreation: string;
+  otherDrafts: string;
   readyToUseAssets: string;
+  strategicAssetBlueprint: string;
   evidenceSignals: string;
   advanced: string;
   audienceProfile: string;
@@ -343,6 +385,10 @@ export function buildPersonaJourneyChrome(
   return {
     discussWithAthena: journey.discussWithAthena,
     addObservation: messages.append.cta,
+    intelligenceGroup: journey.intelligence,
+    audienceToolsGroup: journey.audienceTools,
+    createAdvertising: messages.traction.createAdvertising,
+    planSocial: messages.traction.planSocial,
     executiveSnapshot: journey.executiveSnapshot,
     whoTheyAre: journey.whoTheyAre,
     whatTheyCareAbout: journey.whatTheyCareAbout,
@@ -350,7 +396,9 @@ export function buildPersonaJourneyChrome(
     howToReachThem: journey.howToReachThem,
     whatToCreate: journey.whatToCreate,
     strategicCreation: journey.strategicCreation,
+    otherDrafts: journey.otherDrafts,
     readyToUseAssets: journey.readyToUseAssets,
+    strategicAssetBlueprint: journey.strategicAssetBlueprint,
     evidenceSignals: journey.evidenceSignals,
     advanced: messages.traction.sectionAdvanced,
     audienceProfile: messages.traction.sectionProfile,

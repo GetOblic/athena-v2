@@ -27,6 +27,11 @@ import {
   toProvenanceJson,
 } from "@/services/socialPlanner/socialCalendarProvenance";
 import {
+  authorizedSocialPlannerTargetPersonaId,
+  mergeSocialCalendarTargetPersonaProvenance,
+  readSocialPlannerTargetPersonaId,
+} from "@/services/socialPlanner/socialPlannerTargetPersona";
+import {
   extractSocialPlannerGeographicReach,
   extractSocialPlannerWebsiteContact,
 } from "@/services/socialPlanner/geography/resolveSocialPlannerGeography";
@@ -460,6 +465,7 @@ export async function executeClaimedSocialCalendarGenerationJob(
           context,
           calendarContext,
           generationProvenance: result.generationProvenance,
+          targetPersonaId: readSocialPlannerTargetPersonaId(calendar.provenance_json),
         }),
       );
     } else if (calendar.generation_mode === "conversation_revision") {
@@ -580,6 +586,7 @@ export async function executeClaimedSocialCalendarGenerationJob(
           context,
           calendarContext,
           generationProvenance: result.generationProvenance,
+          targetPersonaId: readSocialPlannerTargetPersonaId(calendar.provenance_json),
         }),
       );
     } else {
@@ -589,6 +596,7 @@ export async function executeClaimedSocialCalendarGenerationJob(
         periodStart: calendar.period_start,
         periodEnd: calendar.period_end,
         geographyEvidence,
+        targetPersonaId: readSocialPlannerTargetPersonaId(calendar.provenance_json),
       });
 
       const calendarContext = validateSocialCalendarContext(context.calendarContext);
@@ -627,10 +635,16 @@ export async function executeClaimedSocialCalendarGenerationJob(
 
       currentStage = "finalizing";
       stopHeartbeat();
+      const persistedTargetId = readSocialPlannerTargetPersonaId(
+        calendar.provenance_json,
+      );
+      const authorizedTargetId = authorizedSocialPlannerTargetPersonaId(context);
+      const targetPersonaId = persistedTargetId ?? authorizedTargetId ?? null;
       const provenance = buildFrozenSocialCalendarProvenance({
         context,
         calendarContext,
         generationProvenance: result.generationProvenance,
+        targetPersonaId,
       });
       packageJson = result.package as unknown as Record<string, unknown>;
       frozenCalendarContextJson = calendarContext as unknown as Record<
@@ -639,6 +653,11 @@ export async function executeClaimedSocialCalendarGenerationJob(
       >;
       provenanceJson = toProvenanceJson(provenance);
     }
+
+    provenanceJson = mergeSocialCalendarTargetPersonaProvenance(
+      provenanceJson,
+      calendar.provenance_json,
+    );
 
     const completed = await complete({
       jobId: job.id,

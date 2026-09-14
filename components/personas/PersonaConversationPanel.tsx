@@ -29,7 +29,10 @@ import type {
   PersonaConversationHistoryMessage,
   PersonaConversationVersionState,
 } from "@/services/personaConversation/personaConversationTypes";
-import { PERSONA_DISCUSS_EVENT } from "@/lib/personas/personaDetailPresentation";
+import {
+  PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN,
+  PERSONA_DISCUSS_EVENT,
+} from "@/lib/personas/personaDetailPresentation";
 import {
   PERSONA_DETAIL_ICON,
   PERSONA_DETAIL_SURFACE,
@@ -337,10 +340,14 @@ function PersonaConversationPanelInner({
     : null;
 
   return (
-    <div id="persona-conversation" className="scroll-mt-24">
+    <div
+      id="persona-conversation"
+      className="scroll-mt-24"
+      data-persona-journey="ask-athena"
+    >
       <AthenaCollapsibleSection
         title={chrome?.title ?? "Ask Athena about this Persona"}
-        defaultOpen
+        defaultOpen={PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN["ask-athena"]}
         open={open}
         onOpenChange={
           openControlled !== undefined || discussContext != null

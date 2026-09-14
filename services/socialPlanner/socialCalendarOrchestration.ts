@@ -30,6 +30,7 @@ export async function createSocialCalendarWithJob(input: {
   periodStart: string;
   periodEnd: string;
   userGuidance: string | null;
+  targetPersonaId?: string | null;
 }): Promise<{
   calendar: SocialCalendar;
   job: AthenaSocialCalendarGenerationJob;
@@ -40,6 +41,7 @@ export async function createSocialCalendarWithJob(input: {
     periodStart: input.periodStart,
     periodEnd: input.periodEnd,
     userGuidance: input.userGuidance,
+    targetPersonaId: input.targetPersonaId,
   });
 
   try {

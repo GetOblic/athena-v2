@@ -1205,6 +1205,8 @@ export const en = {
       sectionAdvanced: "Advanced",
     },
     journey: {
+      intelligence: "Intelligence",
+      audienceTools: "Audience tools",
       discussWithAthena: "Discuss with Athena",
       teachAthena: "Add observation",
       executiveSnapshot: "Executive snapshot",
@@ -1214,7 +1216,9 @@ export const en = {
       howToReachThem: "How to reach them",
       whatToCreate: "What to create for this audience",
       strategicCreation: "Strategic creation guidance",
+      otherDrafts: "Other drafts",
       readyToUseAssets: "Ready-to-use assets",
+      strategicAssetBlueprint: "Strategic Asset Blueprint",
       evidenceSignals: "Evidence & signals",
       identitySlice: "Identity",
       messaging: "Messaging",
@@ -2017,6 +2021,12 @@ export const en = {
       editProfile: "Edit profile",
       addObservation: "Add observation",
       prospectTools: "Prospect Tools",
+      createAudienceFromProspect: "Create Audience from Prospect",
+      creatingAudienceFromProspect: "Creating audience…",
+      createAudienceFromProspectFailed:
+        "Create Audience from Prospect failed.",
+      createAudienceRequiresIntelligence:
+        "Generate prospect intelligence first",
       getoblicDirectory: "GetOblic Directory",
       releaseGetOblicListing: "Release GetOblic listing",
       releaseGetOblicConfirm:
@@ -3124,6 +3134,8 @@ export const en = {
     selectWeekHelp: "Pick the first day. Athena plans the next six days with it.",
     weekStarts: "Week starts",
     optionalDirection: "Optional direction",
+    targetAudience: "Target audience",
+    clear: "Clear",
     guidancePlaceholder:
       "Theme, offer, event, audience, tone, or anything Athena should keep in mind. Leave blank and Athena will decide.",
     guidanceHelp:
