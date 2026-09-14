@@ -1,6 +1,19 @@
 "use client";
 
+import { Building2 } from "lucide-react";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
+import {
+  PROSPECT_STATUS_CHIP_FAILED,
+  PROSPECT_STATUS_CHIP_PROGRESS,
+  PROSPECT_STATUS_CHIP_READY,
+  PROSPECT_STATUS_CHIP_SAVED,
+} from "@/lib/prospects/prospectDetailPresentation";
+import {
+  PROSPECT_CARD_ICON_WELL_CLASS,
+  PROSPECT_CARD_SURFACE_CLASS,
+  PROSPECT_LIBRARY_PRIMARY_ACTION,
+  PROSPECT_LIBRARY_SECONDARY_ACTION,
+} from "@/lib/prospects/prospectLibraryPresentation";
 
 export type GetOblicOpportunitySearchHit = {
   wordpress_listing_id: number;
@@ -58,6 +71,15 @@ export function firstGetOblicOpportunityCategoryName(
   return null;
 }
 
+function phaseChipClass(phase: GetOblicOpportunityCardPhase): string {
+  if (phase === "owned") return PROSPECT_STATUS_CHIP_READY;
+  if (phase === "incomplete" || phase === "in_progress") {
+    return PROSPECT_STATUS_CHIP_PROGRESS;
+  }
+  if (phase === "failed") return PROSPECT_STATUS_CHIP_FAILED;
+  return PROSPECT_STATUS_CHIP_SAVED;
+}
+
 type GetOblicOpportunityResultCardProps = {
   hit: GetOblicOpportunitySearchHit;
   messages: TenantMessages;
@@ -88,48 +110,38 @@ export function GetOblicOpportunityResultCard({
   const title = String(hit.title ?? "").trim() || copy.imageAlt;
   const category = firstGetOblicOpportunityCategoryName(hit.category);
   const location = String(hit.location_display ?? "").trim();
+  const meta = [category, location].filter(Boolean).join(" · ");
   const permalink = String(hit.permalink ?? "").trim();
+  const phaseLabel =
+    phase === "owned"
+      ? copy.alreadyInMyOpportunities
+      : phase === "incomplete"
+        ? copy.needsFinishing
+        : phase === "unavailable"
+          ? copy.alreadyBeingPursued
+          : phase === "in_progress"
+            ? copy.adding
+            : copy.available;
 
   return (
-    <article className="flex min-w-0 flex-col rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-5">
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30">
-        {hit.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={hit.image}
-            alt={title}
-            className="h-40 w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-40 items-center justify-center text-sm text-white/30">
-            {copy.imageAlt}
-          </div>
-        )}
+    <article className={PROSPECT_CARD_SURFACE_CLASS}>
+      <div className="flex items-start gap-3">
+        <div className={PROSPECT_CARD_ICON_WELL_CLASS} aria-hidden="true">
+          <Building2 className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="break-words text-base font-semibold text-white sm:text-lg">
+            {title}
+          </h3>
+          {meta ? (
+            <p className="mt-0.5 truncate text-xs text-white/45">{meta}</p>
+          ) : null}
+        </div>
       </div>
 
-      <h3 className="mt-4 break-words text-lg font-semibold text-white">
-        {title}
-      </h3>
-      {category ? (
-        <p className="mt-2 break-words text-sm text-white/50">{category}</p>
-      ) : null}
-      {location ? (
-        <p className="mt-1 break-words text-sm text-white/45">{location}</p>
-      ) : null}
-      <p className="mt-3 text-xs uppercase tracking-[0.16em] text-white/35">
-        {copy.sourceGetOblic}
-      </p>
-      <p className="mt-2 text-sm text-[var(--athena-orange)]">
-        {phase === "owned"
-          ? copy.alreadyInMyOpportunities
-          : phase === "incomplete"
-            ? copy.needsFinishing
-            : phase === "unavailable"
-              ? copy.alreadyBeingPursued
-              : phase === "in_progress"
-                ? copy.adding
-                : copy.available}
-      </p>
+      <div className="mt-3">
+        <span className={phaseChipClass(phase)}>{phaseLabel}</span>
+      </div>
       {phase === "failed" ? (
         <p className="mt-2 text-sm text-rose-200/80">
           {failureMessage ?? copy.addFailed}
@@ -142,7 +154,7 @@ export function GetOblicOpportunityResultCard({
             type="button"
             disabled={inFlight || addDisabled}
             onClick={() => onAdd(hit)}
-            className="inline-flex items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
+            className={`${PROSPECT_LIBRARY_PRIMARY_ACTION} disabled:opacity-40`}
           >
             {phase === "failed"
               ? copy.tryAgain
@@ -156,7 +168,7 @@ export function GetOblicOpportunityResultCard({
             type="button"
             disabled={inFlight}
             onClick={() => onOpen(hit)}
-            className="inline-flex items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
+            className={`${PROSPECT_LIBRARY_PRIMARY_ACTION} disabled:opacity-40`}
           >
             {copy.open}
           </button>
@@ -165,7 +177,7 @@ export function GetOblicOpportunityResultCard({
           <button
             type="button"
             disabled
-            className="inline-flex items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-5 py-3 text-sm font-semibold text-white opacity-40"
+            className={`${PROSPECT_LIBRARY_PRIMARY_ACTION} opacity-40`}
           >
             {copy.adding}
           </button>
@@ -175,7 +187,7 @@ export function GetOblicOpportunityResultCard({
             href={permalink}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center rounded-2xl border border-white/15 px-5 py-3 text-sm text-white/70"
+            className={PROSPECT_LIBRARY_SECONDARY_ACTION}
           >
             {copy.viewListing}
           </a>

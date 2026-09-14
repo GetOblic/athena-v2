@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { OpportunityDiscoveryMethods } from "@/components/prospects/OpportunityDiscoveryMethods";
 import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
+import { PROSPECT_BACK_LINK_CLASS } from "@/lib/prospects/prospectDetailPresentation";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import {
   getGetOblicDirectorySettings,
@@ -26,11 +28,9 @@ export default async function FindOpportunitiesPage() {
 
   return (
     <TenantAppShell currentPath="/prospects/find" messages={messages}>
-      <Link
-        href="/prospects"
-        className="mb-6 inline-flex text-sm text-[var(--athena-orange)]"
-      >
-        {copy.backToProspects}
+      <Link href="/prospects" className={PROSPECT_BACK_LINK_CLASS}>
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        {messages.nav.prospects}
       </Link>
       <TractionPageHeader
         eyebrow={copy.eyebrow}

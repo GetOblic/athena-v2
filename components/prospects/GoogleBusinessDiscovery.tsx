@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
+import { MapPin, Search } from "lucide-react";
 import { flattenGoogleBusinessPlace } from "@/lib/googlePlaces/flattenGoogleBusiness";
 import {
   GOOGLE_PLACES_AUTOCOMPLETE_FIELDS,
@@ -10,6 +11,14 @@ import {
 } from "@/lib/googlePlaces/googlePlacesTypes";
 import { loadGoogleMapsPlaces } from "@/lib/googlePlaces/loadGoogleMapsPlaces";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import {
+  PROSPECT_CARD_ICON_WELL_CLASS,
+  PROSPECT_CARD_SURFACE_CLASS,
+  PROSPECT_CAPACITY_SURFACE_CLASS,
+  PROSPECT_LIBRARY_PRIMARY_ACTION,
+  PROSPECT_TOOLBAR_FIELD_CLASS,
+  PROSPECT_TOOLBAR_SURFACE_CLASS,
+} from "@/lib/prospects/prospectLibraryPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type GoogleLoaderStatus = "loading" | "ready" | "missing_key" | "unavailable";
@@ -184,29 +193,32 @@ export function GoogleBusinessDiscovery({
   return (
     <div className="space-y-6">
       {authorMappingMissing ? (
-        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-sm leading-6 text-white/70">
+        <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
           {copy.authorMappingMissing}
         </div>
       ) : null}
       {listingCapacityReached ? (
-        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-sm leading-6 text-white/70">
+        <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
           {find.listingCapacityReached}
         </div>
       ) : null}
       {loaderStatus === "missing_key" ? (
-        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-sm leading-6 text-white/70">
+        <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
           {copy.missingKey}
         </div>
       ) : null}
       {loaderStatus === "unavailable" ? (
-        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-sm leading-6 text-white/70">
+        <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
           {copy.unavailable}
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3">
-        <label className="block min-w-0 text-sm text-white/50">
-          {copy.inputLabel}
+      <div className={`${PROSPECT_TOOLBAR_SURFACE_CLASS} gap-2`}>
+        <label className="block min-w-0 text-sm text-white/50 sm:col-span-3">
+          <span className="inline-flex items-center gap-1.5">
+            <Search className="size-3.5" aria-hidden="true" />
+            {copy.inputLabel}
+          </span>
           <input
             ref={inputRef}
             value={query}
@@ -218,10 +230,15 @@ export function GoogleBusinessDiscovery({
             autoComplete="off"
             disabled={inputDisabled}
             aria-describedby={statusId}
-            className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none disabled:opacity-40"
+            className={`mt-2 ${PROSPECT_TOOLBAR_FIELD_CLASS} disabled:opacity-40`}
           />
         </label>
-        <p id={statusId} className="text-sm text-white/50" role="status" aria-live="polite">
+        <p
+          id={statusId}
+          className="text-sm text-white/50 sm:col-span-3"
+          role="status"
+          aria-live="polite"
+        >
           {loaderStatus === "loading"
             ? copy.loading
             : selected
@@ -231,17 +248,30 @@ export function GoogleBusinessDiscovery({
       </div>
 
       {selected ? (
-        <div className="rounded-[24px] border border-white/10 bg-[var(--athena-card)] p-5">
-          <p className="text-sm font-semibold text-white">{selected.company_name}</p>
-          {selected.address ? (
-            <p className="mt-2 text-sm leading-6 text-white/55">{selected.address}</p>
-          ) : null}
-          {selected.business_phone ? (
-            <p className="mt-1 text-sm text-white/45">{selected.business_phone}</p>
-          ) : null}
-          {selected.website ? (
-            <p className="mt-1 text-sm text-white/45">{selected.website}</p>
-          ) : null}
+        <div className={PROSPECT_CARD_SURFACE_CLASS}>
+          <div className="flex items-start gap-3">
+            <div className={PROSPECT_CARD_ICON_WELL_CLASS} aria-hidden="true">
+              <MapPin className="size-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="break-words text-base font-semibold text-white sm:text-lg">
+                {selected.company_name}
+              </p>
+              {selected.address ? (
+                <p className="mt-1 text-xs leading-5 text-white/45">
+                  {selected.address}
+                </p>
+              ) : null}
+              {selected.business_phone ? (
+                <p className="mt-0.5 text-xs text-white/45">
+                  {selected.business_phone}
+                </p>
+              ) : null}
+              {selected.website ? (
+                <p className="mt-0.5 text-xs text-white/45">{selected.website}</p>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -249,13 +279,13 @@ export function GoogleBusinessDiscovery({
         type="button"
         disabled={!canSubmit}
         onClick={() => void addSelectedBusiness()}
-        className="inline-flex items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
+        className={`${PROSPECT_LIBRARY_PRIMARY_ACTION} disabled:opacity-40`}
       >
         {submitting ? copy.adding : copy.addCta}
       </button>
 
       {error ? (
-        <div className="rounded-[24px] border border-rose-400/30 bg-rose-500/10 p-5 text-sm leading-6 text-rose-100/80">
+        <div className="rounded-[24px] border border-rose-400/30 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100/80">
           {error}
         </div>
       ) : null}

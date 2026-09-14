@@ -12,7 +12,6 @@ import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import {
   PROSPECT_CARD_SURFACE_CLASS,
   PROSPECT_LIBRARY_PRIMARY_ACTION,
-  PROSPECT_LIBRARY_SECONDARY_ACTION,
   PROSPECT_TOOLBAR_FIELD_CLASS,
   PROSPECT_TOOLBAR_SURFACE_CLASS,
   shouldShowProspectLibraryReleaseCta,
@@ -92,15 +91,6 @@ export function ProspectsLibraryClient({
             className={PROSPECT_LIBRARY_PRIMARY_ACTION}
           >
             {list?.findOpportunitiesCta ?? "Find opportunities"}
-          </Link>
-          <Link
-            href="/prospects/import"
-            className={PROSPECT_LIBRARY_SECONDARY_ACTION}
-          >
-            {list?.addProspectYourselfCta ??
-              list?.createFirstCta ??
-              list?.importCta ??
-              "Add a prospect yourself"}
           </Link>
         </div>
       </div>

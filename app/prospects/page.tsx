@@ -5,7 +5,6 @@ import {
   Building2,
   CheckCircle2,
   LoaderCircle,
-  Plus,
   Search,
 } from "lucide-react";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
@@ -15,7 +14,6 @@ import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
 import { deriveProspectLibrarySummary } from "@/lib/prospects/prospectLibrarySummary";
 import {
   PROSPECT_LIBRARY_PRIMARY_ACTION,
-  PROSPECT_LIBRARY_SECONDARY_ACTION,
   PROSPECT_SUMMARY_ITEM_CLASS,
   PROSPECT_SUMMARY_STRIP_CLASS,
 } from "@/lib/prospects/prospectLibraryPresentation";
@@ -43,19 +41,10 @@ export default async function ProspectsPage() {
         question={copy.question}
         subtitle={copy.subtitle}
         action={
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-            <Link href="/prospects/find" className={PROSPECT_LIBRARY_PRIMARY_ACTION}>
-              <Search className="size-4" aria-hidden="true" />
-              {copy.list.findOpportunitiesCta}
-            </Link>
-            <Link
-              href="/prospects/import"
-              className={PROSPECT_LIBRARY_SECONDARY_ACTION}
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              {copy.list.importCta}
-            </Link>
-          </div>
+          <Link href="/prospects/find" className={PROSPECT_LIBRARY_PRIMARY_ACTION}>
+            <Search className="size-4" aria-hidden="true" />
+            {copy.list.findOpportunitiesCta}
+          </Link>
         }
       >
         {counts.total > 0 ? (

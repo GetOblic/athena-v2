@@ -1,13 +1,19 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Search } from "lucide-react";
 import {
   GetOblicOpportunityResultCard,
   type GetOblicOpportunitySearchHit,
 } from "@/components/prospects/GetOblicOpportunityResultCard";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import {
+  PROSPECT_CAPACITY_SURFACE_CLASS,
+  PROSPECT_LIBRARY_PRIMARY_ACTION,
+  PROSPECT_TOOLBAR_FIELD_CLASS,
+  PROSPECT_TOOLBAR_SURFACE_CLASS,
+} from "@/lib/prospects/prospectLibraryPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type SearchPayload = {
@@ -176,36 +182,39 @@ export function GetOblicOpportunityDiscovery({
   return (
     <div className="space-y-6">
       {notConfigured ? (
-        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-sm leading-6 text-white/70">
+        <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
           {copy.notConfigured}
         </div>
       ) : null}
       {listingCapacityReached ? (
-        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-sm leading-6 text-white/70">
+        <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
           {copy.listingCapacityReached}
         </div>
       ) : null}
 
       <form
-        className="flex flex-col gap-3 sm:flex-row sm:items-end"
+        className={`${PROSPECT_TOOLBAR_SURFACE_CLASS} sm:items-end`}
         onSubmit={(event) => {
           event.preventDefault();
           void runSearch(0, keywords);
         }}
       >
-        <label className="block min-w-0 flex-1 text-sm text-white/50">
-          {copy.keywords}
+        <label className="block min-w-0 text-sm text-white/50 sm:col-span-2">
+          <span className="inline-flex items-center gap-1.5">
+            <Search className="size-3.5" aria-hidden="true" />
+            {copy.keywords}
+          </span>
           <input
             value={keywords}
             onChange={(event) => setKeywords(event.target.value)}
             placeholder={copy.keywordsPlaceholder}
-            className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none"
+            className={`mt-2 ${PROSPECT_TOOLBAR_FIELD_CLASS}`}
           />
         </label>
         <button
           type="submit"
           disabled={loading || !keywords.trim()}
-          className="inline-flex items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
+          className={`${PROSPECT_LIBRARY_PRIMARY_ACTION} disabled:opacity-40`}
         >
           {loading ? copy.searching : copy.submit}
         </button>
@@ -215,13 +224,13 @@ export function GetOblicOpportunityDiscovery({
         <p className="text-sm text-white/50">{copy.searching}</p>
       ) : null}
       {error ? (
-        <div className="rounded-[24px] border border-rose-400/30 bg-rose-500/10 p-5 text-sm leading-6 text-rose-100/80">
+        <div className="rounded-[24px] border border-rose-400/30 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100/80">
           {error}
         </div>
       ) : null}
       {results && results.length === 0 && !loading && !error ? (
-        <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-8">
-          <p className="text-sm leading-7 text-white/55">{copy.empty}</p>
+        <div className="rounded-[24px] border border-dashed border-white/10 bg-[var(--athena-card)] p-4 sm:p-5">
+          <p className="text-sm leading-6 text-white/55">{copy.empty}</p>
         </div>
       ) : null}
 
@@ -270,15 +279,6 @@ export function GetOblicOpportunityDiscovery({
           </button>
         </div>
       ) : null}
-
-      <p className="text-sm text-white/45">
-        <Link
-          href="/prospects/import"
-          className="text-[var(--athena-orange)] underline underline-offset-2"
-        >
-          {copy.addYourself}
-        </Link>
-      </p>
     </div>
   );
 }

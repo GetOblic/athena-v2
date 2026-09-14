@@ -1,8 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useState } from "react";
+import { Building2, MapPin } from "lucide-react";
 import { GetOblicOpportunityDiscovery } from "@/components/prospects/GetOblicOpportunityDiscovery";
 import { GoogleBusinessDiscovery } from "@/components/prospects/GoogleBusinessDiscovery";
+import { PROSPECT_CARD_ICON_WELL_CLASS } from "@/lib/prospects/prospectLibraryPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 export type OpportunityDiscoveryMethod = "directory" | "google";
@@ -13,6 +16,29 @@ type OpportunityDiscoveryMethodsProps = {
   listingCapacityReached: boolean;
   authorMappingMissing: boolean;
 };
+
+function methodCardClass(selected: boolean): string {
+  return selected
+    ? "rounded-[24px] border border-[rgba(56,189,248,0.36)] bg-[linear-gradient(180deg,rgba(56,189,248,0.10),transparent_72%)] px-4 py-3 text-left shadow-[0_0_16px_rgba(56,189,248,0.06)]"
+    : "rounded-[24px] border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[0.05]";
+}
+
+function MethodIconWell({
+  selected,
+  children,
+}: {
+  selected: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`${PROSPECT_CARD_ICON_WELL_CLASS} ${selected ? "" : "opacity-50"}`}
+      aria-hidden="true"
+    >
+      {children}
+    </div>
+  );
+}
 
 export function OpportunityDiscoveryMethods({
   messages,
@@ -39,36 +65,42 @@ export function OpportunityDiscoveryMethods({
           role="tab"
           aria-selected={method === "directory"}
           onClick={() => selectMethod("directory")}
-          className={
-            method === "directory"
-              ? "rounded-2xl border border-[var(--athena-orange)]/35 bg-[var(--athena-orange)]/10 px-4 py-3 text-left"
-              : "rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
-          }
+          className={methodCardClass(method === "directory")}
         >
-          <div className="text-sm font-semibold text-white">
-            {copy.methods.directoryLabel}
+          <div className="flex items-start gap-3">
+            <MethodIconWell selected={method === "directory"}>
+              <Building2 className="size-4" />
+            </MethodIconWell>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-white">
+                {copy.methods.directoryLabel}
+              </div>
+              <p className="mt-1 text-sm leading-6 text-white/50">
+                {copy.methods.directoryDescription}
+              </p>
+            </div>
           </div>
-          <p className="mt-1 text-sm leading-6 text-white/50">
-            {copy.methods.directoryDescription}
-          </p>
         </button>
         <button
           type="button"
           role="tab"
           aria-selected={method === "google"}
           onClick={() => selectMethod("google")}
-          className={
-            method === "google"
-              ? "rounded-2xl border border-[var(--athena-orange)]/35 bg-[var(--athena-orange)]/10 px-4 py-3 text-left"
-              : "rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
-          }
+          className={methodCardClass(method === "google")}
         >
-          <div className="text-sm font-semibold text-white">
-            {copy.methods.googleLabel}
+          <div className="flex items-start gap-3">
+            <MethodIconWell selected={method === "google"}>
+              <MapPin className="size-4" />
+            </MethodIconWell>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-white">
+                {copy.methods.googleLabel}
+              </div>
+              <p className="mt-1 text-sm leading-6 text-white/50">
+                {copy.methods.googleDescription}
+              </p>
+            </div>
           </div>
-          <p className="mt-1 text-sm leading-6 text-white/50">
-            {copy.methods.googleDescription}
-          </p>
         </button>
       </div>
 

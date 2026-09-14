@@ -10,6 +10,7 @@ import {
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { writeClipboardText } from "@/lib/clipboard";
 import {
   filterGetOblicLinkHistory,
@@ -321,11 +322,11 @@ export function GetOblicLinksCard(props: {
     setDialogOpen(true);
   };
 
-  const closeDialog = () => {
+  const closeDialog = useCallback(() => {
     setDialogOpen(false);
     setSelectedSlug(null);
     reloadHistory();
-  };
+  }, [reloadHistory]);
 
   const copyLink = async (value: string, key: string) => {
     try {
@@ -503,8 +504,8 @@ function GetOblicLinksDialog(props: {
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-
-  const onClose = props.onClose;
+  const onCloseRef = useRef(props.onClose);
+  onCloseRef.current = props.onClose;
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -513,7 +514,7 @@ function GetOblicLinksDialog(props: {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
       }
     };
     document.addEventListener("keydown", onKeyDown);
@@ -526,7 +527,7 @@ function GetOblicLinksDialog(props: {
       document.body.style.overflow = originalOverflow;
       previous?.focus?.();
     };
-  }, [onClose]);
+  }, []);
 
   const title =
     props.mode === "create"
@@ -535,7 +536,7 @@ function GetOblicLinksDialog(props: {
         ? props.messages.manageTitle
         : props.messages.detailsTitle;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-6"
       role="presentation"
@@ -624,7 +625,8 @@ function GetOblicLinksDialog(props: {
           ) : null}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

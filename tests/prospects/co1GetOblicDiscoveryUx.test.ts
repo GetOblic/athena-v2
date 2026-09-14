@@ -38,10 +38,17 @@ const DICTIONARIES = { en, fr, es, it: itMessages, de, pt } as const;
 describe("CO-1 Find Opportunities UX", () => {
   it("adds Find opportunities from the Convert Opportunities library", () => {
     const library = read("components/prospects/ProspectsLibraryClient.tsx");
+    const page = read("app/prospects/page.tsx");
+    const importPage = read("app/prospects/import/page.tsx");
     assert.match(library, /href="\/prospects\/find"/);
     assert.match(library, /findOpportunitiesCta/);
-    assert.match(library, /addProspectYourselfCta/);
-    assert.match(library, /href="\/prospects\/import"/);
+    assert.match(page, /href="\/prospects\/find"/);
+    assert.match(page, /copy\.list\.findOpportunitiesCta/);
+    assert.doesNotMatch(library, /addProspectYourselfCta/);
+    assert.doesNotMatch(library, /href="\/prospects\/import"/);
+    assert.doesNotMatch(page, /href="\/prospects\/import"/);
+    assert.doesNotMatch(page, /copy\.list\.importCta/);
+    assert.match(importPage, /ProspectImportForms/);
     assert.doesNotMatch(library, /Search GetOblic/);
     assert.doesNotMatch(library, /claim listing/);
     assert.doesNotMatch(library, /allocation remaining/);
@@ -87,6 +94,8 @@ describe("CO-1 Find Opportunities UX", () => {
     assert.match(discovery, /alreadyBeingPursued/);
     assert.doesNotMatch(discovery, /271519816/);
     assert.doesNotMatch(discovery, /author_id/);
+    assert.doesNotMatch(discovery, /addYourself/);
+    assert.doesNotMatch(discovery, /\/prospects\/import/);
   });
 
   it("covers search result card states without leaking other-org identity", () => {
@@ -159,8 +168,12 @@ describe("CO-1 Find Opportunities UX", () => {
     assert.match(card, /needsFinishing/);
     assert.match(card, /finishAdding/);
     assert.match(card, /alreadyBeingPursued/);
-    assert.match(card, /sourceGetOblic/);
     assert.match(card, /viewListing/);
+    assert.match(card, /copy\.imageAlt/);
+    assert.match(card, /image: string \| null/);
+    assert.doesNotMatch(card, /sourceGetOblic/);
+    assert.doesNotMatch(card, /<img/);
+    assert.doesNotMatch(card, /h-40|object-cover/);
     assert.doesNotMatch(card, /claiming|reservation|allocation|WordPress/);
     assert.doesNotMatch(card, /organization_id/);
     assert.doesNotMatch(card, /prospect_id/);
