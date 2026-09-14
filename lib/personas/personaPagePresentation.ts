@@ -107,6 +107,12 @@ export const PERSONA_HEADER_ALTERNATIVE_CLASS =
 
 export const PERSONA_HEADER_TOOL_CLASS = PERSONA_HEADER_SECONDARY_CLASS;
 
+export const PERSONA_HEADER_CYAN_TOOL_CLASS =
+  `${PERSONA_HEADER_ACTION_BASE} border border-[rgba(56,189,248,0.28)] bg-[rgba(56,189,248,0.08)] text-sky-100 shadow-[0_0_14px_rgba(56,189,248,0.08)] hover:border-[rgba(56,189,248,0.42)] hover:bg-[rgba(56,189,248,0.12)] focus-visible:ring-sky-300/40`;
+
+export const PERSONA_HEADER_VIOLET_TOOL_CLASS =
+  `${PERSONA_HEADER_ACTION_BASE} border border-[rgba(167,139,250,0.28)] bg-[rgba(167,139,250,0.08)] text-violet-100 shadow-[0_0_14px_rgba(167,139,250,0.08)] hover:border-[rgba(167,139,250,0.44)] focus-visible:ring-violet-300/40`;
+
 export const PERSONA_ASSET_CARD_VIOLET_CLASS =
   "relative overflow-hidden rounded-2xl border border-[rgba(167,139,250,0.24)] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(167,139,250,0.07),transparent_52%)] shadow-[0_0_18px_rgba(167,139,250,0.05)]";
 

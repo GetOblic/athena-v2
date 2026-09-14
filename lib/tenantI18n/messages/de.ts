@@ -1181,10 +1181,10 @@ export const de: TenantMessages = {
         "Erstellen Sie eine Werbekampagne. Athena berücksichtigt Ihr Unternehmen und die Zielgruppen-Intelligence.",
       socialHelp:
         "Planen Sie eine Woche Social Content. Athena nutzt, was sie bereits über Ihr Unternehmen und Ihre Zielgruppen weiß.",
-      createAdvertising: "Werbung erstellen.",
+      createAdvertising: "Werbung erstellen",
       createAdvertisingHelp:
         "Athena berücksichtigt Ihr Unternehmen und die Zielgruppen-Intelligence.",
-      planSocial: "Eine Woche Social Content planen.",
+      planSocial: "Eine Woche Social Content planen",
       audiencesOne: "1 Zielgruppe",
       audiencesMany: "{count} Zielgruppen",
       readyOne: "1 mit fertiger Intelligence",

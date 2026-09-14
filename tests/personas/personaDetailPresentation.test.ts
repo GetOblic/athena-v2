@@ -516,6 +516,8 @@ describe("persona Phase-1 detail presentation", () => {
       assert.doesNotMatch(chrome.addObservation, /Teach Athena|Enseigner à Athena|Enseñar a Athena|Insegna ad Athena|Athena unterrichten|Ensinar a Athena/);
       assert.notEqual(dictionary.personas.list.createCta, "Create persona");
     }
+    assert.equal(en.personas.traction.createAdvertising, "Create advertising");
+    assert.equal(en.personas.traction.planSocial, "Plan a week of social content");
     assert.equal(en.personas.journey.whatToCreate, "What to create for this audience");
     assert.equal(en.personas.journey.otherDrafts, "Other drafts");
     assert.equal(
@@ -963,10 +965,21 @@ describe("persona detail CTA hierarchy and collapse defaults", () => {
       read("components/personas/PersonaDetailHeader.tsx"),
       /PERSONA_CTA_GROUP_LABEL/,
     );
-    assert.match(
-      read("app/personas/[id]/page.tsx"),
-      /PERSONA_HEADER_TOOL_CLASS/,
+    const pageSource = read("app/personas/[id]/page.tsx");
+    const createAdvertisingSource = pageSource.slice(
+      pageSource.indexOf('data-persona-header-action="create-advertising"'),
+      pageSource.indexOf('data-persona-header-action="plan-social"'),
     );
+    const planSocialSource = pageSource.slice(
+      pageSource.indexOf('data-persona-header-action="plan-social"'),
+      pageSource.indexOf("{journeyChrome.planSocial}"),
+    );
+    assert.match(createAdvertisingSource, /PERSONA_HEADER_CYAN_TOOL_CLASS/);
+    assert.match(planSocialSource, /PERSONA_HEADER_VIOLET_TOOL_CLASS/);
+    assert.doesNotMatch(createAdvertisingSource, /PERSONA_HEADER_PRIMARY_CLASS/);
+    assert.doesNotMatch(planSocialSource, /PERSONA_HEADER_PRIMARY_CLASS/);
+    assert.doesNotMatch(createAdvertisingSource, /PERSONA_HEADER_TOOL_CLASS/);
+    assert.doesNotMatch(planSocialSource, /PERSONA_HEADER_TOOL_CLASS/);
   });
 
   it("removes the What to create CTA wrapper without duplicating execution CTAs", () => {

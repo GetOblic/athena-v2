@@ -1160,10 +1160,10 @@ export const en = {
         "Create an advertising campaign. Athena considers your business and audience intelligence.",
       socialHelp:
         "Plan a week of social content. Athena uses what it already knows about your business and audiences.",
-      createAdvertising: "Create advertising.",
+      createAdvertising: "Create advertising",
       createAdvertisingHelp:
         "Athena considers your business and audience intelligence.",
-      planSocial: "Plan a week of social content.",
+      planSocial: "Plan a week of social content",
       audiencesOne: "1 audience",
       audiencesMany: "{count} audiences",
       readyOne: "1 with intelligence ready",

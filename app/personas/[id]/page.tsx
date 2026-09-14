@@ -22,7 +22,8 @@ import { PersonaDetailHeader } from "@/components/personas/PersonaDetailHeader";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
 import { buildPersonaJourneyChrome } from "@/lib/personas/personaDetailPresentation";
 import {
-  PERSONA_HEADER_TOOL_CLASS,
+  PERSONA_HEADER_CYAN_TOOL_CLASS,
+  PERSONA_HEADER_VIOLET_TOOL_CLASS,
   PERSONA_NESTED_CARD_CLASS,
 } from "@/lib/personas/personaPagePresentation";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
@@ -198,7 +199,7 @@ export default async function PersonaDetailsPage({
       <Link
         href={`/ads/new?personaId=${persona.id}`}
         data-persona-header-action="create-advertising"
-        className={PERSONA_HEADER_TOOL_CLASS}
+        className={PERSONA_HEADER_CYAN_TOOL_CLASS}
       >
         <Megaphone className="size-4" />
         {journeyChrome.createAdvertising}
@@ -206,7 +207,7 @@ export default async function PersonaDetailsPage({
       <Link
         href={`/social-planner?personaId=${persona.id}`}
         data-persona-header-action="plan-social"
-        className={PERSONA_HEADER_TOOL_CLASS}
+        className={PERSONA_HEADER_VIOLET_TOOL_CLASS}
       >
         <CalendarDays className="size-4" />
         {journeyChrome.planSocial}

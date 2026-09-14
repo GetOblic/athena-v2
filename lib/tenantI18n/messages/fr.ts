@@ -1179,10 +1179,10 @@ export const fr: TenantMessages = {
         "Créez une campagne publicitaire. Athena tient compte de votre entreprise et de l’intelligence d’audience.",
       socialHelp:
         "Planifiez une semaine de contenu social. Athena utilise ce qu’elle sait déjà de votre entreprise et de vos audiences.",
-      createAdvertising: "Créer une publicité.",
+      createAdvertising: "Créer une publicité",
       createAdvertisingHelp:
         "Athena tient compte de votre entreprise et de l’intelligence d’audience.",
-      planSocial: "Planifier une semaine de contenu social.",
+      planSocial: "Planifier une semaine de contenu social",
       audiencesOne: "1 audience",
       audiencesMany: "{count} audiences",
       readyOne: "1 avec une intelligence prête",
