@@ -196,7 +196,7 @@ export default async function PersonaDetailsPage({
   const audienceToolsActions = (
     <>
       <Link
-        href="/ads/new"
+        href={`/ads/new?personaId=${persona.id}`}
         data-persona-header-action="create-advertising"
         className={PERSONA_HEADER_TOOL_CLASS}
       >

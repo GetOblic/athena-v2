@@ -75,6 +75,8 @@ const CREATE_CHROME_KEYS = [
   "ads.new.contextSourcesNote",
   "ads.new.briefTitle",
   "ads.new.briefHelper",
+  "ads.new.targetAudience",
+  "ads.new.clear",
 ] as const;
 
 describe("/ads/new campaign create presentation", () => {

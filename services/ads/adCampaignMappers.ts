@@ -3,6 +3,7 @@
  */
 
 import { normalizeAdCampaignBrief } from "@/services/ads/adCampaignBrief";
+import { readAdsTargetPersonaId } from "@/services/ads/adsTargetPersona";
 import { isCompleteAdCampaignPackage } from "@/services/ads/adCampaignValidation";
 import {
   isAdCampaignGenerationStage,
@@ -56,6 +57,7 @@ export function mapAdCampaignRow(row: Record<string, unknown>): AdCampaign {
     user_id: (row.user_id as string | null) ?? null,
     name: String(row.name ?? "Untitled Ad Campaign"),
     brief_json: mapBrief(row.brief_json),
+    targetPersonaId: readAdsTargetPersonaId(row.brief_json),
     status,
     generation_stage,
     package_json: mapPackage(row.package_json, status),

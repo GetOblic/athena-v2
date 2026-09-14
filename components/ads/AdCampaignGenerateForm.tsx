@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Brain, SlidersHorizontal, Target } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
@@ -19,16 +20,24 @@ import {
   AD_CREATE_PRIMARY_CLASS,
   AD_CREATE_TEXTAREA_CLASS,
 } from "@/lib/ads/adCampaignCreatePresentation";
+import {
+  ADS_TARGET_CLEAR_CLASS,
+  ADS_TARGET_CLEAR_HREF,
+  ADS_TARGET_SURFACE_CLASS,
+  type AdsTargetAudienceView,
+} from "@/lib/ads/adsTargetPresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { en } from "@/lib/tenantI18n/messages/en";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type AdCampaignGenerateFormProps = {
   messages?: TenantMessages;
+  targetAudience?: AdsTargetAudienceView | null;
 };
 
 export function AdCampaignGenerateForm({
   messages,
+  targetAudience = null,
 }: AdCampaignGenerateFormProps) {
   const copy = messages?.ads.new ?? en.ads.new;
   const audienceHelp =
@@ -66,6 +75,9 @@ export function AdCampaignGenerateForm({
           geography: geography.trim() || undefined,
           landingPage: landingPage.trim() || undefined,
           constraints: constraints.trim() || undefined,
+          ...(targetAudience
+            ? { personaId: targetAudience.personaId }
+            : {}),
         }),
       });
       const payload = await parseJsonResponse<{
@@ -134,6 +146,39 @@ export function AdCampaignGenerateForm({
           {copy.contextSourcesNote}
         </p>
       </section>
+
+      {targetAudience ? (
+        <div data-ads-target="audience" className={ADS_TARGET_SURFACE_CLASS}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <span className={AD_CREATE_FIELD_LABEL_CLASS}>
+                {copy.targetAudience}
+              </span>
+              <p
+                data-ads-target-name=""
+                className="text-sm font-medium text-white"
+              >
+                {targetAudience.name}
+              </p>
+              {targetAudience.summary ? (
+                <p
+                  data-ads-target-summary=""
+                  className="text-sm leading-6 text-white/55"
+                >
+                  {targetAudience.summary}
+                </p>
+              ) : null}
+            </div>
+            <Link
+              href={ADS_TARGET_CLEAR_HREF}
+              data-ads-clear-target=""
+              className={ADS_TARGET_CLEAR_CLASS}
+            >
+              {copy.clear}
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       <section className={`${AD_CREATE_CARD_SHELL} ${AD_CREATE_BRIEF_SURFACE}`}>
         <div className="flex items-start gap-4">

@@ -7,6 +7,10 @@ import { createAdCampaignWithJob } from "@/services/ads/adCampaignOrchestration"
 import { toPublicAdCampaignDetail, toPublicAdCampaignSummary } from "@/services/ads/adCampaignPublic";
 import { listAdCampaigns } from "@/services/ads/adCampaignService";
 import {
+  extractAdsCandidatePersonaId,
+  resolveAdsTargetPersona,
+} from "@/services/ads/adsTargetPersona";
+import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
 } from "@/services/organizationService";
@@ -75,12 +79,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Ignore client-provided organization ownership.
+    // Ignore client-provided organization ownership and provenance.
     const {
       organization_id: _organizationId,
       organizationId: _organizationIdCamel,
       user_id: _userId,
       userId: _userIdCamel,
+      targetPersonaId: _clientTargetPersonaId,
       ...rest
     } = body;
 
@@ -90,10 +95,15 @@ export async function POST(request: Request) {
         : rest;
 
     const brief = normalizeAdCampaignBrief(briefSource);
+    const targetPersona = await resolveAdsTargetPersona({
+      personaId: extractAdsCandidatePersonaId(rest),
+      organizationId,
+    });
     const { campaign, job } = await createAdCampaignWithJob({
       organizationId,
       userId,
       brief,
+      authorizedTargetPersonaId: targetPersona?.id ?? null,
     });
 
     return json(

@@ -6,6 +6,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { defaultCampaignNameFromBrief } from "@/services/ads/adCampaignBrief";
 import { mapAdCampaignRow } from "@/services/ads/adCampaignMappers";
+import { persistAdsCampaignBriefJson } from "@/services/ads/adsTargetPersona";
 import type {
   AdCampaign,
   AdCampaignBrief,
@@ -85,6 +86,7 @@ export async function createAdCampaign(input: {
   organizationId: string;
   userId: string | null;
   brief?: AdCampaignBrief;
+  authorizedTargetPersonaId?: string | null;
 }): Promise<AdCampaign> {
   const brief = input.brief ?? {};
   const name = defaultCampaignNameFromBrief(brief);
@@ -96,7 +98,10 @@ export async function createAdCampaign(input: {
       organization_id: input.organizationId,
       user_id: input.userId,
       name,
-      brief_json: brief,
+      brief_json: persistAdsCampaignBriefJson(
+        brief,
+        input.authorizedTargetPersonaId,
+      ),
       status: "Queued",
       generation_stage: null,
       package_json: null,

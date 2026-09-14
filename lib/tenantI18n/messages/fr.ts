@@ -2689,6 +2689,8 @@ export const fr: TenantMessages = {
       generate: "Créer une campagne",
       starting: "Démarrage…",
       generateFailed: "Échec du démarrage de la création de campagne.",
+      targetAudience: "Audience cible",
+      clear: "Effacer",
     },
     detail: {
       eyebrow: "Publicités organisationnelles",

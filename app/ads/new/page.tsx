@@ -10,11 +10,21 @@ import {
   AD_CREATE_HEADER_ICON_WELL,
 } from "@/lib/ads/adCampaignCreatePresentation";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
+import { resolveAdsTargetAudienceView } from "@/services/ads/adsTargetPersona";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
-export default async function NewAdCampaignPage() {
-  await requireCurrentOrganizationContext();
+export default async function NewAdCampaignPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ personaId?: string }>;
+}) {
+  const { organizationId } = await requireCurrentOrganizationContext();
   const { messages } = await getTenantLocalization();
+  const params = searchParams ? await searchParams : {};
+  const targetAudience = await resolveAdsTargetAudienceView(
+    typeof params.personaId === "string" ? params.personaId : null,
+    organizationId,
+  );
   const copy = messages.ads;
 
   return (
@@ -36,7 +46,10 @@ export default async function NewAdCampaignPage() {
         />
       </div>
       <div className="max-w-3xl">
-        <AdCampaignGenerateForm messages={messages} />
+        <AdCampaignGenerateForm
+          messages={messages}
+          targetAudience={targetAudience}
+        />
       </div>
     </TenantAppShell>
   );

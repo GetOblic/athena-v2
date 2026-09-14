@@ -2631,6 +2631,8 @@ export const en = {
       generate: "Create campaign",
       starting: "Starting…",
       generateFailed: "Failed to start campaign creation.",
+      targetAudience: "Target audience",
+      clear: "Clear",
     },
     detail: {
       eyebrow: "Advertising",

@@ -2684,6 +2684,8 @@ export const es: TenantMessages = {
       generate: "Crear campaña",
       starting: "Iniciando…",
       generateFailed: "No se pudo iniciar la creación de la campaña.",
+      targetAudience: "Audiencia objetivo",
+      clear: "Quitar",
     },
     detail: {
       eyebrow: "Anuncios organizativos",

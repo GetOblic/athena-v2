@@ -149,6 +149,7 @@ export async function executeClaimedAdGenerationJob(
     const result = await runAdsGenerationPipeline({
       organizationId: job.organization_id,
       brief: campaign.brief_json,
+      authorizedTargetPersonaId: campaign.targetPersonaId ?? null,
       onStage: async (stage) => {
         currentStage = stage;
         const renewed = await renewLease(stage);

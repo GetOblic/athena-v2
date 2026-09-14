@@ -615,6 +615,7 @@ async function invokeJsonStage(input: {
 export async function runAdsGenerationPipeline(input: {
   organizationId: string;
   brief?: AdCampaignBrief;
+  authorizedTargetPersonaId?: string | null;
   onStage?: AdsPipelineStageCallback;
   deps?: AdsGenerationPipelineDeps;
 }): Promise<{
@@ -630,6 +631,7 @@ export async function runAdsGenerationPipeline(input: {
   const context = await compose({
     organizationId: input.organizationId,
     brief: input.brief,
+    authorizedTargetPersonaId: input.authorizedTargetPersonaId,
     deps: input.deps?.contextDeps,
   });
 

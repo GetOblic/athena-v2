@@ -35,11 +35,13 @@ export async function createAdCampaignWithJob(input: {
   organizationId: string;
   userId: string | null;
   brief?: AdCampaignBrief;
+  authorizedTargetPersonaId?: string | null;
 }): Promise<{ campaign: AdCampaign; job: AthenaAdGenerationJob }> {
   const campaign = await createAdCampaign({
     organizationId: input.organizationId,
     userId: input.userId,
     brief: input.brief,
+    authorizedTargetPersonaId: input.authorizedTargetPersonaId,
   });
 
   try {
@@ -118,5 +120,6 @@ export async function regenerateAdCampaign(input: {
     organizationId: input.organizationId,
     userId: input.userId,
     brief: source.brief_json,
+    authorizedTargetPersonaId: source.targetPersonaId ?? null,
   });
 }

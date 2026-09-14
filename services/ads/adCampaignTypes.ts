@@ -132,6 +132,8 @@ export type AdCampaign = {
   user_id: string | null;
   name: string;
   brief_json: AdCampaignBrief;
+  /** Server metadata read from persisted brief_json. Not part of the operator brief. */
+  targetPersonaId?: string | null;
   status: AdCampaignStatus;
   generation_stage: AdCampaignGenerationStage | null;
   package_json: AdCampaignPackage | null;

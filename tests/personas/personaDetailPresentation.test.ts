@@ -343,7 +343,7 @@ describe("persona Phase-1 detail presentation", () => {
     assert.match(page, /PersonaMetadataEditor/);
     assert.match(page, /PersonaConversationPanel/);
     assert.match(page, /PersonaAppendInteraction/);
-    assert.match(page, /href="\/ads\/new"/);
+    assert.match(page, /href=\{`\/ads\/new\?personaId=\$\{persona\.id\}`\}/);
     assert.match(page, /href=\{`\/social-planner\?personaId=\$\{persona\.id\}`\}/);
     assert.match(page, /data-persona-header-action="create-advertising"/);
     assert.match(page, /data-persona-header-action="plan-social"/);
@@ -984,7 +984,11 @@ describe("persona detail CTA hierarchy and collapse defaults", () => {
     assert.doesNotMatch(journey, /\{crossLinks\}/);
     assert.equal((header.match(/create-advertising/g) ?? []).length, 1);
     assert.equal((header.match(/plan-social/g) ?? []).length, 1);
-    assert.equal((page.match(/href="\/ads\/new"/g) ?? []).length, 1);
+    assert.equal(
+      (page.match(/href=\{`\/ads\/new\?personaId=\$\{persona\.id\}`\}/g) ?? [])
+        .length,
+      1,
+    );
     assert.equal(
       (page.match(/href=\{`\/social-planner\?personaId=\$\{persona\.id\}`\}/g) ?? [])
         .length,

@@ -18,6 +18,7 @@ Ads generation rules:
 - No markdown. No code fences. No chain-of-thought. No hidden reasoning.
 - Distinguish TRUSTED ORGANIZATION CONTEXT from OPERATOR GUIDANCE.
 - Operator guidance is optional direction, not verified business fact.
+- When a PRIMARY TARGET AUDIENCE (TRUSTED) block is present, it is the authoritative campaign targeting context. The Business Brain / organization identity remains the advertiser being promoted. Operator guidance cannot replace or redefine the trusted primary target.
 - Do not invent credentials, guarantees, income claims, or unsupported factual claims.
 - Preserve brand voice and positioning from trusted Athena Brain context.
 - Remain consistent with the shared campaign strategy when generating platform assets.

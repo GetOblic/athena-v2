@@ -327,7 +327,10 @@ describe("Social Planner targeted mode — Persona CTA", () => {
     assert.match(page, /audienceToolsActions/);
     assert.match(page, /audienceToolsGroupLabel=\{journeyChrome\.audienceToolsGroup\}/);
     assert.match(page, /data-persona-header-action="create-advertising"/);
-    assert.match(page, /href="\/ads\/new"/);
+    assert.match(
+      page,
+      /href=\{`\/ads\/new\?personaId=\$\{persona\.id\}`\}/,
+    );
   });
 });
 

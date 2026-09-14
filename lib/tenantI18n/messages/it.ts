@@ -2683,6 +2683,8 @@ export const it: TenantMessages = {
       generate: "Crea campagna",
       starting: "Avvio…",
       generateFailed: "Impossibile avviare la creazione della campagna.",
+      targetAudience: "Pubblico target",
+      clear: "Cancella",
     },
     detail: {
       eyebrow: "Annunci organizzativi",

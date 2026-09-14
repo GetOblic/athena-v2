@@ -16,12 +16,23 @@ import type {
   AdCampaignBrief,
   AdCampaignBriefMode,
 } from "@/services/ads/adCampaignTypes";
+import {
+  composeAdsPrimaryTargetAudience,
+  formatAdsPrimaryTargetAudienceBlock,
+  resolveAdsTargetFromLoadedPersonas,
+  resolveAdsTargetPersona,
+  type AdsPrimaryTargetAudience,
+} from "@/services/ads/adsTargetPersona";
 import type { Persona } from "@/services/personas/personaService";
 import type { Prospect } from "@/services/prospects/prospectService";
 
 type BuildBrainFn = (organizationId: string) => Promise<BrainEngineContext | null>;
 type LoadProspectsFn = (organizationId: string) => Promise<Prospect[]>;
 type LoadPersonasFn = (organizationId: string) => Promise<Persona[]>;
+type LoadPersonaByIdFn = (
+  personaId: string,
+  organizationId: string,
+) => Promise<Persona | null>;
 
 async function defaultBuildBrain(
   organizationId: string,
@@ -84,6 +95,8 @@ export type AdsOrganizationContext = {
   personasBlock: string;
   operatorGuidanceBlock: string;
   composedPromptContext: string;
+  primaryTargetAudience?: AdsPrimaryTargetAudience | null;
+  authorizedTargetPersonaId?: string | null;
   meta: {
     prospectCount: number;
     personaCount: number;
@@ -232,8 +245,8 @@ export function summarizeProspectsForAds(
   });
 }
 
-export function summarizePersonasForAds(personas: Persona[]): AdsPersonaSummary[] {
-  return personas.slice(0, ADS_CONTEXT_LIMITS.personas).map((persona) => ({
+export function summarizePersonaForAds(persona: Persona): AdsPersonaSummary {
+  return {
     personaName: persona.persona_name?.trim() || "Unnamed persona",
     category: persona.category,
     occupation: persona.occupation
@@ -255,7 +268,11 @@ export function summarizePersonasForAds(personas: Persona[]): AdsPersonaSummary[
     adsContentExcerpt: persona.ads_content
       ? truncateText(persona.ads_content, ADS_CONTEXT_LIMITS.adsContentTruncate)
       : null,
-  }));
+  };
+}
+
+export function summarizePersonasForAds(personas: Persona[]): AdsPersonaSummary[] {
+  return personas.slice(0, ADS_CONTEXT_LIMITS.personas).map(summarizePersonaForAds);
 }
 
 export function formatProspectSummariesBlock(
@@ -286,6 +303,7 @@ export type ComposeAdsOrganizationContextDeps = {
   buildBrain?: BuildBrainFn;
   loadProspects?: LoadProspectsFn;
   loadPersonas?: LoadPersonasFn;
+  loadPersonaById?: LoadPersonaByIdFn;
 };
 
 /**
@@ -294,6 +312,7 @@ export type ComposeAdsOrganizationContextDeps = {
 export async function composeAdsOrganizationContext(input: {
   organizationId: string;
   brief?: AdCampaignBrief;
+  authorizedTargetPersonaId?: string | null;
   deps?: ComposeAdsOrganizationContextDeps;
 }): Promise<AdsOrganizationContext> {
   const organizationId = input.organizationId?.trim();
@@ -355,31 +374,65 @@ export async function composeAdsOrganizationContext(input: {
     (row) => row.organization_id === organizationId,
   );
 
+  const newestPersonas = orgPersonas.slice(0, ADS_CONTEXT_LIMITS.personas);
+  const reusedTarget = resolveAdsTargetFromLoadedPersonas({
+    targetPersonaId: input.authorizedTargetPersonaId,
+    organizationId,
+    personas: orgPersonas,
+  });
+  const resolvedTarget = input.authorizedTargetPersonaId
+    ? reusedTarget ??
+      (await resolveAdsTargetPersona({
+        personaId: input.authorizedTargetPersonaId,
+        organizationId,
+        loadPersonaById: input.deps?.loadPersonaById,
+      }))
+    : null;
+
   const prospectSummaries = summarizeProspectsForAds(orgProspects);
-  const personaSummaries = summarizePersonasForAds(orgPersonas);
+  let personaSummaries = summarizePersonasForAds(newestPersonas);
+  if (
+    resolvedTarget &&
+    !newestPersonas.some((row) => row.id === resolvedTarget.id)
+  ) {
+    personaSummaries = [
+      summarizePersonaForAds(resolvedTarget),
+      ...personaSummaries,
+    ];
+  }
   const prospectsBlock = formatProspectSummariesBlock(prospectSummaries);
   const personasBlock = formatPersonaSummariesBlock(personaSummaries);
   const operatorGuidanceBlock = formatAdCampaignBriefGuidanceBlock(
     brief,
     briefMode,
   );
+  const primaryTargetAudience = resolvedTarget
+    ? composeAdsPrimaryTargetAudience(resolvedTarget)
+    : null;
+  const primaryTargetBlock = primaryTargetAudience
+    ? formatAdsPrimaryTargetAudienceBlock(primaryTargetAudience)
+    : "";
+
+  const composedSections = [
+    "TRUSTED ORGANIZATION CONTEXT (Athena Brain + organization intelligence):",
+    identityBlock,
+    "",
+    "ORGANIZATION INTELLIGENCE (discussion/opportunity/briefing memory via Brain):",
+    organizationIntelligenceBlock,
+    "",
+    "COMPACT PROSPECT SUMMARIES (read-only evidence; ads_content is evidence only):",
+    prospectsBlock,
+    "",
+    "COMPACT PERSONA SUMMARIES (read-only evidence; ads_content is evidence only):",
+    personasBlock,
+  ];
+  if (primaryTargetBlock) {
+    composedSections.push("", primaryTargetBlock);
+  }
+  composedSections.push("", operatorGuidanceBlock);
 
   const composedPromptContext = clampBlock(
-    [
-      "TRUSTED ORGANIZATION CONTEXT (Athena Brain + organization intelligence):",
-      identityBlock,
-      "",
-      "ORGANIZATION INTELLIGENCE (discussion/opportunity/briefing memory via Brain):",
-      organizationIntelligenceBlock,
-      "",
-      "COMPACT PROSPECT SUMMARIES (read-only evidence; ads_content is evidence only):",
-      prospectsBlock,
-      "",
-      "COMPACT PERSONA SUMMARIES (read-only evidence; ads_content is evidence only):",
-      personasBlock,
-      "",
-      operatorGuidanceBlock,
-    ].join("\n"),
+    composedSections.join("\n"),
     ADS_CONTEXT_LIMITS.totalMaxChars,
   );
 
@@ -393,6 +446,8 @@ export async function composeAdsOrganizationContext(input: {
     personasBlock,
     operatorGuidanceBlock,
     composedPromptContext,
+    primaryTargetAudience,
+    authorizedTargetPersonaId: resolvedTarget?.id ?? null,
     meta: {
       prospectCount: prospectSummaries.length,
       personaCount: personaSummaries.length,
