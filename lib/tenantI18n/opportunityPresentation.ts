@@ -16,6 +16,7 @@ import {
   type OpportunityStatusKey,
 } from "@/lib/opportunityStatus";
 import type { Opportunity } from "@/services/opportunityService";
+import { getDeploymentAssetTypeLabelMap } from "./deploymentAssetPresentation";
 import { en } from "./messages/en";
 import type { TenantMessages } from "./types";
 
@@ -216,10 +217,12 @@ export function getSharedAssetChrome(messages: TenantMessages): {
   copy: CopyButtonChrome;
   discussWithAthena: string;
   noPromptGeneratedYet: string;
+  typeLabels: Record<string, string>;
 } {
   return {
     copy: getAssetCopyChrome(messages),
     ...getPromptBlockChrome(messages),
+    typeLabels: getDeploymentAssetTypeLabelMap(messages),
   };
 }
 

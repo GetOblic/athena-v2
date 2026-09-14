@@ -1,6 +1,8 @@
 /**
- * Authoritative organization-language contract.
- * Shared by server components, API routes, workers, and later localization/generation.
+ * Authoritative Account/UI language contract.
+ * Used by tenant presentation only.
+ * Does not control generated-content language.
+ * Must not be imported by workers or AI composers.
  * Does not infer language from website, Persona, geography, browser, or cookies.
  */
 

@@ -39,6 +39,11 @@ export type DeploymentAssetsChrome = {
   discussWithAthena?: string;
   noPromptGeneratedYet?: string;
   heading?: string;
+  /**
+   * Presentation-only TYPE labels keyed by canonical assetType.
+   * Never used to rewrite generated bodies or structural KEY headings.
+   */
+  typeLabels?: Record<string, string> | null;
   /** Persona-only opt-in: hide the shared gallery H2 + help chrome. */
   hideGalleryChrome?: boolean;
   /** Persona-only opt-in card grammar. */
@@ -74,6 +79,7 @@ type DeploymentAssetsProps = {
 export function buildDeploymentAssetCards(
   assets: DeploymentAsset[],
   executiveVersionId: string | null = null,
+  typeLabels?: Record<string, string> | null,
 ): DeploymentAssetCardModel[] {
   const versionKey = executiveVersionId?.trim() || "no-version";
 
@@ -82,10 +88,11 @@ export function buildDeploymentAssetCards(
     .map((asset) => {
       const assetType =
         asset.assetKey ?? asset.title.toLowerCase().replace(/\s+/g, "_");
+      const localizedType = typeLabels?.[assetType]?.trim();
       return {
         key: `${versionKey}:${assetType}`,
         assetType,
-        label: asset.title,
+        label: localizedType || asset.title,
         description: asset.objective,
         text: asset.content,
       };
@@ -103,7 +110,11 @@ export function DeploymentAssets({
   chrome,
   variant = "gallery",
 }: DeploymentAssetsProps) {
-  const cards = buildDeploymentAssetCards(assets, executiveVersionId);
+  const cards = buildDeploymentAssetCards(
+    assets,
+    executiveVersionId,
+    chrome?.typeLabels,
+  );
 
   if (cards.length === 0) {
     return null;

@@ -123,6 +123,7 @@ describe("V31 L3.1 tenant i18n — language contract", () => {
       "lib/tenantI18n/personaPresentation.ts",
       "lib/tenantI18n/prospectPresentation.ts",
       "lib/tenantI18n/opportunityPresentation.ts",
+      "lib/tenantI18n/deploymentAssetPresentation.ts",
       "lib/tenantI18n/briefingPresentation.ts",
       "lib/tenantI18n/adsPresentation.ts",
       "lib/tenantI18n/seoPresentation.ts",
@@ -184,6 +185,8 @@ describe("V31 L3.1 tenant i18n — dictionaries", () => {
     assert.ok(canonical.includes("conversation.transportFailed"));
     assert.ok(canonical.includes("nav.dashboard"));
     assert.ok(canonical.includes("status.new"));
+    assert.ok(canonical.includes("deploymentAssetTypes.communityReply"));
+    assert.ok(canonical.includes("deploymentAssetTypes.personalizedOutreachEmail"));
     for (const language of ORGANIZATION_LANGUAGES) {
       const paths = collectKeyPaths(DICTIONARIES[language]);
       const missing = canonical.filter((path) => !paths.includes(path));

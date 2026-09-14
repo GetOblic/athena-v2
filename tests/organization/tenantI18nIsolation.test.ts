@@ -96,6 +96,14 @@ describe("V31 L3.1 tenant i18n — generated content isolation", () => {
     assert.match(types, /workers/);
     assert.match(types, /generation prompt builders/);
     assert.match(types, /Brain compilation/);
+    assert.match(types, /Account\/UI language/);
+    assert.match(types, /Structural generation keys/);
+    assert.match(types, /Asset TYPE display labels/);
+    assert.match(types, /Generated asset BODY/);
+    assert.match(types, /Generated-content language/);
+    assert.match(types, /never Account Language/);
+    assert.match(types, /Do not bind generated-content language to organizations\.language/);
+    assert.match(types, /Do not rewrite generated bodies/);
   });
 
   it("workers do not import tenantI18n", () => {
