@@ -65,6 +65,8 @@ export async function POST(
       clientAccountEmail: result.clientAccountEmail,
       conversionId: result.conversion.id,
       status: result.conversion.status,
+      continuityInitialized: result.continuityInitialized,
+      continuityState: result.continuityState,
     });
   } catch (error) {
     if (error instanceof OrganizationAccessError) {

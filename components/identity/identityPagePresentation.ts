@@ -8,7 +8,16 @@ import {
 } from "@/services/identity/identityExecutiveIntelligence";
 import { hasUsableStoredHomepageLearning } from "@/services/identity/identityHomepageLearning";
 import type { AthenaIdentity } from "@/services/identity/identityService";
+import { websiteIntelligenceHasUsableContent } from "@/services/prospects/prospectWebsiteLearningPolicy";
 import { isDeepWebsiteIntelligence } from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
+
+export const PUBLIC_WEBSITE_STUDY_SECTION_KEYS = [
+  "about",
+  "services",
+  "products",
+  "positioning",
+  "value_proposition",
+] as const;
 
 export const PRIMARY_BUSINESS_MODEL_KEYS = [
   "business_overview",
@@ -189,8 +198,13 @@ export function readWebsiteKnowledgeFlags(identity: AthenaIdentity | null): {
   hasWebsiteUrl: boolean;
   hasHomepageLearning: boolean;
   hasDeepIntelligence: boolean;
+  hasUsableWebsiteIntelligence: boolean;
+  hasInheritedWebsiteStudy: boolean;
 } {
   const hasWebsiteUrl = Boolean(identity?.website?.trim());
+  const hasUsableWebsiteIntelligence = websiteIntelligenceHasUsableContent(
+    identity?.website_intelligence ?? null,
+  );
   return {
     hasWebsiteUrl,
     hasHomepageLearning: hasUsableStoredHomepageLearning(
@@ -199,7 +213,46 @@ export function readWebsiteKnowledgeFlags(identity: AthenaIdentity | null): {
     hasDeepIntelligence: isDeepWebsiteIntelligence(
       identity?.website_intelligence,
     ),
+    hasUsableWebsiteIntelligence,
+    hasInheritedWebsiteStudy:
+      !hasSuccessfulAthenaTraining(identity) && hasUsableWebsiteIntelligence,
   };
+}
+
+export function hasInheritedWebsiteStudy(
+  identity: AthenaIdentity | null,
+): boolean {
+  return readWebsiteKnowledgeFlags(identity).hasInheritedWebsiteStudy;
+}
+
+export function shouldDisplayClientDeepScrapeCompletion(
+  identity: AthenaIdentity | null,
+): boolean {
+  return Boolean(identity?.last_deep_scrape_at);
+}
+
+export function readPublicWebsiteStudySections(
+  websiteIntelligence: unknown,
+): Array<{ key: (typeof PUBLIC_WEBSITE_STUDY_SECTION_KEYS)[number]; value: string }> {
+  if (
+    !websiteIntelligence ||
+    typeof websiteIntelligence !== "object" ||
+    Array.isArray(websiteIntelligence)
+  ) {
+    return [];
+  }
+  const record = websiteIntelligence as Record<string, unknown>;
+  const sections: Array<{
+    key: (typeof PUBLIC_WEBSITE_STUDY_SECTION_KEYS)[number];
+    value: string;
+  }> = [];
+  for (const key of PUBLIC_WEBSITE_STUDY_SECTION_KEYS) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      sections.push({ key, value: value.trim() });
+    }
+  }
+  return sections;
 }
 
 export function hasMaterialCalibrationGaps(

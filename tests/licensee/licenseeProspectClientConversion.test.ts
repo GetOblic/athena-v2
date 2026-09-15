@@ -121,6 +121,24 @@ type IntentRow = {
   created_at: string;
 };
 
+type IdentityRow = {
+  id: string;
+  user_id: string;
+  organization_id: string;
+  website: string | null;
+  website_intelligence: Record<string, unknown> | null;
+  greeting_name: string | null;
+  about_you: string | null;
+  expertise: string | null;
+  brain_status: string;
+  brain_last_updated: string | null;
+  master_profile: Record<string, unknown> | null;
+  master_profile_version: string | null;
+  master_profile_generated_at: string | null;
+  last_deep_scrape_at: string | null;
+  last_deep_scrape_pages: number | null;
+};
+
 type GetOblicLinkRow = {
   id: string;
   organization_id: string;
@@ -170,6 +188,8 @@ type Fixture = {
   authUsersByEmail: Record<string, { id: string; email: string }>;
   conversionInsertFailures: Array<{ code: string; message: string }>;
   intentDeleteFailures: Array<{ code?: string; message: string }>;
+  identities: IdentityRow[];
+  identityInsertFailures: Array<{ code: string; message: string }>;
 };
 
 type CallLog = {
@@ -251,6 +271,7 @@ function installFixture(fixture: Fixture): CallLog {
   let orgSeq = 0;
   let relSeq = 0;
   let conversionSeq = 0;
+  let identitySeq = 0;
 
   const rowsFor = (table: string): Record<string, unknown>[] => {
     if (table === "organizations") {
@@ -287,6 +308,9 @@ function installFixture(fixture: Fixture): CallLog {
     }
     if (table === "getoblic_super_admins") {
       return Object.values(fixture.superAdminsByUserId);
+    }
+    if (table === "athena_identity") {
+      return fixture.identities as unknown as Record<string, unknown>[];
     }
     return [];
   };
@@ -442,6 +466,52 @@ function installFixture(fixture: Fixture): CallLog {
           updated_at: String(values.updated_at || timestamp),
         };
         fixture.conversions.push(row);
+        return row;
+      }
+      if (table === "athena_identity") {
+        if (fixture.identityInsertFailures.length > 0) {
+          insertError = fixture.identityInsertFailures.shift()!;
+          return null;
+        }
+        identitySeq += 1;
+        const row: IdentityRow = {
+          id: `identity-${identitySeq}`,
+          user_id: String(values.user_id),
+          organization_id: String(values.organization_id),
+          website: values.website ? String(values.website) : null,
+          website_intelligence:
+            values.website_intelligence &&
+            typeof values.website_intelligence === "object"
+              ? (values.website_intelligence as Record<string, unknown>)
+              : null,
+          greeting_name: values.greeting_name
+            ? String(values.greeting_name)
+            : null,
+          about_you: values.about_you ? String(values.about_you) : null,
+          expertise: values.expertise ? String(values.expertise) : null,
+          brain_status: String(values.brain_status || "pending"),
+          brain_last_updated: values.brain_last_updated
+            ? String(values.brain_last_updated)
+            : null,
+          master_profile:
+            values.master_profile && typeof values.master_profile === "object"
+              ? (values.master_profile as Record<string, unknown>)
+              : null,
+          master_profile_version: values.master_profile_version
+            ? String(values.master_profile_version)
+            : null,
+          master_profile_generated_at: values.master_profile_generated_at
+            ? String(values.master_profile_generated_at)
+            : null,
+          last_deep_scrape_at: values.last_deep_scrape_at
+            ? String(values.last_deep_scrape_at)
+            : null,
+          last_deep_scrape_pages:
+            typeof values.last_deep_scrape_pages === "number"
+              ? values.last_deep_scrape_pages
+              : null,
+        };
+        fixture.identities.push(row);
         return row;
       }
       return values;
@@ -735,6 +805,8 @@ function ownCompanyFixture(overrides: Partial<Fixture> = {}): Fixture {
     intents: [],
     conversionInsertFailures: [],
     intentDeleteFailures: [],
+    identities: [],
+    identityInsertFailures: [],
     getoblicLinks: [],
     directorySettings: [],
     prospects: [
@@ -837,6 +909,8 @@ describe("promoteLicenseeProspectToClient", () => {
 
     assert.equal(result.alreadyActive, false);
     assert.equal(result.reattached, false);
+    assert.equal(result.continuityInitialized, false);
+    assert.equal(result.continuityState, "noop");
     assert.equal(result.clientAccountEmail, "joesplumbing@getoblic.com");
     assert.equal(result.conversion.status, "active");
     assert.equal(result.conversion.prospectId, PROSPECT_A);
@@ -873,10 +947,14 @@ describe("promoteLicenseeProspectToClient", () => {
       calls.updates.filter((row) => row.table === "prospects").length,
       0,
     );
+    const identityInserts = calls.inserts.filter(
+      (row) => row.table === "athena_identity",
+    );
+    assert.ok(identityInserts.length <= 1);
+    assert.equal(identityInserts.length, 0);
     assert.equal(
       calls.inserts.filter((row) =>
         [
-          "athena_identity",
           "discussions",
           "athena_executive_intelligence_versions",
           "athena_getoblic_listing_links",
@@ -3098,5 +3176,207 @@ describe("Phase 3C — Own Company tenant promotion authorization", () => {
         error instanceof LicenseeProspectClientConversionError &&
         error.code === "PROSPECT_NOT_FOUND",
     );
+  });
+});
+
+describe("BIC-1 prospect → client continuity hydration", () => {
+  function usableHomepageWi(
+    overrides: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      provider: "homepage_only",
+      url: "https://joesplumbing.example",
+      scraped_at: "2026-08-02T00:00:00.000Z",
+      about: "Family plumbing",
+      services: "Repairs",
+      prospect_id: PROSPECT_A,
+      organization_id: OWN_COMPANY_ORG_ID,
+      ...overrides,
+    };
+  }
+
+  it("hydrates website + sanitized WI after first durable conversion", async () => {
+    const fixture = ownCompanyFixture({
+      prospects: [
+        makeProspect({
+          id: PROSPECT_A,
+          business_name: "Joe's Plumbing",
+          website: "joesplumbing.example",
+          website_intelligence: usableHomepageWi(),
+          notes: "Licensee private notes",
+          additional_context: "Private strategy",
+          email: "contact@joesplumbing.com",
+        }),
+      ],
+    });
+    const before = cloneProspect(fixture.prospects[0]);
+    const calls = installFixture(fixture);
+
+    const result = await promoteLicenseeProspectToClient(promoteInput());
+
+    assert.equal(result.continuityInitialized, true);
+    assert.equal(result.continuityState, "initialized");
+    assert.equal(fixture.identities.length, 1);
+    const identity = fixture.identities[0];
+    assert.equal(identity.organization_id, result.clientOrganizationId);
+    assert.equal(identity.website, "https://joesplumbing.example");
+    assert.equal(identity.website_intelligence?.provider, "homepage_only");
+    assert.equal(identity.website_intelligence?.about, "Family plumbing");
+    assert.equal(identity.website_intelligence?.prospect_id, undefined);
+    assert.equal(identity.website_intelligence?.organization_id, undefined);
+    assert.equal(identity.greeting_name, null);
+    assert.equal(identity.about_you, null);
+    assert.equal(identity.expertise, null);
+    assert.equal(identity.brain_status, "pending");
+    assert.equal(identity.master_profile, null);
+    assert.equal(identity.last_deep_scrape_at, null);
+    assert.equal(identity.last_deep_scrape_pages, null);
+    assert.deepEqual(fixture.prospects[0], before);
+
+    const identityInsertAt = calls.inserts.findIndex(
+      (row) => row.table === "athena_identity",
+    );
+    const conversionInsertAt = calls.inserts.findIndex(
+      (row) => row.table === "licensee_prospect_client_conversions",
+    );
+    assert.ok(conversionInsertAt >= 0 && identityInsertAt > conversionInsertAt);
+    assert.equal(
+      calls.inserts.filter((row) => row.table === "athena_identity").length,
+      1,
+    );
+  });
+
+  it("repairs missing hydration on alreadyActive retry and does not duplicate org or Identity", async () => {
+    const fixture = ownCompanyFixture({
+      prospects: [
+        makeProspect({
+          id: PROSPECT_A,
+          business_name: "Joe's Plumbing",
+          website: "https://joesplumbing.example",
+          website_intelligence: usableHomepageWi(),
+        }),
+      ],
+      identityInsertFailures: [{ code: "40001", message: "identity write failed" }],
+    });
+    const calls = installFixture(fixture);
+
+    const first = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(first.continuityState, "incomplete");
+    assert.equal(first.alreadyActive, false);
+    assert.equal(fixture.conversions.length, 1);
+    assert.equal(fixture.identities.length, 0);
+    const orgCount = calls.inserts.filter((row) => row.table === "organizations").length;
+    const authCount = Object.keys(fixture.authUsersByEmail).length;
+
+    const second = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(second.alreadyActive, true);
+    assert.equal(second.continuityState, "initialized");
+    assert.equal(second.clientOrganizationId, first.clientOrganizationId);
+    assert.equal(fixture.identities.length, 1);
+    assert.equal(fixture.conversions.length, 1);
+    assert.equal(
+      calls.inserts.filter((row) => row.table === "organizations").length,
+      orgCount,
+    );
+    assert.equal(Object.keys(fixture.authUsersByEmail).length, authCount);
+    assert.ok(
+      calls.inserts.filter((row) => row.table === "athena_identity").length >= 1,
+    );
+  });
+
+  it("does not overwrite existing client website/WI or trained Identity on reconversion", async () => {
+    const fixture = ownCompanyFixture({
+      prospects: [
+        makeProspect({
+          id: PROSPECT_A,
+          business_name: "Joe's Plumbing",
+          website: "https://joesplumbing.example",
+          website_intelligence: usableHomepageWi(),
+        }),
+      ],
+    });
+    const calls = installFixture(fixture);
+    const first = await promoteLicenseeProspectToClient(promoteInput());
+    const identity = fixture.identities[0];
+    identity.website = "https://client-owned.example";
+    identity.website_intelligence = {
+      provider: "deep_v1",
+      url: "https://client-owned.example",
+      scraped_at: "2026-09-01T00:00:00.000Z",
+      pages_analyzed: 5,
+      pages: [],
+      business_knowledge: { about: "Client deep" },
+      about: "Client deep",
+    };
+
+    await reverseLicenseeProspectClientConversion(reverseInput());
+    const again = await promoteLicenseeProspectToClient(promoteInput());
+
+    assert.equal(again.reattached, true);
+    assert.equal(again.continuityState, "noop");
+    assert.equal(fixture.identities.length, 1);
+    assert.equal(fixture.identities[0].website, "https://client-owned.example");
+    assert.equal(fixture.identities[0].website_intelligence?.provider, "deep_v1");
+    assert.equal(
+      calls.inserts.filter((row) => row.table === "athena_identity").length,
+      1,
+    );
+
+    fixture.identities[0].master_profile = { executive_summary: "trained" };
+    fixture.identities[0].brain_status = "ready";
+    fixture.identities[0].website = null;
+    const trained = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(trained.alreadyActive, true);
+    assert.equal(trained.continuityState, "noop");
+    assert.equal(fixture.identities[0].website, null);
+  });
+
+  it("does not fail conversion when hydration throws and reverse does not touch Identity", async () => {
+    const fixture = ownCompanyFixture({
+      prospects: [
+        makeProspect({
+          id: PROSPECT_A,
+          business_name: "Joe's Plumbing",
+          website: "https://joesplumbing.example",
+          website_intelligence: usableHomepageWi(),
+        }),
+      ],
+    });
+    const calls = installFixture(fixture);
+    const originalFrom = supabaseAdmin.from.bind(supabaseAdmin);
+    let identityReads = 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabaseAdmin as any).from = (table: string) => {
+      const builder = originalFrom(table);
+      if (table === "athena_identity") {
+        identityReads += 1;
+        if (identityReads === 1) {
+          return {
+            select() {
+              throw new Error("identity lookup exploded");
+            },
+          };
+        }
+      }
+      return builder;
+    };
+
+    const result = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(result.conversion.status, "active");
+    assert.equal(result.continuityState, "incomplete");
+    assert.equal(fixture.conversions.length, 1);
+    assert.equal(
+      calls.inserts.filter((row) => row.table === "organizations").length,
+      1,
+    );
+
+    const identityBeforeReverse = fixture.identities.length;
+    await reverseLicenseeProspectClientConversion(reverseInput());
+    assert.equal(fixture.identities.length, identityBeforeReverse);
+    assert.equal(
+      calls.updates.filter((row) => row.table === "athena_identity").length,
+      0,
+    );
+    assert.equal(fixture.prospects[0].website_intelligence?.about, "Family plumbing");
   });
 });

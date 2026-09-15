@@ -252,6 +252,8 @@ describe("Prospect ↔ client conversion API contracts", () => {
     assert.match(route, /reattached/);
     assert.match(route, /clientOrganizationId/);
     assert.match(route, /clientAccountEmail/);
+    assert.match(route, /continuityInitialized/);
+    assert.match(route, /continuityState/);
     assert.match(route, /LicenseeProspectClientConversionError/);
     assert.match(route, /OrganizationAccessError/);
     assert.match(route, /LicenseeAccessError/);

@@ -31,6 +31,11 @@ import {
   normalizeEmailAddress,
   stableShortProspectId,
 } from "@/services/licensee/provisionalClientAccountEmail";
+import {
+  CONTINUITY_HYDRATION_FAILED,
+  hydrateLicenseeProspectClientIntelligence,
+  type LicenseeProspectClientContinuityState,
+} from "@/services/licensee/licenseeProspectClientIntelligenceHydration";
 import { getProspectById } from "@/services/prospects/prospectService";
 import {
   isGetOblicDerivedProspect,
@@ -83,6 +88,8 @@ export type PromoteLicenseeProspectToClientResult = {
   clientAccountEmail: string;
   alreadyActive: boolean;
   reattached: boolean;
+  continuityInitialized: boolean;
+  continuityState: LicenseeProspectClientContinuityState;
 };
 
 export type ReverseLicenseeProspectClientConversionInput = {
@@ -203,6 +210,7 @@ function mapIntentRow(row: IntentRow): LicenseeProspectClientProvisioningIntent 
 function toPromotionResult(
   conversion: LicenseeProspectClientConversion,
   flags: { alreadyActive: boolean; reattached: boolean },
+  continuityState: LicenseeProspectClientContinuityState,
 ): PromoteLicenseeProspectToClientResult {
   return {
     conversion,
@@ -210,7 +218,40 @@ function toPromotionResult(
     clientAccountEmail: conversion.clientAccountEmail,
     alreadyActive: flags.alreadyActive,
     reattached: flags.reattached,
+    continuityInitialized: continuityState === "initialized",
+    continuityState,
   };
+}
+
+async function tryHydrateLicenseeProspectClientIntelligence(input: {
+  clientOrganizationId: string;
+  website?: string | null;
+  websiteIntelligence?: unknown;
+}): Promise<LicenseeProspectClientContinuityState> {
+  try {
+    const result = await hydrateLicenseeProspectClientIntelligence({
+      clientOrganizationId: input.clientOrganizationId,
+      website: input.website ?? null,
+      websiteIntelligence: input.websiteIntelligence ?? null,
+    });
+    return result.state;
+  } catch (error) {
+    console.warn(`[${CONTINUITY_HYDRATION_FAILED}]`, error);
+    return "incomplete";
+  }
+}
+
+async function toPromotionResultWithContinuity(
+  conversion: LicenseeProspectClientConversion,
+  flags: { alreadyActive: boolean; reattached: boolean },
+  prospect: { website?: string | null; website_intelligence?: unknown },
+): Promise<PromoteLicenseeProspectToClientResult> {
+  const continuityState = await tryHydrateLicenseeProspectClientIntelligence({
+    clientOrganizationId: conversion.clientOrganizationId,
+    website: prospect.website,
+    websiteIntelligence: prospect.website_intelligence,
+  });
+  return toPromotionResult(conversion, flags, continuityState);
 }
 
 function resolveClientOrganizationName(
@@ -1356,10 +1397,14 @@ export async function promoteLicenseeProspectToClient(
     }
     if (existing.status === "active") {
       await tryConsumeProvisioningIntent(prospectId);
-      return toPromotionResult(existing, {
-        alreadyActive: true,
-        reattached: false,
-      });
+      return toPromotionResultWithContinuity(
+        existing,
+        {
+          alreadyActive: true,
+          reattached: false,
+        },
+        prospect,
+      );
     }
   }
 
@@ -1384,10 +1429,14 @@ export async function promoteLicenseeProspectToClient(
     });
 
     await tryConsumeProvisioningIntent(prospectId);
-    return toPromotionResult(reactivated, {
-      alreadyActive: false,
-      reattached: true,
-    });
+    return toPromotionResultWithContinuity(
+      reactivated,
+      {
+        alreadyActive: false,
+        reattached: true,
+      },
+      prospect,
+    );
   }
 
   const existingIntent = await loadProvisioningIntentByProspectId(prospectId);
@@ -1430,10 +1479,14 @@ export async function promoteLicenseeProspectToClient(
       clientAccountEmail: reservedEmail,
       convertedByUserId: actingUserId,
     });
-    return toPromotionResult(conversion, {
-      alreadyActive: false,
-      reattached: false,
-    });
+    return toPromotionResultWithContinuity(
+      conversion,
+      {
+        alreadyActive: false,
+        reattached: false,
+      },
+      prospect,
+    );
   }
 
   const provisioned = await provisionAfterReservedIntent({
@@ -1451,10 +1504,14 @@ export async function promoteLicenseeProspectToClient(
   const raced = await loadConversionByProspectId(prospectId);
   if (raced?.status === "active") {
     await tryConsumeProvisioningIntent(prospectId);
-    return toPromotionResult(raced, {
-      alreadyActive: true,
-      reattached: false,
-    });
+    return toPromotionResultWithContinuity(
+      raced,
+      {
+        alreadyActive: true,
+        reattached: false,
+      },
+      prospect,
+    );
   }
 
   const conversion = await finishFirstConversion({
@@ -1466,10 +1523,14 @@ export async function promoteLicenseeProspectToClient(
     convertedByUserId: actingUserId,
   });
 
-  return toPromotionResult(conversion, {
-    alreadyActive: false,
-    reattached: false,
-  });
+  return toPromotionResultWithContinuity(
+    conversion,
+    {
+      alreadyActive: false,
+      reattached: false,
+    },
+    prospect,
+  );
 }
 
 /**

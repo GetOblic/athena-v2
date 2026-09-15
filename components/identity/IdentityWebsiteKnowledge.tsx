@@ -9,7 +9,9 @@ import {
   IDENTITY_FIELD_ANCHORS,
   IDENTITY_HEADER_RETRAIN_ACTION_CLASS,
   localizePageGroup,
+  readPublicWebsiteStudySections,
   readWebsiteKnowledgeFlags,
+  shouldDisplayClientDeepScrapeCompletion,
 } from "@/components/identity/identityPagePresentation";
 import { formatTenantDateTime } from "@/lib/tenantI18n/format";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
@@ -38,7 +40,11 @@ export function IdentityWebsiteKnowledge({
   const copy = messages.executive;
   const flags = readWebsiteKnowledgeFlags(identity);
 
-  if (!trained && !flags.hasWebsiteUrl) {
+  if (
+    !trained &&
+    !flags.hasWebsiteUrl &&
+    !flags.hasUsableWebsiteIntelligence
+  ) {
     return null;
   }
 
@@ -52,12 +58,17 @@ export function IdentityWebsiteKnowledge({
       })
     : null;
 
+  const showInheritedStudy = flags.hasInheritedWebsiteStudy;
+  const inheritedSections = showInheritedStudy
+    ? readPublicWebsiteStudySections(identity?.website_intelligence)
+    : [];
   const showDeepEvidence = flags.hasDeepIntelligence && coverage;
-  const showHomepageLearned = flags.hasHomepageLearning;
-  const lastDeepLearningAt =
-    identity?.last_deep_scrape_at ?? coverage?.lastDeepScrapeAt ?? null;
+  const showHomepageLearned = trained && flags.hasHomepageLearning;
+  const lastDeepLearningAt = shouldDisplayClientDeepScrapeCompletion(identity)
+    ? identity?.last_deep_scrape_at ?? null
+    : null;
   const deepPagesAnalyzed =
-    showDeepEvidence && typeof coverage.pagesAnalyzed === "number"
+    showDeepEvidence && coverage && typeof coverage.pagesAnalyzed === "number"
       ? coverage.pagesAnalyzed
       : null;
 
@@ -85,8 +96,16 @@ export function IdentityWebsiteKnowledge({
       }
     >
       <div className="space-y-4 text-sm leading-6 text-white/65">
-        {!flags.hasWebsiteUrl ? (
+        {!flags.hasWebsiteUrl && !showInheritedStudy ? (
           <p>{page.websiteNoUrl}</p>
+        ) : showInheritedStudy ? (
+          <>
+            <p>{page.websiteAlreadyStudied}</p>
+            {flags.hasDeepIntelligence ? (
+              <p>{page.websiteAlreadyStudiedDeep}</p>
+            ) : null}
+            <p>{page.websiteInheritedNeedsTrain}</p>
+          </>
         ) : !trained ? (
           <p>{page.websiteWillStudy}</p>
         ) : (
@@ -96,6 +115,22 @@ export function IdentityWebsiteKnowledge({
           </>
         )}
       </div>
+
+      {inheritedSections.length > 0 ? (
+        <dl className="mt-6 grid gap-3 sm:grid-cols-2">
+          {inheritedSections.map((section) => (
+            <div
+              key={section.key}
+              className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+            >
+              <dt className="text-xs uppercase tracking-[0.2em] text-white/35">
+                {section.key.replace(/_/g, " ")}
+              </dt>
+              <dd className="mt-2 text-sm text-white/75">{section.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
 
       {showDeepEvidence ? (
         <dl className="mt-6 grid gap-3 sm:grid-cols-2">

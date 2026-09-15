@@ -428,6 +428,13 @@ export default async function IdentityPage({
             {teachAthena}
             {brandIdentity}
             {otherTools}
+            <IdentityWebsiteKnowledge
+              identity={identity}
+              messages={copy}
+              language={language}
+              trained={trained}
+              deepScrape={deepScrape}
+            />
           </>
         )}
       </div>

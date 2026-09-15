@@ -1255,6 +1255,12 @@ export const es: TenantMessages = {
         "Añade tu sitio en Enseñar a Athena para que Athena pueda aprender de él.",
       websiteWillStudy:
         "Athena estudiará la página de inicio cuando elijas Entrenar Athena.",
+      websiteAlreadyStudied:
+        "Athena ya estudió este sitio. Esto es investigación del sitio, no un Business Brain entrenado.",
+      websiteAlreadyStudiedDeep:
+        "Athena ya estudió páginas adicionales del sitio. Es investigación heredada, no un Deep Scrape completado.",
+      websiteInheritedNeedsTrain:
+        "Enseñar a Athena y entrenar Athena siguen siendo necesarios antes de que Athena conozca tu negocio confirmado.",
       websiteLearnedHomepage:
         "Athena aprendió de la página de inicio durante el entrenamiento.",
       websiteLearnedDeep:

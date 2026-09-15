@@ -241,7 +241,7 @@ describe("V2-UI-3C Identity page composition", () => {
     );
     assert.doesNotMatch(untrainedBlock, /IdentityWhatAthenaKnows/);
     assert.doesNotMatch(untrainedBlock, /IdentityCalibrationGaps/);
-    assert.doesNotMatch(untrainedBlock, /IdentityWebsiteKnowledge/);
+    assert.match(untrainedBlock, /IdentityWebsiteKnowledge/);
     assert.doesNotMatch(untrainedBlock, /IdentityAdvancedUnderstanding/);
     assert.match(untrainedBlock, /\{askAthena\}/);
     assert.ok(

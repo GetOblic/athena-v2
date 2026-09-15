@@ -1231,6 +1231,12 @@ export const en = {
         "Add your website in Teach Athena so Athena can learn from it.",
       websiteWillStudy:
         "Athena will study the homepage when you select Train Athena.",
+      websiteAlreadyStudied:
+        "Athena already studied this website. This is website research, not a trained Business Brain.",
+      websiteAlreadyStudiedDeep:
+        "Athena already studied additional website pages. This is inherited website research, not a completed Deep Scrape.",
+      websiteInheritedNeedsTrain:
+        "Teach Athena and train Athena remain necessary before Athena knows your confirmed business.",
       websiteLearnedHomepage:
         "Athena learned from the homepage during training.",
       websiteLearnedDeep:
