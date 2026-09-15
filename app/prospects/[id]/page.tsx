@@ -14,6 +14,7 @@ import { ProspectGetoblicDescriptionCard } from "@/components/prospects/Prospect
 import { ProspectHomepageIntelligence } from "@/components/prospects/ProspectHomepageIntelligence";
 import { ProspectIdentityContactGlance } from "@/components/prospects/ProspectIdentityContactGlance";
 import { ProspectIntelligenceScore } from "@/components/prospects/ProspectIntelligenceScore";
+import { ProspectConvertToClientAction } from "@/components/prospects/ProspectConvertToClientAction";
 import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectLifecycleStatusControl";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import { ProspectDeepScrapeWebsiteButton } from "@/components/prospects/ProspectDeepScrapeWebsiteButton";
@@ -22,6 +23,7 @@ import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicLi
 import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
 import { ProspectCreateAudienceButton } from "@/components/prospects/ProspectCreateAudienceButton";
 import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
+import { shouldShowGetOblicListingReleaseAction } from "@/lib/prospects/getOblicListingReleasePresentation";
 import { PROSPECT_BACK_LINK_CLASS } from "@/lib/prospects/prospectDetailPresentation";
 import {
   resolveProspectDisplayStatus,
@@ -56,10 +58,13 @@ import { getOpportunityByDiscussionId } from "@/services/opportunityService";
 import { getOrganizationAiWorkspacePreferences } from "@/services/identity/aiWorkspacePreferences";
 import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
 import { toBlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
+import { isLicenseeOwnCompanyOrganization } from "@/services/licensee/licenseeIdentity";
+import { getProspectClientConversionState } from "@/services/licensee/licenseeProspectClientConversionReads";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { hasCurrentKnowledgeBaseAsset } from "@/services/getoblicDirectory/getoblicDirectoryKnowledgeBaseService";
 import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { readObservedListingDescription } from "@/services/prospects/prospectGetoblicDescription";
+import { isGetOblicDerivedProspect } from "@/services/prospects/prospectGetOblicOwnership";
 import { getProspectById } from "@/services/prospects/prospectService";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 
@@ -165,10 +170,20 @@ export default async function ProspectDetailsPage({
     }),
   );
   const websiteHref = normalizeWebsiteUrl(prospect.website);
-  const activeGetOblicLink = await getActiveGetOblicLinkForProspect(
-    organizationId,
-    prospect.id,
-  );
+  const [activeGetOblicLink, conversionState, canConvertProspectToClient] =
+    await Promise.all([
+      getActiveGetOblicLinkForProspect(organizationId, prospect.id),
+      getProspectClientConversionState(prospect.id),
+      isLicenseeOwnCompanyOrganization(organizationId),
+    ]);
+  const getoblicDerived = isGetOblicDerivedProspect(prospect);
+  const hasActiveGetOblicOwnership = activeGetOblicLink != null;
+  const showGetOblicOutbound =
+    activeGetOblicLink?.relationship_status === "linked";
+  const showGetOblicRelease = shouldShowGetOblicListingReleaseAction({
+    relationshipStatus: activeGetOblicLink?.relationship_status ?? null,
+    conversionStatus: conversionState.status,
+  });
   const offerFullIntelligence = shouldOfferProspectFullIntelligenceAction({
     source: prospect.source,
     website: prospect.website,
@@ -314,6 +329,16 @@ export default async function ProspectDetailsPage({
             />
           ) : null
         }
+        clientConversionAction={
+          <ProspectConvertToClientAction
+            prospectId={prospect.id}
+            businessName={prospect.business_name}
+            conversionStatus={conversionState.status}
+            canConvertProspectToClient={canConvertProspectToClient}
+            isGetOblicDerivedProspect={getoblicDerived}
+            hasActiveGetOblicOwnership={hasActiveGetOblicOwnership}
+          />
+        }
         lifecycleAction={
           <ProspectLifecycleStatusControl
             prospect={prospect}
@@ -322,11 +347,9 @@ export default async function ProspectDetailsPage({
           />
         }
         directoryAction={
-          activeGetOblicLink &&
-          (activeGetOblicLink.relationship_status === "linked" ||
-            activeGetOblicLink.relationship_status === "claiming") ? (
+          showGetOblicOutbound || showGetOblicRelease ? (
             <>
-              {activeGetOblicLink.relationship_status === "linked" ? (
+              {showGetOblicOutbound ? (
                 <GetOblicListingOutboundControls
                   prospectId={prospect.id}
                   hasGeneratedDescription={Boolean(
@@ -338,11 +361,15 @@ export default async function ProspectDetailsPage({
                   messages={messages}
                 />
               ) : null}
-              <GetOblicListingReleaseControl
-                prospectId={prospect.id}
-                relationshipStatus={activeGetOblicLink.relationship_status}
-                messages={messages}
-              />
+              {showGetOblicRelease &&
+              (activeGetOblicLink?.relationship_status === "linked" ||
+                activeGetOblicLink?.relationship_status === "claiming") ? (
+                <GetOblicListingReleaseControl
+                  prospectId={prospect.id}
+                  relationshipStatus={activeGetOblicLink.relationship_status}
+                  messages={messages}
+                />
+              ) : null}
             </>
           ) : null
         }

@@ -27,6 +27,7 @@ import {
   GetOblicWordpressError,
   type GetOblicWordpressListing,
 } from "@/services/getoblicDirectory/getoblicWordpressTypes";
+import { prospectHasActiveClientConversion } from "@/services/prospects/prospectActiveConversionVisibility";
 import { getProspectById } from "@/services/prospects/prospectService";
 
 const REMOTE_ERROR_MAX_LENGTH = 500;
@@ -109,6 +110,13 @@ export async function releaseGetOblicListing(
       "This Prospect does not have an active GetOblic listing to release.",
       409,
       active,
+    );
+  }
+
+  if (await prospectHasActiveClientConversion(input.prospectId)) {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_RELEASE_ACTIVE_CONVERSION",
+      "This listing cannot be released while the Prospect is an active client. Move it back to Prospect first.",
     );
   }
 

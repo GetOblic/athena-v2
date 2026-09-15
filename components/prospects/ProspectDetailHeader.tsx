@@ -48,6 +48,7 @@ type ProspectDetailHeaderProps = {
   generateActions: ReactNode;
   researchAction: ReactNode;
   lifecycleAction: ReactNode;
+  clientConversionAction?: ReactNode;
   directoryAction?: ReactNode;
   createAudienceAction?: ReactNode;
   intelligenceGroupLabel: string;
@@ -101,6 +102,7 @@ export function ProspectDetailHeader({
   generateActions,
   researchAction,
   lifecycleAction,
+  clientConversionAction = null,
   directoryAction = null,
   createAudienceAction = null,
   intelligenceGroupLabel,
@@ -257,8 +259,9 @@ export function ProspectDetailHeader({
           </ProspectHeaderActionGroup>
         ) : null}
 
-        {lifecycleAction ? (
+        {clientConversionAction || lifecycleAction ? (
           <ProspectHeaderActionGroup name="lifecycle">
+            {clientConversionAction}
             {lifecycleAction}
           </ProspectHeaderActionGroup>
         ) : null}

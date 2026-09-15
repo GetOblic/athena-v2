@@ -1,14 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LicenseeAccessError } from "@/services/licensee/licenseeIdentity";
+import { LicenseeOwnCompanyError } from "@/services/licensee/licenseeSubAccounts";
 import {
-  LicenseeConversionManagedRemoveError,
+  LicenseeProspectClientConversionError,
+  reverseLicenseeProspectClientConversion,
+} from "@/services/licensee/licenseeProspectClientConversion";
+import {
+  getActiveConversionForRelationshipId,
   httpStatusForLicenseeProspectClientConversionCode,
 } from "@/services/licensee/licenseeProspectClientConversionReads";
-import {
-  LicenseeOwnCompanyError,
-  removeLicenseeSubAccountRelationship,
-} from "@/services/licensee/licenseeSubAccounts";
 
 function jsonError(status: number, code: string, message: string) {
   return NextResponse.json(
@@ -18,8 +20,9 @@ function jsonError(status: number, code: string, message: string) {
 }
 
 /**
- * Remove Master ↔ sub-account relationship only.
- * Does not delete the Athena account or any tenant data.
+ * Master-side reversal: detach the Licensee relationship only.
+ * Identifies the conversion from the owned relationship. Domain service
+ * remains authoritative.
  */
 export async function POST(request: NextRequest) {
   let body: { relationshipId?: string } = {};
@@ -44,25 +47,48 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await removeLicenseeSubAccountRelationship({
-      masterUserId: user.id,
+    const conversion = await getActiveConversionForRelationshipId(
       relationshipId,
+    );
+    if (!conversion) {
+      return jsonError(
+        404,
+        "CONVERSION_NOT_FOUND",
+        "No active Prospect conversion exists for this sub-account.",
+      );
+    }
+
+    const result = await reverseLicenseeProspectClientConversion({
+      prospectId: conversion.prospectId,
+      sourceOrganizationId: conversion.sourceOrganizationId,
+      masterUserId: user.id,
     });
 
+    revalidatePath("/licensee");
+    revalidatePath("/prospects");
+    revalidatePath("/");
+
     return NextResponse.json(
-      { ok: true, ...result },
+      {
+        ok: true,
+        alreadyReversed: result.alreadyReversed,
+        prospectId: result.conversion.prospectId,
+        clientOrganizationId: result.clientOrganizationId,
+        clientAccountEmail: result.clientAccountEmail,
+        status: result.conversion.status,
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
     if (error instanceof LicenseeAccessError) {
-      return jsonError(403, error.name, error.message);
+      return jsonError(403, error.code || error.name, error.message);
     }
 
     if (error instanceof LicenseeOwnCompanyError) {
       return jsonError(409, error.code, error.message);
     }
 
-    if (error instanceof LicenseeConversionManagedRemoveError) {
+    if (error instanceof LicenseeProspectClientConversionError) {
       return jsonError(
         httpStatusForLicenseeProspectClientConversionCode(error.code),
         error.code,
@@ -70,11 +96,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error("[LICENSEE_REMOVE] failed", error);
+    console.error("[LICENSEE_RESTORE_TO_PROSPECT] failed", error);
     return jsonError(
       500,
-      "REMOVE_FAILED",
-      error instanceof Error ? error.message : "Remove failed.",
+      "RESTORE_FAILED",
+      error instanceof Error ? error.message : "Restore failed.",
     );
   }
 }

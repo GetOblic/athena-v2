@@ -92,6 +92,23 @@ export async function isLicenseeMasterUser(userId: string): Promise<boolean> {
   return Boolean(data?.id);
 }
 
+function mapLicenseeAccountRow(data: {
+  id: unknown;
+  user_id: unknown;
+  email: unknown;
+  own_company_organization_id: unknown;
+}): LicenseeAccount {
+  return {
+    id: data.id as string,
+    user_id: data.user_id as string,
+    email: data.email as string,
+    own_company_organization_id:
+      typeof data.own_company_organization_id === "string"
+        ? data.own_company_organization_id
+        : null,
+  };
+}
+
 export async function getLicenseeAccountByUserId(
   userId: string,
 ): Promise<LicenseeAccount | null> {
@@ -118,15 +135,71 @@ export async function getLicenseeAccountByUserId(
     return null;
   }
 
-  return {
-    id: data.id as string,
-    user_id: data.user_id as string,
-    email: data.email as string,
-    own_company_organization_id:
-      typeof data.own_company_organization_id === "string"
-        ? data.own_company_organization_id
-        : null,
-  };
+  return mapLicenseeAccountRow(data);
+}
+
+/**
+ * Write-authority Own Company lookup. Returns every LicenseeAccount whose
+ * own_company_organization_id equals this org. Does not use .single() /
+ * .maybeSingle() so 0 and >1 remain distinguishable.
+ *
+ * Presentation helper isLicenseeOwnCompanyOrganization() must not be used
+ * as conversion authorization.
+ */
+export async function getLicenseeAccountsByOwnCompanyOrganizationId(
+  organizationId: string,
+): Promise<LicenseeAccount[]> {
+  const id = organizationId.trim();
+  if (!id) {
+    return [];
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("licensee_accounts")
+    .select("id, user_id, email, own_company_organization_id")
+    .eq("own_company_organization_id", id);
+
+  if (error) {
+    if (isMissingLicenseeRelationError(error)) {
+      return [];
+    }
+    console.error("licensee_accounts own-company write lookup failed:", error);
+    throw new LicenseeAccessError(
+      error.message || "Failed to resolve Licensee Own Company account.",
+    );
+  }
+
+  return (data ?? []).map((row) => mapLicenseeAccountRow(row));
+}
+
+/**
+ * Own-Company identity for a trusted Athena organization id.
+ * True only when licensee_accounts.own_company_organization_id equals this org.
+ * Presentation/eligibility only — not a substitute for conversion authorization.
+ */
+export async function isLicenseeOwnCompanyOrganization(
+  organizationId: string,
+): Promise<boolean> {
+  const id = organizationId.trim();
+  if (!id) {
+    return false;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("licensee_accounts")
+    .select("id")
+    .eq("own_company_organization_id", id)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingLicenseeRelationError(error)) {
+      return false;
+    }
+    console.error("licensee_accounts own-company lookup failed:", error);
+    return false;
+  }
+
+  return Boolean(data?.id);
 }
 
 /**

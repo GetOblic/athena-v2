@@ -40,6 +40,10 @@ import {
   getOrganizationMembership,
   provisionTenantForAuthenticatedUser,
 } from "@/services/organizationService";
+import {
+  LicenseeConversionManagedRemoveError,
+  getActiveConversionForClientOrganization,
+} from "@/services/licensee/licenseeProspectClientConversionReads";
 
 export {
   LICENSEE_SUB_ACCOUNT_DISPLAY_NAME_MAX_LENGTH,
@@ -611,6 +615,8 @@ export async function setLicenseeSubAccountNotes(input: {
 export async function removeLicenseeSubAccountRelationship(input: {
   masterUserId: string;
   relationshipId: string;
+  /** Used only by Prospect ↔ client reversal. Ordinary Remove must omit this. */
+  allowConversionManagedDetach?: boolean;
 }): Promise<{ relationshipId: string; organizationId: string }> {
   const licenseeAccount = await requireLicenseeMasterAccount(input.masterUserId);
   const relationshipId = input.relationshipId.trim();
@@ -642,6 +648,15 @@ export async function removeLicenseeSubAccountRelationship(input: {
       "OWN_COMPANY_RELATIONSHIP_LOCKED",
       "Your company account cannot be removed from the Master dashboard.",
     );
+  }
+
+  if (!input.allowConversionManagedDetach) {
+    const activeConversion = await getActiveConversionForClientOrganization(
+      relationship.organization_id,
+    );
+    if (activeConversion) {
+      throw new LicenseeConversionManagedRemoveError();
+    }
   }
 
   const { error: deleteError } = await supabaseAdmin

@@ -25,6 +25,7 @@ export function directoryErrorStatus(code: GetOblicDirectoryErrorCode): number {
     case "GETOBLIC_RELEASE_REMOTE_MISSING":
     case "GETOBLIC_RELEASE_THIRD_PARTY_OWNER":
     case "GETOBLIC_RELEASE_NOT_ACTIVE":
+    case "GETOBLIC_RELEASE_ACTIVE_CONVERSION":
     case "GETOBLIC_CONCURRENCY_CONFLICT":
       return 409;
     default:

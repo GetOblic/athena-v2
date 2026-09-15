@@ -26,6 +26,10 @@ import {
   type ProspectLifecycleStatus,
 } from "@/services/prospects/prospectLifecycle";
 import {
+  excludeActivelyConvertedProspects,
+  listActiveConvertedProspectIdsForOrganization,
+} from "@/services/prospects/prospectActiveConversionVisibility";
+import {
   getProspects,
   type Prospect,
 } from "@/services/prospects/prospectService";
@@ -99,13 +103,20 @@ export function buildProspectLibraryCompleteness(input: {
 export async function loadProspectsForLibrary(
   organizationId: string,
 ): Promise<ProspectLibraryRow[]> {
-  const prospects = await getProspects(organizationId);
+  const [prospects, activeConvertedProspectIds] = await Promise.all([
+    getProspects(organizationId),
+    listActiveConvertedProspectIdsForOrganization(organizationId),
+  ]);
+  const visibleProspects = excludeActivelyConvertedProspects(
+    prospects,
+    activeConvertedProspectIds,
+  );
   const presence = await getGetOblicProspectLinkPresence(
     organizationId,
-    prospects.map((prospect) => prospect.id),
+    visibleProspects.map((prospect) => prospect.id),
   );
   return enrichProspectsForLibrary(
-    excludeReleasedOnlyGetOblicProspectsFromLibrary(prospects, presence),
+    excludeReleasedOnlyGetOblicProspectsFromLibrary(visibleProspects, presence),
     organizationId,
     presence,
   );

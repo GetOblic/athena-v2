@@ -8,6 +8,7 @@ import { LicenseeDashboardClient } from "@/components/licensee/LicenseeDashboard
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getLicenseeAccountByUserId } from "@/services/licensee/licenseeIdentity";
 import { LICENSEE_MASTER_MARKER_COOKIE } from "@/services/licensee/licenseeCookieNames";
+import { listActiveConvertedClientOrganizationIds } from "@/services/licensee/licenseeProspectClientConversionReads";
 import { listLicenseeSubAccountsForMaster } from "@/services/licensee/licenseeSubAccounts";
 import { isAccountAccessActive } from "@/services/superAdmin/accountAccessStatus";
 
@@ -51,6 +52,18 @@ export default async function LicenseeMasterPage({
   }
 
   const items = await listLicenseeSubAccountsForMaster(user.id);
+  const convertedClientOrganizationIds =
+    await listActiveConvertedClientOrganizationIds(
+      items
+        .filter((item) => !item.isOwnCompany)
+        .map((item) => item.organizationId),
+    );
+  const dashboardItems = items.map((item) => ({
+    ...item,
+    conversionManaged:
+      !item.isOwnCompany &&
+      convertedClientOrganizationIds.has(item.organizationId),
+  }));
   const params = searchParams ? await searchParams : {};
   const notice =
     params.message ||
@@ -88,7 +101,7 @@ export default async function LicenseeMasterPage({
           </form>
         </div>
 
-        <LicenseeDashboardClient initialItems={items} notice={notice} />
+        <LicenseeDashboardClient initialItems={dashboardItems} notice={notice} />
       </div>
     </main>
   );

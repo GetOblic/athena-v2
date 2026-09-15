@@ -20,15 +20,49 @@ import {
   type LicenseeSubAccountListItem,
 } from "@/services/licensee/licenseeSubAccountTypes";
 
+export type LicenseeDashboardSubAccountItem = LicenseeSubAccountListItem & {
+  conversionManaged: boolean;
+};
+
+export type LicenseeSubAccountRemovalKind = "none" | "remove" | "restore";
+
+export const RESTORE_TO_PROSPECT_LIFECYCLE_ACTION =
+  "inline-flex items-center justify-center rounded-xl border border-[var(--athena-orange)]/45 bg-[var(--athena-orange)]/12 px-4 py-2.5 text-sm font-semibold text-[var(--athena-orange)] transition hover:border-[var(--athena-orange)]/70 hover:bg-[var(--athena-orange)]/22 disabled:opacity-50";
+
+export function licenseeSubAccountRemovalKind(item: {
+  isOwnCompany: boolean;
+  conversionManaged: boolean;
+}): LicenseeSubAccountRemovalKind {
+  if (item.isOwnCompany) {
+    return "none";
+  }
+  if (item.conversionManaged) {
+    return "restore";
+  }
+  return "remove";
+}
+
+export function restoreToProspectUserMessage(status: number): string {
+  if (status === 401 || status === 403) {
+    return "Unable to move this client back to prospects from the current account.";
+  }
+  if (status === 409) {
+    return "This client could not be moved back automatically. Please contact your administrator.";
+  }
+  return "Unable to move this client back to prospects right now.";
+}
+
 type LicenseeDashboardClientProps = {
-  initialItems: LicenseeSubAccountListItem[];
+  initialItems: LicenseeDashboardSubAccountItem[];
   notice?: string | null;
 };
 
 function sortSubAccounts(
-  items: LicenseeSubAccountListItem[],
-): LicenseeSubAccountListItem[] {
-  return sortLicenseeSubAccountsForDashboard(items);
+  items: LicenseeDashboardSubAccountItem[],
+): LicenseeDashboardSubAccountItem[] {
+  return sortLicenseeSubAccountsForDashboard(
+    items,
+  ) as LicenseeDashboardSubAccountItem[];
 }
 
 export function LicenseeDashboardClient({
@@ -44,8 +78,11 @@ export function LicenseeDashboardClient({
   const [pinPending, startPinTransition] = useTransition();
   const [designatePending, startDesignateTransition] = useTransition();
   const [removePending, startRemoveTransition] = useTransition();
+  const [restorePending, startRestoreTransition] = useTransition();
   const [confirmRemove, setConfirmRemove] =
-    useState<LicenseeSubAccountListItem | null>(null);
+    useState<LicenseeDashboardSubAccountItem | null>(null);
+  const [confirmRestore, setConfirmRestore] =
+    useState<LicenseeDashboardSubAccountItem | null>(null);
 
   useEffect(() => {
     setItems(initialItems);
@@ -292,6 +329,45 @@ export function LicenseeDashboardClient({
     });
   }
 
+  function confirmRestoreToProspect() {
+    if (!confirmRestore || restorePending) {
+      return;
+    }
+    const target = confirmRestore;
+    setActionError(null);
+    setSuccessMessage(null);
+    startRestoreTransition(async () => {
+      try {
+        const response = await fetch(
+          "/api/licensee/sub-accounts/restore-to-prospect",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              relationshipId: target.relationshipId,
+            }),
+          },
+        );
+        const payload = (await response.json()) as {
+          ok?: boolean;
+          error?: { message?: string };
+        };
+        if (!response.ok || !payload.ok) {
+          setActionError(restoreToProspectUserMessage(response.status));
+          return;
+        }
+
+        setConfirmRestore(null);
+        setSuccessMessage(
+          `"${resolveLicenseeSubAccountTitle(target)}" was moved back to prospects.`,
+        );
+        router.refresh();
+      } catch {
+        setActionError(restoreToProspectUserMessage(500));
+      }
+    });
+  }
+
   return (
     <div className="space-y-10">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:justify-between">
@@ -433,6 +509,8 @@ export function LicenseeDashboardClient({
                         saveDisplayName(item.relationshipId, displayName)
                       }
                       onRequestRemove={() => undefined}
+                      onRequestRestore={() => undefined}
+                      restorePending={false}
                       onDesignateOwnCompany={() =>
                         designateOwnCompany(item.relationshipId)
                       }
@@ -466,7 +544,19 @@ export function LicenseeDashboardClient({
                     onSaveDisplayName={(displayName) =>
                       saveDisplayName(item.relationshipId, displayName)
                     }
-                    onRequestRemove={() => setConfirmRemove(item)}
+                    onRequestRemove={() => {
+                      if (licenseeSubAccountRemovalKind(item) !== "remove") {
+                        return;
+                      }
+                      setConfirmRemove(item);
+                    }}
+                    onRequestRestore={() => {
+                      if (licenseeSubAccountRemovalKind(item) !== "restore") {
+                        return;
+                      }
+                      setConfirmRestore(item);
+                    }}
+                    restorePending={restorePending}
                     onDesignateOwnCompany={() =>
                       designateOwnCompany(item.relationshipId)
                     }
@@ -504,11 +594,18 @@ export function LicenseeDashboardClient({
                       saveDisplayName(item.relationshipId, displayName)
                     }
                     onRequestRemove={() => {
-                      if (item.isOwnCompany) {
+                      if (licenseeSubAccountRemovalKind(item) !== "remove") {
                         return;
                       }
                       setConfirmRemove(item);
                     }}
+                    onRequestRestore={() => {
+                      if (licenseeSubAccountRemovalKind(item) !== "restore") {
+                        return;
+                      }
+                      setConfirmRestore(item);
+                    }}
+                    restorePending={restorePending}
                     onDesignateOwnCompany={() =>
                       designateOwnCompany(item.relationshipId)
                     }
@@ -526,6 +623,20 @@ export function LicenseeDashboardClient({
           pending={removePending}
           onCancel={() => setConfirmRemove(null)}
           onConfirm={confirmRemoveSubAccount}
+        />
+      ) : null}
+
+      {confirmRestore ? (
+        <RestoreToProspectConfirmDialog
+          businessName={resolveLicenseeSubAccountTitle(confirmRestore)}
+          pending={restorePending}
+          onCancel={() => {
+            if (restorePending) {
+              return;
+            }
+            setConfirmRestore(null);
+          }}
+          onConfirm={confirmRestoreToProspect}
         />
       ) : null}
     </div>
@@ -621,6 +732,60 @@ function SearchIcon({ className = "" }: { className?: string }) {
   );
 }
 
+function RestoreToProspectConfirmDialog({
+  businessName,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  businessName: string;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="restore-to-prospect-title"
+        className="w-full max-w-md rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6 shadow-2xl shadow-black/40"
+      >
+        <h2
+          id="restore-to-prospect-title"
+          className="text-xl font-semibold text-white"
+        >
+          Move {businessName} back to prospects?
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-white/55">
+          This client will be removed from your active sub-accounts and will
+          reappear in your Prospect list. Its Athena account and data will be
+          preserved.
+        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={onCancel}
+            className="rounded-xl border border-[var(--athena-border)] px-4 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/5 hover:text-white disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={pending}
+            aria-busy={pending}
+            onClick={onConfirm}
+            className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15 disabled:opacity-60"
+          >
+            {pending ? "Moving…" : "Move back to prospect"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RemoveConfirmDialog({
   businessName,
   pending,
@@ -686,9 +851,11 @@ function SubAccountCard({
   onSaveNotes,
   onSaveDisplayName,
   onRequestRemove,
+  onRequestRestore,
+  restorePending,
   onDesignateOwnCompany,
 }: {
-  item: LicenseeSubAccountListItem;
+  item: LicenseeDashboardSubAccountItem;
   opening: boolean;
   pinDisabled: boolean;
   designateDisabled: boolean;
@@ -698,8 +865,11 @@ function SubAccountCard({
   onSaveNotes: (notes: string) => Promise<void>;
   onSaveDisplayName: (displayName: string) => Promise<void>;
   onRequestRemove: () => void;
+  onRequestRestore: () => void;
+  restorePending: boolean;
   onDesignateOwnCompany: () => void;
 }) {
+  const removalKind = licenseeSubAccountRemovalKind(item);
   const [expanded, setExpanded] = useState(false);
   const [draftNotes, setDraftNotes] = useState(item.notes);
   const [savingNotes, setSavingNotes] = useState(false);
@@ -1034,13 +1204,27 @@ function SubAccountCard({
                     </span>
                     {item.pinned ? "Pinned" : "Pin"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={onRequestRemove}
-                    className="inline-flex items-center rounded-xl border border-white/10 px-3 py-2 text-sm text-white/55 transition hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-100"
-                  >
-                    Remove
-                  </button>
+                  {removalKind === "restore" ? (
+                    <button
+                      type="button"
+                      disabled={restorePending}
+                      aria-busy={restorePending}
+                      onClick={onRequestRestore}
+                      className={RESTORE_TO_PROSPECT_LIFECYCLE_ACTION}
+                    >
+                      {restorePending
+                        ? "Moving…"
+                        : "Move back to prospect"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={onRequestRemove}
+                      className="inline-flex items-center rounded-xl border border-white/10 px-3 py-2 text-sm text-white/55 transition hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-100"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </>
               )}
             </div>

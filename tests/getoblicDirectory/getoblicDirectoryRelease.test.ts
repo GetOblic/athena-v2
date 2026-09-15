@@ -172,11 +172,17 @@ function successWordpress(
   };
 }
 
+type ConversionRow = {
+  prospect_id: string;
+  status: string;
+};
+
 function installStore(store: {
   settings?: SettingsRow[];
   links?: LinkRow[];
   events?: EventRow[];
   prospects?: ProspectRow[];
+  conversions?: ConversionRow[];
   failNextReleaseUpdate?: boolean;
 }): { ops: Op[] } {
   const ops: Op[] = [];
@@ -198,6 +204,9 @@ function installStore(store: {
       }
       if (table === "prospects") {
         return (store.prospects ?? []) as unknown as Record<string, unknown>[];
+      }
+      if (table === "licensee_prospect_client_conversions") {
+        return (store.conversions ?? []) as unknown as Record<string, unknown>[];
       }
       return [];
     };
@@ -288,6 +297,7 @@ async function release(
     links?: LinkRow[];
     events?: EventRow[];
     prospects?: ProspectRow[];
+    conversions?: ConversionRow[];
     failNextReleaseUpdate?: boolean;
   },
   wordpress: ReleaseGetOblicListingWordpressPort,
@@ -730,6 +740,114 @@ describe("GetOblic listing release", () => {
     );
   });
 
+  it("rejects release while the Prospect has an ACTIVE client conversion", async () => {
+    const store = {
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      conversions: [{ prospect_id: PROSPECT_A, status: "active" }],
+      links: [
+        completeLink({
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 1000,
+          relationship_status: "linked",
+        }),
+      ],
+    };
+    const wordpress = successWordpress(42);
+    await assert.rejects(
+      () => release(store, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_RELEASE_ACTIVE_CONVERSION");
+        return true;
+      },
+    );
+    assert.equal(store.links[0]?.relationship_status, "linked");
+    assert.equal(store.links[0]?.released_at, null);
+    assert.deepEqual(wordpress.calls, []);
+    assert.equal(
+      store.links[0]?.last_remote_error,
+      null,
+    );
+  });
+
+  it("rejects the ACTIVE conversion before any GetOblic mutation", async () => {
+    const store = {
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      conversions: [{ prospect_id: PROSPECT_A, status: "active" }],
+      links: [
+        completeLink({
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 1000,
+          relationship_status: "claiming",
+        }),
+      ],
+    };
+    const { ops } = installStore(store);
+    const wordpress = successWordpress(42);
+    await assert.rejects(() =>
+      releaseGetOblicListing(
+        {
+          organizationId: ORG_A,
+          prospectId: PROSPECT_A,
+          actorUserId: null,
+          now: NOW,
+        },
+        wordpress,
+      ),
+    );
+    assert.equal(
+      ops.filter((op) => op.op === "update" && op.table === "athena_getoblic_listing_links")
+        .length,
+      0,
+    );
+    assert.deepEqual(wordpress.calls, []);
+  });
+
+  it("allows release after the conversion is reversed", async () => {
+    const store = {
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      conversions: [{ prospect_id: PROSPECT_A, status: "reversed" }],
+      links: [
+        completeLink({
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 1000,
+          relationship_status: "linked",
+          wordpress_author_id: 42,
+        }),
+      ],
+    };
+    const wordpress = successWordpress(42);
+    const result = await release(store, wordpress);
+    assert.equal(result.outcome, "released");
+    assert.equal(store.links[0]?.relationship_status, "released");
+  });
+
+  it("keeps existing release behavior when no conversion exists", async () => {
+    const store = {
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      conversions: [],
+      links: [
+        completeLink({
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 1000,
+          relationship_status: "linked",
+          wordpress_author_id: 42,
+        }),
+      ],
+    };
+    const result = await release(store, successWordpress(42));
+    assert.equal(result.outcome, "released");
+    assert.equal(store.links[0]?.relationship_status, "released");
+  });
+
   it("does not delete allocation events, invoke generation, or attach release to the website card", () => {
     const releaseSource = read(
       "services/getoblicDirectory/getoblicDirectoryReleaseService.ts",
@@ -745,6 +863,9 @@ describe("GetOblic listing release", () => {
     assert.doesNotMatch(card, /Release GetOblic listing|getoblic-directory\/release/);
     assert.match(page, /GetOblicListingReleaseControl/);
     assert.match(page, /getActiveGetOblicLinkForProspect/);
+    assert.match(releaseSource, /prospectHasActiveClientConversion/);
+    assert.match(releaseSource, /GETOBLIC_RELEASE_ACTIVE_CONVERSION/);
+    assert.match(route, /GetOblicDirectoryError/);
     assert.doesNotMatch(releaseSource, /discussion|intelligence|executive_version|openrouter/i);
     assert.doesNotMatch(releaseSource, /putWordpressListingKnowledgeBase|knowledge-base/);
     const kb = read(

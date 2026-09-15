@@ -21,6 +21,10 @@ import {
   getGetOblicProspectLinkPresence,
 } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { excludeReleasedOnlyGetOblicProspectsFromLibrary } from "@/services/prospects/prospectLibraryEnrichment";
+import {
+  excludeActivelyConvertedProspects,
+  listActiveConvertedProspectIdsForOrganization,
+} from "@/services/prospects/prospectActiveConversionVisibility";
 import { resolveProspectDisplayStatus } from "@/services/prospects/prospectDisplay";
 import { computeProspectIntelligenceCompleteness } from "@/services/prospects/prospectIntelligenceCompleteness";
 import { normalizeProspectLifecycleStatus } from "@/services/prospects/prospectLifecycle";
@@ -362,10 +366,13 @@ async function loadPipeline(
 ): Promise<HomeDomainResult<HomePipelineData>> {
   try {
     const tenant = createTenantScope(organizationId);
-    const { data, error } = await tenant
-      .from("prospects")
-      .select(HOME_PROSPECT_COLUMNS)
-      .order("created_at", { ascending: false });
+    const [{ data, error }, activeConvertedProspectIds] = await Promise.all([
+      tenant
+        .from("prospects")
+        .select(HOME_PROSPECT_COLUMNS)
+        .order("created_at", { ascending: false }),
+      listActiveConvertedProspectIdsForOrganization(organizationId),
+    ]);
 
     if (error) {
       console.error("[ATHENA_HOME] prospect_pipeline_failed", {
@@ -375,8 +382,11 @@ async function loadPipeline(
       return { status: "error" };
     }
 
-    const prospects = ((data ?? []) as HomeSlimProspectRow[]).filter(
-      (row) => typeof row.id === "string" && row.id.length > 0,
+    const prospects = excludeActivelyConvertedProspects(
+      ((data ?? []) as HomeSlimProspectRow[]).filter(
+        (row) => typeof row.id === "string" && row.id.length > 0,
+      ),
+      activeConvertedProspectIds,
     );
 
     const presence = await getGetOblicProspectLinkPresence(
