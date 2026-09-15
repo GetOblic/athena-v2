@@ -32,16 +32,17 @@ describe("V20 final polish — header, dashboard UX, remove, notes, snapshot", (
 
   it("dashboard search, cards, primary CTA, and empty states render with Athena language", () => {
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
-    assert.match(client, /Search businesses, emails, notes/);
-    assert.match(client, /SearchIcon/);
-    assert.match(client, /Open Athena →/);
+    assert.match(client, /messages\.dashboard\.searchPlaceholder/);
+    assert.match(client, /from "lucide-react"/);
+    assert.match(client, /<Search className="h-5 w-5" \/>/);
+    assert.match(client, /messages\.subAccountCard\.openAthena/);
     assert.match(client, /shadow-xl shadow-orange-500\/25/);
-    assert.match(client, /Create your company account/);
-    assert.match(client, /No matching sub-accounts found/);
+    assert.match(client, /messages\.dashboard\.createCompanyAccount/);
+    assert.match(client, /messages\.dashboard\.noMatchTitle/);
     assert.match(client, /SubAccountFallbackIcon/);
-    assert.match(client, /Master Note/);
-    assert.match(client, /Account Snapshot/);
-    assert.match(client, /\bRemove\b/);
+    assert.match(client, /messages\.subAccountCard\.masterNote/);
+    assert.match(client, /messages\.subAccountCard\.accountSnapshot/);
+    assert.match(client, /messages\.common\.remove/);
     assert.match(client, /☆|★/);
   });
 
@@ -49,16 +50,16 @@ describe("V20 final polish — header, dashboard UX, remove, notes, snapshot", (
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
     assert.match(
       client,
-      /rounded-full bg-\[var\(--athena-orange\)\][\s\S]*Open Athena →/,
+      /rounded-full bg-\[var\(--athena-orange\)\][\s\S]*messages\.subAccountCard\.openAthena/,
     );
     assert.match(client, /☆|★/);
-    assert.match(client, /item\.pinned \? "Pinned" : "Pin"/);
-    assert.match(client, />\s*Remove\s*</);
+    assert.match(client, /messages\.common\.pinned/);
+    assert.match(client, /messages\.common\.remove/);
     // Pin/Remove live in expanded details; Open Athena remains on the collapsed card.
     const cardStart = client.indexOf("function SubAccountCard");
-    const openIndex = client.indexOf("Open Athena →", cardStart);
+    const openIndex = client.indexOf("messages.subAccountCard.openAthena", cardStart);
     const expandedIndex = client.indexOf("expanded ? (", cardStart);
-    const pinIndex = client.indexOf('item.pinned ? "Pinned" : "Pin"', cardStart);
+    const pinIndex = client.indexOf("messages.common.pinned", cardStart);
     assert.ok(cardStart >= 0);
     assert.ok(openIndex > cardStart && openIndex < expandedIndex);
     assert.ok(pinIndex > expandedIndex);
@@ -90,16 +91,11 @@ describe("V20 final polish — header, dashboard UX, remove, notes, snapshot", (
 
   it("remove confirmation copy matches product wording", () => {
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
-    assert.match(client, /Remove &quot;\{businessName\}&quot;\?/);
-    assert.match(
-      client,
-      /This will remove the account from your Master dashboard/,
-    );
-    assert.match(
-      client,
-      /The Athena account and its data will NOT be deleted/,
-    );
-    assert.match(client, /Remove Sub-account/);
-    assert.match(client, /Cancel/);
+    assert.match(client, /messages\.subAccountCard\.removeTitle/);
+    assert.match(client, /interpolateTenantMessage/);
+    assert.match(client, /messages\.subAccountCard\.removeBody/);
+    assert.match(client, /messages\.subAccountCard\.removeKeepData/);
+    assert.match(client, /messages\.subAccountCard\.removeConfirm/);
+    assert.match(client, /messages\.common\.cancel/);
   });
 });

@@ -42,11 +42,49 @@ function filesImportingTenantI18n(dirs: string[]): string[] {
 }
 
 describe("V31 L3.1 tenant i18n — surface isolation", () => {
-  it("Licensee files do not import tenantI18n", () => {
-    assert.deepEqual(
-      filesImportingTenantI18n(["app/licensee", "components/licensee"]),
-      [],
+  it("Licensee Master may reuse catalogs but must not use tenant org authority", () => {
+    const licenseeFiles = [
+      ...listTsFiles("app/licensee"),
+      ...listTsFiles("components/licensee"),
+      ...listTsFiles("lib/licensee"),
+    ];
+    for (const file of licenseeFiles) {
+      if (file === "app/licensee/login/page.tsx") {
+        const login = read(file);
+        assert.doesNotMatch(login, /getLicenseeLocalization|getTenantMessages/);
+        assert.doesNotMatch(login, /default_language/);
+        continue;
+      }
+      const source = read(file);
+      assert.doesNotMatch(
+        source,
+        /from ["']@\/lib\/tenantI18n\/getTenantLocalization["']/,
+        `${file} must not import tenant-org localization`,
+      );
+      assert.doesNotMatch(
+        source,
+        /from ["']@\/services\/organizationService["']/,
+        `${file} must not use tenant organization context`,
+      );
+      assert.doesNotMatch(
+        source,
+        /resolveOrganizationLanguage\s*\(/,
+        `${file} must not resolve organizations.language`,
+      );
+    }
+    const resolver = read("lib/licensee/getLicenseeLocalization.ts");
+    assert.match(resolver, /getTenantMessages/);
+    assert.match(resolver, /toFormattingLocale/);
+    assert.doesNotMatch(
+      resolver,
+      /from ["']@\/lib\/tenantI18n\/getTenantLocalization["']/,
     );
+    assert.doesNotMatch(
+      resolver,
+      /from ["']@\/services\/organizationService["']/,
+    );
+    assert.doesNotMatch(resolver, /resolveOrganizationLanguage/);
+    assert.doesNotMatch(resolver, /organizations\.language/);
   });
 
   it("Super Admin files do not import tenantI18n", () => {
@@ -71,7 +109,6 @@ describe("V31 L3.2 tenant chrome — shared-component isolation", () => {
       "components/auth/AthenaHeaderActions.tsx",
       "components/auth/LogoutCta.tsx",
       "components/ui/AthenaCollapsibleSection.tsx",
-      "components/licensee/BackToMasterCta.tsx",
       "components/deployment/CopyButton.tsx",
       "components/deployment/AssetUsageTagControls.tsx",
       "components/deployment/ContinueButton.tsx",
@@ -104,6 +141,20 @@ describe("V31 L3.1 tenant i18n — generated content isolation", () => {
     assert.match(types, /never Account Language/);
     assert.match(types, /Do not bind generated-content language to organizations\.language/);
     assert.match(types, /Do not rewrite generated bodies/);
+  });
+
+  it("BackToMasterCta uses Master language, not tenant org language", () => {
+    const source = read("components/licensee/BackToMasterCta.tsx");
+    assert.match(source, /getLicenseeLocalization/);
+    assert.doesNotMatch(
+      source,
+      /from ["']@\/lib\/tenantI18n\/getTenantLocalization["']/,
+    );
+    assert.doesNotMatch(
+      source,
+      /from ["']@\/services\/organizationService["']/,
+    );
+    assert.doesNotMatch(source, /resolveOrganizationLanguage/);
   });
 
   it("workers do not import tenantI18n", () => {

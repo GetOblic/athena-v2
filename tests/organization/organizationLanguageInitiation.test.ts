@@ -412,7 +412,7 @@ describe("V31 L2 account initiation language — Licensee sub-account creation",
     const page = read("app/licensee/sub-accounts/new/page.tsx");
     assert.match(page, /parseOrganizationLanguage\(accountLanguageRaw\)/);
     assert.match(page, /name=["']accountLanguage["']/);
-    assert.match(page, /Account Language/);
+    assert.match(page, /create\.accountLanguage|Account Language/);
     assert.match(page, /ORGANIZATION_LANGUAGES/);
     assert.match(page, /ORGANIZATION_LANGUAGE_LABELS/);
     assert.match(page, /resolveOrganizationLanguageValue\(licenseeAccount\.default_language\)/);
@@ -582,7 +582,7 @@ describe("V31 L2 account initiation language — Licensee sub-account creation",
         selectedBlock.indexOf("licenseeAccount.default_language"),
     );
     assert.match(page, /name=["']accountLanguage["']/);
-    assert.match(page, /Account Language/);
+    assert.match(page, /create\.accountLanguage|Account Language/);
   });
 
   it("omitted language uses the Licensee Master default instead of the English DB default", async () => {

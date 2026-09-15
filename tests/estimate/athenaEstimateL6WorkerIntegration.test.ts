@@ -132,7 +132,7 @@ describe("Athena Estimate L6 — worker queue integration", () => {
 
     const ecosystem = read("ecosystem.config.cjs");
     assert.equal(
-      (ecosystem.match(/name: "athena-worker"/g) ?? []).length,
+      (ecosystem.match(/name: "athena-v2-worker"/g) ?? []).length,
       1,
     );
     assert.doesNotMatch(ecosystem, /estimate-worker|athena-estimate-worker/i);

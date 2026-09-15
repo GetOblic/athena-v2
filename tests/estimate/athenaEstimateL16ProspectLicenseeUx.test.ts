@@ -166,12 +166,9 @@ describe("Athena Estimate L16 — Prospect Licensee Master UX", () => {
       selectSource,
       /disabled \|\| loading \|\| status === "error"/,
     );
-    assert.match(selectSource, /Loading Prospects/);
-    assert.match(selectSource, /No Prospects in this sub-account/);
-    assert.match(
-      selectSource,
-      /Could not load Prospects for this sub-account/,
-    );
+    assert.match(selectSource, /messages\.estimate\.prospectLoading/);
+    assert.match(selectSource, /messages\.estimate\.prospectEmpty/);
+    assert.match(selectSource, /messages\.estimate\.prospectLoadFailed/);
     // Generate remains available — create button not gated on Prospect load.
     const clientSource = client();
     assert.match(
@@ -212,9 +209,9 @@ describe("Athena Estimate L16 — Prospect Licensee Master UX", () => {
     const clientSource = client();
     assert.match(clientSource, /data-estimate-target-display="prospect"/);
     assert.match(clientSource, /data-estimate-target-display="organization"/);
-    assert.match(clientSource, /Estimate for/);
+    assert.match(clientSource, /estimate\.estimateFor|messages\.estimate\.estimateFor/);
     assert.match(clientSource, /prospectBusinessNameSnapshot/);
-    assert.match(clientSource, /via\s*\{/);
+    assert.match(clientSource, /estimate\.via|messages\.estimate\.via/);
     assert.match(clientSource, /organizationNameSnapshot/);
 
     assert.equal(
@@ -255,7 +252,10 @@ describe("Athena Estimate L16 — Prospect Licensee Master UX", () => {
 
     const clientSource = client();
     assert.match(clientSource, /formatEstimateHistoryPrimaryLabel\(item\)/);
-    assert.match(clientSource, /via \{item\.organizationNameSnapshot\}/);
+    assert.match(
+      clientSource,
+      /estimate\.via\} \{item\.organizationNameSnapshot\}|messages\.estimate\.via\} \{item\.organizationNameSnapshot\}|via \{item\.organizationNameSnapshot\}/,
+    );
   });
 
   it("21/22/23/24/25. Removed Prospect UX: badge, openable Ready, hide ok, regenerate blocked", () => {

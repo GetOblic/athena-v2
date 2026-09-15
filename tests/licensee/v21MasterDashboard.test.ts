@@ -175,17 +175,20 @@ describe("V21.2 — operational metrics and readiness", () => {
   it("dashboard collapses cards by default and keeps Open Athena visible", () => {
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
     assert.match(client, /useState\(false\)/);
-    assert.match(client, /Details/);
-    assert.match(client, /Hide details/);
-    assert.match(client, /Account Readiness/);
-    assert.match(client, /Last Visit/);
-    assert.match(client, /Master Display Name/);
+    assert.match(client, /messages\.common\.details/);
+    assert.match(client, /messages\.common\.hideDetails/);
+    assert.match(client, /messages\.subAccountCard\.accountReadiness/);
+    assert.match(client, /messages\.subAccountCard\.lastVisit/);
+    assert.match(client, /messages\.subAccountCard\.masterDisplayName/);
     assert.match(client, /StatusChip/);
-    assert.match(client, /Open Athena →/);
+    assert.match(client, /messages\.subAccountCard\.openAthena/);
 
     const cardStart = client.indexOf("function SubAccountCard");
     const expandedBlock = client.indexOf("expanded ? (", cardStart);
-    const openAthena = client.indexOf("Open Athena →", cardStart);
+    const openAthena = client.indexOf(
+      "messages.subAccountCard.openAthena",
+      cardStart,
+    );
     assert.ok(cardStart >= 0);
     assert.ok(expandedBlock > cardStart);
     assert.ok(openAthena > cardStart && openAthena < expandedBlock);
@@ -196,12 +199,12 @@ describe("V21.2 — operational metrics and readiness", () => {
     const quotePage = read("app/licensee/quote/page.tsx");
     const sidebar = read("components/dashboard/DashboardSidebar.tsx");
 
-    assert.match(client, /Athena Quote/);
+    assert.match(client, /messages\.dashboard\.quoteTitle/);
     assert.match(client, /href="\/licensee\/quote"/);
-    assert.match(client, /Athena Estimate/);
+    assert.match(client, /messages\.dashboard\.estimateTitle/);
     assert.match(client, /href="\/licensee\/estimate"/);
     assert.match(quotePage, /getLicenseeAccountByUserId/);
-    assert.match(quotePage, /Back to Master dashboard/);
+    assert.match(quotePage, /messages\.common\.backToMasterDashboard/);
     assert.doesNotMatch(quotePage, /DashboardSidebar/);
     assert.doesNotMatch(sidebar, /Athena Quote/);
     assert.doesNotMatch(sidebar, /Athena Estimate/);
@@ -305,9 +308,9 @@ describe("V21.3 — Last Visit (organization.last_visited_at)", () => {
 
     assert.match(types, /lastVisitedAt:\s*string \| null/);
     assert.doesNotMatch(types, /latestAthenaAccessAt/);
-    assert.match(client, /Last Visit/);
-    assert.match(client, /formatLastVisit\(item\.metrics\.lastVisitedAt\)/);
-    assert.match(client, /Never visited/);
+    assert.match(client, /messages\.subAccountCard\.lastVisit/);
+    assert.match(client, /formatLastVisit\(item\.metrics\.lastVisitedAt/);
+    assert.match(client, /messages\.common\.neverVisited/);
     assert.doesNotMatch(client, /Latest Athena Access|Never logged in|latestAthenaAccessAt/);
     assert.doesNotMatch(service, /last_sign_in_at|latestAthenaAccessAt/);
   });

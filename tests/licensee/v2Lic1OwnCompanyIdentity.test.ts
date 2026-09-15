@@ -304,7 +304,7 @@ describe("V2-LIC-1 — persistence / types", () => {
     assert.match(identity, /own_company_organization_id:\s*string \| null/);
     assert.match(
       identity,
-      /select\("id, user_id, email, own_company_organization_id, default_language"\)/,
+      /select\("id, user_id, email, own_company_organization_id, default_language, licensee_monthly_fee_usd, sub_account_monthly_fee_usd"\)/,
     );
   });
 });
@@ -672,35 +672,35 @@ describe("V2-LIC-1 — Estimate / handoff / authorization / UI", () => {
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
     const create = read("app/licensee/sub-accounts/new/page.tsx");
 
-    assert.match(client, /My Company/);
+    assert.match(client, /messages\.dashboard\.myCompany|messages\.subAccountCard\.myCompany/);
     assert.match(client, /LockIcon/);
     assert.match(client, /sortLicenseeSubAccountsForDashboard/);
     assert.match(client, /item\.isOwnCompany/);
-    assert.match(client, /Set as My Company/);
-    assert.match(client, /Which account is your company\?/);
-    assert.match(
-      client,
-      /Choose the account you use to run your own GetOblic business/,
-    );
-    assert.match(client, /Create your company account/);
-    assert.match(client, /title="Pinned"/);
-    assert.match(client, /title="All Sub-accounts"/);
+    assert.match(client, /messages\.subAccountCard\.setAsMyCompany/);
+    assert.match(client, /messages\.dashboard\.ownCompanyQuestion/);
+    assert.match(client, /messages\.dashboard\.ownCompanyQuestionBody/);
+    assert.match(client, /messages\.dashboard\.createCompanyAccount/);
+    assert.match(client, /title=\{messages\.dashboard\.pinned\}/);
+    assert.match(client, /title=\{messages\.dashboard\.allSubAccounts\}/);
 
     const cardStart = client.indexOf("function SubAccountCard");
-    const pinIndex = client.indexOf('item.pinned ? "Pinned" : "Pin"', cardStart);
-    const removeIndex = client.indexOf("Remove", pinIndex);
+    const pinIndex = client.indexOf(
+      "item.pinned ? messages.common.pinned : messages.common.pin",
+      cardStart,
+    );
+    const removeIndex = client.indexOf("messages.common.remove", pinIndex);
     const ownCompanyGuard = client.indexOf("item.isOwnCompany", cardStart);
     assert.ok(ownCompanyGuard > cardStart);
     assert.ok(pinIndex > ownCompanyGuard);
     assert.ok(removeIndex > pinIndex);
     assert.match(
       client.slice(cardStart),
-      /item\.isOwnCompany \? \([\s\S]*Locked company identity/,
+      /item\.isOwnCompany \? \([\s\S]*messages\.subAccountCard\.lockedCompanyIdentity/,
     );
 
     assert.match(create, /isFirstCompanySetup/);
-    assert.match(create, /Create your company account/);
-    assert.match(create, /Create Sub-account/);
+    assert.match(create, /create\.createCompanyTitle|messages\.subAccountCreate\.createCompanyTitle/);
+    assert.match(create, /create\.createSubAccountTitle|messages\.subAccountCreate\.createSubAccountTitle/);
     assert.match(create, /getLicenseeOwnCompanySetupState/);
   });
 
@@ -734,7 +734,7 @@ describe("V2-LIC-1 — strict non-interference", () => {
     const sidebar = read("components/dashboard/DashboardSidebar.tsx");
 
     assert.match(quote, /getLicenseeAccountByUserId/);
-    assert.match(quote, /Back to Master dashboard/);
+    assert.match(quote, /messages\.common\.backToMasterDashboard/);
     assert.doesNotMatch(quote, /own_company|isOwnCompany|My Company/);
     assert.doesNotMatch(estimatePage, /own_company|isOwnCompany|My Company/);
     assert.doesNotMatch(sidebar, /My Company|own_company_organization_id/);

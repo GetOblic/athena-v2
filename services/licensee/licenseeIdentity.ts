@@ -3,6 +3,7 @@ import {
   resolveOrganizationLanguageValue,
   type OrganizationLanguage,
 } from "@/services/organizationLanguage";
+import { readStoredFeeUsd } from "@/services/superAdmin/superAdminLicenseeCommercialFeeTypes";
 import {
   AccountAccessDeniedError,
   assertAccountAccessActive,
@@ -15,10 +16,14 @@ export type LicenseeAccount = {
   /** Licensee-scoped own-company identity. Null until designated. */
   own_company_organization_id: string | null;
   /**
-   * Creation default for future Licensee sub-accounts.
-   * Does not localize /licensee and does not override existing organizations.
+   * Licensee Master UI language and creation default for future sub-accounts.
+   * Does not override language of existing tenant organizations.
    */
   default_language: OrganizationLanguage;
+  /** Super Admin-configured unit rate. Display-only on /licensee. */
+  licenseeMonthlyFeeUsd: number;
+  /** Super Admin-configured unit rate. Display-only on /licensee. */
+  subAccountMonthlyFeeUsd: number;
 };
 
 export type AuthorizedLicenseeSubAccountRelationship = {
@@ -107,6 +112,8 @@ function mapLicenseeAccountRow(data: {
   email: unknown;
   own_company_organization_id: unknown;
   default_language?: unknown;
+  licensee_monthly_fee_usd?: unknown;
+  sub_account_monthly_fee_usd?: unknown;
 }): LicenseeAccount {
   return {
     id: data.id as string,
@@ -117,6 +124,8 @@ function mapLicenseeAccountRow(data: {
         ? data.own_company_organization_id
         : null,
     default_language: resolveOrganizationLanguageValue(data.default_language),
+    licenseeMonthlyFeeUsd: readStoredFeeUsd(data.licensee_monthly_fee_usd),
+    subAccountMonthlyFeeUsd: readStoredFeeUsd(data.sub_account_monthly_fee_usd),
   };
 }
 
@@ -130,7 +139,7 @@ export async function getLicenseeAccountByUserId(
 
   const { data, error } = await supabaseAdmin
     .from("licensee_accounts")
-    .select("id, user_id, email, own_company_organization_id, default_language")
+    .select("id, user_id, email, own_company_organization_id, default_language, licensee_monthly_fee_usd, sub_account_monthly_fee_usd")
     .eq("user_id", id)
     .maybeSingle();
 
@@ -139,6 +148,35 @@ export async function getLicenseeAccountByUserId(
       return null;
     }
     console.error("licensee_accounts fetch failed:", error);
+    return null;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return mapLicenseeAccountRow(data);
+}
+
+export async function getLicenseeAccountById(
+  licenseeAccountId: string,
+): Promise<LicenseeAccount | null> {
+  const id = licenseeAccountId.trim();
+  if (!id) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("licensee_accounts")
+    .select("id, user_id, email, own_company_organization_id, default_language, licensee_monthly_fee_usd, sub_account_monthly_fee_usd")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingLicenseeRelationError(error)) {
+      return null;
+    }
+    console.error("licensee_accounts id fetch failed:", error);
     return null;
   }
 
@@ -167,7 +205,7 @@ export async function getLicenseeAccountsByOwnCompanyOrganizationId(
 
   const { data, error } = await supabaseAdmin
     .from("licensee_accounts")
-    .select("id, user_id, email, own_company_organization_id, default_language")
+    .select("id, user_id, email, own_company_organization_id, default_language, licensee_monthly_fee_usd, sub_account_monthly_fee_usd")
     .eq("own_company_organization_id", id);
 
   if (error) {

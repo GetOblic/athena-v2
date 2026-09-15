@@ -11,7 +11,16 @@
  * 3. Asset TYPE display labels → tenantI18n presentation (Phase 1A)
  * 4. Generated asset BODY → model output, stored and rendered verbatim
  * 5. Generated-content language → explicit operator/business context,
- *    never Account Language
+ *    never Account Language (organizations.language)
+ *
+ * Licensee Master exception (not tenant Account Language):
+ * licensee_accounts.default_language is BOTH the Master UI language and the
+ * default language for future sub-account creation. Future Estimate
+ * generation and Estimate Ask Athena replies follow that Master language.
+ * It does not override language of existing tenant organizations.
+ * Licensee presentation uses getTenantMessages / formatting helpers via
+ * getLicenseeLocalization. It must not call getTenantLocalization() or
+ * requireCurrentOrganizationContext().
  *
  * Do not bind generated-content language to organizations.language.
  * Do not translate structural KEY headings.

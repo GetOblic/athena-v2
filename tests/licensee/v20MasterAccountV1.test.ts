@@ -166,7 +166,7 @@ describe("V20 Master Account — V1 contracts", () => {
     const actions = read("components/auth/AthenaHeaderActions.tsx");
     const masterLogout = read("app/api/licensee/logout/route.ts");
     const athenaLogout = read("app/api/auth/logout/route.ts");
-    assert.match(back, /Back to Master/);
+    assert.match(back, /handoff\.backToMaster|Back to Master/);
     assert.match(back, /clearLicenseeHandoffBrowserStorage/);
     assert.match(back, /return_to_master/);
     assert.match(back, /canReturnToMaster/);
@@ -290,24 +290,21 @@ describe("V20 Master Account — V1 contracts", () => {
     const dashboard = read("app/licensee/page.tsx");
     const create = read("app/licensee/sub-accounts/new/page.tsx");
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
-    assert.match(dashboard, /Athena Business Licensee/);
-    assert.match(dashboard, /Logout/);
+    assert.match(dashboard, /messages\.brand\.athenaBusinessLicensee/);
+    assert.match(dashboard, /messages\.common\.logout/);
     assert.match(dashboard, /listLicenseeSubAccountsForMaster/);
-    assert.match(create, /Business Name/);
-    assert.match(
-      create,
-      /This is the email associated with this Athena sub-account and usable for direct Athena access/,
-    );
-    assert.match(client, /Pinned/);
-    assert.match(client, /All Sub-accounts/);
-    assert.match(client, /Open Athena →/);
-    assert.match(client, /Create Sub-account/);
-    assert.match(client, /Search businesses, emails, notes/);
-    assert.match(client, /Create your company account/);
-    assert.match(client, /No matching sub-accounts found/);
-    assert.match(client, /Master Note/);
-    assert.match(client, /Account Snapshot/);
-    assert.match(client, /Remove Sub-account/);
+    assert.match(create, /create\.businessName|messages\.subAccountCreate\.businessName/);
+    assert.match(create, /create\.accountEmailHelp|messages\.subAccountCreate\.accountEmailHelp/);
+    assert.match(client, /messages\.dashboard\.pinned/);
+    assert.match(client, /messages\.dashboard\.allSubAccounts/);
+    assert.match(client, /messages\.subAccountCard\.openAthena/);
+    assert.match(client, /messages\.dashboard\.createSubAccount/);
+    assert.match(client, /messages\.dashboard\.searchPlaceholder/);
+    assert.match(client, /messages\.dashboard\.createCompanyAccount/);
+    assert.match(client, /messages\.dashboard\.noMatchTitle/);
+    assert.match(client, /messages\.subAccountCard\.masterNote/);
+    assert.match(client, /messages\.subAccountCard\.accountSnapshot/);
+    assert.match(client, /messages\.subAccountCard\.removeConfirm/);
   });
 
   it("Remove deletes only licensee_sub_accounts relationship and is Master-authorized", () => {
@@ -349,6 +346,6 @@ describe("V20 Master Account — V1 contracts", () => {
     assert.match(route, /jsonError\(403/);
     assert.match(client, /item\.notes\.toLowerCase\(\)\.includes\(q\)/);
     assert.match(client, /accountSnapshot/);
-    assert.match(client, /Save note/);
+    assert.match(client, /messages\.subAccountCard\.saveNote/);
   });
 });

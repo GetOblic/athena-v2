@@ -196,8 +196,16 @@ export function buildEstimateConversationPrompt(input: {
   assembled: EstimateConversationAssembledContext;
   history: EstimateConversationHistoryMessage[];
   userMessage: string;
+  /**
+   * Already-resolved Master response-language instruction.
+   * Prompt builders must not import catalogs or resolve language themselves.
+   */
+  responseLanguageInstruction?: string | null;
 }): EstimateConversationBuiltPrompt {
-  const systemPrompt = ESTIMATE_CONVERSATION_SYSTEM_PROMPT;
+  const languageInstruction = input.responseLanguageInstruction?.trim();
+  const systemPrompt = languageInstruction
+    ? `${ESTIMATE_CONVERSATION_SYSTEM_PROMPT}\n\n${languageInstruction}`
+    : ESTIMATE_CONVERSATION_SYSTEM_PROMPT;
   const userMessage = input.userMessage.trim();
   const maxTotal = ESTIMATE_CONVERSATION_LIMITS.maxTotalPromptChars;
 

@@ -331,6 +331,7 @@ describe("V2-UI-1B tenant app shell — isolation and leakage", () => {
   });
 
   it("does not appear on Licensee, Super, login, Quote, or Estimate surfaces", () => {
+    const licenseeSurfaces = new Set(["app/licensee", "components/licensee"]);
     const surfaces = [
       "app/licensee",
       "app/super",
@@ -343,7 +344,15 @@ describe("V2-UI-1B tenant app shell — isolation and leakage", () => {
       for (const file of listTsFiles(dir)) {
         const source = read(file);
         assert.doesNotMatch(source, /TenantAppShell|tenantNavigation/);
-        assert.doesNotMatch(source, /tenantI18n|getTenantLocalization/);
+        assert.doesNotMatch(source, /getTenantLocalization/);
+        if (licenseeSurfaces.has(dir)) {
+          assert.doesNotMatch(
+            source,
+            /from ["']@\/lib\/tenantI18n\/getTenantLocalization["']/,
+          );
+          continue;
+        }
+        assert.doesNotMatch(source, /tenantI18n/);
       }
     }
   });
@@ -381,7 +390,9 @@ describe("V2-UI-1B tenant app shell — isolation and leakage", () => {
     assert.doesNotMatch(sidebar, /LogoutCta|BackToMasterCta|AthenaBrandLink/);
     assert.doesNotMatch(mobile, /LogoutCta|BackToMasterCta|AthenaBrandLink/);
     for (const language of ORGANIZATION_LANGUAGES) {
-      const paths = collectKeyPaths(DICTIONARIES[language]);
+      const paths = collectKeyPaths(DICTIONARIES[language]).filter(
+        (path) => !path.startsWith("licensee."),
+      );
       assert.equal(
         paths.some((path) => /backToMaster|returnToMaster/i.test(path)),
         false,

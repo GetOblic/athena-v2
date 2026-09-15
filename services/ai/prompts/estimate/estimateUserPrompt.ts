@@ -16,6 +16,11 @@ export function buildEstimateUserPrompt(input: {
    * Omit / null / empty for org-only — do not emit an empty Prospect heading.
    */
   prospectCommercialTargetIntelligence?: string | null;
+  /**
+   * Already-resolved Master output-language instruction.
+   * Prompt builders must not import catalogs or resolve language themselves.
+   */
+  outputLanguageInstruction?: string | null;
 }): string {
   const currencyCode = input.geoCurrency.currencyCode;
   const currencyResolution = input.geoCurrency.currencyResolution;
@@ -60,7 +65,11 @@ TRUSTED ATHENA EVIDENCE
 ${input.trustedContext}
 ${prospectBlock}
 ${input.operatorGuidanceBlock}
-
+${
+  input.outputLanguageInstruction?.trim()
+    ? `\n${input.outputLanguageInstruction.trim()}\n`
+    : ""
+}
 NORMALIZED REQUEST SUMMARY:
 - projectNeed: ${input.request.projectNeed}
 ${

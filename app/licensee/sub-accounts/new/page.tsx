@@ -4,6 +4,8 @@ export const revalidate = 0;
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { getLicenseeLocalization } from "@/lib/licensee/getLicenseeLocalization";
+import { licenseeErrorMessage } from "@/lib/licensee/licenseeErrorPresentation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getLicenseeAccountByUserId } from "@/services/licensee/licenseeIdentity";
 import {
@@ -25,6 +27,7 @@ export default async function CreateLicenseeSubAccountPage({
 }: {
   searchParams?: Promise<{
     message?: string;
+    error?: string;
     email?: string;
     businessName?: string;
     language?: string;
@@ -70,20 +73,20 @@ export default async function CreateLicenseeSubAccountPage({
     const accountLanguageRaw = String(formData.get("accountLanguage") || "");
     const confirmLinkExisting = formData.get("confirmLinkExisting") === "1";
 
-    const formQuery = (message: string) =>
+    const formQuery = (errorCode: string) =>
       `/licensee/sub-accounts/new?email=${encodeURIComponent(
         accountEmail.trim().toLowerCase(),
       )}&businessName=${encodeURIComponent(
         businessName.trim(),
-      )}&language=${encodeURIComponent(accountLanguageRaw)}&message=${encodeURIComponent(
-        message,
+      )}&language=${encodeURIComponent(accountLanguageRaw)}&error=${encodeURIComponent(
+        errorCode,
       )}`;
 
     let accountLanguage;
     try {
       accountLanguage = parseOrganizationLanguage(accountLanguageRaw);
     } catch {
-      redirect(formQuery("A supported Account Language is required."));
+      redirect(formQuery("INVALID_LANGUAGE"));
     }
 
     try {
@@ -122,15 +125,15 @@ export default async function CreateLicenseeSubAccountPage({
             businessName.trim(),
           )}&language=${encodeURIComponent(
             accountLanguageRaw,
-          )}&message=${encodeURIComponent(error.message)}`,
+          )}&error=${encodeURIComponent(error.code)}`,
         );
       }
 
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Could not create sub-account.";
-      redirect(formQuery(message));
+      const errorCode =
+        error instanceof LicenseeSubAccountCreateError
+          ? error.code
+          : "CREATE_FAILED";
+      redirect(formQuery(errorCode));
     }
   }
 
@@ -141,6 +144,17 @@ export default async function CreateLicenseeSubAccountPage({
     : resolveOrganizationLanguageValue(licenseeAccount.default_language);
   const setupState = await getLicenseeOwnCompanySetupState(user.id);
   const isFirstCompanySetup = setupState.isFirstCompanySetup;
+  const { messages } = getLicenseeLocalization(
+    licenseeAccount.default_language,
+  );
+  const create = messages.subAccountCreate;
+  const displayedError = params.error
+    ? licenseeErrorMessage(messages, params.error)
+    : params.message
+      ? needsConfirm
+        ? messages.errors.existingRequiresConfirmation
+        : messages.errors.generic
+      : null;
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] px-6 py-10 text-white">
@@ -151,55 +165,57 @@ export default async function CreateLicenseeSubAccountPage({
           href="/licensee"
           className="text-sm text-[var(--athena-orange)]"
         >
-          ← Back to Master dashboard
+          {messages.common.backToMasterDashboard}
         </Link>
 
         <div className="mt-10">
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Business Licensee
+            {messages.brand.businessLicensee}
           </div>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight">
             {isFirstCompanySetup
-              ? "Create your company account"
-              : "Create Sub-account"}
+              ? create.createCompanyTitle
+              : create.createSubAccountTitle}
           </h1>
           <p className="mt-4 text-sm leading-7 text-white/50">
             {isFirstCompanySetup
-              ? "This will be the Athena workspace you use to grow your own business. It remains a normal Athena account with its own login, organization, and Brain."
-              : "Creates or links a normal Athena account. The sub-account keeps its own login, organization, and Brain."}
+              ? create.createCompanyDescription
+              : create.createSubAccountDescription}
           </p>
         </div>
 
         <form action={createSubAccount} className="mt-8 space-y-5">
           <label className="block space-y-2">
-            <span className="text-sm text-white/70">Business Name</span>
+            <span className="text-sm text-white/70">{create.businessName}</span>
             <input
               name="businessName"
               type="text"
               required
               defaultValue={params.businessName || ""}
-              placeholder="Acme Studio"
+              placeholder={create.businessNamePlaceholder}
               className="w-full rounded-2xl border border-white/10 bg-black/30 px-5 py-4 text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
             />
           </label>
 
           <label className="block space-y-2">
-            <span className="text-sm text-white/70">Account Email</span>
+            <span className="text-sm text-white/70">{create.accountEmail}</span>
             <input
               name="accountEmail"
               type="email"
               required
               defaultValue={params.email || ""}
-              placeholder="client@example.com"
+              placeholder={create.accountEmailPlaceholder}
               className="w-full rounded-2xl border border-white/10 bg-black/30 px-5 py-4 text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
             />
             <span className="block text-sm leading-6 text-white/40">
-              This is the email associated with this Athena sub-account and usable for direct Athena access.
+              {create.accountEmailHelp}
             </span>
           </label>
 
           <label className="block space-y-2">
-            <span className="text-sm text-white/70">Account Language</span>
+            <span className="text-sm text-white/70">
+              {create.accountLanguage}
+            </span>
             <select
               name="accountLanguage"
               required
@@ -213,7 +229,7 @@ export default async function CreateLicenseeSubAccountPage({
               ))}
             </select>
             <span className="block text-sm leading-6 text-white/40">
-              Sets the language Athena will use for this account.
+              {create.accountLanguageHelp}
             </span>
           </label>
 
@@ -226,10 +242,7 @@ export default async function CreateLicenseeSubAccountPage({
                 required
                 className="mt-1"
               />
-              <span>
-                I confirm this existing Athena account should be linked to my
-                Master dashboard. No second organization will be created.
-              </span>
+              <span>{create.confirmLinkExisting}</span>
             </label>
           ) : null}
 
@@ -238,16 +251,16 @@ export default async function CreateLicenseeSubAccountPage({
             className="w-full rounded-full bg-[var(--athena-orange)] px-6 py-4 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
           >
             {needsConfirm
-              ? "Confirm and link sub-account"
+              ? create.submitConfirmLink
               : isFirstCompanySetup
-                ? "Create your company account"
-                : "Create Sub-account"}
+                ? create.submitCreateCompany
+                : create.submitCreateSubAccount}
           </button>
         </form>
 
-        {params.message ? (
+        {displayedError ? (
           <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-white/70">
-            {params.message}
+            {displayedError}
           </div>
         ) : null}
       </div>

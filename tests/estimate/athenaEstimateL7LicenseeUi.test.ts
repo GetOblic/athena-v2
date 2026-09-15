@@ -58,18 +58,12 @@ function samplePackage(
 describe("Athena Estimate L7 — Licensee Master UI", () => {
   it("1/2. Estimate dashboard card appears; Quote card remains unchanged", () => {
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
-    assert.match(client, /Athena Estimate/);
+    assert.match(client, /messages\.dashboard\.estimateTitle/);
     assert.match(client, /href="\/licensee\/estimate"/);
-    assert.match(
-      client,
-      /Know what to charge your client — using Athena’s knowledge of/,
-    );
-    assert.match(client, /Athena Quote/);
+    assert.match(client, /messages\.dashboard\.estimateDescription/);
+    assert.match(client, /messages\.dashboard\.quoteTitle/);
     assert.match(client, /href="\/licensee\/quote"/);
-    assert.match(
-      client,
-      /Submit client work for private GetOblic fulfillment pricing/,
-    );
+    assert.match(client, /messages\.dashboard\.quoteDescription/);
   });
 
   it("3. Estimate absent from ordinary tenant sidebar", () => {
@@ -115,7 +109,7 @@ describe("Athena Estimate L7 — Licensee Master UI", () => {
       "components/licensee/estimate/estimateUiHelpers.ts",
     );
     assert.match(client, /ESTIMATE_PROJECT_NEED_MIN_LENGTH/);
-    assert.match(client, /Describe what the client needs/);
+    assert.match(client, /messages\.estimate\.describeNeed|estimate\.describeNeed/);
     assert.deepEqual(
       ESTIMATE_TIMEFRAME_OPTIONS.map((o) => o.value),
       ["asap", "2_4_weeks", "1_3_months", "flexible"],
@@ -124,8 +118,8 @@ describe("Athena Estimate L7 — Licensee Master UI", () => {
       ESTIMATE_TIMEFRAME_OPTIONS.map((o) => o.label),
       ["ASAP", "2–4 weeks", "1–3 months", "Flexible"],
     );
-    assert.match(helpers, /ASAP/);
-    assert.match(helpers, /2–4 weeks/);
+    assert.match(helpers, /timeframeAsap/);
+    assert.match(helpers, /timeframe2to4Weeks/);
   });
 
   it("9/10. create POST uses approved payload only; enters queued/processing UX", () => {
@@ -139,7 +133,7 @@ describe("Athena Estimate L7 — Licensee Master UI", () => {
     assert.match(client, /additionalContext/);
     assert.match(client, /timeframe/);
     assert.doesNotMatch(client, /licenseeAccountId|package_json|instructionText/);
-    assert.match(client, /Estimate queued|Generating Estimate/);
+    assert.match(client, /estimate\.queuedTitle|estimate\.generatingTitle|messages\.estimate\.queuedTitle|messages\.estimate\.generatingTitle/);
     assert.match(client, /startPolling/);
   });
 
@@ -161,13 +155,13 @@ describe("Athena Estimate L7 — Licensee Master UI", () => {
     const client = read(
       "components/licensee/estimate/LicenseeEstimateClient.tsx",
     );
-    assert.match(client, /Recommended Client Price/);
-    assert.match(client, /Recommended range/);
-    assert.match(client, /Scope Interpretation/);
-    assert.match(client, /Pricing Rationale/);
-    assert.match(client, /Key Price Drivers/);
-    assert.match(client, /Suggested Client Positioning/);
-    assert.match(client, /Risks & Assumptions/);
+    assert.match(client, /estimate\.recommendedPrice|messages\.estimate\.recommendedPrice/);
+    assert.match(client, /estimate\.recommendedRange|messages\.estimate\.recommendedRange/);
+    assert.match(client, /estimate\.scopeInterpretation|messages\.estimate\.scopeInterpretation/);
+    assert.match(client, /estimate\.pricingRationale|messages\.estimate\.pricingRationale/);
+    assert.match(client, /estimate\.keyPriceDrivers|messages\.estimate\.keyPriceDrivers/);
+    assert.match(client, /estimate\.suggestedPositioning|messages\.estimate\.suggestedPositioning/);
+    assert.match(client, /estimate\.risksAssumptions|messages\.estimate\.risksAssumptions/);
     assert.match(client, /geographyLabel/);
     assert.match(client, /currencyResolution === "fallback"/);
     assert.match(client, /guidanceDisclaimer/);
@@ -197,11 +191,11 @@ describe("Athena Estimate L7 — Licensee Master UI", () => {
     const client = read(
       "components/licensee/estimate/LicenseeEstimateClient.tsx",
     );
-    assert.match(client, /No longer connected/);
+    assert.match(client, /estimate\.disconnected|messages\.estimate\.disconnected/);
     assert.match(client, /!item\.relationshipConnected/);
     assert.match(
       client,
-      /Regeneration unavailable — this client is no longer connected/,
+      /estimate\.regenerateUnavailableDisconnected|messages\.estimate\.regenerateUnavailableDisconnected/,
     );
     assert.match(
       client,
@@ -226,7 +220,7 @@ describe("Athena Estimate L7 — Licensee Master UI", () => {
     const client = read(
       "components/licensee/estimate/LicenseeEstimateClient.tsx",
     );
-    assert.match(client, /Create Another Estimate/);
+    assert.match(client, /estimate\.createAnother|messages\.estimate\.createAnother/);
     assert.match(client, /handleCreateAnother/);
     assert.match(client, /setActiveEstimate\(null\)/);
     assert.match(client, /resetFormFields/);
@@ -237,8 +231,8 @@ describe("Athena Estimate L7 — Licensee Master UI", () => {
     const client = read(
       "components/licensee/estimate/LicenseeEstimateClient.tsx",
     );
-    assert.match(client, /Want GetOblic to fulfill this project\?/);
-    assert.match(client, /Request a Fulfillment Quote/);
+    assert.match(client, /estimate\.quoteTitle|messages\.estimate\.quoteTitle/);
+    assert.match(client, /estimate\.quoteCta|messages\.estimate\.quoteCta/);
     assert.match(client, /href="\/licensee\/quote"/);
     assert.doesNotMatch(client, /go\.getoblic\.com|NQfn7tnDbGyyq9JVei6Q/);
     assert.doesNotMatch(client, /prefill|transferEstimate|quotePayload/i);

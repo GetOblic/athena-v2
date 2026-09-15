@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import {
+  getLicenseeLocalization,
+  type LicenseeMessages,
+} from "@/lib/licensee/getLicenseeLocalization";
+import { licenseeErrorMessage } from "@/lib/licensee/licenseeErrorPresentation";
 import { ESTIMATE_PROSPECT_NONE_OPTION_LABEL } from "@/components/licensee/estimate/estimateUiHelpers";
 
 export type EstimateProspectOption = {
@@ -21,6 +26,7 @@ type EstimateProspectSelectProps = {
   onChange: (prospectId: string | null) => void;
   /** Extra disable (e.g. while Estimate is submitting). */
   disabled?: boolean;
+  messages?: LicenseeMessages;
 };
 
 type LoadStatus = "idle" | "loading" | "ready" | "empty" | "error";
@@ -37,6 +43,7 @@ export function EstimateProspectSelect({
   value,
   onChange,
   disabled = false,
+  messages = getLicenseeLocalization("en").messages,
 }: EstimateProspectSelectProps) {
   const [options, setOptions] = useState<EstimateProspectOption[]>([]);
   const [status, setStatus] = useState<LoadStatus>("idle");
@@ -82,8 +89,11 @@ export function EstimateProspectSelect({
         if (!response.ok || !payload.ok || !Array.isArray(payload.prospects)) {
           setOptions([]);
           setError(
-            payload.error?.message ||
-              "Could not load Prospects for this sub-account.",
+            licenseeErrorMessage(
+              messages,
+              payload.error?.code,
+              messages.estimate.prospectLoadFailed,
+            ),
           );
           setStatus("error");
           return;
@@ -104,7 +114,7 @@ export function EstimateProspectSelect({
         if (cancelled || controller.signal.aborted) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
         setOptions([]);
-        setError("Could not load Prospects for this sub-account.");
+        setError(messages.estimate.prospectLoadFailed);
         setStatus("error");
       }
     };
@@ -115,11 +125,14 @@ export function EstimateProspectSelect({
       cancelled = true;
       controller.abort();
     };
+    // Refetch is keyed to the selected sub-account only.
   }, [organizationId]);
 
   const loading = status === "loading";
   const selectDisabled =
     disabled || loading || status === "error" || !organizationId.trim();
+  const noneLabel =
+    messages.estimate.prospectNone ?? ESTIMATE_PROSPECT_NONE_OPTION_LABEL;
 
   return (
     <div data-estimate-prospect-select="true">
@@ -127,8 +140,10 @@ export function EstimateProspectSelect({
         htmlFor="estimate-prospect"
         className="block text-sm font-medium text-white/80"
       >
-        Prospect{" "}
-        <span className="font-normal text-white/40">(optional)</span>
+        {messages.estimate.prospectLabel}{" "}
+        <span className="font-normal text-white/40">
+          {messages.common.optional}
+        </span>
       </label>
       <select
         id="estimate-prospect"
@@ -147,7 +162,7 @@ export function EstimateProspectSelect({
         }}
         className="mt-2 w-full rounded-2xl border border-white/20 bg-[#161922] px-4 py-3 text-sm text-white outline-none focus:border-[var(--athena-orange)] focus:ring-2 focus:ring-[var(--athena-orange)]/30 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <option value="">{ESTIMATE_PROSPECT_NONE_OPTION_LABEL}</option>
+        <option value="">{noneLabel}</option>
         {options.map((prospect) => (
           <option key={prospect.id} value={prospect.id}>
             {prospect.businessName}
@@ -163,10 +178,10 @@ export function EstimateProspectSelect({
           role={status === "error" ? "alert" : undefined}
         >
           {loading
-            ? "Loading Prospects…"
+            ? messages.estimate.prospectLoading
             : status === "error"
-              ? error || "Could not load Prospects for this sub-account."
-              : "No Prospects in this sub-account."}
+              ? error || messages.estimate.prospectLoadFailed
+              : messages.estimate.prospectEmpty}
         </p>
       ) : null}
     </div>

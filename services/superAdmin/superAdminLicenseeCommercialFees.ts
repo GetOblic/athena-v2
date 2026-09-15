@@ -7,6 +7,7 @@ import {
 import {
   LICENSEE_MONTHLY_FEE_LABEL,
   SUB_ACCOUNT_MONTHLY_FEE_LABEL,
+  readStoredFeeUsd,
   type LicenseeCommercialFeeField,
   type LicenseeCommercialFees,
 } from "@/services/superAdmin/superAdminLicenseeCommercialFeeTypes";
@@ -15,6 +16,7 @@ export {
   formatLicenseeCommercialFeeUsd,
   LICENSEE_MONTHLY_FEE_LABEL,
   SUB_ACCOUNT_MONTHLY_FEE_LABEL,
+  readStoredFeeUsd,
   type LicenseeCommercialFeeField,
   type LicenseeCommercialFees,
 } from "@/services/superAdmin/superAdminLicenseeCommercialFeeTypes";
@@ -46,19 +48,6 @@ const FEE_FIELD_LABELS: Record<LicenseeCommercialFeeField, string> = {
 
 const INVALID_FEE_MESSAGE = (field: LicenseeCommercialFeeField) =>
   `${FEE_FIELD_LABELS[field]} must be a non-negative USD amount with at most two decimal places.`;
-
-function readStoredFeeUsd(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Object.is(value, -0) ? 0 : Math.round(value * 100) / 100;
-  }
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return Object.is(parsed, -0) ? 0 : Math.round(parsed * 100) / 100;
-    }
-  }
-  return 0;
-}
 
 export function parseLicenseeCommercialFeeUsd(
   value: unknown,

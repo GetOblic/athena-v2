@@ -7,96 +7,104 @@ import { redirect } from "next/navigation";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { AthenaQuoteFormEmbed } from "@/components/quote/AthenaQuoteFormEmbed";
 import { QuoteFormScrollLink } from "@/components/quote/QuoteFormScrollLink";
+import {
+  getLicenseeLocalization,
+  type LicenseeMessages,
+} from "@/lib/licensee/getLicenseeLocalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LICENSEE_MASTER_MARKER_COOKIE } from "@/services/licensee/licenseeCookieNames";
 import { getLicenseeAccountByUserId } from "@/services/licensee/licenseeIdentity";
 import { isAccountAccessActive } from "@/services/superAdmin/accountAccessStatus";
 
-const workflowSteps = [
-  {
-    step: "01",
-    title: "Your Client Asks",
-    copy: "A client needs a website, branding, infrastructure work, security, technical configuration, creative work, automation or another digital service.",
-  },
-  {
-    step: "02",
-    title: "Ask Athena Quote",
-    copy: "Submit the project requirements, references, files, objectives, timing and any known budget information.",
-  },
-  {
-    step: "03",
-    title: "GetOblic Quotes You",
-    copy: "We review the scope and provide your agency with a private fulfillment price.",
-  },
-  {
-    step: "04",
-    title: "You Sell It",
-    copy: "Add your own markup, present your own price to the client, and keep control of the commercial relationship.",
-  },
-] as const;
+function quoteWorkflowSteps(quote: LicenseeMessages["quote"]) {
+  return [
+    {
+      step: "01",
+      title: quote.step01Title,
+      copy: quote.step01Copy,
+    },
+    {
+      step: "02",
+      title: quote.step02Title,
+      copy: quote.step02Copy,
+    },
+    {
+      step: "03",
+      title: quote.step03Title,
+      copy: quote.step03Copy,
+    },
+    {
+      step: "04",
+      title: quote.step04Title,
+      copy: quote.step04Copy,
+    },
+  ] as const;
+}
 
-const serviceCategories = [
-  {
-    title: "Websites & Development",
-    items: [
-      "Business websites",
-      "Landing pages",
-      "E-commerce",
-      "Website redesign",
-      "Custom functionality",
-      "WordPress work",
-      "Integrations",
-      "Troubleshooting",
-    ],
-  },
-  {
-    title: "Infrastructure & Security",
-    items: [
-      "Cloudflare setup",
-      "DNS configuration",
-      "Website migration",
-      "Hosting",
-      "SSL",
-      "Performance optimization",
-      "Security hardening",
-      "Backup configuration",
-    ],
-  },
-  {
-    title: "Branding & Creative",
-    items: [
-      "Logo design",
-      "Brand identity",
-      "Banners",
-      "Advertising creatives",
-      "Social media assets",
-      "Brochures",
-      "Digital collateral",
-    ],
-  },
-  {
-    title: "Marketing & Growth",
-    items: [
-      "SEO projects",
-      "Local SEO",
-      "Conversion pages",
-      "Analytics",
-      "Tracking setup",
-      "Marketing integrations",
-      "Email infrastructure",
-    ],
-  },
-  {
-    title: "AI & Automation",
-    items: [
-      "AI implementations",
-      "Workflow automation",
-      "API integrations",
-      "CRM configuration",
-      "Custom AI projects",
-    ],
-  },
-] as const;
+function quoteServiceCategories(quote: LicenseeMessages["quote"]) {
+  return [
+    {
+      title: quote.websitesTitle,
+      items: [
+        quote.websitesBusiness,
+        quote.websitesLanding,
+        quote.websitesEcommerce,
+        quote.websitesRedesign,
+        quote.websitesCustom,
+        quote.websitesWordpress,
+        quote.websitesIntegrations,
+        quote.websitesTroubleshooting,
+      ],
+    },
+    {
+      title: quote.infraTitle,
+      items: [
+        quote.infraCloudflare,
+        quote.infraDns,
+        quote.infraMigration,
+        quote.infraHosting,
+        quote.infraSsl,
+        quote.infraPerformance,
+        quote.infraSecurity,
+        quote.infraBackup,
+      ],
+    },
+    {
+      title: quote.brandingTitle,
+      items: [
+        quote.brandingLogo,
+        quote.brandingIdentity,
+        quote.brandingBanners,
+        quote.brandingAds,
+        quote.brandingSocial,
+        quote.brandingBrochures,
+        quote.brandingCollateral,
+      ],
+    },
+    {
+      title: quote.marketingTitle,
+      items: [
+        quote.marketingSeo,
+        quote.marketingLocalSeo,
+        quote.marketingConversion,
+        quote.marketingAnalytics,
+        quote.marketingTracking,
+        quote.marketingIntegrations,
+        quote.marketingEmail,
+      ],
+    },
+    {
+      title: quote.aiTitle,
+      items: [
+        quote.aiImplementations,
+        quote.aiWorkflow,
+        quote.aiApi,
+        quote.aiCrm,
+        quote.aiCustom,
+      ],
+    },
+  ] as const;
+}
 
 /**
  * Athena Quote — Master Licensee fulfillment quoting only.
@@ -129,6 +137,13 @@ export default async function LicenseeAthenaQuotePage() {
     redirect("/api/licensee/master-marker?action=refresh");
   }
 
+  const { messages } = getLicenseeLocalization(
+    licenseeAccount.default_language,
+  );
+  const quote = messages.quote;
+  const workflowSteps = quoteWorkflowSteps(quote);
+  const serviceCategories = quoteServiceCategories(quote);
+
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] px-6 py-10 text-white">
       <div className="mx-auto max-w-5xl">
@@ -138,42 +153,37 @@ export default async function LicenseeAthenaQuotePage() {
           href="/licensee"
           className="text-sm text-[var(--athena-orange)]"
         >
-          ← Back to Master dashboard
+          {messages.common.backToMasterDashboard}
         </Link>
 
         {/* Section 1 — Hero */}
         <div className="mb-14 mt-10 max-w-4xl">
           <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-            Athena Quote
+            {quote.eyebrow}
           </div>
 
           <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">
-            You Sell It. We Build It.
+            {quote.heroTitle}
           </h1>
 
           <p className="mt-4 text-xl text-white/70">
-            Turn almost any client request into a service you can offer.
+            {quote.heroLead}
           </p>
 
           <p className="mt-6 max-w-3xl text-base leading-7 text-white/50">
-            Your client needs something outside your current capabilities?
-            Send it to us. From websites and branding to Cloudflare, security,
-            integrations, development, AI, automation and custom digital work,
-            submit the project requirements and GetOblic will prepare a private
-            fulfillment quote for your agency.
+            {quote.heroBody}
           </p>
 
           <p className="mt-6 text-base font-medium leading-7 text-white/85">
-            You receive our price. You decide what you charge your client.
+            {quote.heroPriceControl}
           </p>
 
           <QuoteFormScrollLink className="mt-8 inline-block rounded-full bg-[var(--athena-orange)] px-8 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90">
-            Request a Quote
+            {quote.requestCta}
           </QuoteFormScrollLink>
 
           <p className="mt-4 text-xs tracking-wide text-white/40">
-            No commitment · Private fulfillment pricing · Your client remains
-            yours
+            {quote.heroFootnote}
           </p>
         </div>
 
@@ -181,10 +191,10 @@ export default async function LicenseeAthenaQuotePage() {
           {/* Section 2 — How it works */}
           <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6 md:p-8">
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-              How It Works
+              {quote.howEyebrow}
             </div>
             <h2 className="mt-3 text-2xl font-semibold md:text-3xl">
-              From client request to your sale
+              {quote.howTitle}
             </h2>
 
             <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -214,12 +224,10 @@ export default async function LicenseeAthenaQuotePage() {
           <section>
             <div className="mb-6 max-w-3xl">
               <h2 className="text-2xl font-semibold md:text-3xl">
-                If Your Client Needs It, Ask Us.
+                {quote.categoriesTitle}
               </h2>
               <p className="mt-3 text-sm leading-7 text-white/50 md:text-base">
-                Athena Quote extends the range of services your agency can
-                confidently offer without requiring you to employ every
-                specialist yourself.
+                {quote.categoriesIntro}
               </p>
             </div>
 
@@ -246,14 +254,13 @@ export default async function LicenseeAthenaQuotePage() {
 
               <article className="rounded-[28px] border border-[var(--athena-orange)]/35 bg-gradient-to-br from-[var(--athena-card)] to-[#1a1410] p-6 shadow-[0_0_40px_rgba(255,102,0,0.06)] md:col-span-2 xl:col-span-1">
                 <h3 className="text-lg font-semibold text-[var(--athena-orange)]">
-                  Something Else?
+                  {quote.somethingElseTitle}
                 </h3>
                 <p className="mt-4 text-base font-medium text-white/85">
-                  Submit it anyway.
+                  {quote.somethingElseLead}
                 </p>
                 <p className="mt-3 text-sm leading-6 text-white/55">
-                  If it falls within what a modern web, creative, AI or digital
-                  agency can deliver, GetOblic can evaluate it.
+                  {quote.somethingElseBody}
                 </p>
               </article>
             </div>
@@ -262,17 +269,16 @@ export default async function LicenseeAthenaQuotePage() {
           {/* Section 4 — Commercial / margin */}
           <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6 md:p-8">
             <h2 className="text-2xl font-semibold md:text-3xl">
-              Your Price Is Your Business
+              {quote.priceTitle}
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-7 text-white/50 md:text-base">
-              Athena Quote gives you GetOblic&apos;s private fulfillment
-              price. It does not determine what you charge your client.
+              {quote.priceIntro}
             </p>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-white/10 bg-black/25 px-5 py-5">
                 <div className="text-xs uppercase tracking-[0.2em] text-white/40">
-                  GetOblic fulfillment quote
+                  {quote.getoblicQuoteLabel}
                 </div>
                 <div className="mt-3 text-3xl font-semibold tracking-tight">
                   $1,500
@@ -280,7 +286,7 @@ export default async function LicenseeAthenaQuotePage() {
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/25 px-5 py-5">
                 <div className="text-xs uppercase tracking-[0.2em] text-white/40">
-                  Your client price
+                  {quote.clientPriceLabel}
                 </div>
                 <div className="mt-3 text-3xl font-semibold tracking-tight">
                   $2,500
@@ -288,7 +294,7 @@ export default async function LicenseeAthenaQuotePage() {
               </div>
               <div className="rounded-2xl border border-[var(--athena-orange)]/30 bg-[var(--athena-orange)]/10 px-5 py-5">
                 <div className="text-xs uppercase tracking-[0.2em] text-[var(--athena-orange)]">
-                  Your gross margin
+                  {quote.marginLabel}
                 </div>
                 <div className="mt-3 text-3xl font-semibold tracking-tight text-[var(--athena-orange)]">
                   $1,000
@@ -297,30 +303,27 @@ export default async function LicenseeAthenaQuotePage() {
             </div>
 
             <p className="mt-4 text-xs uppercase tracking-[0.2em] text-white/35">
-              Example only
+              {quote.exampleOnly}
             </p>
 
             <p className="mt-5 text-sm leading-6 text-white/65 md:text-base">
-              You control your client relationship, positioning and markup.
+              {quote.priceControl}
             </p>
           </section>
 
           {/* Section 5 — Core positioning */}
           <section className="rounded-[28px] border border-[var(--athena-orange)]/25 bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-6 text-center shadow-[0_0_40px_rgba(255,102,0,0.06)] md:p-10">
             <h2 className="text-2xl font-semibold md:text-3xl">
-              Never Say “We Don&apos;t Do That” Again.
+              {quote.positioningTitle}
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
-              Athena Quote extends your agency far beyond the services you
-              personally know how to deliver.
+              {quote.positioningBody1}
             </p>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-white/55 md:text-base">
-              When a client asks for something outside your expertise, don&apos;t
-              send the opportunity somewhere else. Bring the opportunity to
-              GetOblic.
+              {quote.positioningBody2}
             </p>
             <p className="mx-auto mt-6 max-w-xl text-base font-medium text-white/85">
-              Say yes to the opportunity. Let us help you fulfill it.
+              {quote.positioningClose}
             </p>
           </section>
 
@@ -328,16 +331,13 @@ export default async function LicenseeAthenaQuotePage() {
           <section id="athena-quote-form" className="scroll-mt-8">
             <div className="mb-6 max-w-3xl">
               <h2 className="text-2xl font-semibold md:text-3xl">
-                Request a GetOblic Fulfillment Quote
+                {quote.formTitle}
               </h2>
               <p className="mt-3 text-sm leading-7 text-white/50 md:text-base">
-                Tell us what your client needs. The more context you provide,
-                the more accurately we can scope and price the project.
+                {quote.formIntro}
               </p>
               <p className="mt-3 text-sm leading-7 text-white/45">
-                If you&apos;re not sure how the work should be scoped
-                technically, submit what you know. GetOblic can help evaluate
-                the appropriate solution.
+                {quote.formHelp}
               </p>
             </div>
 

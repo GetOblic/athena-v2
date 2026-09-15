@@ -427,7 +427,7 @@ describe("Athena Estimate L9 — edge-case hardening", () => {
       orchestration,
       /const created = await createAthenaEstimateWithJob/,
     );
-    assert.match(client, /Try Again \(New Estimate\)/);
+    assert.match(client, /estimate\.tryAgain|messages\.estimate\.tryAgain|Try Again \(New Estimate\)/);
     // No in-place retry of the failed historical row.
     assert.doesNotMatch(
       orchestration,

@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { LicenseeEstimateClient } from "@/components/licensee/estimate/LicenseeEstimateClient";
+import { getLicenseeLocalization } from "@/lib/licensee/getLicenseeLocalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LICENSEE_MASTER_MARKER_COOKIE } from "@/services/licensee/licenseeCookieNames";
 import { getLicenseeAccountByUserId } from "@/services/licensee/licenseeIdentity";
@@ -44,6 +45,9 @@ export default async function LicenseeAthenaEstimatePage() {
   }
 
   const subAccounts = await listLicenseeSubAccountsForMaster(user.id);
+  const { messages, locale } = getLicenseeLocalization(
+    licenseeAccount.default_language,
+  );
 
   return (
     <main className="min-h-screen bg-[var(--athena-bg)] px-6 py-10 text-white">
@@ -51,11 +55,15 @@ export default async function LicenseeAthenaEstimatePage() {
         <AthenaBrandLink className="mb-8" />
 
         <Link href="/licensee" className="text-sm text-[var(--athena-orange)]">
-          ← Back to Master dashboard
+          {messages.common.backToMasterDashboard}
         </Link>
 
         <div className="mt-10">
-          <LicenseeEstimateClient subAccounts={subAccounts} />
+          <LicenseeEstimateClient
+            subAccounts={subAccounts}
+            messages={messages}
+            locale={locale}
+          />
         </div>
       </div>
     </main>

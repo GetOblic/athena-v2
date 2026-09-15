@@ -187,6 +187,13 @@ describe("V31 L3.1 tenant i18n — dictionaries", () => {
     assert.ok(canonical.includes("status.new"));
     assert.ok(canonical.includes("deploymentAssetTypes.communityReply"));
     assert.ok(canonical.includes("deploymentAssetTypes.personalizedOutreachEmail"));
+    assert.ok(canonical.includes("licensee.common.logout"));
+    assert.ok(canonical.includes("licensee.plan.defaultLanguage"));
+    assert.ok(canonical.includes("licensee.estimate.heroTitle"));
+    assert.ok(canonical.includes("licensee.estimateAskAthena.title"));
+    assert.ok(canonical.includes("licensee.quote.heroTitle"));
+    assert.ok(canonical.includes("licensee.handoff.backToMaster"));
+    assert.ok(canonical.includes("licensee.errors.generic"));
     for (const language of ORGANIZATION_LANGUAGES) {
       const paths = collectKeyPaths(DICTIONARIES[language]);
       const missing = canonical.filter((path) => !paths.includes(path));

@@ -1,5 +1,5 @@
--- Licensee Master default language for future sub-account creation.
--- Creation policy only. Does not override existing organizations.
+-- Licensee Master UI language and default for future sub-account creation.
+-- Does not override existing organizations.
 -- Changing this value must not update or synchronize existing tenant languages.
 -- Existing Licensees receive English via NOT NULL DEFAULT.
 -- Do not apply this migration from application code.
@@ -15,4 +15,4 @@ alter table licensee_accounts
   check (default_language in ('en', 'fr', 'es', 'it', 'de', 'pt'));
 
 comment on column licensee_accounts.default_language is
-  'Creation default language (en, fr, es, it, de, pt) for future Licensee sub-accounts. Does not override existing organizations. Changing this value must not update or synchronize existing tenant languages.';
+  'Licensee Master UI language and creation default for future Licensee sub-accounts. Does not override existing organizations. Changing this value must not update or synchronize existing tenant languages.';

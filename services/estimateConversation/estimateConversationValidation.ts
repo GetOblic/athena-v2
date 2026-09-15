@@ -35,6 +35,11 @@ export const ESTIMATE_CONVERSATION_FORBIDDEN_KEYS = [
   "maxTokens",
   "provenance",
   "status",
+  "language",
+  "outputLanguage",
+  "responseLanguage",
+  "default_language",
+  "defaultLanguage",
 ] as const;
 
 export function validateEstimateConversationRequest(

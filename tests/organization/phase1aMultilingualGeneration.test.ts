@@ -255,6 +255,8 @@ describe("Phase 1A — protect existing multilingual generation", () => {
 
     const forbiddenArchitecture =
       /buildTenantOutputLanguageBlock|generation_language|outputLanguage|content_language|resolveOrganizationLanguage/;
+    const masterEstimatePrompt =
+      "services/ai/prompts/estimate/estimateUserPrompt.ts";
     for (const dir of [
       "workers",
       "services/ai/prompts",
@@ -264,12 +266,20 @@ describe("Phase 1A — protect existing multilingual generation", () => {
     ]) {
       for (const file of listTsFiles(dir)) {
         const source = read(file);
+        assert.doesNotMatch(source, /tenantI18n|lib\/tenantI18n/);
+        if (file === masterEstimatePrompt) {
+          assert.match(source, /outputLanguageInstruction/);
+          assert.doesNotMatch(
+            source,
+            /buildTenantOutputLanguageBlock|resolveOrganizationLanguage|organizations\.language/,
+          );
+          continue;
+        }
         assert.doesNotMatch(
           source,
           forbiddenArchitecture,
           `${file} must not add generated-content-language architecture`,
         );
-        assert.doesNotMatch(source, /tenantI18n|lib\/tenantI18n/);
       }
     }
   });

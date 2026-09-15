@@ -32,7 +32,7 @@ describe("Athena Estimate L12 — Hide UX + Ask Athena UI", () => {
   it("1. Hide action appears in Estimate history", () => {
     const source = client();
     assert.match(source, /data-estimate-hide-action/);
-    assert.match(source, /aria-label=\{`Hide Estimate for/);
+    assert.match(source, /messages\.estimate\.hideEstimateAria|hideEstimateAria/);
     assert.match(source, /HideTrashIcon|requestHideEstimate/);
   });
 
@@ -53,14 +53,8 @@ describe("Athena Estimate L12 — Hide UX + Ask Athena UI", () => {
 
   it("4. Confirmation copy says not permanently deleted", () => {
     const source = client();
-    assert.match(
-      source,
-      /Hide this Estimate from your history\?/,
-    );
-    assert.match(
-      source,
-      /does not\s+permanently delete the record/,
-    );
+    assert.match(source, /messages\.estimate\.hideDialogTitle/);
+    assert.match(source, /messages\.estimate\.hideDialogBody/);
     assert.doesNotMatch(source, /cannot be undone|delete forever|permanently deleted/i);
   });
 
@@ -121,7 +115,7 @@ describe("Athena Estimate L12 — Hide UX + Ask Athena UI", () => {
 
   it("10. Hide failure keeps item visible and restores action", () => {
     const source = client();
-    assert.match(source, /Could not hide this Estimate/);
+    assert.match(source, /messages\.errors\.hideFailed|hideFailed/);
     assert.match(source, /setHiding\(false\)/);
     // Failure path does not call removeEstimateFromVisibleState before return.
     const confirmFn = source.slice(
@@ -181,9 +175,9 @@ describe("Athena Estimate L12 — Hide UX + Ask Athena UI", () => {
     assert.match(source, /key=\{props\.estimateId\}/);
     assert.match(source, /mountedRef/);
     assert.match(source, /controller\.abort/);
-    assert.match(source, /Loading conversation/);
+    assert.match(source, /ask\.loadingConversation|messages\.estimateAskAthena\.loadingConversation|Loading conversation/);
     assert.match(source, /data-estimate-conversation-empty/);
-    assert.match(source, /No conversation yet for this Estimate/);
+    assert.match(source, /ask\.emptyConversation|messages\.estimateAskAthena\.emptyConversation|No conversation yet/);
   });
 
   it("19/20/21. send rejects empty; disables duplicate submit; POST body is { message }", () => {
@@ -315,9 +309,9 @@ describe("Athena Estimate L12 — Hide UX + Ask Athena UI", () => {
 
   it("35/36. Quote cross-link unchanged; no Estimate data sent to Quote", () => {
     const source = client();
-    assert.match(source, /Want GetOblic to fulfill this project\?/);
+    assert.match(source, /estimate\.quoteTitle|messages\.estimate\.quoteTitle/);
     assert.match(source, /href="\/licensee\/quote"/);
-    assert.match(source, /Estimate data is not transferred/);
+    assert.match(source, /estimate\.quoteFootnote|messages\.estimate\.quoteFootnote/);
     assert.doesNotMatch(source, /prefill|transferEstimate|quotePayload/i);
     assert.doesNotMatch(source, /go\.getoblic\.com|NQfn7tnDbGyyq9JVei6Q/);
   });

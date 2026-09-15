@@ -110,7 +110,7 @@ describe("Licensee dashboard conversion-managed actions", () => {
       "remove",
     );
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
-    assert.match(client, />\s*Remove\s*</);
+    assert.match(client, /messages\.common\.remove/);
     assert.match(client, /removalKind === "restore"/);
   });
 
@@ -123,10 +123,10 @@ describe("Licensee dashboard conversion-managed actions", () => {
       "restore",
     );
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
-    assert.match(client, /Move back to prospect/);
+    assert.match(client, /messages\.subAccountCard\.moveBackToProspect/);
     assert.match(
       client,
-      /removalKind === "restore" \? \([\s\S]*Move back to prospect[\s\S]*\) : \([\s\S]*Remove/,
+      /removalKind === "restore" \? \([\s\S]*moveBackToProspect[\s\S]*\) : \([\s\S]*messages\.common\.remove/,
     );
   });
 
@@ -149,7 +149,7 @@ describe("Licensee dashboard conversion-managed actions", () => {
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
     assert.match(page, /!item\.isOwnCompany &&/);
     assert.match(client, /if \(item\.isOwnCompany\) \{\s*return "none"/);
-    assert.match(client, /Locked company identity/);
+    assert.match(client, /messages\.subAccountCard\.lockedCompanyIdentity/);
   });
 
   it("loads conversion-managed state once for the dashboard list", async () => {
@@ -211,14 +211,9 @@ describe("Licensee restore-to-prospect request boundary", () => {
       restoreFn,
       /setItems\(\(current\) =>\s*current\.filter/,
     );
-    assert.match(
-      client,
-      /Move \{businessName\} back to prospects\?/,
-    );
-    assert.match(
-      client,
-      /Its Athena account and data will[\s\S]*preserved/,
-    );
+    assert.match(client, /messages\.subAccountCard\.restoreTitle/);
+    assert.match(client, /interpolateTenantMessage/);
+    assert.match(client, /messages\.subAccountCard\.restoreBody/);
   });
 
   it("styles Move back to prospect as a stronger secondary lifecycle action", () => {
@@ -226,7 +221,7 @@ describe("Licensee restore-to-prospect request boundary", () => {
     const restoreStart = client.indexOf('removalKind === "restore"');
     const restoreButton = client.slice(
       restoreStart,
-      client.indexOf("Remove", restoreStart),
+      client.indexOf(") : (", restoreStart),
     );
     assert.ok(
       RESTORE_TO_PROSPECT_LIFECYCLE_ACTION.includes(
@@ -261,8 +256,8 @@ describe("Licensee restore-to-prospect request boundary", () => {
       ),
     );
     assert.match(restoreButton, /RESTORE_TO_PROSPECT_LIFECYCLE_ACTION/);
-    assert.match(restoreButton, /Move back to prospect/);
-    assert.doesNotMatch(restoreButton, /Remove/);
+    assert.match(restoreButton, /messages\.subAccountCard\.moveBackToProspect/);
+    assert.doesNotMatch(restoreButton, /messages\.common\.remove/);
     assert.doesNotMatch(restoreButton, /red-|rose-|athena-danger/);
     assert.match(
       client,
@@ -274,7 +269,7 @@ describe("Licensee restore-to-prospect request boundary", () => {
     );
     assert.match(
       client,
-      /rounded-full bg-\[var\(--athena-orange\)\] px-7 py-3\.5[\s\S]*Open Athena/,
+      /rounded-full bg-\[var\(--athena-orange\)\] px-7 py-3\.5[\s\S]*messages\.subAccountCard\.openAthena/,
     );
   });
 
@@ -293,7 +288,10 @@ describe("Licensee restore-to-prospect request boundary", () => {
     );
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
     const restoreFn = client.slice(client.indexOf("confirmRestoreToProspect"));
-    assert.match(restoreFn, /restoreToProspectUserMessage\(response\.status\)/);
+    assert.match(
+      restoreFn,
+      /restoreToProspectUserMessage\(response\.status,\s*messages\)/,
+    );
     assert.doesNotMatch(restoreFn, /payload\.error\?\.message/);
     assert.doesNotMatch(restoreFn, /setItems\(\(current\) =>\s*current\.filter/);
   });

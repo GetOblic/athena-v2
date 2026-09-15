@@ -9,6 +9,12 @@ import {
   type KeyboardEvent,
 } from "react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  getLicenseeLocalization,
+  type LicenseeMessages,
+} from "@/lib/licensee/getLicenseeLocalization";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import { licenseeErrorMessage } from "@/lib/licensee/licenseeErrorPresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { ATHENA_REQUEST_ID_HEADER } from "@/services/athenaConversation/athenaConversationTypes";
 import {
@@ -16,26 +22,26 @@ import {
   type EstimateConversationPublicMessage,
 } from "@/services/estimateConversation/estimateConversationTypes";
 
-export const ESTIMATE_ASK_ATHENA_TITLE = "Ask Athena";
+const ENGLISH_ASK = getLicenseeLocalization("en").messages.estimateAskAthena;
 
-export const ESTIMATE_ASK_ATHENA_DESCRIPTION =
-  "Ask Athena about this Estimate — why this price was recommended, challenge assumptions, explore scope changes, or get advice on how to position the proposal.";
+export const ESTIMATE_ASK_ATHENA_TITLE = ENGLISH_ASK.title;
 
-export const ESTIMATE_ASK_ATHENA_IMMUTABLE_NOTICE =
-  "Conversation does not change this saved Estimate. To create a new formal Estimate, use Regenerate.";
+export const ESTIMATE_ASK_ATHENA_DESCRIPTION = ENGLISH_ASK.description;
+
+export const ESTIMATE_ASK_ATHENA_IMMUTABLE_NOTICE = ENGLISH_ASK.immutableNotice;
 
 export const ESTIMATE_ASK_ATHENA_DISCONNECTED_NOTICE =
-  "This sub-account is no longer connected. Historical conversation remains available, but new Ask Athena advice requires an active sub-account relationship.";
+  ENGLISH_ASK.disconnectedNotice;
 
 export const ESTIMATE_ASK_ATHENA_METHODOLOGY_UNAVAILABLE =
-  "Athena Estimate pricing methodology is not currently configured. Ask Athena is temporarily unavailable.";
+  ENGLISH_ASK.methodologyUnavailable;
 
 export const ESTIMATE_ASK_ATHENA_EXAMPLE_PROMPTS = [
-  "Why did you recommend this price?",
-  "What would justify charging more?",
-  "Would a lower price be too low?",
-  "What if I remove part of the scope?",
-  "How should I defend this price to the client?",
+  ENGLISH_ASK.exampleWhyPrice,
+  ENGLISH_ASK.exampleChargeMore,
+  ENGLISH_ASK.exampleTooLow,
+  ENGLISH_ASK.exampleRemoveScope,
+  ENGLISH_ASK.exampleDefend,
 ] as const;
 
 type HistoryResponse = {
@@ -57,6 +63,7 @@ type EstimateAskAthenaPanelProps = {
   onEstimateUnavailable?: () => void;
   /** Called when POST reports NOT_READY race — parent should refresh detail. */
   onNotReady?: () => void;
+  messages?: LicenseeMessages;
 };
 
 function ThinkingIndicator() {
@@ -69,19 +76,17 @@ function ThinkingIndicator() {
 }
 
 function mapConversationError(
+  catalog: LicenseeMessages,
   code: string | undefined,
   fallback: string,
 ): string {
   if (code === "ESTIMATE_INSTRUCTION_NOT_CONFIGURED") {
-    return ESTIMATE_ASK_ATHENA_METHODOLOGY_UNAVAILABLE;
+    return (
+      catalog.estimateAskAthena.methodologyUnavailable ||
+      ESTIMATE_ASK_ATHENA_METHODOLOGY_UNAVAILABLE
+    );
   }
-  if (code === "NOT_READY") {
-    return "This Estimate is not ready for Ask Athena yet. Please try again shortly.";
-  }
-  if (code === "NOT_FOUND") {
-    return "This Estimate is no longer available.";
-  }
-  return fallback;
+  return licenseeErrorMessage(catalog, code, fallback);
 }
 
 function EstimateAskAthenaPanelInner({
@@ -89,6 +94,7 @@ function EstimateAskAthenaPanelInner({
   relationshipConnected,
   onEstimateUnavailable,
   onNotReady,
+  messages: catalog = getLicenseeLocalization("en").messages,
 }: EstimateAskAthenaPanelProps) {
   const messagesRegionId = useId();
   const inputId = useId();
@@ -98,6 +104,14 @@ function EstimateAskAthenaPanelInner({
   const sendSeqRef = useRef(0);
   const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
+  const ask = catalog.estimateAskAthena;
+  const examplePrompts = [
+    ask.exampleWhyPrice,
+    ask.exampleChargeMore,
+    ask.exampleTooLow,
+    ask.exampleRemoveScope,
+    ask.exampleDefend,
+  ];
 
   const [messages, setMessages] = useState<EstimateConversationPublicMessage[]>(
     [],
@@ -133,7 +147,7 @@ function EstimateAskAthenaPanelInner({
         if (!mountedRef.current) return;
 
         if (response.status === 404 || payload.error?.code === "NOT_FOUND") {
-          setHistoryError("This Estimate is no longer available.");
+          setHistoryError(catalog.errors.estimateUnavailable);
           setMessages([]);
           onUnavailableRef.current?.();
           return;
@@ -142,8 +156,9 @@ function EstimateAskAthenaPanelInner({
         if (!response.ok || !payload.ok || !Array.isArray(payload.messages)) {
           setHistoryError(
             mapConversationError(
+              catalog,
               payload.error?.code,
-              payload.error?.message || "Could not load conversation history.",
+              catalog.errors.conversationHistoryFailed,
             ),
           );
           setMessages([]);
@@ -159,7 +174,7 @@ function EstimateAskAthenaPanelInner({
         ) {
           return;
         }
-        setHistoryError("Could not load conversation history.");
+        setHistoryError(catalog.errors.conversationHistoryFailed);
         setMessages([]);
       } finally {
         if (mountedRef.current) {
@@ -175,7 +190,7 @@ function EstimateAskAthenaPanelInner({
       controller.abort();
       inFlightRef.current = false;
     };
-  }, [estimateId]);
+  }, [estimateId, catalog]);
 
   async function refreshHistoryAfterSend(seq: number) {
     const response = await fetch(
@@ -232,8 +247,9 @@ function EstimateAskAthenaPanelInner({
         setError({
           code,
           message: mapConversationError(
+            catalog,
             code,
-            payload.error?.message || "Athena could not answer right now.",
+            catalog.errors.conversationFailed,
           ),
           retryMessage:
             code === "ESTIMATE_INSTRUCTION_NOT_CONFIGURED" ||
@@ -286,7 +302,7 @@ function EstimateAskAthenaPanelInner({
       setDraft(trimmed);
       setError({
         code: "TRANSPORT_ERROR",
-        message: "Athena could not reach the service. Please try again.",
+        message: catalog.errors.conversationTransport,
         retryMessage: trimmed,
       });
     } finally {
@@ -323,19 +339,19 @@ function EstimateAskAthenaPanelInner({
       data-estimate-ask-athena="true"
     >
       <AthenaCollapsibleSection
-        title={ESTIMATE_ASK_ATHENA_TITLE}
-        summary="Ask why Athena recommended this price, challenge assumptions, or explore positioning."
+        title={ask.title || ESTIMATE_ASK_ATHENA_TITLE}
+        summary={ask.summary}
         defaultOpen={false}
       >
         <p className="max-w-2xl text-sm leading-6 text-white/45">
-          {ESTIMATE_ASK_ATHENA_DESCRIPTION}
+          {ask.description || ESTIMATE_ASK_ATHENA_DESCRIPTION}
         </p>
 
         <p
           className="mt-3 text-xs leading-5 text-amber-100/70"
           data-estimate-immutable-notice="true"
         >
-          {ESTIMATE_ASK_ATHENA_IMMUTABLE_NOTICE}
+          {ask.immutableNotice || ESTIMATE_ASK_ATHENA_IMMUTABLE_NOTICE}
         </p>
 
         {!relationshipConnected ? (
@@ -344,7 +360,7 @@ function EstimateAskAthenaPanelInner({
             data-estimate-disconnected-notice="true"
             role="status"
           >
-            {ESTIMATE_ASK_ATHENA_DISCONNECTED_NOTICE}
+            {ask.disconnectedNotice || ESTIMATE_ASK_ATHENA_DISCONNECTED_NOTICE}
           </p>
         ) : null}
 
@@ -357,7 +373,7 @@ function EstimateAskAthenaPanelInner({
         >
           {loadingHistory ? (
             <p className="text-sm text-white/40" role="status">
-              Loading conversation…
+              {ask.loadingConversation}
             </p>
           ) : null}
 
@@ -376,11 +392,13 @@ function EstimateAskAthenaPanelInner({
               data-estimate-conversation-empty="true"
             >
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/35">
-                Try asking
+                {ask.tryAsking}
               </div>
               {relationshipConnected ? (
                 <ul className="mt-3 space-y-2">
-                  {ESTIMATE_ASK_ATHENA_EXAMPLE_PROMPTS.map((example) => (
+                  {ESTIMATE_ASK_ATHENA_EXAMPLE_PROMPTS.map((fallback, index) => {
+                    const example = examplePrompts[index] ?? fallback;
+                    return (
                     <li key={example}>
                       <button
                         type="button"
@@ -394,11 +412,12 @@ function EstimateAskAthenaPanelInner({
                         “{example}”
                       </button>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               ) : (
                 <p className="mt-3 text-sm text-white/45">
-                  No conversation yet for this Estimate.
+                  {ask.emptyConversation}
                 </p>
               )}
             </div>
@@ -418,7 +437,7 @@ function EstimateAskAthenaPanelInner({
                     data-estimate-message-role={message.role}
                   >
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-                      {isUser ? "You" : "Athena"}
+                      {isUser ? ask.you : ask.athena}
                     </div>
                     <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-white/85">
                       {message.content}
@@ -435,12 +454,12 @@ function EstimateAskAthenaPanelInner({
             >
               <div className="flex items-center gap-2">
                 <div className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-                  Athena
+                  {ask.athena}
                 </div>
                 <ThinkingIndicator />
               </div>
               <p className="mt-2 text-sm leading-7 text-white/65">
-                Athena is thinking…
+                {ask.thinking}
               </p>
             </div>
           ) : null}
@@ -455,7 +474,9 @@ function EstimateAskAthenaPanelInner({
             <div>{error.message}</div>
             {error.requestId ? (
               <div className="mt-1 text-xs text-red-100/55">
-                Support reference: {error.requestId}
+                {interpolateTenantMessage(ask.supportReference, {
+                  requestId: error.requestId,
+                })}
               </div>
             ) : null}
             {error.retryMessage ? (
@@ -465,7 +486,7 @@ function EstimateAskAthenaPanelInner({
                 onClick={() => void sendMessage(error.retryMessage!)}
                 className="mt-2 rounded-lg border border-red-200/30 px-3 py-1.5 text-xs font-medium transition hover:bg-red-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-50"
               >
-                Retry
+                {catalog.common.retry}
               </button>
             ) : null}
           </div>
@@ -479,7 +500,7 @@ function EstimateAskAthenaPanelInner({
           }
         >
           <label htmlFor={inputId} className="sr-only">
-            Ask Athena about this Estimate
+            {ask.composerLabel}
           </label>
           <textarea
             id={inputId}
@@ -492,21 +513,21 @@ function EstimateAskAthenaPanelInner({
             maxLength={ESTIMATE_CONVERSATION_LIMITS.maxMessageChars}
             placeholder={
               relationshipConnected
-                ? "Ask Athena about this Estimate…"
-                : "Reconnect the sub-account to ask new questions"
+                ? ask.placeholderConnected
+                : ask.placeholderDisconnected
             }
             className="w-full min-w-0 resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white placeholder:text-white/30 focus:border-[var(--athena-orange)]/50 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:cursor-not-allowed disabled:opacity-60"
           />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-white/30">
-              Enter to send · Shift+Enter for a new line
+              {ask.composerHint}
             </p>
             <button
               type="submit"
               disabled={composerDisabled || !draft.trim()}
               className="rounded-xl border border-[var(--athena-orange)]/40 bg-[var(--athena-orange)]/15 px-4 py-2 text-sm font-semibold text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-40"
             >
-              {busy ? "Asking…" : "Ask Athena"}
+              {busy ? ask.asking : ask.ask}
             </button>
           </div>
         </form>

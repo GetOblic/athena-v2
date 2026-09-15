@@ -48,6 +48,7 @@ import {
   type ComposeEstimateConversationContextDeps,
 } from "@/services/estimateConversation/estimateConversationContext";
 import { normalizeEstimateConversationPlainText } from "@/services/estimateConversation/estimateConversationPlainText";
+import { buildEstimateConversationResponseLanguageInstruction } from "@/services/estimate/estimateOutputLanguage";
 import { buildEstimateConversationPrompt } from "@/services/estimateConversation/estimateConversationPrompt";
 import {
   boundEstimateConversationHistory,
@@ -258,6 +259,10 @@ export async function sendEstimateConversationForMaster(input: {
       assembled,
       history,
       userMessage: request.message,
+      responseLanguageInstruction:
+        buildEstimateConversationResponseLanguageInstruction(
+          masterAccount.default_language,
+        ),
     });
 
     const promptHash = hashStable(

@@ -490,13 +490,14 @@ describe("V31 L3.2 tenant chrome — collapsible and back link", () => {
   it("does not add Back to Master to tenant dictionaries", () => {
     for (const language of ORGANIZATION_LANGUAGES) {
       for (const leaf of collectLeaves(DICTIONARIES[language])) {
+        if (leaf.path.startsWith("licensee.")) continue;
         assert.notEqual(leaf.text, "Back to Master");
         assert.doesNotMatch(leaf.path, /backToMaster|returnToMaster/i);
       }
     }
     const back = read("components/licensee/BackToMasterCta.tsx");
-    assert.match(back, /Back to Master/);
-    assert.doesNotMatch(back, /tenantI18n|getTenantLocalization/);
+    assert.match(back, /getLicenseeLocalization|handoff\.backToMaster/);
+    assert.doesNotMatch(back, /getTenantLocalization/);
   });
 });
 

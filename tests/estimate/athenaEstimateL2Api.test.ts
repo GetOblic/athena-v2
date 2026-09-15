@@ -336,7 +336,8 @@ describe("Athena Estimate L2 Master API contracts", () => {
 
   it("23. middleware permits /api/licensee/** without broad changes for Estimate", () => {
     const middleware = read("lib/supabase/middleware.ts");
-    assert.match(middleware, /path\.startsWith\("\/api\/licensee\/"\)/);
+    assert.match(middleware, /path\.startsWith\("\/api\/licensee\/origin"\)/);
+    assert.match(middleware, /isApiPath/);
     // Estimate routes should not require special-casing in middleware.
     assert.doesNotMatch(middleware, /estimate/i);
     assert.equal(existsSync(join(ROOT, "app/api/licensee/estimate/route.ts")), true);

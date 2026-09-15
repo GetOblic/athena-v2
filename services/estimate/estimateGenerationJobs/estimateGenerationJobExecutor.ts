@@ -53,9 +53,11 @@ import {
   getActiveEstimatePricingMethodologyInstruction,
 } from "@/services/estimate/estimatePricingMethodologyInstruction";
 import { getAthenaWorkerConfig } from "@/services/generationJobs/generationJobWorkerConfig";
+import { buildEstimateOutputLanguageInstruction } from "@/services/estimate/estimateOutputLanguage";
 import {
   LicenseeAccessError,
   assertLicenseeOwnsSubAccount,
+  getLicenseeAccountById,
 } from "@/services/licensee/licenseeIdentity";
 
 export type ClaimedEstimateJobExecution = {
@@ -426,12 +428,20 @@ export async function executeClaimedEstimateGenerationJob(
     await renewLease(currentStage);
     const prospectFreeze = await resolveProspectGenerationFreeze(estimate, deps);
 
+    const licenseeAccount = await getLicenseeAccountById(
+      job.licensee_account_id,
+    );
+    const outputLanguageInstruction = buildEstimateOutputLanguageInstruction(
+      licenseeAccount?.default_language ?? "en",
+    );
+
     const result = await runPipeline({
       organizationId: estimate.organization_id,
       request: estimate.request_json,
       methodology,
       prospectCommercialTargetIntelligence:
         prospectFreeze.prospectCommercialTargetIntelligence,
+      outputLanguageInstruction,
       onStage: async (stage) => {
         currentStage = stage;
         const renewed = await renewLease(stage);

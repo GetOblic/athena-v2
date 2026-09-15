@@ -481,15 +481,19 @@ describe("V31 L3.4 tenant list surfaces — boundaries", () => {
     );
   });
 
-  it("leaves Licensee, Super Admin, and login unchanged", () => {
+  it("leaves Super Admin and login unchanged", () => {
     for (const file of [
       "app/login/page.tsx",
-      "app/licensee/page.tsx",
+      "app/licensee/login/page.tsx",
       "app/super/page.tsx",
     ]) {
       assert.doesNotMatch(read(file), /getTenantLocalization|tenantI18n\/messages/);
       assert.doesNotMatch(read(file), /intelligenceDomains|inbox\.title|discussions\.queue/);
     }
+    const licenseePage = read("app/licensee/page.tsx");
+    assert.match(licenseePage, /getLicenseeLocalization/);
+    assert.doesNotMatch(licenseePage, /getTenantLocalization/);
+    assert.doesNotMatch(licenseePage, /intelligenceDomains|inbox\.title|discussions\.queue/);
   });
 
   it("keeps all six dictionaries structurally complete after L3.4 expansion", () => {

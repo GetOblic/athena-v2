@@ -641,14 +641,17 @@ describe("V31 L3.3 tenant page body — boundaries", () => {
     assert.deepEqual(clientHits, []);
   });
 
-  it("does not localize Licensee, Super Admin, or login", () => {
+  it("does not localize Super Admin or login via tenant org language", () => {
     for (const file of [
       "app/login/page.tsx",
-      "app/licensee/page.tsx",
+      "app/licensee/login/page.tsx",
       "app/super/page.tsx",
     ]) {
       assert.doesNotMatch(read(file), /getTenantLocalization|tenantI18n\/messages/);
     }
+    const licenseePage = read("app/licensee/page.tsx");
+    assert.match(licenseePage, /getLicenseeLocalization/);
+    assert.doesNotMatch(licenseePage, /getTenantLocalization/);
   });
 
   it("keeps dictionaries complete after L3.3 expansion", () => {

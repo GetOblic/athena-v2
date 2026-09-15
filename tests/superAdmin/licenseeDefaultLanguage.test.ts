@@ -612,14 +612,20 @@ describe("Licensee Default Language — isolation", () => {
     assert.doesNotMatch(route, /from\("organizations"\)/);
   });
 
-  it("/licensee chrome is not localized by this field", () => {
+  it("/licensee chrome follows Master default_language, not tenant org language", () => {
     const licenseePage = read("app/licensee/page.tsx");
     const licenseeLogin = read("app/licensee/login/page.tsx");
-    for (const source of [licenseePage, licenseeLogin]) {
-      assert.doesNotMatch(source, /default_language/);
-      assert.doesNotMatch(source, /getTenantLocalization/);
-      assert.doesNotMatch(source, /resolveOrganizationLanguage/);
-    }
+    const identity = read("services/licensee/licenseeIdentity.ts");
+    assert.match(licenseePage, /buildLicenseePlanView/);
+    assert.match(licenseePage, /LicenseePlanSection/);
+    assert.match(licenseePage, /getLicenseeLocalization/);
+    assert.match(identity, /Licensee Master UI language and creation default/);
+    assert.doesNotMatch(licenseePage, /getTenantLocalization/);
+    assert.doesNotMatch(licenseePage, /resolveOrganizationLanguage/);
+    assert.doesNotMatch(licenseeLogin, /default_language/);
+    assert.doesNotMatch(licenseeLogin, /getTenantLocalization/);
+    assert.doesNotMatch(licenseeLogin, /getLicenseeLocalization/);
+    assert.doesNotMatch(licenseeLogin, /resolveOrganizationLanguage/);
   });
 
   it("ordinary Super Admin Athena creation remains unchanged", () => {
@@ -647,6 +653,10 @@ describe("Licensee Default Language — isolation", () => {
       "app/licensee/sub-accounts/new/page.tsx",
       "components/superAdmin/SuperAdminLicenseeCard.tsx",
       "components/superAdmin/SuperAdminDashboardClient.tsx",
+      "lib/licensee/licenseeDashboardPresentation.ts",
+      "lib/licensee/getLicenseeLocalization.ts",
+      "components/licensee/LicenseePlanSection.tsx",
+      "services/estimate/estimateOutputLanguage.ts",
     ];
     for (const file of files) {
       const source = read(file);

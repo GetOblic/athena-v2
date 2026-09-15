@@ -26,26 +26,23 @@ describe("Athena Quote UI", () => {
   it("exposes Athena Quote on the Master Licensee dashboard", () => {
     const client = read("components/licensee/LicenseeDashboardClient.tsx");
 
-    assert.match(client, /Athena Quote/);
     assert.match(client, /href="\/licensee\/quote"/);
-    assert.match(
-      client,
-      /Submit client work for private GetOblic fulfillment pricing/,
-    );
+    assert.match(client, /messages\.dashboard\.quoteTitle/);
+    assert.match(client, /messages\.dashboard\.quoteDescription/);
   });
 
   it("page covers commercial model, workflow, categories, and form anchor", () => {
     const page = read("app/licensee/quote/page.tsx");
 
-    assert.match(page, /You Sell It\. We Build It\./);
-    assert.match(page, /private\s+fulfillment quote/i);
-    assert.match(page, /Your Price Is Your Business/);
-    assert.match(page, /Example only/);
-    assert.match(page, /Never Say/);
+    assert.match(page, /getLicenseeLocalization/);
+    assert.match(page, /quote\.heroTitle/);
+    assert.match(page, /quote\.priceTitle/);
+    assert.match(page, /quote\.exampleOnly/);
+    assert.match(page, /quote\.positioningTitle/);
     assert.match(page, /id="athena-quote-form"/);
     assert.match(page, /AthenaQuoteFormEmbed/);
     assert.match(page, /QuoteFormScrollLink/);
-    assert.match(page, /Back to Master dashboard/);
+    assert.match(page, /messages\.common\.backToMasterDashboard/);
     assert.match(page, /getLicenseeAccountByUserId/);
     assert.match(page, /isAccountAccessActive/);
     assert.match(page, /This Master account has been deactivated/);

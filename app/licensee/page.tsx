@@ -5,6 +5,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { LicenseeDashboardClient } from "@/components/licensee/LicenseeDashboardClient";
+import { LicenseePlanSection } from "@/components/licensee/LicenseePlanSection";
+import { getLicenseeLocalization } from "@/lib/licensee/getLicenseeLocalization";
+import {
+  buildLicenseePlanView,
+  LICENSEE_DASHBOARD_CANVAS_CLASS,
+  LICENSEE_DASHBOARD_SHELL_CLASS,
+} from "@/lib/licensee/licenseeDashboardPresentation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getLicenseeAccountByUserId } from "@/services/licensee/licenseeIdentity";
 import { LICENSEE_MASTER_MARKER_COOKIE } from "@/services/licensee/licenseeCookieNames";
@@ -65,29 +72,43 @@ export default async function LicenseeMasterPage({
       convertedClientOrganizationIds.has(item.organizationId),
   }));
   const params = searchParams ? await searchParams : {};
+  const { locale, messages } = getLicenseeLocalization(
+    licenseeAccount.default_language,
+  );
   const notice =
     params.message ||
     (params.created === "1"
-      ? "Sub-account created and linked to your Master dashboard."
+      ? messages.notices.subAccountCreated
       : params.linked === "1"
-        ? "Existing Athena account linked to your Master dashboard."
+        ? messages.notices.existingLinked
         : null);
+  const plan = buildLicenseePlanView(
+    {
+      defaultLanguage: licenseeAccount.default_language,
+      licenseeMonthlyFeeUsd: licenseeAccount.licenseeMonthlyFeeUsd,
+      subAccountMonthlyFeeUsd: licenseeAccount.subAccountMonthlyFeeUsd,
+    },
+    {
+      languageSupport: messages.plan.languageSupport,
+      perMonth: messages.plan.perMonth,
+      perMonthPerActiveSubAccount: messages.plan.perMonthPerActiveSubAccount,
+    },
+  );
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] px-6 py-10 text-white">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-10 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+    <main className={LICENSEE_DASHBOARD_SHELL_CLASS}>
+      <div className={LICENSEE_DASHBOARD_CANVAS_CLASS}>
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <AthenaBrandLink className="mb-8" />
+            <AthenaBrandLink className="mb-5" />
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-              Athena Business Licensee
+              {messages.brand.athenaBusinessLicensee}
             </div>
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight">
-              Master dashboard
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+              {messages.brand.masterDashboard}
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/50">
-              Client operations console for linked Athena sub-accounts.
-              Intelligence always stays inside each individual account.
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/50">
+              {messages.brand.intro}
             </p>
           </div>
 
@@ -96,12 +117,27 @@ export default async function LicenseeMasterPage({
               type="submit"
               className="rounded-xl border border-[var(--athena-border)] px-4 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/5 hover:text-white"
             >
-              Logout
+              {messages.common.logout}
             </button>
           </form>
         </div>
 
-        <LicenseeDashboardClient initialItems={dashboardItems} notice={notice} />
+        <LicenseePlanSection
+          plan={plan}
+          labels={{
+            title: messages.plan.title,
+            languageLabel: messages.plan.defaultLanguage,
+            licenseeFeeLabel: messages.plan.licenseeFee,
+            subAccountFeeLabel: messages.plan.subAccountFee,
+          }}
+        />
+
+        <LicenseeDashboardClient
+          initialItems={dashboardItems}
+          notice={notice}
+          messages={messages}
+          locale={locale}
+        />
       </div>
     </main>
   );

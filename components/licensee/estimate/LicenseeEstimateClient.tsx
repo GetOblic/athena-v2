@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -19,7 +20,6 @@ import {
   ESTIMATE_PROSPECT_REMOVED_REGENERATE_MESSAGE,
   ESTIMATE_PROSPECT_UNAVAILABLE_REGENERATE_MESSAGE,
   ESTIMATE_REQUEST_FIELD_LIMITS,
-  ESTIMATE_TIMEFRAME_OPTIONS,
   estimateHasProspectTarget,
   estimateStageLabel,
   formatEstimateDate,
@@ -27,6 +27,12 @@ import {
   formatEstimateMoney,
   truncateProjectNeed,
 } from "@/components/licensee/estimate/estimateUiHelpers";
+import {
+  getLicenseeLocalization,
+  type LicenseeMessages,
+} from "@/lib/licensee/getLicenseeLocalization";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import { licenseeErrorMessage } from "@/lib/licensee/licenseeErrorPresentation";
 import type {
   PublicAthenaEstimateDetail,
   PublicAthenaEstimateSummary,
@@ -39,6 +45,8 @@ import {
 
 type LicenseeEstimateClientProps = {
   subAccounts: LicenseeSubAccountListItem[];
+  messages?: LicenseeMessages;
+  locale?: string;
 };
 
 type ApiErrorBody = {
@@ -71,28 +79,42 @@ type HideResponse = ApiErrorBody & {
   hidden?: boolean;
 };
 
-const HOW_IT_WORKS = [
-  {
-    title: "Client Intelligence",
-    copy: "Athena uses what it already knows about the selected client — business context, technical condition, and strategic signals already in Athena.",
-  },
-  {
-    title: "Project Intelligence",
-    copy: "You describe what the client needs, the expected work, and timing. This is operator guidance for the project — not a replacement for Athena’s trusted client evidence.",
-  },
-  {
-    title: "Pricing Intelligence",
-    copy: "Athena evaluates scope, complexity, business context, geography, timeframe, commercial value, and general market pricing knowledge to help you decide what to charge.",
-  },
-] as const;
-
 function isInFlightStatus(status: string | undefined | null): boolean {
   return status === "Queued" || status === "Processing";
 }
 
 export function LicenseeEstimateClient({
   subAccounts,
+  messages = getLicenseeLocalization("en").messages,
+  locale = "en-US",
 }: LicenseeEstimateClientProps) {
+  const estimate = messages.estimate;
+  const howItWorks = useMemo(
+    () => [
+      { title: estimate.howClientTitle, copy: estimate.howClientCopy },
+      { title: estimate.howProjectTitle, copy: estimate.howProjectCopy },
+      { title: estimate.howPricingTitle, copy: estimate.howPricingCopy },
+    ],
+    [estimate],
+  );
+  const timeframeOptions = useMemo(
+    () => [
+      { value: "asap" as const, label: estimate.timeframeAsap },
+      { value: "2_4_weeks" as const, label: estimate.timeframe2to4Weeks },
+      { value: "1_3_months" as const, label: estimate.timeframe1to3Months },
+      { value: "flexible" as const, label: estimate.timeframeFlexible },
+    ],
+    [estimate],
+  );
+  const prospectRemovedLabel =
+    estimate.prospectRemoved || ESTIMATE_PROSPECT_REMOVED_LABEL;
+  const prospectRemovedRegenerate =
+    messages.errors.prospectRemovedRegenerate ||
+    ESTIMATE_PROSPECT_REMOVED_REGENERATE_MESSAGE;
+  const prospectUnavailableRegenerate =
+    messages.errors.prospectUnavailableRegenerate ||
+    ESTIMATE_PROSPECT_UNAVAILABLE_REGENERATE_MESSAGE;
+
   const [organizationId, setOrganizationId] = useState(
     subAccounts[0]?.organizationId ?? "",
   );
@@ -134,7 +156,11 @@ export function LicenseeEstimateClient({
       const payload = await parseJsonResponse<ListResponse>(response);
       if (!payload.ok || !Array.isArray(payload.estimates)) {
         setHistoryError(
-          payload.error?.message || "Could not load Estimate history.",
+          licenseeErrorMessage(
+            messages,
+            payload.error?.code,
+            messages.errors.historyLoadFailed,
+          ),
         );
         return;
       }
@@ -145,11 +171,11 @@ export function LicenseeEstimateClient({
       setHistory(sorted);
       setHistoryError(null);
     } catch {
-      setHistoryError("Could not load Estimate history.");
+      setHistoryError(messages.errors.historyLoadFailed);
     } finally {
       setHistoryLoading(false);
     }
-  }, []);
+  }, [messages]);
 
   const pollDetail = useCallback(
     async (estimateId: string) => {
@@ -213,7 +239,11 @@ export function LicenseeEstimateClient({
         if (cancelled) return;
         if (!payload.ok || !Array.isArray(payload.estimates)) {
           setHistoryError(
-            payload.error?.message || "Could not load Estimate history.",
+            licenseeErrorMessage(
+              messages,
+              payload.error?.code,
+              messages.errors.historyLoadFailed,
+            ),
           );
           setHistoryLoading(false);
           return;
@@ -226,7 +256,7 @@ export function LicenseeEstimateClient({
         setHistoryError(null);
       } catch {
         if (!cancelled) {
-          setHistoryError("Could not load Estimate history.");
+          setHistoryError(messages.errors.historyLoadFailed);
         }
       } finally {
         if (!cancelled) {
@@ -240,7 +270,7 @@ export function LicenseeEstimateClient({
       cancelled = true;
       stopPolling();
     };
-  }, [stopPolling]);
+  }, [stopPolling, messages]);
 
   useEffect(() => {
     if (!activeEstimate || !isInFlightStatus(activeEstimate.status)) {
@@ -273,27 +303,23 @@ export function LicenseeEstimateClient({
 
   function validateForm(): boolean {
     if (!organizationId.trim()) {
-      setFormError("Select a client / Athena sub-account.");
+      setFormError(estimate.selectClient);
       return false;
     }
     const need = projectNeed.trim();
     if (need.length < ESTIMATE_PROJECT_NEED_MIN_LENGTH) {
-      setFormError("Describe what the client needs.");
+      setFormError(estimate.describeNeed);
       return false;
     }
     if (need.length > ESTIMATE_REQUEST_FIELD_LIMITS.projectNeed) {
-      setFormError(
-        `Project description must be at most ${ESTIMATE_REQUEST_FIELD_LIMITS.projectNeed} characters.`,
-      );
+      setFormError(messages.errors.validation);
       return false;
     }
     if (
       additionalContext.trim().length >
       ESTIMATE_REQUEST_FIELD_LIMITS.additionalContext
     ) {
-      setFormError(
-        `Additional context must be at most ${ESTIMATE_REQUEST_FIELD_LIMITS.additionalContext} characters.`,
-      );
+      setFormError(messages.errors.validation);
       return false;
     }
     setFormError(null);
@@ -333,7 +359,11 @@ export function LicenseeEstimateClient({
       const payload = await parseJsonResponse<CreateResponse>(response);
       if (!response.ok || !payload.ok || !payload.estimate?.id) {
         setSubmitError(
-          payload.error?.message || "Could not create Estimate.",
+          licenseeErrorMessage(
+            messages,
+            payload.error?.code,
+            messages.errors.createEstimateFailed,
+          ),
         );
         return;
       }
@@ -345,7 +375,7 @@ export function LicenseeEstimateClient({
         .getElementById("athena-estimate-result")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch {
-      setSubmitError("Could not create Estimate.");
+      setSubmitError(messages.errors.createEstimateFailed);
     } finally {
       setSubmitting(false);
     }
@@ -360,7 +390,11 @@ export function LicenseeEstimateClient({
       const payload = await parseJsonResponse<DetailResponse>(response);
       if (!payload.ok || !payload.estimate) {
         setSubmitError(
-          payload.error?.message || "Could not open Estimate.",
+          licenseeErrorMessage(
+            messages,
+            payload.error?.code,
+            messages.errors.openEstimateFailed,
+          ),
         );
         return;
       }
@@ -375,7 +409,7 @@ export function LicenseeEstimateClient({
         .getElementById("athena-estimate-result")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch {
-      setSubmitError("Could not open Estimate.");
+      setSubmitError(messages.errors.openEstimateFailed);
     }
   }
 
@@ -383,7 +417,10 @@ export function LicenseeEstimateClient({
     if (!activeEstimate || regenerating) return;
     if (!activeEstimate.relationshipConnected) return;
     if (activeEstimate.prospectRemoved) {
-      setSubmitError(ESTIMATE_PROSPECT_REMOVED_REGENERATE_MESSAGE);
+      setSubmitError(
+        messages.errors.prospectRemovedRegenerate ||
+          ESTIMATE_PROSPECT_REMOVED_REGENERATE_MESSAGE,
+      );
       return;
     }
 
@@ -400,11 +437,18 @@ export function LicenseeEstimateClient({
           response.status === 409 ||
           payload.error?.code === "PROSPECT_TARGET_UNAVAILABLE"
         ) {
-          setSubmitError(ESTIMATE_PROSPECT_UNAVAILABLE_REGENERATE_MESSAGE);
+          setSubmitError(
+            messages.errors.prospectUnavailableRegenerate ||
+              ESTIMATE_PROSPECT_UNAVAILABLE_REGENERATE_MESSAGE,
+          );
           return;
         }
         setSubmitError(
-          payload.error?.message || "Could not regenerate Estimate.",
+          licenseeErrorMessage(
+            messages,
+            payload.error?.code,
+            messages.errors.regenerateFailed,
+          ),
         );
         return;
       }
@@ -412,7 +456,7 @@ export function LicenseeEstimateClient({
       startPolling(payload.estimate.id);
       void refreshHistory();
     } catch {
-      setSubmitError("Could not regenerate Estimate.");
+      setSubmitError(messages.errors.regenerateFailed);
     } finally {
       setRegenerating(false);
     }
@@ -481,7 +525,11 @@ export function LicenseeEstimateClient({
 
       if (!response.ok || !payload.ok) {
         setHideError(
-          payload.error?.message || "Could not hide this Estimate.",
+          licenseeErrorMessage(
+            messages,
+            payload.error?.code,
+            messages.errors.hideFailed,
+          ),
         );
         return;
       }
@@ -489,7 +537,7 @@ export function LicenseeEstimateClient({
       removeEstimateFromVisibleState(targetId);
       setHideTarget(null);
     } catch {
-      setHideError("Could not hide this Estimate.");
+      setHideError(messages.errors.hideFailed);
     } finally {
       setHiding(false);
     }
@@ -505,7 +553,7 @@ export function LicenseeEstimateClient({
       const payload = await parseJsonResponse<DetailResponse>(response);
       if (response.status === 404 || payload.error?.code === "NOT_FOUND") {
         removeEstimateFromVisibleState(estimateId);
-        setSubmitError("This Estimate is no longer available.");
+        setSubmitError(messages.errors.estimateUnavailable);
         return;
       }
       if (!payload.ok || !payload.estimate) return;
@@ -528,38 +576,35 @@ export function LicenseeEstimateClient({
       {/* Hero */}
       <section className="max-w-4xl">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Athena Estimate
+          {estimate.eyebrow}
         </div>
         <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">
-          Know What to Charge.
+          {estimate.heroTitle}
         </h1>
         <p className="mt-6 max-w-3xl text-base leading-7 text-white/55 md:text-lg">
-          Athena already knows your client. Describe the project, and Athena
-          evaluates the business, scope, context, and pricing factors to help
-          you determine what to charge.
+          {estimate.heroBody}
         </p>
         <a
           href="#athena-estimate-form"
           className="mt-8 inline-block rounded-full bg-[var(--athena-orange)] px-8 py-4 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
         >
-          Create an Estimate
+          {estimate.createCta}
         </a>
         <p className="mt-4 text-xs tracking-wide text-white/40">
-          AI-assisted commercial guidance based on your client’s Athena
-          intelligence.
+          {estimate.heroFootnote}
         </p>
       </section>
 
       {/* How it works */}
       <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6 md:p-8">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          How Athena Estimate Works
+          {estimate.howEyebrow}
         </div>
         <h2 className="mt-3 text-2xl font-semibold md:text-3xl">
-          Client knowledge. Project clarity. Pricing intelligence.
+          {estimate.howTitle}
         </h2>
         <div className="mt-8 grid gap-4 md:grid-cols-3">
-          {HOW_IT_WORKS.map((item) => (
+          {howItWorks.map((item) => (
             <article
               key={item.title}
               className="rounded-2xl border border-white/10 bg-black/25 p-5"
@@ -572,8 +617,7 @@ export function LicenseeEstimateClient({
           ))}
         </div>
         <p className="mt-6 text-sm leading-6 text-white/40">
-          General market pricing knowledge is AI-assisted model prior — not live
-          market research, competitor quotation data, or a binding quote.
+          {estimate.howDisclaimer}
         </p>
       </section>
 
@@ -583,26 +627,23 @@ export function LicenseeEstimateClient({
         className="scroll-mt-8 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6 md:p-8"
       >
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Create Estimate
+          {estimate.formEyebrow}
         </div>
         <h2 className="mt-3 text-2xl font-semibold md:text-3xl">
-          Tell Athena what your client needs
+          {estimate.formTitle}
         </h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-white/50">
-          Select a linked Athena sub-account, optionally choose a Prospect
-          commercial target, then describe the project. Athena already holds the
-          client profile.
+          {estimate.formIntro}
         </p>
 
         {subAccounts.length === 0 ? (
           <div className="mt-8 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-5 py-4 text-sm text-amber-50">
-            Create a linked Athena sub-account from your Master dashboard before
-            generating an Estimate.{" "}
+            {estimate.noSubAccounts}{" "}
             <Link
               href="/licensee/sub-accounts/new"
               className="font-medium text-[var(--athena-orange)] underline-offset-2 hover:underline"
             >
-              Create Sub-account
+              {estimate.createSubAccountLink}
             </Link>
           </div>
         ) : (
@@ -612,7 +653,7 @@ export function LicenseeEstimateClient({
                 htmlFor="estimate-organization"
                 className="block text-sm font-medium text-white/80"
               >
-                Client / Athena sub-account
+                {estimate.clientLabel}
               </label>
               <select
                 id="estimate-organization"
@@ -640,6 +681,7 @@ export function LicenseeEstimateClient({
               value={prospectId}
               onChange={setProspectId}
               disabled={submitting}
+              messages={messages}
             />
 
             <div>
@@ -647,7 +689,7 @@ export function LicenseeEstimateClient({
                 htmlFor="estimate-project-need"
                 className="block text-sm font-medium text-white/80"
               >
-                What does the client need?
+                {estimate.projectNeedLabel}
               </label>
               <textarea
                 id="estimate-project-need"
@@ -657,7 +699,7 @@ export function LicenseeEstimateClient({
                 maxLength={ESTIMATE_REQUEST_FIELD_LIMITS.projectNeed}
                 value={projectNeed}
                 onChange={(event) => setProjectNeed(event.target.value)}
-                placeholder="Describe the project scope, deliverables, and what success looks like."
+                placeholder={estimate.projectNeedPlaceholder}
                 className="mt-2 w-full rounded-2xl border border-white/20 bg-[#161922] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-[var(--athena-orange)] focus:ring-2 focus:ring-[var(--athena-orange)]/30"
               />
               <p className="mt-1 text-xs text-white/35">
@@ -671,8 +713,10 @@ export function LicenseeEstimateClient({
                 htmlFor="estimate-additional-context"
                 className="block text-sm font-medium text-white/80"
               >
-                Additional context{" "}
-                <span className="font-normal text-white/40">(optional)</span>
+                {estimate.additionalContextLabel}{" "}
+                <span className="font-normal text-white/40">
+                  {messages.common.optional}
+                </span>
               </label>
               <textarea
                 id="estimate-additional-context"
@@ -681,7 +725,7 @@ export function LicenseeEstimateClient({
                 maxLength={ESTIMATE_REQUEST_FIELD_LIMITS.additionalContext}
                 value={additionalContext}
                 onChange={(event) => setAdditionalContext(event.target.value)}
-                placeholder="Constraints, stakeholders, budget signals, or other commercial notes."
+                placeholder={estimate.additionalContextPlaceholder}
                 className="mt-2 w-full rounded-2xl border border-white/20 bg-[#161922] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-[var(--athena-orange)] focus:ring-2 focus:ring-[var(--athena-orange)]/30"
               />
             </div>
@@ -691,8 +735,10 @@ export function LicenseeEstimateClient({
                 htmlFor="estimate-timeframe"
                 className="block text-sm font-medium text-white/80"
               >
-                Desired timeframe{" "}
-                <span className="font-normal text-white/40">(optional)</span>
+                {estimate.timeframeLabel}{" "}
+                <span className="font-normal text-white/40">
+                  {messages.common.optional}
+                </span>
               </label>
               <select
                 id="estimate-timeframe"
@@ -705,8 +751,8 @@ export function LicenseeEstimateClient({
                 }
                 className="mt-2 w-full rounded-2xl border border-white/20 bg-[#161922] px-4 py-3 text-sm text-white outline-none focus:border-[var(--athena-orange)] focus:ring-2 focus:ring-[var(--athena-orange)]/30 md:max-w-sm"
               >
-                <option value="">Not specified</option>
-                {ESTIMATE_TIMEFRAME_OPTIONS.map((option) => (
+                <option value="">{estimate.timeframeUnspecified}</option>
+                {timeframeOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -730,7 +776,7 @@ export function LicenseeEstimateClient({
               disabled={submitting || subAccounts.length === 0}
               className="inline-flex items-center justify-center rounded-full bg-[var(--athena-orange)] px-8 py-3.5 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? "Creating Estimate…" : "Generate Estimate"}
+              {submitting ? estimate.creating : estimate.generate}
             </button>
           </form>
         )}
@@ -744,22 +790,22 @@ export function LicenseeEstimateClient({
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-              Estimate Result
+              {estimate.resultEyebrow}
             </div>
             {!activeEstimate ? (
               <h2 className="mt-3 text-2xl font-semibold md:text-3xl">
-                Your Estimate will appear here
+                {estimate.resultEmptyTitle}
               </h2>
             ) : estimateHasProspectTarget(activeEstimate) ? (
               <div className="mt-3" data-estimate-target-display="prospect">
                 <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/40">
-                  Estimate for
+                  {estimate.estimateFor}
                 </p>
                 <h2 className="mt-1 text-2xl font-semibold md:text-3xl">
                   {activeEstimate.prospectBusinessNameSnapshot}
                 </h2>
                 <p className="mt-2 text-sm text-white/50">
-                  via{" "}
+                  {estimate.via}{" "}
                   <span className="font-medium text-white/75">
                     {activeEstimate.organizationNameSnapshot}
                   </span>
@@ -770,7 +816,7 @@ export function LicenseeEstimateClient({
                     data-estimate-prospect-removed="true"
                   >
                     <span aria-hidden="true">•</span>
-                    {ESTIMATE_PROSPECT_REMOVED_LABEL}
+                    {prospectRemovedLabel}
                   </p>
                 ) : null}
               </div>
@@ -789,18 +835,18 @@ export function LicenseeEstimateClient({
                 type="button"
                 onClick={requestHideActiveEstimate}
                 disabled={hiding}
-                aria-label="Hide this Estimate from history"
+                aria-label={estimate.hideFromHistoryAria}
                 className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-xs font-medium text-white/55 transition hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-50"
               >
                 <HideTrashIcon />
-                Hide
+                {messages.common.hide}
               </button>
               <button
                 type="button"
                 onClick={handleCreateAnother}
                 className="text-sm font-medium text-[var(--athena-orange)] hover:underline"
               >
-                Create Another Estimate
+                {estimate.createAnother}
               </button>
             </div>
           ) : null}
@@ -813,7 +859,7 @@ export function LicenseeEstimateClient({
 
         {!activeEstimate ? (
           <p className="mt-6 text-sm leading-6 text-white/45">
-            Submit a project above or open an Estimate from your history.
+            {estimate.resultEmptyBody}
           </p>
         ) : null}
 
@@ -821,18 +867,17 @@ export function LicenseeEstimateClient({
           <div className="mt-8 rounded-2xl border border-white/10 bg-black/25 px-5 py-6">
             <div className="text-sm font-semibold text-white">
               {activeEstimate.status === "Queued"
-                ? "Estimate queued"
-                : "Generating Estimate"}
+                ? estimate.queuedTitle
+                : estimate.generatingTitle}
             </div>
             <p className="mt-2 text-sm text-white/55">
-              {estimateStageLabel(activeEstimate.generationStage) ||
+              {estimateStageLabel(activeEstimate.generationStage, messages) ||
                 (activeEstimate.status === "Queued"
-                  ? "Waiting for an available Athena worker."
-                  : "Athena is preparing your pricing recommendation.")}
+                  ? estimate.queuedBody
+                  : estimate.generatingBody)}
             </p>
             <p className="mt-4 text-xs text-white/35">
-              This usually takes a short while. You can leave this page open —
-              history will update when Ready.
+              {estimate.inFlightFootnote}
             </p>
           </div>
         ) : null}
@@ -840,11 +885,10 @@ export function LicenseeEstimateClient({
         {activeEstimate?.status === "Processing Failed" ? (
           <div className="mt-8 rounded-2xl border border-red-400/20 bg-red-500/10 px-5 py-6">
             <div className="text-sm font-semibold text-red-100">
-              Estimate could not be completed
+              {estimate.failedTitle}
             </div>
             <p className="mt-2 text-sm text-red-100/80">
-              {activeEstimate.errorMessage?.trim() ||
-                "Something went wrong while generating this Estimate. Try again when ready."}
+              {activeEstimate.errorMessage?.trim() || estimate.failedFallback}
             </p>
             {activeEstimate.relationshipConnected &&
             !activeEstimate.prospectRemoved ? (
@@ -854,7 +898,7 @@ export function LicenseeEstimateClient({
                 onClick={() => void handleRegenerate()}
                 className="mt-5 inline-flex rounded-full border border-white/20 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
               >
-                {regenerating ? "Starting…" : "Try Again (New Estimate)"}
+                {regenerating ? estimate.starting : estimate.tryAgain}
               </button>
             ) : null}
             {activeEstimate.prospectRemoved ? (
@@ -862,7 +906,7 @@ export function LicenseeEstimateClient({
                 className="mt-5 text-sm text-white/45"
                 data-estimate-regenerate-unavailable="prospect-removed"
               >
-                {ESTIMATE_PROSPECT_REMOVED_REGENERATE_MESSAGE}
+                {prospectRemovedRegenerate}
               </p>
             ) : null}
           </div>
@@ -872,65 +916,66 @@ export function LicenseeEstimateClient({
           <div className="mt-8 space-y-6">
             {!activeEstimate.relationshipConnected ? (
               <div className="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-100">
-                No longer connected
+                {estimate.disconnected}
               </div>
             ) : null}
 
             <div className="rounded-2xl border border-[var(--athena-orange)]/30 bg-gradient-to-br from-black/40 to-[#1a1410] px-6 py-8">
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--athena-orange)]">
-                Recommended Client Price
+                {estimate.recommendedPrice}
               </div>
               <div className="mt-3 text-4xl font-semibold tracking-tight text-white md:text-5xl">
                 {formatEstimateMoney(
                   pkg.recommendedClientPrice.amount,
                   pkg.recommendedClientPrice.currencyCode,
+                  locale,
                 )}
               </div>
               <div className="mt-4 text-sm text-white/55">
-                Recommended range:{" "}
+                {estimate.recommendedRange}{" "}
                 <span className="font-medium text-white/85">
                   {formatEstimateMoney(
                     pkg.recommendedPriceRange.low.amount,
                     pkg.recommendedPriceRange.low.currencyCode,
+                    locale,
                   )}{" "}
                   →{" "}
                   {formatEstimateMoney(
                     pkg.recommendedPriceRange.high.amount,
                     pkg.recommendedPriceRange.high.currencyCode,
+                    locale,
                   )}
                 </span>
               </div>
               {pkg.geographyLabel ? (
                 <p className="mt-3 text-sm text-white/45">
-                  Geography: {pkg.geographyLabel}
+                  {estimate.geography} {pkg.geographyLabel}
                 </p>
               ) : null}
               {pkg.currencyResolution === "fallback" ? (
                 <p className="mt-2 text-sm text-amber-100/80">
-                  Geography/currency could not be reliably established from
-                  trusted Athena evidence — amounts are shown in USD as fallback
-                  guidance.
+                  {estimate.currencyFallback}
                 </p>
               ) : null}
             </div>
 
-            <ResultSection title="Scope Interpretation">
+            <ResultSection title={estimate.scopeInterpretation}>
               {pkg.scopeInterpretation}
             </ResultSection>
-            <ResultSection title="Pricing Rationale">
+            <ResultSection title={estimate.pricingRationale}>
               {pkg.pricingRationale}
             </ResultSection>
-            <ResultSection title="Key Price Drivers">
+            <ResultSection title={estimate.keyPriceDrivers}>
               <ul className="list-disc space-y-2 pl-5">
                 {pkg.keyPriceDrivers.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>
             </ResultSection>
-            <ResultSection title="Suggested Client Positioning">
+            <ResultSection title={estimate.suggestedPositioning}>
               {pkg.suggestedClientPositioning}
             </ResultSection>
-            <ResultSection title="Risks & Assumptions">
+            <ResultSection title={estimate.risksAssumptions}>
               <ul className="list-disc space-y-2 pl-5">
                 {pkg.risksAndAssumptions.map((item) => (
                   <li key={item}>{item}</li>
@@ -948,7 +993,7 @@ export function LicenseeEstimateClient({
                   className="text-sm text-white/40"
                   data-estimate-regenerate-unavailable="prospect-removed"
                 >
-                  {ESTIMATE_PROSPECT_REMOVED_REGENERATE_MESSAGE}
+                  {prospectRemovedRegenerate}
                 </p>
               ) : activeEstimate.relationshipConnected ? (
                 <button
@@ -958,12 +1003,11 @@ export function LicenseeEstimateClient({
                   className="inline-flex rounded-full border border-white/20 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
                   data-estimate-regenerate-action="true"
                 >
-                  {regenerating ? "Starting…" : "Regenerate as New Estimate"}
+                  {regenerating ? estimate.starting : estimate.regenerate}
                 </button>
               ) : (
                 <p className="text-sm text-white/40">
-                  Regeneration unavailable — this client is no longer connected
-                  to your Master account.
+                  {estimate.regenerateUnavailableDisconnected}
                 </p>
               )}
               <button
@@ -971,7 +1015,7 @@ export function LicenseeEstimateClient({
                 onClick={handleCreateAnother}
                 className="inline-flex rounded-full bg-[var(--athena-orange)] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
               >
-                Create Another Estimate
+                {estimate.createAnother}
               </button>
             </div>
 
@@ -984,25 +1028,26 @@ export function LicenseeEstimateClient({
               onNotReady={() => {
                 void refreshActiveEstimateDetail();
               }}
+              messages={messages}
             />
           </div>
         ) : null}
       </section>
 
-      {/* History */}
+      {/* Estimate History */}
       <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6 md:p-8">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
-          Estimate History
+          {estimate.historyEyebrow}
         </div>
         <h2 className="mt-3 text-2xl font-semibold md:text-3xl">
-          Your previous Estimates
+          {estimate.historyTitle}
         </h2>
         <p className="mt-3 text-sm text-white/45">
-          Historical Estimates stay readable. Opening one never regenerates it.
+          {estimate.historyIntro}
         </p>
 
         {historyLoading ? (
-          <p className="mt-6 text-sm text-white/40">Loading history…</p>
+          <p className="mt-6 text-sm text-white/40">{estimate.historyLoading}</p>
         ) : null}
         {historyError ? (
           <p className="mt-6 text-sm text-red-300" role="alert">
@@ -1011,7 +1056,7 @@ export function LicenseeEstimateClient({
         ) : null}
         {!historyLoading && !historyError && history.length === 0 ? (
           <p className="mt-6 text-sm text-white/40">
-            No Estimates yet. Create your first one above.
+            {estimate.historyEmpty}
           </p>
         ) : null}
 
@@ -1045,32 +1090,32 @@ export function LicenseeEstimateClient({
                           <span className="font-medium text-white">
                             {formatEstimateHistoryPrimaryLabel(item)}
                           </span>
-                          <StatusBadge status={item.status} />
+                          <StatusBadge status={item.status} messages={messages} />
                           {item.prospectRemoved ? (
                             <span
                               className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-white/70"
                               data-estimate-prospect-removed="true"
                             >
                               <span aria-hidden="true">•</span>
-                              {ESTIMATE_PROSPECT_REMOVED_LABEL}
+                              {prospectRemovedLabel}
                             </span>
                           ) : null}
                           {!item.relationshipConnected ? (
                             <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-100">
-                              No longer connected
+                              {estimate.disconnected}
                             </span>
                           ) : null}
                         </div>
                         {estimateHasProspectTarget(item) ? (
                           <p className="mt-1 text-xs text-white/40">
-                            via {item.organizationNameSnapshot}
+                            {estimate.via} {item.organizationNameSnapshot}
                           </p>
                         ) : null}
                         <p className="mt-1 text-sm text-white/50">
                           {truncateProjectNeed(item.request.projectNeed)}
                         </p>
                         <p className="mt-1 text-xs text-white/35">
-                          {formatEstimateDate(item.createdAt)}
+                          {formatEstimateDate(item.createdAt, locale)}
                         </p>
                       </div>
                       <div className="shrink-0 text-sm font-medium text-white/80">
@@ -1078,6 +1123,7 @@ export function LicenseeEstimateClient({
                           ? formatEstimateMoney(
                               item.recommendedClientPrice.amount,
                               item.recommendedClientPrice.currencyCode,
+                              locale,
                             )
                           : "—"}
                       </div>
@@ -1086,7 +1132,10 @@ export function LicenseeEstimateClient({
                   <div className="flex shrink-0 items-start pt-3 pr-3">
                     <button
                       type="button"
-                      aria-label={`Hide Estimate for ${formatEstimateHistoryPrimaryLabel(item)}`}
+                      aria-label={interpolateTenantMessage(
+                        estimate.hideEstimateAria,
+                        { name: formatEstimateHistoryPrimaryLabel(item) },
+                      )}
                       data-estimate-hide-action="true"
                       disabled={hiding && hideTarget?.id === item.id}
                       onClick={(event) => {
@@ -1109,20 +1158,19 @@ export function LicenseeEstimateClient({
       {/* Quote cross-link */}
       <section className="rounded-[28px] border border-[var(--athena-orange)]/25 bg-gradient-to-br from-[var(--athena-card)] to-[#16161f] p-6 text-center md:p-10">
         <h2 className="text-2xl font-semibold md:text-3xl">
-          Want GetOblic to fulfill this project?
+          {estimate.quoteTitle}
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-white/55">
-          Athena Estimate helps you decide what to charge. When you want GetOblic
-          fulfillment pricing for delivery, request a private Quote.
+          {estimate.quoteBody}
         </p>
         <Link
           href="/licensee/quote"
           className="mt-8 inline-block rounded-full bg-[var(--athena-orange)] px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition hover:opacity-90"
         >
-          Request a Fulfillment Quote
+          {estimate.quoteCta}
         </Link>
         <p className="mt-4 text-xs text-white/35">
-          Opens Athena Quote only — Estimate data is not transferred.
+          {estimate.quoteFootnote}
         </p>
       </section>
 
@@ -1136,6 +1184,7 @@ export function LicenseeEstimateClient({
           }
           pending={hiding}
           error={hideError}
+          messages={messages}
           onCancel={() => {
             if (hiding) return;
             setHideTarget(null);
@@ -1153,6 +1202,7 @@ function HideEstimateConfirmDialog({
   organizationName,
   pending,
   error,
+  messages,
   onCancel,
   onConfirm,
 }: {
@@ -1160,6 +1210,7 @@ function HideEstimateConfirmDialog({
   organizationName: string | null;
   pending: boolean;
   error: string | null;
+  messages: LicenseeMessages;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -1176,16 +1227,15 @@ function HideEstimateConfirmDialog({
           id="hide-estimate-title"
           className="text-xl font-semibold text-white"
         >
-          Hide this Estimate from your history?
+          {messages.estimate.hideDialogTitle}
         </h2>
         <p className="mt-3 text-sm leading-6 text-white/55">
-          This removes it from your Athena Estimate history but does not
-          permanently delete the record.
+          {messages.estimate.hideDialogBody}
         </p>
         <p className="mt-2 text-sm leading-6 text-white/70">{targetLabel}</p>
         {organizationName ? (
           <p className="mt-1 text-sm leading-6 text-white/40">
-            via {organizationName}
+            {messages.estimate.via} {organizationName}
           </p>
         ) : null}
         {error ? (
@@ -1200,7 +1250,7 @@ function HideEstimateConfirmDialog({
             onClick={onCancel}
             className="rounded-xl border border-[var(--athena-border)] px-4 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-60"
           >
-            Cancel
+            {messages.common.cancel}
           </button>
           <button
             type="button"
@@ -1208,7 +1258,7 @@ function HideEstimateConfirmDialog({
             onClick={onConfirm}
             className="rounded-xl border border-red-400/30 bg-red-500/15 px-4 py-2.5 text-sm font-semibold text-red-100 transition hover:bg-red-500/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-60"
           >
-            {pending ? "Hiding…" : "Hide Estimate"}
+            {pending ? messages.estimate.hiding : messages.estimate.hideConfirm}
           </button>
         </div>
       </div>
@@ -1252,18 +1302,34 @@ function ResultSection({
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  status,
+  messages,
+}: {
+  status: string;
+  messages: LicenseeMessages;
+}) {
   const styles =
     status === "Ready"
       ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
       : status === "Processing Failed"
         ? "border-red-400/30 bg-red-500/10 text-red-100"
         : "border-white/15 bg-white/5 text-white/70";
+  const label =
+    status === "Queued"
+      ? messages.estimate.statusQueued
+      : status === "Processing"
+        ? messages.estimate.statusProcessing
+        : status === "Ready"
+          ? messages.estimate.statusReady
+          : status === "Processing Failed"
+            ? messages.estimate.statusFailed
+            : status;
   return (
     <span
       className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${styles}`}
     >
-      {status}
+      {label}
     </span>
   );
 }

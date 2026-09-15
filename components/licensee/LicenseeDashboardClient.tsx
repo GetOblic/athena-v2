@@ -9,7 +9,37 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Calculator,
+  FileText,
+  Plus,
+  Search,
+} from "lucide-react";
 import { clearLicenseeHandoffBrowserStorage } from "@/lib/licensee/clearHandoffBrowserStorage";
+import {
+  getLicenseeLocalization,
+  type LicenseeMessages,
+} from "@/lib/licensee/getLicenseeLocalization";
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import {
+  restoreToProspectLocalizedMessage,
+  licenseeErrorMessage,
+} from "@/lib/licensee/licenseeErrorPresentation";
+import {
+  formatLicenseeLastVisit,
+  LICENSEE_EMPTY_STATE_CLASS,
+  LICENSEE_ERROR_NOTICE_CLASS,
+  LICENSEE_ESTIMATE_CARD_CLASS,
+  LICENSEE_ICON_WELL,
+  LICENSEE_OWN_COMPANY_CARD_CLASS,
+  LICENSEE_PRIMARY_CTA_CLASS,
+  LICENSEE_QUOTE_CARD_CLASS,
+  LICENSEE_SEARCH_INPUT_CLASS,
+  LICENSEE_SECTION_HEADER_CLASS,
+  LICENSEE_SUB_ACCOUNT_CARD_CLASS,
+  LICENSEE_SUCCESS_NOTICE_CLASS,
+  LICENSEE_WARNING_NOTICE_CLASS,
+} from "@/lib/licensee/licenseeDashboardPresentation";
 import { SubAccountFallbackIcon } from "@/components/licensee/SubAccountFallbackIcon";
 import { computeAccountReadiness } from "@/services/licensee/licenseeAccountReadiness";
 import {
@@ -42,19 +72,18 @@ export function licenseeSubAccountRemovalKind(item: {
   return "remove";
 }
 
-export function restoreToProspectUserMessage(status: number): string {
-  if (status === 401 || status === 403) {
-    return "Unable to move this client back to prospects from the current account.";
-  }
-  if (status === 409) {
-    return "This client could not be moved back automatically. Please contact your administrator.";
-  }
-  return "Unable to move this client back to prospects right now.";
+export function restoreToProspectUserMessage(
+  status: number,
+  messages: LicenseeMessages = getLicenseeLocalization("en").messages,
+): string {
+  return restoreToProspectLocalizedMessage(status, messages);
 }
 
 type LicenseeDashboardClientProps = {
   initialItems: LicenseeDashboardSubAccountItem[];
   notice?: string | null;
+  messages?: LicenseeMessages;
+  locale?: string;
 };
 
 function sortSubAccounts(
@@ -68,6 +97,8 @@ function sortSubAccounts(
 export function LicenseeDashboardClient({
   initialItems,
   notice,
+  messages = getLicenseeLocalization("en").messages,
+  locale = "en-US",
 }: LicenseeDashboardClientProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -137,17 +168,23 @@ export function LicenseeDashboardClient({
       const payload = (await response.json()) as {
         ok?: boolean;
         redirectTo?: string;
-        error?: { message?: string };
+        error?: { code?: string; message?: string };
       };
       if (!response.ok || !payload.ok) {
-        setActionError(payload.error?.message || "Open Athena failed.");
+        setActionError(
+          licenseeErrorMessage(
+            messages,
+            payload.error?.code,
+            messages.errors.openAthenaFailed,
+          ),
+        );
         setOpeningId(null);
         return;
       }
       clearLicenseeHandoffBrowserStorage();
       window.location.href = payload.redirectTo || "/";
     } catch {
-      setActionError("Open Athena failed.");
+      setActionError(messages.errors.openAthenaFailed);
       setOpeningId(null);
     }
   }
@@ -167,10 +204,16 @@ export function LicenseeDashboardClient({
           relationshipId?: string;
           pinned?: boolean;
           pinnedAt?: string | null;
-          error?: { message?: string };
+          error?: { code?: string; message?: string };
         };
         if (!response.ok || !payload.ok) {
-          setActionError(payload.error?.message || "Could not update pin.");
+          setActionError(
+            licenseeErrorMessage(
+              messages,
+              payload.error?.code,
+              messages.errors.pinFailed,
+            ),
+          );
           return;
         }
 
@@ -189,7 +232,7 @@ export function LicenseeDashboardClient({
         );
         router.refresh();
       } catch {
-        setActionError("Could not update pin.");
+        setActionError(messages.errors.pinFailed);
       }
     });
   }
@@ -205,10 +248,16 @@ export function LicenseeDashboardClient({
     const payload = (await response.json()) as {
       ok?: boolean;
       notes?: string;
-      error?: { message?: string };
+      error?: { code?: string; message?: string };
     };
     if (!response.ok || !payload.ok) {
-      throw new Error(payload.error?.message || "Could not save Master note.");
+      throw new Error(
+        licenseeErrorMessage(
+          messages,
+          payload.error?.code,
+          messages.errors.noteSaveFailed,
+        ),
+      );
     }
     setItems((current) =>
       current.map((item) =>
@@ -217,7 +266,7 @@ export function LicenseeDashboardClient({
           : item,
       ),
     );
-    setSuccessMessage("Master note saved.");
+    setSuccessMessage(messages.notices.noteSaved);
   }
 
   async function saveDisplayName(relationshipId: string, displayName: string) {
@@ -231,11 +280,15 @@ export function LicenseeDashboardClient({
     const payload = (await response.json()) as {
       ok?: boolean;
       displayName?: string | null;
-      error?: { message?: string };
+      error?: { code?: string; message?: string };
     };
     if (!response.ok || !payload.ok) {
       throw new Error(
-        payload.error?.message || "Could not save Master display name.",
+        licenseeErrorMessage(
+          messages,
+          payload.error?.code,
+          messages.errors.displayNameSaveFailed,
+        ),
       );
     }
     setItems((current) =>
@@ -247,7 +300,7 @@ export function LicenseeDashboardClient({
         ),
       ),
     );
-    setSuccessMessage("Master display name saved.");
+    setSuccessMessage(messages.notices.displayNameSaved);
   }
 
   function designateOwnCompany(relationshipId: string) {
@@ -263,11 +316,15 @@ export function LicenseeDashboardClient({
         const payload = (await response.json()) as {
           ok?: boolean;
           organizationId?: string;
-          error?: { message?: string };
+          error?: { code?: string; message?: string };
         };
         if (!response.ok || !payload.ok) {
           setActionError(
-            payload.error?.message || "Could not set My Company.",
+            licenseeErrorMessage(
+              messages,
+              payload.error?.code,
+              messages.errors.setMyCompanyFailed,
+            ),
           );
           return;
         }
@@ -280,10 +337,10 @@ export function LicenseeDashboardClient({
             })),
           ),
         );
-        setSuccessMessage("My Company is now designated.");
+        setSuccessMessage(messages.notices.myCompanyDesignated);
         router.refresh();
       } catch {
-        setActionError("Could not set My Company.");
+        setActionError(messages.errors.setMyCompanyFailed);
       }
     });
   }
@@ -304,11 +361,15 @@ export function LicenseeDashboardClient({
         });
         const payload = (await response.json()) as {
           ok?: boolean;
-          error?: { message?: string };
+          error?: { code?: string; message?: string };
         };
         if (!response.ok || !payload.ok) {
           setActionError(
-            payload.error?.message || "Could not remove sub-account.",
+            licenseeErrorMessage(
+              messages,
+              payload.error?.code,
+              messages.errors.removeFailed,
+            ),
           );
           return;
         }
@@ -320,11 +381,13 @@ export function LicenseeDashboardClient({
         );
         setConfirmRemove(null);
         setSuccessMessage(
-          `"${resolveLicenseeSubAccountTitle(target)}" was removed from your Master dashboard.`,
+          interpolateTenantMessage(messages.notices.removedFromDashboard, {
+            name: resolveLicenseeSubAccountTitle(target),
+          }),
         );
         router.refresh();
       } catch {
-        setActionError("Could not remove sub-account.");
+        setActionError(messages.errors.removeFailed);
       }
     });
   }
@@ -353,140 +416,147 @@ export function LicenseeDashboardClient({
           error?: { message?: string };
         };
         if (!response.ok || !payload.ok) {
-          setActionError(restoreToProspectUserMessage(response.status));
+          setActionError(restoreToProspectUserMessage(response.status, messages));
           return;
         }
 
         setConfirmRestore(null);
         setSuccessMessage(
-          `"${resolveLicenseeSubAccountTitle(target)}" was moved back to prospects.`,
+          interpolateTenantMessage(messages.notices.movedBackToProspects, {
+            name: resolveLicenseeSubAccountTitle(target),
+          }),
         );
         router.refresh();
       } catch {
-        setActionError(restoreToProspectUserMessage(500));
+        setActionError(restoreToProspectUserMessage(500, messages));
       }
     });
   }
 
   return (
-    <div className="space-y-10">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:justify-between">
+    <div className="space-y-8">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:justify-between">
         <div className="relative w-full lg:max-w-xl">
           <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-white/45">
-            <SearchIcon className="h-5 w-5" />
+            <Search className="h-5 w-5" />
           </div>
           <input
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search businesses, emails, notes..."
-            className="w-full rounded-2xl border border-white/30 bg-[#161922] py-4 pl-12 pr-5 text-sm text-white shadow-[0_10px_30px_rgba(0,0,0,0.35)] outline-none placeholder:text-white/40 focus:border-[var(--athena-orange)] focus:ring-2 focus:ring-[var(--athena-orange)]/35"
+            placeholder={messages.dashboard.searchPlaceholder}
+            className={LICENSEE_SEARCH_INPUT_CLASS}
           />
         </div>
         <Link
           href="/licensee/sub-accounts/new"
-          className="inline-flex shrink-0 items-center justify-center rounded-full bg-[var(--athena-orange)] px-6 py-3.5 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
+          className={LICENSEE_PRIMARY_CTA_CLASS}
         >
+          <Plus className="h-4 w-4" aria-hidden="true" />
           {items.length === 0
-            ? "Create your company account"
-            : "+ Create Sub-account"}
+            ? messages.dashboard.createCompanyAccount
+            : messages.dashboard.createSubAccount}
         </Link>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Link
-          href="/licensee/estimate"
-          className="block rounded-2xl border border-[var(--athena-border)] bg-black/20 px-5 py-5 transition hover:border-white/20 hover:bg-white/5"
-        >
+        <Link href="/licensee/estimate" className={LICENSEE_ESTIMATE_CARD_CLASS}>
           <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-base font-semibold text-white">
-                Athena Estimate
+            <div className="flex min-w-0 items-start gap-3">
+              <span
+                className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${LICENSEE_ICON_WELL.cyan}`}
+                aria-hidden="true"
+              >
+                <Calculator size={18} />
+              </span>
+              <div>
+                <div className="text-base font-semibold text-white">
+                  {messages.dashboard.estimateTitle}
+                </div>
+                <p className="mt-1 text-sm leading-6 text-white/50">
+                  {messages.dashboard.estimateDescription}
+                </p>
               </div>
-              <p className="mt-1 text-sm leading-6 text-white/50">
-                Know what to charge your client — using Athena’s knowledge of
-                their business.
-              </p>
             </div>
             <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
-              Open →
+              {messages.common.open}
             </span>
           </div>
         </Link>
 
-        <Link
-          href="/licensee/quote"
-          className="block rounded-2xl border border-[var(--athena-border)] bg-black/20 px-5 py-5 transition hover:border-white/20 hover:bg-white/5"
-        >
+        <Link href="/licensee/quote" className={LICENSEE_QUOTE_CARD_CLASS}>
           <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-base font-semibold text-white">Athena Quote</div>
-              <p className="mt-1 text-sm leading-6 text-white/50">
-                Submit client work for private GetOblic fulfillment pricing.
-              </p>
+            <div className="flex min-w-0 items-start gap-3">
+              <span
+                className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${LICENSEE_ICON_WELL.violet}`}
+                aria-hidden="true"
+              >
+                <FileText size={18} />
+              </span>
+              <div>
+                <div className="text-base font-semibold text-white">
+                  {messages.dashboard.quoteTitle}
+                </div>
+                <p className="mt-1 text-sm leading-6 text-white/50">
+                  {messages.dashboard.quoteDescription}
+                </p>
+              </div>
             </div>
             <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
-              Open →
+              {messages.common.open}
             </span>
           </div>
         </Link>
       </div>
 
       {notice ? (
-        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
-          {notice}
-        </div>
+        <div className={LICENSEE_SUCCESS_NOTICE_CLASS}>{notice}</div>
       ) : null}
 
       {successMessage ? (
-        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
-          {successMessage}
-        </div>
+        <div className={LICENSEE_SUCCESS_NOTICE_CLASS}>{successMessage}</div>
       ) : null}
 
       {actionError ? (
-        <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-5 py-4 text-sm text-red-100">
-          {actionError}
-        </div>
+        <div className={LICENSEE_ERROR_NOTICE_CLASS}>{actionError}</div>
       ) : null}
 
       {items.length === 0 ? (
         <EmptyState
-          title="Create your company account"
-          body="This will be the Athena workspace you use to grow your own business."
+          title={messages.dashboard.emptyTitle}
+          body={messages.dashboard.emptyBody}
           action={
             <Link
               href="/licensee/sub-accounts/new"
-              className="mt-6 inline-flex items-center justify-center rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90"
+              className={`mt-6 ${LICENSEE_PRIMARY_CTA_CLASS}`}
             >
-              Create your company account
+              {messages.dashboard.createCompanyAccount}
             </Link>
           }
         />
       ) : filtered.length === 0 ? (
         <EmptyState
-          title="No matching sub-accounts found."
-          body="Try a different business name, email, note, or snapshot phrase."
+          title={messages.dashboard.noMatchTitle}
+          body={messages.dashboard.noMatchBody}
         />
       ) : (
         <>
           {!hasOwnCompany ? (
-            <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-5 py-4">
+            <div className={LICENSEE_WARNING_NOTICE_CLASS}>
               <h2 className="text-base font-semibold text-white">
-                Which account is your company?
+                {messages.dashboard.ownCompanyQuestion}
               </h2>
               <p className="mt-2 text-sm leading-6 text-white/60">
-                Choose the account you use to run your own GetOblic business.
-                This is a one-time designation.
+                {messages.dashboard.ownCompanyQuestionBody}
               </p>
             </div>
           ) : null}
 
           {hasOwnCompany ? (
-            <Section title="My Company">
+            <Section title={messages.dashboard.myCompany}>
               {ownCompany.length === 0 ? (
                 <p className="text-sm text-white/40">
-                  Your company account is hidden by the current search.
+                  {messages.dashboard.companyHiddenBySearch}
                 </p>
               ) : (
                 <ul className="space-y-5">
@@ -514,6 +584,8 @@ export function LicenseeDashboardClient({
                       onDesignateOwnCompany={() =>
                         designateOwnCompany(item.relationshipId)
                       }
+                      messages={messages}
+                      locale={locale}
                     />
                   ))}
                 </ul>
@@ -521,9 +593,9 @@ export function LicenseeDashboardClient({
             </Section>
           ) : null}
 
-          <Section title="Pinned">
+          <Section title={messages.dashboard.pinned}>
             {pinned.length === 0 ? (
-              <p className="text-sm text-white/40">No pinned sub-accounts.</p>
+              <p className="text-sm text-white/40">{messages.dashboard.noPinned}</p>
             ) : (
               <ul className="space-y-5">
                 {pinned.map((item) => (
@@ -560,18 +632,20 @@ export function LicenseeDashboardClient({
                     onDesignateOwnCompany={() =>
                       designateOwnCompany(item.relationshipId)
                     }
+                    messages={messages}
+                    locale={locale}
                   />
                 ))}
               </ul>
             )}
           </Section>
 
-          <Section title="All Sub-accounts">
+          <Section title={messages.dashboard.allSubAccounts}>
             {unpinned.length === 0 ? (
               <p className="text-sm text-white/40">
                 {hasOwnCompany
-                  ? "Client sub-accounts will appear here."
-                  : "All linked sub-accounts are pinned."}
+                  ? messages.dashboard.clientSubAccountsWillAppear
+                  : messages.dashboard.allLinkedArePinned}
               </p>
             ) : (
               <ul className="space-y-5">
@@ -609,6 +683,8 @@ export function LicenseeDashboardClient({
                     onDesignateOwnCompany={() =>
                       designateOwnCompany(item.relationshipId)
                     }
+                    messages={messages}
+                    locale={locale}
                   />
                 ))}
               </ul>
@@ -621,6 +697,7 @@ export function LicenseeDashboardClient({
         <RemoveConfirmDialog
           businessName={resolveLicenseeSubAccountTitle(confirmRemove)}
           pending={removePending}
+          messages={messages}
           onCancel={() => setConfirmRemove(null)}
           onConfirm={confirmRemoveSubAccount}
         />
@@ -630,6 +707,7 @@ export function LicenseeDashboardClient({
         <RestoreToProspectConfirmDialog
           businessName={resolveLicenseeSubAccountTitle(confirmRestore)}
           pending={restorePending}
+          messages={messages}
           onCancel={() => {
             if (restorePending) {
               return;
@@ -652,7 +730,7 @@ function Section({
 }) {
   return (
     <section>
-      <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.35em] text-white/40">
+      <h2 className={LICENSEE_SECTION_HEADER_CLASS}>
         {title}
       </h2>
       {children}
@@ -670,7 +748,7 @@ function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="rounded-[28px] border border-dashed border-white/20 bg-[var(--athena-card)] px-6 py-14 text-center shadow-lg shadow-black/20">
+    <div className={LICENSEE_EMPTY_STATE_CLASS}>
       <h2 className="text-lg font-semibold text-white">{title}</h2>
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-white/50">
         {body}
@@ -707,39 +785,16 @@ function LockIcon({ className = "" }: { className?: string }) {
   );
 }
 
-function SearchIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      className={className}
-    >
-      <circle
-        cx="11"
-        cy="11"
-        r="6.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M16.5 16.5 20 20"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 function RestoreToProspectConfirmDialog({
   businessName,
   pending,
+  messages,
   onCancel,
   onConfirm,
 }: {
   businessName: string;
   pending: boolean;
+  messages: LicenseeMessages;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -755,12 +810,12 @@ function RestoreToProspectConfirmDialog({
           id="restore-to-prospect-title"
           className="text-xl font-semibold text-white"
         >
-          Move {businessName} back to prospects?
+          {interpolateTenantMessage(messages.subAccountCard.restoreTitle, {
+            name: businessName,
+          })}
         </h2>
         <p className="mt-3 text-sm leading-6 text-white/55">
-          This client will be removed from your active sub-accounts and will
-          reappear in your Prospect list. Its Athena account and data will be
-          preserved.
+          {messages.subAccountCard.restoreBody}
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
           <button
@@ -769,7 +824,7 @@ function RestoreToProspectConfirmDialog({
             onClick={onCancel}
             className="rounded-xl border border-[var(--athena-border)] px-4 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/5 hover:text-white disabled:opacity-60"
           >
-            Cancel
+            {messages.common.cancel}
           </button>
           <button
             type="button"
@@ -778,7 +833,9 @@ function RestoreToProspectConfirmDialog({
             onClick={onConfirm}
             className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15 disabled:opacity-60"
           >
-            {pending ? "Moving…" : "Move back to prospect"}
+            {pending
+              ? messages.common.moving
+              : messages.subAccountCard.moveBackToProspect}
           </button>
         </div>
       </div>
@@ -789,11 +846,13 @@ function RestoreToProspectConfirmDialog({
 function RemoveConfirmDialog({
   businessName,
   pending,
+  messages,
   onCancel,
   onConfirm,
 }: {
   businessName: string;
   pending: boolean;
+  messages: LicenseeMessages;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -809,13 +868,15 @@ function RemoveConfirmDialog({
           id="remove-sub-account-title"
           className="text-xl font-semibold text-white"
         >
-          Remove &quot;{businessName}&quot;?
+          {interpolateTenantMessage(messages.subAccountCard.removeTitle, {
+            name: businessName,
+          })}
         </h2>
         <p className="mt-3 text-sm leading-6 text-white/55">
-          This will remove the account from your Master dashboard.
+          {messages.subAccountCard.removeBody}
         </p>
         <p className="mt-2 text-sm leading-6 text-white/55">
-          The Athena account and its data will NOT be deleted.
+          {messages.subAccountCard.removeKeepData}
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
           <button
@@ -824,7 +885,7 @@ function RemoveConfirmDialog({
             onClick={onCancel}
             className="rounded-xl border border-[var(--athena-border)] px-4 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/5 hover:text-white disabled:opacity-60"
           >
-            Cancel
+            {messages.common.cancel}
           </button>
           <button
             type="button"
@@ -832,7 +893,9 @@ function RemoveConfirmDialog({
             onClick={onConfirm}
             className="rounded-xl border border-red-400/30 bg-red-500/15 px-4 py-2.5 text-sm font-semibold text-red-100 transition hover:bg-red-500/25 disabled:opacity-60"
           >
-            {pending ? "Removing…" : "Remove Sub-account"}
+            {pending
+              ? messages.common.removing
+              : messages.subAccountCard.removeConfirm}
           </button>
         </div>
       </div>
@@ -854,6 +917,8 @@ function SubAccountCard({
   onRequestRestore,
   restorePending,
   onDesignateOwnCompany,
+  messages,
+  locale,
 }: {
   item: LicenseeDashboardSubAccountItem;
   opening: boolean;
@@ -868,6 +933,8 @@ function SubAccountCard({
   onRequestRestore: () => void;
   restorePending: boolean;
   onDesignateOwnCompany: () => void;
+  messages: LicenseeMessages;
+  locale: string;
 }) {
   const removalKind = licenseeSubAccountRemovalKind(item);
   const [expanded, setExpanded] = useState(false);
@@ -906,12 +973,14 @@ function SubAccountCard({
 
   return (
     <li
-      className={`rounded-[28px] border bg-[#141820] p-6 shadow-[0_14px_40px_rgba(0,0,0,0.38)] transition ${
+      className={`${
         item.isOwnCompany
-          ? "border-[var(--athena-orange)]/45 ring-1 ring-[var(--athena-orange)]/20"
-          : expanded
-            ? "border-white/28 ring-1 ring-white/10"
-            : "border-white/22"
+          ? LICENSEE_OWN_COMPANY_CARD_CLASS
+          : LICENSEE_SUB_ACCOUNT_CARD_CLASS
+      } ${
+        !item.isOwnCompany && expanded
+          ? "border-white/28 ring-1 ring-white/10"
+          : ""
       }`}
     >
       <div className="flex flex-col gap-5">
@@ -934,7 +1003,7 @@ function SubAccountCard({
               {item.isOwnCompany ? (
                 <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-[var(--athena-orange)]/35 bg-[var(--athena-orange)]/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--athena-orange)]">
                   <LockIcon className="h-3 w-3" />
-                  My Company
+                  {messages.subAccountCard.myCompany}
                 </div>
               ) : null}
               <h3 className="truncate text-xl font-semibold tracking-tight text-white">
@@ -959,34 +1028,45 @@ function SubAccountCard({
             onClick={onOpen}
             className="inline-flex shrink-0 items-center justify-center rounded-full bg-[var(--athena-orange)] px-7 py-3.5 text-sm font-semibold text-white shadow-xl shadow-orange-500/25 transition hover:opacity-90 disabled:opacity-60"
           >
-            {opening ? "Opening…" : "Open Athena →"}
+            {opening
+              ? messages.subAccountCard.opening
+              : messages.subAccountCard.openAthena}
           </button>
         </div>
 
-        <AccountReadinessBar percent={readinessPercent} />
+        <AccountReadinessBar
+          percent={readinessPercent}
+          label={messages.subAccountCard.accountReadiness}
+        />
 
         <div className="flex flex-wrap gap-2">
-          <StatusChip label="Brain" ready={item.metrics.brainReady} />
-          <StatusChip label="SEO" ready={item.metrics.seoReady} />
-          <StatusChip label="Ads" ready={item.metrics.adsReady} />
+          <StatusChip label={messages.subAccountCard.brain} ready={item.metrics.brainReady} />
+          <StatusChip label={messages.subAccountCard.seo} ready={item.metrics.seoReady} />
+          <StatusChip label={messages.subAccountCard.ads} ready={item.metrics.adsReady} />
         </div>
 
         <div className="grid grid-cols-3 gap-3 text-sm">
-          <MetricStat label="Prospects" value={item.metrics.prospectCount} />
           <MetricStat
-            label="Discussions"
+            label={messages.subAccountCard.prospects}
+            value={item.metrics.prospectCount}
+          />
+          <MetricStat
+            label={messages.subAccountCard.discussions}
             value={item.metrics.discussionCount}
           />
-          <MetricStat label="Personas" value={item.metrics.personaCount} />
+          <MetricStat
+            label={messages.subAccountCard.personas}
+            value={item.metrics.personaCount}
+          />
         </div>
 
         <div className="flex flex-col gap-3 border-t border-white/12 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/35">
-              Last Visit
+              {messages.subAccountCard.lastVisit}
             </div>
             <div className="mt-1.5 text-sm text-white/70">
-              {formatLastVisit(item.metrics.lastVisitedAt)}
+              {formatLastVisit(item.metrics.lastVisitedAt, locale, messages)}
             </div>
           </div>
 
@@ -997,7 +1077,7 @@ function SubAccountCard({
             className="inline-flex items-center gap-2 self-start rounded-xl border border-white/15 px-3.5 py-2 text-sm text-white/70 transition hover:bg-white/5 hover:text-white"
           >
             <span aria-hidden="true">{expanded ? "▲" : "▼"}</span>
-            {expanded ? "Hide details" : "Details"}
+            {expanded ? messages.common.hideDetails : messages.common.details}
           </button>
         </div>
 
@@ -1006,7 +1086,7 @@ function SubAccountCard({
             {item.accountSnapshot ? (
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/35">
-                  Account Snapshot
+                  {messages.subAccountCard.accountSnapshot}
                 </div>
                 <p className="mt-2 text-sm leading-6 text-white/55">
                   {item.accountSnapshot}
@@ -1016,11 +1096,10 @@ function SubAccountCard({
 
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/35">
-                Account Readiness
+                {messages.subAccountCard.accountReadiness}
               </div>
               <p className="mt-2 text-sm leading-6 text-white/45">
-                Deterministic workspace completeness from existing operational
-                signals — not a business health score.
+                {messages.subAccountCard.readinessExplainer}
               </p>
               <ul className="mt-3 grid gap-2 sm:grid-cols-2">
                 {readiness.dimensions.map((dimension) => (
@@ -1036,7 +1115,7 @@ function SubAccountCard({
                       }`}
                       aria-hidden="true"
                     />
-                    {dimension.label}
+                    {readinessDimensionLabel(dimension.key, messages)}
                   </li>
                 ))}
               </ul>
@@ -1045,7 +1124,7 @@ function SubAccountCard({
             <div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/35">
-                  Master Display Name
+                  {messages.subAccountCard.masterDisplayName}
                 </div>
                 {!editingName ? (
                   <button
@@ -1057,13 +1136,14 @@ function SubAccountCard({
                     }}
                     className="rounded-xl border border-white/15 px-3 py-1.5 text-xs font-medium text-white/70 transition hover:bg-white/5 hover:text-white"
                   >
-                    Edit
+                    {messages.common.edit}
                   </button>
                 ) : null}
               </div>
               {!editingName ? (
                 <p className="mt-2 text-sm text-white/65">
-                  {item.displayName?.trim() || "Using Athena account name"}
+                  {item.displayName?.trim() ||
+                    messages.subAccountCard.usingAthenaAccountName}
                 </p>
               ) : (
                 <div className="mt-2 space-y-3">
@@ -1094,7 +1174,7 @@ function SubAccountCard({
                         }}
                         className="rounded-xl border border-white/15 px-3.5 py-2 text-xs font-medium text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-40"
                       >
-                        Cancel
+                        {messages.common.cancel}
                       </button>
                       <button
                         type="button"
@@ -1108,14 +1188,16 @@ function SubAccountCard({
                               setDisplayNameError(
                                 error instanceof Error
                                   ? error.message
-                                  : "Could not save Master display name.",
+                                  : messages.errors.displayNameSaveFailed,
                               );
                             })
                             .finally(() => setSavingDisplayName(false));
                         }}
                         className="rounded-xl border border-white/15 px-3.5 py-2 text-xs font-medium text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-40"
                       >
-                        {savingDisplayName ? "Saving…" : "Save"}
+                        {savingDisplayName
+                          ? messages.common.saving
+                          : messages.common.save}
                       </button>
                     </div>
                   </div>
@@ -1128,7 +1210,7 @@ function SubAccountCard({
 
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/35">
-                Master Note
+                {messages.subAccountCard.masterNote}
                 <textarea
                   value={draftNotes}
                   onChange={(event) => {
@@ -1137,14 +1219,14 @@ function SubAccountCard({
                   }}
                   rows={3}
                   maxLength={LICENSEE_SUB_ACCOUNT_NOTES_MAX_LENGTH}
-                  placeholder="Private note for this sub-account…"
+                  placeholder={messages.subAccountCard.notePlaceholder}
                   className="mt-2 w-full resize-y rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/30 focus:border-[var(--athena-orange)]/70"
                 />
               </label>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
                 <span className="text-xs text-white/30">
                   {draftNotes.length}/{LICENSEE_SUB_ACCOUNT_NOTES_MAX_LENGTH}
-                  {notesDirty ? " · unsaved" : ""}
+                  {notesDirty ? messages.common.unsaved : ""}
                 </span>
                 <button
                   type="button"
@@ -1157,14 +1239,16 @@ function SubAccountCard({
                         setNotesError(
                           error instanceof Error
                             ? error.message
-                            : "Could not save Master note.",
+                            : messages.errors.noteSaveFailed,
                         );
                       })
                       .finally(() => setSavingNotes(false));
                   }}
                   className="rounded-xl border border-white/15 px-3.5 py-2 text-xs font-medium text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-40"
                 >
-                  {savingNotes ? "Saving…" : "Save note"}
+                  {savingNotes
+                    ? messages.common.saving
+                    : messages.subAccountCard.saveNote}
                 </button>
               </div>
               {notesError ? (
@@ -1180,13 +1264,13 @@ function SubAccountCard({
                   onClick={onDesignateOwnCompany}
                   className="inline-flex items-center rounded-xl border border-[var(--athena-orange)]/35 bg-[var(--athena-orange)]/10 px-3 py-2 text-sm font-medium text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/20 disabled:opacity-50"
                 >
-                  Set as My Company
+                  {messages.subAccountCard.setAsMyCompany}
                 </button>
               ) : null}
               {item.isOwnCompany ? (
                 <div className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-white/45">
                   <LockIcon className="h-3.5 w-3.5" />
-                  Locked company identity
+                  {messages.subAccountCard.lockedCompanyIdentity}
                 </div>
               ) : (
                 <>
@@ -1195,14 +1279,16 @@ function SubAccountCard({
                     disabled={pinDisabled}
                     onClick={onTogglePin}
                     aria-label={
-                      item.pinned ? "Unpin sub-account" : "Pin sub-account"
+                      item.pinned
+                        ? messages.subAccountCard.unpinAria
+                        : messages.subAccountCard.pinAria
                     }
                     className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm text-white/65 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
                   >
                     <span className="text-[var(--athena-orange)]">
                       {item.pinned ? "★" : "☆"}
                     </span>
-                    {item.pinned ? "Pinned" : "Pin"}
+                    {item.pinned ? messages.common.pinned : messages.common.pin}
                   </button>
                   {removalKind === "restore" ? (
                     <button
@@ -1213,8 +1299,8 @@ function SubAccountCard({
                       className={RESTORE_TO_PROSPECT_LIFECYCLE_ACTION}
                     >
                       {restorePending
-                        ? "Moving…"
-                        : "Move back to prospect"}
+                        ? messages.common.moving
+                        : messages.subAccountCard.moveBackToProspect}
                     </button>
                   ) : (
                     <button
@@ -1222,7 +1308,7 @@ function SubAccountCard({
                       onClick={onRequestRemove}
                       className="inline-flex items-center rounded-xl border border-white/10 px-3 py-2 text-sm text-white/55 transition hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-100"
                     >
-                      Remove
+                      {messages.common.remove}
                     </button>
                   )}
                 </>
@@ -1235,13 +1321,19 @@ function SubAccountCard({
   );
 }
 
-function AccountReadinessBar({ percent }: { percent: number }) {
+function AccountReadinessBar({
+  percent,
+  label,
+}: {
+  percent: number;
+  label: string;
+}) {
   const clamped = Math.max(0, Math.min(100, percent));
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/40">
-          Account Readiness
+          {label}
         </div>
         <div className="text-sm font-semibold tabular-nums text-white/85">
           {clamped}%
@@ -1288,47 +1380,35 @@ function MetricStat({ label, value }: { label: string; value: number }) {
   );
 }
 
-function formatLastVisit(iso: string | null): string {
-  if (!iso) {
-    return "Never visited";
+function readinessDimensionLabel(
+  key: "brain" | "website" | "seo" | "ads" | "personas" | "prospects",
+  messages: LicenseeMessages,
+): string {
+  switch (key) {
+    case "brain":
+      return messages.subAccountCard.readinessBrain;
+    case "website":
+      return messages.subAccountCard.readinessWebsite;
+    case "seo":
+      return messages.subAccountCard.readinessSeo;
+    case "ads":
+      return messages.subAccountCard.readinessAds;
+    case "personas":
+      return messages.subAccountCard.readinessPersonas;
+    case "prospects":
+      return messages.subAccountCard.readinessProspects;
   }
+}
 
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return "Never visited";
-  }
-
-  const now = new Date();
-  const time = date.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
+function formatLastVisit(
+  iso: string | null,
+  locale: string,
+  messages: LicenseeMessages,
+): string {
+  return formatLicenseeLastVisit(iso, locale, {
+    neverVisited: messages.common.neverVisited,
+    today: messages.common.today,
+    yesterday: messages.common.yesterday,
+    separator: messages.common.lastVisitSeparator,
   });
-
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  );
-  const startOfThatDay = new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-  );
-  const dayDelta = Math.round(
-    (startOfToday.getTime() - startOfThatDay.getTime()) / 86_400_000,
-  );
-
-  if (dayDelta === 0) {
-    return `Today · ${time}`;
-  }
-  if (dayDelta === 1) {
-    return `Yesterday · ${time}`;
-  }
-
-  const dayLabel = date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-  return `${dayLabel} · ${time}`;
 }

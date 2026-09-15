@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getLicenseeAccountById } from "@/services/licensee/licenseeIdentity";
 import {
   LICENSEE_ORIGIN_COOKIE,
   parseLicenseeOriginCookieValue,
@@ -13,8 +14,27 @@ export async function GET(request: NextRequest) {
     request.cookies.get(LICENSEE_ORIGIN_COOKIE)?.value,
   );
 
-  return NextResponse.json(
-    { ok: true, canReturnToMaster: Boolean(origin) },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  if (!origin) {
+    return NextResponse.json(
+      { ok: true, canReturnToMaster: false },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  }
+
+  const account = await getLicenseeAccountById(origin.licenseeAccountId);
+  const body: {
+    ok: true;
+    canReturnToMaster: true;
+    language?: string;
+  } = {
+    ok: true,
+    canReturnToMaster: true,
+  };
+  if (account?.default_language) {
+    body.language = account.default_language;
+  }
+
+  return NextResponse.json(body, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }

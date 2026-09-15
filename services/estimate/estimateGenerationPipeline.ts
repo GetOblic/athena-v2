@@ -95,6 +95,11 @@ export async function runEstimateGenerationPipeline(input: {
    * Must be the same string later frozen as composedText.
    */
   prospectCommercialTargetIntelligence?: string | null;
+  /**
+   * Server-resolved Master output-language instruction.
+   * Never derived from selected organization language or client input.
+   */
+  outputLanguageInstruction?: string | null;
   onStage?: EstimatePipelineStageCallback;
   deps?: EstimateGenerationPipelineDeps;
 }): Promise<{
@@ -146,6 +151,7 @@ export async function runEstimateGenerationPipeline(input: {
     request: input.request,
     prospectCommercialTargetIntelligence:
       input.prospectCommercialTargetIntelligence ?? null,
+    outputLanguageInstruction: input.outputLanguageInstruction ?? null,
   });
 
   let raw: string;

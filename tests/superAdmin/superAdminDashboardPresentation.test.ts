@@ -338,8 +338,8 @@ describe("Super Admin dashboard presentation — contracts", () => {
         const source = read(file);
         assert.doesNotMatch(
           source,
-          /licensee_monthly_fee_usd|sub_account_monthly_fee_usd|updateLicenseeCommercialFeesForSuperAdmin|Licensee Monthly Fee|Sub-Account Monthly Fee/,
-          `${file} must not expose Licensee commercial fees`,
+          /updateLicenseeCommercialFeesForSuperAdmin|\/api\/super\/accounts\/licensee\/commercial-fees|saveLicenseeCommercialFee/,
+          `${file} must not expose Super Admin commercial-fee writes`,
         );
       }
     }
