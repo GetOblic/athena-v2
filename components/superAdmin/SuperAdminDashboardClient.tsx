@@ -2,8 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
-import { ESTIMATE_PRICING_METHODOLOGY_MAX_CHARS } from "@/services/estimate/athenaEstimateTypes";
+import { SuperAdminAthenaAccountsSection } from "@/components/superAdmin/SuperAdminAthenaAccountsSection";
+import { SuperAdminDomainNav } from "@/components/superAdmin/SuperAdminDomainNav";
+import { SuperAdminFlashNotices } from "@/components/superAdmin/SuperAdminFlashNotices";
+import { SuperAdminLicenseeDirectory } from "@/components/superAdmin/SuperAdminLicenseeDirectory";
+import { SuperAdminOverviewSection } from "@/components/superAdmin/SuperAdminOverviewSection";
+import { SuperAdminSystemConfiguration } from "@/components/superAdmin/SuperAdminSystemConfiguration";
+import {
+  buildSuperAdminDashboardView,
+  DEFAULT_SUPER_ADMIN_DOMAIN,
+  superAdminAllocationKey,
+  type SuperAdminDomainId,
+} from "@/lib/superAdmin/superAdminDashboardView";
+import { SUPER_ADMIN_INPUT_CLASS } from "@/lib/superAdmin/superAdminPresentation";
 import {
   DEFAULT_ORGANIZATION_LANGUAGE,
   ORGANIZATION_LANGUAGES,
@@ -16,6 +27,15 @@ import type {
   SuperAdminGetOblicDirectoryAllocationModel,
   SuperAdminGetOblicDirectoryAllocationRow,
 } from "@/services/superAdmin/superAdminGetOblicDirectory";
+import {
+  LICENSEE_MONTHLY_FEE_LABEL,
+  SUB_ACCOUNT_MONTHLY_FEE_LABEL,
+  type LicenseeCommercialFees,
+} from "@/services/superAdmin/superAdminLicenseeCommercialFeeTypes";
+import {
+  LICENSEE_DEFAULT_LANGUAGE_LABEL,
+  type LicenseeDefaultLanguageSetting,
+} from "@/services/superAdmin/superAdminLicenseeDefaultLanguageTypes";
 
 type GovernedInstructionState = {
   instructionText: string;
@@ -27,6 +47,8 @@ type GovernedInstructionState = {
 type SuperAdminDashboardClientProps = {
   initialAccounts: ManageableAccount[];
   initialDirectoryAllocations: SuperAdminGetOblicDirectoryAllocationModel;
+  initialLicenseeCommercialFees: LicenseeCommercialFees[];
+  initialLicenseeDefaultLanguages: LicenseeDefaultLanguageSetting[];
   initialTrendSocialPromptInstruction: GovernedInstructionState;
   initialEstimatePricingMethodologyInstruction: GovernedInstructionState;
   notice?: string | null;
@@ -34,6 +56,14 @@ type SuperAdminDashboardClientProps = {
 
 type AllocationSaveApiBody = ApiErrorBody & {
   allocation?: SuperAdminGetOblicDirectoryAllocationRow;
+};
+
+type CommercialFeeSaveApiBody = ApiErrorBody & {
+  fees?: LicenseeCommercialFees;
+};
+
+type DefaultLanguageSaveApiBody = ApiErrorBody & {
+  setting?: LicenseeDefaultLanguageSetting;
 };
 
 type ApiErrorBody = {
@@ -86,7 +116,7 @@ async function patchJson(url: string, body: Record<string, unknown>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const payload = (await response.json().catch(() => ({}))) as AllocationSaveApiBody;
+  const payload = (await response.json().catch(() => ({}))) as ApiErrorBody;
   if (!response.ok || payload.ok === false) {
     throw new Error(
       payload.error?.message || `Request failed (${response.status}).`,
@@ -98,6 +128,8 @@ async function patchJson(url: string, body: Record<string, unknown>) {
 export function SuperAdminDashboardClient({
   initialAccounts,
   initialDirectoryAllocations,
+  initialLicenseeCommercialFees,
+  initialLicenseeDefaultLanguages,
   initialTrendSocialPromptInstruction,
   initialEstimatePricingMethodologyInstruction,
   notice,
@@ -106,6 +138,9 @@ export function SuperAdminDashboardClient({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [localNotice, setLocalNotice] = useState<string | null>(notice ?? null);
+  const [domain, setDomain] = useState<SuperAdminDomainId>(
+    DEFAULT_SUPER_ADMIN_DOMAIN,
+  );
 
   const [athenaEmail, setAthenaEmail] = useState("");
   const [athenaOrgName, setAthenaOrgName] = useState("");
@@ -114,6 +149,8 @@ export function SuperAdminDashboardClient({
   );
   const [licenseeEmail, setLicenseeEmail] = useState("");
   const [licenseeName, setLicenseeName] = useState("");
+  const [licenseeDefaultLanguage, setLicenseeDefaultLanguage] =
+    useState<OrganizationLanguage>(DEFAULT_ORGANIZATION_LANGUAGE);
   const [trendSocialPromptText, setTrendSocialPromptText] = useState(
     initialTrendSocialPromptInstruction.instructionText,
   );
@@ -133,12 +170,6 @@ export function SuperAdminDashboardClient({
   const [directoryAllocations, setDirectoryAllocations] = useState(
     initialDirectoryAllocations,
   );
-  const [expandedLicensees, setExpandedLicensees] = useState<
-    Record<string, boolean>
-  >(() => {
-    const first = initialDirectoryAllocations.groups[0]?.licenseeAccountId;
-    return first ? { [first]: true } : {};
-  });
   const [savingAllocationKey, setSavingAllocationKey] = useState<string | null>(
     null,
   );
@@ -155,6 +186,31 @@ export function SuperAdminDashboardClient({
     useState<Record<string, string>>(() =>
       buildWordpressUserIdDrafts(initialDirectoryAllocations),
     );
+  const [licenseeCommercialFees, setLicenseeCommercialFees] = useState(
+    initialLicenseeCommercialFees,
+  );
+  const [feeDrafts, setFeeDrafts] = useState<Record<string, FeeDrafts>>(() =>
+    buildFeeDrafts(initialLicenseeCommercialFees),
+  );
+  const [savingFeeKey, setSavingFeeKey] = useState<string | null>(null);
+  const [licenseeDefaultLanguages, setLicenseeDefaultLanguages] = useState(
+    initialLicenseeDefaultLanguages,
+  );
+  const [languageDrafts, setLanguageDrafts] = useState<
+    Record<string, OrganizationLanguage>
+  >(() => buildLanguageDrafts(initialLicenseeDefaultLanguages));
+  const [savingLanguageKey, setSavingLanguageKey] = useState<string | null>(
+    null,
+  );
+
+  const view = buildSuperAdminDashboardView({
+    accounts: initialAccounts,
+    directoryAllocations,
+    licenseeCommercialFees,
+    licenseeDefaultLanguages,
+    trendSocialPromptConfigured: trendSocialPromptMeta.configured,
+    estimateMethodologyConfigured: estimateMethodologyMeta.configured,
+  });
 
   function refresh() {
     startTransition(() => {
@@ -190,9 +246,11 @@ export function SuperAdminDashboardClient({
       await postJson("/api/super/accounts/licensee", {
         email: licenseeEmail,
         businessName: licenseeName || undefined,
+        defaultLanguage: licenseeDefaultLanguage,
       });
       setLicenseeEmail("");
       setLicenseeName("");
+      setLicenseeDefaultLanguage(DEFAULT_ORGANIZATION_LANGUAGE);
       setLocalNotice("Business Licensee Master created.");
       refresh();
     } catch (err) {
@@ -253,15 +311,8 @@ export function SuperAdminDashboardClient({
     }
   }
 
-  function toggleLicenseeGroup(licenseeAccountId: string) {
-    setExpandedLicensees((current) => ({
-      ...current,
-      [licenseeAccountId]: !current[licenseeAccountId],
-    }));
-  }
-
   function allocationKey(row: SuperAdminGetOblicDirectoryAllocationRow) {
-    return `${row.licenseeAccountId}:${row.organizationId}`;
+    return superAdminAllocationKey(row);
   }
 
   function updateAllocationDraft(
@@ -351,7 +402,7 @@ export function SuperAdminDashboardClient({
     setAccountNotice(null);
     setSavingAccountKey(key);
     try {
-      const payload = await patchJson(
+      const payload = (await patchJson(
         "/api/super/getoblic-directory/account",
         {
           licenseeAccountId: row.licenseeAccountId,
@@ -359,7 +410,7 @@ export function SuperAdminDashboardClient({
           email,
           wordpressUserId,
         },
-      );
+      )) as AllocationSaveApiBody;
       const next = payload.allocation;
       if (!next) {
         throw new Error("Save succeeded without a refreshed account.");
@@ -383,6 +434,154 @@ export function SuperAdminDashboardClient({
       );
     } finally {
       setSavingAccountKey(null);
+    }
+  }
+
+  function feeDraftKey(licenseeAccountId: string) {
+    return licenseeAccountId;
+  }
+
+  function feesForLicensee(licenseeAccountId: string): LicenseeCommercialFees {
+    return (
+      licenseeCommercialFees.find(
+        (row) => row.licenseeAccountId === licenseeAccountId,
+      ) ?? {
+        licenseeAccountId,
+        masterEmail: "",
+        licenseeMonthlyFeeUsd: 0,
+        subAccountMonthlyFeeUsd: 0,
+      }
+    );
+  }
+
+  function updateFeeDraft(
+    licenseeAccountId: string,
+    field: keyof FeeDrafts,
+    value: string,
+  ) {
+    setFeeDrafts((current) => ({
+      ...current,
+      [feeDraftKey(licenseeAccountId)]: {
+        ...(current[feeDraftKey(licenseeAccountId)] ?? {
+          licenseeMonthlyFeeUsd: "0.00",
+          subAccountMonthlyFeeUsd: "0.00",
+        }),
+        [field]: value,
+      },
+    }));
+  }
+
+  async function saveLicenseeCommercialFee(
+    licenseeAccountId: string,
+    field: keyof FeeDrafts,
+  ) {
+    const drafts =
+      feeDrafts[feeDraftKey(licenseeAccountId)] ??
+      defaultFeeDrafts(feesForLicensee(licenseeAccountId));
+    const parsed = parseFeeDraft(drafts[field]);
+    const key = `${licenseeAccountId}:${field}`;
+
+    setError(null);
+    setLocalNotice(null);
+    if (parsed === null) {
+      setError(
+        `${
+          field === "licenseeMonthlyFeeUsd"
+            ? LICENSEE_MONTHLY_FEE_LABEL
+            : SUB_ACCOUNT_MONTHLY_FEE_LABEL
+        } must be a non-negative USD amount with at most two decimal places.`,
+      );
+      return;
+    }
+
+    setSavingFeeKey(key);
+    try {
+      const payload = (await patchJson(
+        "/api/super/accounts/licensee/commercial-fees",
+        {
+          licenseeAccountId,
+          [field]: parsed,
+        },
+      )) as CommercialFeeSaveApiBody;
+      const next = payload.fees;
+      if (!next) {
+        throw new Error("Save succeeded without refreshed commercial fees.");
+      }
+      setLicenseeCommercialFees((current) => replaceFeeRow(current, next));
+      setFeeDrafts((current) => ({
+        ...current,
+        [feeDraftKey(next.licenseeAccountId)]: defaultFeeDrafts(next),
+      }));
+      setLocalNotice(
+        field === "licenseeMonthlyFeeUsd"
+          ? "Licensee Monthly Fee saved."
+          : "Sub-Account Monthly Fee saved.",
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Save Licensee commercial fee failed.",
+      );
+    } finally {
+      setSavingFeeKey(null);
+    }
+  }
+
+  function languageDraftFor(licenseeAccountId: string): OrganizationLanguage {
+    return (
+      languageDrafts[licenseeAccountId] ??
+      licenseeDefaultLanguages.find(
+        (row) => row.licenseeAccountId === licenseeAccountId,
+      )?.defaultLanguage ??
+      DEFAULT_ORGANIZATION_LANGUAGE
+    );
+  }
+
+  function updateLanguageDraft(
+    licenseeAccountId: string,
+    value: OrganizationLanguage,
+  ) {
+    setLanguageDrafts((current) => ({
+      ...current,
+      [licenseeAccountId]: value,
+    }));
+  }
+
+  async function saveLicenseeDefaultLanguage(licenseeAccountId: string) {
+    const nextLanguage = languageDraftFor(licenseeAccountId);
+
+    setError(null);
+    setLocalNotice(null);
+    setSavingLanguageKey(licenseeAccountId);
+    try {
+      const payload = (await patchJson(
+        "/api/super/accounts/licensee/default-language",
+        {
+          licenseeAccountId,
+          defaultLanguage: nextLanguage,
+        },
+      )) as DefaultLanguageSaveApiBody;
+      const next = payload.setting;
+      if (!next) {
+        throw new Error("Save succeeded without a refreshed default language.");
+      }
+      setLicenseeDefaultLanguages((current) =>
+        replaceLanguageRow(current, next),
+      );
+      setLanguageDrafts((current) => ({
+        ...current,
+        [next.licenseeAccountId]: next.defaultLanguage,
+      }));
+      setLocalNotice(`${LICENSEE_DEFAULT_LANGUAGE_LABEL} saved.`);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Save Licensee default language failed.",
+      );
+    } finally {
+      setSavingLanguageKey(null);
     }
   }
 
@@ -415,527 +614,243 @@ export function SuperAdminDashboardClient({
     }
   }
 
+  const athenaCreateFields = (
+    <>
+      <input
+        type="email"
+        required
+        value={athenaEmail}
+        onChange={(event) => setAthenaEmail(event.target.value)}
+        placeholder="owner@example.com"
+        className={SUPER_ADMIN_INPUT_CLASS}
+      />
+      <input
+        type="text"
+        required
+        value={athenaOrgName}
+        onChange={(event) => setAthenaOrgName(event.target.value)}
+        placeholder="Organization / business name"
+        className={SUPER_ADMIN_INPUT_CLASS}
+      />
+      <label className="block space-y-2">
+        <span className="text-sm text-white/70">Account Language</span>
+        <select
+          required
+          value={athenaLanguage}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (isOrganizationLanguage(next)) {
+              setAthenaLanguage(next);
+            }
+          }}
+          className={SUPER_ADMIN_INPUT_CLASS}
+        >
+          {ORGANIZATION_LANGUAGES.map((code) => (
+            <option key={code} value={code} className="bg-black text-white">
+              {ORGANIZATION_LANGUAGE_LABELS[code]}
+            </option>
+          ))}
+        </select>
+        <span className="block text-sm leading-6 text-white/40">
+          Sets the language Athena will use for this account.
+        </span>
+      </label>
+    </>
+  );
+
+  const licenseeCreateFields = (
+    <>
+      <input
+        type="email"
+        required
+        value={licenseeEmail}
+        onChange={(event) => setLicenseeEmail(event.target.value)}
+        placeholder="master@example.com"
+        className={SUPER_ADMIN_INPUT_CLASS}
+      />
+      <input
+        type="text"
+        value={licenseeName}
+        onChange={(event) => setLicenseeName(event.target.value)}
+        placeholder="Licensee / business name (optional)"
+        className={SUPER_ADMIN_INPUT_CLASS}
+      />
+      <label className="block space-y-2">
+        <span className="text-sm text-white/70">
+          {LICENSEE_DEFAULT_LANGUAGE_LABEL}
+        </span>
+        <select
+          required
+          value={licenseeDefaultLanguage}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (isOrganizationLanguage(next)) {
+              setLicenseeDefaultLanguage(next);
+            }
+          }}
+          className={SUPER_ADMIN_INPUT_CLASS}
+        >
+          {ORGANIZATION_LANGUAGES.map((code) => (
+            <option key={code} value={code} className="bg-black text-white">
+              {ORGANIZATION_LANGUAGE_LABELS[code]}
+            </option>
+          ))}
+        </select>
+        <span className="block text-sm leading-6 text-white/40">
+          Initial Athena language for future sub-accounts created by this
+          Licensee. Existing organizations are not changed.
+        </span>
+      </label>
+    </>
+  );
+
   return (
-    <div className="space-y-10">
-      {localNotice ? (
-        <div className="rounded-2xl border border-[var(--athena-orange)]/40 bg-[var(--athena-orange)]/10 px-5 py-4 text-sm text-white/80">
-          {localNotice}
-        </div>
+    <div className="space-y-8">
+      <SuperAdminFlashNotices
+        notices={[localNotice, accountNotice]}
+        errors={[error, accountError]}
+      />
+
+      <SuperAdminDomainNav activeDomain={domain} onDomainChange={setDomain} />
+
+      {domain === "overview" ? (
+        <SuperAdminOverviewSection
+          counts={view.overview}
+          onNavigate={setDomain}
+        />
       ) : null}
 
-      {error ? (
-        <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-5 py-4 text-sm text-red-100">
-          {error}
-        </div>
+      {domain === "licensees" ? (
+        <SuperAdminLicenseeDirectory
+          licensees={view.licensees}
+          pending={isPending}
+          onCreateSubmit={createLicensee}
+          createFields={licenseeCreateFields}
+          feeDrafts={feeDrafts}
+          savingFeeKey={savingFeeKey}
+          onFeeDraftChange={updateFeeDraft}
+          onSaveFee={saveLicenseeCommercialFee}
+          languageDrafts={languageDrafts}
+          savingLanguageKey={savingLanguageKey}
+          onLanguageDraftChange={updateLanguageDraft}
+          onSaveDefaultLanguage={saveLicenseeDefaultLanguage}
+          onSetAccess={setAccess}
+          allowanceDrafts={allowanceDrafts}
+          accountEmailDrafts={accountEmailDrafts}
+          accountWordpressUserIdDrafts={accountWordpressUserIdDrafts}
+          savingAllocationKey={savingAllocationKey}
+          savingAccountKey={savingAccountKey}
+          allocationKeyFor={allocationKey}
+          onCapacityDraftChange={updateAllocationDraft}
+          onEmailDraftChange={updateAccountEmailDraft}
+          onWordpressUserIdDraftChange={updateAccountWordpressUserIdDraft}
+          onSaveCapacity={saveDirectoryAllowance}
+          onSaveAccount={saveDirectoryAccount}
+        />
       ) : null}
 
-      {accountNotice ? (
-        <div className="rounded-2xl border border-[var(--athena-orange)]/40 bg-[var(--athena-orange)]/10 px-5 py-4 text-sm text-white/80">
-          {accountNotice}
-        </div>
+      {domain === "athena-accounts" ? (
+        <SuperAdminAthenaAccountsSection
+          accounts={view.athenaAccounts}
+          pending={isPending}
+          onCreateSubmit={createAthena}
+          createFields={athenaCreateFields}
+          onSetAccess={setAccess}
+        />
       ) : null}
 
-      {accountError ? (
-        <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-5 py-4 text-sm text-red-100">
-          {accountError}
-        </div>
+      {domain === "system-configuration" ? (
+        <SuperAdminSystemConfiguration
+          pending={isPending}
+          trendSocialPromptText={trendSocialPromptText}
+          trendSocialPromptMeta={trendSocialPromptMeta}
+          onTrendSocialPromptTextChange={setTrendSocialPromptText}
+          onSaveTrendSocialPrompt={saveTrendSocialPrompt}
+          estimateMethodologyText={estimateMethodologyText}
+          estimateMethodologyMeta={estimateMethodologyMeta}
+          onEstimateMethodologyTextChange={setEstimateMethodologyText}
+          onSaveEstimatePricingMethodology={saveEstimatePricingMethodology}
+        />
       ) : null}
-
-      <AthenaCollapsibleSection
-        eyebrow="Strategic Asset Blueprints"
-        title="Centrally governed blueprint instructions"
-        summary="Configure GetOblic instructions that Athena injects during future Strategic Asset Blueprint generation. Previously generated outputs are not rewritten."
-        defaultOpen={false}
-        showToggleLabel
-      >
-        <form onSubmit={saveTrendSocialPrompt} className="space-y-4">
-          <div>
-            <label
-              htmlFor="trend-social-prompt-instruction"
-              className="text-sm font-medium text-white/80"
-            >
-              Trend Social Prompt
-            </label>
-            <p className="mt-1 text-sm leading-6 text-white/45">
-              Active instruction for the Trend Social Prompt field. Distinct
-              from Athena&apos;s existing Social Prompt.
-            </p>
-          </div>
-          <textarea
-            id="trend-social-prompt-instruction"
-            value={trendSocialPromptText}
-            onChange={(event) => setTrendSocialPromptText(event.target.value)}
-            rows={14}
-            spellCheck={false}
-            placeholder="Enter the current GetOblic Trend Social Prompt instruction…"
-            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 font-mono text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
-          />
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs leading-5 text-white/40">
-              {trendSocialPromptMeta.configured
-                ? `Configured · revision ${trendSocialPromptMeta.revisionId ?? "—"}`
-                : "Not configured — generations will mark Trend Social Prompt unavailable."}
-              {trendSocialPromptMeta.updatedAt
-                ? ` · updated ${new Date(trendSocialPromptMeta.updatedAt).toLocaleString()}`
-                : ""}
-            </div>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded-xl bg-[var(--athena-orange)] px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
-            >
-              Save Trend Social Prompt
-            </button>
-          </div>
-        </form>
-      </AthenaCollapsibleSection>
-
-      <AthenaCollapsibleSection
-        eyebrow="Athena Estimate"
-        title="Athena Estimate Pricing Methodology"
-        summary="Controls the commercial pricing methodology used by future Athena Estimate generations. Historical Ready Estimates are not rewritten."
-        defaultOpen={false}
-        showToggleLabel
-      >
-        <form onSubmit={saveEstimatePricingMethodology} className="space-y-4">
-          <div>
-            <label
-              htmlFor="estimate-pricing-methodology-instruction"
-              className="text-sm font-medium text-white/80"
-            >
-              Pricing methodology instruction
-            </label>
-            <p className="mt-1 text-sm leading-6 text-white/45">
-              Commercial guidance for future Estimate generations only. Does
-              not override code-level evidence, authorization, or grounding
-              rules. Maximum {ESTIMATE_PRICING_METHODOLOGY_MAX_CHARS} characters.
-            </p>
-          </div>
-          <textarea
-            id="estimate-pricing-methodology-instruction"
-            value={estimateMethodologyText}
-            onChange={(event) => setEstimateMethodologyText(event.target.value)}
-            rows={14}
-            spellCheck={false}
-            maxLength={ESTIMATE_PRICING_METHODOLOGY_MAX_CHARS}
-            placeholder="Enter the GetOblic Athena Estimate pricing methodology…"
-            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 font-mono text-sm leading-6 text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
-          />
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs leading-5 text-white/40">
-              {estimateMethodologyMeta.configured
-                ? `Configured · revision ${estimateMethodologyMeta.revisionId ?? "—"}`
-                : "Not configured — future Estimate generations will fail until a methodology is saved."}
-              {estimateMethodologyMeta.updatedAt
-                ? ` · updated ${new Date(estimateMethodologyMeta.updatedAt).toLocaleString()}`
-                : ""}
-              {` · ${estimateMethodologyText.length}/${ESTIMATE_PRICING_METHODOLOGY_MAX_CHARS}`}
-            </div>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded-xl bg-[var(--athena-orange)] px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
-            >
-              Save Estimate Pricing Methodology
-            </button>
-          </div>
-        </form>
-      </AthenaCollapsibleSection>
-
-      <section className="grid gap-6 lg:grid-cols-2">
-        <form
-          onSubmit={createAthena}
-          className="space-y-4 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6"
-        >
-          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
-            Create Athena account
-          </div>
-          <p className="text-sm leading-6 text-white/50">
-            Provisions a normal Athena organization with an owner membership.
-            Does not create a Licensee relationship.
-          </p>
-          <input
-            type="email"
-            required
-            value={athenaEmail}
-            onChange={(event) => setAthenaEmail(event.target.value)}
-            placeholder="owner@example.com"
-            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
-          />
-          <input
-            type="text"
-            required
-            value={athenaOrgName}
-            onChange={(event) => setAthenaOrgName(event.target.value)}
-            placeholder="Organization / business name"
-            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
-          />
-          <label className="block space-y-2">
-            <span className="text-sm text-white/70">Account Language</span>
-            <select
-              required
-              value={athenaLanguage}
-              onChange={(event) => {
-                const next = event.target.value;
-                if (isOrganizationLanguage(next)) {
-                  setAthenaLanguage(next);
-                }
-              }}
-              className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none focus:border-[var(--athena-orange)]"
-            >
-              {ORGANIZATION_LANGUAGES.map((code) => (
-                <option key={code} value={code} className="bg-black text-white">
-                  {ORGANIZATION_LANGUAGE_LABELS[code]}
-                </option>
-              ))}
-            </select>
-            <span className="block text-sm leading-6 text-white/40">
-              Sets the language Athena will use for this account.
-            </span>
-          </label>
-          <button
-            type="submit"
-            disabled={isPending}
-            className="rounded-xl bg-[var(--athena-orange)] px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
-          >
-            Create Athena account
-          </button>
-        </form>
-
-        <form
-          onSubmit={createLicensee}
-          className="space-y-4 rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6"
-        >
-          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
-            Create Licensee Master
-          </div>
-          <p className="text-sm leading-6 text-white/50">
-            Creates a Business Licensee Master identity only. Never creates an
-            Athena organization for the Master.
-          </p>
-          <input
-            type="email"
-            required
-            value={licenseeEmail}
-            onChange={(event) => setLicenseeEmail(event.target.value)}
-            placeholder="master@example.com"
-            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
-          />
-          <input
-            type="text"
-            value={licenseeName}
-            onChange={(event) => setLicenseeName(event.target.value)}
-            placeholder="Licensee / business name (optional)"
-            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
-          />
-          <button
-            type="submit"
-            disabled={isPending}
-            className="rounded-xl bg-[var(--athena-orange)] px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
-          >
-            Create Licensee Master
-          </button>
-        </form>
-      </section>
-
-      <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6">
-        <div className="mb-5">
-          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
-            GetOblic Listing Capacity
-          </div>
-          <h2 className="mt-3 text-2xl font-semibold tracking-tight">
-            GetOblic listing capacity
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-white/50">
-            Concurrent GetOblic listing capacity per Licensee sub-account.
-            Licensee Masters and tenant users cannot change this.
-          </p>
-        </div>
-
-        {directoryAllocations.groups.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-black/20 px-5 py-8 text-sm text-white/50">
-            No Licensee Masters yet. Create a Licensee Master and link
-            sub-accounts before setting listing capacity.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {directoryAllocations.groups.map((group) => {
-              const expanded = Boolean(expandedLicensees[group.licenseeAccountId]);
-              return (
-                <div
-                  key={group.licenseeAccountId}
-                  className="rounded-2xl border border-white/10 bg-black/20"
-                >
-                  <button
-                    type="button"
-                    onClick={() => toggleLicenseeGroup(group.licenseeAccountId)}
-                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
-                    aria-expanded={expanded}
-                  >
-                    <div>
-                      <div className="text-sm font-medium text-white/90">
-                        {group.masterEmail}
-                      </div>
-                      <div className="mt-1 text-xs text-white/40">
-                        {group.subAccounts.length === 1
-                          ? "1 sub-account"
-                          : `${group.subAccounts.length} sub-accounts`}
-                      </div>
-                    </div>
-                    <span className="text-xs text-white/45">
-                      {expanded ? "▲ Collapse" : "▼ Expand"}
-                    </span>
-                  </button>
-
-                  {expanded ? (
-                    <div className="space-y-4 border-t border-white/10 px-5 py-5">
-                      {group.subAccounts.length === 0 ? (
-                        <div className="text-sm text-white/45">
-                          No sub-accounts linked to this Licensee Master.
-                        </div>
-                      ) : (
-                        group.subAccounts.map((row) => {
-                          const key = allocationKey(row);
-                          const draft = allowanceDrafts[key] ?? "";
-                          const saving = savingAllocationKey === key;
-                          const savingAccount = savingAccountKey === key;
-                          const emailDraft = accountEmailDrafts[key] ?? "";
-                          const wordpressUserIdDraft =
-                            accountWordpressUserIdDrafts[key] ?? "";
-                          const accountDisabled = !row.configured;
-                          return (
-                            <div
-                              key={key}
-                              className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4"
-                            >
-                              <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <div className="text-sm font-medium text-white">
-                                      {row.organizationName}
-                                    </div>
-                                    {row.isOwnCompany ? (
-                                      <span className="rounded-full border border-sky-300/30 bg-sky-300/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-sky-200">
-                                        Own company
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  {row.displayAlias ? (
-                                    <div className="mt-1 text-xs text-white/45">
-                                      {row.displayAlias}
-                                    </div>
-                                  ) : null}
-                                  <div className="mt-2 text-sm text-white/70">
-                                    {row.configured
-                                      ? "Configured"
-                                      : "Not configured"}
-                                  </div>
-                                  <div className="mt-1 text-xs leading-5 text-white/40">
-                                    {allocationSecondaryCopy(row)}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="mt-5 space-y-3 border-t border-white/10 pt-4">
-                                <div className="text-sm font-medium text-white/80">
-                                  GetOblic.com account
-                                </div>
-                                <label className="block space-y-2">
-                                  <span className="text-sm text-white/70">
-                                    Email
-                                  </span>
-                                  <input
-                                    type="email"
-                                    value={emailDraft}
-                                    onChange={(event) =>
-                                      updateAccountEmailDraft(
-                                        row,
-                                        event.target.value,
-                                      )
-                                    }
-                                    disabled={accountDisabled}
-                                    placeholder=""
-                                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)] disabled:opacity-50"
-                                  />
-                                </label>
-                                <label className="block space-y-2">
-                                  <span className="text-sm text-white/70">
-                                    WordPress User ID
-                                  </span>
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    value={wordpressUserIdDraft}
-                                    onChange={(event) =>
-                                      updateAccountWordpressUserIdDraft(
-                                        row,
-                                        event.target.value,
-                                      )
-                                    }
-                                    disabled={accountDisabled}
-                                    placeholder=""
-                                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)] disabled:opacity-50"
-                                  />
-                                </label>
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                  <button
-                                    type="button"
-                                    disabled={
-                                      isPending ||
-                                      savingAccount ||
-                                      accountDisabled
-                                    }
-                                    onClick={() => saveDirectoryAccount(row)}
-                                    className="rounded-xl bg-[var(--athena-orange)] px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
-                                  >
-                                    Save Account
-                                  </button>
-                                  {accountDisabled ? (
-                                    <span className="text-xs text-white/40">
-                                      Listing capacity must be configured first.
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </div>
-
-                              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-                                <label className="min-w-0 flex-1 space-y-2">
-                                  <span className="text-sm text-white/70">
-                                    GetOblic listing capacity
-                                  </span>
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    value={draft}
-                                    onChange={(event) =>
-                                      updateAllocationDraft(
-                                        row,
-                                        event.target.value,
-                                      )
-                                    }
-                                    placeholder=""
-                                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[var(--athena-orange)]"
-                                  />
-                                </label>
-                                <button
-                                  type="button"
-                                  disabled={isPending || saving}
-                                  onClick={() => saveDirectoryAllowance(row)}
-                                  className="rounded-xl bg-[var(--athena-orange)] px-4 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:opacity-60"
-                                >
-                                  Save
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <section className="rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6">
-        <div className="mb-5 flex items-end justify-between gap-4">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--athena-orange)]">
-              Manageable accounts
-            </div>
-            <h2 className="mt-3 text-2xl font-semibold tracking-tight">
-              Athena and Licensee access
-            </h2>
-            <p className="mt-2 text-sm text-white/50">
-              Deactivation retains identity, organization, membership, Licensee
-              relationships, and tenant data. No deletion. No impersonation.
-            </p>
-          </div>
-          <div className="text-sm text-white/40">{initialAccounts.length} accounts</div>
-        </div>
-
-        {initialAccounts.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-black/20 px-5 py-8 text-sm text-white/50">
-            No manageable Athena or Licensee Master accounts yet.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="text-xs uppercase tracking-[0.2em] text-white/40">
-                <tr>
-                  <th className="px-3 py-3 font-medium">Type</th>
-                  <th className="px-3 py-3 font-medium">Account</th>
-                  <th className="px-3 py-3 font-medium">Email</th>
-                  <th className="px-3 py-3 font-medium">Status</th>
-                  <th className="px-3 py-3 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {initialAccounts.map((account) => (
-                  <tr
-                    key={`${account.accountType}:${account.userId}`}
-                    className="border-t border-white/10"
-                  >
-                    <td className="px-3 py-4">
-                      <span
-                        className={
-                          account.accountType === "athena"
-                            ? "text-[var(--athena-orange)]"
-                            : "text-sky-300"
-                        }
-                      >
-                        {account.accountType === "athena"
-                          ? "Athena"
-                          : "Licensee"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-4 text-white/90">
-                      {account.displayName}
-                    </td>
-                    <td className="px-3 py-4 text-white/60">{account.email}</td>
-                    <td className="px-3 py-4">
-                      <span
-                        className={
-                          account.status === "active"
-                            ? "text-emerald-300"
-                            : "text-amber-300"
-                        }
-                      >
-                        {account.status === "active" ? "Active" : "Deactivated"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-4">
-                      {account.status === "active" ? (
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => setAccess(account.userId, "deactivate")}
-                          className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/5 disabled:opacity-60"
-                        >
-                          Deactivate
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => setAccess(account.userId, "reactivate")}
-                          className="rounded-lg border border-[var(--athena-orange)]/40 px-3 py-1.5 text-xs font-medium text-[var(--athena-orange)] transition hover:bg-[var(--athena-orange)]/10 disabled:opacity-60"
-                        >
-                          Reactivate
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
     </div>
   );
+}
+
+type FeeDrafts = {
+  licenseeMonthlyFeeUsd: string;
+  subAccountMonthlyFeeUsd: string;
+};
+
+function defaultFeeDrafts(fees: LicenseeCommercialFees): FeeDrafts {
+  return {
+    licenseeMonthlyFeeUsd: fees.licenseeMonthlyFeeUsd.toFixed(2),
+    subAccountMonthlyFeeUsd: fees.subAccountMonthlyFeeUsd.toFixed(2),
+  };
+}
+
+function buildFeeDrafts(
+  rows: LicenseeCommercialFees[],
+): Record<string, FeeDrafts> {
+  const drafts: Record<string, FeeDrafts> = {};
+  for (const row of rows) {
+    drafts[row.licenseeAccountId] = defaultFeeDrafts(row);
+  }
+  return drafts;
+}
+
+function parseFeeDraft(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) {
+    return null;
+  }
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  return value;
+}
+
+function replaceFeeRow(
+  rows: LicenseeCommercialFees[],
+  next: LicenseeCommercialFees,
+): LicenseeCommercialFees[] {
+  let replaced = false;
+  const updated = rows.map((row) => {
+    if (row.licenseeAccountId !== next.licenseeAccountId) {
+      return row;
+    }
+    replaced = true;
+    return next;
+  });
+  return replaced ? updated : [...updated, next];
+}
+
+function buildLanguageDrafts(
+  rows: LicenseeDefaultLanguageSetting[],
+): Record<string, OrganizationLanguage> {
+  const drafts: Record<string, OrganizationLanguage> = {};
+  for (const row of rows) {
+    drafts[row.licenseeAccountId] = row.defaultLanguage;
+  }
+  return drafts;
+}
+
+function replaceLanguageRow(
+  rows: LicenseeDefaultLanguageSetting[],
+  next: LicenseeDefaultLanguageSetting,
+): LicenseeDefaultLanguageSetting[] {
+  let replaced = false;
+  const updated = rows.map((row) => {
+    if (row.licenseeAccountId !== next.licenseeAccountId) {
+      return row;
+    }
+    replaced = true;
+    return next;
+  });
+  return replaced ? updated : [...updated, next];
 }
 
 function buildAllowanceDrafts(
@@ -995,20 +910,4 @@ function replaceAllocationRow(
       };
     }),
   };
-}
-
-function allocationSecondaryCopy(
-  row: SuperAdminGetOblicDirectoryAllocationRow,
-): string {
-  if (!row.configured) {
-    return "Conversions are blocked until listing capacity is set.";
-  }
-  if (row.listingCapacity === 0) {
-    return "New GetOblic conversions are blocked.";
-  }
-  const held = row.currentlyHeld ?? 0;
-  const capacity = row.listingCapacity ?? 0;
-  const available = row.available;
-  const usage = `${held} currently held of ${capacity}`;
-  return available == null ? usage : `${usage} · ${available} available`;
 }

@@ -34,6 +34,7 @@ import {
 import {
   OrganizationLanguageInvalidError,
   parseOrganizationLanguage,
+  resolveOrganizationLanguageValue,
   type OrganizationLanguage,
 } from "@/services/organizationLanguage";
 import {
@@ -987,7 +988,7 @@ export async function createLicenseeSubAccount(input: {
     licenseeAccount.id,
   );
 
-  let organizationLanguage: OrganizationLanguage | undefined;
+  let organizationLanguage: OrganizationLanguage;
   if (
     input.language !== undefined &&
     input.language !== null &&
@@ -1004,6 +1005,10 @@ export async function createLicenseeSubAccount(input: {
       }
       throw error;
     }
+  } else {
+    organizationLanguage = resolveOrganizationLanguageValue(
+      licenseeAccount.default_language,
+    );
   }
 
   let authUser = await findAuthUserByEmail(accountEmail);
@@ -1111,9 +1116,7 @@ export async function createLicenseeSubAccount(input: {
           accountEmail,
           {
             organizationName: businessName,
-            ...(organizationLanguage
-              ? { language: organizationLanguage }
-              : {}),
+            language: organizationLanguage,
           },
         );
       } catch (provisionError) {

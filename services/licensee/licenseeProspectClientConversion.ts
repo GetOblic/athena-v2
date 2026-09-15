@@ -1065,6 +1065,7 @@ async function provisionClientSubAccount(input: {
   businessName: string;
   accountEmail: string;
   confirmLinkExisting: boolean;
+  language?: unknown;
 }): Promise<{ organizationId: string; authUserCreated: boolean }> {
   try {
     const result = await createLicenseeSubAccount({
@@ -1072,6 +1073,7 @@ async function provisionClientSubAccount(input: {
       businessName: input.businessName,
       accountEmail: input.accountEmail,
       confirmLinkExisting: input.confirmLinkExisting,
+      ...(input.language !== undefined ? { language: input.language } : {}),
     });
     return {
       organizationId: result.organizationId,
@@ -1127,6 +1129,7 @@ async function provisionAfterReservedIntent(input: {
       businessName: input.businessName,
       accountEmail: input.accountEmail,
       confirmLinkExisting: false,
+      language: input.licenseeAccount.default_language,
     });
     return {
       organizationId: result.organizationId,

@@ -62,6 +62,7 @@ type OrganizationRow = {
   id: string;
   name: string;
   slug: string;
+  language?: string;
 };
 
 type MembershipRow = {
@@ -75,6 +76,7 @@ type LicenseeRow = {
   user_id: string;
   email: string;
   own_company_organization_id: string | null;
+  default_language?: string;
 };
 
 type RelationshipRow = {
@@ -334,6 +336,9 @@ function installFixture(fixture: Fixture): CallLog {
           name: String(values.name || ""),
           slug: String(values.slug || ""),
         };
+        if ("language" in values) {
+          row.language = String(values.language);
+        }
         fixture.organizations[id] = row;
         values.id = id;
         return row;
@@ -2249,6 +2254,78 @@ describe("GetOblic ownership conversion guard", () => {
     const result = await promoteLicenseeProspectToClient(promoteInput());
     assert.equal(result.conversion.status, "active");
     assert.ok(!calls.tables.includes("athena_getoblic_listing_links"));
+  });
+});
+
+describe("Prospect → Client language inheritance", () => {
+  it("first conversion uses the Licensee Master default language", async () => {
+    const fixture = ownCompanyFixture();
+    fixture.licenseeByUserId[MASTER_USER_ID]!.default_language = "fr";
+    const calls = installFixture(fixture);
+
+    const result = await promoteLicenseeProspectToClient(promoteInput());
+
+    assert.equal(result.alreadyActive, false);
+    assert.equal(result.reattached, false);
+    const orgInserts = calls.inserts.filter((row) => row.table === "organizations");
+    assert.equal(orgInserts.length, 1);
+    assert.equal(orgInserts[0]?.values.language, "fr");
+    assert.equal(fixture.organizations[result.clientOrganizationId]?.language, "fr");
+    assert.equal(
+      calls.updates.filter((row) => row.table === "organizations").length,
+      0,
+    );
+  });
+
+  it("reversal and reactivation preserve the existing client organization language", async () => {
+    const fixture = ownCompanyFixture();
+    fixture.licenseeByUserId[MASTER_USER_ID]!.default_language = "fr";
+    const calls = installFixture(fixture);
+
+    const first = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(fixture.organizations[first.clientOrganizationId]?.language, "fr");
+    fixture.licenseeByUserId[MASTER_USER_ID]!.default_language = "de";
+
+    await reverseLicenseeProspectClientConversion(reverseInput());
+    const orgInsertsAfterFirst = calls.inserts.filter(
+      (row) => row.table === "organizations",
+    ).length;
+
+    const again = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(again.reattached, true);
+    assert.equal(again.clientOrganizationId, first.clientOrganizationId);
+    assert.equal(fixture.organizations[first.clientOrganizationId]?.language, "fr");
+    assert.equal(
+      calls.inserts.filter((row) => row.table === "organizations").length,
+      orgInsertsAfterFirst,
+    );
+    assert.equal(
+      calls.updates.filter((row) => row.table === "organizations").length,
+      0,
+    );
+  });
+
+  it("idempotent active conversion does not mutate organization language", async () => {
+    const fixture = ownCompanyFixture();
+    fixture.licenseeByUserId[MASTER_USER_ID]!.default_language = "it";
+    const calls = installFixture(fixture);
+
+    const first = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(fixture.organizations[first.clientOrganizationId]?.language, "it");
+    fixture.licenseeByUserId[MASTER_USER_ID]!.default_language = "pt";
+
+    const second = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(second.alreadyActive, true);
+    assert.equal(second.clientOrganizationId, first.clientOrganizationId);
+    assert.equal(fixture.organizations[first.clientOrganizationId]?.language, "it");
+    assert.equal(
+      calls.inserts.filter((row) => row.table === "organizations").length,
+      1,
+    );
+    assert.equal(
+      calls.updates.filter((row) => row.table === "organizations").length,
+      0,
+    );
   });
 });
 

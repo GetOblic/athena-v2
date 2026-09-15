@@ -918,28 +918,36 @@ describe("CO-1A Super Admin GetOblic listing allocation — surface contracts", 
     const dashboard = read(
       "components/superAdmin/SuperAdminDashboardClient.tsx",
     );
-    assert.match(dashboard, /GetOblic Listing Capacity/);
+    const licenseeCard = read(
+      "components/superAdmin/SuperAdminLicenseeCard.tsx",
+    );
+    const subAccountCard = read(
+      "components/superAdmin/SuperAdminSubAccountCard.tsx",
+    );
+    const view = read("lib/superAdmin/superAdminDashboardView.ts");
+    const surface = `${dashboard}\n${licenseeCard}\n${subAccountCard}\n${view}`;
+    assert.match(licenseeCard, /GetOblic Listing Capacity/);
     assert.match(
-      dashboard,
+      licenseeCard,
       /Concurrent GetOblic listing capacity per Licensee sub-account\.\s+Licensee Masters and tenant users cannot change this\./,
     );
-    assert.match(dashboard, /Not configured/);
+    assert.match(subAccountCard, /Not configured/);
     assert.match(
-      dashboard,
+      view,
       /Conversions are blocked until listing capacity is set\./,
     );
-    assert.match(dashboard, /Configured/);
-    assert.match(dashboard, /New GetOblic conversions are blocked\./);
-    assert.match(dashboard, /currently held of/);
-    assert.match(dashboard, /GetOblic listing capacity/);
-    assert.match(dashboard, /Own company/);
+    assert.match(subAccountCard, /Configured/);
+    assert.match(view, /New GetOblic conversions are blocked\./);
+    assert.match(view, /currently held of/);
+    assert.match(subAccountCard, /GetOblic listing capacity/);
+    assert.match(subAccountCard, /Own company/);
     assert.match(dashboard, /saveDirectoryAllowance/);
     assert.match(dashboard, /\/api\/super\/getoblic-directory\/settings/);
-    assert.doesNotMatch(dashboard, /Save all|bulk-save|bulkSave/i);
-    assert.doesNotMatch(dashboard, /wordpress_author_id/);
-    assert.doesNotMatch(dashboard, /loginAs|login-as|Impersonate/);
+    assert.doesNotMatch(surface, /Save all|bulk-save|bulkSave/i);
+    assert.doesNotMatch(surface, /wordpress_author_id/);
+    assert.doesNotMatch(surface, /loginAs|login-as|Impersonate/);
     assert.doesNotMatch(
-      dashboard,
+      surface,
       /athena_identity|logoPreview|accountReadiness|prospectCount/,
     );
   });

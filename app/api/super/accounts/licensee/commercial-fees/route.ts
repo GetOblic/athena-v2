@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
-  SuperAdminOperationError,
-  createLicenseeMasterAsSuperAdmin,
-} from "@/services/superAdmin/superAdminAccounts";
+  SuperAdminLicenseeCommercialFeeError,
+  updateLicenseeCommercialFeesForSuperAdmin,
+} from "@/services/superAdmin/superAdminLicenseeCommercialFees";
 import { SuperAdminAccessError } from "@/services/superAdmin/superAdminIdentity";
 
 export const runtime = "nodejs";
@@ -16,16 +16,27 @@ function jsonError(status: number, code: string, message: string) {
   );
 }
 
-export async function POST(request: NextRequest) {
+export async function PATCH(request: NextRequest) {
   let body: {
-    email?: string;
-    businessName?: string;
-    defaultLanguage?: unknown;
+    licenseeAccountId?: unknown;
+    licenseeMonthlyFeeUsd?: unknown;
+    subAccountMonthlyFeeUsd?: unknown;
   } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return jsonError(400, "INVALID_JSON", "Invalid JSON body.");
+  }
+
+  if (
+    typeof body.licenseeAccountId !== "string" ||
+    !body.licenseeAccountId.trim()
+  ) {
+    return jsonError(
+      400,
+      "ACCOUNT_NOT_FOUND",
+      "licenseeAccountId is required.",
+    );
   }
 
   const supabase = await createSupabaseServerClient();
@@ -38,29 +49,31 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await createLicenseeMasterAsSuperAdmin({
+    const result = await updateLicenseeCommercialFeesForSuperAdmin({
       actorUserId: user.id,
-      email: String(body.email || ""),
-      businessName: body.businessName ? String(body.businessName) : null,
-      defaultLanguage: body.defaultLanguage,
+      licenseeAccountId: body.licenseeAccountId,
+      licenseeMonthlyFeeUsd: body.licenseeMonthlyFeeUsd,
+      subAccountMonthlyFeeUsd: body.subAccountMonthlyFeeUsd,
     });
 
     return NextResponse.json(
-      { ok: true, ...result },
+      { ok: true, fees: result.fees },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
     if (error instanceof SuperAdminAccessError) {
       return jsonError(403, "NOT_SUPER_ADMIN", error.message);
     }
-    if (error instanceof SuperAdminOperationError) {
-      return jsonError(400, error.code, error.message);
+    if (error instanceof SuperAdminLicenseeCommercialFeeError) {
+      return jsonError(error.status, error.code, error.message);
     }
-    console.error("[SUPER_ADMIN] create_licensee_failed", error);
+    console.error("[SUPER_ADMIN] licensee_commercial_fees_update_failed", error);
     return jsonError(
       500,
-      "CREATE_LICENSEE_FAILED",
-      error instanceof Error ? error.message : "Create Licensee Master failed.",
+      "FEE_WRITE_FAILED",
+      error instanceof Error
+        ? error.message
+        : "Failed to save Licensee commercial fees.",
     );
   }
 }

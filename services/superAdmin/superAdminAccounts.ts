@@ -20,6 +20,7 @@ import {
   requireGetOblicSuperAdmin,
 } from "@/services/superAdmin/superAdminIdentity";
 import {
+  DEFAULT_ORGANIZATION_LANGUAGE,
   OrganizationLanguageInvalidError,
   parseOrganizationLanguage,
   type OrganizationLanguage,
@@ -331,12 +332,31 @@ export async function createLicenseeMasterAsSuperAdmin(input: {
   actorUserId: string;
   email: string;
   businessName?: string | null;
+  defaultLanguage?: unknown;
 }): Promise<CreateLicenseeMasterResult> {
   const actor = await requireGetOblicSuperAdmin(input.actorUserId);
   const email = normalizeEmail(input.email);
   const businessName = input.businessName
     ? normalizeBusinessName(input.businessName)
     : "";
+  let defaultLanguage: OrganizationLanguage = DEFAULT_ORGANIZATION_LANGUAGE;
+  if (
+    input.defaultLanguage !== undefined &&
+    input.defaultLanguage !== null &&
+    String(input.defaultLanguage).trim() !== ""
+  ) {
+    try {
+      defaultLanguage = parseOrganizationLanguage(input.defaultLanguage);
+    } catch (error) {
+      if (error instanceof OrganizationLanguageInvalidError) {
+        throw new SuperAdminOperationError(
+          "INVALID_LANGUAGE",
+          "A supported Default Language is required.",
+        );
+      }
+      throw error;
+    }
+  }
 
   if (!email || !email.includes("@")) {
     throw new SuperAdminOperationError(
@@ -376,8 +396,9 @@ export async function createLicenseeMasterAsSuperAdmin(input: {
       .insert({
         user_id: authUser.id,
         email,
+        default_language: defaultLanguage,
       })
-      .select("id, user_id, email")
+      .select("id, user_id, email, default_language")
       .single();
 
     if (insertError || !inserted?.id) {
@@ -407,6 +428,7 @@ export async function createLicenseeMasterAsSuperAdmin(input: {
       metadata: {
         licenseeAccountId: inserted.id,
         businessName: businessName || null,
+        defaultLanguage,
         authUserCreated,
       },
       success: true,

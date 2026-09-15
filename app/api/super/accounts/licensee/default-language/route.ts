@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
-  SuperAdminOperationError,
-  createLicenseeMasterAsSuperAdmin,
-} from "@/services/superAdmin/superAdminAccounts";
+  SuperAdminLicenseeDefaultLanguageError,
+  updateLicenseeDefaultLanguageForSuperAdmin,
+} from "@/services/superAdmin/superAdminLicenseeDefaultLanguage";
 import { SuperAdminAccessError } from "@/services/superAdmin/superAdminIdentity";
 
 export const runtime = "nodejs";
@@ -16,16 +16,26 @@ function jsonError(status: number, code: string, message: string) {
   );
 }
 
-export async function POST(request: NextRequest) {
+export async function PATCH(request: NextRequest) {
   let body: {
-    email?: string;
-    businessName?: string;
+    licenseeAccountId?: unknown;
     defaultLanguage?: unknown;
   } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return jsonError(400, "INVALID_JSON", "Invalid JSON body.");
+  }
+
+  if (
+    typeof body.licenseeAccountId !== "string" ||
+    !body.licenseeAccountId.trim()
+  ) {
+    return jsonError(
+      400,
+      "ACCOUNT_NOT_FOUND",
+      "licenseeAccountId is required.",
+    );
   }
 
   const supabase = await createSupabaseServerClient();
@@ -38,29 +48,30 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await createLicenseeMasterAsSuperAdmin({
+    const result = await updateLicenseeDefaultLanguageForSuperAdmin({
       actorUserId: user.id,
-      email: String(body.email || ""),
-      businessName: body.businessName ? String(body.businessName) : null,
+      licenseeAccountId: body.licenseeAccountId,
       defaultLanguage: body.defaultLanguage,
     });
 
     return NextResponse.json(
-      { ok: true, ...result },
+      { ok: true, setting: result.setting },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
     if (error instanceof SuperAdminAccessError) {
       return jsonError(403, "NOT_SUPER_ADMIN", error.message);
     }
-    if (error instanceof SuperAdminOperationError) {
-      return jsonError(400, error.code, error.message);
+    if (error instanceof SuperAdminLicenseeDefaultLanguageError) {
+      return jsonError(error.status, error.code, error.message);
     }
-    console.error("[SUPER_ADMIN] create_licensee_failed", error);
+    console.error("[SUPER_ADMIN] licensee_default_language_update_failed", error);
     return jsonError(
       500,
-      "CREATE_LICENSEE_FAILED",
-      error instanceof Error ? error.message : "Create Licensee Master failed.",
+      "LANGUAGE_WRITE_FAILED",
+      error instanceof Error
+        ? error.message
+        : "Failed to save Licensee default language.",
     );
   }
 }

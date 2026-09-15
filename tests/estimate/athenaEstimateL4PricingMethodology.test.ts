@@ -188,23 +188,26 @@ describe("Athena Estimate L4 — Super Admin pricing methodology governance", ()
     const client = read(
       "components/superAdmin/SuperAdminDashboardClient.tsx",
     );
+    const system = read(
+      "components/superAdmin/SuperAdminSystemConfiguration.tsx",
+    );
 
     assert.match(page, /initialEstimatePricingMethodologyInstruction/);
     assert.match(page, /getActiveEstimatePricingMethodologyInstruction/);
-    assert.match(client, /eyebrow="Athena Estimate"/);
-    assert.match(client, /Athena Estimate Pricing Methodology/);
+    assert.match(system, /eyebrow="Athena Estimate"/);
+    assert.match(system, /Athena Estimate Pricing Methodology/);
     assert.match(client, /\/api\/super\/estimate\/pricing-methodology/);
-    assert.match(client, /Save Estimate Pricing Methodology/);
+    assert.match(system, /Save Estimate Pricing Methodology/);
     assert.match(
-      client,
+      system,
       /eyebrow="Athena Estimate"[\s\S]*?defaultOpen=\{false\}/,
     );
     assert.doesNotMatch(
-      client,
+      system,
       /eyebrow="Athena Estimate"[\s\S]*?defaultOpen=\{true\}/,
     );
-    assert.doesNotMatch(client, /tenant intelligence|discussion body|brain/i);
-    assert.doesNotMatch(client, /licensee_account|sub-account history/i);
+    assert.doesNotMatch(system, /tenant intelligence|discussion body|brain/i);
+    assert.doesNotMatch(system, /licensee_account|sub-account history/i);
   });
 
   it("19/20/21. Trend Social wrappers, API path, and collapsed UI preserved", () => {
@@ -214,8 +217,8 @@ describe("Athena Estimate L4 — Super Admin pricing methodology governance", ()
     const route = read(
       "app/api/super/strategic-blueprints/trend-social-prompt/route.ts",
     );
-    const client = read(
-      "components/superAdmin/SuperAdminDashboardClient.tsx",
+    const system = read(
+      "components/superAdmin/SuperAdminSystemConfiguration.tsx",
     );
 
     assert.match(
@@ -238,10 +241,10 @@ describe("Athena Estimate L4 — Super Admin pricing methodology governance", ()
     assert.match(route, /updateTrendSocialPromptInstructionForSuperAdmin/);
     assert.doesNotMatch(route, /estimate_pricing_methodology/);
 
-    assert.match(client, /eyebrow="Strategic Asset Blueprints"/);
-    assert.match(client, /Save Trend Social Prompt/);
+    assert.match(system, /eyebrow="Strategic Asset Blueprints"/);
+    assert.match(system, /Save Trend Social Prompt/);
     assert.match(
-      client,
+      system,
       /eyebrow="Strategic Asset Blueprints"[\s\S]*?defaultOpen=\{false\}/,
     );
   });

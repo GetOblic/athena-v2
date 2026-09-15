@@ -354,12 +354,15 @@ describe("V24 Phase 1 — GetOblic Super Admin contracts", () => {
   it("no product deletion paths and no impersonation in Super Admin surface", () => {
     const accounts = read("services/superAdmin/superAdminAccounts.ts");
     const dashboard = read("components/superAdmin/SuperAdminDashboardClient.tsx");
+    const athenaAccounts = read(
+      "components/superAdmin/SuperAdminAthenaAccountsSection.tsx",
+    );
     const page = read("app/super/page.tsx");
     assert.doesNotMatch(accounts, /loginAs|login-as|impersonate/i);
     assert.doesNotMatch(dashboard, /\bbilling\b|\bRBAC\b/);
     assert.doesNotMatch(dashboard, /auth\.admin\.deleteUser|\.delete\(/);
     assert.doesNotMatch(page, /\bbilling\b|delete account|impersonate/i);
-    assert.match(dashboard, /No deletion\. No impersonation\./);
+    assert.match(athenaAccounts, /No deletion\. No impersonation\./);
 
     // deleteUser may exist only inside bounded failed-create cleanup.
     const deactivateFn = sliceBetween(
@@ -503,6 +506,14 @@ describe("V24 Phase 1 — GetOblic Super Admin contracts", () => {
     assert.equal(pathExists("app/super/page.tsx"), true);
     assert.equal(pathExists("app/api/super/accounts/athena/route.ts"), true);
     assert.equal(pathExists("app/api/super/accounts/licensee/route.ts"), true);
+    assert.equal(
+      pathExists("app/api/super/accounts/licensee/commercial-fees/route.ts"),
+      true,
+    );
+    assert.equal(
+      pathExists("app/api/super/accounts/licensee/default-language/route.ts"),
+      true,
+    );
     assert.equal(pathExists("app/api/super/accounts/deactivate/route.ts"), true);
     assert.equal(pathExists("app/api/super/accounts/reactivate/route.ts"), true);
     assert.equal(pathExists("app/api/super/logout/route.ts"), true);
@@ -512,6 +523,8 @@ describe("V24 Phase 1 — GetOblic Super Admin contracts", () => {
     assert.match(audit, /deactivate_account/);
     assert.match(audit, /reactivate_account/);
     assert.match(audit, /update_getoblic_directory_allowance/);
+    assert.match(audit, /update_licensee_commercial_fees/);
+    assert.match(audit, /update_licensee_default_language/);
     assert.match(audit, /getoblic_super_admin_audit/);
     assert.equal(
       pathExists("app/api/super/getoblic-directory/settings/route.ts"),

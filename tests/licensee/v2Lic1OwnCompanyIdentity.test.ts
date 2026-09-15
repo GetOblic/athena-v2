@@ -304,7 +304,7 @@ describe("V2-LIC-1 — persistence / types", () => {
     assert.match(identity, /own_company_organization_id:\s*string \| null/);
     assert.match(
       identity,
-      /select\("id, user_id, email, own_company_organization_id"\)/,
+      /select\("id, user_id, email, own_company_organization_id, default_language"\)/,
     );
   });
 });

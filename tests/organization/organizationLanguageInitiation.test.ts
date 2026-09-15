@@ -77,7 +77,7 @@ type Fixture = {
   memberships: MembershipRow[];
   licenseeAccounts: Record<
     string,
-    { id: string; user_id: string; email: string }
+    { id: string; user_id: string; email: string; default_language?: string }
   >;
   superAdmins: Record<string, { id: string; user_id: string; email: string }>;
   accessStatus: Record<string, "active" | "deactivated">;
@@ -112,10 +112,20 @@ function installProvisioningFixture(fixture: Fixture): CallLog {
       }
       if (table === "licensee_accounts") {
         const userId = filters.user_id;
-        return {
-          data: userId ? (fixture.licenseeAccounts[userId] ?? null) : null,
-          error: null,
-        };
+        if (userId) {
+          return {
+            data: fixture.licenseeAccounts[userId] ?? null,
+            error: null,
+          };
+        }
+        const id = filters.id;
+        if (id) {
+          const match = Object.values(fixture.licenseeAccounts).find(
+            (row) => row.id === id,
+          );
+          return { data: match ?? null, error: null };
+        }
+        return { data: null, error: null };
       }
       if (table === "getoblic_super_admins") {
         const userId = filters.user_id;
@@ -148,6 +158,10 @@ function installProvisioningFixture(fixture: Fixture): CallLog {
       select: () => builder,
       eq: (column: string, value: string) => {
         filters[column] = value;
+        return builder;
+      },
+      is: (column: string, value: unknown) => {
+        filters[column] = String(value);
         return builder;
       },
       insert: (values: Record<string, unknown>) => {
@@ -183,6 +197,14 @@ function installProvisioningFixture(fixture: Fixture): CallLog {
       },
       update: (values: Record<string, unknown>) => {
         calls.updates.push({ table, values: { ...values }, filters: { ...filters } });
+        if (table === "licensee_accounts") {
+          const userId = Object.keys(fixture.licenseeAccounts).find(
+            (id) => fixture.licenseeAccounts[id]?.id === filters.id,
+          );
+          if (userId) {
+            Object.assign(fixture.licenseeAccounts[userId], values);
+          }
+        }
         return builder;
       },
       upsert: () => builder,
@@ -274,6 +296,7 @@ function masterFixture(overrides: Partial<Fixture> = {}): Fixture {
         id: MASTER_ACCOUNT_ID,
         user_id: MASTER_USER_ID,
         email: MASTER_EMAIL,
+        default_language: "en",
       },
     },
     accessStatus: {
@@ -392,7 +415,7 @@ describe("V31 L2 account initiation language — Licensee sub-account creation",
     assert.match(page, /Account Language/);
     assert.match(page, /ORGANIZATION_LANGUAGES/);
     assert.match(page, /ORGANIZATION_LANGUAGE_LABELS/);
-    assert.match(page, /DEFAULT_ORGANIZATION_LANGUAGE/);
+    assert.match(page, /resolveOrganizationLanguageValue\(licenseeAccount\.default_language\)/);
     assert.doesNotMatch(page, /\["en", "fr", "es", "it", "de", "pt"\]/);
 
     installProvisioningFixture(masterFixture());
@@ -541,6 +564,78 @@ describe("V31 L2 account initiation language — Licensee sub-account creation",
     assert.equal(fixture.organizations[EXISTING_ORG_ID].language, "it");
     assert.equal(fixture.relationships.length, 0);
   });
+
+  it("valid ?language= remains the highest-priority preselection over the Master default", () => {
+    const page = read("app/licensee/sub-accounts/new/page.tsx");
+    assert.match(page, /isOrganizationLanguage\(params\.language\)/);
+    assert.match(
+      page,
+      /resolveOrganizationLanguageValue\(licenseeAccount\.default_language\)/,
+    );
+    const selectedBlock = sliceBetween(
+      page,
+      "const selectedLanguage = isOrganizationLanguage(params.language)",
+      "const setupState",
+    );
+    assert.ok(
+      selectedBlock.indexOf("params.language") <
+        selectedBlock.indexOf("licenseeAccount.default_language"),
+    );
+    assert.match(page, /name=["']accountLanguage["']/);
+    assert.match(page, /Account Language/);
+  });
+
+  it("omitted language uses the Licensee Master default instead of the English DB default", async () => {
+    const fixture = masterFixture({
+      licenseeAccounts: {
+        [MASTER_USER_ID]: {
+          id: MASTER_ACCOUNT_ID,
+          user_id: MASTER_USER_ID,
+          email: MASTER_EMAIL,
+          default_language: "fr",
+        },
+      },
+    });
+    const calls = installProvisioningFixture(fixture);
+
+    const result = await createLicenseeSubAccount({
+      masterUserId: MASTER_USER_ID,
+      businessName: "Lyon Studio",
+      accountEmail: "lyon@example.com",
+    });
+
+    assert.equal(result.linkedExisting, false);
+    const orgInserts = calls.inserts.filter((row) => row.table === "organizations");
+    assert.equal(orgInserts.length, 1);
+    assert.equal(orgInserts[0].values.language, "fr");
+    assert.equal(fixture.organizations[result.organizationId]?.language, "fr");
+  });
+
+  it("operator override still wins over the Licensee Master default", async () => {
+    const fixture = masterFixture({
+      licenseeAccounts: {
+        [MASTER_USER_ID]: {
+          id: MASTER_ACCOUNT_ID,
+          user_id: MASTER_USER_ID,
+          email: MASTER_EMAIL,
+          default_language: "de",
+        },
+      },
+    });
+    const calls = installProvisioningFixture(fixture);
+
+    const result = await createLicenseeSubAccount({
+      masterUserId: MASTER_USER_ID,
+      businessName: "Madrid Studio",
+      accountEmail: "madrid@example.com",
+      language: "es",
+    });
+
+    const orgInserts = calls.inserts.filter((row) => row.table === "organizations");
+    assert.equal(orgInserts.length, 1);
+    assert.equal(orgInserts[0].values.language, "es");
+    assert.equal(fixture.organizations[result.organizationId]?.language, "es");
+  });
 });
 
 describe("V31 L2 account initiation language — Super Admin Athena account creation", () => {
@@ -561,7 +656,7 @@ describe("V31 L2 account initiation language — Super Admin Athena account crea
           "async function resolveManageableAccountTarget",
         ),
       ),
-      /parseOrganizationLanguage|Account Language/,
+      /Account Language|provisionTenantForAuthenticatedUser|from\("organizations"\)/,
     );
 
     const fixture = superAdminFixture();

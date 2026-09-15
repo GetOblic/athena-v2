@@ -887,25 +887,29 @@ describe("CO-1B Super Admin surface contracts", () => {
     const dashboard = read(
       "components/superAdmin/SuperAdminDashboardClient.tsx",
     );
-    assert.match(dashboard, /GetOblic\.com account/);
-    assert.match(dashboard, /Save Account/);
-    assert.match(dashboard, /WordPress User ID/);
+    const subAccountCard = read(
+      "components/superAdmin/SuperAdminSubAccountCard.tsx",
+    );
+    const surface = `${dashboard}\n${subAccountCard}`;
+    assert.match(subAccountCard, /GetOblic\.com account/);
+    assert.match(subAccountCard, /Save Account/);
+    assert.match(subAccountCard, /WordPress User ID/);
     assert.match(
-      dashboard,
+      subAccountCard,
       /Listing capacity must be[\s\S]*configured first/,
     );
     assert.match(dashboard, /saveDirectoryAccount/);
     assert.match(dashboard, /\/api\/super\/getoblic-directory\/account/);
     assert.match(dashboard, /method: "PATCH"/);
-    assert.doesNotMatch(dashboard, /Password/);
-    assert.doesNotMatch(dashboard, /type="password"/);
-    assert.doesNotMatch(dashboard, /hasGetOblicPassword/);
-    assert.doesNotMatch(dashboard, /accountPasswordDrafts/);
-    assert.doesNotMatch(dashboard, /Leave blank to keep current password/);
-    assert.doesNotMatch(dashboard, /wordpress_author_id/);
-    assert.doesNotMatch(dashboard, /getoblic_account_email/);
-    assert.doesNotMatch(dashboard, /getoblic_account_password_ciphertext/);
-    assert.doesNotMatch(dashboard, /decryptSecret|encryptSecret/);
+    assert.doesNotMatch(surface, /Password/);
+    assert.doesNotMatch(surface, /type="password"/);
+    assert.doesNotMatch(surface, /hasGetOblicPassword/);
+    assert.doesNotMatch(surface, /accountPasswordDrafts/);
+    assert.doesNotMatch(surface, /Leave blank to keep current password/);
+    assert.doesNotMatch(surface, /wordpress_author_id/);
+    assert.doesNotMatch(surface, /getoblic_account_email/);
+    assert.doesNotMatch(surface, /getoblic_account_password_ciphertext/);
+    assert.doesNotMatch(surface, /decryptSecret|encryptSecret/);
   });
 
   it("service and DTO contain no password or encryption architecture", () => {

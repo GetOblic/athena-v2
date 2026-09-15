@@ -278,30 +278,33 @@ describe("V25 — Trend Social Prompt", () => {
     const client = read(
       "components/superAdmin/SuperAdminDashboardClient.tsx",
     );
+    const system = read(
+      "components/superAdmin/SuperAdminSystemConfiguration.tsx",
+    );
 
     assert.match(page, /initialTrendSocialPromptInstruction/);
     assert.match(page, /getActiveTrendSocialPromptInstruction/);
-    assert.match(client, /Strategic Asset Blueprints/);
-    assert.match(client, /Trend Social Prompt/);
+    assert.match(system, /Strategic Asset Blueprints/);
+    assert.match(system, /Trend Social Prompt/);
     assert.match(
       client,
       /\/api\/super\/strategic-blueprints\/trend-social-prompt/,
     );
-    assert.match(client, /Save Trend Social Prompt/);
-    assert.doesNotMatch(client, /tenant intelligence|discussion body/i);
+    assert.match(system, /Save Trend Social Prompt/);
+    assert.doesNotMatch(system, /tenant intelligence|discussion body/i);
   });
 
   it("17b. Strategic Asset Blueprints Super Admin card is collapsed by default", () => {
-    const client = read(
-      "components/superAdmin/SuperAdminDashboardClient.tsx",
+    const system = read(
+      "components/superAdmin/SuperAdminSystemConfiguration.tsx",
     );
-    assert.match(client, /AthenaCollapsibleSection/);
+    assert.match(system, /AthenaCollapsibleSection/);
     assert.match(
-      client,
+      system,
       /eyebrow="Strategic Asset Blueprints"[\s\S]*?defaultOpen=\{false\}/,
     );
     assert.doesNotMatch(
-      client,
+      system,
       /eyebrow="Strategic Asset Blueprints"[\s\S]*?defaultOpen=\{true\}/,
     );
   });

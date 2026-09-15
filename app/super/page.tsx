@@ -9,6 +9,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SUPER_ADMIN_MARKER_COOKIE } from "@/services/superAdmin/superAdminCookieNames";
 import { listManageableAccountsForSuperAdmin } from "@/services/superAdmin/superAdminAccounts";
 import { listGetOblicDirectoryAllocationsForSuperAdmin } from "@/services/superAdmin/superAdminGetOblicDirectory";
+import { listLicenseeCommercialFeesForSuperAdmin } from "@/services/superAdmin/superAdminLicenseeCommercialFees";
+import { listLicenseeDefaultLanguagesForSuperAdmin } from "@/services/superAdmin/superAdminLicenseeDefaultLanguage";
 import { getActiveEstimatePricingMethodologyInstruction } from "@/services/estimate/estimatePricingMethodologyInstruction";
 import { getActiveTrendSocialPromptInstruction } from "@/services/superAdmin/strategicBlueprintInstructions";
 import {
@@ -55,6 +57,10 @@ export default async function SuperAdminPage({
   const accounts = await listManageableAccountsForSuperAdmin(user.id);
   const directoryAllocations =
     await listGetOblicDirectoryAllocationsForSuperAdmin(user.id);
+  const licenseeCommercialFees =
+    await listLicenseeCommercialFeesForSuperAdmin(user.id);
+  const licenseeDefaultLanguages =
+    await listLicenseeDefaultLanguagesForSuperAdmin(user.id);
   const trendSocialPromptInstruction =
     await getActiveTrendSocialPromptInstruction();
   const estimatePricingMethodologyInstruction =
@@ -62,8 +68,8 @@ export default async function SuperAdminPage({
   const params = searchParams ? await searchParams : {};
 
   return (
-    <main className="min-h-screen bg-[var(--athena-bg)] px-6 py-10 text-white">
-      <div className="mx-auto max-w-6xl">
+    <main className="min-h-screen bg-[var(--athena-bg)] px-5 py-8 text-white sm:px-6 sm:py-10 lg:px-8 xl:px-10">
+      <div className="mx-auto max-w-[88rem]">
         <div className="mb-10 flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <AthenaBrandLink className="mb-8" />
@@ -71,19 +77,19 @@ export default async function SuperAdminPage({
               GetOblic Super Admin
             </div>
             <h1 className="mt-4 text-4xl font-semibold tracking-tight">
-              Account Administration
+              Control plane
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-white/50">
-              Create and manage access for ordinary Athena accounts and Business
-              Licensee Masters. Tenant intelligence stays isolated inside each
-              account.
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-white/50">
+              Isolated Super Admin workspace for Licensee Masters, ordinary
+              Athena accounts, and system configuration. Tenant intelligence
+              stays isolated inside each account.
             </p>
           </div>
 
           <form action="/api/super/logout" method="post">
             <button
               type="submit"
-              className="rounded-xl border border-[var(--athena-border)] px-4 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/5 hover:text-white"
+              className="rounded-full border border-white/15 px-4 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/5 hover:text-white"
             >
               Logout
             </button>
@@ -93,6 +99,8 @@ export default async function SuperAdminPage({
         <SuperAdminDashboardClient
           initialAccounts={accounts}
           initialDirectoryAllocations={directoryAllocations}
+          initialLicenseeCommercialFees={licenseeCommercialFees}
+          initialLicenseeDefaultLanguages={licenseeDefaultLanguages}
           initialTrendSocialPromptInstruction={{
             instructionText: trendSocialPromptInstruction.instructionText,
             revisionId: trendSocialPromptInstruction.revisionId,

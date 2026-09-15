@@ -1,5 +1,9 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
+  resolveOrganizationLanguageValue,
+  type OrganizationLanguage,
+} from "@/services/organizationLanguage";
+import {
   AccountAccessDeniedError,
   assertAccountAccessActive,
 } from "@/services/superAdmin/accountAccessStatus";
@@ -10,6 +14,11 @@ export type LicenseeAccount = {
   email: string;
   /** Licensee-scoped own-company identity. Null until designated. */
   own_company_organization_id: string | null;
+  /**
+   * Creation default for future Licensee sub-accounts.
+   * Does not localize /licensee and does not override existing organizations.
+   */
+  default_language: OrganizationLanguage;
 };
 
 export type AuthorizedLicenseeSubAccountRelationship = {
@@ -97,6 +106,7 @@ function mapLicenseeAccountRow(data: {
   user_id: unknown;
   email: unknown;
   own_company_organization_id: unknown;
+  default_language?: unknown;
 }): LicenseeAccount {
   return {
     id: data.id as string,
@@ -106,6 +116,7 @@ function mapLicenseeAccountRow(data: {
       typeof data.own_company_organization_id === "string"
         ? data.own_company_organization_id
         : null,
+    default_language: resolveOrganizationLanguageValue(data.default_language),
   };
 }
 
@@ -119,7 +130,7 @@ export async function getLicenseeAccountByUserId(
 
   const { data, error } = await supabaseAdmin
     .from("licensee_accounts")
-    .select("id, user_id, email, own_company_organization_id")
+    .select("id, user_id, email, own_company_organization_id, default_language")
     .eq("user_id", id)
     .maybeSingle();
 
@@ -156,7 +167,7 @@ export async function getLicenseeAccountsByOwnCompanyOrganizationId(
 
   const { data, error } = await supabaseAdmin
     .from("licensee_accounts")
-    .select("id, user_id, email, own_company_organization_id")
+    .select("id, user_id, email, own_company_organization_id, default_language")
     .eq("own_company_organization_id", id);
 
   if (error) {

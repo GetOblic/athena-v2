@@ -460,7 +460,9 @@ describe("V31 L3.2 tenant chrome — collapsible and back link", () => {
     assert.doesNotMatch(section, /expandLabel|collapseLabel/);
 
     const licensee = read("components/licensee/estimate/EstimateAskAthenaPanel.tsx");
-    const superAdmin = read("components/superAdmin/SuperAdminDashboardClient.tsx");
+    const superAdmin = read(
+      "components/superAdmin/SuperAdminSystemConfiguration.tsx",
+    );
     assert.match(licensee, /AthenaCollapsibleSection/);
     assert.match(superAdmin, /AthenaCollapsibleSection/);
     assert.doesNotMatch(licensee, /expandLabel|collapseLabel/);

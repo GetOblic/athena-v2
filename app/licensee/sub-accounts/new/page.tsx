@@ -12,11 +12,11 @@ import {
   getLicenseeOwnCompanySetupState,
 } from "@/services/licensee/licenseeSubAccounts";
 import {
-  DEFAULT_ORGANIZATION_LANGUAGE,
   ORGANIZATION_LANGUAGES,
   ORGANIZATION_LANGUAGE_LABELS,
   isOrganizationLanguage,
   parseOrganizationLanguage,
+  resolveOrganizationLanguageValue,
 } from "@/services/organizationLanguage";
 import { isAccountAccessActive } from "@/services/superAdmin/accountAccessStatus";
 
@@ -138,7 +138,7 @@ export default async function CreateLicenseeSubAccountPage({
   const needsConfirm = params.confirm === "1";
   const selectedLanguage = isOrganizationLanguage(params.language)
     ? params.language
-    : DEFAULT_ORGANIZATION_LANGUAGE;
+    : resolveOrganizationLanguageValue(licenseeAccount.default_language);
   const setupState = await getLicenseeOwnCompanySetupState(user.id);
   const isFirstCompanySetup = setupState.isFirstCompanySetup;
 
