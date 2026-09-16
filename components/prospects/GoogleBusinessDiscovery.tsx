@@ -186,8 +186,7 @@ export function GoogleBusinessDiscovery({
   const inputDisabled =
     googleUnavailable ||
     loaderStatus === "loading" ||
-    submitting ||
-    authorMappingMissing;
+    submitting;
   const canSubmit =
     Boolean(selected) &&
     !submitting &&

@@ -181,6 +181,90 @@ describe("CO-5D1 two-method Find opportunities UX", () => {
   });
 });
 
+describe("CO-5D1 discovery vs conversion authorization", () => {
+  function googleSource(): string {
+    return read("components/prospects/GoogleBusinessDiscovery.tsx");
+  }
+
+  function extractConst(source: string, name: string): string {
+    const match = source.match(new RegExp(`const ${name} =\\s*([\\s\\S]*?);`));
+    assert.ok(match?.[1], `expected const ${name}`);
+    return match[1];
+  }
+
+  it("keeps Google autocomplete usable when author mapping is missing", () => {
+    const google = googleSource();
+    const inputDisabled = extractConst(google, "inputDisabled");
+    assert.match(google, /disabled=\{inputDisabled\}/);
+    assert.match(inputDisabled, /googleUnavailable/);
+    assert.match(inputDisabled, /loaderStatus === "loading"/);
+    assert.match(inputDisabled, /submitting/);
+    assert.doesNotMatch(inputDisabled, /authorMappingMissing/);
+    assert.doesNotMatch(inputDisabled, /prospectCapacityReached/);
+    assert.doesNotMatch(inputDisabled, /listingCapacityReached/);
+  });
+
+  it("still blocks Add/convert and shows mapping guidance when author mapping is missing", () => {
+    const google = googleSource();
+    const canSubmit = extractConst(google, "canSubmit");
+    assert.match(google, /disabled=\{!canSubmit\}/);
+    assert.match(canSubmit, /Boolean\(selected\)/);
+    assert.match(canSubmit, /!submitting/);
+    assert.match(canSubmit, /!authorMappingMissing/);
+    assert.match(canSubmit, /!prospectCapacityReached/);
+    assert.match(canSubmit, /loaderStatus === "ready"/);
+    assert.match(
+      google,
+      /if \(!selected \|\| submitting \|\| authorMappingMissing\)/,
+    );
+    assert.match(google, /\{authorMappingMissing \? \(/);
+    assert.match(google, /\{copy\.authorMappingMissing\}/);
+  });
+
+  it("still disables the Google input for loader, key, Places, and submit runtime states", () => {
+    const google = googleSource();
+    const googleUnavailable = extractConst(google, "googleUnavailable");
+    const inputDisabled = extractConst(google, "inputDisabled");
+    assert.match(googleUnavailable, /loaderStatus === "missing_key"/);
+    assert.match(googleUnavailable, /loaderStatus === "unavailable"/);
+    assert.match(inputDisabled, /googleUnavailable/);
+    assert.match(inputDisabled, /loaderStatus === "loading"/);
+    assert.match(inputDisabled, /submitting/);
+  });
+
+  it("leaves prospect capacity, mapped-account submit, and Autocomplete init unchanged", () => {
+    const google = googleSource();
+    const canSubmit = extractConst(google, "canSubmit");
+    const inputDisabled = extractConst(google, "inputDisabled");
+    assert.match(canSubmit, /!prospectCapacityReached/);
+    assert.doesNotMatch(inputDisabled, /prospectCapacityReached/);
+    assert.match(google, /\{prospectCapacityReached \? \(/);
+    assert.match(google, /\{find\.prospectCapacityReached\}/);
+    assert.match(canSubmit, /Boolean\(selected\)/);
+    assert.match(canSubmit, /loaderStatus === "ready"/);
+    assert.match(google, /loadGoogleMapsPlaces\(apiKey\)/);
+    assert.match(google, /new google\.maps\.places\.Autocomplete/);
+    assert.match(google, /types: \["establishment"\]/);
+    assert.match(google, /\[copy\.choosePlace\]/);
+    assert.doesNotMatch(
+      google,
+      /loadGoogleMapsPlaces\([\s\S]{0,80}authorMappingMissing/,
+    );
+  });
+
+  it("does not change the GetOblic Directory rail", () => {
+    const discovery = read(
+      "components/prospects/GetOblicOpportunityDiscovery.tsx",
+    );
+    assert.match(discovery, /\/api\/getoblic-directory\/search/);
+    assert.match(discovery, /\/api\/prospects\/from-getoblic/);
+    assert.doesNotMatch(discovery, /authorMappingMissing/);
+    assert.doesNotMatch(discovery, /from-google-business/);
+    assert.doesNotMatch(discovery, /google.?places/i);
+    assert.doesNotMatch(discovery, /inputDisabled/);
+  });
+});
+
 describe("CO-5D1 Google loader and payload", () => {
   it("loads Maps JS API Places from NEXT_PUBLIC_GOOGLE_MAPS_API_KEY without an npm package", () => {
     const loader = read("lib/googlePlaces/loadGoogleMapsPlaces.ts");
