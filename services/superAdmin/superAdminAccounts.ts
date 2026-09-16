@@ -20,6 +20,13 @@ import {
   requireGetOblicSuperAdmin,
 } from "@/services/superAdmin/superAdminIdentity";
 import {
+  AthenaPlanInvalidError,
+  DEFAULT_ATHENA_PLAN,
+  parseAthenaPlan,
+  resolveAthenaPlanValue,
+  type AthenaPlan,
+} from "@/services/athenaPlan";
+import {
   DEFAULT_ORGANIZATION_LANGUAGE,
   OrganizationLanguageInvalidError,
   parseOrganizationLanguage,
@@ -50,6 +57,7 @@ export type ManageableAccount = {
   organizationId: string | null;
   licenseeAccountId: string | null;
   status: AccountAccessStatusValue;
+  athenaPlan: AthenaPlan;
 };
 
 function normalizeEmail(email: string): string {
@@ -175,6 +183,7 @@ export async function createAthenaAccountAsSuperAdmin(input: {
   email: string;
   organizationName: string;
   language?: unknown;
+  athenaPlan?: unknown;
 }): Promise<CreateAthenaAccountResult> {
   const actor = await requireGetOblicSuperAdmin(input.actorUserId);
   const email = normalizeEmail(input.email);
@@ -207,6 +216,25 @@ export async function createAthenaAccountAsSuperAdmin(input: {
         throw new SuperAdminOperationError(
           "INVALID_LANGUAGE",
           "A supported Account Language is required.",
+        );
+      }
+      throw error;
+    }
+  }
+
+  let athenaPlan: AthenaPlan = DEFAULT_ATHENA_PLAN;
+  if (
+    input.athenaPlan !== undefined &&
+    input.athenaPlan !== null &&
+    String(input.athenaPlan).trim() !== ""
+  ) {
+    try {
+      athenaPlan = parseAthenaPlan(input.athenaPlan);
+    } catch (error) {
+      if (error instanceof AthenaPlanInvalidError) {
+        throw new SuperAdminOperationError(
+          "INVALID_ATHENA_PLAN",
+          "A supported Athena plan is required.",
         );
       }
       throw error;
@@ -248,6 +276,7 @@ export async function createAthenaAccountAsSuperAdmin(input: {
       {
         organizationName,
         ...(language ? { language } : {}),
+        athenaPlan,
       },
     );
     organizationId = provisioned.organizationId;
@@ -276,7 +305,7 @@ export async function createAthenaAccountAsSuperAdmin(input: {
       targetUserId: authUser.id,
       targetEmail: email,
       accountType: "athena",
-      metadata: { organizationId, organizationName, authUserCreated },
+      metadata: { organizationId, organizationName, authUserCreated, athenaPlan },
       success: true,
     });
 
@@ -761,7 +790,7 @@ export async function listManageableAccountsForSuperAdmin(
     organizationIds.length > 0
       ? await supabaseAdmin
           .from("organizations")
-          .select("id, name")
+          .select("id, name, athena_plan")
           .in("id", organizationIds)
       : { data: [], error: null };
 
@@ -769,8 +798,14 @@ export async function listManageableAccountsForSuperAdmin(
     throw new Error(orgError.message || "Failed to load organizations.");
   }
 
-  const orgNameById = new Map(
-    (organizations ?? []).map((org) => [org.id as string, org.name as string]),
+  const orgById = new Map(
+    (organizations ?? []).map((org) => [
+      org.id as string,
+      {
+        name: org.name as string,
+        athenaPlan: resolveAthenaPlanValue(org.athena_plan),
+      },
+    ]),
   );
 
   const accounts: ManageableAccount[] = [];
@@ -788,6 +823,7 @@ export async function listManageableAccountsForSuperAdmin(
       organizationId: null,
       licenseeAccountId: row.id as string,
       status: statusByUser.get(userId) ?? "active",
+      athenaPlan: DEFAULT_ATHENA_PLAN,
     });
   }
 
@@ -813,10 +849,11 @@ export async function listManageableAccountsForSuperAdmin(
       userId,
       email,
       accountType: "athena",
-      displayName: orgNameById.get(organizationId) || email,
+      displayName: orgById.get(organizationId)?.name || email,
       organizationId,
       licenseeAccountId: null,
       status: statusByUser.get(userId) ?? "active",
+      athenaPlan: orgById.get(organizationId)?.athenaPlan ?? DEFAULT_ATHENA_PLAN,
     });
   }
 

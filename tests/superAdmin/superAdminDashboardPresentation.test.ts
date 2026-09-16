@@ -89,6 +89,7 @@ function sampleAccounts(): ManageableAccount[] {
       organizationId: null,
       licenseeAccountId: "lic-1",
       status: "active",
+      athenaPlan: "full",
     },
     {
       userId: "lm-2",
@@ -98,6 +99,7 @@ function sampleAccounts(): ManageableAccount[] {
       organizationId: null,
       licenseeAccountId: "lic-empty",
       status: "deactivated",
+      athenaPlan: "full",
     },
     {
       userId: "ath-1",
@@ -107,6 +109,7 @@ function sampleAccounts(): ManageableAccount[] {
       organizationId: "org-athena",
       licenseeAccountId: null,
       status: "active",
+      athenaPlan: "full",
     },
   ];
 }
@@ -243,6 +246,8 @@ describe("Super Admin dashboard presentation — information architecture", () =
     });
     assert.equal(view.athenaAccounts.length, 1);
     assert.equal(view.athenaAccounts[0]?.userId, "ath-1");
+    assert.equal(view.athenaAccounts[0]?.accountType, "athena");
+    assert.equal(view.athenaAccounts[0]?.athenaPlan, "full");
     assert.equal(view.overview.ordinaryAthenaAccounts, 1);
     assert.equal(view.overview.licenseeMasters, 2);
     assert.equal(view.overview.getoblicUnconfigured, 1);
@@ -363,6 +368,7 @@ describe("Super Admin dashboard presentation — contracts", () => {
     assert.match(client, /\/api\/super\/accounts\/athena/);
     assert.match(client, /organizationName: athenaOrgName/);
     assert.match(client, /language:\s*athenaLanguage/);
+    assert.match(client, /athenaPlan,/);
     assert.match(client, /\/api\/super\/accounts\/licensee/);
     assert.match(client, /businessName: licenseeName \|\| undefined/);
     assert.match(client, /defaultLanguage: licenseeDefaultLanguage/);

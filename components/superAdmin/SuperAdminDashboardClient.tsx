@@ -14,7 +14,17 @@ import {
   superAdminAllocationKey,
   type SuperAdminDomainId,
 } from "@/lib/superAdmin/superAdminDashboardView";
-import { SUPER_ADMIN_INPUT_CLASS } from "@/lib/superAdmin/superAdminPresentation";
+import {
+  SUPER_ADMIN_INPUT_CLASS,
+  SUPER_ADMIN_NAV_ACTIVE_CLASS,
+  SUPER_ADMIN_NAV_IDLE_CLASS,
+} from "@/lib/superAdmin/superAdminPresentation";
+import {
+  ATHENA_PLAN_LABELS,
+  ATHENA_PLANS,
+  DEFAULT_ATHENA_PLAN,
+  type AthenaPlan,
+} from "@/services/athenaPlan";
 import {
   DEFAULT_ORGANIZATION_LANGUAGE,
   ORGANIZATION_LANGUAGES,
@@ -147,6 +157,7 @@ export function SuperAdminDashboardClient({
   const [athenaLanguage, setAthenaLanguage] = useState<OrganizationLanguage>(
     DEFAULT_ORGANIZATION_LANGUAGE,
   );
+  const [athenaPlan, setAthenaPlan] = useState<AthenaPlan>(DEFAULT_ATHENA_PLAN);
   const [licenseeEmail, setLicenseeEmail] = useState("");
   const [licenseeName, setLicenseeName] = useState("");
   const [licenseeDefaultLanguage, setLicenseeDefaultLanguage] =
@@ -227,10 +238,12 @@ export function SuperAdminDashboardClient({
         email: athenaEmail,
         organizationName: athenaOrgName,
         language: athenaLanguage,
+        athenaPlan,
       });
       setAthenaEmail("");
       setAthenaOrgName("");
       setAthenaLanguage(DEFAULT_ORGANIZATION_LANGUAGE);
+      setAthenaPlan(DEFAULT_ATHENA_PLAN);
       setLocalNotice("Normal Athena account created.");
       refresh();
     } catch (err) {
@@ -616,6 +629,29 @@ export function SuperAdminDashboardClient({
 
   const athenaCreateFields = (
     <>
+      <fieldset className="space-y-2">
+        <legend className="text-sm text-white/70">Account Type</legend>
+        <div className="grid grid-cols-2 gap-2">
+          {ATHENA_PLANS.map((plan) => {
+            const selected = athenaPlan === plan;
+            return (
+              <button
+                key={plan}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setAthenaPlan(plan)}
+                className={`w-full justify-center ${
+                  selected
+                    ? SUPER_ADMIN_NAV_ACTIVE_CLASS
+                    : SUPER_ADMIN_NAV_IDLE_CLASS
+                }`}
+              >
+                {ATHENA_PLAN_LABELS[plan]}
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
       <input
         type="email"
         required

@@ -74,7 +74,7 @@ export type SuperAdminOverviewCounts = {
 
 export type SuperAdminAthenaAccountView = Pick<
   ManageableAccount,
-  "userId" | "email" | "accountType" | "displayName" | "status"
+  "userId" | "email" | "accountType" | "displayName" | "status" | "athenaPlan"
 >;
 
 export type SuperAdminDashboardView = {

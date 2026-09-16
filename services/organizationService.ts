@@ -16,6 +16,11 @@ import {
   isGetOblicSuperAdminUser,
 } from "@/services/superAdmin/superAdminIdentity";
 import {
+  parseAthenaPlan,
+  resolveAthenaPlanValue,
+  type AthenaPlan,
+} from "@/services/athenaPlan";
+import {
   parseOrganizationLanguage,
   resolveOrganizationLanguageValue,
   type OrganizationLanguage,
@@ -53,6 +58,12 @@ export type Organization = {
    * Optional in-type for pre-migration / fixture compatibility; resolver falls back to English.
    */
   language?: string | null;
+  /**
+   * Ordinary Athena product plan.
+   * Authoritative organization configuration — not authorization.
+   * Optional in-type for pre-migration / fixture compatibility; resolver falls back to Full.
+   */
+  athena_plan?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -102,6 +113,12 @@ export type ProvisionTenantOptions = {
    * Callers that accept form/API input must validate before supplying this field.
    */
   language?: OrganizationLanguage;
+  /**
+   * Optional ordinary Athena product plan at creation time.
+   * When omitted, the organizations.athena_plan database default ('full') applies.
+   * Callers that accept form/API input must validate before supplying this field.
+   */
+  athenaPlan?: AthenaPlan;
 };
 
 async function createOrganizationForUser(
@@ -120,6 +137,7 @@ async function createOrganizationForUser(
     name: string;
     slug: string;
     language?: OrganizationLanguage;
+    athena_plan?: AthenaPlan;
   } = {
     name: organizationName,
     slug,
@@ -127,6 +145,10 @@ async function createOrganizationForUser(
 
   if (options?.language !== undefined) {
     insertRow.language = parseOrganizationLanguage(options.language);
+  }
+
+  if (options?.athenaPlan !== undefined) {
+    insertRow.athena_plan = parseAthenaPlan(options.athenaPlan);
   }
 
   const { data: organization, error: organizationError } = await supabaseAdmin
@@ -459,6 +481,18 @@ export async function resolveOrganizationLanguage(
 ): Promise<OrganizationLanguage> {
   const organization = await getOrganizationById(organizationId);
   return resolveOrganizationLanguageValue(organization?.language);
+}
+
+/**
+ * Resolve the authoritative ordinary Athena product plan from organizations.
+ * Input is organizationId only. Full fallback is for pre-migration rows and legacy fixtures only.
+ * Not authorization. Not wired into tenant navigation or feature surfaces.
+ */
+export async function resolveAthenaPlan(
+  organizationId: string,
+): Promise<AthenaPlan> {
+  const organization = await getOrganizationById(organizationId);
+  return resolveAthenaPlanValue(organization?.athena_plan);
 }
 
 /**

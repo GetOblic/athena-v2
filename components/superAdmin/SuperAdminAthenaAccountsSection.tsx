@@ -5,11 +5,14 @@ import {
   SUPER_ADMIN_ICON_WELL,
   SUPER_ADMIN_NESTED_CARD_CLASS,
   SUPER_ADMIN_PANEL_CLASS,
+  SUPER_ADMIN_PLAN_BADGE_FREE_CLASS,
+  SUPER_ADMIN_PLAN_BADGE_FULL_CLASS,
   SUPER_ADMIN_REACTIVATE_BUTTON_CLASS,
   SUPER_ADMIN_SECONDARY_BUTTON_CLASS,
   SUPER_ADMIN_STATUS_BADGE_ACTIVE_CLASS,
   SUPER_ADMIN_STATUS_BADGE_DEACTIVATED_CLASS,
 } from "@/lib/superAdmin/superAdminPresentation";
+import { athenaPlanBadgeLabel } from "@/services/athenaPlan";
 import type { SuperAdminAthenaAccountView } from "@/lib/superAdmin/superAdminDashboardView";
 
 type SuperAdminAthenaAccountsSectionProps = {
@@ -93,6 +96,15 @@ export function SuperAdminAthenaAccountsSection({
                     <div className="text-sm font-medium text-white/90">
                       {account.displayName}
                     </div>
+                    <span
+                      className={
+                        account.athenaPlan === "free"
+                          ? SUPER_ADMIN_PLAN_BADGE_FREE_CLASS
+                          : SUPER_ADMIN_PLAN_BADGE_FULL_CLASS
+                      }
+                    >
+                      {athenaPlanBadgeLabel(account.athenaPlan)}
+                    </span>
                     {account.status === "deactivated" ? (
                       <span className={SUPER_ADMIN_STATUS_BADGE_DEACTIVATED_CLASS}>
                         Deactivated

@@ -17,8 +17,12 @@ function jsonError(status: number, code: string, message: string) {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { email?: string; organizationName?: string; language?: unknown } =
-    {};
+  let body: {
+    email?: string;
+    organizationName?: string;
+    language?: unknown;
+    athenaPlan?: unknown;
+  } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -40,6 +44,7 @@ export async function POST(request: NextRequest) {
       email: String(body.email || ""),
       organizationName: String(body.organizationName || ""),
       language: body.language,
+      athenaPlan: body.athenaPlan,
     });
 
     return NextResponse.json(

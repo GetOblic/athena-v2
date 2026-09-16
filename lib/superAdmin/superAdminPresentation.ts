@@ -79,6 +79,12 @@ export const SUPER_ADMIN_STATUS_BADGE_ACTIVE_CLASS =
 export const SUPER_ADMIN_STATUS_BADGE_DEACTIVATED_CLASS =
   "inline-flex rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-amber-200";
 
+export const SUPER_ADMIN_PLAN_BADGE_FULL_CLASS =
+  "inline-flex rounded-full border border-white/20 bg-white/5 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-white/70";
+
+export const SUPER_ADMIN_PLAN_BADGE_FREE_CLASS =
+  "inline-flex rounded-full border border-violet-300/30 bg-violet-300/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-violet-200";
+
 export const SUPER_ADMIN_OWN_COMPANY_BADGE_CLASS =
   "inline-flex rounded-full border border-sky-300/30 bg-sky-300/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-sky-200";
 
