@@ -161,6 +161,7 @@ export function queuedDetailFromCreate(
     periodEnd: created.periodEnd,
     status: created.status,
     generationMode: created.generationMode,
+    plannerKind: created.plannerKind,
     generationStage: "queued",
     versionNumber: created.versionNumber,
     sourceCalendarId: lineage?.sourceCalendarId ?? null,
@@ -183,6 +184,7 @@ export function listItemFromCreate(
     periodEnd: created.periodEnd,
     status: created.status,
     generationMode: created.generationMode,
+    plannerKind: created.plannerKind,
     generationStage: "queued",
     versionNumber: created.versionNumber,
     sourceCalendarId: null,
@@ -224,6 +226,7 @@ export type SocialCalendarHistoryFetchQuery = {
   search?: string;
   page?: number;
   limit?: number;
+  plannerKind?: "daily_social" | "evergreen";
 };
 
 export type SocialCalendarHistoryPage = {
@@ -246,13 +249,28 @@ export type SocialPlannerFetchResult<T> =
   | { kind: "transient" }
   | { kind: "error"; message: string };
 
-export async function createSocialCalendarRequest(
+export async function createDailySocialCalendarRequest(
+  body: SocialPlannerCreatePayload,
+  chrome?: SocialPlannerErrorChrome,
+): Promise<SocialPlannerFetchResult<CreateSocialCalendarResponse>> {
+  return postSocialCalendarCreate("/api/social-planner", body, chrome);
+}
+
+export async function createEvergreenSocialCalendarRequest(
+  body: SocialPlannerCreatePayload,
+  chrome?: SocialPlannerErrorChrome,
+): Promise<SocialPlannerFetchResult<CreateSocialCalendarResponse>> {
+  return postSocialCalendarCreate("/api/social-planner/evergreen", body, chrome);
+}
+
+async function postSocialCalendarCreate(
+  path: "/api/social-planner" | "/api/social-planner/evergreen",
   body: SocialPlannerCreatePayload,
   chrome?: SocialPlannerErrorChrome,
 ): Promise<SocialPlannerFetchResult<CreateSocialCalendarResponse>> {
   const labels = resolveErrorChrome(chrome);
   try {
-    const response = await fetch("/api/social-planner", {
+    const response = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -442,6 +460,9 @@ export async function fetchSocialCalendarHistory(
     if (search) params.set("search", search);
     if (query.page != null) params.set("page", String(query.page));
     if (query.limit != null) params.set("limit", String(query.limit));
+    if (query.plannerKind === "daily_social" || query.plannerKind === "evergreen") {
+      params.set("plannerKind", query.plannerKind);
+    }
     const qs = params.toString();
     const response = await fetch(
       qs ? `/api/social-planner?${qs}` : "/api/social-planner",

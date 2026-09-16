@@ -24,8 +24,8 @@ import {
   SOCIAL_PLANNER_FAMILY_PRODUCTION_KIND,
   SOCIAL_PLANNER_HOLIDAY_ANCHOR_CATEGORIES,
   SOCIAL_PLANNER_OBJECTIVES,
+  SOCIAL_PLANNER_DAILY_CHANNELS,
   SOCIAL_PLANNER_PACKAGE_LIMITS,
-  SOCIAL_PLANNER_PLATFORMS,
   SOCIAL_PLANNER_PROMOTIONAL_OBJECTIVES,
   SOCIAL_PLANNER_SOURCE_SIGNAL_TYPES,
   type SocialCalendarAssetV1,
@@ -36,7 +36,7 @@ import {
   type SocialPlannerEngagementType,
   type SocialPlannerGenerationMetadata,
   type SocialPlannerObjective,
-  type SocialPlannerPlatform,
+  type SocialPlannerDailyChannel,
   type SocialPlannerProductionSpec,
   type SocialPlannerSourceSignal,
 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
@@ -188,10 +188,10 @@ function isArchetype(value: unknown): value is SocialPlannerContentArchetype {
   );
 }
 
-function isPlatform(value: unknown): value is SocialPlannerPlatform {
+function isDailyChannel(value: unknown): value is SocialPlannerDailyChannel {
   return (
     typeof value === "string" &&
-    (SOCIAL_PLANNER_PLATFORMS as readonly string[]).includes(value)
+    (SOCIAL_PLANNER_DAILY_CHANNELS as readonly string[]).includes(value)
   );
 }
 
@@ -790,9 +790,9 @@ function parseAsset(
       `${field}.recommendedPlatforms must contain ${LIMITS.platformsMin}-${LIMITS.platformsMax} platforms.`,
     );
   }
-  const recommendedPlatforms: SocialPlannerPlatform[] = [];
+  const recommendedPlatforms: SocialPlannerDailyChannel[] = [];
   for (const platform of platformsRaw) {
-    if (!isPlatform(platform)) {
+    if (!isDailyChannel(platform)) {
       failures.push(`${field}.recommendedPlatforms contains an unsupported platform.`);
       continue;
     }

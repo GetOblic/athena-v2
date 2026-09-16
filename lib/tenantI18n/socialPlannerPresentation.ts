@@ -12,6 +12,8 @@ import type {
   SocialPlannerAssetType,
   SocialPlannerObjective,
 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
+import type { SocialPlannerEvergreenFormat } from "@/services/socialPlanner/socialPlannerDailyChannels";
+import type { SocialCalendarPlannerKind } from "@/services/socialPlanner/socialCalendarPlannerKind";
 import type { SocialCalendarGenerationMode } from "@/services/socialPlanner/socialCalendarTypes";
 import { SOCIAL_CALENDAR_STATUSES } from "@/services/socialPlanner/socialCalendarTypes";
 import { getAssetCopyChrome } from "./opportunityPresentation";
@@ -112,6 +114,14 @@ const GENERATION_MODE_KEYS = {
   keyof TenantMessages["socialPlanner"]["generationModes"]
 >;
 
+const PLANNER_KIND_KEYS = {
+  daily_social: "dailySocial",
+  evergreen: "evergreen",
+} as const satisfies Record<
+  SocialCalendarPlannerKind,
+  keyof TenantMessages["socialPlanner"]["plannerKinds"]
+>;
+
 function plannerCopy(
   messages: TenantMessages,
   read: (bundle: TenantMessages["socialPlanner"]) => string,
@@ -198,11 +208,94 @@ export function getLocalizedSocialPlannerStatusEyebrow(
  * Presentation-only generation-stage label.
  * Unknown tokens return null so the existing leave-and-return fallback applies.
  */
+export function getLocalizedSocialPlannerReadyHeadline(
+  messages: TenantMessages,
+  plannerKind?: string | null,
+): string {
+  if (plannerKind === "evergreen") {
+    return plannerCopy(
+      messages,
+      (bundle) => bundle.yourEvergreenWeek,
+      en.socialPlanner.yourEvergreenWeek,
+    );
+  }
+  return plannerCopy(
+    messages,
+    (bundle) => bundle.yourSocialWeek,
+    en.socialPlanner.yourSocialWeek,
+  );
+}
+
+export function getLocalizedSocialPlannerFailedHeadline(
+  messages: TenantMessages,
+  plannerKind?: string | null,
+): string {
+  if (plannerKind === "evergreen") {
+    return plannerCopy(
+      messages,
+      (bundle) => bundle.couldNotFinishEvergreen,
+      en.socialPlanner.couldNotFinishEvergreen,
+    );
+  }
+  if (plannerKind === "daily_social") {
+    return plannerCopy(
+      messages,
+      (bundle) => bundle.couldNotFinishDaily,
+      en.socialPlanner.couldNotFinishDaily,
+    );
+  }
+  return plannerCopy(
+    messages,
+    (bundle) => bundle.couldNotFinish,
+    en.socialPlanner.couldNotFinish,
+  );
+}
+
+export function getLocalizedSocialPlannerGeneratingHeadline(
+  messages: TenantMessages,
+  plannerKind?: string | null,
+): string {
+  if (plannerKind === "evergreen") {
+    return plannerCopy(
+      messages,
+      (bundle) => bundle.planningWeekEvergreen,
+      en.socialPlanner.planningWeekEvergreen,
+    );
+  }
+  if (plannerKind === "daily_social") {
+    return plannerCopy(
+      messages,
+      (bundle) => bundle.planningWeekDaily,
+      en.socialPlanner.planningWeekDaily,
+    );
+  }
+  return plannerCopy(
+    messages,
+    (bundle) => bundle.planningWeek,
+    en.socialPlanner.planningWeek,
+  );
+}
+
 export function getLocalizedSocialPlannerStageLabel(
   messages: TenantMessages,
   stage?: string | null,
+  plannerKind?: string | null,
 ): string | null {
   if (!stage) return null;
+  if (stage === "generation" && plannerKind === "evergreen") {
+    return plannerCopy(
+      messages,
+      (bundle) => bundle.stages.generationEvergreen,
+      en.socialPlanner.stages.generationEvergreen,
+    );
+  }
+  if (stage === "generation" && plannerKind === "daily_social") {
+    return plannerCopy(
+      messages,
+      (bundle) => bundle.stages.generationDaily,
+      en.socialPlanner.stages.generationDaily,
+    );
+  }
   const key = STAGE_KEYS[stage as keyof typeof STAGE_KEYS];
   if (!key) return null;
   return plannerCopy(
@@ -259,6 +352,48 @@ export function getLocalizedSocialPlannerGenerationModeLabel(
     messages,
     (bundle) => bundle.generationModes[key],
     en.socialPlanner.generationModes[key],
+  );
+}
+
+export function getLocalizedSocialPlannerPlannerKindLabel(
+  messages: TenantMessages,
+  value: string,
+): string {
+  const key = PLANNER_KIND_KEYS[value as SocialCalendarPlannerKind];
+  if (!key) {
+    return humanizeSocialPlannerToken(value);
+  }
+  return plannerCopy(
+    messages,
+    (bundle) => bundle.plannerKinds[key],
+    en.socialPlanner.plannerKinds[key],
+  );
+}
+
+const EVERGREEN_FORMAT_KEYS = {
+  blog_post_idea: "blogPost",
+  newsletter_idea: "newsletter",
+  substack_post: "substackPost",
+  reddit_post: "redditPost",
+  skool_post: "skoolPost",
+  skool_course_idea: "skoolCourseIdea",
+} as const satisfies Record<
+  SocialPlannerEvergreenFormat,
+  keyof TenantMessages["socialPlanner"]["evergreenFormats"]
+>;
+
+export function getLocalizedSocialPlannerEvergreenFormatLabel(
+  messages: TenantMessages,
+  value: string,
+): string {
+  const key = EVERGREEN_FORMAT_KEYS[value as SocialPlannerEvergreenFormat];
+  if (!key) {
+    return humanizeSocialPlannerToken(value);
+  }
+  return plannerCopy(
+    messages,
+    (bundle) => bundle.evergreenFormats[key],
+    en.socialPlanner.evergreenFormats[key],
   );
 }
 

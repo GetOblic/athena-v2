@@ -4,9 +4,12 @@
 
 import type {
   SocialPlannerAssetType,
+  SocialPlannerDailyChannel,
   SocialPlannerObjective,
   SocialPlannerPlatform,
 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
+import type { SocialPlannerEvergreenFormat } from "@/services/socialPlanner/socialPlannerDailyChannels";
+import type { SocialCalendarPlannerKind } from "@/services/socialPlanner/socialCalendarPlannerKind";
 import type { SocialCalendarGenerationMode } from "@/services/socialPlanner/socialCalendarTypes";
 
 export const SOCIAL_PLANNER_ASSET_TYPE_LABELS: Record<
@@ -60,6 +63,35 @@ export const SOCIAL_PLANNER_PLATFORM_LABELS: Record<
   threads: "Threads",
 };
 
+export const SOCIAL_PLANNER_DAILY_CHANNEL_LABELS: Record<
+  SocialPlannerDailyChannel,
+  string
+> = {
+  ...SOCIAL_PLANNER_PLATFORM_LABELS,
+  skool_post: "Skool Post",
+  substack_note: "Substack Note",
+};
+
+export const SOCIAL_PLANNER_PLANNER_KIND_LABELS: Record<
+  SocialCalendarPlannerKind,
+  string
+> = {
+  daily_social: "Daily Social Media",
+  evergreen: "Evergreen Content",
+};
+
+export const SOCIAL_PLANNER_EVERGREEN_FORMAT_LABELS: Record<
+  SocialPlannerEvergreenFormat,
+  string
+> = {
+  blog_post_idea: "Blog Post",
+  newsletter_idea: "Newsletter",
+  substack_post: "Substack Post",
+  reddit_post: "Reddit Post",
+  skool_post: "Skool Post",
+  skool_course_idea: "Skool Course Idea",
+};
+
 export const SOCIAL_PLANNER_OBJECTIVE_LABELS: Record<
   SocialPlannerObjective,
   string
@@ -90,6 +122,8 @@ export const SOCIAL_PLANNER_STAGE_LABELS: Record<string, string> = {
   calendar_context: "Reading the week",
   intelligence: "Reviewing your Athena intelligence",
   generation: "Creating your seven assets",
+  generationDaily: "Creating seven daily content assets",
+  generationEvergreen: "Creating seven durable content assets",
   diversity: "Making sure the week feels original",
   source_divergence: "Making sure this version thinks differently",
   revision_satisfaction: "Applying the requested changes",
@@ -98,7 +132,8 @@ export const SOCIAL_PLANNER_STAGE_LABELS: Record<string, string> = {
 
 const SPECIAL_TOKEN_LABELS: Record<string, string> = {
   ...SOCIAL_PLANNER_ASSET_TYPE_LABELS,
-  ...SOCIAL_PLANNER_PLATFORM_LABELS,
+  ...SOCIAL_PLANNER_EVERGREEN_FORMAT_LABELS,
+  ...SOCIAL_PLANNER_DAILY_CHANNEL_LABELS,
   ...SOCIAL_PLANNER_OBJECTIVE_LABELS,
   pdf: "PDF",
   pov: "POV",
@@ -116,7 +151,7 @@ function titleCaseToken(token: string): string {
 export function humanizeSocialPlannerToken(value: string): string {
   const exact =
     SOCIAL_PLANNER_ASSET_TYPE_LABELS[value as SocialPlannerAssetType] ??
-    SOCIAL_PLANNER_PLATFORM_LABELS[value as SocialPlannerPlatform] ??
+    SOCIAL_PLANNER_DAILY_CHANNEL_LABELS[value as SocialPlannerDailyChannel] ??
     SOCIAL_PLANNER_OBJECTIVE_LABELS[value as SocialPlannerObjective];
   if (exact) return exact;
   return value
@@ -128,14 +163,29 @@ export function humanizeSocialPlannerToken(value: string): string {
 
 export function socialPlannerAssetTypeLabel(value: string): string {
   return (
+    SOCIAL_PLANNER_EVERGREEN_FORMAT_LABELS[value as SocialPlannerEvergreenFormat] ??
     SOCIAL_PLANNER_ASSET_TYPE_LABELS[value as SocialPlannerAssetType] ??
+    humanizeSocialPlannerToken(value)
+  );
+}
+
+export function socialPlannerEvergreenFormatLabel(value: string): string {
+  return (
+    SOCIAL_PLANNER_EVERGREEN_FORMAT_LABELS[value as SocialPlannerEvergreenFormat] ??
     humanizeSocialPlannerToken(value)
   );
 }
 
 export function socialPlannerPlatformLabel(value: string): string {
   return (
-    SOCIAL_PLANNER_PLATFORM_LABELS[value as SocialPlannerPlatform] ??
+    SOCIAL_PLANNER_DAILY_CHANNEL_LABELS[value as SocialPlannerDailyChannel] ??
+    humanizeSocialPlannerToken(value)
+  );
+}
+
+export function socialPlannerPlannerKindLabel(value: string): string {
+  return (
+    SOCIAL_PLANNER_PLANNER_KIND_LABELS[value as SocialCalendarPlannerKind] ??
     humanizeSocialPlannerToken(value)
   );
 }

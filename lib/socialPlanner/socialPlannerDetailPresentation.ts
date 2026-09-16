@@ -25,6 +25,12 @@ export const SOCIAL_DETAIL_STRATEGY_SURFACE =
 export const SOCIAL_DETAIL_DAY_SURFACE =
   "relative overflow-hidden rounded-[24px] border border-[rgba(56,189,248,0.28)] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(56,189,248,0.08),rgba(232,121,189,0.04)_52%,transparent_78%)] p-4 shadow-[0_0_20px_rgba(56,189,248,0.04)] before:pointer-events-none before:absolute before:inset-y-4 before:left-0 before:w-[3px] before:rounded-r-full before:bg-[rgba(56,189,248,0.62)] sm:p-5";
 
+export const SOCIAL_DETAIL_EVERGREEN_DAY_SURFACE =
+  "relative overflow-hidden rounded-[24px] border border-[rgba(167,139,250,0.28)] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(167,139,250,0.10),rgba(232,121,189,0.04)_52%,transparent_78%)] p-4 shadow-[0_0_20px_rgba(167,139,250,0.04)] before:pointer-events-none before:absolute before:inset-y-4 before:left-0 before:w-[3px] before:rounded-r-full before:bg-[rgba(167,139,250,0.62)] sm:p-5";
+
+export const SOCIAL_DETAIL_EVERGREEN_FORMAT_CHIP =
+  "inline-flex rounded-full border border-[rgba(167,139,250,0.28)] bg-[rgba(167,139,250,0.10)] px-2 py-0.5 text-[11px] font-medium text-violet-100/85";
+
 export const SOCIAL_DETAIL_DAY_ICON =
   "grid size-9 shrink-0 place-items-center rounded-2xl border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.13)] text-cyan-200 shadow-[0_0_14px_rgba(56,189,248,0.16)]";
 
@@ -69,6 +75,19 @@ export const SOCIAL_DETAIL_CHIP_FAILED =
 
 export const SOCIAL_DETAIL_CHIP_META =
   "inline-flex max-w-full items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/70";
+
+export const SOCIAL_DETAIL_CHIP_DAILY =
+  "inline-flex items-center rounded-full border border-[rgba(56,189,248,0.28)] bg-[rgba(56,189,248,0.10)] px-3 py-1 text-xs font-medium text-cyan-100/85";
+
+export const SOCIAL_DETAIL_CHIP_EVERGREEN =
+  "inline-flex items-center rounded-full border border-[rgba(167,139,250,0.28)] bg-[rgba(167,139,250,0.10)] px-3 py-1 text-xs font-medium text-violet-100/80";
+
+export function socialPlannerDetailPlannerKindChipClass(
+  plannerKind?: string | null,
+): string {
+  if (plannerKind === "evergreen") return SOCIAL_DETAIL_CHIP_EVERGREEN;
+  return SOCIAL_DETAIL_CHIP_DAILY;
+}
 
 export const SOCIAL_DETAIL_META_CHIP =
   "inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] font-medium text-white/55";

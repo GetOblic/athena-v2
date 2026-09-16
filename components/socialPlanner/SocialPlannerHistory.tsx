@@ -19,9 +19,11 @@ import {
   SOCIAL_PAGINATION_BUTTON_CLASS,
   SOCIAL_PAGINATION_CLASS,
   SOCIAL_WEEK_CARD_CLASS,
+  SOCIAL_WEEK_CARD_EVERGREEN_CLASS,
   SOCIAL_WEEK_ICON_CLASS,
   socialPlannerGenerationModeBadgeClass,
   socialPlannerHistoryStatusClass,
+  socialPlannerPlannerKindBadgeClass,
 } from "@/lib/socialPlanner/socialPlannerPagePresentation";
 import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
 import { en } from "@/lib/tenantI18n/messages/en";
@@ -30,12 +32,15 @@ import {
   formatSocialPlannerShowingLabel,
   formatSocialPlannerVersionLabel,
   getLocalizedSocialPlannerAssetTypeLabel,
+  getLocalizedSocialPlannerEvergreenFormatLabel,
   getLocalizedSocialPlannerGenerationModeLabel,
   getLocalizedSocialPlannerHistoryStatusLabel,
+  getLocalizedSocialPlannerPlannerKindLabel,
 } from "@/lib/tenantI18n/socialPlannerPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type SocialPlannerHistoryProps = {
+  plannerKind?: "daily_social" | "evergreen";
   calendars: SocialCalendarListItemDto[];
   pagination: SocialCalendarHistoryPaginationDto;
   search: string;
@@ -45,6 +50,7 @@ type SocialPlannerHistoryProps = {
 };
 
 export function SocialPlannerHistory({
+  plannerKind = "daily_social",
   calendars,
   pagination,
   search,
@@ -54,6 +60,7 @@ export function SocialPlannerHistory({
 }: SocialPlannerHistoryProps) {
   const dictionary = messages ?? en;
   const copy = dictionary.socialPlanner;
+  const isEvergreen = plannerKind === "evergreen";
   const hasSearch = search.trim().length > 0;
   if (!hasSearch && pagination.total === 0 && calendars.length === 0) {
     return null;
@@ -70,8 +77,12 @@ export function SocialPlannerHistory({
   return (
     <section className="space-y-4">
       <div>
-        <h2 className={SOCIAL_HISTORY_HEADING_CLASS}>{copy.historyTitle}</h2>
-        <p className="mt-1 text-sm text-white/45">{copy.historySubtitle}</p>
+        <h2 className={SOCIAL_HISTORY_HEADING_CLASS}>
+          {isEvergreen ? copy.historyTitleEvergreen : copy.historyTitleDaily}
+        </h2>
+        <p className="mt-1 text-sm text-white/45">
+          {isEvergreen ? copy.historySubtitleEvergreen : copy.historySubtitleDaily}
+        </p>
       </div>
 
       {calendars.length === 0 ? (
@@ -91,12 +102,21 @@ export function SocialPlannerHistory({
             const typeSummary = calendar.assetTypes
               .slice(0, 4)
               .map((type) =>
-                getLocalizedSocialPlannerAssetTypeLabel(dictionary, type),
+                isEvergreen
+                  ? getLocalizedSocialPlannerEvergreenFormatLabel(dictionary, type)
+                  : getLocalizedSocialPlannerAssetTypeLabel(dictionary, type),
               )
               .join(" · ");
 
             return (
-              <article key={calendar.id} className={SOCIAL_WEEK_CARD_CLASS}>
+              <article
+                key={calendar.id}
+                className={
+                  isEvergreen
+                    ? SOCIAL_WEEK_CARD_EVERGREEN_CLASS
+                    : SOCIAL_WEEK_CARD_CLASS
+                }
+              >
                 <div className="flex items-start gap-3">
                   <span className={SOCIAL_WEEK_ICON_CLASS} aria-hidden="true">
                     <CalendarDays className="size-4" />
@@ -118,6 +138,16 @@ export function SocialPlannerHistory({
                         )}
                       >
                         {statusLabel}
+                      </span>
+                      <span
+                        className={socialPlannerPlannerKindBadgeClass(
+                          calendar.plannerKind,
+                        )}
+                      >
+                        {getLocalizedSocialPlannerPlannerKindLabel(
+                          dictionary,
+                          calendar.plannerKind,
+                        )}
                       </span>
                       {calendar.generationMode !== "standard" ||
                       calendar.versionNumber > 1 ? (

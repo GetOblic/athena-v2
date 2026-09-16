@@ -14,8 +14,12 @@ import type { AthenaConversationContextSection } from "@/services/athenaConversa
 import type { SocialCalendarContext } from "@/services/socialPlanner/calendar/socialCalendarContextTypes";
 import type {
   SocialCalendarAssetV1,
-  SocialCalendarPackageV1,
 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
+import type { SocialCalendarEvergreenDayV1 } from "@/services/socialPlanner/generation/socialCalendarEvergreenPackageTypes";
+import {
+  isSocialCalendarEvergreenPackage,
+  type SocialCalendarGeneratedPackage,
+} from "@/services/socialPlanner/generation/socialCalendarPackageUnion";
 import type { SocialPlannerGenerationContextV1 } from "@/services/socialPlanner/intelligence/socialPlannerIntelligenceTypes";
 import { SOCIAL_PLANNER_CONVERSATION_LIMITS } from "@/services/socialPlanner/conversation/socialPlannerConversationTypes";
 
@@ -35,28 +39,46 @@ function clamp(value: string, max: number): string {
 }
 
 export function formatFrozenSocialCalendarPackage(
-  socialPackage: SocialCalendarPackageV1,
+  socialPackage: SocialCalendarGeneratedPackage,
 ): string {
-  const compact = {
-    period: socialPackage.period,
-    strategySummary: socialPackage.strategySummary,
-    whyThisWeekWorks: socialPackage.whyThisWeekWorks,
-    assets: socialPackage.assets.map((asset) => ({
-      date: asset.date,
-      weekday: asset.weekday,
-      assetType: asset.assetType,
-      contentArchetype: asset.contentArchetype,
-      primaryObjective: asset.primaryObjective,
-      audience: asset.audience,
-      topic: asset.topic,
-      angle: asset.angle,
-      hook: asset.hook,
-      concept: asset.concept,
-      calendarReason: asset.calendarReason,
-      recommendedPlatforms: asset.recommendedPlatforms,
-      cta: asset.cta,
-    })),
-  };
+  const compact = isSocialCalendarEvergreenPackage(socialPackage)
+    ? {
+        plannerKind: "evergreen",
+        period: socialPackage.period,
+        strategySummary: socialPackage.strategySummary,
+        whyThisWeekWorks: socialPackage.whyThisWeekWorks,
+        days: socialPackage.days.map((day) => ({
+          date: day.date,
+          weekday: day.weekday,
+          evergreenFormat: day.evergreenFormat,
+          title: day.title,
+          concept: day.concept,
+          topic: day.topic,
+          angle: day.angle,
+          audience: day.audience,
+          cta: day.cta,
+        })),
+      }
+    : {
+        period: socialPackage.period,
+        strategySummary: socialPackage.strategySummary,
+        whyThisWeekWorks: socialPackage.whyThisWeekWorks,
+        assets: socialPackage.assets.map((asset) => ({
+          date: asset.date,
+          weekday: asset.weekday,
+          assetType: asset.assetType,
+          contentArchetype: asset.contentArchetype,
+          primaryObjective: asset.primaryObjective,
+          audience: asset.audience,
+          topic: asset.topic,
+          angle: asset.angle,
+          hook: asset.hook,
+          concept: asset.concept,
+          calendarReason: asset.calendarReason,
+          recommendedPlatforms: asset.recommendedPlatforms,
+          cta: asset.cta,
+        })),
+      };
   return clamp(
     JSON.stringify(compact, null, 2),
     SOCIAL_PLANNER_CONVERSATION_LIMITS.maxFrozenPackageChars,
@@ -88,31 +110,51 @@ export function formatFrozenSocialCalendarContext(
   );
 }
 
+function isEvergreenDay(
+  asset: SocialCalendarAssetV1 | SocialCalendarEvergreenDayV1,
+): asset is SocialCalendarEvergreenDayV1 {
+  return "evergreenFormat" in asset;
+}
+
 export function formatSelectedSocialPlannerDailyAsset(
-  asset: SocialCalendarAssetV1,
+  asset: SocialCalendarAssetV1 | SocialCalendarEvergreenDayV1,
 ): string {
-  const compact = {
-    date: asset.date,
-    weekday: asset.weekday,
-    assetType: asset.assetType,
-    contentArchetype: asset.contentArchetype,
-    primaryObjective: asset.primaryObjective,
-    audience: asset.audience,
-    topic: asset.topic,
-    angle: asset.angle,
-    hook: asset.hook,
-    concept: asset.concept,
-    calendarReason: asset.calendarReason,
-    calendarAnchors: asset.calendarAnchors.map((anchor) => ({
-      date: anchor.date,
-      label: anchor.label,
-      category: anchor.category,
-    })),
-    productionSpec: asset.productionSpec,
-    socialCopy: asset.socialCopy,
-    cta: asset.cta,
-    recommendedPlatforms: asset.recommendedPlatforms,
-  };
+  const compact = isEvergreenDay(asset)
+    ? {
+        date: asset.date,
+        weekday: asset.weekday,
+        evergreenFormat: asset.evergreenFormat,
+        title: asset.title,
+        concept: asset.concept,
+        topic: asset.topic,
+        angle: asset.angle,
+        audience: asset.audience,
+        draft: asset.draft,
+        cta: asset.cta,
+        publishingGuidance: asset.publishingGuidance,
+      }
+    : {
+        date: asset.date,
+        weekday: asset.weekday,
+        assetType: asset.assetType,
+        contentArchetype: asset.contentArchetype,
+        primaryObjective: asset.primaryObjective,
+        audience: asset.audience,
+        topic: asset.topic,
+        angle: asset.angle,
+        hook: asset.hook,
+        concept: asset.concept,
+        calendarReason: asset.calendarReason,
+        calendarAnchors: asset.calendarAnchors.map((anchor) => ({
+          date: anchor.date,
+          label: anchor.label,
+          category: anchor.category,
+        })),
+        productionSpec: asset.productionSpec,
+        socialCopy: asset.socialCopy,
+        cta: asset.cta,
+        recommendedPlatforms: asset.recommendedPlatforms,
+      };
   return clamp(
     JSON.stringify(compact, null, 2),
     SOCIAL_PLANNER_CONVERSATION_LIMITS.maxSelectedDailyAssetChars,
@@ -121,10 +163,10 @@ export function formatSelectedSocialPlannerDailyAsset(
 
 export function composeSocialPlannerConversationContext(input: {
   calendarId: string;
-  socialPackage: SocialCalendarPackageV1;
+  socialPackage: SocialCalendarGeneratedPackage;
   calendarContext: SocialCalendarContext;
   intelligence: SocialPlannerGenerationContextV1;
-  selectedDailyAsset?: SocialCalendarAssetV1 | null;
+  selectedDailyAsset?: SocialCalendarAssetV1 | SocialCalendarEvergreenDayV1 | null;
 }): SocialPlannerConversationAssembledContext {
   const missingNotes: string[] = [];
   const trend = input.intelligence.trendSocialPrompt;

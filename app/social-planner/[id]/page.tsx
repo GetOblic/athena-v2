@@ -6,6 +6,7 @@ import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { SocialPlannerDetailWorkspace } from "@/components/socialPlanner/SocialPlannerDetailWorkspace";
 import { SOCIAL_PLANNER_CALENDAR_ID_RE } from "@/components/socialPlanner/socialPlannerClient";
 import { SOCIAL_DETAIL_BACK_LINK } from "@/lib/socialPlanner/socialPlannerDetailPresentation";
+import { socialPlannerWorkspaceHref } from "@/lib/socialPlanner/socialPlannerRouting";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { toSocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
 import { getSocialCalendarById } from "@/services/socialPlanner/socialCalendarService";
@@ -43,7 +44,9 @@ export default async function SocialPlannerDetailPage({
   return (
     <TenantAppShell currentPath={`/social-planner/${id}`} messages={messages}>
       <Link
-        href="/social-planner"
+        href={socialPlannerWorkspaceHref({
+          planner: initialDetail?.plannerKind,
+        })}
         className={`mb-6 ${SOCIAL_DETAIL_BACK_LINK}`}
       >
         <ArrowLeft className="size-4" aria-hidden="true" />

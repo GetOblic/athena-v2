@@ -5,6 +5,9 @@
 
 import { SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
 import type { SocialCalendarPackageV1 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
+import { SOCIAL_CALENDAR_EVERGREEN_PACKAGE_SCHEMA_VERSION } from "@/services/socialPlanner/generation/socialCalendarEvergreenPackageTypes";
+import type { SocialCalendarEvergreenPackageV1 } from "@/services/socialPlanner/generation/socialCalendarEvergreenPackageTypes";
+import type { SocialCalendarGeneratedPackage } from "@/services/socialPlanner/generation/socialCalendarPackageUnion";
 import { SOCIAL_CALENDAR_PERIOD_DAYS } from "@/services/socialPlanner/socialCalendarTypes";
 import { validateSocialCalendarContext } from "@/services/socialPlanner/calendar/validateSocialCalendarContext";
 import type { SocialCalendarContext } from "@/services/socialPlanner/calendar/socialCalendarContextTypes";
@@ -22,17 +25,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-export function parsePersistedSocialCalendarPackage(
-  value: unknown,
-): SocialCalendarPackageV1 {
-  if (!isRecord(value)) {
-    throw new PersistedSocialCalendarPackageError();
-  }
-  if (value.schemaVersion !== SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION) {
-    throw new PersistedSocialCalendarPackageError(
-      "Stored Social Calendar package schema is unsupported.",
-    );
-  }
+function parsePersistedPeriod(value: Record<string, unknown>): void {
   if (!isRecord(value.period)) {
     throw new PersistedSocialCalendarPackageError();
   }
@@ -50,16 +43,35 @@ export function parsePersistedSocialCalendarPackage(
   if (typeof value.whyThisWeekWorks !== "string") {
     throw new PersistedSocialCalendarPackageError();
   }
-  if (!Array.isArray(value.assets) || value.assets.length !== SOCIAL_CALENDAR_PERIOD_DAYS) {
+}
+
+export function parsePersistedSocialCalendarPackage(
+  value: unknown,
+): SocialCalendarGeneratedPackage {
+  if (!isRecord(value)) {
     throw new PersistedSocialCalendarPackageError();
   }
-
-  return value as unknown as SocialCalendarPackageV1;
+  parsePersistedPeriod(value);
+  if (value.schemaVersion === SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION) {
+    if (!Array.isArray(value.assets) || value.assets.length !== SOCIAL_CALENDAR_PERIOD_DAYS) {
+      throw new PersistedSocialCalendarPackageError();
+    }
+    return value as unknown as SocialCalendarPackageV1;
+  }
+  if (value.schemaVersion === SOCIAL_CALENDAR_EVERGREEN_PACKAGE_SCHEMA_VERSION) {
+    if (!Array.isArray(value.days) || value.days.length !== SOCIAL_CALENDAR_PERIOD_DAYS) {
+      throw new PersistedSocialCalendarPackageError();
+    }
+    return value as unknown as SocialCalendarEvergreenPackageV1;
+  }
+  throw new PersistedSocialCalendarPackageError(
+    "Stored Social Calendar package schema is unsupported.",
+  );
 }
 
 export function tryParsePersistedSocialCalendarPackage(
   value: unknown,
-): SocialCalendarPackageV1 | null {
+): SocialCalendarGeneratedPackage | null {
   try {
     return parsePersistedSocialCalendarPackage(value);
   } catch {
@@ -117,13 +129,20 @@ export function summarizePersistedSocialCalendarPackage(
         : trimmed;
   }
 
-  const assets = Array.isArray(value.assets) ? value.assets : [];
+  const days = Array.isArray(value.days) ? value.days : [];
+  const assets = Array.isArray(value.assets) ? value.assets : days;
   const assetTypes: string[] = [];
   const families: string[] = [];
   for (const asset of assets) {
     if (!isRecord(asset)) continue;
-    if (typeof asset.assetType === "string" && !assetTypes.includes(asset.assetType)) {
-      assetTypes.push(asset.assetType);
+    const formatKey =
+      typeof asset.evergreenFormat === "string"
+        ? asset.evergreenFormat
+        : typeof asset.assetType === "string"
+          ? asset.assetType
+          : null;
+    if (formatKey && !assetTypes.includes(formatKey)) {
+      assetTypes.push(formatKey);
     }
     const fingerprint = isRecord(asset.creativeFingerprint)
       ? asset.creativeFingerprint

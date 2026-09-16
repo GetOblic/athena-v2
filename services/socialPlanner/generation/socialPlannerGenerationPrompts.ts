@@ -15,8 +15,8 @@ import {
   SOCIAL_PLANNER_DIVERSITY_DEFAULTS,
   SOCIAL_PLANNER_ENGAGEMENT_TYPES,
   SOCIAL_PLANNER_OBJECTIVES,
+  SOCIAL_PLANNER_DAILY_CHANNELS,
   SOCIAL_PLANNER_PACKAGE_LIMITS,
-  SOCIAL_PLANNER_PLATFORMS,
   SOCIAL_PLANNER_PROMOTIONAL_OBJECTIVES,
   SOCIAL_PLANNER_REPAIR_PROMPT_VERSION,
   SOCIAL_PLANNER_SOURCE_SIGNAL_TYPES,
@@ -214,7 +214,8 @@ INTEGRITY RULES:
 ${targeted ? `${targeted}\n` : ""}- Prospects are pattern intelligence only. Never name, quote, or otherwise expose an individual Prospect business in public copy.
 - Learn from Ads and Blueprints. Do not reproduce them. Do not reuse distinctive wording. Do not turn an existing ad into today's post.
 - Do not invent prices, statistics, guarantees, credentials, customer counts, years in business, locations, awards, clinical claims, or service capabilities unless they appear in trusted context.
-- Do not recommend every platform for every asset. Choose 1-3 native fits.
+- Each day is one coherent content idea with one canonical socialCopy covering the client's relevant Daily channels. Do not arbitrarily rotate ordinary social networks day by day. Do not write independent full copy variants for each platform.
+- Prefer broad Daily coverage. Omit a channel only when Audience or business intelligence clearly shows it is inappropriate. Operationalize preferredChannels when present; otherwise treat the Daily channel universe as the available coverage set.
 - Production specs must be executable, not vague briefs. Do not force image prompts onto text-native engagement posts.
 - Do not write chain-of-thought.
 `.trim();
@@ -264,7 +265,7 @@ ENUMS (exact values only):
 - assetType: ${SOCIAL_PLANNER_ASSET_TYPES.join(", ")}
 - contentArchetype: ${SOCIAL_PLANNER_CONTENT_ARCHETYPES.join(", ")}
 - primaryObjective: ${SOCIAL_PLANNER_OBJECTIVES.join(", ")}
-- recommendedPlatforms: ${SOCIAL_PLANNER_PLATFORMS.join(", ")}
+- recommendedPlatforms: ${SOCIAL_PLANNER_DAILY_CHANNELS.join(", ")}
 - sourceSignals.type: ${SOCIAL_PLANNER_SOURCE_SIGNAL_TYPES.join(", ")}
 - productionSpec.kind: static | carousel | video | document | engagement
 - engagementType: ${SOCIAL_PLANNER_ENGAGEMENT_TYPES.join(", ")}
@@ -279,7 +280,7 @@ FIELD BUDGETS:
 - package ≤ ${LIMITS.packageMaxChars} chars; each asset ≤ ${LIMITS.assetMaxChars} chars
 - personaIds 0-${LIMITS.personaIdsPerAssetMax} authorized IDs only
 - calendarAnchors 0-${LIMITS.anchorsPerAssetMax}; sourceSignals 0-${LIMITS.sourceSignalsMax}
-- recommendedPlatforms ${LIMITS.platformsMin}-${LIMITS.platformsMax} distinct values from the platform enum
+- recommendedPlatforms ${LIMITS.platformsMin}-${LIMITS.platformsMax} distinct values from the Daily channel universe
 
 PACKAGE / ASSET INTEGRITY:
 - cta is REQUIRED when primaryObjective is ${SOCIAL_PLANNER_PROMOTIONAL_OBJECTIVES.join(" or ")}. Otherwise cta may be string or null.
@@ -583,7 +584,10 @@ ${assetVariationRule(input.context)}
   poll/question_post/challenge/quiz/myth_vs_fact → kind "engagement"
 - Brand voice, colors, and visual style may be used only when present in trusted context. Do not invent brand specs.
 - Do not force people into every asset. Avoid generic AI-tech imagery unless the organization context calls for it.
-- recommendedPlatforms: 1-3 of ${SOCIAL_PLANNER_PLATFORMS.join(", ")}.
+- One concept, one hook, one socialCopy, and one productionSpec per day. That day's idea covers the relevant Daily Social Media presence — not a rotating subset of networks.
+- Keep creative / production-format diversity across the week. Do not confuse format diversity with network rotation.
+- recommendedPlatforms lists the relevant Daily destinations for this day's single idea, from ${SOCIAL_PLANNER_DAILY_CHANNELS.join(", ")}. Prefer broad coverage. Do not invent a 1-3 network rotation.
+- skool_post (Skool Post) and substack_note (Substack Note) are valid Daily publishing / community destinations where relevant. Do not include Blog, Newsletter, Substack Post, Reddit Post, or Skool Course Idea in Daily coverage.
 
 ${buildSocialPlannerPackageOutputContract()}
 

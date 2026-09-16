@@ -45,6 +45,7 @@ function listItem(
     periodEnd: "2026-08-30",
     status: "Ready",
     generationMode: "standard",
+    plannerKind: "daily_social",
     generationStage: "finalizing",
     versionNumber: 1,
     sourceCalendarId: null,
@@ -198,6 +199,7 @@ describe("Social Planner history query normalization", () => {
       search: "",
       page: 1,
       limit: 25,
+      plannerKind: null,
     });
     assert.equal(normalizeSocialCalendarHistoryPage("0"), 1);
     assert.equal(normalizeSocialCalendarHistoryPage("-3"), 1);
@@ -310,9 +312,10 @@ describe("Social Planner library pagination", () => {
     assert.deepEqual(log.range, [[0, 24]]);
     assert.equal(log.select, SOCIAL_CALENDAR_LIBRARY_SELECT);
     assert.match(SOCIAL_CALENDAR_LIBRARY_SELECT, /package_json/);
+    assert.match(SOCIAL_CALENDAR_LIBRARY_SELECT, /provenance_json/);
     assert.doesNotMatch(
       SOCIAL_CALENDAR_LIBRARY_SELECT,
-      /provenance_json|calendar_context_json|revision_context_json|user_guidance/,
+      /calendar_context_json|revision_context_json|user_guidance/,
     );
   });
 });
@@ -602,12 +605,12 @@ describe("Social Planner history search UI and polling", () => {
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
     const createIdx = workspace.indexOf("<SocialPlannerCreateForm");
-    const searchIdx = workspace.indexOf("copy.searchPlaceholder");
+    const searchIdx = workspace.indexOf("copy.searchPlaceholderDaily");
     const historyIdx = workspace.indexOf("<SocialPlannerHistory");
     assert.ok(createIdx >= 0 && searchIdx > createIdx && historyIdx > searchIdx);
     assert.match(workspace, /SOCIAL_SEARCH_SURFACE/);
     assert.match(workspace, /SOCIAL_SEARCH_FIELD_CLASS/);
-    assert.match(history, /copy\.historyTitle/);
+    assert.match(history, /copy\.historyTitleDaily/);
     assert.match(history, /copy\.noSearchMatch/);
     assert.doesNotMatch(workspace, /\bStatus\b|\bSort\b|Import/);
     assert.doesNotMatch(history, /\bStatus\b|\bSort\b|Import Prospects|infinite scroll|pageNumbers/);
@@ -675,7 +678,7 @@ describe("Social Planner history search non-interference", () => {
     assert.match(service, /export async function listReadySocialCalendarsForMemory/);
     assert.match(service, /\.limit\(input\.limit\)/);
     assert.match(route, /export async function POST\(request: Request\) \{/);
-    assert.match(route, /createSocialCalendarWithJob/);
+    assert.match(route, /createDailySocialCalendarWithJob/);
     assert.doesNotMatch(detailPage, /fetchSocialCalendarHistory|SOCIAL_CALENDAR_HISTORY_PAGE_SIZE/);
     assert.equal(existsSync(join(ROOT, "app/social-planner/[id]/page.tsx")), true);
 

@@ -4,15 +4,21 @@ import { MessagesSquare, Sparkles } from "lucide-react";
 import {
   SOCIAL_DETAIL_HEADER_WELL,
   SOCIAL_DETAIL_STATUS_SURFACE,
+  socialPlannerDetailPlannerKindChipClass,
   socialPlannerDetailStatusChipClass,
 } from "@/lib/socialPlanner/socialPlannerDetailPresentation";
 import { en } from "@/lib/tenantI18n/messages/en";
-import { getLocalizedSocialPlannerStageLabel } from "@/lib/tenantI18n/socialPlannerPresentation";
+import {
+  getLocalizedSocialPlannerGeneratingHeadline,
+  getLocalizedSocialPlannerPlannerKindLabel,
+  getLocalizedSocialPlannerStageLabel,
+} from "@/lib/tenantI18n/socialPlannerPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 
 type SocialPlannerStatusProps = {
   status: string;
   generationStage: string | null;
+  plannerKind?: string | null;
   pollNotice?: string | null;
   messages?: TenantMessages;
 };
@@ -20,6 +26,7 @@ type SocialPlannerStatusProps = {
 export function SocialPlannerStatus({
   status,
   generationStage,
+  plannerKind = null,
   pollNotice = null,
   messages,
 }: SocialPlannerStatusProps) {
@@ -28,8 +35,12 @@ export function SocialPlannerStatus({
   const stageLabel = getLocalizedSocialPlannerStageLabel(
     dictionary,
     generationStage,
+    plannerKind,
   );
   const inFlight = status === "Queued" || status === "Processing";
+  const plannerKindLabel = plannerKind
+    ? getLocalizedSocialPlannerPlannerKindLabel(dictionary, plannerKind)
+    : null;
 
   return (
     <div
@@ -46,15 +57,22 @@ export function SocialPlannerStatus({
           )}
         </span>
         <div className="min-w-0">
-          <span className={socialPlannerDetailStatusChipClass(status)}>
-            {inFlight
-              ? copy.status.generating
-              : status === "Processing Failed"
-                ? copy.status.failed
-                : status}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={socialPlannerDetailStatusChipClass(status)}>
+              {inFlight
+                ? copy.status.generating
+                : status === "Processing Failed"
+                  ? copy.status.failed
+                  : status}
+            </span>
+            {plannerKindLabel ? (
+              <span className={socialPlannerDetailPlannerKindChipClass(plannerKind)}>
+                {plannerKindLabel}
+              </span>
+            ) : null}
+          </div>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
-            {copy.planningWeek}
+            {getLocalizedSocialPlannerGeneratingHeadline(dictionary, plannerKind)}
           </h2>
         </div>
       </div>

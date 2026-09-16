@@ -4,7 +4,7 @@
  */
 
 export const PERSONA_FORM_FIELD_CLASS =
-  "rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25";
+  "rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/25 transition focus:border-[rgba(167,139,250,0.45)] focus:ring-2 focus:ring-[rgba(167,139,250,0.18)]";
 
 export const PERSONA_ADVANCED_FIELD_GROUPS: Array<{
   title: string;

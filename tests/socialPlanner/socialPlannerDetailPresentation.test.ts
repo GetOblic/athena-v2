@@ -62,7 +62,7 @@ describe("social planner detail presentation", () => {
     const page = read("app/social-planner/[id]/page.tsx");
     const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
     assert.match(page, /<ArrowLeft /);
-    assert.match(page, /href="\/social-planner"/);
+    assert.match(page, /socialPlannerWorkspaceHref/);
     assert.match(page, /SOCIAL_DETAIL_BACK_LINK/);
     assert.match(page, /copy\.backToSocialPlanner/);
     assert.doesNotMatch(page, /text-\[var\(--athena-orange\)\]/);

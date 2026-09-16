@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { serializeSocialCalendarAsset } from "../../components/socialPlanner/socialPlannerAssetCopyText";
+import {
+  serializeSocialCalendarAsset,
+  serializeSocialCalendarEvergreenDay,
+} from "../../components/socialPlanner/socialPlannerAssetCopyText";
+import type { SocialCalendarEvergreenDayV1 } from "../../services/socialPlanner/generation/socialCalendarEvergreenPackageTypes";
 import { resolveAssetContinuationDestination } from "../../services/assetContinuation/destinationRegistry";
 import {
   buildGenerationContext,
@@ -116,6 +120,46 @@ describe("Social Planner V30 L1 whole-asset serializer", () => {
     assert.match(first, /Calendar Opportunity: Mother's Day/);
     assert.doesNotMatch(first, /secret-anchor-id/);
     assert.doesNotMatch(first, /commercial_event/);
+  });
+
+  it("serializes Evergreen days without Daily platform labels", () => {
+    const day: SocialCalendarEvergreenDayV1 = {
+      date: "2026-05-10",
+      weekday: "Sunday",
+      evergreenFormat: "blog_post_idea",
+      title: "Why families wait",
+      concept: "Delayed preventive care",
+      draft: "A usable blog draft about delayed preventive care.",
+      cta: "Book the overdue visit.",
+      publishingGuidance: "Publish as a blog post.",
+      audience: "Busy parents",
+      personaIds: ["persona-parent"],
+      topic: "preventive care",
+      angle: "delay pattern",
+      calendarAnchors: [],
+      calendarReason: null,
+      sourceSignals: [],
+      creativeFingerprint: {
+        evergreenFormat: "blog_post_idea",
+        contentArchetype: "educational",
+        topic: "preventive care",
+        angle: "delay pattern",
+        hookType: "statement",
+        hookNormalized: "why families wait",
+        objective: "educate",
+        audience: "busy parents",
+        personaIds: ["persona-parent"],
+        ctaType: "book",
+        calendarAnchorIds: [],
+      },
+    };
+    const text = serializeSocialCalendarEvergreenDay(day);
+    assert.match(text, /Format: Blog Post/);
+    assert.match(text, /Title: Why families wait/);
+    assert.match(text, /Draft/);
+    assert.match(text, /Publishing guidance: Publish as a blog post/);
+    assert.doesNotMatch(text, /Recommended Platforms/);
+    assert.doesNotMatch(text, /Social Copy/);
   });
 
   it("does not require destinationRegistry changes for Social Planner types", () => {

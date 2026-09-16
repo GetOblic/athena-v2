@@ -40,15 +40,18 @@ import {
 import type { TenantFormattingLocale } from "@/lib/tenantI18n/format";
 import { en } from "@/lib/tenantI18n/messages/en";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
+import type { SocialCalendarImplementedPlannerKind } from "@/services/socialPlanner/socialCalendarPlannerKind";
 
 export type SocialPlannerCreateFormHandle = {
   focusComposer: () => void;
 };
 
 type SocialPlannerCreateFormProps = {
+  plannerKind: SocialCalendarImplementedPlannerKind;
   submitting: boolean;
   error: string | null;
   targetAudience?: SocialPlannerTargetAudienceView | null;
+  clearHref?: string;
   onSubmit: (body: ReturnType<typeof buildSocialCalendarCreateBody>) => void;
   messages?: TenantMessages;
   locale?: TenantFormattingLocale;
@@ -58,7 +61,16 @@ export const SocialPlannerCreateForm = forwardRef<
   SocialPlannerCreateFormHandle,
   SocialPlannerCreateFormProps
 >(function SocialPlannerCreateForm(
-  { submitting, error, targetAudience = null, onSubmit, messages, locale = "en-US" },
+  {
+    plannerKind,
+    submitting,
+    error,
+    targetAudience = null,
+    clearHref = SOCIAL_PLANNER_TARGET_CLEAR_HREF,
+    onSubmit,
+    messages,
+    locale = "en-US",
+  },
   ref,
 ) {
   const copy = (messages ?? en).socialPlanner;
@@ -67,6 +79,7 @@ export const SocialPlannerCreateForm = forwardRef<
   const [localError, setLocalError] = useState<string | null>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLElement>(null);
+  const isEvergreen = plannerKind === "evergreen";
 
   useImperativeHandle(ref, () => ({
     focusComposer() {
@@ -125,6 +138,7 @@ export const SocialPlannerCreateForm = forwardRef<
     <section
       ref={composerRef}
       id="social-planner-composer"
+      data-planner-kind={plannerKind}
       className={SOCIAL_COMPOSER_SURFACE}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -134,10 +148,10 @@ export const SocialPlannerCreateForm = forwardRef<
           </span>
           <div className="min-w-0">
             <h2 className="text-lg font-semibold tracking-tight text-white sm:text-xl">
-              {copy.selectWeek}
+              {isEvergreen ? copy.selectWeekEvergreen : copy.selectWeekDaily}
             </h2>
             <p className="mt-2 text-sm leading-6 text-white/50">
-              {copy.selectWeekHelp}
+              {isEvergreen ? copy.selectWeekEvergreenHelp : copy.selectWeekDailyHelp}
             </p>
           </div>
         </div>
@@ -200,7 +214,7 @@ export const SocialPlannerCreateForm = forwardRef<
                 ) : null}
               </div>
               <Link
-                href={SOCIAL_PLANNER_TARGET_CLEAR_HREF}
+                href={clearHref}
                 data-social-planner-clear-target=""
                 className={SOCIAL_TARGET_CLEAR_CLASS}
               >
@@ -249,7 +263,11 @@ export const SocialPlannerCreateForm = forwardRef<
           className={SOCIAL_PRIMARY_CLASS}
         >
           <Sparkles className="size-4" aria-hidden="true" />
-          {submitting ? copy.starting : copy.generateMyWeek}
+          {submitting
+            ? copy.starting
+            : isEvergreen
+              ? copy.generateEvergreenWeek
+              : copy.generateDailyWeek}
         </button>
       </form>
     </section>

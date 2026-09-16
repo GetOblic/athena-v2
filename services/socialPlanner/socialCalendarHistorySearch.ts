@@ -13,6 +13,7 @@ import {
   socialPlannerAssetTypeLabel,
   socialPlannerGenerationModeLabel,
   socialPlannerHistoryStatusLabel,
+  socialPlannerPlannerKindLabel,
 } from "@/components/socialPlanner/socialPlannerLabels";
 import type { SocialCalendarListItemDto } from "@/services/socialPlanner/socialCalendarDto";
 
@@ -40,6 +41,7 @@ export function buildSocialCalendarHistorySearchCorpus(
   parts.push(...buildSocialPlannerDateSearchAliases(item.createdAt));
 
   parts.push(socialPlannerHistoryStatusLabel(item.status));
+  parts.push(socialPlannerPlannerKindLabel(item.plannerKind));
 
   const showModeBadge =
     item.generationMode !== "standard" || item.versionNumber > 1;

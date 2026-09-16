@@ -7,7 +7,7 @@ export const SOCIAL_PAGE_HEADER_ICON =
   "grid size-10 shrink-0 place-items-center rounded-2xl border border-[rgba(56,189,248,0.32)] bg-[linear-gradient(180deg,rgba(56,189,248,0.16),rgba(232,121,189,0.10))] text-cyan-200 shadow-[0_0_16px_rgba(56,189,248,0.18)]";
 
 export const SOCIAL_COMPOSER_SURFACE =
-  "relative overflow-hidden rounded-[28px] border border-[rgba(255,102,0,0.28)] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(255,102,0,0.10),rgba(56,189,248,0.05)_48%,transparent_78%)] p-6 shadow-[0_0_24px_rgba(255,102,0,0.06)] before:pointer-events-none before:absolute before:inset-y-5 before:left-0 before:w-[3px] before:rounded-r-full before:bg-[rgba(255,102,0,0.68)] sm:p-8";
+  "relative overflow-hidden rounded-[28px] border border-white/[0.12] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012)_46%,transparent_78%)] p-6 shadow-[0_12px_40px_rgba(0,0,0,0.28)] sm:p-8";
 
 export const SOCIAL_COMPOSER_ICON =
   "grid size-10 shrink-0 place-items-center rounded-2xl border border-[rgba(255,102,0,0.32)] bg-[rgba(255,102,0,0.14)] text-[var(--athena-orange)] shadow-[0_0_16px_rgba(255,102,0,0.18)]";
@@ -33,6 +33,9 @@ export const SOCIAL_SEARCH_FIELD_CLASS =
 
 export const SOCIAL_WEEK_CARD_CLASS =
   "relative flex flex-col gap-3 overflow-hidden rounded-[24px] border border-[rgba(56,189,248,0.22)] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(56,189,248,0.08),rgba(232,121,189,0.04)_52%,transparent_78%)] p-4 shadow-[0_0_20px_rgba(56,189,248,0.04)] transition hover:border-[rgba(56,189,248,0.38)] sm:p-5";
+
+export const SOCIAL_WEEK_CARD_EVERGREEN_CLASS =
+  "relative flex flex-col gap-3 overflow-hidden rounded-[24px] border border-[rgba(167,139,250,0.22)] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(167,139,250,0.10),rgba(232,121,189,0.04)_52%,transparent_78%)] p-4 shadow-[0_0_20px_rgba(167,139,250,0.04)] transition hover:border-[rgba(167,139,250,0.38)] sm:p-5";
 
 export const SOCIAL_WEEK_ICON_CLASS =
   "grid size-10 shrink-0 place-items-center rounded-2xl border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.13)] text-cyan-200 shadow-[0_0_14px_rgba(56,189,248,0.16)]";
@@ -60,6 +63,46 @@ export const SOCIAL_MODE_BADGE_CLASS =
 
 export const SOCIAL_MODE_THINK_CLASS =
   "inline-flex rounded-full border border-[var(--athena-success)]/25 bg-[var(--athena-success)]/[0.08] px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--athena-success)]/80";
+
+export const SOCIAL_TAB_LIST = "grid gap-3 sm:grid-cols-2";
+
+export const SOCIAL_TAB_BUTTON =
+  "block w-full text-left no-underline transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]";
+
+export const SOCIAL_KIND_CARD_BUTTON =
+  "w-full text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]";
+
+export const SOCIAL_KIND_DAILY_CARD =
+  "relative overflow-hidden rounded-[20px] border border-[rgba(56,189,248,0.38)] bg-[linear-gradient(180deg,rgba(56,189,248,0.12),transparent_72%)] p-4 shadow-[0_0_18px_rgba(56,189,248,0.08)]";
+
+export const SOCIAL_KIND_DAILY_CARD_IDLE =
+  "relative overflow-hidden rounded-[20px] border border-[rgba(56,189,248,0.18)] bg-[linear-gradient(180deg,rgba(56,189,248,0.06),transparent_72%)] p-4";
+
+export const SOCIAL_KIND_EVERGREEN_CARD =
+  "relative overflow-hidden rounded-[20px] border border-[rgba(167,139,250,0.38)] bg-[linear-gradient(180deg,rgba(167,139,250,0.12),transparent_72%)] p-4 shadow-[0_0_18px_rgba(167,139,250,0.08)]";
+
+export const SOCIAL_KIND_EVERGREEN_CARD_IDLE =
+  "relative overflow-hidden rounded-[20px] border border-[rgba(167,139,250,0.22)] bg-[linear-gradient(180deg,rgba(167,139,250,0.08),transparent_72%)] p-4";
+
+export const SOCIAL_KIND_DAILY_ICON =
+  "grid size-9 shrink-0 place-items-center rounded-2xl border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.13)] text-cyan-200 shadow-[0_0_14px_rgba(56,189,248,0.16)]";
+
+export const SOCIAL_KIND_EVERGREEN_ICON =
+  "grid size-9 shrink-0 place-items-center rounded-2xl border border-[rgba(167,139,250,0.28)] bg-[rgba(167,139,250,0.12)] text-violet-200 shadow-[0_0_12px_rgba(167,139,250,0.12)]";
+
+export const SOCIAL_KIND_BADGE_DAILY =
+  "inline-flex rounded-full border border-[rgba(56,189,248,0.28)] bg-[rgba(56,189,248,0.10)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-cyan-100/85";
+
+export const SOCIAL_KIND_BADGE_EVERGREEN =
+  "inline-flex rounded-full border border-[rgba(167,139,250,0.28)] bg-[rgba(167,139,250,0.10)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-violet-100/80";
+
+export const SOCIAL_KIND_SOON_PILL =
+  "inline-flex rounded-full border border-[rgba(167,139,250,0.24)] bg-[rgba(167,139,250,0.08)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-violet-100/70";
+
+export function socialPlannerPlannerKindBadgeClass(plannerKind: string): string {
+  if (plannerKind === "evergreen") return SOCIAL_KIND_BADGE_EVERGREEN;
+  return SOCIAL_KIND_BADGE_DAILY;
+}
 
 export function socialPlannerHistoryStatusClass(status: string): string {
   if (status === "Ready") {

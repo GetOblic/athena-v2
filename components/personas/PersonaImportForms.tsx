@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { AlertTriangle, PenLine, SlidersHorizontal } from "lucide-react";
 import { PersonaCreationBlock } from "@/components/personas/PersonaCreationBlock";
 import { PersonaCsvImport } from "@/components/personas/PersonaCsvImport";
 import { PersonaGenerateForm } from "@/components/personas/PersonaGenerateForm";
@@ -12,6 +13,15 @@ import {
   PERSONA_FORM_FIELD_CLASS,
 } from "@/components/personas/personaFormFields";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  PERSONA_IMPORT_ADVANCED_ICON,
+  PERSONA_IMPORT_ADVANCED_SURFACE,
+  PERSONA_IMPORT_ERROR_CLASS,
+  PERSONA_IMPORT_FIELD_HELP_CLASS,
+  PERSONA_IMPORT_FIELD_LABEL_CLASS,
+  PERSONA_IMPORT_PRIMARY_CLASS,
+  PERSONA_IMPORT_SUCCESS_CLASS,
+} from "@/lib/personas/personaImportPresentation";
 import {
   getLocalizedPersonaImportFieldLabel,
   getLocalizedPersonaImportGroupTitle,
@@ -45,6 +55,10 @@ function ManualAdvancedFieldGroup({
         defaultOpen={false}
         open={open}
         onOpenChange={setOpen}
+        tone="intelligence"
+        icon={<SlidersHorizontal aria-hidden="true" />}
+        iconClassName={PERSONA_IMPORT_ADVANCED_ICON}
+        className={PERSONA_IMPORT_ADVANCED_SURFACE}
       >
         {children}
       </AthenaCollapsibleSection>
@@ -137,11 +151,15 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
         summary={copy.manualSummary}
         className="mx-auto w-full min-w-0 max-w-3xl"
         expandedClassName="lg:max-w-6xl"
+        accent="violet"
+        icon={<PenLine className="size-5" />}
       >
           <form onSubmit={submitManual} className="space-y-4">
-            <label className="block text-sm text-white/50">
-              {meta.personaName}
-              <span className="mt-1 block text-xs leading-5 text-white/35">
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.personaName}
+              </span>
+              <span className={PERSONA_IMPORT_FIELD_HELP_CLASS}>
                 {copy.helpPersonaName}
               </span>
               <input
@@ -151,9 +169,11 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.shortDescription}
-              <span className="mt-1 block text-xs leading-5 text-white/35">
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.shortDescription}
+              </span>
+              <span className={PERSONA_IMPORT_FIELD_HELP_CLASS}>
                 {copy.helpShortDescription}
               </span>
               <input
@@ -165,9 +185,11 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.additionalContext}
-              <span className="mt-1 block text-xs leading-5 text-white/35">
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.additionalContext}
+              </span>
+              <span className={PERSONA_IMPORT_FIELD_HELP_CLASS}>
                 {copy.helpAdditionalContext}
               </span>
               <textarea
@@ -180,9 +202,11 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.referenceWebsite}
-              <span className="mt-1 block text-xs leading-5 text-white/35">
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.referenceWebsite}
+              </span>
+              <span className={PERSONA_IMPORT_FIELD_HELP_CLASS}>
                 {copy.helpReferenceWebsite}
               </span>
               <input
@@ -194,9 +218,11 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.notes}
-              <span className="mt-1 block text-xs leading-5 text-white/35">
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.notes}
+              </span>
+              <span className={PERSONA_IMPORT_FIELD_HELP_CLASS}>
                 {copy.helpNotes}
               </span>
               <textarea
@@ -207,9 +233,11 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.adsContent}
-              <span className="mt-1 block text-xs leading-5 text-white/35">
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.adsContent}
+              </span>
+              <span className={PERSONA_IMPORT_FIELD_HELP_CLASS}>
                 {copy.helpAdsContent}
               </span>
               <textarea
@@ -220,8 +248,10 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.category}
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.category}
+              </span>
               <input
                 value={manual.category ?? ""}
                 onChange={(event) => setField("category", event.target.value)}
@@ -240,8 +270,10 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
                 >
                   <div className="grid gap-4">
                     {group.fields.map(([key]) => (
-                      <label key={key} className="block text-sm text-white/50">
-                        {getLocalizedPersonaImportFieldLabel(messages, key)}
+                      <label key={key} className="block space-y-2">
+                        <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                          {getLocalizedPersonaImportFieldLabel(messages, key)}
+                        </span>
                         <input
                           value={manual[key] ?? ""}
                           onChange={(event) => setField(key, event.target.value)}
@@ -257,25 +289,39 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
             <button
               type="submit"
               disabled={manualSubmitting}
-              className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
+              className={PERSONA_IMPORT_PRIMARY_CLASS}
             >
               {manualSubmitting ? copy.creating : copy.createCta}
             </button>
           </form>
 
           {manualResult && (
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70 whitespace-pre-wrap">
-              {manualResult.message}
-              {manualResult.personaId && (
-                <div className="mt-3">
-                  <Link
-                    href={`/personas/${manualResult.personaId}`}
-                    className="text-[var(--athena-orange)] underline"
-                  >
-                    {copy.openPersona}
-                  </Link>
-                </div>
-              )}
+            <div
+              className={`mt-6 ${
+                manualResult.ok
+                  ? PERSONA_IMPORT_SUCCESS_CLASS
+                  : PERSONA_IMPORT_ERROR_CLASS
+              }`}
+            >
+              {!manualResult.ok ? (
+                <AlertTriangle
+                  className="mt-0.5 size-4 shrink-0"
+                  aria-hidden="true"
+                />
+              ) : null}
+              <div>
+                {manualResult.message}
+                {manualResult.personaId && (
+                  <div className="mt-3">
+                    <Link
+                      href={`/personas/${manualResult.personaId}`}
+                      className={PERSONA_IMPORT_PRIMARY_CLASS}
+                    >
+                      {copy.openPersona}
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
           )}
       </PersonaCreationBlock>

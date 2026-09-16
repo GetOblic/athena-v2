@@ -2,7 +2,14 @@
  * Public Social Planner API DTOs. Never expose raw DB rows or provenance.
  */
 
-import type { SocialCalendarPackageV1 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
+import {
+  socialCalendarPackageMatchesPlannerKind,
+  type SocialCalendarGeneratedPackage,
+} from "@/services/socialPlanner/generation/socialCalendarPackageUnion";
+import {
+  plannerKindFromCalendar,
+  type SocialCalendarPlannerKind,
+} from "@/services/socialPlanner/socialCalendarPlannerKind";
 import type { SocialCalendar } from "@/services/socialPlanner/socialCalendarTypes";
 import { deriveSocialCalendarModelsUsed } from "@/services/socialPlanner/socialCalendarModelsUsed";
 import {
@@ -37,6 +44,7 @@ export type SocialCalendarListItemDto = {
   periodEnd: string;
   status: SocialCalendar["status"];
   generationMode: SocialCalendar["generation_mode"];
+  plannerKind: SocialCalendarPlannerKind;
   generationStage: string | null;
   versionNumber: number;
   sourceCalendarId: string | null;
@@ -58,12 +66,13 @@ export type SocialCalendarDetailDto = {
   periodEnd: string;
   status: SocialCalendar["status"];
   generationMode: SocialCalendar["generation_mode"];
+  plannerKind: SocialCalendarPlannerKind;
   generationStage: string | null;
   versionNumber: number;
   sourceCalendarId: string | null;
   rootCalendarId: string | null;
   userGuidance: string | null;
-  package: SocialCalendarPackageV1 | null;
+  package: SocialCalendarGeneratedPackage | null;
   packageUnavailable: boolean;
   createdAt: string;
   updatedAt: string;
@@ -76,6 +85,7 @@ export type CreateSocialCalendarResponse = {
   periodEnd: string;
   status: SocialCalendar["status"];
   generationMode: SocialCalendar["generation_mode"];
+  plannerKind: SocialCalendarPlannerKind;
   versionNumber: number;
   createdAt: string;
 };
@@ -96,6 +106,7 @@ export function toCreateSocialCalendarResponse(
     periodEnd: calendar.period_end,
     status: calendar.status,
     generationMode: calendar.generation_mode,
+    plannerKind: plannerKindFromCalendar(calendar),
     versionNumber: calendar.version_number,
     createdAt: calendar.created_at,
   };
@@ -121,6 +132,7 @@ export function toSocialCalendarListItemDto(
     periodEnd: calendar.period_end,
     status: calendar.status,
     generationMode: calendar.generation_mode,
+    plannerKind: plannerKindFromCalendar(calendar),
     generationStage: calendar.generation_stage,
     versionNumber: calendar.version_number,
     sourceCalendarId: calendar.source_calendar_id,
@@ -143,12 +155,20 @@ export function toSocialCalendarDetailDto(
   calendar: SocialCalendar,
 ): SocialCalendarDetailDto {
   const isReady = calendar.status === "Ready";
-  let socialPackage: SocialCalendarPackageV1 | null = null;
+  let socialPackage: SocialCalendarGeneratedPackage | null = null;
   let packageUnavailable = false;
 
   if (isReady) {
-    socialPackage = tryParsePersistedSocialCalendarPackage(calendar.package_json);
-    packageUnavailable = socialPackage == null;
+    const plannerKind = plannerKindFromCalendar(calendar);
+    const parsed = tryParsePersistedSocialCalendarPackage(calendar.package_json);
+    if (
+      parsed &&
+      socialCalendarPackageMatchesPlannerKind(parsed, plannerKind)
+    ) {
+      socialPackage = parsed;
+    } else {
+      packageUnavailable = true;
+    }
   }
 
   return {
@@ -157,6 +177,7 @@ export function toSocialCalendarDetailDto(
     periodEnd: calendar.period_end,
     status: calendar.status,
     generationMode: calendar.generation_mode,
+    plannerKind: plannerKindFromCalendar(calendar),
     generationStage: calendar.generation_stage,
     versionNumber: calendar.version_number,
     sourceCalendarId: calendar.source_calendar_id,

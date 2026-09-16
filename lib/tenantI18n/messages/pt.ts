@@ -3819,13 +3819,19 @@ export const pt: TenantMessages = {
     eyebrow: "Generate Traction",
     title: "Conteúdo social",
     subtitle:
-      "Planeie uma semana de conteúdo social. A Athena escreve sete peças a partir do que já sabe sobre o seu negócio e as audiências.",
+      "Planeie uma semana de conteúdo a partir do que a Athena já sabe sobre o seu negócio e as audiências.",
     loadFailed:
       "Falha ao carregar os calendários sociais desta organização.",
     unableToLoad: "Não foi possível carregar o Social Planner",
     selectWeek: "Selecionar uma semana",
     selectWeekHelp:
       "Escolha o primeiro dia. A Athena planeia os seis dias seguintes com ele.",
+    selectWeekDaily: "Planear uma semana Daily Social",
+    selectWeekDailyHelp:
+      "Escolha o primeiro dia. A Athena planeia uma ideia principal por dia nos seus canais sociais e comunitários.",
+    selectWeekEvergreen: "Planear uma semana evergreen",
+    selectWeekEvergreenHelp:
+      "Escolha o primeiro dia. A Athena planeia um formato editorial duradouro por dia.",
     weekStarts: "A semana começa",
     optionalDirection: "Orientação opcional",
     targetAudience: "Audiência-alvo",
@@ -3838,13 +3844,23 @@ export const pt: TenantMessages = {
     chooseValidStartDate:
       "Escolha uma data de início válida para a sua semana.",
     generateMyWeek: "Gerar esta semana",
+    generateDailyWeek: "Gerar a semana Daily Social",
+    generateEvergreenWeek: "Gerar a semana evergreen",
     starting: "A iniciar…",
     search: "Pesquisar",
     searchPlaceholder:
       "Pesquisar calendários, datas, estratégia, tipos de ativo...",
+    searchPlaceholderDaily: "Pesquisar semanas Daily Social...",
+    searchPlaceholderEvergreen: "Pesquisar semanas evergreen...",
     historyTitle: "Semanas anteriores",
+    historyTitleDaily: "Semanas Daily Social anteriores",
+    historyTitleEvergreen: "Semanas evergreen anteriores",
     historySubtitle:
       "Os mais recentes primeiro. Abra qualquer semana sem a regenerar.",
+    historySubtitleDaily:
+      "Os mais recentes primeiro. Abra qualquer semana Daily Social sem a regenerar.",
+    historySubtitleEvergreen:
+      "Os mais recentes primeiro. Abra qualquer semana evergreen sem a regenerar.",
     noSearchMatch: "Nenhum calendário corresponde à sua pesquisa.",
     stillPlanning: "A Athena ainda está a planear esta semana.",
     generationFailedTryAgain: "A geração falhou. Tente novamente.",
@@ -3856,6 +3872,7 @@ export const pt: TenantMessages = {
     previous: "Anterior",
     next: "Seguinte",
     yourSocialWeek: "A sua semana social",
+    yourEvergreenWeek: "A sua semana evergreen",
     whyThisWeekWorks: "Porque é que esta semana funciona",
     productionGuidance: "Orientação de produção",
     createAnotherWeek: "Criar outra semana",
@@ -3865,6 +3882,11 @@ export const pt: TenantMessages = {
     notFound: "Este calendário não foi encontrado.",
     couldNotDisplay: "Este calendário não pôde ser apresentado.",
     couldNotFinish: "A Athena não conseguiu concluir esta semana.",
+    couldNotFinishDaily:
+      "Esta semana de Redes sociais diárias não pôde ser concluída.",
+    couldNotFinishEvergreen:
+      "Esta semana de Conteúdo evergreen não pôde ser concluída.",
+    invalidPlanner: "Este planeador de Social Content não pôde ser aberto.",
     stillChecking: "Ainda a verificar o seu calendário…",
     jumpToDay: "Saltar para o dia",
     jumpToDayAria: "Saltar para {label}",
@@ -3881,8 +3903,12 @@ export const pt: TenantMessages = {
     },
     recommendedPlatforms: "Plataformas recomendadas",
     socialCopy: "Copy social",
+    draft: "Rascunho",
+    publishingGuidance: "Orientação de publicação",
     cta: "CTA",
     planningWeek: "A Athena está a planear a sua semana…",
+    planningWeekDaily: "A Athena está a planear a sua semana nas redes…",
+    planningWeekEvergreen: "A Athena está a planear a sua semana evergreen…",
     leaveAndReturn: "Pode sair desta página e voltar mais tarde.",
     somethingWentWrong: "Algo correu mal. Tente novamente.",
     failedToStart: "Falha ao iniciar o Social Planner.",
@@ -3944,6 +3970,8 @@ export const pt: TenantMessages = {
       calendarContext: "A ler a semana",
       intelligence: "A rever a sua inteligência Athena",
       generation: "A criar os seus sete ativos",
+      generationDaily: "A criar sete conteúdos diários",
+      generationEvergreen: "A criar sete conteúdos duradouros",
       diversity: "A garantir que a semana parece original",
       sourceDivergence: "A garantir que esta versão pensa de outra forma",
       revisionSatisfaction: "A aplicar as alterações pedidas",
@@ -3999,6 +4027,23 @@ export const pt: TenantMessages = {
       standard: "Padrão",
       thinkDifferently: "Think Differently",
       conversationRevision: "Revisão de conversa",
+    },
+    plannerKinds: {
+      dailySocial: "Redes sociais diárias",
+      evergreen: "Conteúdo evergreen",
+    },
+    plannerKindDailyHelp:
+      "Uma ideia diária que cobre os canais sociais e comunitários recorrentes.",
+    plannerKindEvergreenHelp:
+      "Um formato duradouro por dia, em rotação entre Blog, Newsletter, Substack, Reddit e Skool.",
+    plannerKindEvergreenSoon: "Em breve",
+    evergreenFormats: {
+      blogPost: "Artigo de blog",
+      newsletter: "Newsletter",
+      substackPost: "Artigo do Substack",
+      redditPost: "Publicação no Reddit",
+      skoolPost: "Publicação no Skool",
+      skoolCourseIdea: "Ideia de curso Skool",
     },
   },
   deploymentAssetTypes: {

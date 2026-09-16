@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { AlertTriangle, SlidersHorizontal, Sparkles } from "lucide-react";
 import { PersonaCreationBlock } from "@/components/personas/PersonaCreationBlock";
 import {
   PERSONA_ADVANCED_FIELD_GROUPS,
@@ -10,6 +11,17 @@ import {
   personaCandidateToFormState,
 } from "@/components/personas/personaFormFields";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  PERSONA_IMPORT_ADVANCED_ICON,
+  PERSONA_IMPORT_ADVANCED_SURFACE,
+  PERSONA_IMPORT_ERROR_CLASS,
+  PERSONA_IMPORT_FIELD_LABEL_CLASS,
+  PERSONA_IMPORT_NESTED_CARD_CLASS,
+  PERSONA_IMPORT_PRIMARY_CLASS,
+  PERSONA_IMPORT_SECONDARY_CLASS,
+  PERSONA_IMPORT_STATUS_CLASS,
+  PERSONA_IMPORT_SUCCESS_CLASS,
+} from "@/lib/personas/personaImportPresentation";
 import {
   getLocalizedPersonaImportFieldLabel,
   getLocalizedPersonaImportGroupTitle,
@@ -232,10 +244,14 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
       panelId="persona-creation-generate"
       summary={copy.generateSummary}
       defaultOpen
+      accent="orange"
+      icon={<Sparkles className="size-5" />}
     >
       <div className="space-y-4">
-        <label className="block text-sm text-white/50">
-          {copy.instructionLabel}
+        <label className="block space-y-2">
+          <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+            {copy.instructionLabel}
+          </span>
           <textarea
             value={instruction}
             onChange={(event) => setInstruction(event.target.value)}
@@ -252,7 +268,7 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
             onClick={() => void generateCandidate()}
             disabled={busy}
             aria-busy={phase === "generating"}
-            className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
+            className={PERSONA_IMPORT_PRIMARY_CLASS}
           >
             {phase === "generating" ? copy.generating : copy.generateCta}
           </button>
@@ -262,7 +278,7 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
           <div
             role="status"
             aria-live="polite"
-            className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/65"
+            className={PERSONA_IMPORT_STATUS_CLASS}
           >
             {copy.generatingHelp}
           </div>
@@ -271,23 +287,29 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
         {generateError && (
           <div
             role="alert"
-            className="rounded-2xl border border-rose-400/30 bg-rose-950/20 p-4 text-sm text-rose-100/90 whitespace-pre-wrap"
+            className={PERSONA_IMPORT_ERROR_CLASS}
           >
-            {generateError}
+            <AlertTriangle
+              className="mt-0.5 size-4 shrink-0"
+              aria-hidden="true"
+            />
+            <p>{generateError}</p>
           </div>
         )}
       </div>
 
       {candidate && phase !== "idle" && (
         <div className="mt-10 border-t border-white/10 pt-8">
-          <h3 className="text-lg font-semibold text-white">{copy.reviewTitle}</h3>
+          <h3 className="text-lg font-semibold tracking-tight text-white">
+            {copy.reviewTitle}
+          </h3>
           <p className="mt-2 text-sm leading-6 text-white/45">
             {copy.reviewHelp}
             {phase === "generating" ? ` ${copy.reviewGeneratingNote}` : ""}
           </p>
 
           {portfolioCoverageInsight && (
-            <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+            <div className={`mt-6 ${PERSONA_IMPORT_NESTED_CARD_CLASS}`}>
               <h4 className="text-sm font-semibold text-white">
                 {copy.portfolioInsightTitle}
               </h4>
@@ -301,8 +323,10 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
           )}
 
           <div className="mt-8 space-y-4">
-            <label className="block text-sm text-white/50">
-              {meta.personaName}
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.personaName}
+              </span>
               <input
                 value={candidate.persona_name ?? ""}
                 onChange={(event) =>
@@ -313,8 +337,10 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.shortDescription}
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.shortDescription}
+              </span>
               <input
                 value={candidate.short_description ?? ""}
                 onChange={(event) =>
@@ -325,8 +351,10 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.additionalContext}
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.additionalContext}
+              </span>
               <textarea
                 value={candidate.additional_context ?? ""}
                 onChange={(event) =>
@@ -338,8 +366,10 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.referenceWebsite}
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.referenceWebsite}
+              </span>
               <input
                 value={candidate.reference_website ?? ""}
                 onChange={(event) =>
@@ -350,8 +380,10 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.notes}
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.notes}
+              </span>
               <textarea
                 value={candidate.notes ?? ""}
                 onChange={(event) =>
@@ -363,8 +395,10 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.adsContent}
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.adsContent}
+              </span>
               <textarea
                 value={candidate.ads_content ?? ""}
                 onChange={(event) =>
@@ -376,8 +410,10 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
               />
             </label>
 
-            <label className="block text-sm text-white/50">
-              {meta.category}
+            <label className="block space-y-2">
+              <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                {meta.category}
+              </span>
               <input
                 value={candidate.category ?? ""}
                 onChange={(event) =>
@@ -397,11 +433,17 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
                     group.title,
                   )}
                   defaultOpen={false}
+                  tone="intelligence"
+                  icon={<SlidersHorizontal aria-hidden="true" />}
+                  iconClassName={PERSONA_IMPORT_ADVANCED_ICON}
+                  className={PERSONA_IMPORT_ADVANCED_SURFACE}
                 >
                   <div className="grid gap-4">
                     {group.fields.map(([key]) => (
-                      <label key={key} className="block text-sm text-white/50">
-                        {getLocalizedPersonaImportFieldLabel(messages, key)}
+                      <label key={key} className="block space-y-2">
+                        <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+                          {getLocalizedPersonaImportFieldLabel(messages, key)}
+                        </span>
                         <input
                           value={candidate[key] ?? ""}
                           onChange={(event) =>
@@ -422,7 +464,7 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
                 type="button"
                 onClick={() => void createPersona()}
                 disabled={busy}
-                className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
+                className={PERSONA_IMPORT_PRIMARY_CLASS}
               >
                 {phase === "creating"
                   ? copy.creating
@@ -432,7 +474,7 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
                 type="button"
                 onClick={() => void generateCandidate()}
                 disabled={busy}
-                className="rounded-full border border-white/15 px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
+                className={PERSONA_IMPORT_SECONDARY_CLASS}
               >
                 {phase === "generating" ? copy.generating : copy.generateAgain}
               </button>
@@ -440,7 +482,7 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
                 type="button"
                 onClick={clearCandidate}
                 disabled={busy}
-                className="rounded-full border border-white/10 px-7 py-4 text-sm font-semibold text-white/70 disabled:opacity-40"
+                className={PERSONA_IMPORT_SECONDARY_CLASS}
               >
                 {copy.clearCandidate}
               </button>
@@ -450,18 +492,32 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
       )}
 
       {createResult && (
-        <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70 whitespace-pre-wrap">
-          {createResult.message}
-          {createResult.personaId && (
-            <div className="mt-3">
-              <Link
-                href={`/personas/${createResult.personaId}`}
-                className="text-[var(--athena-orange)] underline"
-              >
-                    {copy.openPersona}
-              </Link>
-            </div>
-          )}
+        <div
+          className={`mt-6 ${
+            createResult.ok
+              ? PERSONA_IMPORT_SUCCESS_CLASS
+              : PERSONA_IMPORT_ERROR_CLASS
+          }`}
+        >
+          {!createResult.ok ? (
+            <AlertTriangle
+              className="mt-0.5 size-4 shrink-0"
+              aria-hidden="true"
+            />
+          ) : null}
+          <div>
+            {createResult.message}
+            {createResult.personaId && (
+              <div className="mt-3">
+                <Link
+                  href={`/personas/${createResult.personaId}`}
+                  className={PERSONA_IMPORT_PRIMARY_CLASS}
+                >
+                  {copy.openPersona}
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </PersonaCreationBlock>

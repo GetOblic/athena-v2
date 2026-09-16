@@ -8,10 +8,15 @@ import type { SocialPlannerGenerationContextV1 } from "@/services/socialPlanner/
 import type { SocialCalendarProvenanceJson } from "@/services/socialPlanner/socialCalendarTypes";
 import type { SocialPlannerThinkDifferentlyProvenance } from "@/services/socialPlanner/thinkDifferently/socialPlannerThinkDifferentlyTypes";
 import type { SocialPlannerConversationRevisionProvenance } from "@/services/socialPlanner/conversationRevision/socialPlannerConversationRevisionTypes";
+import {
+  SOCIAL_CALENDAR_DEFAULT_PLANNER_KIND,
+  type SocialCalendarPlannerKind,
+} from "@/services/socialPlanner/socialCalendarPlannerKind";
 import { readSocialPlannerTargetPersonaId } from "@/services/socialPlanner/socialPlannerTargetPersona";
 
 export type SocialCalendarStandardProvenanceV1 = {
   generationMode: "standard";
+  plannerKind: SocialCalendarPlannerKind;
   packageSchemaVersion: string;
   intelligenceComposerVersion: string;
   intelligenceSchemaVersion: string;
@@ -90,14 +95,17 @@ export function buildFrozenSocialCalendarProvenance(input: {
   calendarContext: SocialCalendarContext;
   generationProvenance: SocialPlannerDiverseGenerationProvenance;
   targetPersonaId?: string | null;
+  plannerKind?: SocialCalendarPlannerKind | null;
 }): SocialCalendarStandardProvenanceV1 {
   const { context, calendarContext, generationProvenance } = input;
   const targetPersonaId = readSocialPlannerTargetPersonaId({
     targetPersonaId: input.targetPersonaId,
   });
+  const plannerKind = input.plannerKind ?? SOCIAL_CALENDAR_DEFAULT_PLANNER_KIND;
 
   return {
     generationMode: "standard",
+    plannerKind,
     ...(targetPersonaId ? { targetPersonaId } : {}),
     packageSchemaVersion: generationProvenance.packageSchemaVersion,
     intelligenceComposerVersion: context.provenance.composerVersion,
@@ -142,16 +150,19 @@ export function buildFrozenThinkDifferentlyProvenance(input: {
   calendarContext: SocialCalendarContext;
   generationProvenance: SocialPlannerThinkDifferentlyProvenance;
   targetPersonaId?: string | null;
+  plannerKind?: SocialCalendarPlannerKind | null;
 }): SocialCalendarThinkDifferentlyProvenanceV1 {
   const shared = buildFrozenSocialCalendarProvenance({
     context: input.context,
     calendarContext: input.calendarContext,
     generationProvenance: input.generationProvenance,
     targetPersonaId: input.targetPersonaId,
+    plannerKind: input.plannerKind,
   });
 
   return {
     generationMode: "think_differently",
+    plannerKind: shared.plannerKind,
     ...(shared.targetPersonaId ? { targetPersonaId: shared.targetPersonaId } : {}),
     packageSchemaVersion: shared.packageSchemaVersion,
     intelligenceComposerVersion: shared.intelligenceComposerVersion,
@@ -202,16 +213,19 @@ export function buildFrozenConversationRevisionProvenance(input: {
   calendarContext: SocialCalendarContext;
   generationProvenance: SocialPlannerConversationRevisionProvenance;
   targetPersonaId?: string | null;
+  plannerKind?: SocialCalendarPlannerKind | null;
 }): SocialCalendarConversationRevisionProvenanceV1 {
   const shared = buildFrozenSocialCalendarProvenance({
     context: input.context,
     calendarContext: input.calendarContext,
     generationProvenance: input.generationProvenance,
     targetPersonaId: input.targetPersonaId,
+    plannerKind: input.plannerKind,
   });
 
   return {
     generationMode: "conversation_revision",
+    plannerKind: shared.plannerKind,
     ...(shared.targetPersonaId ? { targetPersonaId: shared.targetPersonaId } : {}),
     packageSchemaVersion: shared.packageSchemaVersion,
     intelligenceComposerVersion: shared.intelligenceComposerVersion,

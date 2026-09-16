@@ -5,6 +5,11 @@ import { AlertTriangle, MessagesSquare, RefreshCw, Target } from "lucide-react";
 import type { SocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
 import type { SocialPlannerConversationAssetReference } from "@/services/socialPlanner/conversation/socialPlannerConversationTypes";
 import { SocialCalendarDayCard } from "@/components/socialPlanner/SocialCalendarDayCard";
+import { SocialCalendarEvergreenDayCard } from "@/components/socialPlanner/SocialCalendarEvergreenDayCard";
+import {
+  isSocialCalendarEvergreenPackage,
+  socialCalendarWeekItems,
+} from "@/services/socialPlanner/generation/socialCalendarPackageUnion";
 import { SocialPlannerStatus } from "@/components/socialPlanner/SocialPlannerStatus";
 import {
   formatSocialPlannerDayHeader,
@@ -27,6 +32,7 @@ import {
   SOCIAL_DETAIL_UTILITY_ACTION,
   presentSocialDetailSnapshot,
   shouldShowSocialDetailGenerationMode,
+  socialPlannerDetailPlannerKindChipClass,
   socialPlannerDetailStatusChipClass,
 } from "@/lib/socialPlanner/socialPlannerDetailPresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
@@ -37,8 +43,12 @@ import {
   formatSocialPlannerJumpToDayAria,
   formatSocialPlannerVersionLabel,
   getLocalizedSocialPlannerAssetTypeLabel,
+  getLocalizedSocialPlannerEvergreenFormatLabel,
   getLocalizedSocialPlannerGenerationModeLabel,
   getLocalizedSocialPlannerHistoryStatusLabel,
+  getLocalizedSocialPlannerFailedHeadline,
+  getLocalizedSocialPlannerPlannerKindLabel,
+  getLocalizedSocialPlannerReadyHeadline,
 } from "@/lib/tenantI18n/socialPlannerPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
@@ -89,6 +99,7 @@ export function SocialCalendarDetail({
       <SocialPlannerStatus
         status={calendar.status}
         generationStage={calendar.generationStage}
+        plannerKind={calendar.plannerKind}
         pollNotice={pollNotice}
         messages={dictionary}
       />
@@ -96,6 +107,10 @@ export function SocialCalendarDetail({
   }
 
   if (calendar.status === "Processing Failed") {
+    const failedPlannerKindLabel = getLocalizedSocialPlannerPlannerKindLabel(
+      dictionary,
+      calendar.plannerKind,
+    );
     return (
       <section className={SOCIAL_DETAIL_FAILED_SURFACE}>
         <div className="flex items-start gap-3">
@@ -106,11 +121,23 @@ export function SocialCalendarDetail({
             <AlertTriangle className="size-5" />
           </span>
           <div className="min-w-0">
-            <span className={socialPlannerDetailStatusChipClass(calendar.status)}>
-              {copy.status.failed}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={socialPlannerDetailStatusChipClass(calendar.status)}>
+                {copy.status.failed}
+              </span>
+              <span
+                className={socialPlannerDetailPlannerKindChipClass(
+                  calendar.plannerKind,
+                )}
+              >
+                {failedPlannerKindLabel}
+              </span>
+            </div>
             <h2 className="mt-3 text-2xl font-semibold tracking-tight">
-              {copy.couldNotFinish}
+              {getLocalizedSocialPlannerFailedHeadline(
+                dictionary,
+                calendar.plannerKind,
+              )}
             </h2>
           </div>
         </div>
@@ -199,14 +226,7 @@ function SocialCalendarReadyDetail({
     locale,
   );
   const socialPackage = calendar.package;
-  const assets = socialPackage.assets.slice(0, 7);
-  const snapshot = presentSocialDetailSnapshot({
-    userGuidance: calendar.userGuidance,
-    strategySummary: socialPackage.strategySummary,
-  });
-  const showGenerationMode = shouldShowSocialDetailGenerationMode(
-    calendar.generationMode,
-  );
+  const isEvergreen = isSocialCalendarEvergreenPackage(socialPackage);
   const [discussAssetReference, setDiscussAssetReference] =
     useState<SocialPlannerConversationAssetReference | null>(null);
   const [askOpen, setAskOpen] = useState<boolean>(
@@ -268,6 +288,42 @@ function SocialCalendarReadyDetail({
     };
   }, [calendar.id]);
 
+  if (
+    (calendar.plannerKind === "evergreen" && !isEvergreen) ||
+    (calendar.plannerKind !== "evergreen" && isEvergreen)
+  ) {
+    return (
+      <section className={SOCIAL_DETAIL_UNAVAILABLE_SURFACE}>
+        <h2 className="text-2xl font-semibold tracking-tight">
+          {copy.couldNotDisplay}
+        </h2>
+        <p className="mt-3 text-sm leading-7 text-white/50">{periodLabel}</p>
+        <div className="mt-6" data-ready-actions="">
+          <button
+            type="button"
+            onClick={onCreateAnotherWeek}
+            className={SOCIAL_DETAIL_UTILITY_ACTION}
+          >
+            {copy.createAnotherWeek}
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  const weekItems = socialCalendarWeekItems(socialPackage).slice(0, 7);
+  const snapshot = presentSocialDetailSnapshot({
+    userGuidance: calendar.userGuidance,
+    strategySummary: socialPackage.strategySummary,
+  });
+  const showGenerationMode = shouldShowSocialDetailGenerationMode(
+    calendar.generationMode,
+  );
+  const plannerKindLabel = getLocalizedSocialPlannerPlannerKindLabel(
+    messages,
+    calendar.plannerKind,
+  );
+
   function handleDiscussWithAthena(reference: SocialPlannerConversationAssetReference) {
     setDiscussAssetReference({ date: reference.date });
     setAskOpen(true);
@@ -281,21 +337,26 @@ function SocialCalendarReadyDetail({
     }
   }
 
-  const selectedAsset = discussAssetReference
-    ? assets.find((asset) => asset.date === discussAssetReference.date) ?? null
+  const selectedItem = discussAssetReference
+    ? weekItems.find((item) => item.date === discussAssetReference.date) ?? null
     : null;
-  const discussFocusLabel = selectedAsset
+  const discussFocusLabel = selectedItem
     ? formatSocialPlannerDiscussingLabel(
         messages,
         formatSocialPlannerDayHeader(
-          selectedAsset.weekday,
-          selectedAsset.date,
+          selectedItem.weekday,
+          selectedItem.date,
           locale,
         ),
-        getLocalizedSocialPlannerAssetTypeLabel(
-          messages,
-          selectedAsset.assetType,
-        ),
+        isEvergreen
+          ? getLocalizedSocialPlannerEvergreenFormatLabel(
+              messages,
+              selectedItem.formatKey,
+            )
+          : getLocalizedSocialPlannerAssetTypeLabel(
+              messages,
+              selectedItem.formatKey,
+            ),
       )
     : null;
 
@@ -312,7 +373,10 @@ function SocialCalendarReadyDetail({
             </div>
           </div>
           <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-            {copy.yourSocialWeek}
+            {getLocalizedSocialPlannerReadyHeadline(
+              messages,
+              calendar.plannerKind,
+            )}
           </h2>
           <p className="mt-2 text-base text-white/55">{periodLabel}</p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -324,6 +388,9 @@ function SocialCalendarReadyDetail({
             </span>
             <span className={SOCIAL_DETAIL_CHIP_META}>
               {formatSocialPlannerVersionLabel(messages, calendar.versionNumber)}
+            </span>
+            <span className={socialPlannerDetailPlannerKindChipClass(calendar.plannerKind)}>
+              {plannerKindLabel}
             </span>
             {showGenerationMode ? (
               <span className={SOCIAL_DETAIL_CHIP_META}>
@@ -373,6 +440,9 @@ function SocialCalendarReadyDetail({
           </span>
           <span className={SOCIAL_DETAIL_CHIP_META}>
             {formatSocialPlannerVersionLabel(messages, calendar.versionNumber)}
+          </span>
+          <span className={socialPlannerDetailPlannerKindChipClass(calendar.plannerKind)}>
+            {plannerKindLabel}
           </span>
           {showGenerationMode ? (
             <span className={SOCIAL_DETAIL_CHIP_META}>
@@ -427,20 +497,20 @@ function SocialCalendarReadyDetail({
         className="overflow-x-auto"
       >
         <div className="flex flex-nowrap gap-2">
-          {assets.map((asset) => {
+          {weekItems.map((item) => {
             const label = formatSocialPlannerDayHeader(
-              asset.weekday,
-              asset.date,
+              item.weekday,
+              item.date,
               locale,
             );
             return (
               <button
-                key={asset.date}
+                key={item.date}
                 type="button"
                 aria-label={formatSocialPlannerJumpToDayAria(messages, label)}
                 onClick={() => {
                   document
-                    .getElementById(`social-planner-day-${asset.date}`)
+                    .getElementById(`social-planner-day-${item.date}`)
                     ?.scrollIntoView({
                       behavior: "smooth",
                       block: "start",
@@ -456,28 +526,51 @@ function SocialCalendarReadyDetail({
       </nav>
 
       <div className="space-y-4">
-        {assets.map((asset) => {
-          const interactionKey = buildSocialCalendarAssetInteractionType(
-            asset.date,
-          );
-          return (
-            <SocialCalendarDayCard
-              key={`${asset.date}-${asset.assetType}`}
-              asset={asset}
-              onDiscussWithAthena={handleDiscussWithAthena}
-              tracking={{
-                sourceType: "social_calendar",
-                sourceId: calendar.id,
-                executiveVersionId: null,
-                assetType: interactionKey,
-              }}
-              initiallyDone={Boolean(doneByAssetType[interactionKey])}
-              initiallyTags={tagsByAssetType[interactionKey] ?? []}
-              messages={messages}
-              locale={locale}
-            />
-          );
-        })}
+        {isEvergreen
+          ? socialPackage.days.map((day) => {
+              const interactionKey = buildSocialCalendarAssetInteractionType(
+                day.date,
+              );
+              return (
+                <SocialCalendarEvergreenDayCard
+                  key={`${day.date}-${day.evergreenFormat}`}
+                  day={day}
+                  onDiscussWithAthena={handleDiscussWithAthena}
+                  tracking={{
+                    sourceType: "social_calendar",
+                    sourceId: calendar.id,
+                    executiveVersionId: null,
+                    assetType: interactionKey,
+                  }}
+                  initiallyDone={Boolean(doneByAssetType[interactionKey])}
+                  initiallyTags={tagsByAssetType[interactionKey] ?? []}
+                  messages={messages}
+                  locale={locale}
+                />
+              );
+            })
+          : socialPackage.assets.map((asset) => {
+              const interactionKey = buildSocialCalendarAssetInteractionType(
+                asset.date,
+              );
+              return (
+                <SocialCalendarDayCard
+                  key={`${asset.date}-${asset.assetType}`}
+                  asset={asset}
+                  onDiscussWithAthena={handleDiscussWithAthena}
+                  tracking={{
+                    sourceType: "social_calendar",
+                    sourceId: calendar.id,
+                    executiveVersionId: null,
+                    assetType: interactionKey,
+                  }}
+                  initiallyDone={Boolean(doneByAssetType[interactionKey])}
+                  initiallyTags={tagsByAssetType[interactionKey] ?? []}
+                  messages={messages}
+                  locale={locale}
+                />
+              );
+            })}
       </div>
 
       <div data-ask-athena-slot="">

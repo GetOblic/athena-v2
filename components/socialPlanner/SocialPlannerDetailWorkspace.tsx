@@ -13,6 +13,7 @@ import {
   isSocialPlannerInFlight,
   thinkDifferentlySocialCalendarRequest,
 } from "@/components/socialPlanner/socialPlannerClient";
+import { socialPlannerWorkspaceHref } from "@/lib/socialPlanner/socialPlannerRouting";
 import {
   SOCIAL_DETAIL_FAILED_SURFACE,
   SOCIAL_DETAIL_ICON,
@@ -118,7 +119,11 @@ export function SocialPlannerDetailWorkspace({
   }, [calendarId, detailStatus, detailError, errorChrome, copy.stillChecking]);
 
   function handleCreateAnotherWeek() {
-    router.push("/social-planner");
+    router.push(
+      socialPlannerWorkspaceHref({
+        planner: detail?.plannerKind ?? initialDetail?.plannerKind,
+      }),
+    );
   }
 
   async function handleThinkDifferently() {

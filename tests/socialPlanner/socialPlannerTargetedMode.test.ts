@@ -50,7 +50,10 @@ import {
   type SocialPlannerHistoricalDiversityResult,
   type SocialPlannerSocialMemoryV1,
 } from "../../services/socialPlanner/diversity/socialPlannerSocialMemoryTypes";
-import { createSocialCalendarWithJob } from "../../services/socialPlanner/socialCalendarOrchestration";
+import {
+  createDailySocialCalendarWithJob,
+  createEvergreenSocialCalendarWithJob,
+} from "../../services/socialPlanner/socialCalendarOrchestration";
 import { buildFrozenSocialCalendarProvenance } from "../../services/socialPlanner/socialCalendarProvenance";
 import { normalizeSocialCalendarCreateRequest } from "../../services/socialPlanner/socialCalendarRequest";
 import {
@@ -283,6 +286,7 @@ function installSocialCalendarCreateMock() {
 async function runTargetedCreatePath(input: {
   body: Record<string, unknown>;
   organizationId: string;
+  plannerKind?: "daily_social" | "evergreen";
   loadPersonaById?: (
     personaId: string,
     organizationId: string,
@@ -296,14 +300,24 @@ async function runTargetedCreatePath(input: {
         loadPersonaById: input.loadPersonaById,
       })
     : null;
-  const created = await createSocialCalendarWithJob({
-    organizationId: input.organizationId,
-    userId: "user-1",
-    periodStart: createRequest.periodStart,
-    periodEnd: createRequest.periodEnd,
-    userGuidance: createRequest.userGuidance,
-    targetPersonaId: targetPersona?.id ?? null,
-  });
+  const created =
+    input.plannerKind === "evergreen"
+      ? await createEvergreenSocialCalendarWithJob({
+          organizationId: input.organizationId,
+          userId: "user-1",
+          periodStart: createRequest.periodStart,
+          periodEnd: createRequest.periodEnd,
+          userGuidance: createRequest.userGuidance,
+          targetPersonaId: targetPersona?.id ?? null,
+        })
+      : await createDailySocialCalendarWithJob({
+          organizationId: input.organizationId,
+          userId: "user-1",
+          periodStart: createRequest.periodStart,
+          periodEnd: createRequest.periodEnd,
+          userGuidance: createRequest.userGuidance,
+          targetPersonaId: targetPersona?.id ?? null,
+        });
   return {
     createRequest,
     targetPersonaId: targetPersona?.id ?? null,
@@ -338,6 +352,7 @@ describe("Social Planner targeted mode — generic planner", () => {
   it("keeps generic create UI and request shape when personaId is absent", () => {
     const html = renderToStaticMarkup(
       createElement(SocialPlannerCreateForm, {
+        plannerKind: "daily_social",
         submitting: false,
         error: null,
         onSubmit() {},
@@ -414,7 +429,10 @@ describe("Social Planner targeted mode — generic planner", () => {
 describe("Social Planner targeted mode — page and composer", () => {
   it("resolves same-org personaId and renders the compact target chip", () => {
     const page = read("app/social-planner/page.tsx");
-    assert.match(page, /searchParams\?: Promise<\{ id\?: string; personaId\?: string \}>/);
+    assert.match(
+      page,
+      /searchParams\?: Promise<\{ id\?: string; personaId\?: string; planner\?: string \}>/,
+    );
     assert.match(page, /redirect\(`\/social-planner\/\$\{requestedId\}`\)/);
     assert.match(page, /SOCIAL_PLANNER_CALENDAR_ID_RE\.test\(params\.id\)/);
     assert.match(
@@ -436,6 +454,7 @@ describe("Social Planner targeted mode — page and composer", () => {
 
     const html = renderToStaticMarkup(
       createElement(SocialPlannerCreateForm, {
+        plannerKind: "daily_social",
         submitting: false,
         error: null,
         targetAudience: view,
@@ -468,7 +487,8 @@ describe("Social Planner targeted mode — page and composer", () => {
   it("Clear restores generic \/social-planner and does not mutate", () => {
     assert.equal(SOCIAL_PLANNER_TARGET_CLEAR_HREF, "/social-planner");
     const form = read("components/socialPlanner/SocialPlannerCreateForm.tsx");
-    assert.match(form, /href=\{SOCIAL_PLANNER_TARGET_CLEAR_HREF\}/);
+    assert.match(form, /href=\{clearHref\}/);
+    assert.match(form, /clearHref = SOCIAL_PLANNER_TARGET_CLEAR_HREF/);
     assert.doesNotMatch(form, /fetch\(|router\.delete|DELETE/);
     assert.match(form, /useState\(""\)/);
   });
@@ -558,13 +578,29 @@ describe("Social Planner targeted mode — create API and provenance", () => {
       "userGuidance",
     ]);
     assert.equal(body.personaId, TARGET_ID);
+
+    const evergreenTargeted = buildSocialCalendarCreateBody({
+      periodStart: TEST_PERIOD_START,
+      periodEnd: TEST_PERIOD_END,
+      userGuidance: "Keep it local",
+      personaId: TARGET_ID,
+    });
+    assert.equal("plannerKind" in evergreenTargeted, false);
+    assert.equal(evergreenTargeted.personaId, TARGET_ID);
+    const evergreenNormalized = normalizeSocialCalendarCreateRequest({
+      periodStart: TEST_PERIOD_START,
+      personaId: TARGET_ID,
+    });
+    assert.equal("plannerKind" in evergreenNormalized, false);
+    assert.equal(evergreenNormalized.personaId, TARGET_ID);
+    assert.equal(evergreenNormalized.generationMode, "standard");
   });
 
   it("persists targetPersonaId only for resolved targets", () => {
     const service = read("services/socialPlanner/socialCalendarService.ts");
     assert.match(
       service,
-      /provenance_json: socialPlannerTargetPersonaProvenance\(input\.targetPersonaId\)/,
+      /buildSocialCalendarQueuedProvenance\(\{\s*plannerKind: input\.plannerKind,\s*targetPersonaId: input\.targetPersonaId,/,
     );
     assert.deepEqual(socialPlannerTargetPersonaProvenance(TARGET_ID), {
       targetPersonaId: TARGET_ID,
@@ -611,7 +647,10 @@ describe("Social Planner targeted mode — create API and provenance", () => {
       assert.equal(mock.calendarInserts.length, 1);
       const inserted = mock.calendarInserts[0];
       assert.equal(inserted.targetPersonaId, undefined);
-      assert.deepEqual(inserted.provenance_json, { targetPersonaId: TARGET_ID });
+      assert.deepEqual(inserted.provenance_json, {
+        plannerKind: "daily_social",
+        targetPersonaId: TARGET_ID,
+      });
       assert.equal(
         readSocialPlannerTargetPersonaId(inserted.provenance_json),
         TARGET_ID,
@@ -624,7 +663,7 @@ describe("Social Planner targeted mode — create API and provenance", () => {
     }
   });
 
-  it("generic create stays valid and inserts empty provenance", async () => {
+  it("generic create stays valid and inserts daily_social provenance", async () => {
     const mock = installSocialCalendarCreateMock();
     try {
       const result = await runTargetedCreatePath({
@@ -639,12 +678,41 @@ describe("Social Planner targeted mode — create API and provenance", () => {
       assert.equal(result.createRequest.personaId, null);
       assert.equal(result.targetPersonaId, null);
       assert.equal(mock.calendarInserts.length, 1);
-      assert.deepEqual(mock.calendarInserts[0].provenance_json, {});
+      assert.deepEqual(mock.calendarInserts[0].provenance_json, {
+        plannerKind: "daily_social",
+      });
       assert.equal(
         readSocialPlannerTargetPersonaId(mock.calendarInserts[0].provenance_json),
         null,
       );
       assert.equal("targetPersonaId" in mock.calendarInserts[0], false);
+    } finally {
+      mock.restore();
+    }
+  });
+
+  it("create path persists evergreen with an Audience personaId", async () => {
+    const mock = installSocialCalendarCreateMock();
+    try {
+      const result = await runTargetedCreatePath({
+        body: {
+          periodStart: TEST_PERIOD_START,
+          periodEnd: TEST_PERIOD_END,
+          userGuidance: "",
+          personaId: TARGET_ID,
+        },
+        organizationId: ORG,
+        plannerKind: "evergreen",
+        loadPersonaById: async () => fakePersona(ORG),
+      });
+
+      assert.equal(result.createRequest.personaId, TARGET_ID);
+      assert.equal(result.createRequest.generationMode, "standard");
+      assert.equal(result.targetPersonaId, TARGET_ID);
+      assert.deepEqual(mock.calendarInserts[0].provenance_json, {
+        plannerKind: "evergreen",
+        targetPersonaId: TARGET_ID,
+      });
     } finally {
       mock.restore();
     }
@@ -663,7 +731,9 @@ describe("Social Planner targeted mode — create API and provenance", () => {
       });
       assert.equal(invalid.createRequest.personaId, null);
       assert.equal(invalid.targetPersonaId, null);
-      assert.deepEqual(mock.calendarInserts[0].provenance_json, {});
+      assert.deepEqual(mock.calendarInserts[0].provenance_json, {
+        plannerKind: "daily_social",
+      });
 
       const missing = await runTargetedCreatePath({
         body: {
@@ -674,7 +744,9 @@ describe("Social Planner targeted mode — create API and provenance", () => {
         loadPersonaById: async () => null,
       });
       assert.equal(missing.targetPersonaId, null);
-      assert.deepEqual(mock.calendarInserts[1].provenance_json, {});
+      assert.deepEqual(mock.calendarInserts[1].provenance_json, {
+        plannerKind: "daily_social",
+      });
 
       const wrongOrg = await runTargetedCreatePath({
         body: {
@@ -686,7 +758,9 @@ describe("Social Planner targeted mode — create API and provenance", () => {
         loadPersonaById: async () => fakePersona(OTHER_ORG),
       });
       assert.equal(wrongOrg.targetPersonaId, null);
-      assert.deepEqual(mock.calendarInserts[2].provenance_json, {});
+      assert.deepEqual(mock.calendarInserts[2].provenance_json, {
+        plannerKind: "daily_social",
+      });
 
       const direct = await createSocialCalendar({
         organizationId: ORG,
@@ -695,12 +769,14 @@ describe("Social Planner targeted mode — create API and provenance", () => {
         periodEnd: TEST_PERIOD_END,
         userGuidance: null,
         targetPersonaId: TARGET_ID,
+        plannerKind: "daily_social",
       });
       assert.equal(
         readSocialPlannerTargetPersonaId(direct.provenance_json),
         TARGET_ID,
       );
       assert.deepEqual(mock.calendarInserts[3].provenance_json, {
+        plannerKind: "daily_social",
         targetPersonaId: TARGET_ID,
       });
     } finally {

@@ -8,6 +8,7 @@ import {
   LIVE_EXECUTIVE_VERSION_SENTINEL,
 } from "@/services/assetInteractions/assetInteractionKeys";
 import type { SocialCalendarPackageV1 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
+import { isSocialCalendarDailyPackage } from "@/services/socialPlanner/generation/socialCalendarPackageUnion";
 import { parsePersistedSocialCalendarPackage } from "@/services/socialPlanner/socialCalendarPersistedPackage";
 import { getSocialCalendarById } from "@/services/socialPlanner/socialCalendarService";
 import type { SocialCalendar } from "@/services/socialPlanner/socialCalendarTypes";
@@ -79,6 +80,14 @@ export async function authorizeSocialCalendarInteractionSource(input: {
     const socialPackage = parsePersistedSocialCalendarPackage(
       calendar.package_json,
     );
+    if (!isSocialCalendarDailyPackage(socialPackage)) {
+      return {
+        ok: false,
+        status: 400,
+        code: "VALIDATION_ERROR",
+        message: "Stored Social Calendar package is malformed.",
+      };
+    }
     return { ok: true, calendar, socialPackage };
   } catch {
     return {

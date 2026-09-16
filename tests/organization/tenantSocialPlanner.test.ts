@@ -128,7 +128,7 @@ describe("V31 L3.9 tenant social planner — list chrome", () => {
     assert.equal(en.socialPlanner.eyebrow, "Generate Traction");
     assert.equal(
       en.socialPlanner.subtitle,
-      "Plan one week of social content. Athena writes seven pieces from what it already knows about your business and audiences.",
+      "Plan a week of content from what Athena already knows about your business and audiences.",
     );
     assert.equal(en.socialPlanner.generateMyWeek, "Generate this week");
     assert.equal(en.socialPlanner.openCalendar, "Open this week");
@@ -179,7 +179,7 @@ describe("V31 L3.9 tenant social planner — generate chrome", () => {
   it("localizes generate chrome and keeps request bodies language-free", () => {
     const form = read("components/socialPlanner/SocialPlannerCreateForm.tsx");
     const client = read("components/socialPlanner/socialPlannerClient.ts");
-    assert.match(form, /copy\.generateMyWeek/);
+    assert.match(form, /copy\.generateDailyWeek/);
     assert.match(form, /buildSocialCalendarCreateBody/);
     const body = buildSocialCalendarCreateBody({
       periodStart: "2026-08-23",
@@ -203,7 +203,7 @@ describe("V31 L3.9 tenant social planner — detail chrome and content boundary"
   it("localizes application chrome around verbatim generated Social Planner content", () => {
     const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
     const card = read("components/socialPlanner/SocialCalendarDayCard.tsx");
-    assert.match(detail, /copy\.yourSocialWeek/);
+    assert.match(detail, /getLocalizedSocialPlannerReadyHeadline/);
     assert.match(detail, /copy\.whyThisWeekWorks/);
     assert.match(card, /\{asset\.concept\}/);
     assert.match(card, /\{asset\.audience\}/);
@@ -476,6 +476,7 @@ describe("V31 L3.9 tenant social planner — errors and search", () => {
       periodEnd: "2026-08-29",
       status: "Ready",
       generationMode: "standard",
+      plannerKind: "daily_social",
       generationStage: "completed",
       versionNumber: 1,
       sourceCalendarId: null,

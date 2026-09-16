@@ -2,7 +2,19 @@
 
 import Link from "next/link";
 import { useId, useRef, useState } from "react";
+import { AlertTriangle, BookOpen, FileSpreadsheet } from "lucide-react";
 import { PersonaCreationBlock } from "@/components/personas/PersonaCreationBlock";
+import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import {
+  PERSONA_IMPORT_ADVANCED_ICON,
+  PERSONA_IMPORT_ADVANCED_SURFACE,
+  PERSONA_IMPORT_ERROR_CLASS,
+  PERSONA_IMPORT_FIELD_LABEL_CLASS,
+  PERSONA_IMPORT_NESTED_CARD_CLASS,
+  PERSONA_IMPORT_PRIMARY_CLASS,
+  PERSONA_IMPORT_SECONDARY_CLASS,
+  PERSONA_IMPORT_SUCCESS_CLASS,
+} from "@/lib/personas/personaImportPresentation";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { getLocalizedImportPreviewStatus } from "@/lib/tenantI18n/importPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
@@ -36,7 +48,7 @@ type PreviewPayload = {
 };
 
 const STATUS_STYLES: Record<PreviewRow["status"], string> = {
-  ready: "text-emerald-300/90",
+  ready: "text-[var(--athena-success)]",
   duplicate: "text-amber-200/80",
   warning: "text-orange-300/90",
   invalid: "text-rose-300/90",
@@ -196,34 +208,46 @@ export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
       title={copy.csvTitle}
       panelId="persona-creation-csv"
       summary={copy.csvSummary}
+      accent="cyan"
+      icon={<FileSpreadsheet className="size-5" />}
     >
       <div>
         <a
           href="/templates/athena-persona-import-template.csv"
           download="Athena_Persona_Import_Template.csv"
-          className="inline-flex rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:border-[var(--athena-orange)]/50 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
+          className={PERSONA_IMPORT_SECONDARY_CLASS}
         >
           {copy.downloadTemplate}
         </a>
       </div>
 
-      <div className="mt-6 space-y-3 text-sm leading-6 text-white/40">
-        <p className="font-medium text-white/55">{copy.guideTitle}</p>
-        <ul className="list-disc space-y-1 pl-5">
-          <li>{copy.guideOnePerRow}</li>
-          <li>{copy.guideOptionalColumns}</li>
-          <li>{copy.guideBlankInvalid}</li>
-          <li>{copy.guideRecognized}</li>
-          <li>{copy.guideUnknownIgnored}</li>
-          <li>{copy.guideDuplicates}</li>
-          <li>{copy.guideMaxRows}</li>
-        </ul>
+      <div className="mt-6">
+        <AthenaCollapsibleSection
+          title={copy.guideTitle}
+          defaultOpen={false}
+          tone="intelligence"
+          icon={<BookOpen aria-hidden="true" />}
+          iconClassName={PERSONA_IMPORT_ADVANCED_ICON}
+          className={PERSONA_IMPORT_ADVANCED_SURFACE}
+        >
+          <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-white/55">
+            <li>{copy.guideOnePerRow}</li>
+            <li>{copy.guideOptionalColumns}</li>
+            <li>{copy.guideBlankInvalid}</li>
+            <li>{copy.guideRecognized}</li>
+            <li>{copy.guideUnknownIgnored}</li>
+            <li>{copy.guideDuplicates}</li>
+            <li>{copy.guideMaxRows}</li>
+          </ul>
+        </AthenaCollapsibleSection>
       </div>
 
       {!preview ? (
         <form onSubmit={reviewCsv} className="mt-8 space-y-4">
-          <label htmlFor={csvInputId} className="block text-sm text-white/50">
-            {copy.csvFile}
+          <label htmlFor={csvInputId} className="block space-y-2">
+            <span className={PERSONA_IMPORT_FIELD_LABEL_CLASS}>
+              {copy.csvFile}
+            </span>
             <input
               id={csvInputId}
               ref={csvFileInputRef}
@@ -240,7 +264,7 @@ export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
             type="submit"
             disabled={!csvFile || previewing}
             aria-busy={previewing}
-            className="rounded-full bg-[var(--athena-orange)] px-7 py-4 text-sm font-semibold text-white disabled:opacity-40"
+            className={PERSONA_IMPORT_PRIMARY_CLASS}
           >
             {previewing ? copy.reviewing : copy.reviewCta}
           </button>
@@ -248,7 +272,7 @@ export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
       ) : (
         <div className="mt-8 space-y-6">
           <div
-            className="rounded-2xl border border-white/10 bg-black/20 p-5"
+            className={PERSONA_IMPORT_NESTED_CARD_CLASS}
             aria-live="polite"
           >
             <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-white/45">
@@ -263,7 +287,7 @@ export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
               </div>
               <div>
                 <dt className="text-xs text-white/40">{copy.readyToImport}</dt>
-                <dd className="mt-1 text-lg font-semibold text-emerald-300/90">
+                <dd className="mt-1 text-lg font-semibold text-[var(--athena-success)]">
                   {preview.importableRows}
                 </dd>
               </div>
@@ -300,11 +324,11 @@ export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
                 count: preview.ignoredColumns.length,
               })}
             </p>
-            <details className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-white/40">
-              <summary className="cursor-pointer text-white/55">
+            <details className={PERSONA_IMPORT_NESTED_CARD_CLASS}>
+              <summary className="cursor-pointer text-sm text-white/55">
                 {copy.columnDetails}
               </summary>
-              <div className="mt-3 space-y-2 leading-6">
+              <div className="mt-3 space-y-2 text-sm leading-6 text-white/40">
                 <p>
                   <span className="text-white/50">{copy.recognizedLabel} </span>
                   {preview.recognizedColumns.length > 0
@@ -321,7 +345,7 @@ export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
             </details>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-white/10">
+          <div className={`overflow-x-auto ${PERSONA_IMPORT_NESTED_CARD_CLASS}`}>
             <table className="min-w-full text-left text-sm">
               <thead className="bg-black/30 text-xs uppercase tracking-[0.12em] text-white/40">
                 <tr>
@@ -400,7 +424,7 @@ export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
               type="button"
               onClick={chooseAnotherFile}
               disabled={importing}
-              className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
+              className={PERSONA_IMPORT_SECONDARY_CLASS}
             >
               {copy.chooseAnotherFile}
             </button>
@@ -409,7 +433,7 @@ export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
               onClick={confirmImport}
               disabled={confirmDisabled}
               aria-busy={importing}
-              className="rounded-full bg-[var(--athena-orange)] px-7 py-3 text-sm font-semibold text-white disabled:opacity-40"
+              className={PERSONA_IMPORT_PRIMARY_CLASS}
             >
               {importing ? copy.importing : copy.confirmImport}
             </button>
@@ -419,29 +443,42 @@ export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
 
       {csvError && (
         <div
-          className="mt-6 rounded-2xl border border-rose-400/25 bg-rose-400/5 p-4 text-sm text-rose-100/90"
+          className={`mt-6 ${PERSONA_IMPORT_ERROR_CLASS}`}
           role="alert"
         >
-          {csvError}
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p>{csvError}</p>
         </div>
       )}
 
       {importMessage && (
         <div
-          className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70 whitespace-pre-wrap"
+          className={`mt-6 ${
+            importSucceeded
+              ? PERSONA_IMPORT_SUCCESS_CLASS
+              : PERSONA_IMPORT_ERROR_CLASS
+          }`}
           aria-live="polite"
         >
-          {importMessage}
-          {importSucceeded && (
-            <div className="mt-4">
-              <Link
-                href="/personas"
-                className="inline-flex rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]"
-              >
-                {copy.openLibrary}
-              </Link>
-            </div>
-          )}
+          {!importSucceeded ? (
+            <AlertTriangle
+              className="mt-0.5 size-4 shrink-0"
+              aria-hidden="true"
+            />
+          ) : null}
+          <div>
+            {importMessage}
+            {importSucceeded && (
+              <div className="mt-4">
+                <Link
+                  href="/personas"
+                  className={PERSONA_IMPORT_PRIMARY_CLASS}
+                >
+                  {copy.openLibrary}
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </PersonaCreationBlock>

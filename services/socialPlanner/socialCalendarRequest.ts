@@ -147,6 +147,13 @@ export function normalizeSocialCalendarCreateRequest(
   void _claimedBy;
   void _claimToken;
 
+  if ("plannerKind" in rest || "planner_kind" in rest) {
+    throw new SocialCalendarRequestError(
+      "UNSUPPORTED_FIELD",
+      "plannerKind is not accepted on this request.",
+    );
+  }
+
   const generationMode = rest.generationMode ?? rest.generation_mode;
   if (generationMode != null && generationMode !== "standard") {
     throw new SocialCalendarLineageError(

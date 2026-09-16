@@ -112,7 +112,7 @@ describe("Social Planner V30 L2 daily-asset Discuss UI", () => {
     assert.doesNotMatch(detail, /setMessages\(\[\]\)/);
     const discussHandler = detail.slice(
       detail.indexOf("function handleDiscussWithAthena"),
-      detail.indexOf("const selectedAsset"),
+      detail.indexOf("const selectedItem"),
     );
     assert.doesNotMatch(discussHandler, /setMessages|fetch\(|apply|Think Differently/);
     assert.match(discussHandler, /setDiscussAssetReference\(\{ date: reference\.date \}\)/);

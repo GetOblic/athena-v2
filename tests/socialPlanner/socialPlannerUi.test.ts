@@ -159,6 +159,18 @@ describe("Social Planner L7 form and week selection", () => {
       "periodStart",
       "userGuidance",
     ]);
+    const evergreenBody = buildSocialCalendarCreateBody({
+      periodStart: "2026-08-23",
+      periodEnd: "2026-08-29",
+      userGuidance: "Launch week",
+    });
+    assert.equal("plannerKind" in evergreenBody, false);
+    const dailyBody = buildSocialCalendarCreateBody({
+      periodStart: "2026-08-23",
+      periodEnd: "2026-08-29",
+      userGuidance: "Launch week",
+    });
+    assert.equal("plannerKind" in dailyBody, false);
     assert.equal("organizationId" in body, false);
     assert.equal("userId" in body, false);
     assert.equal("status" in body, false);
@@ -174,6 +186,33 @@ describe("Social Planner L7 form and week selection", () => {
     assert.match(client, /JSON.stringify\(body\)/);
     assert.doesNotMatch(workspace, /organizationId:/);
     assert.doesNotMatch(form, /organizationId|userId|generationMode/);
+  });
+
+  it("workspace tabs own planner selection and create paths stay fail-closed", () => {
+    const form = read("components/socialPlanner/SocialPlannerCreateForm.tsx");
+    const tabs = read("components/socialPlanner/SocialPlannerTabs.tsx");
+    const client = read("components/socialPlanner/socialPlannerClient.ts");
+    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    assert.match(tabs, /data-planner-kind="daily_social"/);
+    assert.match(tabs, /data-planner-kind="evergreen"/);
+    assert.match(tabs, /socialPlannerWorkspaceHref/);
+    assert.match(form, /data-planner-kind=\{plannerKind\}/);
+    assert.doesNotMatch(form, /setPlannerKind/);
+    assert.doesNotMatch(form, /buildSocialCalendarCreateBody\(\{[^}]*plannerKind/);
+    assert.match(client, /createDailySocialCalendarRequest/);
+    assert.match(client, /createEvergreenSocialCalendarRequest/);
+    assert.match(client, /\/api\/social-planner\/evergreen/);
+    assert.match(workspace, /createEvergreenSocialCalendarRequest\(body,/);
+    assert.match(workspace, /createDailySocialCalendarRequest\(body,/);
+    const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
+    const status = read("components/socialPlanner/SocialPlannerStatus.tsx");
+    assert.match(detail, /plannerKind=\{calendar\.plannerKind\}/);
+    assert.match(status, /plannerKind = null/);
+    assert.match(status, /getLocalizedSocialPlannerGeneratingHeadline/);
+    assert.match(
+      status,
+      /getLocalizedSocialPlannerStageLabel\(\s*dictionary,\s*generationStage,\s*plannerKind/,
+    );
   });
 
   it("does not expose planner configuration selectors", () => {
@@ -204,7 +243,7 @@ describe("Social Planner L7 polling", () => {
       "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
     );
     const client = read("components/socialPlanner/socialPlannerClient.ts");
-    assert.match(workspace, /createSocialCalendarRequest/);
+    assert.match(workspace, /createDailySocialCalendarRequest/);
     assert.match(workspace, /router.push\(`\/social-planner\/\$\{created.id\}`\)/);
     assert.doesNotMatch(workspace, /queuedDetailFromCreate/);
     assert.doesNotMatch(workspace, /selectCalendar/);
@@ -261,9 +300,10 @@ describe("Social Planner L7 ready and production display", () => {
   it("renders Why This Week Works, seven day cards, and expand/collapse", () => {
     const detail = read("components/socialPlanner/SocialCalendarDetail.tsx");
     const card = read("components/socialPlanner/SocialCalendarDayCard.tsx");
-    assert.match(detail, /copy\.yourSocialWeek/);
+    assert.match(detail, /getLocalizedSocialPlannerReadyHeadline/);
     assert.match(detail, /copy\.whyThisWeekWorks/);
-    assert.match(detail, /socialPackage.assets.slice\(0, 7\)/);
+    assert.match(detail, /socialCalendarWeekItems\(socialPackage\)\.slice\(0, 7\)/);
+    assert.match(detail, /SocialCalendarEvergreenDayCard/);
     assert.match(detail, /copy\.createAnotherWeek/);
     assert.match(detail, /data-ready-actions/);
     assert.match(detail, /data-ask-athena-slot/);
@@ -364,7 +404,7 @@ describe("Social Planner L7 history, failure, and layout", () => {
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
     const createIdx = workspace.indexOf("<SocialPlannerCreateForm");
-    const searchIdx = workspace.indexOf("copy.searchPlaceholder");
+    const searchIdx = workspace.indexOf("copy.searchPlaceholderDaily");
     const historyIdx = workspace.indexOf("<SocialPlannerHistory");
     assert.ok(createIdx >= 0 && searchIdx > createIdx && historyIdx > searchIdx);
     assert.match(workspace, /setPage\(1\)/);
@@ -415,7 +455,7 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.match(page, /locale/);
     assert.doesNotMatch(workspace, /replaceState|selectCalendar|SocialCalendarDetail/);
     assert.match(form, /SOCIAL_FIELD_CLASS/);
-    assert.match(form, /copy\.generateMyWeek/);
+    assert.match(form, /copy\.generateDailyWeek/);
     assert.match(card, /min-w-0/);
     assert.match(card, /break-words/);
     assert.match(card, /flex-wrap/);
@@ -481,6 +521,7 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.match(card, /aria-controls=\{panelId\}/);
     assert.match(status, /role="status"/);
     assert.match(status, /aria-live="polite"/);
+    assert.match(status, /plannerKind/);
     assert.match(form, /htmlFor="social-planner-week-start"/);
     assert.match(form, /htmlFor="social-planner-guidance"/);
     assert.match(form, /SOCIAL_FIELD_CLASS/);
@@ -538,7 +579,7 @@ describe("Social Planner dedicated calendar detail routing", () => {
     assert.match(page, /getSocialCalendarById\(id, organizationId\)/);
     assert.match(page, /toSocialCalendarDetailDto/);
     assert.match(page, /SocialPlannerDetailWorkspace/);
-    assert.match(page, /href="\/social-planner"/);
+    assert.match(page, /socialPlannerWorkspaceHref/);
     assert.match(page, /copy\.backToSocialPlanner/);
     assert.match(page, /TenantAppShell/);
     assert.doesNotMatch(page, /router\.back\(|listSocialCalendars/);
@@ -580,9 +621,9 @@ describe("Social Planner dedicated calendar detail routing", () => {
     );
     const page = read("app/social-planner/[id]/page.tsx");
     assert.match(detailWorkspace, /function handleCreateAnotherWeek/);
-    assert.match(detailWorkspace, /router.push\("\/social-planner"\)/);
+    assert.match(detailWorkspace, /socialPlannerWorkspaceHref/);
     assert.doesNotMatch(detailWorkspace, /selectCalendar\(null|focusComposer|\?focus=/);
-    assert.match(page, /href="\/social-planner"/);
+    assert.match(page, /socialPlannerWorkspaceHref/);
   });
 
   it("preserves Ready L1 Copy/Continue, L2 Discuss, and L3 interactions", () => {
@@ -625,7 +666,7 @@ describe("Social Planner 7-day quick navigation", () => {
     assert.ok(readyStart >= 0);
     const beforeReady = detail.slice(0, readyStart);
     const ready = detail.slice(readyStart);
-    const headerIdx = ready.indexOf("copy.yourSocialWeek");
+    const headerIdx = ready.indexOf("getLocalizedSocialPlannerReadyHeadline");
     const navIdx = ready.indexOf("data-day-navigation");
     const whyIdx = ready.indexOf("copy.whyThisWeekWorks");
 
@@ -647,13 +688,13 @@ describe("Social Planner 7-day quick navigation", () => {
       ready.indexOf("SocialCalendarDayCard"),
     );
 
-    assert.match(nav, /assets\.map\(\(asset\) => \{/);
+    assert.match(nav, /weekItems\.map\(\(item\) => \{/);
     assert.match(nav, /formatSocialPlannerDayHeader\(/);
     assert.match(nav, /type="button"/);
     assert.match(nav, /formatSocialPlannerJumpToDayAria/);
     assert.match(
       nav,
-      /getElementById\(`social-planner-day-\$\{asset\.date\}`\)/,
+      /getElementById\(`social-planner-day-\$\{item\.date\}`\)/,
     );
     assert.match(
       nav,

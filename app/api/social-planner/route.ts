@@ -7,13 +7,14 @@ import {
   toCreateSocialCalendarResponse,
   toSocialCalendarListItemDto,
 } from "@/services/socialPlanner/socialCalendarDto";
-import { createSocialCalendarWithJob } from "@/services/socialPlanner/socialCalendarOrchestration";
+import { createDailySocialCalendarWithJob } from "@/services/socialPlanner/socialCalendarOrchestration";
 import {
   SocialCalendarRequestError,
   normalizeSocialCalendarCreateRequest,
 } from "@/services/socialPlanner/socialCalendarRequest";
 import { listSocialCalendars } from "@/services/socialPlanner/socialCalendarService";
 import { resolveSocialPlannerTargetPersona } from "@/services/socialPlanner/socialPlannerTargetPersona";
+import { SocialCalendarPlannerKindError } from "@/services/socialPlanner/socialCalendarPlannerKind";
 import {
   SocialCalendarGuidanceError,
   SocialCalendarLineageError,
@@ -38,6 +39,8 @@ export async function GET(request: Request) {
       search: url.searchParams.get("search"),
       page: url.searchParams.get("page"),
       limit: url.searchParams.get("limit"),
+      plannerKind:
+        url.searchParams.get("plannerKind") ?? url.searchParams.get("planner"),
     });
     return json({
       ok: true,
@@ -54,6 +57,16 @@ export async function GET(request: Request) {
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+    if (error instanceof SocialCalendarPlannerKindError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        400,
       );
     }
     console.error("[ATHENA_SOCIAL_PLANNER_API] list_failed", error);
@@ -97,7 +110,7 @@ export async function POST(request: Request) {
           organizationId,
         })
       : null;
-    const { calendar } = await createSocialCalendarWithJob({
+    const { calendar } = await createDailySocialCalendarWithJob({
       organizationId,
       userId,
       periodStart: createRequest.periodStart,
@@ -129,6 +142,7 @@ export async function POST(request: Request) {
       error instanceof SocialCalendarPeriodError ||
       error instanceof SocialCalendarGuidanceError ||
       error instanceof SocialCalendarLineageError ||
+      error instanceof SocialCalendarPlannerKindError ||
       error instanceof SocialCalendarRequestError
     ) {
       return json(

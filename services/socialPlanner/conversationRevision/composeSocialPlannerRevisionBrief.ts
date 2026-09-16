@@ -4,7 +4,10 @@
  */
 
 import { generateReview } from "@/services/aiService";
-import type { SocialCalendarPackageV1 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
+import {
+  isSocialCalendarEvergreenPackage,
+  type SocialCalendarGeneratedPackage,
+} from "@/services/socialPlanner/generation/socialCalendarPackageUnion";
 import { parseSocialPlannerStructuredOutput } from "@/services/socialPlanner/generation/socialPlannerGenerationService";
 import type { SocialPlannerConversationMessage } from "@/services/socialPlanner/conversation/socialPlannerConversationTypes";
 import { boundSocialPlannerConversationHistory } from "@/services/socialPlanner/conversation/socialPlannerConversationTypes";
@@ -37,7 +40,7 @@ export type ComposeSocialPlannerRevisionBriefDeps = {
 
 export async function composeSocialPlannerRevisionBrief(input: {
   sourceCalendarId: string;
-  sourcePackage: SocialCalendarPackageV1;
+  sourcePackage: SocialCalendarGeneratedPackage;
   messages: SocialPlannerConversationMessage[];
   deps?: ComposeSocialPlannerRevisionBriefDeps;
 }): Promise<SocialPlannerConversationRevisionContextV1> {
@@ -59,18 +62,31 @@ export async function composeSocialPlannerRevisionBrief(input: {
   const history = boundSocialPlannerConversationHistory(input.messages);
   const generate = input.deps?.generateReview ?? generateReview;
   const dates = input.sourcePackage.period.dates;
-  const compactPackage = {
-    period: input.sourcePackage.period,
-    strategySummary: input.sourcePackage.strategySummary,
-    assets: input.sourcePackage.assets.map((asset) => ({
-      date: asset.date,
-      assetType: asset.assetType,
-      primaryObjective: asset.primaryObjective,
-      topic: asset.topic,
-      angle: asset.angle,
-      hook: asset.hook,
-    })),
-  };
+  const compactPackage = isSocialCalendarEvergreenPackage(input.sourcePackage)
+    ? {
+        plannerKind: "evergreen",
+        period: input.sourcePackage.period,
+        strategySummary: input.sourcePackage.strategySummary,
+        days: input.sourcePackage.days.map((day) => ({
+          date: day.date,
+          evergreenFormat: day.evergreenFormat,
+          title: day.title,
+          topic: day.topic,
+          angle: day.angle,
+        })),
+      }
+    : {
+        period: input.sourcePackage.period,
+        strategySummary: input.sourcePackage.strategySummary,
+        assets: input.sourcePackage.assets.map((asset) => ({
+          date: asset.date,
+          assetType: asset.assetType,
+          primaryObjective: asset.primaryObjective,
+          topic: asset.topic,
+          angle: asset.angle,
+          hook: asset.hook,
+        })),
+      };
 
   const prompt = `
 OBJECTIVE:

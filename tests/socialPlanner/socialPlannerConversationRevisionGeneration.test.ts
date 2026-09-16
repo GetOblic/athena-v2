@@ -308,8 +308,8 @@ describe("Social Planner L9 conversation revision generation", () => {
       SOCIAL_PLANNER_CONVERSATION_REVISION_REPAIR_PROMPT_VERSION,
       "social_planner_conversation_revision_repair_v2",
     );
-    assert.equal(SOCIAL_PLANNER_ASSET_PROMPT_VERSION, "social_planner_assets_v2");
-    assert.equal(SOCIAL_PLANNER_REPAIR_PROMPT_VERSION, "social_planner_repair_v2");
+    assert.equal(SOCIAL_PLANNER_ASSET_PROMPT_VERSION, "social_planner_assets_v3");
+    assert.equal(SOCIAL_PLANNER_REPAIR_PROMPT_VERSION, "social_planner_repair_v3");
     assert.equal(
       SOCIAL_PLANNER_THINK_DIFFERENTLY_PROMPT_VERSION,
       "social_planner_think_differently_v1",

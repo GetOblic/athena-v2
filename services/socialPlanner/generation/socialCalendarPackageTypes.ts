@@ -9,6 +9,7 @@ import type {
   SocialCalendarOpportunityScope,
 } from "@/services/socialPlanner/calendar/socialCalendarContextTypes";
 import type { SocialPlannerHemisphere } from "@/services/socialPlanner/geography/socialPlannerGeographyTypes";
+import { DEPLOYMENT_ASSET_TYPE_BY_LABEL } from "@/services/assetInteractions/assetInteractionKeys";
 import type { SocialCalendarGenerationMode } from "@/services/socialPlanner/socialCalendarTypes";
 import { TREND_SOCIAL_PROMPT_CONFIG_KEY } from "@/services/superAdmin/strategicBlueprintInstructionConstants";
 
@@ -16,10 +17,10 @@ export const SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION =
   "social_calendar_package_v1" as const;
 
 export const SOCIAL_PLANNER_ASSET_PROMPT_VERSION =
-  "social_planner_assets_v2" as const;
+  "social_planner_assets_v3" as const;
 
 export const SOCIAL_PLANNER_REPAIR_PROMPT_VERSION =
-  "social_planner_repair_v2" as const;
+  "social_planner_repair_v3" as const;
 
 export const SOCIAL_PLANNER_ASSET_TYPES = [
   "image",
@@ -130,6 +131,27 @@ export const SOCIAL_PLANNER_PLATFORMS = [
 ] as const;
 
 export type SocialPlannerPlatform = (typeof SOCIAL_PLANNER_PLATFORMS)[number];
+
+/**
+ * Daily community destinations reuse Athena Deployment Asset keys.
+ * They are publishable formats, not ordinary social networks — kept
+ * distinct from SOCIAL_PLANNER_PLATFORMS and composed into Daily coverage.
+ */
+export const SOCIAL_PLANNER_DAILY_COMMUNITY_CHANNELS = [
+  DEPLOYMENT_ASSET_TYPE_BY_LABEL.SKOOL_POST,
+  DEPLOYMENT_ASSET_TYPE_BY_LABEL.SUBSTACK_NOTE,
+] as const;
+
+export type SocialPlannerDailyCommunityChannel =
+  (typeof SOCIAL_PLANNER_DAILY_COMMUNITY_CHANNELS)[number];
+
+export const SOCIAL_PLANNER_DAILY_CHANNELS = [
+  ...SOCIAL_PLANNER_PLATFORMS,
+  ...SOCIAL_PLANNER_DAILY_COMMUNITY_CHANNELS,
+] as const;
+
+export type SocialPlannerDailyChannel =
+  (typeof SOCIAL_PLANNER_DAILY_CHANNELS)[number];
 
 export const SOCIAL_PLANNER_SOURCE_SIGNAL_TYPES = [
   "persona",
@@ -371,7 +393,7 @@ export type SocialCalendarAssetV1 = {
   productionSpec: SocialPlannerProductionSpec;
   socialCopy: string;
   cta: string | null;
-  recommendedPlatforms: SocialPlannerPlatform[];
+  recommendedPlatforms: SocialPlannerDailyChannel[];
   sourceSignals: SocialPlannerSourceSignal[];
   creativeFingerprint: SocialPlannerAssetFingerprint;
 };
@@ -466,7 +488,7 @@ export const SOCIAL_PLANNER_PACKAGE_LIMITS = {
   pollOptionsMin: 2,
   pollOptionsMax: 4,
   platformsMin: 1,
-  platformsMax: 3,
+  platformsMax: SOCIAL_PLANNER_DAILY_CHANNELS.length,
   sourceSignalsMax: 6,
   personaIdsPerAssetMax: 2,
   anchorsPerAssetMax: 2,

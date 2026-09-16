@@ -109,11 +109,60 @@ function extractBalancedJsonObject(rawText: string): string | null {
   return null;
 }
 
+function escapeControlCharactersInJsonStrings(rawText: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (const char of rawText) {
+    if (!inString) {
+      if (char === '"') inString = true;
+      result += char;
+      continue;
+    }
+    if (escaped) {
+      result += char;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      result += char;
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      result += char;
+      inString = false;
+      continue;
+    }
+    if (char === "\n") {
+      result += "\\n";
+      continue;
+    }
+    if (char === "\r") {
+      result += "\\r";
+      continue;
+    }
+    if (char === "\t") {
+      result += "\\t";
+      continue;
+    }
+    const code = char.charCodeAt(0);
+    if (code < 0x20) {
+      result += `\\u${code.toString(16).padStart(4, "0")}`;
+      continue;
+    }
+    result += char;
+  }
+  return result;
+}
+
 function repairJsonText(rawText: string): string {
-  return rawText
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/,\s*([}\]])/g, "$1");
+  return escapeControlCharactersInJsonStrings(
+    rawText
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/,\s*([}\]])/g, "$1"),
+  );
 }
 
 export function parseSocialPlannerStructuredOutput(

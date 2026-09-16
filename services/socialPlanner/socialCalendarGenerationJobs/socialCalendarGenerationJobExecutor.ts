@@ -14,6 +14,28 @@ import { SocialPlannerIntelligenceError } from "@/services/socialPlanner/intelli
 import { generateHistoricallyDiverseSocialCalendar } from "@/services/socialPlanner/diversity/generateHistoricallyDiverseSocialCalendar";
 import { generateThinkDifferentlySocialCalendar } from "@/services/socialPlanner/thinkDifferently/generateThinkDifferentlySocialCalendar";
 import { generateConversationRevisionSocialCalendar } from "@/services/socialPlanner/conversationRevision/generateConversationRevisionSocialCalendar";
+import { generateEvergreenSocialCalendarPackage } from "@/services/socialPlanner/generation/generateEvergreenSocialCalendarPackage";
+import {
+  isSocialCalendarDailyPackage,
+  isSocialCalendarEvergreenPackage,
+  socialCalendarPackageMatchesPlannerKind,
+} from "@/services/socialPlanner/generation/socialCalendarPackageUnion";
+import {
+  SOCIAL_PLANNER_DIVERSITY_ALGORITHM_VERSION,
+  SOCIAL_PLANNER_SOCIAL_MEMORY_SCHEMA_VERSION,
+  type SocialPlannerDiverseGenerationProvenance,
+} from "@/services/socialPlanner/diversity/socialPlannerSocialMemoryTypes";
+import type { SocialPlannerThinkDifferentlyProvenance } from "@/services/socialPlanner/thinkDifferently/socialPlannerThinkDifferentlyTypes";
+import type { SocialPlannerConversationRevisionProvenance } from "@/services/socialPlanner/conversationRevision/socialPlannerConversationRevisionTypes";
+import {
+  SOCIAL_PLANNER_SOURCE_DIVERGENCE_ALGORITHM_VERSION,
+  SOCIAL_PLANNER_THINK_DIFFERENTLY_PROMPT_VERSION,
+} from "@/services/socialPlanner/thinkDifferently/socialPlannerThinkDifferentlyTypes";
+import {
+  SOCIAL_PLANNER_CONVERSATION_REVISION_PROMPT_VERSION,
+  SOCIAL_PLANNER_REVISION_SATISFACTION_ALGORITHM_VERSION,
+} from "@/services/socialPlanner/conversationRevision/socialPlannerConversationRevisionTypes";
+import { SOCIAL_PLANNER_CONVERSATION_REVISION_BRIEF_SCHEMA_VERSION } from "@/services/socialPlanner/conversationRevision/socialPlannerConversationRevisionTypes";
 import { tryParsePersistedRevisionContext } from "@/services/socialPlanner/conversationRevision/validateSocialPlannerRevisionBrief";
 import type { SocialPlannerHistoryLoader } from "@/services/socialPlanner/diversity/socialPlannerSocialMemoryTypes";
 import {
@@ -26,6 +48,12 @@ import {
   buildFrozenThinkDifferentlyProvenance,
   toProvenanceJson,
 } from "@/services/socialPlanner/socialCalendarProvenance";
+import {
+  assertSocialCalendarPlannerKindImplemented,
+  mergeSocialCalendarPlannerKindProvenance,
+  readSocialCalendarPlannerKind,
+  SocialCalendarPlannerKindError,
+} from "@/services/socialPlanner/socialCalendarPlannerKind";
 import {
   authorizedSocialPlannerTargetPersonaId,
   mergeSocialCalendarTargetPersonaProvenance,
@@ -96,10 +124,30 @@ export class SocialCalendarExecutorValidationError extends Error {
   }
 }
 
+function envelopeEvergreenDiverseProvenance(
+  metadata: Record<string, unknown>,
+  extras: Record<string, unknown> = {},
+): SocialPlannerDiverseGenerationProvenance {
+  return {
+    ...metadata,
+    socialMemorySchemaVersion: SOCIAL_PLANNER_SOCIAL_MEMORY_SCHEMA_VERSION,
+    diversityAlgorithmVersion: SOCIAL_PLANNER_DIVERSITY_ALGORITHM_VERSION,
+    historicalDiversityCheckVersion: SOCIAL_PLANNER_DIVERSITY_ALGORITHM_VERSION,
+    historicalCalendarsConsidered: 0,
+    historicalAssetsConsidered: 0,
+    highestHistoricalSimilarity: 0,
+    weekHistoricalSimilarity: 0,
+    historicalDiversityRepairUsed: false,
+    diversityRepairPromptVersion: null,
+    ...extras,
+  } as SocialPlannerDiverseGenerationProvenance;
+}
+
 export type SocialCalendarExecutorDeps = {
   getCalendar?: typeof getSocialCalendarById;
   composeIntelligence?: typeof composeSocialPlannerIntelligence;
   generate?: typeof generateHistoricallyDiverseSocialCalendar;
+  generateEvergreen?: typeof generateEvergreenSocialCalendarPackage;
   generateThinkDifferently?: typeof generateThinkDifferentlySocialCalendar;
   generateConversationRevision?: typeof generateConversationRevisionSocialCalendar;
   historyLoader?: SocialPlannerHistoryLoader;
@@ -174,6 +222,15 @@ export function classifySocialCalendarExecutorError(error: unknown): {
       failures: [],
     };
   }
+  if (error instanceof SocialCalendarPlannerKindError) {
+    return {
+      code: error.code,
+      message: error.message.slice(0, 1000),
+      retryable: false,
+      stage: "failed",
+      failures: [],
+    };
+  }
   if (
     error instanceof SocialCalendarContextError ||
     error instanceof SocialCalendarPeriodError ||
@@ -242,6 +299,8 @@ export async function executeClaimedSocialCalendarGenerationJob(
   const composeIntelligence =
     deps.composeIntelligence ?? composeSocialPlannerIntelligence;
   const generate = deps.generate ?? generateHistoricallyDiverseSocialCalendar;
+  const generateEvergreen =
+    deps.generateEvergreen ?? generateEvergreenSocialCalendarPackage;
   const historyLoader = deps.historyLoader ?? socialPlannerHistoryLoader;
   const loadGeographyEvidence =
     deps.loadGeographyEvidence ?? loadTrustedSocialPlannerGeographyEvidence;
@@ -344,6 +403,19 @@ export async function executeClaimedSocialCalendarGenerationJob(
       );
     }
 
+    const plannerKind = readSocialCalendarPlannerKind(calendar.provenance_json);
+    try {
+      assertSocialCalendarPlannerKindImplemented(plannerKind);
+    } catch (error) {
+      if (error instanceof SocialCalendarPlannerKindError) {
+        throw new SocialCalendarExecutorValidationError(
+          "PLANNER_KIND_NOT_IMPLEMENTED",
+          error.message,
+        );
+      }
+      throw error;
+    }
+
     normalizeSocialCalendarPeriod(calendar.period_start, calendar.period_end);
     normalizeSocialCalendarUserGuidance(calendar.user_guidance);
 
@@ -420,14 +492,58 @@ export async function executeClaimedSocialCalendarGenerationJob(
         return "claim_lost";
       }
 
-      const result = await generateThinkDifferently({
-        context,
-        userGuidance: calendar.user_guidance,
-        sourceCalendar: source,
-        sourcePackage,
-        derivativeVersionNumber: calendar.version_number,
-        deps: { historyLoader },
-      });
+      const result =
+        plannerKind === "evergreen"
+          ? await (async () => {
+              if (!isSocialCalendarEvergreenPackage(sourcePackage)) {
+                throw new SocialCalendarExecutorValidationError(
+                  "THINK_DIFFERENTLY_SOURCE_PACKAGE_INVALID",
+                  "Evergreen Think Differently requires an Evergreen source package.",
+                );
+              }
+              const generated = await generateEvergreen({
+                context,
+                userGuidance: calendar.user_guidance,
+                generationMode: "think_differently",
+                sourcePackage,
+              });
+              return {
+                package: generated.package,
+                generationProvenance: envelopeEvergreenDiverseProvenance(
+                  generated.generationProvenance as unknown as Record<string, unknown>,
+                  {
+                    generationMode: "think_differently",
+                    thinkDifferentlyPromptVersion:
+                      SOCIAL_PLANNER_THINK_DIFFERENTLY_PROMPT_VERSION,
+                    thinkDifferentlyRepairPromptVersion: null,
+                    sourceDivergenceAlgorithmVersion:
+                      SOCIAL_PLANNER_SOURCE_DIVERGENCE_ALGORITHM_VERSION,
+                    sourceCalendarId: source.id,
+                    rootCalendarId: source.root_calendar_id ?? source.id,
+                    sourceVersionNumber: source.version_number,
+                    newVersionNumber: calendar.version_number,
+                    sourceWeekSimilarity: 0,
+                    highestSourceAssetSimilarity: 0,
+                    sourceDivergenceRepairUsed: false,
+                  },
+                ) as SocialPlannerThinkDifferentlyProvenance,
+              };
+            })()
+          : await generateThinkDifferently({
+              context,
+              userGuidance: calendar.user_guidance,
+              sourceCalendar: source,
+              sourcePackage: isSocialCalendarDailyPackage(sourcePackage)
+                ? sourcePackage
+                : (() => {
+                    throw new SocialCalendarExecutorValidationError(
+                      "THINK_DIFFERENTLY_SOURCE_PACKAGE_INVALID",
+                      "Daily Think Differently requires a Daily source package.",
+                    );
+                  })(),
+              derivativeVersionNumber: calendar.version_number,
+              deps: { historyLoader },
+            });
 
       currentStage = "diversity";
       if (!(await renewLease(currentStage))) {
@@ -466,6 +582,7 @@ export async function executeClaimedSocialCalendarGenerationJob(
           calendarContext,
           generationProvenance: result.generationProvenance,
           targetPersonaId: readSocialPlannerTargetPersonaId(calendar.provenance_json),
+          plannerKind,
         }),
       );
     } else if (calendar.generation_mode === "conversation_revision") {
@@ -540,15 +657,67 @@ export async function executeClaimedSocialCalendarGenerationJob(
         return "claim_lost";
       }
 
-      const result = await generateConversationRevision({
-        context,
-        userGuidance: calendar.user_guidance,
-        sourceCalendar: source,
-        sourcePackage,
-        revisionContext,
-        derivativeVersionNumber: calendar.version_number,
-        deps: { historyLoader },
-      });
+      const result =
+        plannerKind === "evergreen"
+          ? await (async () => {
+              if (!isSocialCalendarEvergreenPackage(sourcePackage)) {
+                throw new SocialCalendarExecutorValidationError(
+                  "CONVERSATION_REVISION_SOURCE_PACKAGE_INVALID",
+                  "Evergreen conversation revision requires an Evergreen source package.",
+                );
+              }
+              const generated = await generateEvergreen({
+                context,
+                userGuidance: calendar.user_guidance,
+                generationMode: "conversation_revision",
+                revisionContext,
+                sourcePackage,
+              });
+              return {
+                package: generated.package,
+                generationProvenance: envelopeEvergreenDiverseProvenance(
+                  generated.generationProvenance as unknown as Record<string, unknown>,
+                  {
+                    generationMode: "conversation_revision",
+                    conversationRevisionPromptVersion:
+                      SOCIAL_PLANNER_CONVERSATION_REVISION_PROMPT_VERSION,
+                    conversationRevisionRepairPromptVersion: null,
+                    revisionSatisfactionAlgorithmVersion:
+                      SOCIAL_PLANNER_REVISION_SATISFACTION_ALGORITHM_VERSION,
+                    revisionBriefSchemaVersion:
+                      SOCIAL_PLANNER_CONVERSATION_REVISION_BRIEF_SCHEMA_VERSION,
+                    sourceCalendarId: source.id,
+                    rootCalendarId: source.root_calendar_id ?? source.id,
+                    sourceVersionNumber: source.version_number,
+                    newVersionNumber: calendar.version_number,
+                    conversationMessageCount:
+                      revisionContext.brief.conversationMessageCount,
+                    latestUserMessageId: revisionContext.brief.latestUserMessageId,
+                    latestUserMessageAt: revisionContext.brief.latestUserMessageAt,
+                    revisionSatisfactionAccepted: true,
+                    revisionRepairUsed: false,
+                    preservedDateCount: revisionContext.brief.preserve.length,
+                    revisedDateCount: revisionContext.brief.dayChanges.length,
+                  },
+                ) as SocialPlannerConversationRevisionProvenance,
+              };
+            })()
+          : await generateConversationRevision({
+              context,
+              userGuidance: calendar.user_guidance,
+              sourceCalendar: source,
+              sourcePackage: isSocialCalendarDailyPackage(sourcePackage)
+                ? sourcePackage
+                : (() => {
+                    throw new SocialCalendarExecutorValidationError(
+                      "CONVERSATION_REVISION_SOURCE_PACKAGE_INVALID",
+                      "Daily conversation revision requires a Daily source package.",
+                    );
+                  })(),
+              revisionContext,
+              derivativeVersionNumber: calendar.version_number,
+              deps: { historyLoader },
+            });
 
       currentStage = "diversity";
       if (!(await renewLease(currentStage))) {
@@ -587,6 +756,7 @@ export async function executeClaimedSocialCalendarGenerationJob(
           calendarContext,
           generationProvenance: result.generationProvenance,
           targetPersonaId: readSocialPlannerTargetPersonaId(calendar.provenance_json),
+          plannerKind,
         }),
       );
     } else {
@@ -606,12 +776,27 @@ export async function executeClaimedSocialCalendarGenerationJob(
         return "claim_lost";
       }
 
-      const result = await generate({
-        context,
-        userGuidance: calendar.user_guidance,
-        generationMode: "standard",
-        deps: { historyLoader },
-      });
+      const result =
+        plannerKind === "evergreen"
+          ? await (async () => {
+              const generated = await generateEvergreen({
+                context,
+                userGuidance: calendar.user_guidance,
+                generationMode: "standard",
+              });
+              return {
+                package: generated.package,
+                generationProvenance: envelopeEvergreenDiverseProvenance(
+                  generated.generationProvenance as unknown as Record<string, unknown>,
+                ),
+              };
+            })()
+          : await generate({
+              context,
+              userGuidance: calendar.user_guidance,
+              generationMode: "standard",
+              deps: { historyLoader },
+            });
 
       currentStage = "diversity";
       if (!(await renewLease(currentStage))) {
@@ -645,6 +830,7 @@ export async function executeClaimedSocialCalendarGenerationJob(
         calendarContext,
         generationProvenance: result.generationProvenance,
         targetPersonaId,
+        plannerKind,
       });
       packageJson = result.package as unknown as Record<string, unknown>;
       frozenCalendarContextJson = calendarContext as unknown as Record<
@@ -654,10 +840,27 @@ export async function executeClaimedSocialCalendarGenerationJob(
       provenanceJson = toProvenanceJson(provenance);
     }
 
-    provenanceJson = mergeSocialCalendarTargetPersonaProvenance(
-      provenanceJson,
+    provenanceJson = mergeSocialCalendarPlannerKindProvenance(
+      mergeSocialCalendarTargetPersonaProvenance(
+        provenanceJson,
+        calendar.provenance_json,
+      ),
       calendar.provenance_json,
     );
+
+    if (
+      !socialCalendarPackageMatchesPlannerKind(
+        packageJson,
+        readSocialCalendarPlannerKind(provenanceJson),
+      )
+    ) {
+      throw new SocialCalendarExecutorValidationError(
+        "PACKAGE_PLANNER_KIND_MISMATCH",
+        plannerKind === "evergreen"
+          ? "Evergreen generation produced a non-Evergreen package."
+          : "Daily generation produced a non-Daily package.",
+      );
+    }
 
     const completed = await complete({
       jobId: job.id,

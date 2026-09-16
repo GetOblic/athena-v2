@@ -67,7 +67,8 @@ describe("Social Planner L6 API contracts", () => {
     const route = read("app/api/social-planner/route.ts");
     assert.match(route, /requireCurrentOrganizationContext/);
     assert.match(route, /normalizeSocialCalendarCreateRequest/);
-    assert.match(route, /createSocialCalendarWithJob/);
+    assert.match(route, /createDailySocialCalendarWithJob/);
+    assert.doesNotMatch(route, /createRequest\.plannerKind/);
     assert.match(route, /listSocialCalendars\(organizationId,/);
     assert.match(route, /202/);
     const request = read("services/socialPlanner/socialCalendarRequest.ts");
@@ -111,6 +112,7 @@ describe("Social Planner L6 API contracts", () => {
     assert.equal(derived.periodEnd, TEST_PERIOD_END);
     assert.equal(derived.userGuidance, null);
     assert.equal(derived.generationMode, "standard");
+    assert.equal("plannerKind" in derived, false);
     assert.equal(derived.personaId, null);
     assert.equal(deriveSocialCalendarPeriodEnd(TEST_PERIOD_START), TEST_PERIOD_END);
   });
@@ -182,9 +184,11 @@ describe("Social Planner L6 API contracts", () => {
       "id",
       "periodEnd",
       "periodStart",
+      "plannerKind",
       "status",
       "versionNumber",
     ]);
+    assert.equal(created.plannerKind, "daily_social");
     assert.equal("package" in created, false);
     assert.equal("provenanceJson" in created, false);
     assert.equal("claimToken" in created, false);

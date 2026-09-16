@@ -50,7 +50,7 @@ describe("Social Planner L8 Think Differently UI", () => {
     );
     const malformedBlock = detail.slice(
       detail.indexOf("packageUnavailable"),
-      detail.indexOf("copy.yourSocialWeek"),
+      detail.indexOf("function SocialCalendarReadyDetail"),
     );
     assert.doesNotMatch(processingBlock, /copy\.thinkDifferently/);
     assert.doesNotMatch(failedBlock, /copy\.thinkDifferently/);
@@ -121,8 +121,12 @@ describe("Social Planner L8 Think Differently UI", () => {
     assert.match(detail, /onClick=\{onThinkDifferently\}/);
     assert.match(detail, /disabled=\{thinkDifferentlyPending\}/);
     const createForm = read("components/socialPlanner/SocialPlannerCreateForm.tsx");
-    assert.match(createForm, /copy\.generateMyWeek/);
-    assert.match(createForm, /bg-\[var\(--athena-orange\)\]/);
+    assert.match(createForm, /copy\.generateDailyWeek/);
+    assert.match(createForm, /SOCIAL_PRIMARY_CLASS/);
+    assert.match(
+      read("lib/socialPlanner/socialPlannerPagePresentation.ts"),
+      /SOCIAL_PRIMARY_CLASS[\s\S]*bg-\[var\(--athena-orange\)\]/,
+    );
     assert.doesNotMatch(createForm, /Think Differently|athena-success/);
   });
 
@@ -168,9 +172,10 @@ describe("Social Planner L8 Think Differently UI", () => {
       /generationMode === "think_differently"[\s\S]*return SOCIAL_MODE_THINK_CLASS/,
     );
     assert.match(helper, /return SOCIAL_MODE_BADGE_CLASS/);
+    assert.match(history, /socialPlannerHistoryStatusClass/);
     assert.match(
-      history,
-      /border-emerald-400\/25 bg-emerald-400\/10 text-emerald-200/,
+      presentation,
+      /status === "Ready"[\s\S]*border-emerald-400\/25 bg-emerald-400\/10[\s\S]*text-emerald-200/,
     );
     assert.match(history, /generationMode !== "standard"/);
     assert.doesNotMatch(history, /confirm\(|Regenerate/);
@@ -181,7 +186,7 @@ describe("Social Planner L8 Think Differently UI", () => {
       "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
     );
     assert.match(detailWorkspace, /function handleCreateAnotherWeek/);
-    assert.match(detailWorkspace, /router.push\("\/social-planner"\)/);
+    assert.match(detailWorkspace, /socialPlannerWorkspaceHref/);
     assert.doesNotMatch(detailWorkspace, /selectCalendar\(null|focusComposer/);
     assert.match(detailWorkspace, /async function handleThinkDifferently/);
   });

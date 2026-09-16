@@ -14,18 +14,28 @@ import { TractionPageHeader } from "../../components/traction/TractionPageHeader
 import { TractionSiblingNav } from "../../components/traction/TractionSiblingNav";
 import { ATHENA_INTELLIGENCE_ROW_OUTLINE_CLASS } from "../../components/ui/athenaIntelligenceRow";
 import {
+  SOCIAL_COMPOSER_ICON,
   SOCIAL_COMPOSER_SURFACE,
   SOCIAL_FIELD_CLASS,
+  SOCIAL_KIND_DAILY_CARD,
+  SOCIAL_KIND_DAILY_CARD_IDLE,
+  SOCIAL_KIND_EVERGREEN_CARD,
+  SOCIAL_KIND_EVERGREEN_CARD_IDLE,
   SOCIAL_OPEN_ACTION_CLASS,
   SOCIAL_PAGE_HEADER_ICON,
   SOCIAL_PRIMARY_CLASS,
   SOCIAL_SEARCH_FIELD_CLASS,
   SOCIAL_SEARCH_SURFACE,
+  SOCIAL_TAB_LIST,
   SOCIAL_TEXTAREA_CLASS,
   SOCIAL_WEEK_CARD_CLASS,
   SOCIAL_WEEK_ICON_CLASS,
   socialPlannerHistoryStatusClass,
 } from "../../lib/socialPlanner/socialPlannerPagePresentation";
+import {
+  SOCIAL_TARGET_CLEAR_CLASS,
+  SOCIAL_TARGET_SURFACE_CLASS,
+} from "../../lib/socialPlanner/socialPlannerTargetPresentation";
 import { de } from "../../lib/tenantI18n/messages/de";
 import { en } from "../../lib/tenantI18n/messages/en";
 import { es } from "../../lib/tenantI18n/messages/es";
@@ -74,6 +84,7 @@ function listItem(
     periodEnd: "2026-08-30",
     status: "Ready",
     generationMode: "standard",
+    plannerKind: "daily_social",
     generationStage: "finalizing",
     versionNumber: 1,
     sourceCalendarId: null,
@@ -156,21 +167,38 @@ describe("/social-planner library presentation", () => {
     assert.match(form, /id="social-planner-composer"/);
     assert.match(form, /SOCIAL_COMPOSER_SURFACE/);
     assert.match(form, /<Sparkles /);
-    assert.match(form, /copy\.selectWeek/);
+    assert.match(form, /copy\.selectWeekDaily/);
     assert.match(form, /type="date"/);
     assert.match(form, /required/);
     assert.match(form, /copy\.weekStarts/);
     assert.match(form, /copy\.optionalDirection/);
     assert.match(form, /SOCIAL_CALENDAR_USER_GUIDANCE_MAX_CHARS/);
-    assert.match(form, /copy\.generateMyWeek/);
+    assert.match(form, /copy\.generateDailyWeek/);
+    assert.match(form, /copy\.generateEvergreenWeek/);
     assert.match(form, /copy\.starting/);
     assert.match(form, /SOCIAL_PRIMARY_CLASS/);
+    const tabs = read("components/socialPlanner/SocialPlannerTabs.tsx");
+    assert.match(workspace, /<SocialPlannerTabs/);
+    assert.match(tabs, /data-planner-kind="daily_social"/);
+    assert.match(tabs, /data-planner-kind="evergreen"/);
+    assert.doesNotMatch(form, /data-planner-kind-availability="upcoming"/);
+    assert.match(tabs, /copy\.plannerKinds\.dailySocial/);
+    assert.match(tabs, /copy\.plannerKinds\.evergreen/);
+    assert.match(form, /plannerKind/);
+    assert.doesNotMatch(form, /plannerKindEvergreenSoon/);
+    assert.match(tabs, /<Share2 /);
+    assert.match(tabs, /<Newspaper /);
+    assert.match(tabs, /SOCIAL_KIND_DAILY_CARD/);
+    assert.match(tabs, /SOCIAL_KIND_EVERGREEN_CARD/);
     assert.match(form, /submitting/);
     assert.doesNotMatch(form, /AthenaCollapsibleSection|defaultOpen/);
     assert.doesNotMatch(form, /step=|multi-step|wizard/i);
     assert.doesNotMatch(form, /score|readiness|engagement/i);
-    assert.match(SOCIAL_COMPOSER_SURFACE, /255,102,0/);
-    assert.match(SOCIAL_COMPOSER_SURFACE, /56,189,248/);
+    assert.match(SOCIAL_COMPOSER_SURFACE, /athena-card/);
+    assert.match(SOCIAL_COMPOSER_SURFACE, /border-white\/\[0\.12\]/);
+    assert.doesNotMatch(SOCIAL_COMPOSER_SURFACE, /255,102,0/);
+    assert.doesNotMatch(SOCIAL_COMPOSER_SURFACE, /56,189,248/);
+    assert.doesNotMatch(SOCIAL_COMPOSER_SURFACE, /167,139,250/);
     assert.match(SOCIAL_FIELD_CLASS, /bg-black\/25/);
     assert.match(SOCIAL_TEXTAREA_CLASS, /min-h-\[140px\]/);
     assert.match(SOCIAL_PRIMARY_CLASS, /athena-orange/);
@@ -180,7 +208,7 @@ describe("/social-planner library presentation", () => {
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
     assert.match(workspace, /SOCIAL_SEARCH_SURFACE/);
     assert.match(workspace, /SOCIAL_SEARCH_FIELD_CLASS/);
-    assert.match(workspace, /copy\.searchPlaceholder/);
+    assert.match(workspace, /copy\.searchPlaceholderDaily/);
     assert.match(workspace, /<Search/);
     assert.match(workspace, /setPage\(1\)/);
     assert.match(workspace, /void loadHistory\(value, 1\)/);
@@ -224,6 +252,8 @@ describe("/social-planner library presentation", () => {
     assert.match(history, /socialPlannerHistoryStatusClass/);
     assert.match(history, /generationMode !== "standard"/);
     assert.match(history, /versionNumber > 1/);
+    assert.match(history, /socialPlannerPlannerKindBadgeClass/);
+    assert.match(history, /getLocalizedSocialPlannerPlannerKindLabel/);
     assert.match(socialPlannerHistoryStatusClass("Ready"), /emerald/);
     assert.match(socialPlannerHistoryStatusClass("Processing Failed"), /rose/);
     assert.match(socialPlannerHistoryStatusClass("Queued"), /167,139,250/);
@@ -245,6 +275,7 @@ describe("/social-planner library presentation", () => {
       }),
     );
     assert.match(ready, /Ready/);
+    assert.match(ready, /Daily Social Media/);
     assert.match(ready, /A balanced family-care week with education/);
     assert.match(ready, /This week balances authority and personality/);
     assert.match(ready, /Claude Sonnet 4 \+ Gemini 2\.5 Flash/);
@@ -349,6 +380,11 @@ describe("/social-planner library presentation", () => {
     assert.equal(en.socialPlanner.historyTitle, "Previous weeks");
     assert.equal(en.socialPlanner.openCalendar, "Open this week");
     assert.equal(en.socialPlanner.title, "Social Content");
+    assert.equal(
+      en.socialPlanner.subtitle,
+      "Plan a week of content from what Athena already knows about your business and audiences.",
+    );
+    assert.doesNotMatch(en.socialPlanner.subtitle, /seven pieces/i);
     assert.equal(fr.socialPlanner.generateMyWeek, "Générer cette semaine");
     assert.equal(es.socialPlanner.openCalendar, "Abrir esta semana");
     assert.equal(itMessages.socialPlanner.historyTitle, "Settimane precedenti");
@@ -356,17 +392,60 @@ describe("/social-planner library presentation", () => {
     assert.equal(pt.socialPlanner.openCalendar, "Abrir esta semana");
     const canonical = collectKeyPaths(en);
     assert.ok(canonical.includes("socialPlanner.traction.helper"));
+    assert.ok(canonical.includes("socialPlanner.plannerKinds.dailySocial"));
+    assert.ok(canonical.includes("socialPlanner.plannerKinds.evergreen"));
+    assert.ok(canonical.includes("socialPlanner.plannerKindDailyHelp"));
+    assert.ok(canonical.includes("socialPlanner.plannerKindEvergreenHelp"));
+    assert.ok(canonical.includes("socialPlanner.plannerKindEvergreenSoon"));
+    assert.ok(canonical.includes("socialPlanner.generateDailyWeek"));
+    assert.ok(canonical.includes("socialPlanner.generateEvergreenWeek"));
+    assert.ok(canonical.includes("socialPlanner.historyTitleDaily"));
+    assert.ok(canonical.includes("socialPlanner.historyTitleEvergreen"));
+    assert.ok(canonical.includes("socialPlanner.yourEvergreenWeek"));
+    assert.ok(canonical.includes("socialPlanner.invalidPlanner"));
+    assert.ok(canonical.includes("socialPlanner.planningWeekDaily"));
+    assert.ok(canonical.includes("socialPlanner.planningWeekEvergreen"));
+    assert.ok(canonical.includes("socialPlanner.stages.generationDaily"));
+    assert.ok(canonical.includes("socialPlanner.stages.generationEvergreen"));
     assert.ok(!canonical.includes("socialPlanner.score"));
     assert.ok(!canonical.includes("socialPlanner.readiness"));
     for (const language of ORGANIZATION_LANGUAGES) {
       const paths = collectKeyPaths(DICTIONARIES[language]);
       assert.ok(paths.includes("socialPlanner.generateMyWeek"), language);
+      assert.ok(paths.includes("socialPlanner.generateDailyWeek"), language);
+      assert.ok(paths.includes("socialPlanner.generateEvergreenWeek"), language);
       assert.ok(paths.includes("socialPlanner.historyTitle"), language);
+      assert.ok(paths.includes("socialPlanner.historyTitleDaily"), language);
+      assert.ok(paths.includes("socialPlanner.historyTitleEvergreen"), language);
+      assert.ok(paths.includes("socialPlanner.yourEvergreenWeek"), language);
+      assert.ok(paths.includes("socialPlanner.invalidPlanner"), language);
       assert.ok(paths.includes("socialPlanner.openCalendar"), language);
+      assert.ok(paths.includes("socialPlanner.plannerKinds.dailySocial"), language);
+      assert.ok(paths.includes("socialPlanner.plannerKinds.evergreen"), language);
+      assert.ok(paths.includes("socialPlanner.plannerKindDailyHelp"), language);
+      assert.ok(paths.includes("socialPlanner.plannerKindEvergreenHelp"), language);
+      assert.ok(paths.includes("socialPlanner.plannerKindEvergreenSoon"), language);
+      assert.ok(paths.includes("socialPlanner.planningWeekDaily"), language);
+      assert.ok(paths.includes("socialPlanner.planningWeekEvergreen"), language);
+      assert.ok(paths.includes("socialPlanner.stages.generationDaily"), language);
+      assert.ok(paths.includes("socialPlanner.stages.generationEvergreen"), language);
+      assert.ok(paths.includes("socialPlanner.subtitle"), language);
       assert.ok(!paths.includes("socialPlanner.score"), language);
     }
     assert.notEqual(fr.socialPlanner.generateMyWeek, en.socialPlanner.generateMyWeek);
     assert.notEqual(de.socialPlanner.title, en.socialPlanner.title);
+    assert.notEqual(fr.socialPlanner.subtitle, en.socialPlanner.subtitle);
+    assert.notEqual(es.socialPlanner.subtitle, en.socialPlanner.subtitle);
+    assert.notEqual(itMessages.socialPlanner.subtitle, en.socialPlanner.subtitle);
+    assert.notEqual(de.socialPlanner.subtitle, en.socialPlanner.subtitle);
+    assert.notEqual(pt.socialPlanner.subtitle, en.socialPlanner.subtitle);
+    for (const language of ORGANIZATION_LANGUAGES) {
+      assert.doesNotMatch(
+        DICTIONARIES[language].socialPlanner.subtitle,
+        /seven pieces|sept pièces|siete piezas|sette pezzi|sete peças|sieben Beiträge/i,
+        language,
+      );
+    }
   });
 
   it("does not invent publishing, scheduling, scores, or platform chrome", () => {
@@ -407,5 +486,97 @@ describe("/social-planner library presentation", () => {
     assert.match(read("components/ads/AdCampaignGenerateForm.tsx"), /AD_CREATE_BRIEF_SURFACE/);
     assert.match(read("app/personas/page.tsx"), /PERSONA_HEADER_CREATE_CLASS/);
     assert.match(read("lib/personas/personaPagePresentation.ts"), /PERSONA_CARD_SURFACE_CLASS/);
+  });
+
+  it("keeps the composer as a neutral workspace with cyan/violet modes and an orange Generate action", () => {
+    const form = read("components/socialPlanner/SocialPlannerCreateForm.tsx");
+    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const presentation = read("lib/socialPlanner/socialPlannerPagePresentation.ts");
+
+    assert.match(form, /className=\{SOCIAL_COMPOSER_SURFACE\}/);
+    assert.match(SOCIAL_COMPOSER_SURFACE, /athena-card/);
+    assert.match(SOCIAL_COMPOSER_SURFACE, /255,255,255/);
+    assert.match(SOCIAL_COMPOSER_SURFACE, /border-white\/\[0\.12\]/);
+    assert.match(SOCIAL_COMPOSER_SURFACE, /0,0,0,0\.28/);
+    assert.doesNotMatch(SOCIAL_COMPOSER_SURFACE, /255,102,0/);
+    assert.doesNotMatch(SOCIAL_COMPOSER_SURFACE, /56,189,248/);
+    assert.doesNotMatch(SOCIAL_COMPOSER_SURFACE, /167,139,250/);
+    assert.doesNotMatch(SOCIAL_COMPOSER_SURFACE, /before:bg-/);
+    assert.match(SOCIAL_COMPOSER_ICON, /255,102,0/);
+    assert.match(SOCIAL_COMPOSER_ICON, /athena-orange/);
+
+    const tabs = read("components/socialPlanner/SocialPlannerTabs.tsx");
+    assert.match(tabs, /SOCIAL_KIND_DAILY_CARD/);
+    assert.match(tabs, /SOCIAL_KIND_EVERGREEN_CARD/);
+    assert.match(SOCIAL_KIND_DAILY_CARD, /56,189,248/);
+    assert.match(SOCIAL_KIND_DAILY_CARD_IDLE, /56,189,248/);
+    assert.doesNotMatch(SOCIAL_KIND_DAILY_CARD, /255,102,0/);
+    assert.doesNotMatch(SOCIAL_KIND_DAILY_CARD, /167,139,250/);
+    assert.match(SOCIAL_KIND_EVERGREEN_CARD, /167,139,250/);
+    assert.match(SOCIAL_KIND_EVERGREEN_CARD_IDLE, /167,139,250/);
+    assert.doesNotMatch(SOCIAL_KIND_EVERGREEN_CARD, /255,102,0/);
+    assert.doesNotMatch(SOCIAL_KIND_EVERGREEN_CARD, /56,189,248/);
+
+    assert.match(form, /SOCIAL_PRIMARY_CLASS/);
+    assert.match(SOCIAL_PRIMARY_CLASS, /athena-orange/);
+    assert.match(SOCIAL_PRIMARY_CLASS, /sm:w-auto/);
+    assert.doesNotMatch(presentation, /w-full sm:w-full/);
+
+    assert.match(form, /data-social-planner-target="audience"/);
+    assert.match(form, /SOCIAL_TARGET_SURFACE_CLASS/);
+    assert.match(form, /copy\.targetAudience/);
+    assert.match(form, /\{targetAudience\.name\}/);
+    assert.match(form, /\{targetAudience\.summary\}/);
+    assert.match(form, /copy\.clear/);
+    assert.match(SOCIAL_TARGET_SURFACE_CLASS, /56,189,248/);
+    assert.doesNotMatch(SOCIAL_TARGET_SURFACE_CLASS, /255,102,0/);
+    assert.match(SOCIAL_TARGET_CLEAR_CLASS, /text-xs/);
+
+    assert.match(tabs, /SOCIAL_TAB_LIST/);
+    assert.match(SOCIAL_TAB_LIST, /grid gap-3 sm:grid-cols-2/);
+    assert.match(form, /min-w-0/);
+    assert.match(form, /SOCIAL_TEXTAREA_CLASS/);
+    assert.match(workspace, /space-y-10/);
+    assert.match(workspace, /<SocialPlannerCreateForm/);
+    assert.match(workspace, /SOCIAL_SEARCH_SURFACE/);
+    assert.match(workspace, /<SocialPlannerHistory/);
+    const composerIdx = workspace.indexOf("<SocialPlannerCreateForm");
+    const searchIdx = workspace.indexOf("className={SOCIAL_SEARCH_SURFACE}");
+    const historyIdx = workspace.indexOf("<SocialPlannerHistory");
+    assert.ok(composerIdx >= 0 && searchIdx > composerIdx && historyIdx > searchIdx);
+  });
+
+  it("does not pull generation or persona-import files into the Social Planner surface contract", () => {
+    const generationFiles = [
+      "services/socialPlanner/generation/dispatchSocialPlannerGeneration.ts",
+      "services/socialPlanner/generation/generateEvergreenSocialCalendarPackage.ts",
+      "services/socialPlanner/generation/socialCalendarEvergreenPackageTypes.ts",
+      "services/socialPlanner/generation/socialCalendarPackageTypes.ts",
+      "services/socialPlanner/generation/socialCalendarPackageUnion.ts",
+      "services/socialPlanner/generation/socialPlannerEvergreenGenerationPrompts.ts",
+      "services/socialPlanner/generation/socialPlannerEvergreenRotation.ts",
+      "services/socialPlanner/generation/socialPlannerGenerationPrompts.ts",
+      "services/socialPlanner/generation/validateSocialCalendarEvergreenPackage.ts",
+      "services/socialPlanner/generation/validateSocialCalendarPackage.ts",
+      "services/socialPlanner/socialCalendarPlannerKind.ts",
+      "services/socialPlanner/socialPlannerDailyChannels.ts",
+    ];
+    const personaImportFiles = [
+      "app/personas/import/page.tsx",
+      "components/personas/PersonaCreationBlock.tsx",
+      "components/personas/PersonaCsvImport.tsx",
+      "components/personas/PersonaGenerateForm.tsx",
+      "components/personas/PersonaImportForms.tsx",
+      "components/personas/personaFormFields.ts",
+      "lib/personas/personaImportPresentation.ts",
+      "tests/personas/personaImportPresentation.test.ts",
+    ];
+    for (const file of [...generationFiles, ...personaImportFiles]) {
+      const source = read(file);
+      assert.doesNotMatch(source, /socialPlannerPagePresentation/);
+      assert.doesNotMatch(source, /SOCIAL_COMPOSER_SURFACE/);
+      assert.doesNotMatch(source, /SOCIAL_KIND_DAILY_CARD/);
+      assert.doesNotMatch(source, /SOCIAL_KIND_EVERGREEN_CARD/);
+    }
   });
 });

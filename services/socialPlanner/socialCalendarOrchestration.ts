@@ -21,17 +21,54 @@ import {
   enqueueSocialCalendarGenerationJob,
 } from "@/services/socialPlanner/socialCalendarGenerationJobs/socialCalendarGenerationJobService";
 import type { AthenaSocialCalendarGenerationJob } from "@/services/socialPlanner/socialCalendarGenerationJobs/socialCalendarGenerationJobTypes";
+import {
+  assertSocialCalendarPlannerKindImplemented,
+  readSocialCalendarPlannerKind,
+} from "@/services/socialPlanner/socialCalendarPlannerKind";
 
 export { ActiveSocialCalendarGenerationJobConflictError };
 
-export async function createSocialCalendarWithJob(input: {
+type SocialCalendarCreateJobInput = {
   organizationId: string;
   userId: string | null;
   periodStart: string;
   periodEnd: string;
   userGuidance: string | null;
   targetPersonaId?: string | null;
+};
+
+async function enqueueCreatedSocialCalendar(input: {
+  calendar: SocialCalendar;
+  organizationId: string;
+  userId: string | null;
+  enqueueFailureMessage: string;
 }): Promise<{
+  calendar: SocialCalendar;
+  job: AthenaSocialCalendarGenerationJob;
+}> {
+  try {
+    const { job } = await enqueueSocialCalendarGenerationJob({
+      organizationId: input.organizationId,
+      calendarId: input.calendar.id,
+      requestedBy: input.userId,
+      allowExisting: false,
+    });
+    return { calendar: input.calendar, job };
+  } catch (error) {
+    await markSocialCalendarEnqueueFailed({
+      calendarId: input.calendar.id,
+      organizationId: input.organizationId,
+      errorCode: "ENQUEUE_FAILED",
+      errorMessage:
+        error instanceof Error ? error.message : input.enqueueFailureMessage,
+    });
+    throw error;
+  }
+}
+
+export async function createDailySocialCalendarWithJob(
+  input: SocialCalendarCreateJobInput,
+): Promise<{
   calendar: SocialCalendar;
   job: AthenaSocialCalendarGenerationJob;
 }> {
@@ -42,28 +79,37 @@ export async function createSocialCalendarWithJob(input: {
     periodEnd: input.periodEnd,
     userGuidance: input.userGuidance,
     targetPersonaId: input.targetPersonaId,
+    plannerKind: "daily_social",
   });
+  return enqueueCreatedSocialCalendar({
+    calendar,
+    organizationId: input.organizationId,
+    userId: input.userId,
+    enqueueFailureMessage: "Failed to enqueue Social Calendar generation job.",
+  });
+}
 
-  try {
-    const { job } = await enqueueSocialCalendarGenerationJob({
-      organizationId: input.organizationId,
-      calendarId: calendar.id,
-      requestedBy: input.userId,
-      allowExisting: false,
-    });
-    return { calendar, job };
-  } catch (error) {
-    await markSocialCalendarEnqueueFailed({
-      calendarId: calendar.id,
-      organizationId: input.organizationId,
-      errorCode: "ENQUEUE_FAILED",
-      errorMessage:
-        error instanceof Error
-          ? error.message
-          : "Failed to enqueue Social Calendar generation job.",
-    });
-    throw error;
-  }
+export async function createEvergreenSocialCalendarWithJob(
+  input: SocialCalendarCreateJobInput,
+): Promise<{
+  calendar: SocialCalendar;
+  job: AthenaSocialCalendarGenerationJob;
+}> {
+  const calendar = await createSocialCalendar({
+    organizationId: input.organizationId,
+    userId: input.userId,
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    userGuidance: input.userGuidance,
+    targetPersonaId: input.targetPersonaId,
+    plannerKind: "evergreen",
+  });
+  return enqueueCreatedSocialCalendar({
+    calendar,
+    organizationId: input.organizationId,
+    userId: input.userId,
+    enqueueFailureMessage: "Failed to enqueue Evergreen Calendar generation job.",
+  });
 }
 
 export function assertThinkDifferentlySourceEligible(
@@ -90,6 +136,9 @@ export function assertThinkDifferentlySourceEligible(
       400,
     );
   }
+  assertSocialCalendarPlannerKindImplemented(
+    readSocialCalendarPlannerKind(source.provenance_json),
+  );
 }
 
 export async function createThinkDifferentlyCalendarWithJob(input: {
@@ -154,6 +203,9 @@ export function assertConversationRevisionSourceEligible(
       400,
     );
   }
+  assertSocialCalendarPlannerKindImplemented(
+    readSocialCalendarPlannerKind(source.provenance_json),
+  );
 }
 
 export async function createConversationRevisionCalendarWithJob(input: {

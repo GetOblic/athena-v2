@@ -7,9 +7,11 @@ import type {
   SocialCalendarAssetV1,
   SocialPlannerProductionSpec,
 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
+import type { SocialCalendarEvergreenDayV1 } from "@/services/socialPlanner/generation/socialCalendarEvergreenPackageTypes";
 import {
   humanizeSocialPlannerToken,
   socialPlannerAssetTypeLabel,
+  socialPlannerEvergreenFormatLabel,
   socialPlannerObjectiveLabel,
   socialPlannerPlatformLabel,
 } from "@/components/socialPlanner/socialPlannerLabels";
@@ -187,5 +189,23 @@ export function serializeSocialCalendarAsset(asset: SocialCalendarAssetV1): stri
           asset.recommendedPlatforms.map(socialPlannerPlatformLabel).join(", "),
         )
       : null,
+  ]);
+}
+
+export function serializeSocialCalendarEvergreenDay(
+  day: SocialCalendarEvergreenDayV1,
+): string {
+  return joinBlocks([
+    joinLines([
+      labeledLine("Date", day.date),
+      labeledLine("Weekday", day.weekday),
+      labeledLine("Format", socialPlannerEvergreenFormatLabel(day.evergreenFormat)),
+      labeledLine("Title", day.title),
+      labeledLine("Angle", day.concept),
+      labeledLine("Audience", day.audience),
+    ]),
+    trimmed(day.draft) ? joinLines(["Draft", trimmed(day.draft)]) : null,
+    labeledLine("CTA", day.cta),
+    labeledLine("Publishing guidance", day.publishingGuidance),
   ]);
 }

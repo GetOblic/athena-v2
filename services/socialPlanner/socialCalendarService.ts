@@ -32,7 +32,16 @@ import {
   filterSocialCalendarsByHistorySearch,
   paginateSocialCalendarHistoryItems,
 } from "@/services/socialPlanner/socialCalendarHistorySearch";
-import { socialPlannerTargetPersonaProvenance } from "@/services/socialPlanner/socialPlannerTargetPersona";
+import {
+  SocialCalendarPlannerKindError,
+  buildSocialCalendarQueuedProvenance,
+  lineageSocialCalendarQueuedProvenance,
+  plannerKindFromCalendar,
+  socialCalendarMatchesPlannerHistory,
+  type SocialCalendarImplementedPlannerKind,
+  type SocialCalendarPlannerKind,
+} from "@/services/socialPlanner/socialCalendarPlannerKind";
+import { readSocialPlannerTargetPersonaId } from "@/services/socialPlanner/socialPlannerTargetPersona";
 
 export type { SocialCalendar };
 export {
@@ -54,6 +63,7 @@ export const SOCIAL_CALENDAR_LIBRARY_SELECT = [
   "root_calendar_id",
   "status",
   "package_json",
+  "provenance_json",
   "error_code",
   "error_message",
   "created_at",
@@ -64,6 +74,7 @@ export type SocialCalendarHistoryListQuery = {
   search?: string | number | null;
   page?: string | number | null;
   limit?: string | number | null;
+  plannerKind?: string | number | null;
 };
 
 export type SocialCalendarHistoryResult = {
@@ -112,13 +123,38 @@ export function normalizeSocialCalendarHistoryLimit(value: unknown): number {
   return Math.min(parsed, SOCIAL_CALENDAR_HISTORY_MAX_LIMIT);
 }
 
+export function normalizeSocialCalendarHistoryPlannerKind(
+  value: unknown,
+): SocialCalendarPlannerKind | null {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string") {
+    throw new SocialCalendarPlannerKindError(
+      "INVALID_PLANNER_KIND",
+      'plannerKind must be "daily_social" or "evergreen".',
+    );
+  }
+  const trimmed = value.trim();
+  if (trimmed === "daily" || trimmed === "daily_social") return "daily_social";
+  if (trimmed === "evergreen") return "evergreen";
+  throw new SocialCalendarPlannerKindError(
+    "INVALID_PLANNER_KIND",
+    'plannerKind must be "daily_social" or "evergreen".',
+  );
+}
+
 export function normalizeSocialCalendarHistoryQuery(
   query: SocialCalendarHistoryListQuery = {},
-): { search: string; page: number; limit: number } {
+): {
+  search: string;
+  page: number;
+  limit: number;
+  plannerKind: SocialCalendarPlannerKind | null;
+} {
   return {
     search: normalizeSocialCalendarHistorySearch(query.search),
     page: normalizeSocialCalendarHistoryPage(query.page),
     limit: normalizeSocialCalendarHistoryLimit(query.limit),
+    plannerKind: normalizeSocialCalendarHistoryPlannerKind(query.plannerKind),
   };
 }
 
@@ -189,11 +225,25 @@ async function listSocialCalendarsPage(
   };
 }
 
+function filterLibraryCalendarsByPlannerKind(
+  calendars: SocialCalendar[],
+  plannerKind: SocialCalendarPlannerKind | null,
+): SocialCalendar[] {
+  if (!plannerKind) return calendars;
+  return calendars.filter((calendar) =>
+    socialCalendarMatchesPlannerHistory(
+      plannerKindFromCalendar(calendar),
+      plannerKind,
+    ),
+  );
+}
+
 async function searchSocialCalendars(
   organizationId: string,
   search: string,
   page: number,
   limit: number,
+  plannerKind: SocialCalendarPlannerKind | null,
 ): Promise<SocialCalendarHistoryResult> {
   const { data, error } = await libraryQuery(organizationId, false);
 
@@ -205,7 +255,10 @@ async function searchSocialCalendars(
     throw new Error("Failed to load Social Calendars.");
   }
 
-  const calendars = mapLibraryRows(data);
+  const calendars = filterLibraryCalendarsByPlannerKind(
+    mapLibraryRows(data),
+    plannerKind,
+  );
   const matched = filterSocialCalendarsByHistorySearch(
     calendars.map(toSocialCalendarListItemDto),
     search,
@@ -225,9 +278,16 @@ export async function listSocialCalendars(
   organizationId: string,
   query: SocialCalendarHistoryListQuery = {},
 ): Promise<SocialCalendarHistoryResult> {
-  const { search, page, limit } = normalizeSocialCalendarHistoryQuery(query);
-  if (search) {
-    return searchSocialCalendars(organizationId, search, page, limit);
+  const { search, page, limit, plannerKind } =
+    normalizeSocialCalendarHistoryQuery(query);
+  if (search || plannerKind) {
+    return searchSocialCalendars(
+      organizationId,
+      search,
+      page,
+      limit,
+      plannerKind,
+    );
   }
   return listSocialCalendarsPage(organizationId, page, limit);
 }
@@ -262,6 +322,7 @@ export async function createSocialCalendar(input: {
   periodEnd: string;
   userGuidance: string | null;
   targetPersonaId?: string | null;
+  plannerKind: SocialCalendarImplementedPlannerKind;
 }): Promise<SocialCalendar> {
   const now = touch();
 
@@ -280,7 +341,10 @@ export async function createSocialCalendar(input: {
       status: "Queued",
       generation_stage: "queued",
       package_json: null,
-      provenance_json: socialPlannerTargetPersonaProvenance(input.targetPersonaId),
+      provenance_json: buildSocialCalendarQueuedProvenance({
+        plannerKind: input.plannerKind,
+        targetPersonaId: input.targetPersonaId,
+      }),
       calendar_context_json: {},
       revision_context_json: null,
       error_code: null,
@@ -381,7 +445,10 @@ export async function createThinkDifferentlySocialCalendar(input: {
       status: "Queued",
       generation_stage: "queued",
       package_json: null,
-      provenance_json: {},
+      provenance_json: lineageSocialCalendarQueuedProvenance(
+        input.source.provenance_json,
+        readSocialPlannerTargetPersonaId,
+      ),
       calendar_context_json: {},
       revision_context_json: null,
       error_code: null,
@@ -443,7 +510,10 @@ export async function createConversationRevisionSocialCalendar(input: {
       status: "Queued",
       generation_stage: "queued",
       package_json: null,
-      provenance_json: {},
+      provenance_json: lineageSocialCalendarQueuedProvenance(
+        input.source.provenance_json,
+        readSocialPlannerTargetPersonaId,
+      ),
       calendar_context_json: {},
       revision_context_json: input.revisionContext,
       error_code: null,

@@ -87,7 +87,7 @@ describe("Social Planner L8 Think Differently API", () => {
     );
     const createRoute = read("app/api/social-planner/route.ts");
     assert.doesNotMatch(createRoute, /think_differently/);
-    assert.match(createRoute, /createSocialCalendarWithJob/);
+    assert.match(createRoute, /createDailySocialCalendarWithJob/);
   });
 
   it("returns the thin create DTO and no package", () => {

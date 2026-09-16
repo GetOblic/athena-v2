@@ -10,14 +10,17 @@ import {
 } from "@/services/socialPlanner/socialCalendarDto";
 import { SocialPlannerCreateForm } from "@/components/socialPlanner/SocialPlannerCreateForm";
 import { SocialPlannerHistory } from "@/components/socialPlanner/SocialPlannerHistory";
+import { SocialPlannerTabs } from "@/components/socialPlanner/SocialPlannerTabs";
 import {
   SOCIAL_PLANNER_DETAIL_POLL_MS,
   SOCIAL_PLANNER_HISTORY_POLL_TICKS,
-  createSocialCalendarRequest,
+  createDailySocialCalendarRequest,
+  createEvergreenSocialCalendarRequest,
   fetchSocialCalendarHistory,
   isSocialPlannerInFlight,
   type SocialPlannerCreatePayload,
 } from "@/components/socialPlanner/socialPlannerClient";
+import { socialPlannerWorkspaceHref } from "@/lib/socialPlanner/socialPlannerRouting";
 import {
   SOCIAL_SEARCH_FIELD_CLASS,
   SOCIAL_SEARCH_SURFACE,
@@ -28,8 +31,10 @@ import { getSocialPlannerErrorChrome } from "@/lib/tenantI18n/socialPlannerPrese
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { SocialPlannerTargetAudienceView } from "@/lib/socialPlanner/socialPlannerTargetPresentation";
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
+import type { SocialCalendarImplementedPlannerKind } from "@/services/socialPlanner/socialCalendarPlannerKind";
 
 type SocialPlannerWorkspaceProps = {
+  plannerKind: SocialCalendarImplementedPlannerKind;
   initialCalendars: SocialCalendarListItemDto[];
   initialPagination: SocialCalendarHistoryPaginationDto;
   loadError: string | null;
@@ -40,6 +45,7 @@ type SocialPlannerWorkspaceProps = {
 };
 
 export function SocialPlannerWorkspace({
+  plannerKind,
   initialCalendars,
   initialPagination,
   loadError,
@@ -70,13 +76,14 @@ export function SocialPlannerWorkspace({
 
   const loadHistory = useCallback(
     async (nextSearch: string, nextPage: number) => {
-      const requestKey = `${nextSearch}::${nextPage}::${limit}`;
+      const requestKey = `${plannerKind}::${nextSearch}::${nextPage}::${limit}`;
       latestRequestKeyRef.current = requestKey;
       const history = await fetchSocialCalendarHistory(
         {
           search: nextSearch,
           page: nextPage,
           limit,
+          plannerKind,
         },
         errorChrome,
       );
@@ -88,7 +95,7 @@ export function SocialPlannerWorkspace({
         setPagination(history.value.pagination);
       }
     },
-    [limit, errorChrome],
+    [limit, errorChrome, plannerKind],
   );
 
   function handleSearchChange(value: string) {
@@ -142,7 +149,10 @@ export function SocialPlannerWorkspace({
     setCreateError(null);
 
     try {
-      const result = await createSocialCalendarRequest(body, errorChrome);
+      const result =
+        plannerKind === "evergreen"
+          ? await createEvergreenSocialCalendarRequest(body, errorChrome)
+          : await createDailySocialCalendarRequest(body, errorChrome);
       if (result.kind === "auth") {
         window.location.href = "/login";
         return;
@@ -177,10 +187,18 @@ export function SocialPlannerWorkspace({
         </div>
       ) : null}
 
+      <SocialPlannerTabs
+        plannerKind={plannerKind}
+        personaId={targetAudience?.personaId ?? null}
+        messages={dictionary}
+      />
+
       <SocialPlannerCreateForm
+        plannerKind={plannerKind}
         submitting={submitting}
         error={createError}
         targetAudience={targetAudience}
+        clearHref={socialPlannerWorkspaceHref({ planner: plannerKind })}
         onSubmit={(body) => void handleCreate(body)}
         messages={dictionary}
         locale={locale}
@@ -197,7 +215,11 @@ export function SocialPlannerWorkspace({
             <input
               value={search}
               onChange={(event) => handleSearchChange(event.target.value)}
-              placeholder={copy.searchPlaceholder}
+              placeholder={
+                plannerKind === "evergreen"
+                  ? copy.searchPlaceholderEvergreen
+                  : copy.searchPlaceholderDaily
+              }
               className={SOCIAL_SEARCH_FIELD_CLASS}
             />
           </label>
@@ -205,6 +227,7 @@ export function SocialPlannerWorkspace({
       )}
 
       <SocialPlannerHistory
+        plannerKind={plannerKind}
         calendars={calendars}
         pagination={pagination}
         search={search}
