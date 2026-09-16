@@ -1,8 +1,10 @@
 /**
  * CO-1 / CO-4 GetOblic Directory → canonical Prospect conversion.
- * Server-owned orchestration: preflight, create/reuse one Prospect, claim,
- * and import proven factual listing metadata. Conversion never queues
- * generation — claiming remains an ownership / data-import operation only.
+ * Server-owned orchestration: create/reuse one Prospect under the
+ * organization Prospect-capacity contract, then best-effort claim.
+ * Add-as-Prospect does not require directory settings or listingCapacity.
+ * An actual listing claim still enforces settings, exclusivity, and
+ * reserve_getoblic_listing_capacity. Conversion never queues generation.
  *
  * Does not search Google, write Knowledge Base, or invent identity fields.
  */
@@ -45,6 +47,11 @@ import {
 import { findReusableWebsiteIntelligenceForListing } from "@/services/getoblicDirectory/getoblicReusableWebsiteIntelligence";
 import { ensureProspectGenerationQueued } from "@/services/prospects/prospectImporter";
 import {
+  ProspectCapacityExceededError,
+  isProspectCapacityExceededError,
+  prospectCapacityExceededMessage,
+} from "@/services/prospects/prospectCapacity";
+import {
   createProspect,
   deleteProspect,
   findProspectByNameAndCity,
@@ -70,6 +77,7 @@ export const GETOBLIC_CONVERT_OUTCOMES = [
   "unavailable",
   "remote_missing",
   "claim_incomplete",
+  "prospect_capacity_exceeded",
 ] as const;
 
 export type GetOblicConvertOutcome = (typeof GETOBLIC_CONVERT_OUTCOMES)[number];
@@ -192,6 +200,7 @@ export function convertOutcomeHttpStatus(outcome: GetOblicConvertOutcome): numbe
     case "needs_business_name":
       return 400;
     case "claim_incomplete":
+    case "prospect_capacity_exceeded":
       return 409;
     default:
       return 409;
@@ -210,6 +219,8 @@ export function convertOutcomeErrorCode(
       return "GETOBLIC_DIRECTORY_NOT_CONFIGURED";
     case "capacity_exceeded":
       return "GETOBLIC_LISTING_CAPACITY_EXCEEDED";
+    case "prospect_capacity_exceeded":
+      return "PROSPECT_CAPACITY_EXCEEDED";
     case "unavailable":
       return "GETOBLIC_LISTING_CLAIMED_OTHER_ORG";
     case "remote_missing":
@@ -233,6 +244,8 @@ export function convertOutcomeErrorMessage(
       return "This workspace isn’t set up to add GetOblic businesses yet.";
     case "capacity_exceeded":
       return "You’ve reached listing capacity and must release an existing GetOblic listing before adding another.";
+    case "prospect_capacity_exceeded":
+      return `${prospectCapacityExceededMessage()} Remove an existing Prospect before adding another.`;
     case "unavailable":
       return "This business is already being pursued.";
     case "remote_missing":
@@ -506,12 +519,11 @@ export async function convertGetOblicDirectoryListing(
   }
 
   const settings = await dependencies.getSettings(organizationId);
-  if (!settings.configured) {
-    return emptyResult("settings_missing");
-  }
+  const mappedAuthorId = settings.configured
+    ? settings.settings.wordpress_author_id
+    : null;
 
-  const [usage, releasedLink, originProspect] = await Promise.all([
-    dependencies.getAllocationUsage(organizationId, input.now),
+  const [releasedLink, originProspect] = await Promise.all([
     dependencies.findReleasedLinkForListing(
       organizationId,
       wordpressListingId,
@@ -521,10 +533,6 @@ export async function convertGetOblicDirectoryListing(
       wordpressListingId,
     ),
   ]);
-
-  if (usage.configured && usage.available <= 0) {
-    return emptyResult("capacity_exceeded");
-  }
 
   const reclaimedProspect = await resolveReleasedLinkProspect({
     organizationId,
@@ -578,7 +586,7 @@ export async function convertGetOblicDirectoryListing(
     !isListingAuthorEligible(
       listing,
       input.listingAuthorPolicy ?? "inventory_pool",
-      settings.settings.wordpress_author_id,
+      mappedAuthorId,
     )
   ) {
     return emptyResult("unavailable");
@@ -644,6 +652,12 @@ export async function convertGetOblicDirectoryListing(
   } catch (error) {
     if (error instanceof GetOblicDirectoryError) {
       throw error;
+    }
+    if (
+      error instanceof ProspectCapacityExceededError ||
+      isProspectCapacityExceededError(error)
+    ) {
+      return emptyResult("prospect_capacity_exceeded");
     }
     if (isPostgresUniqueViolation(error as { code?: string; message?: string })) {
       return resolveCreateRace({
@@ -832,6 +846,12 @@ async function resolveCreateRace(args: {
       if (error instanceof GetOblicDirectoryError) {
         throw error;
       }
+      if (
+        error instanceof ProspectCapacityExceededError ||
+        isProspectCapacityExceededError(error)
+      ) {
+        return emptyResult("prospect_capacity_exceeded");
+      }
       if (isPostgresUniqueViolation(error as { code?: string; message?: string })) {
         return resolveCreateRace({
           ...args,
@@ -963,47 +983,12 @@ async function finishExistingProspect(args: {
         }
         return emptyResult("unavailable");
       }
-      if (error.code === "GETOBLIC_DIRECTORY_NOT_CONFIGURED") {
-        return {
-          ...presentProspect({
-            prospect,
-            outcome: "settings_missing",
-            generationQueued: false,
-            allocated: false,
-          }),
-          prospect_id: args.created ? prospect.id : null,
-        };
-      }
-
-      const discard = await discardLosingConversionProspect({
-        created: args.created,
-        loser: prospect,
-        winnerId: null,
-        requireResolvedWinner: false,
-        organizationId: args.organizationId,
-        wordpressListingId: args.wordpressListingId,
-        dependencies: args.dependencies,
+      return presentProspect({
+        prospect,
+        outcome: args.created ? "created" : "reused",
+        generationQueued: false,
+        allocated: false,
       });
-      if (discard === "delete_failed" || discard === "not_disposable") {
-        throw cleanupIntegrityError();
-      }
-      if (discard === "protected_claim") {
-        const current = await resolveSameOrgCanonicalProspect(
-          args.organizationId,
-          args.wordpressListingId,
-          args.dependencies,
-        );
-        if (current) {
-          return presentProspect({
-            prospect: current,
-            outcome: "reused",
-            generationQueued: false,
-            allocated: false,
-          });
-        }
-        throw cleanupIntegrityError();
-      }
-      return emptyResult("capacity_exceeded");
     }
 
     if (
@@ -1048,7 +1033,9 @@ async function finalizeAfterClaim(args: {
       outcome: args.claim.outcome === "remote_missing"
         ? "remote_missing"
         : args.claim.outcome === "capacity_exceeded"
-          ? "capacity_exceeded"
+          ? args.created
+            ? "created"
+            : "reused"
           : "claim_incomplete",
       generationQueued: false,
       allocated: args.claim.allocated,

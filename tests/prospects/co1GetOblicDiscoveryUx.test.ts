@@ -63,6 +63,8 @@ describe("CO-1 Find Opportunities UX", () => {
     assert.match(page, /OpportunityDiscoveryMethods/);
     assert.match(page, /getGetOblicDirectorySettings/);
     assert.match(page, /getGetOblicListingCapacity/);
+    assert.match(page, /getOrganizationProspectCapacity/);
+    assert.match(page, /prospectCapacityReached/);
     assert.doesNotMatch(page, /organizationId:/);
     assert.doesNotMatch(page, /fit score|recommendation score/i);
   });
@@ -83,13 +85,16 @@ describe("CO-1 Find Opportunities UX", () => {
     assert.match(discovery, /if \(!trimmed\)/);
     assert.match(discovery, /GETOBLIC_LISTING_NOT_CLAIMABLE/);
     assert.match(discovery, /GETOBLIC_LISTING_CAPACITY_EXCEEDED/);
-    assert.match(discovery, /listingCapacityReached/);
+    assert.match(discovery, /PROSPECT_CAPACITY_EXCEEDED/);
+    assert.match(discovery, /prospectCapacityReached &&/);
+    assert.doesNotMatch(discovery, /notConfigured \|\|/);
+    assert.doesNotMatch(discovery, /listingCapacityReached &&/);
     assert.match(discovery, /outcome === "claim_incomplete"/);
     assert.match(discovery, /outcome === "remote_missing"/);
     assert.doesNotMatch(discovery, /outcome === "capacity_exceeded"/);
     assert.match(discovery, /setFailedId/);
     assert.match(discovery, /setFailureMessage/);
-    assert.match(discovery, /copy\.listingCapacityReached/);
+    assert.match(discovery, /copy\.prospectCapacityReached/);
     assert.match(discovery, /INCOMPLETE_FOR_THIS_ORG/);
     assert.match(discovery, /alreadyBeingPursued/);
     assert.doesNotMatch(discovery, /271519816/);
@@ -309,6 +314,7 @@ describe("CO-1 Find Opportunities UX", () => {
       assert.ok(messages.prospects.find.needsFinishing);
       assert.ok(messages.prospects.find.finishAdding);
       assert.ok(messages.prospects.find.listingCapacityReached);
+      assert.ok(messages.prospects.find.prospectCapacityReached);
       assert.ok(messages.prospects.detail.releaseGetOblicListing);
       assert.ok(messages.prospects.websiteCompletion.heading);
       assert.ok(messages.prospects.websiteCompletion.addWebsiteToStartResearch);

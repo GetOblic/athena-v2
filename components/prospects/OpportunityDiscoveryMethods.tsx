@@ -12,7 +12,7 @@ export type OpportunityDiscoveryMethod = "directory" | "google";
 
 type OpportunityDiscoveryMethodsProps = {
   messages: TenantMessages;
-  notConfigured: boolean;
+  prospectCapacityReached: boolean;
   listingCapacityReached: boolean;
   authorMappingMissing: boolean;
 };
@@ -42,7 +42,7 @@ function MethodIconWell({
 
 export function OpportunityDiscoveryMethods({
   messages,
-  notConfigured,
+  prospectCapacityReached,
   listingCapacityReached,
   authorMappingMissing,
 }: OpportunityDiscoveryMethodsProps) {
@@ -107,8 +107,7 @@ export function OpportunityDiscoveryMethods({
       <div className={method === "directory" ? "" : "hidden"}>
         <GetOblicOpportunityDiscovery
           messages={messages}
-          notConfigured={notConfigured}
-          listingCapacityReached={listingCapacityReached}
+          prospectCapacityReached={prospectCapacityReached}
         />
       </div>
 
@@ -118,6 +117,7 @@ export function OpportunityDiscoveryMethods({
             messages={messages}
             authorMappingMissing={authorMappingMissing}
             listingCapacityReached={listingCapacityReached}
+            prospectCapacityReached={prospectCapacityReached}
           />
         </div>
       ) : null}

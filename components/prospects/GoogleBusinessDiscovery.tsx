@@ -41,6 +41,7 @@ type GoogleBusinessDiscoveryProps = {
   messages: TenantMessages;
   authorMappingMissing: boolean;
   listingCapacityReached: boolean;
+  prospectCapacityReached: boolean;
 };
 
 function readGoogleMapsBrowserKey(): string {
@@ -59,6 +60,8 @@ function googleFailureCopy(
       return copy.authorMappingMissing;
     case "GOOGLE_BUSINESS_WEBHOOK_NOT_CONFIGURED":
       return copy.unavailable;
+    case "PROSPECT_CAPACITY_EXCEEDED":
+      return find.prospectCapacityReached;
     case "GETOBLIC_LISTING_CAPACITY_EXCEEDED":
       return find.listingCapacityReached;
     case "GETOBLIC_NEEDS_BUSINESS_NAME":
@@ -78,6 +81,7 @@ export function GoogleBusinessDiscovery({
   messages,
   authorMappingMissing,
   listingCapacityReached,
+  prospectCapacityReached,
 }: GoogleBusinessDiscoveryProps) {
   const router = useRouter();
   const copy = messages.prospects.find.google;
@@ -188,6 +192,7 @@ export function GoogleBusinessDiscovery({
     Boolean(selected) &&
     !submitting &&
     !authorMappingMissing &&
+    !prospectCapacityReached &&
     loaderStatus === "ready";
 
   return (
@@ -200,6 +205,11 @@ export function GoogleBusinessDiscovery({
       {listingCapacityReached ? (
         <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
           {find.listingCapacityReached}
+        </div>
+      ) : null}
+      {prospectCapacityReached ? (
+        <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
+          {find.prospectCapacityReached}
         </div>
       ) : null}
       {loaderStatus === "missing_key" ? (

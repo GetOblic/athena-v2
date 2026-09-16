@@ -2439,6 +2439,8 @@ export const es: TenantMessages = {
         "Este espacio aún no está configurado para añadir negocios GetOblic.",
       listingCapacityReached:
         "Ha alcanzado la capacidad de listings. Libere un listing GetOblic existente antes de añadir otro.",
+      prospectCapacityReached:
+        "Esta cuenta ha alcanzado el límite de 300 prospects. Elimine un prospect existente antes de añadir otro.",
       addYourself: "O añada un negocio usted mismo",
       sourceGetOblic: "GetOblic",
       available: "Disponible",

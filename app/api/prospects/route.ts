@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  ProspectCapacityExceededError,
+  isProspectCapacityExceededError,
+} from "@/services/prospects/prospectCapacity";
 import { importProspectManual } from "@/services/prospects/prospectImporter";
 import { toPublicProspect } from "@/services/prospects/prospectPublic";
 import {
@@ -112,6 +116,26 @@ export async function POST(request: Request) {
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (
+      error instanceof ProspectCapacityExceededError ||
+      isProspectCapacityExceededError(error)
+    ) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: {
+            code: "PROSPECT_CAPACITY_EXCEEDED",
+            message:
+              error instanceof Error
+                ? error.message
+                : "This account has reached its prospect limit.",
+          },
+        },
+        409,
       );
     }
 

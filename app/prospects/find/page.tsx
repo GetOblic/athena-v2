@@ -12,12 +12,16 @@ import {
   getGetOblicListingCapacity,
 } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import { getOrganizationProspectCapacity } from "@/services/prospects/prospectCapacity";
 
 export default async function FindOpportunitiesPage() {
   const { organizationId } = await requireCurrentOrganizationContext();
   const { messages } = await getTenantLocalization();
   const copy = messages.prospects;
-  const settings = await getGetOblicDirectorySettings(organizationId);
+  const [settings, prospectCapacity] = await Promise.all([
+    getGetOblicDirectorySettings(organizationId),
+    getOrganizationProspectCapacity(organizationId),
+  ]);
   const capacity = settings.configured
     ? await getGetOblicListingCapacity(organizationId)
     : null;
@@ -39,7 +43,7 @@ export default async function FindOpportunitiesPage() {
       />
       <OpportunityDiscoveryMethods
         messages={messages}
-        notConfigured={!settings.configured}
+        prospectCapacityReached={prospectCapacity.reached}
         listingCapacityReached={Boolean(
           capacity?.configured &&
             capacity.currentlyHeld >= capacity.listingCapacity,

@@ -597,21 +597,29 @@ describe("GetOblic directory convert orchestration", () => {
     assert.equal(port.created.length, 0);
   });
 
-  it("fails closed when directory settings are missing before create", async () => {
+  it("creates a Prospect when directory settings are missing and does not require a listing claim", async () => {
     const port = deps({
       getSettings: async () => ({
         configured: false,
         code: "GETOBLIC_DIRECTORY_NOT_CONFIGURED",
       }),
+      claimKnownExistingListing: async () => {
+        throw new GetOblicDirectoryError(
+          "GETOBLIC_DIRECTORY_NOT_CONFIGURED",
+          "GetOblic Directory is not configured for this organization.",
+        );
+      },
     });
     const result = await convertGetOblicDirectoryListing(convertInput(), port);
-    assert.equal(result.outcome, "settings_missing");
-    assert.equal(result.prospect_id, null);
-    assert.equal(port.created.length, 0);
+    assert.equal(result.outcome, "created");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(result.allocated, false);
+    assert.equal(port.created.length, 1);
     assert.equal(port.claimed.length, 0);
+    assert.deepEqual(port.deleted, []);
   });
 
-  it("discards a thin Prospect created by this request when authoritative capacity rejects", async () => {
+  it("keeps a Prospect created by this request when authoritative listing capacity rejects", async () => {
     let claimAttempts = 0;
     const port = deps({
       getAllocationUsage: async () => ({
@@ -629,13 +637,13 @@ describe("GetOblic directory convert orchestration", () => {
       },
     });
     const result = await convertGetOblicDirectoryListing(convertInput(), port);
-    assert.equal(result.outcome, "capacity_exceeded");
-    assert.equal(result.prospect_id, null);
+    assert.equal(result.outcome, "created");
+    assert.equal(result.prospect_id, PROSPECT_A);
     assert.equal(result.generation_queued, false);
     assert.equal(result.allocated, false);
     assert.equal(claimAttempts, 1);
-    assert.deepEqual(port.deleted, [PROSPECT_A]);
-    assert.equal(port.created.length, 0);
+    assert.deepEqual(port.deleted, []);
+    assert.equal(port.created.length, 1);
     assert.equal(port.queued.length, 0);
   });
 
@@ -657,14 +665,15 @@ describe("GetOblic directory convert orchestration", () => {
       },
     });
     const result = await convertGetOblicDirectoryListing(convertInput(), port);
-    assert.equal(result.outcome, "capacity_exceeded");
-    assert.equal(result.prospect_id, null);
+    assert.equal(result.outcome, "reused");
+    assert.equal(result.prospect_id, PROSPECT_B);
+    assert.equal(result.allocated, false);
     assert.equal(port.created.length, 0);
     assert.deepEqual(port.deleted, []);
     assert.equal(port.queued.length, 0);
   });
 
-  it("fails closed when listing capacity is exhausted, even with a historical event or origin Prospect", async () => {
+  it("reuses an origin Prospect when listing capacity is exhausted and does not consume a listing slot", async () => {
     const port = deps({
       getAllocationUsage: async () => ({
         configured: true,
@@ -681,9 +690,17 @@ describe("GetOblic directory convert orchestration", () => {
           released_at: "2026-08-01T00:00:00.000Z",
         }),
       findOriginProspectByListingId: async () => prospect({ id: PROSPECT_B }),
+      claimKnownExistingListing: async () => {
+        throw new GetOblicDirectoryError(
+          "GETOBLIC_LISTING_CAPACITY_EXCEEDED",
+          "This account has reached its GetOblic listing capacity. Release an existing GetOblic listing before adding another.",
+        );
+      },
     });
     const result = await convertGetOblicDirectoryListing(convertInput(), port);
-    assert.equal(result.outcome, "capacity_exceeded");
+    assert.equal(result.outcome, "reused");
+    assert.equal(result.prospect_id, PROSPECT_B);
+    assert.equal(result.allocated, false);
     assert.equal(port.created.length, 0);
     assert.equal(port.claimed.length, 0);
   });
@@ -2141,11 +2158,13 @@ describe("GetOblic cross-org reusable website intelligence", () => {
       },
     });
     const result = await convertGetOblicDirectoryListing(convertInput(), port);
-    assert.equal(result.outcome, "capacity_exceeded");
-    assert.equal(result.prospect_id, null);
+    assert.equal(result.outcome, "created");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(result.allocated, false);
     assert.deepEqual(reuseCalls, []);
-    assert.deepEqual(port.deleted, [PROSPECT_A]);
-    assert.equal(port.created.length, 0);
+    assert.deepEqual(port.deleted, []);
+    assert.equal(port.created.length, 1);
+    assert.equal(port.created[0].website_intelligence, null);
     assert.equal(port.queued.length, 0);
   });
 

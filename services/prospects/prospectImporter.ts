@@ -14,6 +14,12 @@ import {
   createDiscussion,
   updateDiscussion,
 } from "@/services/discussionService";
+import {
+  getOrganizationProspectCapacity,
+  isProspectCapacityExceededError,
+  prospectCapacityExceededMessage,
+  type OrganizationProspectCapacity,
+} from "@/services/prospects/prospectCapacity";
 import { enqueueDiscussionGenerationJob } from "@/services/generationJobs/generationJobRunner";
 import {
   findExistingProspectDuplicate,
@@ -67,6 +73,7 @@ export type ProspectImportSummary = {
   duplicates: number;
   invalidWebsites: number;
   invalidRows: number;
+  capacitySkipped: number;
   queued: number;
   withoutWebsite: number;
   prospectIds: string[];
@@ -416,6 +423,9 @@ export async function importProspectsFromRows(input: {
   findDuplicate?: FindProspectDuplicateFn;
   createProspect?: typeof createProspect;
   ensureQueued?: typeof ensureProspectGenerationQueued;
+  getProspectCapacity?: (
+    organizationId: string,
+  ) => Promise<OrganizationProspectCapacity>;
 }): Promise<ProspectImportSummary> {
   const batchId = randomUUID();
   const persist = input.createProspect ?? createProspect;
@@ -430,11 +440,24 @@ export async function importProspectsFromRows(input: {
     findDuplicate: input.findDuplicate,
   });
 
+  let remainingSlots: number | null = null;
+  if (input.getProspectCapacity || !input.createProspect) {
+    try {
+      const capacity = await (
+        input.getProspectCapacity ?? getOrganizationProspectCapacity
+      )(input.organizationId);
+      remainingSlots = capacity.remaining;
+    } catch {
+      remainingSlots = null;
+    }
+  }
+
   const summary: ProspectImportSummary = {
     imported: 0,
     duplicates: prepared.duplicateRows,
     invalidWebsites: prepared.invalidWebsiteRows,
     invalidRows: prepared.invalidRows,
+    capacitySkipped: 0,
     queued: 0,
     withoutWebsite: 0,
     prospectIds: [],
@@ -448,8 +471,23 @@ export async function importProspectsFromRows(input: {
       })),
   };
 
+  const recordCapacitySkip = (rowNumber: number) => {
+    summary.capacitySkipped += 1;
+    if (summary.invalidRowDetails.length < 25) {
+      summary.invalidRowDetails.push({
+        rowNumber,
+        reason: prospectCapacityExceededMessage(),
+      });
+    }
+  };
+
   for (const item of prepared.rows) {
     if (!item.importable || !item.businessName) {
+      continue;
+    }
+
+    if (remainingSlots !== null && remainingSlots <= 0) {
+      recordCapacitySkip(item.rowNumber);
       continue;
     }
 
@@ -481,6 +519,9 @@ export async function importProspectsFromRows(input: {
 
       summary.imported += 1;
       summary.prospectIds.push(created.id);
+      if (remainingSlots !== null) {
+        remainingSlots = Math.max(remainingSlots - 1, 0);
+      }
       if (!created.website) summary.withoutWebsite += 1;
 
       // Persist + enqueue only — no homepage scrape in the HTTP path.
@@ -504,6 +545,11 @@ export async function importProspectsFromRows(input: {
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
     } catch (error) {
+      if (isProspectCapacityExceededError(error)) {
+        remainingSlots = 0;
+        recordCapacitySkip(item.rowNumber);
+        continue;
+      }
       summary.invalidRows += 1;
       if (summary.invalidRowDetails.length < 25) {
         summary.invalidRowDetails.push({

@@ -2388,6 +2388,8 @@ export const en = {
         "This workspace isn’t set up to add GetOblic businesses yet.",
       listingCapacityReached:
         "You’ve reached listing capacity. Release an existing GetOblic listing before adding another.",
+      prospectCapacityReached:
+        "This account has reached its 300-prospect limit. Remove an existing Prospect before adding another.",
       addYourself: "Or add a business yourself",
       sourceGetOblic: "GetOblic",
       available: "Available",

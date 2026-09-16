@@ -148,7 +148,8 @@ describe("CO-5D1 two-method Find opportunities UX", () => {
     assert.match(discovery, /\/api\/getoblic-directory\/search/);
     assert.match(discovery, /\/api\/prospects\/from-getoblic/);
     assert.match(discovery, /page: String\(nextPage\)/);
-    assert.match(discovery, /listingCapacityReached/);
+    assert.match(discovery, /prospectCapacityReached &&/);
+    assert.doesNotMatch(discovery, /listingCapacityReached &&/);
     assert.doesNotMatch(discovery, /from-google-business/);
     assert.doesNotMatch(discovery, /google.?places/i);
     assert.doesNotMatch(discovery, /author_id/);

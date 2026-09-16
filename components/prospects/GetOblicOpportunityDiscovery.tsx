@@ -42,8 +42,7 @@ type ConvertPayload = {
 
 type GetOblicOpportunityDiscoveryProps = {
   messages: TenantMessages;
-  notConfigured: boolean;
-  listingCapacityReached: boolean;
+  prospectCapacityReached: boolean;
 };
 
 function convertFailureCopy(
@@ -53,6 +52,8 @@ function convertFailureCopy(
 ): string {
   const copy = messages.prospects.find;
   switch (code) {
+    case "PROSPECT_CAPACITY_EXCEEDED":
+      return copy.prospectCapacityReached;
     case "GETOBLIC_DIRECTORY_NOT_CONFIGURED":
       return copy.notConfigured;
     case "GETOBLIC_LISTING_CAPACITY_EXCEEDED":
@@ -71,8 +72,7 @@ function convertFailureCopy(
 
 export function GetOblicOpportunityDiscovery({
   messages,
-  notConfigured,
-  listingCapacityReached,
+  prospectCapacityReached,
 }: GetOblicOpportunityDiscoveryProps) {
   const router = useRouter();
   const copy = messages.prospects.find;
@@ -181,14 +181,9 @@ export function GetOblicOpportunityDiscovery({
 
   return (
     <div className="space-y-6">
-      {notConfigured ? (
+      {prospectCapacityReached ? (
         <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
-          {copy.notConfigured}
-        </div>
-      ) : null}
-      {listingCapacityReached ? (
-        <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
-          {copy.listingCapacityReached}
+          {copy.prospectCapacityReached}
         </div>
       ) : null}
 
@@ -247,10 +242,9 @@ export function GetOblicOpportunityDiscovery({
                 failedId === hit.wordpress_listing_id ? failureMessage : null
               }
               addDisabled={
-                notConfigured ||
-                (listingCapacityReached &&
-                  hit.athena_claim_status !== "INCOMPLETE_FOR_THIS_ORG" &&
-                  hit.athena_claim_status !== "OWNED_BY_THIS_ORG")
+                prospectCapacityReached &&
+                hit.athena_claim_status !== "INCOMPLETE_FOR_THIS_ORG" &&
+                hit.athena_claim_status !== "OWNED_BY_THIS_ORG"
               }
               onAdd={(item) => void convertHit(item)}
               onOpen={(item) => void convertHit(item)}

@@ -13,6 +13,11 @@ import {
   type ProspectGeneratedListingDescription,
 } from "@/services/prospects/prospectGeneratedListingDescription";
 import {
+  ProspectCapacityExceededError,
+  getOrganizationProspectCapacity,
+  isProspectCapacityExceededError,
+} from "@/services/prospects/prospectCapacity";
+import {
   buildProspectAnalysisBody,
   normalizeWebsiteUrl,
 } from "@/services/prospects/prospectUtils";
@@ -279,6 +284,21 @@ export async function createProspect(
     throw new Error("Business Name is required.");
   }
 
+  try {
+    const capacity = await getOrganizationProspectCapacity(
+      input.organization_id,
+    );
+    if (capacity.reached) {
+      throw new ProspectCapacityExceededError();
+    }
+  } catch (error) {
+    if (error instanceof ProspectCapacityExceededError) {
+      throw error;
+    }
+    // Count preflight failed. Insert still goes through the race-safe
+    // organization lock + count trigger.
+  }
+
   const website = normalizeWebsiteUrl(input.website);
 
   const { data, error } = await supabaseAdmin
@@ -328,6 +348,9 @@ export async function createProspect(
     .single();
 
   if (error) {
+    if (isProspectCapacityExceededError(error)) {
+      throw new ProspectCapacityExceededError();
+    }
     console.error("Error creating prospect:", error);
     throw error;
   }

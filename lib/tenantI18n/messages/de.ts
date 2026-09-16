@@ -2421,6 +2421,8 @@ export const de: TenantMessages = {
         "Dieser Arbeitsbereich ist noch nicht eingerichtet, um GetOblic-Unternehmen hinzuzufügen.",
       listingCapacityReached:
         "Sie haben die Listing-Kapazität erreicht. Geben Sie ein bestehendes GetOblic-Listing frei, bevor Sie ein weiteres hinzufügen.",
+      prospectCapacityReached:
+        "Dieses Konto hat das Limit von 300 Prospects erreicht. Entfernen Sie einen bestehenden Prospect, bevor Sie einen weiteren hinzufügen.",
       addYourself: "Oder fügen Sie selbst ein Unternehmen hinzu",
       sourceGetOblic: "GetOblic",
       available: "Verfügbar",
