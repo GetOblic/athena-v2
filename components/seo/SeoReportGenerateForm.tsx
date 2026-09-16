@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Gauge, Telescope } from "lucide-react";
 import { SEO_CHOICE_CARD } from "@/components/seo/seoPagePresentation";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { en } from "@/lib/tenantI18n/messages/en";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
@@ -40,6 +41,7 @@ export function SeoReportGenerateForm({
   async function handleGenerate() {
     if (submittingRef.current) return;
     if (generationType === "technical" && !technicalSelectable) return;
+    unlockCompletionSound();
     submittingRef.current = true;
     setSubmitting(true);
     setError(null);

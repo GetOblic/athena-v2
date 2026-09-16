@@ -603,13 +603,18 @@ describe("Social Planner searchable corpus", () => {
 describe("Social Planner history search UI and polling", () => {
   it("places Prospects-style search between create and Your Social Calendars", () => {
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const historyPage = read(
+      "components/socialPlanner/SocialPlannerHistoryPageWorkspace.tsx",
+    );
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
     const createIdx = workspace.indexOf("<SocialPlannerCreateForm");
-    const searchIdx = workspace.indexOf("copy.searchPlaceholderDaily");
-    const historyIdx = workspace.indexOf("<SocialPlannerHistory");
-    assert.ok(createIdx >= 0 && searchIdx > createIdx && historyIdx > searchIdx);
-    assert.match(workspace, /SOCIAL_SEARCH_SURFACE/);
-    assert.match(workspace, /SOCIAL_SEARCH_FIELD_CLASS/);
+    const historyCtaIdx = workspace.indexOf("<SocialPlannerHistoryCta");
+    const searchIdx = historyPage.indexOf("copy.searchPlaceholderDaily");
+    const historyIdx = historyPage.indexOf("<SocialPlannerHistory");
+    assert.ok(createIdx >= 0 && historyCtaIdx > createIdx);
+    assert.ok(searchIdx >= 0 && historyIdx > searchIdx);
+    assert.match(historyPage, /SOCIAL_SEARCH_SURFACE/);
+    assert.match(historyPage, /SOCIAL_SEARCH_FIELD_CLASS/);
     assert.match(history, /copy\.historyTitleDaily/);
     assert.match(history, /copy\.noSearchMatch/);
     assert.doesNotMatch(workspace, /\bStatus\b|\bSort\b|Import/);
@@ -628,41 +633,48 @@ describe("Social Planner history search UI and polling", () => {
   });
 
   it("keeps search visible with zero results and resets to page 1 on search change", () => {
-    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const historyPage = read(
+      "components/socialPlanner/SocialPlannerHistoryPageWorkspace.tsx",
+    );
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
-    assert.match(workspace, /function handleSearchChange/);
-    assert.match(workspace, /setPage\(1\)/);
-    assert.match(workspace, /void loadHistory\(value, 1\)/);
+    assert.match(historyPage, /function handleSearchChange/);
+    assert.match(historyPage, /setPage\(1\)/);
+    assert.match(historyPage, /void loadHistory\(value, 1\)/);
     assert.match(history, /hasSearch = search\.trim\(\)\.length > 0/);
     assert.match(history, /copy\.noSearchMatch/);
-    assert.doesNotMatch(workspace, /useSearchParams|replaceState|searchParams\.set\("page"/);
+    assert.doesNotMatch(historyPage, /useSearchParams|replaceState|searchParams\.set\("page"/);
   });
 
   it("polls the current search\/page\/limit through one history loop", () => {
-    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const historyPage = read(
+      "components/socialPlanner/SocialPlannerHistoryPageWorkspace.tsx",
+    );
     assert.match(
-      workspace,
+      historyPage,
       /fetchSocialCalendarHistory\(\s*\{\s*search: nextSearch,\s*page: nextPage,\s*limit,/,
     );
-    assert.match(workspace, /await loadHistory\(search, page\)/);
-    assert.equal((workspace.match(/setInterval/g) || []).length, 1);
-    assert.equal((workspace.match(/fetchSocialCalendarHistory\(/g) || []).length, 1);
-    assert.doesNotMatch(workspace, /fetchSocialCalendarDetail/);
-    assert.doesNotMatch(workspace, /setSearch\(""\)/);
-    assert.match(workspace, /latestRequestKeyRef/);
-    assert.match(workspace, /isSocialPlannerInFlight\(item\.status\)/);
+    assert.match(historyPage, /await loadHistory\(search, page\)/);
+    assert.equal((historyPage.match(/setInterval/g) || []).length, 1);
+    assert.equal((historyPage.match(/fetchSocialCalendarHistory\(/g) || []).length, 1);
+    assert.doesNotMatch(historyPage, /fetchSocialCalendarDetail/);
+    assert.doesNotMatch(historyPage, /setSearch\(""\)/);
+    assert.match(historyPage, /latestRequestKeyRef/);
+    assert.match(historyPage, /isSocialPlannerInFlight\(item\.status\)/);
   });
 
   it("encodes client search and returns calendars plus pagination", () => {
     const client = read("components/socialPlanner/socialPlannerClient.ts");
     const page = read("app/social-planner/page.tsx");
+    const historyRoute = read(
+      "components/socialPlanner/SocialPlannerHistoryRoutePage.tsx",
+    );
     assert.match(client, /new URLSearchParams\(\)/);
     assert.match(client, /params\.set\("search", search\)/);
     assert.match(client, /calendars: payload\.calendars/);
     assert.match(client, /pagination/);
-    assert.match(page, /search: ""/);
-    assert.match(page, /page: 1/);
-    assert.match(page, /limit: SOCIAL_CALENDAR_HISTORY_PAGE_SIZE/);
+    assert.match(historyRoute, /search: ""/);
+    assert.match(historyRoute, /page: 1/);
+    assert.match(historyRoute, /limit: SOCIAL_CALENDAR_HISTORY_PAGE_SIZE/);
     assert.match(page, /redirect\(`\/social-planner\/\$\{requestedId\}`\)/);
   });
 });

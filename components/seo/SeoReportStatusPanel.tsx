@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import {
@@ -62,6 +63,7 @@ export function SeoReportStatusPanel({
   const visibility = messages?.seo.visibility ?? en.seo.visibility;
   const dictionary = messages ?? en;
   const router = useRouter();
+  const completionSound = useBackgroundActionCompletionSound();
   const [status, setStatus] = useState(initialStatus);
   const [stage, setStage] = useState(initialStage);
   const [errorMessage, setErrorMessage] = useState(initialErrorMessage);
@@ -70,6 +72,10 @@ export function SeoReportStatusPanel({
   const [actionError, setActionError] = useState<string | null>(null);
 
   const inFlight = status === "Queued" || status === "Processing";
+
+  useEffect(() => {
+    completionSound.observe(status);
+  }, [completionSound, status]);
 
   useEffect(() => {
     if (!inFlight) return;
@@ -83,7 +89,10 @@ export function SeoReportStatusPanel({
         const payload = await parseJsonResponse<StatusPayload>(response);
         if (cancelled || !payload.ok) return;
 
-        if (payload.status) setStatus(payload.status);
+        if (payload.status) {
+          setStatus(payload.status);
+          completionSound.observe(payload.status);
+        }
         if (payload.generationStage !== undefined) {
           setStage(payload.generationStage ?? null);
         }
@@ -111,10 +120,11 @@ export function SeoReportStatusPanel({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [reportId, inFlight, router]);
+  }, [completionSound, inFlight, reportId, router]);
 
   async function handleRegenerate() {
     if (regenerating) return;
+    completionSound.unlock();
     setRegenerating(true);
     setActionError(null);
     try {
@@ -141,6 +151,7 @@ export function SeoReportStatusPanel({
 
   async function handleRetryGenerate() {
     if (regenerating) return;
+    completionSound.unlock();
     setRegenerating(true);
     setActionError(null);
     try {

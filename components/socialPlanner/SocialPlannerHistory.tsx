@@ -47,6 +47,8 @@ type SocialPlannerHistoryProps = {
   onPageChange: (page: number) => void;
   messages?: TenantMessages;
   locale?: TenantFormattingLocale;
+  showIntro?: boolean;
+  allowEmpty?: boolean;
 };
 
 export function SocialPlannerHistory({
@@ -57,12 +59,19 @@ export function SocialPlannerHistory({
   onPageChange,
   messages,
   locale = "en-US",
+  showIntro = true,
+  allowEmpty = false,
 }: SocialPlannerHistoryProps) {
   const dictionary = messages ?? en;
   const copy = dictionary.socialPlanner;
   const isEvergreen = plannerKind === "evergreen";
   const hasSearch = search.trim().length > 0;
-  if (!hasSearch && pagination.total === 0 && calendars.length === 0) {
+  if (
+    !allowEmpty &&
+    !hasSearch &&
+    pagination.total === 0 &&
+    calendars.length === 0
+  ) {
     return null;
   }
 
@@ -76,21 +85,31 @@ export function SocialPlannerHistory({
 
   return (
     <section className="space-y-4">
-      <div>
-        <h2 className={SOCIAL_HISTORY_HEADING_CLASS}>
-          {isEvergreen ? copy.historyTitleEvergreen : copy.historyTitleDaily}
-        </h2>
-        <p className="mt-1 text-sm text-white/45">
-          {isEvergreen ? copy.historySubtitleEvergreen : copy.historySubtitleDaily}
-        </p>
-      </div>
+      {showIntro ? (
+        <div>
+          <h2 className={SOCIAL_HISTORY_HEADING_CLASS}>
+            {isEvergreen ? copy.historyTitleEvergreen : copy.historyTitleDaily}
+          </h2>
+          <p className="mt-1 text-sm text-white/45">
+            {isEvergreen
+              ? copy.historySubtitleEvergreen
+              : copy.historySubtitleDaily}
+          </p>
+        </div>
+      ) : null}
 
       {calendars.length === 0 ? (
         <div className={SOCIAL_EMPTY_SEARCH_CLASS}>
           <div className={SOCIAL_EMPTY_SEARCH_ICON} aria-hidden="true">
             <CalendarSearch className="size-5" />
           </div>
-          <p className="text-sm leading-7 text-white/50">{copy.noSearchMatch}</p>
+          <p className="text-sm leading-7 text-white/50">
+            {hasSearch
+              ? copy.noSearchMatch
+              : isEvergreen
+                ? copy.historyEmptyEvergreen
+                : copy.historyEmptyDaily}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">

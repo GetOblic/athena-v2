@@ -14,12 +14,18 @@ import {
   CopyButton,
   type AssetCopyTrackingContext,
 } from "@/components/deployment/CopyButton";
+import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
+import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import {
   SocialCalendarProductionSpec,
   SocialPlannerCopyableField,
 } from "@/components/socialPlanner/SocialCalendarProductionSpec";
+import { SocialPlannerBrandDirection } from "@/components/socialPlanner/SocialPlannerBrandDirection";
 import { formatSocialPlannerDayHeader } from "@/components/socialPlanner/socialPlannerDates";
-import { serializeSocialCalendarAsset } from "@/components/socialPlanner/socialPlannerAssetCopyText";
+import {
+  composeSocialPlannerDayCopyWithBrandDirection,
+  serializeSocialCalendarAsset,
+} from "@/components/socialPlanner/socialPlannerAssetCopyText";
 import {
   SOCIAL_DETAIL_COPY_SURFACE,
   SOCIAL_DETAIL_DAY_ACTION,
@@ -51,6 +57,8 @@ type SocialCalendarDayCardProps = {
   tracking: AssetCopyTrackingContext;
   initiallyDone?: boolean;
   initiallyTags?: AssetUsageTag[];
+  continuationPreferences?: AiWorkspacePreferences | null;
+  brandDirection?: BlueprintBrandDirectionInput | null;
   messages?: TenantMessages;
   locale?: TenantFormattingLocale;
 };
@@ -61,6 +69,8 @@ export function SocialCalendarDayCard({
   tracking,
   initiallyDone = false,
   initiallyTags = [],
+  continuationPreferences = null,
+  brandDirection = null,
   messages,
   locale = "en-US",
 }: SocialCalendarDayCardProps) {
@@ -72,7 +82,10 @@ export function SocialCalendarDayCard({
   const selectedAnchors = asset.calendarAnchors.filter((anchor) =>
     Boolean(anchor.label?.trim()),
   );
-  const assetCopyText = serializeSocialCalendarAsset(asset);
+  const assetCopyText = composeSocialPlannerDayCopyWithBrandDirection(
+    serializeSocialCalendarAsset(asset),
+    brandDirection,
+  );
 
   return (
     <article
@@ -137,6 +150,7 @@ export function SocialCalendarDayCard({
             showContinue
             variant="utility"
             assetType={asset.assetType}
+            continuationPreferences={continuationPreferences}
             chrome={copyChrome}
           />
           <button
@@ -228,6 +242,7 @@ export function SocialCalendarDayCard({
               messages={dictionary}
             />
           </div>
+          <SocialPlannerBrandDirection brandDirection={brandDirection} />
         </div>
       ) : null}
     </article>

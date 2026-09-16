@@ -13,9 +13,15 @@ import {
   CopyButton,
   type AssetCopyTrackingContext,
 } from "@/components/deployment/CopyButton";
+import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
+import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import { SocialPlannerCopyableField } from "@/components/socialPlanner/SocialCalendarProductionSpec";
+import { SocialPlannerBrandDirection } from "@/components/socialPlanner/SocialPlannerBrandDirection";
 import { formatSocialPlannerDayHeader } from "@/components/socialPlanner/socialPlannerDates";
-import { serializeSocialCalendarEvergreenDay } from "@/components/socialPlanner/socialPlannerAssetCopyText";
+import {
+  composeSocialPlannerDayCopyWithBrandDirection,
+  serializeSocialCalendarEvergreenDay,
+} from "@/components/socialPlanner/socialPlannerAssetCopyText";
 import {
   SOCIAL_DETAIL_COPY_SURFACE,
   SOCIAL_DETAIL_DAY_ACTION,
@@ -44,6 +50,8 @@ type SocialCalendarEvergreenDayCardProps = {
   tracking: AssetCopyTrackingContext;
   initiallyDone?: boolean;
   initiallyTags?: AssetUsageTag[];
+  continuationPreferences?: AiWorkspacePreferences | null;
+  brandDirection?: BlueprintBrandDirectionInput | null;
   messages?: TenantMessages;
   locale?: TenantFormattingLocale;
 };
@@ -54,6 +62,8 @@ export function SocialCalendarEvergreenDayCard({
   tracking,
   initiallyDone = false,
   initiallyTags = [],
+  continuationPreferences = null,
+  brandDirection = null,
   messages,
   locale = "en-US",
 }: SocialCalendarEvergreenDayCardProps) {
@@ -65,7 +75,10 @@ export function SocialCalendarEvergreenDayCard({
   const selectedAnchors = day.calendarAnchors.filter((anchor) =>
     Boolean(anchor.label?.trim()),
   );
-  const copyText = serializeSocialCalendarEvergreenDay(day);
+  const copyText = composeSocialPlannerDayCopyWithBrandDirection(
+    serializeSocialCalendarEvergreenDay(day),
+    brandDirection,
+  );
   const formatLabel = getLocalizedSocialPlannerEvergreenFormatLabel(
     dictionary,
     day.evergreenFormat,
@@ -120,6 +133,7 @@ export function SocialCalendarEvergreenDayCard({
             showContinue
             variant="utility"
             assetType={day.evergreenFormat}
+            continuationPreferences={continuationPreferences}
             chrome={copyChrome}
           />
           <button
@@ -201,6 +215,7 @@ export function SocialCalendarEvergreenDayCard({
               chrome={copyChrome}
             />
           ) : null}
+          <SocialPlannerBrandDirection brandDirection={brandDirection} />
         </div>
       ) : null}
     </article>

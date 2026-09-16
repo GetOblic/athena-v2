@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw, Shuffle } from "lucide-react";
+import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
 import {
   PERSONA_HEADER_ALTERNATIVE_CLASS,
   PERSONA_HEADER_GENERATE_CLASS,
@@ -65,6 +66,7 @@ export function PersonaGenerateIntelligenceButton({
   chrome = null,
 }: PersonaGenerateIntelligenceButtonProps) {
   const router = useRouter();
+  const completionSound = useBackgroundActionCompletionSound();
   const [queueingKind, setQueueingKind] = useState<QueueKind | null>(null);
   const [inFlight, setInFlight] = useState(initialInFlight);
   const [statusLabel, setStatusLabel] = useState(initialStatus);
@@ -96,6 +98,13 @@ export function PersonaGenerateIntelligenceButton({
         setCanThinkDifferently(payload.hasCurrentExecutiveVersion);
       }
 
+      const observed = payload.jobStatus ?? payload.status;
+      if (observed) {
+        completionSound.observe(observed);
+      } else if (payload.regenerationInFlight) {
+        completionSound.observe("processing");
+      }
+
       if (!payload.regenerationInFlight) {
         stopPolling();
         router.refresh();
@@ -103,7 +112,7 @@ export function PersonaGenerateIntelligenceButton({
     } catch {
       /* keep last known state */
     }
-  }, [personaId, router, stopPolling]);
+  }, [completionSound, personaId, router, stopPolling]);
 
   const startPolling = useCallback(() => {
     stopPolling();
@@ -120,6 +129,14 @@ export function PersonaGenerateIntelligenceButton({
   }, [initialInFlight, startPolling, stopPolling]);
 
   useEffect(() => {
+    if (initialInFlight) {
+      completionSound.observe("processing");
+    } else if (initialStatus) {
+      completionSound.observe(initialStatus);
+    }
+  }, [completionSound, initialInFlight, initialStatus]);
+
+  useEffect(() => {
     setCanThinkDifferently(hasCurrentExecutiveVersion);
   }, [hasCurrentExecutiveVersion]);
 
@@ -127,6 +144,7 @@ export function PersonaGenerateIntelligenceButton({
     if (queueingKind || inFlight) return;
     if (kind === "think_differently" && !canThinkDifferently) return;
 
+    completionSound.unlock();
     setQueueingKind(kind);
     setMessage(null);
     setError(null);
@@ -162,6 +180,7 @@ export function PersonaGenerateIntelligenceButton({
       }
 
       setInFlight(Boolean(payload.queued ?? payload.accepted ?? true));
+      completionSound.observe(payload.jobStatus ?? "queued");
       setMessage(
         payload.message ||
           (kind === "think_differently"

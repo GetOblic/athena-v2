@@ -317,10 +317,14 @@ describe("Social Planner SP-4 structural separation", () => {
 
     const service = read("services/socialPlanner/socialCalendarService.ts");
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
+    const historyRoute = read(
+      "components/socialPlanner/SocialPlannerHistoryRoutePage.tsx",
+    );
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
     assert.match(service, /socialCalendarMatchesPlannerHistory/);
     assert.match(service, /normalizeSocialCalendarHistoryPlannerKind/);
     assert.match(workspace, /plannerKind,/);
+    assert.match(historyRoute, /plannerKind,/);
     assert.match(history, /copy\.historyTitleDaily/);
     assert.match(history, /copy\.historyTitleEvergreen/);
     assert.match(history, /SOCIAL_WEEK_CARD_EVERGREEN_CLASS/);

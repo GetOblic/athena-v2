@@ -205,16 +205,18 @@ describe("/social-planner library presentation", () => {
   });
 
   it("replaces the search field with a Social-owned toolbar and no new filters", () => {
-    const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
-    assert.match(workspace, /SOCIAL_SEARCH_SURFACE/);
-    assert.match(workspace, /SOCIAL_SEARCH_FIELD_CLASS/);
-    assert.match(workspace, /copy\.searchPlaceholderDaily/);
-    assert.match(workspace, /<Search/);
-    assert.match(workspace, /setPage\(1\)/);
-    assert.match(workspace, /void loadHistory\(value, 1\)/);
-    assert.doesNotMatch(workspace, /status filter|platform filter|date filter/i);
-    assert.doesNotMatch(workspace, /view toggle|view mode|Import Prospects/);
-    assert.doesNotMatch(workspace, /<select/);
+    const historyPage = read(
+      "components/socialPlanner/SocialPlannerHistoryPageWorkspace.tsx",
+    );
+    assert.match(historyPage, /SOCIAL_SEARCH_SURFACE/);
+    assert.match(historyPage, /SOCIAL_SEARCH_FIELD_CLASS/);
+    assert.match(historyPage, /copy\.searchPlaceholderDaily/);
+    assert.match(historyPage, /<Search/);
+    assert.match(historyPage, /setPage\(1\)/);
+    assert.match(historyPage, /void loadHistory\(value, 1\)/);
+    assert.doesNotMatch(historyPage, /status filter|platform filter|date filter/i);
+    assert.doesNotMatch(historyPage, /view toggle|view mode|Import Prospects/);
+    assert.doesNotMatch(historyPage, /<select/);
     assert.match(SOCIAL_SEARCH_SURFACE, /56,189,248/);
     assert.match(SOCIAL_SEARCH_FIELD_CLASS, /pl-10/);
   });
@@ -326,7 +328,7 @@ describe("/social-planner library presentation", () => {
     assert.match(history, /copy\.noSearchMatch/);
     assert.match(
       history,
-      /if \(!hasSearch && pagination\.total === 0 && calendars\.length === 0\) \{\s*return null;/,
+      /if \(\s*!allowEmpty &&\s*!hasSearch &&\s*pagination\.total === 0 &&\s*calendars\.length === 0\s*\) \{\s*return null;/,
     );
 
     const searchEmpty = renderToStaticMarkup(
@@ -401,6 +403,12 @@ describe("/social-planner library presentation", () => {
     assert.ok(canonical.includes("socialPlanner.generateEvergreenWeek"));
     assert.ok(canonical.includes("socialPlanner.historyTitleDaily"));
     assert.ok(canonical.includes("socialPlanner.historyTitleEvergreen"));
+    assert.ok(canonical.includes("socialPlanner.historyCtaActionDaily"));
+    assert.ok(canonical.includes("socialPlanner.historyCtaActionEvergreen"));
+    assert.ok(canonical.includes("socialPlanner.historyPageTitleDaily"));
+    assert.ok(canonical.includes("socialPlanner.historyPageTitleEvergreen"));
+    assert.ok(canonical.includes("socialPlanner.backToDailyPlanner"));
+    assert.ok(canonical.includes("socialPlanner.backToEvergreenPlanner"));
     assert.ok(canonical.includes("socialPlanner.yourEvergreenWeek"));
     assert.ok(canonical.includes("socialPlanner.invalidPlanner"));
     assert.ok(canonical.includes("socialPlanner.planningWeekDaily"));
@@ -417,6 +425,12 @@ describe("/social-planner library presentation", () => {
       assert.ok(paths.includes("socialPlanner.historyTitle"), language);
       assert.ok(paths.includes("socialPlanner.historyTitleDaily"), language);
       assert.ok(paths.includes("socialPlanner.historyTitleEvergreen"), language);
+      assert.ok(paths.includes("socialPlanner.historyCtaActionDaily"), language);
+      assert.ok(paths.includes("socialPlanner.historyCtaActionEvergreen"), language);
+      assert.ok(paths.includes("socialPlanner.historyPageTitleDaily"), language);
+      assert.ok(paths.includes("socialPlanner.historyPageTitleEvergreen"), language);
+      assert.ok(paths.includes("socialPlanner.backToDailyPlanner"), language);
+      assert.ok(paths.includes("socialPlanner.backToEvergreenPlanner"), language);
       assert.ok(paths.includes("socialPlanner.yourEvergreenWeek"), language);
       assert.ok(paths.includes("socialPlanner.invalidPlanner"), language);
       assert.ok(paths.includes("socialPlanner.openCalendar"), language);
@@ -454,6 +468,8 @@ describe("/social-planner library presentation", () => {
       "components/socialPlanner/SocialPlannerWorkspace.tsx",
       "components/socialPlanner/SocialPlannerCreateForm.tsx",
       "components/socialPlanner/SocialPlannerHistory.tsx",
+      "components/socialPlanner/SocialPlannerHistoryCta.tsx",
+      "components/socialPlanner/SocialPlannerHistoryPageWorkspace.tsx",
       "lib/socialPlanner/socialPlannerPagePresentation.ts",
     ];
     for (const file of files) {
@@ -538,12 +554,12 @@ describe("/social-planner library presentation", () => {
     assert.match(form, /SOCIAL_TEXTAREA_CLASS/);
     assert.match(workspace, /space-y-10/);
     assert.match(workspace, /<SocialPlannerCreateForm/);
-    assert.match(workspace, /SOCIAL_SEARCH_SURFACE/);
-    assert.match(workspace, /<SocialPlannerHistory/);
+    assert.match(workspace, /<SocialPlannerHistoryCta/);
+    assert.doesNotMatch(workspace, /SOCIAL_SEARCH_SURFACE/);
+    assert.doesNotMatch(workspace, /<SocialPlannerHistory[\s>]/);
     const composerIdx = workspace.indexOf("<SocialPlannerCreateForm");
-    const searchIdx = workspace.indexOf("className={SOCIAL_SEARCH_SURFACE}");
-    const historyIdx = workspace.indexOf("<SocialPlannerHistory");
-    assert.ok(composerIdx >= 0 && searchIdx > composerIdx && historyIdx > searchIdx);
+    const historyCtaIdx = workspace.indexOf("<SocialPlannerHistoryCta");
+    assert.ok(composerIdx >= 0 && historyCtaIdx > composerIdx);
   });
 
   it("does not pull generation or persona-import files into the Social Planner surface contract", () => {

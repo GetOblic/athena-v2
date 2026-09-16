@@ -19,6 +19,8 @@ import {
   Wrench,
 } from "lucide-react";
 import { SeoCoverageMeter } from "@/components/seo/SeoCoverageMeter";
+import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
+import { SeoProspectPdfDownloadButton } from "@/components/seo/SeoProspectPdfDownloadButton";
 import { SeoGenerationTypeBadge } from "@/components/seo/SeoGenerationTypeBadge";
 import { SeoRecommendationCard } from "@/components/seo/SeoRecommendationCard";
 import { SeoReportHeaderDeleteButton } from "@/components/seo/SeoReportHeaderDeleteButton";
@@ -245,6 +247,7 @@ export function SeoTechnicalReportDetailView({
 
   async function handleRegenerate() {
     if (regenerating) return;
+    unlockCompletionSound();
     setRegenerating(true);
     setError(null);
     try {
@@ -313,6 +316,15 @@ export function SeoTechnicalReportDetailView({
           ) : null}
         </VisibilityPageHeader>
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap">
+          {report.status === "Ready" && pkg ? (
+            <SeoProspectPdfDownloadButton
+              reportId={report.id}
+              generateLabel={copy.prospectPdf.generate}
+              generatingLabel={copy.prospectPdf.generating}
+              generateFailedLabel={copy.prospectPdf.generateFailed}
+              onError={setError}
+            />
+          ) : null}
           {(report.status === "Ready" ||
             report.status === "Processing Failed") && (
             <button

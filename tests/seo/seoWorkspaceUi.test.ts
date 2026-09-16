@@ -85,6 +85,7 @@ describe("seo workspace UI", () => {
     assert.match(detail, /SeoRecommendationCard/);
     assert.match(detail, /SeoReportStatusPanel/);
     assert.match(detail, /copy\.detail\.regenerate/);
+    assert.match(detail, /SeoProspectPdfDownloadButton/);
     assert.match(detail, /defaultOpen=\{false\}/);
 
     const overview = read("components/seo/SeoExecutiveOverview.tsx");

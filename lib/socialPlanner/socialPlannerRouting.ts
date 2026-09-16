@@ -18,6 +18,12 @@ import {
 
 export const SOCIAL_PLANNER_WORKSPACE_PATH = "/social-planner" as const;
 
+/**
+ * Dedicated history routes live under a static `history` segment so they
+ * resolve before the dynamic calendar detail route `/social-planner/[id]`.
+ */
+export const SOCIAL_PLANNER_HISTORY_PATH = "/social-planner/history" as const;
+
 export const SOCIAL_PLANNER_URL_KINDS = ["daily", "evergreen"] as const;
 
 export type SocialPlannerUrlKind = (typeof SOCIAL_PLANNER_URL_KINDS)[number];
@@ -92,4 +98,12 @@ export function socialPlannerWorkspaceHref(input: {
     params.set("personaId", personaId);
   }
   return `${SOCIAL_PLANNER_WORKSPACE_PATH}?${params.toString()}`;
+}
+
+export function socialPlannerHistoryHref(
+  planner?: SocialPlannerUrlKind | SocialCalendarImplementedPlannerKind | null,
+): string {
+  return `${SOCIAL_PLANNER_HISTORY_PATH}/${plannerKindToUrlKind(
+    planner === "daily" ? "daily_social" : planner,
+  )}`;
 }

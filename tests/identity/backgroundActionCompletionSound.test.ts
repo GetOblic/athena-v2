@@ -204,6 +204,23 @@ describe("Background action completion sound — call sites", () => {
     assert.match(prospectRefresh, /unlockCompletionSound\(\)/);
     assert.match(appendDiscussion, /unlockCompletionSound\(\)/);
     assert.match(trainForm, /unlockCompletionSound\(\)/);
+
+    const adsPanel = read("components/ads/AdCampaignStatusPanel.tsx");
+    const seoPanel = read("components/seo/SeoReportStatusPanel.tsx");
+    const estimate = read(
+      "components/licensee/estimate/LicenseeEstimateClient.tsx",
+    );
+    const plannerDetail = read(
+      "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
+    );
+    const personaButton = read(
+      "components/personas/PersonaGenerateIntelligenceButton.tsx",
+    );
+    assert.match(adsPanel, /useBackgroundActionCompletionSound/);
+    assert.match(seoPanel, /useBackgroundActionCompletionSound/);
+    assert.match(estimate, /useBackgroundActionCompletionSound/);
+    assert.match(plannerDetail, /useBackgroundActionCompletionSound/);
+    assert.match(personaButton, /useBackgroundActionCompletionSound/);
   });
 
   it("10. no worker or server-side dependency is introduced", () => {

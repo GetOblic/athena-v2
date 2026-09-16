@@ -99,6 +99,33 @@ export const SOCIAL_KIND_BADGE_EVERGREEN =
 export const SOCIAL_KIND_SOON_PILL =
   "inline-flex rounded-full border border-[rgba(167,139,250,0.24)] bg-[rgba(167,139,250,0.08)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-violet-100/70";
 
+export const SOCIAL_HISTORY_BACK_LINK =
+  "inline-flex items-center gap-1.5 text-sm text-white/45 transition hover:text-white/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]";
+
+export const SOCIAL_HISTORY_CTA_DAILY =
+  "relative flex flex-col gap-4 overflow-hidden rounded-[24px] border border-[rgba(56,189,248,0.26)] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(56,189,248,0.10),rgba(232,121,189,0.04)_52%,transparent_78%)] p-5 shadow-[0_0_20px_rgba(56,189,248,0.06)] transition hover:border-[rgba(56,189,248,0.42)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] sm:flex-row sm:items-center sm:p-6";
+
+export const SOCIAL_HISTORY_CTA_EVERGREEN =
+  "relative flex flex-col gap-4 overflow-hidden rounded-[24px] border border-[rgba(167,139,250,0.26)] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(167,139,250,0.10),rgba(232,121,189,0.04)_52%,transparent_78%)] p-5 shadow-[0_0_20px_rgba(167,139,250,0.06)] transition hover:border-[rgba(167,139,250,0.42)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] sm:flex-row sm:items-center sm:p-6";
+
+export const SOCIAL_HISTORY_CTA_ICON_DAILY =
+  "grid size-11 shrink-0 place-items-center rounded-2xl border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.13)] text-cyan-200 shadow-[0_0_14px_rgba(56,189,248,0.16)]";
+
+export const SOCIAL_HISTORY_CTA_ICON_EVERGREEN =
+  "grid size-11 shrink-0 place-items-center rounded-2xl border border-[rgba(167,139,250,0.28)] bg-[rgba(167,139,250,0.12)] text-violet-200 shadow-[0_0_12px_rgba(167,139,250,0.12)]";
+
+export const SOCIAL_HISTORY_CTA_ACTION_DAILY =
+  "inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-2xl border border-[rgba(56,189,248,0.32)] bg-[rgba(56,189,248,0.10)] px-4 py-2.5 text-sm font-semibold text-cyan-100 transition hover:border-[rgba(56,189,248,0.48)] hover:bg-[rgba(56,189,248,0.16)] sm:w-auto";
+
+export const SOCIAL_HISTORY_CTA_ACTION_EVERGREEN =
+  "inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-2xl border border-[rgba(167,139,250,0.32)] bg-[rgba(167,139,250,0.10)] px-4 py-2.5 text-sm font-semibold text-violet-100 transition hover:border-[rgba(167,139,250,0.48)] hover:bg-[rgba(167,139,250,0.16)] sm:w-auto";
+
+export const SOCIAL_HISTORY_PAGE_ICON_DAILY =
+  "grid size-10 shrink-0 place-items-center rounded-2xl border border-[rgba(56,189,248,0.32)] bg-[linear-gradient(180deg,rgba(56,189,248,0.16),rgba(56,189,248,0.06))] text-cyan-200 shadow-[0_0_16px_rgba(56,189,248,0.18)]";
+
+export const SOCIAL_HISTORY_PAGE_ICON_EVERGREEN =
+  "grid size-10 shrink-0 place-items-center rounded-2xl border border-[rgba(167,139,250,0.32)] bg-[linear-gradient(180deg,rgba(167,139,250,0.16),rgba(167,139,250,0.06))] text-violet-200 shadow-[0_0_16px_rgba(167,139,250,0.18)]";
+
 export function socialPlannerPlannerKindBadgeClass(plannerKind: string): string {
   if (plannerKind === "evergreen") return SOCIAL_KIND_BADGE_EVERGREEN;
   return SOCIAL_KIND_BADGE_DAILY;

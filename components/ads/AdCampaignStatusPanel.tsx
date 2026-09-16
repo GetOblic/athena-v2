@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, LoaderCircle } from "lucide-react";
+import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
 import {
   AD_HEADER_PRIMARY_CLASS,
   AD_STATUS_ICON_FAILED,
@@ -61,6 +62,7 @@ export function AdCampaignStatusPanel({
   const copy = messages?.ads.statusPanel ?? en.ads.statusPanel;
   const dictionary = messages ?? en;
   const router = useRouter();
+  const completionSound = useBackgroundActionCompletionSound();
   const [status, setStatus] = useState(initialStatus);
   const [stage, setStage] = useState(initialStage);
   const [errorMessage, setErrorMessage] = useState(initialErrorMessage);
@@ -69,6 +71,10 @@ export function AdCampaignStatusPanel({
 
   const inFlight = status === "Queued" || status === "Processing";
   const isFailed = status === "Processing Failed";
+
+  useEffect(() => {
+    completionSound.observe(status);
+  }, [completionSound, status]);
 
   useEffect(() => {
     if (!inFlight) return;
@@ -82,7 +88,10 @@ export function AdCampaignStatusPanel({
         const payload = await parseJsonResponse<StatusPayload>(response);
         if (cancelled || !payload.ok) return;
 
-        if (payload.status) setStatus(payload.status);
+        if (payload.status) {
+          setStatus(payload.status);
+          completionSound.observe(payload.status);
+        }
         if (payload.generationStage !== undefined) {
           setStage(payload.generationStage ?? null);
         }
@@ -107,10 +116,11 @@ export function AdCampaignStatusPanel({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [campaignId, inFlight, router]);
+  }, [campaignId, completionSound, inFlight, router]);
 
   async function handleRegenerate() {
     if (regenerating) return;
+    completionSound.unlock();
     setRegenerating(true);
     setActionError(null);
     try {
@@ -137,6 +147,7 @@ export function AdCampaignStatusPanel({
 
   async function handleRetryGenerate() {
     if (regenerating) return;
+    completionSound.unlock();
     setRegenerating(true);
     setActionError(null);
     try {

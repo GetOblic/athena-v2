@@ -43,6 +43,10 @@ export const SOCIAL_DETAIL_PRODUCTION_SURFACE =
 export const SOCIAL_DETAIL_COPY_SURFACE =
   "rounded-[18px] bg-white/[0.03] px-4 py-4";
 
+/** Neutral Brand Direction surface — do not recolor to Daily cyan or Evergreen violet. */
+export const SOCIAL_DETAIL_BRAND_DIRECTION_SURFACE =
+  "min-w-0 rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-4";
+
 export const SOCIAL_DETAIL_STATUS_SURFACE =
   "relative overflow-hidden rounded-[24px] border border-[rgba(167,139,250,0.28)] bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(167,139,250,0.10),rgba(56,189,248,0.06)_48%,transparent_78%)] p-6 shadow-[0_0_24px_rgba(167,139,250,0.06)] before:pointer-events-none before:absolute before:inset-y-5 before:left-0 before:w-[3px] before:rounded-r-full before:bg-[rgba(167,139,250,0.55)] sm:p-8";
 

@@ -10,6 +10,8 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
+import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { EstimateAskAthenaPanel } from "@/components/licensee/estimate/EstimateAskAthenaPanel";
 import { EstimateProspectSelect } from "@/components/licensee/estimate/EstimateProspectSelect";
@@ -140,6 +142,8 @@ export function LicenseeEstimateClient({
 
   const pollTimerRef = useRef<number | null>(null);
   const activeIdRef = useRef<string | null>(null);
+  const completionSound = useBackgroundActionCompletionSound();
+  const observedEstimateIdRef = useRef<string | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current !== null) {
@@ -200,6 +204,7 @@ export function LicenseeEstimateClient({
         if (!payload.ok || !payload.estimate) return;
 
         setActiveEstimate(payload.estimate);
+        completionSound.observe(payload.estimate.status);
 
         if (
           payload.estimate.status === "Ready" ||
@@ -212,7 +217,7 @@ export function LicenseeEstimateClient({
         // Transient failures are expected while polling.
       }
     },
-    [refreshHistory, stopPolling],
+    [completionSound, refreshHistory, stopPolling],
   );
 
   const startPolling = useCallback(
@@ -273,6 +278,17 @@ export function LicenseeEstimateClient({
   }, [stopPolling, messages]);
 
   useEffect(() => {
+    const estimateId = activeEstimate?.id ?? null;
+    if (observedEstimateIdRef.current !== estimateId) {
+      completionSound.reset();
+      observedEstimateIdRef.current = estimateId;
+    }
+    if (activeEstimate?.status) {
+      completionSound.observe(activeEstimate.status);
+    }
+  }, [activeEstimate?.id, activeEstimate?.status, completionSound]);
+
+  useEffect(() => {
     if (!activeEstimate || !isInFlightStatus(activeEstimate.status)) {
       stopPolling();
       return;
@@ -331,6 +347,7 @@ export function LicenseeEstimateClient({
     if (submitting) return;
     if (!validateForm()) return;
 
+    unlockCompletionSound();
     setSubmitting(true);
     setSubmitError(null);
 
@@ -369,6 +386,7 @@ export function LicenseeEstimateClient({
       }
 
       setActiveEstimate(payload.estimate);
+      completionSound.observe(payload.estimate.status);
       startPolling(payload.estimate.id);
       void refreshHistory();
       document
@@ -424,6 +442,7 @@ export function LicenseeEstimateClient({
       return;
     }
 
+    unlockCompletionSound();
     setRegenerating(true);
     setSubmitError(null);
     try {
@@ -453,6 +472,7 @@ export function LicenseeEstimateClient({
         return;
       }
       setActiveEstimate(payload.estimate);
+      completionSound.observe(payload.estimate.status);
       startPolling(payload.estimate.id);
       void refreshHistory();
     } catch {

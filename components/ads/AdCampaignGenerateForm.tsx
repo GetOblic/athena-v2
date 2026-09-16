@@ -26,6 +26,7 @@ import {
   ADS_TARGET_SURFACE_CLASS,
   type AdsTargetAudienceView,
 } from "@/lib/ads/adsTargetPresentation";
+import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { en } from "@/lib/tenantI18n/messages/en";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
@@ -58,6 +59,7 @@ export function AdCampaignGenerateForm({
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (submittingRef.current) return;
+    unlockCompletionSound();
     submittingRef.current = true;
     setSubmitting(true);
     setError(null);

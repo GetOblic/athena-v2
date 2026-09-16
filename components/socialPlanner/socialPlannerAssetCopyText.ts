@@ -3,6 +3,10 @@
  * Pure and deterministic. No I/O. Omits internal generation metadata.
  */
 
+import {
+  composeBlueprintPromptWithBrandDirection,
+  type BlueprintBrandDirectionInput,
+} from "@/services/identity/blueprintBrandDirection";
 import type {
   SocialCalendarAssetV1,
   SocialPlannerProductionSpec,
@@ -190,6 +194,21 @@ export function serializeSocialCalendarAsset(asset: SocialCalendarAssetV1): stri
         )
       : null,
   ]);
+}
+
+/**
+ * Whole-day Copy/Continue enrichment using Athena's existing Brand Direction composer.
+ * Does not invent values. Leaves the serialized day unchanged when brand is absent
+ * or a Brand Direction block is already present.
+ */
+export function composeSocialPlannerDayCopyWithBrandDirection(
+  serializedDay: string,
+  brandDirection?: BlueprintBrandDirectionInput | null,
+): string {
+  return (
+    composeBlueprintPromptWithBrandDirection(serializedDay, brandDirection) ??
+    serializedDay
+  );
 }
 
 export function serializeSocialCalendarEvergreenDay(

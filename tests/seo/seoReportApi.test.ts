@@ -31,6 +31,10 @@ describe("seo report API surface", () => {
       read("app/api/seo/[id]/regenerate/route.ts"),
       /regenerateSeoReport/,
     );
+    assert.match(
+      read("app/api/seo/[id]/prospect-pdf/route.ts"),
+      /renderSeoProspectPdf/,
+    );
   });
 
   it("strips client-supplied organization ownership on create", () => {

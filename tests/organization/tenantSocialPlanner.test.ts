@@ -467,9 +467,62 @@ describe("V31 L3.9 tenant social planner — errors and search", () => {
 
   it("keeps search corpus English and does not translate filter values", () => {
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const historyPage = read(
+      "components/socialPlanner/SocialPlannerHistoryPageWorkspace.tsx",
+    );
+    const dailyHistory = read("app/social-planner/history/daily/page.tsx");
+    const evergreenHistory = read(
+      "app/social-planner/history/evergreen/page.tsx",
+    );
+    const historyRoute = read(
+      "components/socialPlanner/SocialPlannerHistoryRoutePage.tsx",
+    );
     const client = read("components/socialPlanner/socialPlannerClient.ts");
-    assert.match(workspace, /search: nextSearch/);
+
+    assert.doesNotMatch(workspace, /search: nextSearch/);
+    assert.doesNotMatch(workspace, /fetchSocialCalendarHistory/);
+    assert.doesNotMatch(workspace, /handleSearchChange/);
+    assert.doesNotMatch(workspace, /copy\.searchPlaceholder/);
+    assert.doesNotMatch(workspace, /const \[search, setSearch\]/);
+
+    assert.match(historyPage, /const \[search, setSearch\] = useState\(""\)/);
+    assert.match(
+      historyPage,
+      /fetchSocialCalendarHistory\(\s*\{\s*search: nextSearch,\s*page: nextPage,\s*limit,\s*plannerKind,/,
+    );
+    assert.match(historyPage, /function handleSearchChange/);
+    assert.match(historyPage, /copy\.searchPlaceholderDaily/);
+    assert.match(historyPage, /copy\.searchPlaceholderEvergreen/);
+
+    assert.match(dailyHistory, /plannerKind="daily_social"/);
+    assert.doesNotMatch(dailyHistory, /evergreen/);
+    assert.match(evergreenHistory, /plannerKind="evergreen"/);
+    assert.doesNotMatch(evergreenHistory, /daily_social/);
+    assert.match(
+      historyRoute,
+      /listSocialCalendars\(organizationId, \{\s*search: "",\s*page: 1,\s*limit: SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,\s*plannerKind,/,
+    );
+    assert.match(historyRoute, /plannerKind=\{plannerKind\}/);
+    assert.match(historyRoute, /getTenantLocalization/);
+    assert.match(historyRoute, /messages=\{messages\}/);
+
     assert.match(client, /params\.set\("search"/);
+    assert.equal(en.socialPlanner.search, "Search");
+    assert.equal(fr.socialPlanner.search, "Rechercher");
+    for (const [language, dictionary] of Object.entries(DICTIONARIES) as Array<
+      [OrganizationLanguage, TenantMessages]
+    >) {
+      if (language === "en") continue;
+      assert.notEqual(dictionary.socialPlanner.search, en.socialPlanner.search);
+      assert.notEqual(
+        dictionary.socialPlanner.searchPlaceholderDaily,
+        en.socialPlanner.searchPlaceholderDaily,
+      );
+      assert.notEqual(
+        dictionary.socialPlanner.searchPlaceholderEvergreen,
+        en.socialPlanner.searchPlaceholderEvergreen,
+      );
+    }
     const corpus = buildSocialCalendarHistorySearchCorpus({
       id: "cal-1",
       periodStart: "2026-08-23",
@@ -722,6 +775,7 @@ describe("V31 L3.9 tenant social planner — boundaries", () => {
     );
     for (const file of [
       "components/socialPlanner/SocialPlannerWorkspace.tsx",
+      "components/socialPlanner/SocialPlannerHistoryPageWorkspace.tsx",
       "components/socialPlanner/SocialPlannerDetailWorkspace.tsx",
       "components/socialPlanner/SocialCalendarDetail.tsx",
     ]) {

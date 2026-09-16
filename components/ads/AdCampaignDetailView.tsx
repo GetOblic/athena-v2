@@ -18,6 +18,7 @@ import {
 import { AdAssetSection } from "@/components/ads/AdAssetSection";
 import { AdCampaignHeaderDeleteButton } from "@/components/ads/AdCampaignHeaderDeleteButton";
 import { AdCampaignStatusPanel } from "@/components/ads/AdCampaignStatusPanel";
+import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import {
   AD_BACK_LINK_CLASS,
   AD_CHIP_META,
@@ -72,6 +73,7 @@ export function AdCampaignDetailView({
 
   async function handleRegenerate() {
     if (regenerating) return;
+    unlockCompletionSound();
     setRegenerating(true);
     setError(null);
     try {

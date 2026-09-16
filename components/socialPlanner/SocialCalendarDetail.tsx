@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, MessagesSquare, RefreshCw, Target } from "lucide-react";
+import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
+import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import type { SocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
 import type { SocialPlannerConversationAssetReference } from "@/services/socialPlanner/conversation/socialPlannerConversationTypes";
 import { SocialCalendarDayCard } from "@/components/socialPlanner/SocialCalendarDayCard";
@@ -65,6 +67,8 @@ type SocialCalendarDetailProps = {
   thinkDifferentlyError?: string | null;
   applyPending?: boolean;
   applyError?: string | null;
+  continuationPreferences?: AiWorkspacePreferences | null;
+  brandDirection?: BlueprintBrandDirectionInput | null;
   onCreateAnotherWeek: () => void;
   onThinkDifferently?: () => void;
   onApplySuggestions?: () => void;
@@ -80,6 +84,8 @@ export function SocialCalendarDetail({
   thinkDifferentlyError = null,
   applyPending = false,
   applyError = null,
+  continuationPreferences = null,
+  brandDirection = null,
   onCreateAnotherWeek,
   onThinkDifferently,
   onApplySuggestions,
@@ -185,6 +191,8 @@ export function SocialCalendarDetail({
       thinkDifferentlyError={thinkDifferentlyError}
       applyPending={applyPending}
       applyError={applyError}
+      continuationPreferences={continuationPreferences}
+      brandDirection={brandDirection}
       onCreateAnotherWeek={onCreateAnotherWeek}
       onThinkDifferently={onThinkDifferently}
       onApplySuggestions={onApplySuggestions}
@@ -200,6 +208,8 @@ function SocialCalendarReadyDetail({
   thinkDifferentlyError,
   applyPending,
   applyError,
+  continuationPreferences,
+  brandDirection,
   onCreateAnotherWeek,
   onThinkDifferently,
   onApplySuggestions,
@@ -213,6 +223,8 @@ function SocialCalendarReadyDetail({
   thinkDifferentlyError: string | null;
   applyPending: boolean;
   applyError: string | null;
+  continuationPreferences: AiWorkspacePreferences | null;
+  brandDirection: BlueprintBrandDirectionInput | null;
   onCreateAnotherWeek: () => void;
   onThinkDifferently?: () => void;
   onApplySuggestions?: () => void;
@@ -544,6 +556,8 @@ function SocialCalendarReadyDetail({
                   }}
                   initiallyDone={Boolean(doneByAssetType[interactionKey])}
                   initiallyTags={tagsByAssetType[interactionKey] ?? []}
+                  continuationPreferences={continuationPreferences}
+                  brandDirection={brandDirection}
                   messages={messages}
                   locale={locale}
                 />
@@ -566,6 +580,8 @@ function SocialCalendarReadyDetail({
                   }}
                   initiallyDone={Boolean(doneByAssetType[interactionKey])}
                   initiallyTags={tagsByAssetType[interactionKey] ?? []}
+                  continuationPreferences={continuationPreferences}
+                  brandDirection={brandDirection}
                   messages={messages}
                   locale={locale}
                 />

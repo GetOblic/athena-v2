@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
+import type { AiWorkspacePreferences } from "@/services/assetContinuation/destinationRegistry";
+import type { BlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import type { SocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
 import { SocialCalendarDetail } from "@/components/socialPlanner/SocialCalendarDetail";
 import {
@@ -13,6 +15,8 @@ import {
   isSocialPlannerInFlight,
   thinkDifferentlySocialCalendarRequest,
 } from "@/components/socialPlanner/socialPlannerClient";
+import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
+import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import { socialPlannerWorkspaceHref } from "@/lib/socialPlanner/socialPlannerRouting";
 import {
   SOCIAL_DETAIL_FAILED_SURFACE,
@@ -30,6 +34,8 @@ import type { OrganizationLanguage } from "@/services/organizationLanguage";
 type SocialPlannerDetailWorkspaceProps = {
   initialDetail: SocialCalendarDetailDto | null;
   initialDetailError: "not_found" | "load_failed" | null;
+  continuationPreferences?: AiWorkspacePreferences | null;
+  brandDirection?: BlueprintBrandDirectionInput | null;
   messages?: TenantMessages;
   language?: OrganizationLanguage;
   locale?: TenantFormattingLocale;
@@ -38,6 +44,8 @@ type SocialPlannerDetailWorkspaceProps = {
 export function SocialPlannerDetailWorkspace({
   initialDetail,
   initialDetailError,
+  continuationPreferences = null,
+  brandDirection = null,
   messages,
   language = "en",
   locale = "en-US",
@@ -49,6 +57,7 @@ export function SocialPlannerDetailWorkspace({
     [dictionary],
   );
   const router = useRouter();
+  const completionSound = useBackgroundActionCompletionSound();
   const [detail, setDetail] = useState(initialDetail);
   const [detailError, setDetailError] = useState<
     "not_found" | "load_failed" | null
@@ -65,6 +74,12 @@ export function SocialPlannerDetailWorkspace({
 
   const calendarId = detail?.id ?? initialDetail?.id ?? null;
   const detailStatus = detail?.status ?? null;
+
+  useEffect(() => {
+    if (detailStatus) {
+      completionSound.observe(detailStatus);
+    }
+  }, [completionSound, detailStatus]);
 
   useEffect(() => {
     const shouldPollDetail =
@@ -91,6 +106,7 @@ export function SocialPlannerDetailWorkspace({
           setPollNotice(null);
           setDetail(result.value);
           setDetailError(null);
+          completionSound.observe(result.value.status);
         } else if (result.kind === "auth") {
           window.location.href = "/login";
         } else if (result.kind === "not_found") {
@@ -116,7 +132,14 @@ export function SocialPlannerDetailWorkspace({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [calendarId, detailStatus, detailError, errorChrome, copy.stillChecking]);
+  }, [
+    calendarId,
+    completionSound,
+    copy.stillChecking,
+    detailError,
+    detailStatus,
+    errorChrome,
+  ]);
 
   function handleCreateAnotherWeek() {
     router.push(
@@ -128,6 +151,7 @@ export function SocialPlannerDetailWorkspace({
 
   async function handleThinkDifferently() {
     if (!detail || thinkDifferentlyRef.current) return;
+    unlockCompletionSound();
     thinkDifferentlyRef.current = true;
     setThinkDifferentlyPending(true);
     setThinkDifferentlyError(null);
@@ -160,6 +184,7 @@ export function SocialPlannerDetailWorkspace({
 
   async function handleApplySuggestions() {
     if (!detail || applyRef.current) return;
+    unlockCompletionSound();
     applyRef.current = true;
     setApplyPending(true);
     setApplyError(null);
@@ -249,6 +274,8 @@ export function SocialPlannerDetailWorkspace({
           thinkDifferentlyError={thinkDifferentlyError}
           applyPending={applyPending}
           applyError={applyError}
+          continuationPreferences={continuationPreferences}
+          brandDirection={brandDirection}
           onCreateAnotherWeek={handleCreateAnotherWeek}
           onThinkDifferently={
             detail.status === "Ready" && detail.package && !detail.packageUnavailable

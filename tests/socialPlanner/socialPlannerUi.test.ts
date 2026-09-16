@@ -396,19 +396,24 @@ describe("Social Planner L7 history, failure, and layout", () => {
     assert.match(page, /copy\.subtitle/);
     assert.match(
       history,
-      /if \(!hasSearch && pagination\.total === 0 && calendars\.length === 0\) \{\s*return null;/,
+      /if \(\s*!allowEmpty &&\s*!hasSearch &&\s*pagination\.total === 0 &&\s*calendars\.length === 0\s*\) \{\s*return null;/,
     );
   });
 
   it("adds Prospects-style search between create and history without extra filters", () => {
     const workspace = read("components/socialPlanner/SocialPlannerWorkspace.tsx");
+    const historyPage = read(
+      "components/socialPlanner/SocialPlannerHistoryPageWorkspace.tsx",
+    );
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
     const createIdx = workspace.indexOf("<SocialPlannerCreateForm");
-    const searchIdx = workspace.indexOf("copy.searchPlaceholderDaily");
-    const historyIdx = workspace.indexOf("<SocialPlannerHistory");
-    assert.ok(createIdx >= 0 && searchIdx > createIdx && historyIdx > searchIdx);
-    assert.match(workspace, /setPage\(1\)/);
-    assert.match(workspace, /void loadHistory\(value, 1\)/);
+    const historyCtaIdx = workspace.indexOf("<SocialPlannerHistoryCta");
+    const searchIdx = historyPage.indexOf("copy.searchPlaceholderDaily");
+    const historyIdx = historyPage.indexOf("<SocialPlannerHistory");
+    assert.ok(createIdx >= 0 && historyCtaIdx > createIdx);
+    assert.ok(searchIdx >= 0 && historyIdx > searchIdx);
+    assert.match(historyPage, /setPage\(1\)/);
+    assert.match(historyPage, /void loadHistory\(value, 1\)/);
     assert.match(history, /formatSocialPlannerShowingLabel/);
     assert.match(history, /copy\.previous/);
     assert.match(history, /copy\.next/);
@@ -442,7 +447,7 @@ describe("Social Planner L7 history, failure, and layout", () => {
     const card = read("components/socialPlanner/SocialCalendarDayCard.tsx");
     const history = read("components/socialPlanner/SocialPlannerHistory.tsx");
     assert.match(page, /requireCurrentOrganizationContext/);
-    assert.match(page, /listSocialCalendars/);
+    assert.doesNotMatch(page, /listSocialCalendars/);
     assert.doesNotMatch(page, /getSocialCalendarById/);
     assert.doesNotMatch(page, /SocialCalendarDetail/);
     assert.match(page, /searchParams/);
@@ -565,8 +570,9 @@ describe("Social Planner dedicated calendar detail routing", () => {
     assert.match(page, /SocialPlannerWorkspace/);
     assert.match(page, /copy\.subtitle/);
     assert.match(workspace, /SocialPlannerCreateForm/);
-    assert.match(workspace, /SocialPlannerHistory/);
-    assert.match(workspace, /fetchSocialCalendarHistory/);
+    assert.match(workspace, /SocialPlannerHistoryCta/);
+    assert.doesNotMatch(workspace, /SocialPlannerHistory[\s>]/);
+    assert.doesNotMatch(workspace, /fetchSocialCalendarHistory/);
     assert.doesNotMatch(workspace, /SocialCalendarDetail|Ask Athena|Think Differently/);
     assert.doesNotMatch(workspace, /fetchSocialCalendarDetail|pollNotice|selectCalendar/);
     assert.doesNotMatch(page, /SocialPlannerDetailWorkspace|SocialCalendarDetail/);

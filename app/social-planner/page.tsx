@@ -9,13 +9,6 @@ import { TractionSiblingNav } from "@/components/traction/TractionSiblingNav";
 import { SOCIAL_PAGE_HEADER_ICON } from "@/lib/socialPlanner/socialPlannerPagePresentation";
 import { parseSocialPlannerUrlKind } from "@/lib/socialPlanner/socialPlannerRouting";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
-import {
-  SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
-  toSocialCalendarListItemDto,
-  type SocialCalendarHistoryPaginationDto,
-  type SocialCalendarListItemDto,
-} from "@/services/socialPlanner/socialCalendarDto";
-import { listSocialCalendars } from "@/services/socialPlanner/socialCalendarService";
 import { resolveSocialPlannerTargetAudienceView } from "@/services/socialPlanner/socialPlannerTargetPersona";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { redirect } from "next/navigation";
@@ -86,30 +79,6 @@ export default async function SocialPlannerPage({
     );
   }
 
-  let calendars: SocialCalendarListItemDto[] = [];
-  let pagination: SocialCalendarHistoryPaginationDto = {
-    page: 1,
-    limit: SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
-    total: 0,
-    totalPages: 0,
-    hasMore: false,
-  };
-  let loadError: string | null = null;
-
-  try {
-    const result = await listSocialCalendars(organizationId, {
-      search: "",
-      page: 1,
-      limit: SOCIAL_CALENDAR_HISTORY_PAGE_SIZE,
-      plannerKind: plannerParse.plannerKind,
-    });
-    calendars = result.calendars.map(toSocialCalendarListItemDto);
-    pagination = result.pagination;
-  } catch (error) {
-    console.error("[ATHENA_SOCIAL_PLANNER] library_load_failed", error);
-    loadError = copy.loadFailed;
-  }
-
   return (
     <TenantAppShell currentPath="/social-planner" messages={messages}>
       <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -143,9 +112,6 @@ export default async function SocialPlannerPage({
 
       <SocialPlannerWorkspace
         plannerKind={plannerParse.plannerKind}
-        initialCalendars={calendars}
-        initialPagination={pagination}
-        loadError={loadError}
         targetAudience={targetAudience}
         messages={messages}
         language={language}
