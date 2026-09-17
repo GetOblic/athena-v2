@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
 import { GetOblicDirectoryError } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
 import {
   convertOutcomeErrorCode,
@@ -7,9 +8,16 @@ import {
   toPublicGetOblicConversion,
 } from "@/services/getoblicDirectory/getoblicDirectoryConvertService";
 import { convertGoogleBusinessSelection } from "@/services/googleBusiness/googleBusinessConvertService";
+import { sanitizeGoogleBusinessPayload } from "@/services/googleBusiness/googleBusinessMakeService";
 import { GoogleBusinessMakeError } from "@/services/googleBusiness/googleBusinessMakeTypes";
 import { LICENSEE_ORIGIN_COOKIE } from "@/services/licensee/licenseeCookieNames";
 import { parseLicenseeOriginCookieValue } from "@/services/licensee/licenseeOriginCookie";
+import { persistFreeConvertFromGoogleBusiness } from "@/services/prospects/freeConvertOrchestration";
+import {
+  ProspectCapacityExceededError,
+  isProspectCapacityExceededError,
+} from "@/services/prospects/prospectCapacity";
+import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -57,6 +65,33 @@ export async function POST(request: NextRequest) {
         ? origin.licenseeAccountId
         : null;
 
+    sanitizeGoogleBusinessPayload(body);
+
+    const convertContext = await assertCurrentFreeConvertGeneration({
+      action: "create",
+    });
+    if (convertContext.athenaPlan === "free") {
+      const result = await persistFreeConvertFromGoogleBusiness({
+        organizationId,
+        userId,
+        payload: body,
+      });
+      return json(
+        {
+          ok: true,
+          success: true,
+          conversion: {
+            outcome: result.duplicate ? "reused" : "created",
+            prospect_id: result.prospect.id,
+            generation_queued: result.queued,
+          },
+          withoutWebsite: result.withoutWebsite,
+          invalidWebsite: result.invalidWebsite,
+        },
+        result.queued ? 202 : 200,
+      );
+    }
+
     const { make, conversion } = await convertGoogleBusinessSelection({
       organizationId,
       payload: body,
@@ -100,6 +135,37 @@ export async function POST(request: NextRequest) {
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
+      );
+    }
+
+    if (
+      error instanceof ProspectCapacityExceededError ||
+      isProspectCapacityExceededError(error)
+    ) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: {
+            code: "PROSPECT_CAPACITY_EXCEEDED",
+            message:
+              error instanceof Error
+                ? error.message
+                : "This account has reached its prospect limit.",
+          },
+        },
+        409,
       );
     }
 

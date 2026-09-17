@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
 import { buildThinkDifferentlyJobProgress } from "@/services/brain/generationContracts/executiveGenerationMode";
 import { ensureProspectGenerationQueued } from "@/services/prospects/prospectImporter";
 import { toPublicProspect } from "@/services/prospects/prospectPublic";
 import { getProspectById } from "@/services/prospects/prospectService";
+import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -42,6 +44,11 @@ export async function POST(
       );
     }
 
+    await assertCurrentFreeConvertGeneration({
+      action: "regenerate",
+      prospectId: prospect.id,
+    });
+
     const result = await ensureProspectGenerationQueued(prospect, {
       requestedBy: userId,
       triggerType: "manual_refresh",
@@ -73,6 +80,17 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { FreeAudienceGenerationError } from "@/lib/organization/freeAudienceGeneration";
 import {
   parsePersonaCsvDocument,
   validatePersonaCsvDataRowLimit,
 } from "@/services/personas/personaCsv";
 import { importPersonasFromRows } from "@/services/personas/personaImporter";
+import { assertCurrentFreeAudienceGeneration } from "@/services/organization/freeAudienceGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -25,6 +27,7 @@ export async function POST(request: Request) {
   try {
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
+    await assertCurrentFreeAudienceGeneration({ action: "csv" });
     const contentType = request.headers.get("content-type") ?? "";
 
     let csvText: string | null = null;
@@ -156,6 +159,17 @@ export async function POST(request: Request) {
       ].join("\n"),
     });
   } catch (error) {
+    if (error instanceof FreeAudienceGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
+      );
+    }
+
     if (error instanceof OrganizationAccessError) {
       return json(
         {

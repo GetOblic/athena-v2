@@ -8,6 +8,7 @@ import { GetOblicLinksCard } from "@/components/identity/GetOblicLinksCard";
 import { IdentityAdvancedUnderstanding } from "@/components/identity/IdentityAdvancedUnderstanding";
 import { IdentityCalibrationGaps } from "@/components/identity/IdentityCalibrationGaps";
 import { IdentityConversationPanel } from "@/components/identity/IdentityConversationPanel";
+import { identityAskUpgradeContent } from "@/lib/upgrade/freeAskUpgradePresentation";
 import { IdentityOtherTools } from "@/components/identity/IdentityOtherTools";
 import { IdentityKnowledgeScore } from "@/components/identity/IdentityKnowledgeScore";
 import { IdentityPageHeader } from "@/components/identity/IdentityPageHeader";
@@ -50,7 +51,18 @@ import {
   upsertAthenaIdentity,
 } from "@/services/identity/identityService";
 import { organizationLanguageLabel } from "@/services/organizationLanguage";
+import {
+  FreeIdentityGenerationError,
+  isFreeIdentityGenerationLocked,
+} from "@/lib/organization/freeIdentityGeneration";
+import { assertCurrentFreeIdentityGeneration } from "@/services/organization/freeIdentityGenerationGuard";
+import { loadFreeProgressionState } from "@/services/organization/freeProgressionState";
+import { loadFreeIdentityAskAuthority } from "@/services/organization/freeIdentityAskAuthority";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import {
+  emptyFreeIdentityAskState,
+  resolveFreeIdentityAskPresentation,
+} from "@/lib/organization/freeIdentityAsk";
 
 async function saveIdentity(formData: FormData) {
   "use server";
@@ -65,6 +77,15 @@ async function saveIdentity(formData: FormData) {
   }
 
   const { organizationId } = await requireCurrentOrganizationContext();
+
+  try {
+    await assertCurrentFreeIdentityGeneration();
+  } catch (error) {
+    if (error instanceof FreeIdentityGenerationError) {
+      redirect("/identity");
+    }
+    throw error;
+  }
 
   await upsertAthenaIdentity({
     userId: user.id,
@@ -191,7 +212,10 @@ export default async function IdentityPage({
 
   const params = await searchParams;
   const { organizationId, userId } = await requireCurrentOrganizationContext();
-  const { language, locale, messages } = await getTenantLocalization();
+  const [{ language, locale, messages }, freeProgression] = await Promise.all([
+    getTenantLocalization(),
+    loadFreeProgressionState(),
+  ]);
   const copy = messages.identity;
   const conversationChrome = tenantConversationWrapperChrome(messages);
   const identity = await getAthenaIdentityByUserId(userId, organizationId);
@@ -212,6 +236,19 @@ export default async function IdentityPage({
 
   const hasWebsite = Boolean(identity?.website?.trim());
   const trained = hasSuccessfulAthenaTraining(identity);
+  const identityGenerationLocked = isFreeIdentityGenerationLocked({
+    athenaPlan: freeProgression.athenaPlan,
+    trained,
+  });
+  const askAuthority =
+    freeProgression.athenaPlan === "free"
+      ? await loadFreeIdentityAskAuthority(organizationId)
+      : emptyFreeIdentityAskState();
+  const askPresentation = resolveFreeIdentityAskPresentation({
+    athenaPlan: freeProgression.athenaPlan,
+    trained,
+    consumedCount: askAuthority.consumedCount,
+  });
   const executive = readIdentityExecutiveIntelligence(identity?.master_profile);
   const knowledge = computeIdentityKnowledgeScore({
     identity,
@@ -243,6 +280,7 @@ export default async function IdentityPage({
       action={saveIdentity}
       trainLabel={trainLabel}
       pendingLabel={trainPendingLabel}
+      generationLocked={identityGenerationLocked}
     />
   );
 
@@ -299,8 +337,6 @@ export default async function IdentityPage({
           organizationId,
           userId,
         })}
-        title={copy.conversationTitle}
-        description={copy.conversationDescription}
         placeholder={copy.conversationPlaceholder}
         inputLabel={copy.conversationInputLabel}
         examplePrompts={[
@@ -316,11 +352,23 @@ export default async function IdentityPage({
         submitLabel={conversationChrome.submitLabel}
         emptyStateTitle={conversationChrome.emptyStateTitle}
         readOnlyNotice={conversationChrome.readOnlyNotice}
+        presentation={askPresentation}
+        askCopy={{
+          untrainedTitle: copy.page.askAthenaUntrainedTitle,
+          untrainedHelper: copy.page.askAthenaUntrainedHelper,
+          untrainedActionLabel: copy.page.askAthenaUntrainedAction,
+          exhaustedTitle: copy.page.askAthenaExhaustedTitle,
+          exhaustedHelper: copy.page.askAthenaExhaustedHelper,
+        }}
+        upgradeContent={identityAskUpgradeContent({
+          continuation: copy.page.askAthenaContinuation,
+          upgrade: messages.upgrade,
+        })}
       />
     </AthenaCollapsibleSection>
   );
 
-  const deepScrape = (
+  const deepScrape = identityGenerationLocked ? null : (
     <DeepScrapeWebsiteButton
       initiallyAvailable={identity?.brain_status === "ready" && hasWebsite}
       initialLastDeepScrapeAt={identity?.last_deep_scrape_at ?? null}
@@ -364,7 +412,11 @@ export default async function IdentityPage({
   );
 
   return (
-    <TenantAppShell currentPath="/identity" messages={messages}>
+    <TenantAppShell
+      currentPath="/identity"
+      messages={messages}
+      {...freeProgression}
+    >
       <IdentityPageHeader
         eyebrow={copy.eyebrow}
         title={copy.title}
@@ -420,6 +472,7 @@ export default async function IdentityPage({
               language={language}
               trained={trained}
               deepScrape={deepScrape}
+              generationLocked={identityGenerationLocked}
             />
           </>
         ) : (
@@ -434,6 +487,7 @@ export default async function IdentityPage({
               language={language}
               trained={trained}
               deepScrape={deepScrape}
+              generationLocked={identityGenerationLocked}
             />
           </>
         )}

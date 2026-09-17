@@ -10,19 +10,39 @@ import { deriveAudienceLibrarySummary } from "@/lib/personas/audienceLibrarySumm
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import {
+  shouldShowFreeAudienceContinuation,
+  shouldShowPersonaCreate,
+} from "@/lib/personas/freeAudiencePresentation";
+import { UpgradeCompletionCard } from "@/components/upgrade/UpgradeCompletionCard";
+import { audienceUpgradeContent } from "@/lib/upgrade/freeFeatureUpgradePresentation";
+import {
   PERSONA_HEADER_CREATE_CLASS,
   PERSONA_SUMMARY_ITEM_CLASS,
   PERSONA_SUMMARY_STRIP_CLASS,
 } from "@/lib/personas/personaPagePresentation";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import { loadFreeAudiencePageState } from "@/services/personas/freeAudiencePageState";
 import { attachPersonaLibraryConfidence } from "@/services/personas/personaLibraryConfidence";
 import { enrichPersonasForLibrary } from "@/services/personas/personaLibraryEnrichment";
 import { getPersonas } from "@/services/personas/personaService";
 
 export default async function PersonasPage() {
   const { organizationId } = await requireCurrentOrganizationContext();
-  const { language, messages } = await getTenantLocalization();
+  const [{ language, messages }, freeAudience] = await Promise.all([
+    getTenantLocalization(),
+    loadFreeAudiencePageState(),
+  ]);
   const copy = messages.personas;
+  const { presentation, audience: _audience, ...freeProgression } = freeAudience;
+  const showCreate = shouldShowPersonaCreate(presentation);
+  const freeNote =
+    presentation === "available"
+      ? copy.free.availableContext
+      : presentation === "reserved"
+        ? copy.free.reservedNote
+        : presentation === "consumed"
+          ? copy.free.completedNote
+          : null;
 
   let personas: ReturnType<typeof enrichPersonasForLibrary> = [];
   let loadError: string | null = null;
@@ -44,17 +64,23 @@ export default async function PersonasPage() {
   const traction = copy.traction;
 
   return (
-    <TenantAppShell currentPath="/personas" messages={messages}>
+    <TenantAppShell
+      currentPath="/personas"
+      messages={messages}
+      {...freeProgression}
+    >
       <TractionPageHeader
         eyebrow={copy.eyebrow}
         title={copy.title}
         question={copy.question}
         subtitle={copy.subtitle}
         action={
+          showCreate ? (
           <Link href="/personas/import" className={PERSONA_HEADER_CREATE_CLASS}>
             <UserPlus className="size-4" aria-hidden="true" />
             {copy.list.createCta}
           </Link>
+          ) : null
         }
       >
         <TractionSiblingNav
@@ -118,12 +144,27 @@ export default async function PersonasPage() {
         ) : null}
       </TractionPageHeader>
 
+      {freeNote ? (
+        <p className="mb-8 max-w-3xl text-sm leading-7 text-white/60">{freeNote}</p>
+      ) : null}
+
       <PersonasLibraryClient
         personas={personas}
         loadError={loadError}
         messages={messages}
         language={language}
       />
+
+      {shouldShowFreeAudienceContinuation(presentation) ? (
+        <div className="mt-10">
+          <UpgradeCompletionCard
+            {...audienceUpgradeContent({
+              continuation: copy.free.continuation,
+              upgrade: messages.upgrade,
+            })}
+          />
+        </div>
+      ) : null}
     </TenantAppShell>
   );
 }

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
+import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
 import { LicenseeAccessError } from "@/services/licensee/licenseeIdentity";
 import {
   LicenseeProspectClientConversionError,
@@ -44,6 +46,10 @@ export async function POST(
     const { id } = await context.params;
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
+    await assertCurrentFreeConvertGeneration({
+      action: "convert_client",
+      prospectId: id,
+    });
 
     const result = await promoteLicenseeProspectToClient({
       prospectId: id,
@@ -71,6 +77,10 @@ export async function POST(
   } catch (error) {
     if (error instanceof OrganizationAccessError) {
       return jsonError(401, "UNAUTHORIZED", "Authentication required");
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return jsonError(error.httpStatus, error.code, error.message);
     }
 
     if (error instanceof LicenseeAccessError) {

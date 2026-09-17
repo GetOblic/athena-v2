@@ -9,6 +9,7 @@
  */
 
 import { PERSONA_GENERATION_OUTPUT_FIELDS } from "@/services/ai/prompts/personaGenerationPrompt";
+import { generateFreeAudienceCandidate } from "@/services/personas/freeAudienceOrchestration";
 import {
   generatePersonaCandidate,
   PersonaGenerationError,
@@ -58,7 +59,7 @@ export type CreateAudienceFromProspectDeps = {
     organizationId: string,
   ) => Promise<ExecutiveIntelligenceVersion | null>;
   composeContext?: typeof composeProspectAudienceContext;
-  generateCandidate?: typeof generatePersonaCandidate;
+  generateCandidate?: typeof generatePersonaCandidate | typeof generateFreeAudienceCandidate;
   importPersona?: typeof importPersonaManual;
 };
 
@@ -152,7 +153,7 @@ export async function createAudienceFromProspect(input: {
     },
   });
 
-  const generate = input.deps?.generateCandidate ?? generatePersonaCandidate;
+  const generate = input.deps?.generateCandidate ?? generateFreeAudienceCandidate;
   let generated;
   try {
     generated = await generate({

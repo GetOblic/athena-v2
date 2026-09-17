@@ -36,6 +36,7 @@ type SocialPlannerDetailWorkspaceProps = {
   initialDetailError: "not_found" | "load_failed" | null;
   continuationPreferences?: AiWorkspacePreferences | null;
   brandDirection?: BlueprintBrandDirectionInput | null;
+  readOnlyFreeStarter?: boolean;
   messages?: TenantMessages;
   language?: OrganizationLanguage;
   locale?: TenantFormattingLocale;
@@ -46,6 +47,7 @@ export function SocialPlannerDetailWorkspace({
   initialDetailError,
   continuationPreferences = null,
   brandDirection = null,
+  readOnlyFreeStarter = false,
   messages,
   language = "en",
   locale = "en-US",
@@ -229,15 +231,17 @@ export function SocialPlannerDetailWorkspace({
             </span>
             <h2 className="text-2xl font-semibold tracking-tight">{copy.notFound}</h2>
           </div>
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={handleCreateAnotherWeek}
-              className={SOCIAL_DETAIL_UTILITY_ACTION}
-            >
-              {copy.createAnotherWeek}
-            </button>
-          </div>
+          {readOnlyFreeStarter ? null : (
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={handleCreateAnotherWeek}
+                className={SOCIAL_DETAIL_UTILITY_ACTION}
+              >
+                {copy.createAnotherWeek}
+              </button>
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -254,15 +258,17 @@ export function SocialPlannerDetailWorkspace({
               {copy.couldNotDisplay}
             </h2>
           </div>
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={handleCreateAnotherWeek}
-              className={SOCIAL_DETAIL_UTILITY_ACTION}
-            >
-              {copy.createAnotherWeek}
-            </button>
-          </div>
+          {readOnlyFreeStarter ? null : (
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={handleCreateAnotherWeek}
+                className={SOCIAL_DETAIL_UTILITY_ACTION}
+              >
+                {copy.createAnotherWeek}
+              </button>
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -277,12 +283,15 @@ export function SocialPlannerDetailWorkspace({
           continuationPreferences={continuationPreferences}
           brandDirection={brandDirection}
           onCreateAnotherWeek={handleCreateAnotherWeek}
+          readOnlyFreeStarter={readOnlyFreeStarter}
           onThinkDifferently={
+            !readOnlyFreeStarter &&
             detail.status === "Ready" && detail.package && !detail.packageUnavailable
               ? () => void handleThinkDifferently()
               : undefined
           }
           onApplySuggestions={
+            !readOnlyFreeStarter &&
             detail.status === "Ready" && detail.package && !detail.packageUnavailable
               ? () => void handleApplySuggestions()
               : undefined

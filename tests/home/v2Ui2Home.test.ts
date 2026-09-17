@@ -56,11 +56,13 @@ const HOME_SOURCES = [
   "lib/home/homeAttention.ts",
   "lib/home/homePipeline.ts",
   "lib/home/homePresentation.ts",
+  "lib/home/freeFirstSessionHome.ts",
   "components/home/HomeDomainCard.tsx",
   "components/home/HomePriorityList.tsx",
   "components/home/HomeOpportunityPipeline.tsx",
   "components/home/HomeGetOblicCapacity.tsx",
   "components/home/HomeBusinessReadiness.tsx",
+  "components/home/FreeFirstSessionHome.tsx",
 ] as const;
 
 const FORBIDDEN_HOME_COPY = [
@@ -80,7 +82,10 @@ const FORBIDDEN_HOME_COPY = [
 describe("V2 Home source contract", () => {
   it("keeps TenantAppShell on Home and uses the command-center surfaces", () => {
     const home = read("app/page.tsx");
-    assert.match(home, /<TenantAppShell currentPath="\/" messages=\{messages\}>/);
+    assert.match(home, /<TenantAppShell/);
+    assert.match(home, /currentPath="\/"/);
+    assert.match(home, /athenaPlan=\{athenaPlan\}/);
+    assert.match(home, /defineKind=\{define\.kind\}/);
     assert.match(home, /loadHomeSnapshot\(organizationId, userId\)/);
     assert.match(home, /requireTenantContext/);
     assert.match(home, /getTenantLocalization/);
@@ -167,6 +172,10 @@ describe("V2 Home source contract", () => {
     assert.doesNotMatch(read("components/home/HomeDomainCard.tsx"), /"use client"/);
     assert.doesNotMatch(
       read("components/home/HomePriorityList.tsx"),
+      /"use client"/,
+    );
+    assert.doesNotMatch(
+      read("components/home/FreeFirstSessionHome.tsx"),
       /"use client"/,
     );
     assert.doesNotMatch(read("app/page.tsx"), /"use client"/);

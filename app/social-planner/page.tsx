@@ -6,9 +6,12 @@ import { SocialPlannerWorkspace } from "@/components/socialPlanner/SocialPlanner
 import { SOCIAL_PLANNER_CALENDAR_ID_RE } from "@/components/socialPlanner/socialPlannerClient";
 import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
 import { TractionSiblingNav } from "@/components/traction/TractionSiblingNav";
+import { resolveConsumedFreeSocialCreateRedirect } from "@/lib/organization/freeStarter";
 import { SOCIAL_PAGE_HEADER_ICON } from "@/lib/socialPlanner/socialPlannerPagePresentation";
 import { parseSocialPlannerUrlKind } from "@/lib/socialPlanner/socialPlannerRouting";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
+import { loadFreeProgressionState } from "@/services/organization/freeProgressionState";
+import { loadFreeStarterAuthority } from "@/services/organization/freeStarterAuthority";
 import { resolveSocialPlannerTargetAudienceView } from "@/services/socialPlanner/socialPlannerTargetPersona";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { redirect } from "next/navigation";
@@ -19,6 +22,23 @@ export default async function SocialPlannerPage({
   searchParams?: Promise<{ id?: string; personaId?: string; planner?: string }>;
 }) {
   const { organizationId } = await requireCurrentOrganizationContext();
+  const [freeProgression, starter] = await Promise.all([
+    loadFreeProgressionState(),
+    loadFreeStarterAuthority(organizationId),
+  ]);
+  const consumedCreatePath = resolveConsumedFreeSocialCreateRedirect({
+    athenaPlan: freeProgression.athenaPlan,
+    starterStatus: starter.status,
+    starterCalendarId:
+      starter.calendarId &&
+      SOCIAL_PLANNER_CALENDAR_ID_RE.test(starter.calendarId)
+        ? starter.calendarId
+        : null,
+  });
+  if (consumedCreatePath) {
+    redirect(consumedCreatePath);
+  }
+
   const { language, locale, messages } = await getTenantLocalization();
   const copy = messages.socialPlanner;
   const params = searchParams ? await searchParams : {};
@@ -39,7 +59,11 @@ export default async function SocialPlannerPage({
 
   if (plannerParse.kind === "invalid") {
     return (
-      <TenantAppShell currentPath="/social-planner" messages={messages}>
+      <TenantAppShell
+        currentPath="/social-planner"
+        messages={messages}
+        {...freeProgression}
+      >
         <div className="mb-3 flex flex-wrap items-center gap-3">
           <span className={SOCIAL_PAGE_HEADER_ICON} aria-hidden="true">
             <MessagesSquare className="size-5" />
@@ -80,7 +104,11 @@ export default async function SocialPlannerPage({
   }
 
   return (
-    <TenantAppShell currentPath="/social-planner" messages={messages}>
+    <TenantAppShell
+      currentPath="/social-planner"
+      messages={messages}
+      {...freeProgression}
+    >
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <span className={SOCIAL_PAGE_HEADER_ICON} aria-hidden="true">
           <MessagesSquare className="size-5" />

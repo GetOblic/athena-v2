@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
+import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -27,6 +29,10 @@ export async function POST(
   try {
     const { id } = await context.params;
     const { organizationId } = await requireCurrentOrganizationContext();
+    await assertCurrentFreeConvertGeneration({
+      action: "sync_ai",
+      prospectId: id,
+    });
 
     const generatedListingDescription =
       await generateProspectGetoblicDescription({
@@ -46,6 +52,16 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return json(
+        {
+          ok: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

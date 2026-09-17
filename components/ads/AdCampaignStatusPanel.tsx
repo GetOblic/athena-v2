@@ -50,6 +50,8 @@ type AdCampaignStatusPanelProps = {
   initialStage: AdCampaignGenerationStage | null;
   initialErrorMessage?: string | null;
   messages?: TenantMessages;
+  allowRegenerate?: boolean;
+  allowRetrySame?: boolean;
 };
 
 export function AdCampaignStatusPanel({
@@ -58,6 +60,8 @@ export function AdCampaignStatusPanel({
   initialStage,
   initialErrorMessage = null,
   messages,
+  allowRegenerate = true,
+  allowRetrySame = true,
 }: AdCampaignStatusPanelProps) {
   const copy = messages?.ads.statusPanel ?? en.ads.statusPanel;
   const dictionary = messages ?? en;
@@ -160,7 +164,7 @@ export function AdCampaignStatusPanel({
       }>(response);
       if (!payload.ok) {
         // Ready immutable → regenerate path
-        if (payload.error?.code === "READY_IMMUTABLE") {
+        if (payload.error?.code === "READY_IMMUTABLE" && allowRegenerate) {
           await handleRegenerate();
           return;
         }
@@ -228,22 +232,26 @@ export function AdCampaignStatusPanel({
                 {errorMessage || copy.generationFailed}
               </p>
               <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => void handleRetryGenerate()}
-                  disabled={regenerating}
-                  className={AD_HEADER_PRIMARY_CLASS}
-                >
-                  {regenerating ? copy.working : copy.retry}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleRegenerate()}
-                  disabled={regenerating}
-                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/15 px-5 text-sm font-semibold text-white/80 disabled:opacity-60"
-                >
-                  {copy.regenerateAsNew}
-                </button>
+                {allowRetrySame || allowRegenerate ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleRetryGenerate()}
+                    disabled={regenerating}
+                    className={AD_HEADER_PRIMARY_CLASS}
+                  >
+                    {regenerating ? copy.working : copy.retry}
+                  </button>
+                ) : null}
+                {allowRegenerate ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleRegenerate()}
+                    disabled={regenerating}
+                    className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/15 px-5 text-sm font-semibold text-white/80 disabled:opacity-60"
+                  >
+                    {copy.regenerateAsNew}
+                  </button>
+                ) : null}
               </div>
             </div>
           ) : null}

@@ -31,6 +31,8 @@ type PersonaGenerateIntelligenceButtonProps = {
   initialInFlight?: boolean;
   /** Think Differently only when a Current Executive Version exists. */
   hasCurrentExecutiveVersion?: boolean;
+  allowRefresh?: boolean;
+  allowThinkDifferently?: boolean;
   chrome?: PersonaGenerateChrome | null;
 };
 
@@ -63,6 +65,8 @@ export function PersonaGenerateIntelligenceButton({
   initialStatus = null,
   initialInFlight = false,
   hasCurrentExecutiveVersion = false,
+  allowRefresh = true,
+  allowThinkDifferently = true,
   chrome = null,
 }: PersonaGenerateIntelligenceButtonProps) {
   const router = useRouter();
@@ -216,7 +220,7 @@ export function PersonaGenerateIntelligenceButton({
 
   return (
     <>
-      {!ready || failed ? (
+      {allowRefresh && (!ready || failed) ? (
         <button
           type="button"
           data-persona-header-action="generate"
@@ -237,7 +241,7 @@ export function PersonaGenerateIntelligenceButton({
               : (chrome?.generateIntelligence ??
                 "Generate audience intelligence")}
         </button>
-      ) : (
+      ) : allowRefresh ? (
         <button
           type="button"
           data-persona-header-action="refresh"
@@ -256,8 +260,8 @@ export function PersonaGenerateIntelligenceButton({
               "Refreshing intelligence…")
             : (chrome?.refreshIntelligence ?? "Refresh intelligence")}
         </button>
-      )}
-      {canThinkDifferently ? (
+      ) : null}
+      {allowThinkDifferently && canThinkDifferently ? (
         <button
           type="button"
           data-persona-header-action="think-differently"

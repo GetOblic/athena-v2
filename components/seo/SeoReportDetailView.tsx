@@ -73,6 +73,9 @@ type SeoReportDetailViewProps = {
   report: PublicSeoReportDetail;
   messages?: TenantMessages;
   language?: OrganizationLanguage;
+  allowRegenerate?: boolean;
+  allowRetrySame?: boolean;
+  boundaryNote?: string | null;
 };
 
 function joinLines(values: string[]): string {
@@ -117,6 +120,9 @@ export function SeoReportDetailView({
   report,
   messages,
   language = "en",
+  allowRegenerate = true,
+  allowRetrySame = true,
+  boundaryNote = null,
 }: SeoReportDetailViewProps) {
   if (
     report.generationType === "technical" ||
@@ -127,6 +133,9 @@ export function SeoReportDetailView({
         report={report}
         messages={messages}
         language={language}
+        allowRegenerate={allowRegenerate}
+        allowRetrySame={allowRetrySame}
+        boundaryNote={boundaryNote}
       />
     );
   }
@@ -135,6 +144,9 @@ export function SeoReportDetailView({
       report={report}
       messages={messages}
       language={language}
+      allowRegenerate={allowRegenerate}
+      allowRetrySame={allowRetrySame}
+      boundaryNote={boundaryNote}
     />
   );
 }
@@ -143,6 +155,9 @@ function SeoIntelligenceReportDetailView({
   report,
   messages,
   language = "en",
+  allowRegenerate = true,
+  allowRetrySame = true,
+  boundaryNote = null,
 }: SeoReportDetailViewProps) {
   const dictionary = messages ?? en;
   const copy = dictionary.seo;
@@ -247,8 +262,9 @@ function SeoIntelligenceReportDetailView({
               onError={setError}
             />
           ) : null}
-          {(report.status === "Ready" ||
-            report.status === "Processing Failed") && (
+          {allowRegenerate &&
+          (report.status === "Ready" ||
+            report.status === "Processing Failed") ? (
             <button
               type="button"
               onClick={() => void handleRegenerate()}
@@ -257,7 +273,7 @@ function SeoIntelligenceReportDetailView({
             >
               {regenerating ? copy.detail.starting : copy.detail.regenerate}
             </button>
-          )}
+          ) : null}
           <SeoReportHeaderDeleteButton
             reportId={report.id}
             confirmMessage={copy.delete.confirm}
@@ -271,6 +287,12 @@ function SeoIntelligenceReportDetailView({
         <p className="mb-6 break-words text-sm text-rose-200">{error}</p>
       ) : null}
 
+      {boundaryNote ? (
+        <p className="mb-6 max-w-3xl text-sm leading-7 text-white/60">
+          {boundaryNote}
+        </p>
+      ) : null}
+
       <SeoReportStatusPanel
         reportId={report.id}
         initialStatus={report.status}
@@ -278,6 +300,8 @@ function SeoIntelligenceReportDetailView({
         initialErrorMessage={report.errorMessage}
         initialErrorCode={report.errorCode}
         messages={dictionary}
+        allowRegenerate={allowRegenerate}
+        allowRetrySame={allowRetrySame}
       />
 
       {pkg && presentation ? (

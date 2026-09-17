@@ -1007,7 +1007,7 @@ describe("persona generation — route and UI contracts", () => {
   it("generate route uses org context, request id, and no persistence", () => {
     const route = read("app/api/personas/generate/route.ts");
     assert.match(route, /requireCurrentOrganizationContext/);
-    assert.match(route, /generatePersonaCandidate/);
+    assert.match(route, /generateFreeAudienceCandidate/);
     assert.match(route, /ATHENA_REQUEST_ID_HEADER/);
     assert.match(route, /maxDuration = 90/);
     assert.match(route, /clientOrganizationId/);

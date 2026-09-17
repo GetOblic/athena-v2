@@ -28,6 +28,14 @@ import {
 } from "@/lib/tenantI18n/importPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import type { FreeAudiencePresentation } from "@/lib/personas/freeAudiencePresentation";
+import {
+  shouldShowPersonaCsvImport,
+  shouldShowPersonaCsvLocked,
+  shouldShowPersonaGenerateAgain,
+  shouldShowPersonaManual,
+  shouldShowPersonaSuggest,
+} from "@/lib/personas/freeAudiencePresentation";
 
 type ManualResult = {
   ok: boolean;
@@ -37,6 +45,7 @@ type ManualResult = {
 
 type PersonaImportFormsProps = {
   messages: TenantMessages;
+  presentation?: FreeAudiencePresentation;
 };
 
 function ManualAdvancedFieldGroup({
@@ -66,7 +75,10 @@ function ManualAdvancedFieldGroup({
   );
 }
 
-export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
+export function PersonaImportForms({
+  messages,
+  presentation = "full",
+}: PersonaImportFormsProps) {
   const router = useRouter();
   const copy = messages.personas.import;
   const meta = messages.personas.metadata;
@@ -139,12 +151,23 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
     }
   }
 
+  const showSuggest = shouldShowPersonaSuggest(presentation);
+  const showManual = shouldShowPersonaManual(presentation);
+  const showCsv = shouldShowPersonaCsvImport(presentation);
+  const showCsvLocked = shouldShowPersonaCsvLocked(presentation);
+
   return (
     <div className="space-y-8">
+      {showSuggest ? (
       <div className="mx-auto w-full min-w-0 max-w-3xl">
-        <PersonaGenerateForm messages={messages} />
+        <PersonaGenerateForm
+          messages={messages}
+          allowGenerateAgain={shouldShowPersonaGenerateAgain(presentation)}
+        />
       </div>
+      ) : null}
 
+      {showManual ? (
       <PersonaCreationBlock
         title={copy.manualTitle}
         panelId="persona-creation-manual"
@@ -325,10 +348,13 @@ export function PersonaImportForms({ messages }: PersonaImportFormsProps) {
             </div>
           )}
       </PersonaCreationBlock>
+      ) : null}
 
+      {showCsv || showCsvLocked ? (
       <div className="mx-auto w-full min-w-0 max-w-3xl">
-        <PersonaCsvImport messages={messages} />
+        <PersonaCsvImport messages={messages} available={showCsv} />
       </div>
+      ) : null}
     </div>
   );
 }

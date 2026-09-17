@@ -435,14 +435,18 @@ describe("V31 L3.3 tenant page body — Athena Brain", () => {
       }),
     );
     assert.match(french, /Ask Athena/);
+    assert.match(french, new RegExp(fr.identity.example1));
     assert.match(fr.identity.conversationDescription, /ne modifient pas le Brain/);
     assert.doesNotMatch(french, /Ask Athena about your business/);
+    assert.equal(french.includes(fr.identity.conversationTitle), false);
+    assert.equal(french.includes(fr.identity.conversationDescription), false);
     const english = renderToStaticMarkup(
       createElement(IdentityConversationPanel, {
         opaqueScope: "abcdef0123456789",
       }),
     );
-    assert.match(english, /Ask Athena about your business/);
+    assert.match(english, /What does Athena currently understand about my business\?/);
+    assert.doesNotMatch(english, /Ask Athena about your business/);
     assert.equal(
       en.identity.example1,
       "What does Athena currently understand about my business?",

@@ -1,8 +1,31 @@
 /**
  * Contained Persona Ask Athena OpenRouter invocation.
+ *
+ * Free Persona Ask gate (FREE-14):
+ *   authenticate/ownership (route)
+ *   → validate
+ *   → acquire existing scoped slot
+ *   → authoritative plan
+ *   → Free: reserve allowance
+ *   → assemble context
+ *   → build prompt
+ *   → provider
+ *   → validate non-empty answer
+ *   → consume
+ *   → return answer
+ *
+ * Denied Free requests never reach callGeminiViaOpenRouter.
+ * Full requests never reserve or consume Free Persona Ask allowance.
+ * Separate from FREE-8, FREE-12, and FREE-13 counters.
+ * Persona Ask remains read-only: no audience intelligence, generation,
+ * Deep Scrape, observations, Refresh, Think Differently, ads, or social.
  */
 
 import { createHash, randomUUID } from "node:crypto";
+import {
+  FREE_PERSONA_ASK_LIMIT,
+  isFreePersonaAskMetered,
+} from "@/lib/organization/freePersonaAsk";
 import { assemblePersonaConversationContext } from "@/services/personaConversation/personaConversationContext";
 import { buildPersonaConversationPrompt } from "@/services/personaConversation/personaConversationPrompt";
 import {
@@ -17,6 +40,14 @@ import {
   tryAcquireConversationSlot,
   validatePersonaConversationRequest,
 } from "@/services/personaConversation/personaConversationValidation";
+import {
+  consumeFreePersonaAsk,
+  releaseFreePersonaAsk,
+  reserveFreePersonaAsk,
+  type ReserveFreePersonaAskResult,
+} from "@/services/organization/freePersonaAskAuthority";
+import { resolveAthenaPlan } from "@/services/organizationService";
+import type { AthenaPlan } from "@/services/athenaPlan";
 import type { Persona } from "@/services/personas/personaService";
 
 export {
@@ -25,6 +56,31 @@ export {
   tryAcquireConversationSlot,
   validatePersonaConversationRequest,
 } from "@/services/personaConversation/personaConversationValidation";
+
+type PersonaConversationProvider = (input: {
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  requestId: string;
+  personaId: string;
+  organizationId: string;
+  executiveVersionId: string | null;
+  promptHash: string;
+  contextHash: string;
+  promptCharCount: number;
+  contextCharCount: number;
+}) => Promise<string>;
+
+export type PersonaConversationServiceDeps = {
+  resolvePlan?: (organizationId: string) => Promise<AthenaPlan>;
+  reserveAsk?: (
+    organizationId: string,
+    limit?: number,
+  ) => Promise<ReserveFreePersonaAskResult>;
+  consumeAsk?: (organizationId: string) => Promise<void>;
+  releaseAsk?: (organizationId: string) => Promise<void>;
+  assembleContext?: typeof assemblePersonaConversationContext;
+  buildPrompt?: typeof buildPersonaConversationPrompt;
+  callProvider?: PersonaConversationProvider;
+};
 
 function hashStable(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
@@ -188,9 +244,18 @@ export async function runPersonaConversation(input: {
   persona: Persona;
   body: unknown;
   requestId?: string;
+  deps?: PersonaConversationServiceDeps;
 }): Promise<{ result: PersonaConversationResult; requestId: string }> {
   const requestId = input.requestId?.trim() || randomUUID();
   const request = validatePersonaConversationRequest(input.body);
+  const resolvePlan = input.deps?.resolvePlan ?? resolveAthenaPlan;
+  const reserveAsk = input.deps?.reserveAsk ?? reserveFreePersonaAsk;
+  const consumeAsk = input.deps?.consumeAsk ?? consumeFreePersonaAsk;
+  const releaseAsk = input.deps?.releaseAsk ?? releaseFreePersonaAsk;
+  const assembleContext =
+    input.deps?.assembleContext ?? assemblePersonaConversationContext;
+  const buildPrompt = input.deps?.buildPrompt ?? buildPersonaConversationPrompt;
+  const callProvider = input.deps?.callProvider ?? callGeminiViaOpenRouter;
 
   if (!tryAcquireConversationSlot(input.userId, input.persona.id)) {
     throw new PersonaConversationError(
@@ -201,8 +266,34 @@ export async function runPersonaConversation(input: {
     );
   }
 
+  let reserved = false;
   try {
-    const assembled = await assemblePersonaConversationContext({
+    const athenaPlan = await resolvePlan(input.organizationId);
+    if (isFreePersonaAskMetered(athenaPlan)) {
+      const reservation = await reserveAsk(
+        input.organizationId,
+        FREE_PERSONA_ASK_LIMIT,
+      );
+      if (!reservation.acquired) {
+        if (reservation.reason === "exhausted") {
+          throw new PersonaConversationError(
+            "FREE_PERSONA_ASK_EXHAUSTED",
+            "Athena has answered your audience question.",
+            403,
+            { requestId, retryable: false },
+          );
+        }
+        throw new PersonaConversationError(
+          "RATE_LIMITED",
+          "A conversation request is already in progress for this Persona.",
+          429,
+          { requestId, retryable: true },
+        );
+      }
+      reserved = true;
+    }
+
+    const assembled = await assembleContext({
       organizationId: input.organizationId,
       userId: input.userId,
       persona: input.persona,
@@ -210,7 +301,7 @@ export async function runPersonaConversation(input: {
       assetReference: request.assetReference ?? null,
     });
 
-    const built = buildPersonaConversationPrompt({
+    const built = buildPrompt({
       assembled,
       history: request.history,
       userMessage: request.message,
@@ -221,7 +312,7 @@ export async function runPersonaConversation(input: {
     );
     const contextHash = hashStable(String(built.contextCharCount));
 
-    const assistantContent = await callGeminiViaOpenRouter({
+    const assistantContent = await callProvider({
       messages: built.messages,
       requestId,
       personaId: input.persona.id,
@@ -232,6 +323,20 @@ export async function runPersonaConversation(input: {
       promptCharCount: built.promptCharCount,
       contextCharCount: built.contextCharCount,
     });
+
+    if (!assistantContent.trim()) {
+      throw new PersonaConversationError(
+        "PROVIDER_ERROR",
+        "Athena returned an empty response.",
+        500,
+        { requestId, retryable: false },
+      );
+    }
+
+    if (reserved) {
+      await consumeAsk(input.organizationId);
+      reserved = false;
+    }
 
     const result: PersonaConversationSuccessResult = {
       ok: true,
@@ -257,6 +362,9 @@ export async function runPersonaConversation(input: {
 
     return { result, requestId };
   } catch (error) {
+    if (reserved) {
+      await releaseAsk(input.organizationId);
+    }
     if (error instanceof PersonaConversationError && !error.requestId) {
       throw new PersonaConversationError(
         error.code,

@@ -39,6 +39,7 @@ type ProspectGetoblicDescriptionCardProps = {
   generatedListingDescription?: ProspectGeneratedListingDescription | null;
   messages: ProspectGetoblicDescriptionMessages;
   defaultOpen?: boolean;
+  showGenerate?: boolean;
 };
 
 export function ProspectGetoblicDescriptionCard({
@@ -47,6 +48,7 @@ export function ProspectGetoblicDescriptionCard({
   generatedListingDescription = null,
   messages,
   defaultOpen = false,
+  showGenerate = true,
 }: ProspectGetoblicDescriptionCardProps) {
   const refreshPage = useSafeRouterRefresh();
   const [generated, setGenerated] = useState<ProspectGeneratedListingDescription | null>(
@@ -137,6 +139,7 @@ export function ProspectGetoblicDescriptionCard({
                     copied: messages.copied,
                   }}
                 />
+                {showGenerate ? (
                 <button
                   type="button"
                   onClick={() => void runGeneration()}
@@ -145,6 +148,7 @@ export function ProspectGetoblicDescriptionCard({
                 >
                   {pending ? messages.generating : messages.refresh}
                 </button>
+                ) : null}
               </div>
             </div>
             <p className="mt-3 whitespace-pre-wrap text-base leading-7 text-white/85">
@@ -154,6 +158,7 @@ export function ProspectGetoblicDescriptionCard({
         ) : (
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
             <p className="text-sm leading-6 text-white/55">{messages.empty}</p>
+            {showGenerate ? (
             <button
               type="button"
               onClick={() => void runGeneration()}
@@ -163,6 +168,7 @@ export function ProspectGetoblicDescriptionCard({
               <Sparkles className="size-4" aria-hidden="true" />
               {pending ? messages.generating : messages.generate}
             </button>
+            ) : null}
           </div>
         )}
 

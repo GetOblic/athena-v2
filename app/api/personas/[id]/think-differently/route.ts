@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { FreeAudienceIntelligenceError } from "@/lib/organization/freeAudienceIntelligence";
 import { buildThinkDifferentlyJobProgress } from "@/services/brain/generationContracts/executiveGenerationMode";
 import { getCurrentExecutiveVersion } from "@/services/executiveVersions/executiveVersionService";
+import { assertCurrentFreeAudienceIntelligence } from "@/services/organization/freeAudienceIntelligenceGuard";
 import { ensurePersonaGenerationQueued } from "@/services/personas/personaImporter";
 import { toPublicPersona } from "@/services/personas/personaPublic";
 import { getPersonaById } from "@/services/personas/personaService";
@@ -43,6 +45,10 @@ export async function POST(
         404,
       );
     }
+
+    await assertCurrentFreeAudienceIntelligence({
+      action: "think_differently",
+    });
 
     const discussionId = persona.linked_discussion_id;
     if (!discussionId) {
@@ -110,6 +116,17 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeAudienceIntelligenceError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

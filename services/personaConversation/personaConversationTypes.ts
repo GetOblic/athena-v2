@@ -129,7 +129,8 @@ export type PersonaConversationErrorCode =
   | "RATE_LIMITED"
   | "PROVIDER_RATE_LIMITED"
   | "PROVIDER_ERROR"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "FREE_PERSONA_ASK_EXHAUSTED";
 
 export function isPersonaConversationAssetKind(
   value: unknown,

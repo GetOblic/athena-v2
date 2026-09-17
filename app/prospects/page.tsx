@@ -11,6 +11,14 @@ import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { GetOblicListingCapacitySummary } from "@/components/prospects/GetOblicListingCapacitySummary";
 import { ProspectsLibraryClient } from "@/components/prospects/ProspectsLibraryClient";
 import { TractionPageHeader } from "@/components/traction/TractionPageHeader";
+import {
+  freeConvertBoundaryCopyKey,
+  shouldShowFreeConvertContinuation,
+  shouldShowGetOblicListingCapacityCard,
+  shouldShowProspectFindAdd,
+} from "@/lib/prospects/freeConvertPresentation";
+import { UpgradeCompletionCard } from "@/components/upgrade/UpgradeCompletionCard";
+import { convertUpgradeContent } from "@/lib/upgrade/freeFeatureUpgradePresentation";
 import { deriveProspectLibrarySummary } from "@/lib/prospects/prospectLibrarySummary";
 import {
   PROSPECT_LIBRARY_PRIMARY_ACTION,
@@ -21,30 +29,63 @@ import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { getGetOblicListingCapacity } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import { loadFreeConvertPageState } from "@/services/prospects/freeConvertPageState";
 import { loadProspectsForLibrary } from "@/services/prospects/prospectLibraryEnrichment";
 
 export default async function ProspectsPage() {
   const { organizationId } = await requireCurrentOrganizationContext();
-  const { language, messages } = await getTenantLocalization();
+  const [{ language, messages }, freeConvert] = await Promise.all([
+    getTenantLocalization(),
+    loadFreeConvertPageState(),
+  ]);
   const copy = messages.prospects;
+  const {
+    presentation,
+    convert,
+    boundProspectStatus: _boundProspectStatus,
+    ...freeProgression
+  } = freeConvert;
+  const showFind = shouldShowProspectFindAdd(presentation);
+  const showListingCapacity = shouldShowGetOblicListingCapacityCard(presentation);
   const [prospects, capacity] = await Promise.all([
     loadProspectsForLibrary(organizationId),
-    getGetOblicListingCapacity(organizationId),
+    showListingCapacity
+      ? getGetOblicListingCapacity(organizationId)
+      : Promise.resolve(null),
   ]);
   const counts = deriveProspectLibrarySummary(prospects);
+  const boundProspectHref = convert.prospectId
+    ? `/prospects/${convert.prospectId}`
+    : null;
+  const noteKey = freeConvertBoundaryCopyKey(presentation);
+  const freeNote = noteKey ? copy.free[noteKey] : null;
 
   return (
-    <TenantAppShell currentPath="/prospects" messages={messages}>
+    <TenantAppShell
+      currentPath="/prospects"
+      messages={messages}
+      {...freeProgression}
+    >
       <TractionPageHeader
         eyebrow={copy.eyebrow}
         title={copy.title}
         question={copy.question}
-        subtitle={copy.subtitle}
+        subtitle={
+          presentation === "available"
+            ? copy.free.availableSubtitle
+            : copy.subtitle
+        }
         action={
-          <Link href="/prospects/find" className={PROSPECT_LIBRARY_PRIMARY_ACTION}>
-            <Search className="size-4" aria-hidden="true" />
-            {copy.list.findOpportunitiesCta}
-          </Link>
+          showFind ? (
+            <Link href="/prospects/find" className={PROSPECT_LIBRARY_PRIMARY_ACTION}>
+              <Search className="size-4" aria-hidden="true" />
+              {copy.list.findOpportunitiesCta}
+            </Link>
+          ) : boundProspectHref ? (
+            <Link href={boundProspectHref} className={PROSPECT_LIBRARY_PRIMARY_ACTION}>
+              {copy.free.openBoundProspect}
+            </Link>
+          ) : null
         }
       >
         {counts.total > 0 ? (
@@ -104,17 +145,37 @@ export default async function ProspectsPage() {
             ) : null}
           </div>
         ) : null}
-        <GetOblicListingCapacitySummary
-          capacity={capacity}
-          messages={copy.list}
-        />
+        {freeNote ? (
+          <p className="mt-4 max-w-3xl text-sm leading-6 text-white/55">
+            {freeNote}
+          </p>
+        ) : null}
+        {showListingCapacity && capacity ? (
+          <GetOblicListingCapacitySummary
+            capacity={capacity}
+            messages={copy.list}
+          />
+        ) : null}
       </TractionPageHeader>
 
       <ProspectsLibraryClient
         prospects={prospects}
         messages={messages}
         language={language}
+        showFindCreate={showFind}
+        boundProspectHref={boundProspectHref}
       />
+
+      {shouldShowFreeConvertContinuation(presentation) ? (
+        <div className="mt-10">
+          <UpgradeCompletionCard
+            {...convertUpgradeContent({
+              continuation: copy.free.continuation,
+              upgrade: messages.upgrade,
+            })}
+          />
+        </div>
+      ) : null}
     </TenantAppShell>
   );
 }

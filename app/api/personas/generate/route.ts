@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import { FreeAudienceGenerationError } from "@/lib/organization/freeAudienceGeneration";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
 } from "@/services/organizationService";
-import {
-  generatePersonaCandidate,
-  PersonaGenerationError,
-} from "@/services/personas/personaGeneration";
+import { assertCurrentFreeAudienceGeneration } from "@/services/organization/freeAudienceGenerationGuard";
+import { generateFreeAudienceCandidate } from "@/services/personas/freeAudienceOrchestration";
+import { PersonaGenerationError } from "@/services/personas/personaGeneration";
 import { ATHENA_REQUEST_ID_HEADER } from "@/services/personaConversation/personaConversationTypes";
 
 export const runtime = "nodejs";
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
 
   try {
     const { organizationId } = await requireCurrentOrganizationContext();
+    await assertCurrentFreeAudienceGeneration({ action: "suggest" });
 
     let body: unknown;
     try {
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
     const instruction =
       typeof record.instruction === "string" ? record.instruction : null;
 
-    const result = await generatePersonaCandidate({
+    const result = await generateFreeAudienceCandidate({
       organizationId,
       instruction,
       clientOrganizationId: record.organizationId ?? record.organization_id,
@@ -82,6 +83,21 @@ export async function POST(request: Request) {
       result.requestId || requestId,
     );
   } catch (error) {
+    if (error instanceof FreeAudienceGenerationError) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: error.code,
+            message: error.message,
+          },
+          requestId,
+        },
+        error.httpStatus,
+        requestId,
+      );
+    }
+
     if (error instanceof OrganizationAccessError) {
       return json(
         {

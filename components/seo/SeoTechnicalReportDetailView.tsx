@@ -65,6 +65,9 @@ type SeoTechnicalReportDetailViewProps = {
   report: PublicSeoReportDetail;
   messages?: TenantMessages;
   language?: OrganizationLanguage;
+  allowRegenerate?: boolean;
+  allowRetrySame?: boolean;
+  boundaryNote?: string | null;
 };
 
 function priorityClass(priority: SeoTechnicalPriority): string {
@@ -214,6 +217,9 @@ export function SeoTechnicalReportDetailView({
   report,
   messages,
   language = "en",
+  allowRegenerate = true,
+  allowRetrySame = true,
+  boundaryNote = null,
 }: SeoTechnicalReportDetailViewProps) {
   const dictionary = messages ?? en;
   const copy = dictionary.seo;
@@ -325,8 +331,9 @@ export function SeoTechnicalReportDetailView({
               onError={setError}
             />
           ) : null}
-          {(report.status === "Ready" ||
-            report.status === "Processing Failed") && (
+          {allowRegenerate &&
+          (report.status === "Ready" ||
+            report.status === "Processing Failed") ? (
             <button
               type="button"
               onClick={() => void handleRegenerate()}
@@ -335,7 +342,7 @@ export function SeoTechnicalReportDetailView({
             >
               {regenerating ? copy.detail.starting : copy.detail.regenerate}
             </button>
-          )}
+          ) : null}
           <SeoReportHeaderDeleteButton
             reportId={report.id}
             confirmMessage={copy.delete.confirm}
@@ -349,6 +356,12 @@ export function SeoTechnicalReportDetailView({
         <p className="mb-6 break-words text-sm text-rose-200">{error}</p>
       ) : null}
 
+      {boundaryNote ? (
+        <p className="mb-6 max-w-3xl text-sm leading-7 text-white/60">
+          {boundaryNote}
+        </p>
+      ) : null}
+
       <SeoReportStatusPanel
         reportId={report.id}
         initialStatus={report.status}
@@ -356,6 +369,8 @@ export function SeoTechnicalReportDetailView({
         initialErrorMessage={report.errorMessage}
         initialErrorCode={report.errorCode}
         messages={dictionary}
+        allowRegenerate={allowRegenerate}
+        allowRetrySame={allowRetrySame}
       />
 
       {pkg ? (

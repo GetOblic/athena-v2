@@ -59,6 +59,15 @@ export const en = {
     closeMenu: "Close menu",
     mainNavigation: "Main navigation",
   },
+  upgrade: {
+    fullAthena: "Full Athena",
+    continueWithFullAthena: "Continue with Full Athena",
+    availableWithFullAthena: "Available with Full Athena",
+    sidebarEyebrow: "ATHENA FREE",
+    sidebarHeadline: "Unlock the full power of Athena",
+    sidebarSupportingText:
+      "Access the complete Intelligence OS and continue beyond Free limits.",
+  },
   nav: {
     dashboard: "Dashboard",
     gettingStarted: "Getting Started",
@@ -82,6 +91,14 @@ export const en = {
     generateTractionSubtitle: "Reach the right audience",
     convertOpportunities: "Convert Opportunities",
     convertOpportunitiesSubtitle: "Win more customers",
+    teachAthenaFirst: "Teach Athena first",
+    teachAthenaAction: "Teach Athena →",
+    buildVisibilityTeachAthena:
+      "Athena needs to understand your business before analyzing your visibility.",
+    generateTractionTeachAthena:
+      "Athena needs to understand your business before creating audiences and content.",
+    convertOpportunitiesTeachAthena:
+      "Athena needs to understand your business before helping you find and pursue opportunities.",
     utilities: "Utilities",
     athenaInbox: "Athena Inbox",
     settings: "Settings",
@@ -336,6 +353,98 @@ export const en = {
     readiness: {
       title: "Business readiness",
       intro: "The four growth domains, as a compact secondary check.",
+    },
+    freeStarter: {
+      eyebrow: "Athena Free",
+      readyTitle: "Athena is ready",
+      readyBody: "Athena knows your business.",
+      readyDetail:
+        "You've taught Athena how your business works and how you communicate. Now see what Athena can create from that understanding.",
+      createCta: "Create my first content",
+      creatingTitle: "Athena is creating your first content...",
+      creatingBody: "Athena is preparing your first week of content.",
+      resultTitle: "Your first content is ready",
+      resultBody: "Here is the first piece Athena created from your business.",
+      viewWeek: "View full week",
+      failedTitle: "Athena could not finish this first week",
+      failedBody:
+        "Generation did not complete. You can try again when you are ready.",
+      tryAgain: "Try again",
+      createFailed: "Athena could not start your first content. Please try again.",
+    },
+    freeProgression: {
+      trainedTitle: "Athena knows your business.",
+      mixedTitle: "Athena is already working for you.",
+      consumedTitle: "Your Intelligence OS is in place.",
+      remainingBody:
+        "Athena has learned how your business works, who you serve, and how you communicate. Useful Free experiences are still ready from that understanding.",
+      mixedBody:
+        "Athena has already created useful work from your business. That work remains available, and more Free experiences are still open.",
+      consumedBody:
+        "Athena has already built useful intelligence from your business. Your work remains available to open and use.",
+      nextTitle: "A useful next step",
+      progressionTitle: "Your growth",
+      progressionIntro:
+        "The four growth stages, based on what Athena has already done for your business.",
+      defineDelivered: "Athena understands your business.",
+      defineCta: "Open Athena Brain",
+      visibilityAvailable: "Athena can create your Visibility Strategy.",
+      visibilityDelivered:
+        "Athena has created your Visibility Strategy. This analysis remains available.",
+      visibilityProcessing: "Athena is creating your Visibility Strategy.",
+      visibilityFailed: "This Visibility Strategy did not finish.",
+      visibilityAvailableCta: "Create your visibility analysis",
+      visibilityOpenCta: "Open your visibility analysis",
+      audienceAvailable: "Athena can define your audience.",
+      audienceDelivered:
+        "Athena understands your audience. Your audience remains available.",
+      audienceProcessing: "Athena is preparing your audience.",
+      audienceAvailableCta: "Create your audience",
+      audienceOpenCta: "Open your audience",
+      advertisingAvailable: "Athena can create your advertising campaign.",
+      advertisingDelivered:
+        "Athena has created your advertising campaign. Your campaign remains available.",
+      advertisingProcessing: "Athena is creating your advertising campaign.",
+      advertisingFailed: "This advertising campaign did not finish.",
+      advertisingAvailableCta: "Create your campaign",
+      advertisingOpenCta: "Open your campaign",
+      socialAvailable: "Athena can create your first week of content.",
+      socialDelivered:
+        "Athena has created your first content week. That week remains available.",
+      socialProcessing: "Athena is creating your first week of content.",
+      socialFailed: "This first week did not finish.",
+      socialAvailableCta: "Create your first content",
+      socialOpenCta: "Open your content week",
+      convertAvailable: "Athena can research one real opportunity.",
+      convertDelivered:
+        "Athena has researched your opportunity. That intelligence remains available.",
+      convertProcessing: "Athena is researching your opportunity.",
+      convertFailed: "This opportunity research did not finish.",
+      convertBound: "Athena is ready to research the opportunity you added.",
+      convertAvailableCta: "Research an opportunity",
+      convertOpenCta: "Open your opportunity",
+      itemAudience: "Audience",
+      itemAdvertising: "Advertising",
+      itemSocial: "Social content",
+      statusAvailable: "Ready to start",
+      statusDelivered: "Ready",
+      statusProcessing: "In progress",
+      statusFailed: "Needs attention",
+      continuationRemainingHeadline: "Expand what your Intelligence OS can do",
+      continuationMixedHeadline: "Continue building with Full Athena",
+      continuationConsumedHeadline: "Your Intelligence OS can go further",
+      continuationRemainingSupporting:
+        "Athena already knows your business. The Free experiences still open stay yours to use.",
+      continuationMixedSupporting:
+        "Athena has already created useful work. Those results remain available, and Full Athena lets you keep building.",
+      continuationConsumedSupporting:
+        "Athena has already built useful intelligence from your business. That work remains available. Full Athena lets you continue the same work.",
+      capability1:
+        "Continue refining business intelligence and grounded Athena conversations",
+      capability2:
+        "Run additional Visibility analyses and work with additional audiences",
+      capability3:
+        "Create additional advertising campaigns, social-content weeks, and researched opportunities",
     },
   },
   gettingStarted: {
@@ -977,6 +1086,15 @@ export const en = {
       "Get guidance about Athena Brain, Visibility, Audiences, advertising, social content, Prospects, and how these parts work together.",
     conversationPlaceholder: "Ask a question about Athena…",
     conversationInputLabel: "Ask a question about Athena",
+    conversationExhaustedTitle: "Athena has answered your question.",
+    conversationExhaustedHelper: "Your conversation remains available here.",
+    conversationContinuation: {
+      headline: "Keep asking Athena how the Intelligence OS works",
+      capability1: "Ask more questions about Athena features and workflows",
+      capability2:
+        "Get guidance as you move between Athena Brain, Visibility, Audiences, Social Content and Convert Opportunities",
+      capability3: "Continue using Athena for contextual product guidance",
+    },
     example1: "What should I complete first?",
     example2: "What is the difference between an Audience and a Prospect?",
     example3: "How do I teach Athena about my business?",
@@ -1218,6 +1336,9 @@ export const en = {
         "Athena learns from these four things when you select Train Athena. There is no separate save.",
       teachTrainedHelper:
         "Changing these facts does not update Athena until you retrain.",
+      teachLearned: "Athena has learned your business",
+      teachLearnedHelper:
+        "These are the facts Athena already uses for this Brain.",
       gapsTitle: "What Athena still needs",
       gapsEmpty:
         "Nothing material needs clarification right now.",
@@ -1244,10 +1365,28 @@ export const en = {
       websiteLastDeepLearning: "Last deep learning",
       websiteDeepScrapeHelp:
         "Optional deeper website learning. Retrain Athena afterward to fold it into the Brain.",
+      websiteLearnedHelp: "Athena already learned from this website.",
       advancedTitle: "Advanced understanding",
       otherToolsTitle: "Other tools",
       askAthenaSummary:
         "Ask what Athena understands. Responses do not change the Brain.",
+      askAthenaUntrainedTitle: "Teach Athena about your business first.",
+      askAthenaUntrainedHelper:
+        "Once Athena has learned your business, you can ask what it understands.",
+      askAthenaUntrainedAction: "Teach Athena",
+      askAthenaExhaustedTitle: "Athena has shown you what it understands.",
+      askAthenaExhaustedHelper: "Your conversation remains available here.",
+      askAthenaContinuation: {
+        headline: "Keep exploring what Athena understands",
+        supportingText:
+          "Continue asking Athena grounded questions about your business and the intelligence in Athena Brain.",
+        capability1:
+          "Ask more questions about what Athena understands about your business",
+        capability2:
+          "Explore Athena Brain and current business intelligence in greater depth",
+        capability3:
+          "Continue using grounded answers from your existing Athena context",
+      },
     },
     getoblic: {
       title: "GetOblic Links",
@@ -1957,6 +2096,31 @@ export const en = {
       statusWarning: "Warning",
       statusInvalid: "Invalid",
     },
+    free: {
+      availableContext:
+        "Athena can define one audience from what it already understands about your business.",
+      reservedNote: "Athena is preparing your audience.",
+      completedNote:
+        "Athena understands your audience. Your audience remains available here.",
+      csvUnavailable: "Available with Full Athena",
+      csvLocked: {
+        headline: "Import audience data from a CSV",
+        capability1:
+          "Upload a spreadsheet so Athena can preview how each audience row will be read",
+        capability2:
+          "Confirm the import to create those audiences in Athena",
+      },
+      openAudience: "Open audience",
+      continuation: {
+        headline: "Build more audiences with Full Athena",
+        capability1:
+          "Create additional audiences for different customer segments",
+        capability2:
+          "Ask Athena to suggest new audiences from your business intelligence",
+        capability3:
+          "Build audiences manually or import audience data from a CSV when needed",
+      },
+    },
     detail: {
       eyebrow: "Audience",
       summary: "Summary",
@@ -2148,6 +2312,15 @@ export const en = {
       deploymentAsset: "Deployment Asset",
       currentExecutiveVersion: "Current Executive Version",
       archivedExecutiveVersion: "Archived Executive Version",
+      exhaustedTitle: "Athena has answered your audience question.",
+      exhaustedHelper: "Your conversation remains available here.",
+      continuation: {
+        headline: "Continue exploring this audience with Full Athena",
+        capability1: "Ask more grounded questions about this audience",
+        capability2: "Explore motivations, objections and buying behavior",
+        capability3:
+          "Refine messaging, channels and customer-experience decisions using the intelligence Athena already built",
+      },
     },
     deepScrape: {
       button: "Research this website",
@@ -2412,8 +2585,17 @@ export const en = {
         directoryLabel: "Search the GetOblic Directory",
         directoryDescription:
           "Search businesses already listed in GetOblic and add one to your opportunities.",
+        directoryUnavailable: "Available with Full Athena",
+        directoryContinuation: {
+          headline: "Search the GetOblic Directory with Full Athena",
+          capability1: "Discover businesses from the GetOblic Directory",
+          capability2: "Add directory businesses to Athena as opportunities",
+          capability3:
+            "Research those prospects using Athena's Convert workflow",
+        },
         googleLabel: "Find One Business on Google",
         googleDescription: "Look up one real business on Google and add it.",
+        googleUnavailable: "Your Free opportunity has already been researched.",
       },
       google: {
         inputLabel: "Business on Google",
@@ -2837,6 +3019,43 @@ export const en = {
       retraining: "Retraining Athena Brain",
       regenerating: "Generating Executive Intelligence",
       genericError: "Deep website scrape failed. Please try again later.",
+    },
+    free: {
+      availableSubtitle:
+        "Athena can research one real opportunity from a business you choose.",
+      availableContext:
+        "Find one business or add one yourself. Athena will research that opportunity once.",
+      findContext:
+        "Search is repeatable. Adding a business starts your one researched opportunity.",
+      manualContext:
+        "Add one real business, including its website, so Athena can research it.",
+      boundNote:
+        "Athena is ready to research the opportunity you added. Open that prospect to continue.",
+      processingNote: "Athena is researching your Convert Opportunities starter.",
+      completedNote:
+        "Athena has researched your opportunity. The intelligence and outreach stay available to read and copy.",
+      continuation: {
+        headline: "Pursue more opportunities with Full Athena",
+        capability1: "Research additional prospects",
+        capability2:
+          "Build intelligence for more businesses you want to pursue",
+        capability3:
+          "Continue turning prospect intelligence into outreach and next-step guidance",
+      },
+      failedNote:
+        "This attempt did not finish. You can retry the same prospect.",
+      historicalNote:
+        "A researched opportunity is already available. Athena will not start another on this Free account.",
+      openBoundProspect: "Open this opportunity",
+      retrySameProspect: "Retry this prospect",
+      websiteRequired: "Add their website before Athena researches this opportunity.",
+      csvUnavailable: "Available with Full Athena",
+      csvLocked: {
+        headline: "Import prospects from a CSV",
+        capability1:
+          "Upload a spreadsheet so Athena can preview how each business row will be read",
+        capability2: "Confirm the import to add those prospects to Athena",
+      },
     },
     executive: {
       heading: "Prospect intelligence",
@@ -3315,6 +3534,30 @@ export const en = {
         "Delete this Ad campaign permanently? This cannot be undone.",
       failed: "Failed to delete ad campaign.",
     },
+    free: {
+      availableSubtitle:
+        "Athena can create one advertising campaign from what it already understands about your business.",
+      availableContext:
+        "Athena will create one advertising campaign from the business it has already learned. A brief is optional.",
+      newContext:
+        "Athena will create one advertising campaign from what it already understands. A brief is optional.",
+      processingNote: "Athena is creating your advertising campaign.",
+      completedNote:
+        "Athena has created your advertising campaign. This campaign stays available to read.",
+      continuation: {
+        headline: "Create more campaigns with Full Athena",
+        capability1:
+          "Create additional campaigns for different audiences or offers",
+        capability2:
+          "Generate new campaign strategy and creative directions for Facebook, Instagram, TikTok and Google Search",
+        capability3:
+          "Continue using Athena's business and audience intelligence when building ads",
+      },
+      failedNote:
+        "This attempt did not finish. You can retry the same campaign.",
+      historicalNote:
+        "An advertising campaign is already available. Athena will not create another on this Free account.",
+    },
   },
   seo: {
     backToDashboard: "← Dashboard",
@@ -3420,6 +3663,40 @@ export const en = {
         "Strategic content intelligence: how comprehensively current content covers the areas people need in order to discover and understand what you offer.",
       healthCardHelp:
         "Deterministic on-page technical evidence for the pages Athena analyzed.",
+    },
+    free: {
+      availableSubtitle:
+        "Athena can create a Visibility Strategy from what it already understands about your business.",
+      availableContext:
+        "Athena will create one Visibility Strategy from the business it has already learned.",
+      newContext:
+        "Athena will create one Visibility Strategy from what it already understands. A brief is optional.",
+      processingNote: "Athena is creating your Visibility Strategy.",
+      completedNote:
+        "Athena has created your Visibility Strategy. This analysis stays available to read.",
+      continuation: {
+        headline: "Go deeper into your visibility with Full Athena",
+        capability1: "Continue analyzing how the business appears in search",
+        capability2:
+          "Create additional Visibility Strategy analyses or regenerate a new version",
+        capability3:
+          "Use those findings to identify visibility and content opportunities",
+      },
+      failedNote:
+        "This attempt did not finish. You can retry the same analysis.",
+      historicalNote:
+        "A visibility analysis is already available. Athena will not create another on this Free account.",
+      intelligenceOnly:
+        "Visibility Strategy is the analysis Athena can create here.",
+      technicalUnavailable:
+        "Website Technical Health is not part of this Free Visibility Strategy.",
+      technicalLocked: {
+        headline: "Analyze Website Technical Health with Full Athena",
+        capability1:
+          "Review on-page technical evidence from Website Intelligence, including titles, descriptions, headings, canonicals, redirects, schema, and image alt text",
+        capability2:
+          "Receive an evidence-backed Technical SEO evaluation and action plan for the pages Athena already analyzed",
+      },
     },
     new: {
       eyebrow: "SEO Workspace",
@@ -3792,6 +4069,7 @@ export const en = {
   socialPlanner: {
     backToDashboard: "← Dashboard",
     backToSocialPlanner: "Back to Social Content",
+    backToHome: "Back to Home",
     backToDailyPlanner: "Back to Daily Social Media",
     backToEvergreenPlanner: "Back to Evergreen Content",
     eyebrow: "Generate Traction",
@@ -3867,6 +4145,21 @@ export const en = {
     whyThisWeekWorks: "Why this week works",
     productionGuidance: "Production guidance",
     createAnotherWeek: "Create another week",
+    free: {
+      continuation: {
+        headline: "Keep building your content with Full Athena",
+        capability1: "Plan additional Daily Social and Evergreen content weeks",
+        capability2:
+          "Generate content for different audiences, themes or business priorities",
+        capability3:
+          "Continue using Athena intelligence to shape future social content",
+      },
+    },
+    freeStarterWeek: {
+      eyebrow: "Athena Free",
+      title: "Your starter week",
+      body: "Athena created this week from what it learned about your business.",
+    },
     thinkDifferently: "Try another approach",
     thinkDifferentlyTitle: "Create a materially different version of this week.",
     notFound: "This week could not be found.",

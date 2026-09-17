@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
+import { FreeAudienceIntelligenceError } from "@/lib/organization/freeAudienceIntelligence";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
 import { buildThinkDifferentlyJobProgress } from "@/services/brain/generationContracts/executiveGenerationMode";
 import { enqueueDiscussionGenerationJob } from "@/services/generationJobs/generationJobRunner";
+import { assertCurrentPersonaIntelligenceDiscussion } from "@/services/organization/freeAudienceIntelligenceGuard";
+import { assertCurrentProspectIntelligenceDiscussion } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -54,6 +58,15 @@ export async function POST(_request: Request, context: RouteContext) {
       throw error;
     }
 
+    await assertCurrentProspectIntelligenceDiscussion({
+      discussionId: id,
+      action: "regenerate",
+    });
+    await assertCurrentPersonaIntelligenceDiscussion({
+      discussionId: id,
+      action: "think_differently",
+    });
+
     const enqueueResult = await enqueueDiscussionGenerationJob({
       organizationId,
       discussionId: id,
@@ -93,6 +106,19 @@ export async function POST(_request: Request, context: RouteContext) {
       202,
     );
   } catch (error) {
+    if (
+      error instanceof FreeConvertGenerationError ||
+      error instanceof FreeAudienceIntelligenceError
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
+      );
+    }
     console.error("Failed to queue Think Differently:", {
       discussionId,
       error,

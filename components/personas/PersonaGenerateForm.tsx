@@ -67,9 +67,13 @@ function candidateHasMeaningfulContent(
 
 type PersonaGenerateFormProps = {
   messages: TenantMessages;
+  allowGenerateAgain?: boolean;
 };
 
-export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
+export function PersonaGenerateForm({
+  messages,
+  allowGenerateAgain = true,
+}: PersonaGenerateFormProps) {
   const router = useRouter();
   const copy = messages.personas.import;
   const meta = messages.personas.metadata;
@@ -470,6 +474,7 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
                   ? copy.creating
                   : copy.createThisAudience}
               </button>
+              {allowGenerateAgain ? (
               <button
                 type="button"
                 onClick={() => void generateCandidate()}
@@ -478,6 +483,7 @@ export function PersonaGenerateForm({ messages }: PersonaGenerateFormProps) {
               >
                 {phase === "generating" ? copy.generating : copy.generateAgain}
               </button>
+              ) : null}
               <button
                 type="button"
                 onClick={clearCandidate}

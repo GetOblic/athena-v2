@@ -528,6 +528,13 @@ async function loadCapacity(
   }
 }
 
+export function loadHomeDefineResult(
+  organizationId: string,
+  userId: string,
+): Promise<HomeDomainResult<HomeIdentityRow | null>> {
+  return loadIdentity(organizationId, userId);
+}
+
 export async function loadHomeSnapshot(
   organizationId: string,
   userId: string,

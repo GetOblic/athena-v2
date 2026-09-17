@@ -5,6 +5,7 @@
  * Notes are never overwritten; additional_context and ads_content are untouched.
  */
 
+import { assertFreeAudienceIntelligenceForOrganization } from "@/services/organization/freeAudienceIntelligenceGuard";
 import { ensurePersonaGenerationQueued } from "@/services/personas/personaImporter";
 import {
   getPersonaById,
@@ -99,6 +100,11 @@ export async function appendPersonaInteraction(input: {
       "Interaction text is required.",
     );
   }
+
+  await assertFreeAudienceIntelligenceForOrganization({
+    organizationId: input.organizationId,
+    action: "observation",
+  });
 
   let appendedPersona: Persona | null = null;
   let nextNotes = "";

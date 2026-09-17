@@ -50,6 +50,30 @@ export async function listSeoReports(
   );
 }
 
+export async function organizationHasSeoReportWithStatus(
+  organizationId: string,
+  statuses: SeoReportStatus[],
+): Promise<boolean> {
+  if (statuses.length === 0) return false;
+  const { data, error } = await supabaseAdmin
+    .from("seo_reports")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .in("status", statuses)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[ATHENA_SEO] status_exists_failed", {
+      organizationId,
+      error: error.message,
+    });
+    throw new Error("Failed to load SEO reports.");
+  }
+
+  return Boolean(data?.id);
+}
+
 export async function getSeoReportById(
   id: string,
   organizationId: string,

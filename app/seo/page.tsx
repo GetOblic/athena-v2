@@ -13,16 +13,39 @@ import {
 } from "@/lib/seo/seoScorePresentation";
 import { deriveVisibilityTypeCardState } from "@/lib/seo/visibilityTypeCards";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import {
+  shouldShowFreeVisibilityContinuation,
+  shouldShowSeoNewAnalysis,
+} from "@/lib/seo/freeVisibilityPresentation";
+import { UpgradeCompletionCard } from "@/components/upgrade/UpgradeCompletionCard";
+import { visibilityUpgradeContent } from "@/lib/upgrade/freeFeatureUpgradePresentation";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import { loadFreeVisibilityPageState } from "@/services/seo/freeVisibilityPageState";
 import { toPublicSeoReportSummary } from "@/services/seo/seoReportPublic";
 import { listSeoReports } from "@/services/seo/seoReportService";
 import { isSeoTechnicalPackage } from "@/services/seo/seoReportTypes";
 
 export default async function SeoIntelligencePage() {
   const { organizationId } = await requireCurrentOrganizationContext();
-  const { language, messages } = await getTenantLocalization();
+  const [{ language, messages }, freeVisibility] = await Promise.all([
+    getTenantLocalization(),
+    loadFreeVisibilityPageState(),
+  ]);
   const copy = messages.seo;
+  const { presentation, visibility: _visibility, boundReportStatus: _boundReportStatus, ...freeProgression } =
+    freeVisibility;
+  const showNewAnalysis = shouldShowSeoNewAnalysis(presentation);
+  const freeNote =
+    presentation === "available"
+      ? copy.free.availableContext
+      : presentation === "processing"
+        ? copy.free.processingNote
+        : presentation === "failed"
+          ? copy.free.failedNote
+          : presentation === "consumed"
+            ? copy.free.completedNote
+            : null;
 
   let reports: ReturnType<typeof toPublicSeoReportSummary>[] = [];
   let intelligenceScore: number | null = null;
@@ -100,20 +123,33 @@ export default async function SeoIntelligencePage() {
   const technicalState = deriveVisibilityTypeCardState(reports, "technical");
 
   return (
-    <TenantAppShell currentPath="/seo" messages={messages}>
+    <TenantAppShell
+      currentPath="/seo"
+      messages={messages}
+      {...freeProgression}
+    >
       <VisibilityPageHeader
         eyebrow={copy.visibility.eyebrow}
         title={copy.visibility.title}
-        subtitle={copy.visibility.subtitle}
+        subtitle={
+          presentation === "available"
+            ? copy.free.availableSubtitle
+            : copy.visibility.subtitle
+        }
         action={
-          <Link
-            href="/seo/new"
-            className={`${SEO_HEADER_CTA_CLASS} bg-[var(--athena-orange)]`}
-          >
-            {copy.visibility.newAnalysisCta}
-          </Link>
+          showNewAnalysis ? (
+            <Link
+              href="/seo/new"
+              className={`${SEO_HEADER_CTA_CLASS} bg-[var(--athena-orange)]`}
+            >
+              {copy.visibility.newAnalysisCta}
+            </Link>
+          ) : undefined
         }
       />
+      {freeNote ? (
+        <p className="mb-8 max-w-3xl text-sm leading-7 text-white/60">{freeNote}</p>
+      ) : null}
 
       {loadError ? (
         <div className="rounded-[28px] border border-rose-400/30 bg-rose-500/10 p-10 text-center">
@@ -150,6 +186,15 @@ export default async function SeoIntelligencePage() {
               reports={reports}
               messages={messages}
               language={language}
+            />
+          ) : null}
+
+          {shouldShowFreeVisibilityContinuation(presentation) ? (
+            <UpgradeCompletionCard
+              {...visibilityUpgradeContent({
+                continuation: copy.free.continuation,
+                upgrade: messages.upgrade,
+              })}
             />
           ) : null}
         </div>

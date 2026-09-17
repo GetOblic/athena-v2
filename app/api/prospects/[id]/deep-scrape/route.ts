@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
 import { getCurrentExecutiveVersion } from "@/services/executiveVersions/executiveVersionService";
+import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -29,6 +31,10 @@ export async function POST(
       await requireCurrentOrganizationContext();
 
     const prospect = await getProspectById(id, organizationId);
+    await assertCurrentFreeConvertGeneration({
+      action: "deep_scrape",
+      prospectId: prospect?.id ?? id,
+    });
     if (!prospect) {
       return json(
         {
@@ -119,6 +125,16 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return json(
+        {
+          ok: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

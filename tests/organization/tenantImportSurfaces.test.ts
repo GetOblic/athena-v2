@@ -145,7 +145,8 @@ describe("V31 L3.10.2 tenant import surfaces — server authority", () => {
     assert.match(personaPage, /getTenantLocalization/);
     assert.match(prospectPage, /getTenantLocalization/);
     assert.match(personaPage, /PersonaImportForms messages=\{messages\}/);
-    assert.match(prospectPage, /ProspectImportForms messages=\{messages\}/);
+    assert.match(prospectPage, /ProspectImportForms/);
+    assert.match(prospectPage, /messages=\{messages\}/);
     assert.match(personaPage, /href="\/personas"/);
     assert.match(prospectPage, /href="\/prospects"/);
     assert.match(personaPage, /copy\.backToPersonas/);

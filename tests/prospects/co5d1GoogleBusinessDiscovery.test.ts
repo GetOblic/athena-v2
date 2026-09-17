@@ -737,6 +737,7 @@ describe("CO-5D1 i18n", () => {
       const find = DICTIONARIES[language].prospects.find;
       assert.ok(find.methods.directoryLabel);
       assert.ok(find.methods.directoryDescription);
+      assert.ok(find.methods.directoryUnavailable);
       assert.ok(find.methods.googleLabel);
       assert.ok(find.methods.googleDescription);
       assert.ok(find.google.inputLabel);

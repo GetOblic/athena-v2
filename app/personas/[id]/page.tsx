@@ -20,12 +20,24 @@ import { PersonaMetadataEditor } from "@/components/personas/PersonaMetadataEdit
 import { PersonaAudienceJourney } from "@/components/personas/PersonaAudienceJourney";
 import { PersonaDetailHeader } from "@/components/personas/PersonaDetailHeader";
 import { ATHENA_EXECUTIVE_CARD_OUTLINE_CLASS } from "@/components/ui/athenaExecutiveCard";
+import {
+  deriveFreeAudiencePresentation,
+  shouldShowPersonaAddObservation,
+  shouldShowPersonaDeepScrape,
+  shouldShowPersonaRefreshIntelligence,
+  shouldShowPersonaThinkDifferently,
+} from "@/lib/personas/freeAudiencePresentation";
 import { buildPersonaJourneyChrome } from "@/lib/personas/personaDetailPresentation";
 import {
   PERSONA_HEADER_CYAN_TOOL_CLASS,
   PERSONA_HEADER_VIOLET_TOOL_CLASS,
   PERSONA_NESTED_CARD_CLASS,
 } from "@/lib/personas/personaPagePresentation";
+import {
+  isFreePersonaAskComposerOpen,
+} from "@/lib/organization/freePersonaAsk";
+import { loadFreePersonaAskPageState } from "@/services/organization/freePersonaAskAuthority";
+import { loadFreeAudiencePageState } from "@/services/personas/freeAudiencePageState";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDiscussionById } from "@/services/discussionService";
 import {
@@ -53,6 +65,7 @@ import {
 } from "@/services/personas/personaUtils";
 import { normalizeRootWebsiteUrl } from "@/services/websiteLearning/deepScrape/urlSafety";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
+import { personaAskUpgradeContent } from "@/lib/upgrade/freeAskUpgradePresentation";
 import { getSharedAssetChrome } from "@/lib/tenantI18n/opportunityPresentation";
 import {
   getAudienceIntelligenceStatusLabel,
@@ -67,17 +80,38 @@ export default async function PersonaDetailsPage({
 }) {
   const { id } = await params;
   const { organizationId } = await requireCurrentOrganizationContext();
-  const [{ locale, messages }, persona] = await Promise.all([
-    getTenantLocalization(),
-    getPersonaById(id, organizationId),
-  ]);
+  const [{ locale, messages }, persona, freeAudience, freePersonaAsk] =
+    await Promise.all([
+      getTenantLocalization(),
+      getPersonaById(id, organizationId),
+      loadFreeAudiencePageState(),
+      loadFreePersonaAskPageState(),
+    ]);
   const copy = messages.personas;
   const executive = messages.personas.executive;
   const journeyChrome = buildPersonaJourneyChrome(copy);
+  const { audience, presentation: _listPresentation, ...freeProgression } =
+    freeAudience;
+  const presentation = deriveFreeAudiencePresentation({
+    athenaPlan: freeAudience.athenaPlan,
+    defineKind: freeAudience.defineKind,
+    audienceStatus: audience.status,
+    boundPersonaId: audience.personaId,
+  });
+  const allowRefresh = shouldShowPersonaRefreshIntelligence(presentation);
+  const allowThinkDifferently = shouldShowPersonaThinkDifferently(presentation);
+  const allowDeepScrape = shouldShowPersonaDeepScrape(presentation);
+  const allowObservation = shouldShowPersonaAddObservation(presentation);
+  const boundaryNote =
+    presentation === "consumed" ? copy.free.completedNote : null;
 
   if (!persona) {
     return (
-      <TenantAppShell currentPath={`/personas/${id}`} messages={messages}>
+      <TenantAppShell
+        currentPath={`/personas/${id}`}
+        messages={messages}
+        {...freeProgression}
+      >
         <Link
           href="/personas"
           className="mb-6 inline-flex text-sm text-[var(--athena-orange)]"
@@ -182,6 +216,9 @@ export default async function PersonaDetailsPage({
     />
   );
 
+  const canInitiateAsk = isFreePersonaAskComposerOpen(
+    freePersonaAsk.presentation,
+  );
   const conversationPanel = (
     <PersonaConversationPanel
       personaId={persona.id}
@@ -191,6 +228,11 @@ export default async function PersonaDetailsPage({
         versionState.current ? copy.detail.currentExecutiveVersion : null
       }
       chrome={copy.conversation}
+      presentation={freePersonaAsk.presentation}
+      upgradeContent={personaAskUpgradeContent({
+        continuation: copy.conversation.continuation,
+        upgrade: messages.upgrade,
+      })}
     />
   );
 
@@ -275,6 +317,7 @@ export default async function PersonaDetailsPage({
       intelligenceStatus={readiness}
       metaLine={headerMeta}
       discussLabel={journeyChrome.discussWithAthena}
+      canInitiateAsk={canInitiateAsk}
       observationLabel={journeyChrome.addObservation}
       intelligenceGroupLabel={journeyChrome.intelligenceGroup}
       audienceToolsGroupLabel={journeyChrome.audienceToolsGroup}
@@ -284,10 +327,13 @@ export default async function PersonaDetailsPage({
           initialStatus={readiness}
           initialInFlight={regenerationInFlight}
           hasCurrentExecutiveVersion={hasCurrentExecutiveVersion}
+          allowRefresh={allowRefresh}
+          allowThinkDifferently={allowThinkDifferently}
           chrome={copy.detail}
         />
       }
       audienceToolsActions={audienceToolsActions}
+      showObservation={allowObservation}
       utilityActions={
         <>
           <PersonaLifecycleStatusControl
@@ -295,12 +341,14 @@ export default async function PersonaDetailsPage({
             messages={messages}
             compact
           />
-          <PersonaDeepScrapeWebsiteButton
-            personaId={persona.id}
-            initiallyAvailable={deepScrapeAvailable}
-            messages={copy.deepScrape}
-            locale={locale}
-          />
+          {allowDeepScrape ? (
+            <PersonaDeepScrapeWebsiteButton
+              personaId={persona.id}
+              initiallyAvailable={deepScrapeAvailable}
+              messages={copy.deepScrape}
+              locale={locale}
+            />
+          ) : null}
         </>
       }
       destructiveAction={
@@ -315,8 +363,15 @@ export default async function PersonaDetailsPage({
   );
 
   const pageBody = (
-    <TenantAppShell currentPath={`/personas/${id}`} messages={messages}>
+    <TenantAppShell
+      currentPath={`/personas/${id}`}
+      messages={messages}
+      {...freeProgression}
+    >
       {header}
+      {boundaryNote ? (
+        <p className="mb-6 text-sm leading-6 text-white/55">{boundaryNote}</p>
+      ) : null}
 
       {intelligenceProcessing ? (
         <div className="relative mb-6 overflow-hidden rounded-[24px] border border-[var(--athena-orange)]/30 bg-[linear-gradient(180deg,rgba(255,102,0,0.10),transparent_72%)] p-5 before:pointer-events-none before:absolute before:inset-y-4 before:left-0 before:w-[3px] before:rounded-r-full before:bg-[rgba(255,102,0,0.68)]">
@@ -369,16 +424,19 @@ export default async function PersonaDetailsPage({
             personaJourneyChrome={journeyChrome}
             personaLibraryMessages={copy}
             personaProfileEditor={profileEditor}
+            personaAskPresentation={freePersonaAsk.presentation}
             afterBlueprint={null}
             afterDetailedReasoning={
               <div className="mt-8 space-y-8">
                 {conversationPanel}
-                <PersonaAppendInteractionTracked
-                  personaId={persona.id}
-                  discussionId={discussion.id}
-                  initialNotes={persona.notes}
-                  chrome={copy.append}
-                />
+                {allowObservation ? (
+                  <PersonaAppendInteractionTracked
+                    personaId={persona.id}
+                    discussionId={discussion.id}
+                    initialNotes={persona.notes}
+                    chrome={copy.append}
+                  />
+                ) : null}
               </div>
             }
             originalDiscussionSection={evidenceExtra}
@@ -419,13 +477,20 @@ export default async function PersonaDetailsPage({
               versionState="none"
               versionLabel={null}
               chrome={copy.conversation}
+              presentation={freePersonaAsk.presentation}
+              upgradeContent={personaAskUpgradeContent({
+                continuation: copy.conversation.continuation,
+                upgrade: messages.upgrade,
+              })}
             />
-            <PersonaAppendInteraction
-              personaId={persona.id}
-              discussionId={null}
-              initialNotes={persona.notes}
-              chrome={copy.append}
-            />
+            {allowObservation ? (
+              <PersonaAppendInteraction
+                personaId={persona.id}
+                discussionId={null}
+                initialNotes={persona.notes}
+                chrome={copy.append}
+              />
+            ) : null}
           </div>
         </>
       )}

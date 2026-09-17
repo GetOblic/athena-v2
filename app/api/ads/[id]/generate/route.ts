@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
+import { FreeTractionGenerationError } from "@/lib/organization/freeTractionGeneration";
 import {
   AdCampaignOrchestrationNotFoundError,
   enqueueGenerationForExistingCampaign,
   ReadyAdCampaignImmutableError,
 } from "@/services/ads/adCampaignOrchestration";
+import { retryFreeTractionAdCampaign } from "@/services/ads/freeTractionOrchestration";
 import { toPublicAdCampaignDetail } from "@/services/ads/adCampaignPublic";
 import { ActiveAdGenerationJobConflictError } from "@/services/ads/adsGenerationJobs/adGenerationJobService";
+import { assertCurrentFreeTractionGeneration } from "@/services/organization/freeTractionGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -44,11 +47,23 @@ export async function POST(
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
 
-    const { campaign, job } = await enqueueGenerationForExistingCampaign({
+    const tractionContext = await assertCurrentFreeTractionGeneration({
+      action: "generate",
       campaignId: id,
-      organizationId,
-      userId,
     });
+    const { campaign, job } =
+      tractionContext.athenaPlan === "free"
+        ? await retryFreeTractionAdCampaign({
+            campaignId: id,
+            organizationId,
+            userId,
+            alreadyReserved: tractionContext.traction.status === "reserved",
+          })
+        : await enqueueGenerationForExistingCampaign({
+            campaignId: id,
+            organizationId,
+            userId,
+          });
 
     return json(
       {
@@ -68,6 +83,16 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+    if (error instanceof FreeTractionGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
     if (error instanceof AdCampaignOrchestrationNotFoundError) {

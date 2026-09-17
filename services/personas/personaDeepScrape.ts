@@ -3,6 +3,7 @@
  * Additive Persona branch; does not generalize Prospect deep scrape.
  */
 
+import { assertFreeAudienceIntelligenceForOrganization } from "@/services/organization/freeAudienceIntelligenceGuard";
 import {
   getPersonaById,
   type Persona,
@@ -44,6 +45,11 @@ export async function enqueuePersonaReferenceWebsiteDeepScrape(input: {
   created: boolean;
   persona: Persona;
 }> {
+  await assertFreeAudienceIntelligenceForOrganization({
+    organizationId: input.organizationId,
+    action: "deep_scrape",
+  });
+
   const persona = await getPersonaById(input.personaId, input.organizationId);
   if (!persona) {
     throw new PersonaDeepScrapeEligibilityError(

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { FreeAudienceIntelligenceError } from "@/lib/organization/freeAudienceIntelligence";
+import { assertCurrentFreeAudienceIntelligence } from "@/services/organization/freeAudienceIntelligenceGuard";
 import { ensurePersonaGenerationQueued } from "@/services/personas/personaImporter";
 import { toPublicPersona } from "@/services/personas/personaPublic";
 import { getPersonaById } from "@/services/personas/personaService";
@@ -38,6 +40,8 @@ export async function POST(
       );
     }
 
+    await assertCurrentFreeAudienceIntelligence({ action: "refresh" });
+
     const result = await ensurePersonaGenerationQueued(persona, {
       requestedBy: userId,
       triggerType: "manual_refresh",
@@ -68,6 +72,17 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeAudienceIntelligenceError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

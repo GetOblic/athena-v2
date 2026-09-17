@@ -64,6 +64,38 @@ export type Organization = {
    * Optional in-type for pre-migration / fixture compatibility; resolver falls back to Full.
    */
   athena_plan?: string | null;
+  /**
+   * One-time Free starter Daily authority. Optional for pre-migration rows.
+   * Historical consumed is never cleared by plan change.
+   */
+  free_starter_status?: string | null;
+  free_starter_calendar_id?: string | null;
+  free_starter_reserved_at?: string | null;
+  free_starter_reservation_token?: string | null;
+  /**
+   * Organization-scoped Free Identity Ask consumption. Optional for
+   * pre-migration rows. Historical consumed is never cleared by plan change.
+   */
+  free_identity_ask_consumed_count?: number | null;
+  free_identity_ask_reserved_count?: number | null;
+  free_identity_ask_reserved_at?: string | null;
+  /**
+   * Organization-scoped Free Help Ask consumption. Optional for
+   * pre-migration rows. Historical consumed is never cleared by plan change.
+   * Separate from Free Identity Ask counters.
+   */
+  free_help_ask_consumed_count?: number | null;
+  free_help_ask_reserved_count?: number | null;
+  free_help_ask_reserved_at?: string | null;
+  /**
+   * Organization-scoped Free Persona Ask consumption. Optional for
+   * pre-migration rows. Historical consumed is never cleared by plan change,
+   * conversation clear, or audience deletion. Separate from Free Identity
+   * Ask, Free Help Ask, and Free Audience counters.
+   */
+  free_persona_ask_consumed_count?: number | null;
+  free_persona_ask_reserved_count?: number | null;
+  free_persona_ask_reserved_at?: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -1,10 +1,14 @@
 import { redirect } from "next/navigation";
+import { FreeFirstSessionHome } from "@/components/home/FreeFirstSessionHome";
+import { FreeTrainedHome } from "@/components/home/FreeTrainedHome";
 import { HomeBusinessReadiness } from "@/components/home/HomeBusinessReadiness";
 import { HomeGetOblicCapacity } from "@/components/home/HomeGetOblicCapacity";
 import { HomeOpportunityPipeline } from "@/components/home/HomeOpportunityPipeline";
 import { HomePriorityList } from "@/components/home/HomePriorityList";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { Brain, Search, Target, Users } from "lucide-react";
+import { shouldShowFreeFirstSessionHome } from "@/lib/home/freeFirstSessionHome";
+import { shouldShowFreeStarterExperience } from "@/lib/home/freeStarterHome";
 import {
   allHomeDomainsErrored,
   deriveCapacityState,
@@ -26,6 +30,8 @@ import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadHomeSnapshot } from "@/services/home/homeReadService";
+import { loadFreeTrainedHomeView } from "@/services/home/freeTrainedHomeReadService";
+import { resolveAthenaPlan } from "@/services/organizationService";
 import { requireTenantContext } from "@/services/tenantContext";
 
 function timeGreetingKey(): "goodMorning" | "goodAfternoon" | "goodEvening" {
@@ -46,12 +52,58 @@ export default async function Home() {
   }
 
   const { organizationId, userId } = await requireTenantContext();
-  const [{ language, messages }, snapshot] = await Promise.all([
+  const [{ language, messages }, snapshot, athenaPlan] = await Promise.all([
     getTenantLocalization(),
     loadHomeSnapshot(organizationId, userId),
+    resolveAthenaPlan(organizationId),
   ]);
 
   const define = deriveDefineState(snapshot.define);
+
+  if (
+    shouldShowFreeFirstSessionHome({
+      athenaPlan,
+      defineKind: define.kind,
+    })
+  ) {
+    return (
+      <TenantAppShell
+        currentPath="/"
+        messages={messages}
+        athenaPlan={athenaPlan}
+        defineKind={define.kind}
+      >
+        <FreeFirstSessionHome />
+      </TenantAppShell>
+    );
+  }
+
+  if (
+    shouldShowFreeStarterExperience({
+      athenaPlan,
+      defineKind: define.kind,
+    })
+  ) {
+    const trainedView = await loadFreeTrainedHomeView({
+      organizationId,
+      messages,
+    });
+    return (
+      <TenantAppShell
+        currentPath="/"
+        messages={messages}
+        athenaPlan={athenaPlan}
+        defineKind={define.kind}
+      >
+        <FreeTrainedHome
+          starter={trainedView.starter}
+          view={trainedView.presentation}
+          messages={messages}
+        />
+      </TenantAppShell>
+    );
+  }
+
   const visibility = deriveVisibilityState(snapshot.visibility);
   const traction = deriveTractionState(snapshot.traction);
   const convert = deriveConvertState(snapshot.convert);
@@ -65,7 +117,12 @@ export default async function Home() {
   const convertView = presentConvert(convert, dash);
 
   return (
-    <TenantAppShell currentPath="/" messages={messages}>
+    <TenantAppShell
+      currentPath="/"
+      messages={messages}
+      athenaPlan={athenaPlan}
+      defineKind={define.kind}
+    >
       <div className="mb-10">
         <div className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--athena-orange)]">
           {dash.eyebrow}

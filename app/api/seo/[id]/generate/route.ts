@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { FreeVisibilityGenerationError } from "@/lib/organization/freeVisibilityGeneration";
+import { assertCurrentFreeVisibilityGeneration } from "@/services/organization/freeVisibilityGenerationGuard";
+import { retryFreeVisibilitySeoReport } from "@/services/seo/freeVisibilityOrchestration";
 import {
   SeoReportOrchestrationNotFoundError,
   TechnicalSeoEvidenceInsufficientError,
@@ -45,11 +48,23 @@ export async function POST(
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
 
-    const { report, job } = await enqueueGenerationForExistingReport({
+    const visibilityContext = await assertCurrentFreeVisibilityGeneration({
+      action: "generate",
       reportId: id,
-      organizationId,
-      userId,
     });
+    const { report, job } =
+      visibilityContext.athenaPlan === "free"
+        ? await retryFreeVisibilitySeoReport({
+            reportId: id,
+            organizationId,
+            userId,
+            alreadyReserved: visibilityContext.visibility.status === "reserved",
+          })
+        : await enqueueGenerationForExistingReport({
+            reportId: id,
+            organizationId,
+            userId,
+          });
 
     return json(
       {
@@ -69,6 +84,16 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+    if (error instanceof FreeVisibilityGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
     if (error instanceof SeoReportOrchestrationNotFoundError) {

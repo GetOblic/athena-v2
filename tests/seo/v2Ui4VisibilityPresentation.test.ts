@@ -56,18 +56,12 @@ describe("V2-UI-4C Build Visibility presentation", () => {
     const landing = read("app/seo/page.tsx");
     const create = read("app/seo/new/page.tsx");
     const detail = read("app/seo/[id]/page.tsx");
-    assert.match(
-      landing,
-      /<TenantAppShell currentPath="\/seo" messages=\{messages\}>/,
-    );
-    assert.match(
-      create,
-      /<TenantAppShell currentPath="\/seo\/new" messages=\{messages\}>/,
-    );
-    assert.match(
-      detail,
-      /<TenantAppShell currentPath=\{`\/seo\/\$\{id\}`\} messages=\{messages\}>/,
-    );
+    assert.match(landing, /currentPath="\/seo"/);
+    assert.match(landing, /\{\.\.\.freeProgression\}/);
+    assert.match(create, /currentPath="\/seo\/new"/);
+    assert.match(create, /\{\.\.\.freeProgression\}/);
+    assert.match(detail, /currentPath=\{`\/seo\/\$\{id\}`\}/);
+    assert.match(detail, /\{\.\.\.freeProgression\}/);
     for (const source of [landing, create, detail]) {
       assert.doesNotMatch(source, /AthenaBrandLink/);
       assert.doesNotMatch(source, /TenantBackLink/);

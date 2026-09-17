@@ -25,6 +25,13 @@ import {
   assertSocialCalendarPlannerKindImplemented,
   readSocialCalendarPlannerKind,
 } from "@/services/socialPlanner/socialCalendarPlannerKind";
+import { deriveSocialCalendarPeriodEnd } from "@/services/socialPlanner/socialCalendarRequest";
+import {
+  bindFreeStarterCalendar,
+  releaseFreeStarterIfReserved,
+} from "@/services/organization/freeStarterAuthority";
+import { FreeSocialPlannerGenerationError } from "@/lib/organization/freeSocialPlannerGeneration";
+import { freeStarterPeriodStartUtc } from "@/lib/organization/freeStarter";
 
 export { ActiveSocialCalendarGenerationJobConflictError };
 
@@ -87,6 +94,80 @@ export async function createDailySocialCalendarWithJob(
     userId: input.userId,
     enqueueFailureMessage: "Failed to enqueue Social Calendar generation job.",
   });
+}
+
+export async function createFreeStarterDailySocialCalendar(input: {
+  organizationId: string;
+  userId: string | null;
+  reservationToken: string;
+  now?: Date;
+}): Promise<{
+  calendar: SocialCalendar;
+  job: AthenaSocialCalendarGenerationJob;
+}> {
+  const periodStart = freeStarterPeriodStartUtc(input.now ?? new Date());
+  const periodEnd = deriveSocialCalendarPeriodEnd(periodStart);
+  let calendar: SocialCalendar;
+  try {
+    calendar = await createSocialCalendar({
+      organizationId: input.organizationId,
+      userId: input.userId,
+      periodStart,
+      periodEnd,
+      userGuidance: null,
+      targetPersonaId: null,
+      plannerKind: "daily_social",
+    });
+  } catch (error) {
+    await releaseFreeStarterIfReserved({
+      organizationId: input.organizationId,
+      reservationToken: input.reservationToken,
+    });
+    throw error;
+  }
+
+  try {
+    await bindFreeStarterCalendar({
+      organizationId: input.organizationId,
+      reservationToken: input.reservationToken,
+      calendarId: calendar.id,
+    });
+  } catch (error) {
+    await markSocialCalendarEnqueueFailed({
+      calendarId: calendar.id,
+      organizationId: input.organizationId,
+      errorCode: "ENQUEUE_FAILED",
+      errorMessage:
+        error instanceof Error
+          ? error.message
+          : "Failed to bind Free starter reservation.",
+    });
+    await releaseFreeStarterIfReserved({
+      organizationId: input.organizationId,
+      calendarId: calendar.id,
+      reservationToken: input.reservationToken,
+    });
+    if (error instanceof FreeSocialPlannerGenerationError) {
+      throw error;
+    }
+    throw error;
+  }
+
+  try {
+    return await enqueueCreatedSocialCalendar({
+      calendar,
+      organizationId: input.organizationId,
+      userId: input.userId,
+      enqueueFailureMessage: "Failed to enqueue Social Calendar generation job.",
+    });
+  } catch (error) {
+    await releaseFreeStarterIfReserved({
+      organizationId: input.organizationId,
+      calendarId: calendar.id,
+      reservationToken: input.reservationToken,
+    });
+    throw error;
+  }
 }
 
 export async function createEvergreenSocialCalendarWithJob(

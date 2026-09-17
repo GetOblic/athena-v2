@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { FreeTractionGenerationError } from "@/lib/organization/freeTractionGeneration";
 import {
   AdCampaignOrchestrationNotFoundError,
   regenerateAdCampaign,
 } from "@/services/ads/adCampaignOrchestration";
 import { toPublicAdCampaignDetail } from "@/services/ads/adCampaignPublic";
+import { assertCurrentFreeTractionGeneration } from "@/services/organization/freeTractionGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -42,6 +44,11 @@ export async function POST(
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
 
+    await assertCurrentFreeTractionGeneration({
+      action: "regenerate",
+      campaignId: id,
+    });
+
     const { campaign, job } = await regenerateAdCampaign({
       sourceCampaignId: id,
       organizationId,
@@ -67,6 +74,16 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+    if (error instanceof FreeTractionGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
     if (error instanceof AdCampaignOrchestrationNotFoundError) {

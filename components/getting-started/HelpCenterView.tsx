@@ -47,6 +47,9 @@ import {
 } from "@/lib/gettingStarted/helpCenterTopics";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import type { AthenaConversationChrome } from "@/components/conversation/AthenaConversationPanel";
+import type { FreeHelpAskPresentation } from "@/lib/organization/freeHelpAsk";
+import { helpAskUpgradeContent } from "@/lib/upgrade/freeAskUpgradePresentation";
+import type { UpgradeSharedCopy } from "@/lib/upgrade/upgradePresentation";
 
 type HelpCenterViewProps = {
   copy: HelpCenterCopy;
@@ -58,6 +61,8 @@ type HelpCenterViewProps = {
     emptyStateTitle: string;
     readOnlyNotice: string;
   };
+  conversationPresentation?: FreeHelpAskPresentation;
+  upgradeCopy?: UpgradeSharedCopy;
 };
 
 const DEFAULT_OPEN_TOPICS = new Set<string>([
@@ -69,6 +74,8 @@ export function HelpCenterView({
   copy,
   initialTopicId,
   conversationChrome,
+  conversationPresentation = "available",
+  upgradeCopy,
 }: HelpCenterViewProps) {
   const [query, setQuery] = useState("");
   const [conversationOpen, setConversationOpen] = useState(() =>
@@ -438,6 +445,19 @@ export function HelpCenterView({
                   readOnlyNotice={conversationChrome.readOnlyNotice}
                   open={conversationOpen}
                   onOpenChange={setConversationOpen}
+                  presentation={conversationPresentation}
+                  askCopy={{
+                    exhaustedTitle: copy.conversationExhaustedTitle,
+                    exhaustedHelper: copy.conversationExhaustedHelper,
+                  }}
+                  upgradeContent={
+                    upgradeCopy
+                      ? helpAskUpgradeContent({
+                          continuation: copy.conversationContinuation,
+                          upgrade: upgradeCopy,
+                        })
+                      : null
+                  }
                 />
               </div>
             </section>

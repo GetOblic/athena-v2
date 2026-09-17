@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
 import {
   deleteProspect,
   getProspectById,
@@ -12,6 +13,7 @@ import {
   mergeGetOblicWebsiteAttribution,
 } from "@/services/getoblicDirectory/getoblicDirectoryConvertService";
 import { GetOblicDirectoryError } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
+import { loadFreeConvertGenerationContext } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -157,11 +159,18 @@ export async function PATCH(
     let queued = false;
     let jobId: string | null = null;
     if (meaningful) {
-      const result = await ensureProspectGenerationQueued(prospect, {
-        requestedBy: userId,
-      });
-      queued = result.queued;
-      jobId = result.jobId ?? null;
+      const convertContext = await loadFreeConvertGenerationContext();
+      if (convertContext.athenaPlan === "free") {
+        if (convertContext.convert.status === "consumed") {
+          throw new FreeConvertGenerationError("FREE_CONVERT_REGENERATE_DENIED");
+        }
+      } else {
+        const result = await ensureProspectGenerationQueued(prospect, {
+          requestedBy: userId,
+        });
+        queued = result.queued;
+        jobId = result.jobId ?? null;
+      }
     }
 
     return json(
@@ -188,6 +197,17 @@ export async function PATCH(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

@@ -27,7 +27,7 @@ describe("Social Planner L9 Ask Athena UI", () => {
       detail.indexOf("Processing Failed"),
     );
     assert.doesNotMatch(processingBlock, /<SocialPlannerAskAthenaPanel/);
-    assert.match(detail, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
+    assert.match(detail, /readOnlyFreeStarter \? undefined : handleDiscussWithAthena/);
     assert.match(panel, /data-social-planner-discuss-focus/);
     assert.match(panel, /id="social-planner-conversation"/);
     assert.match(panel, /id="social-planner-conversation-input"/);

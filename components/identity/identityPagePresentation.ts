@@ -35,6 +35,32 @@ export const IDENTITY_FIELD_ANCHORS = {
   websiteKnowledge: "identity-website-knowledge",
 } as const;
 
+/** Stable Identity destination for Teach Athena, including same-page disclosure. */
+export const IDENTITY_TEACH_ATHENA_HREF =
+  `/identity#${IDENTITY_FIELD_ANCHORS.teach}` as const;
+
+export function isIdentityTeachAthenaHash(
+  value: string | null | undefined,
+): boolean {
+  if (!value) return false;
+  const normalized = value.startsWith("#") ? value.slice(1) : value;
+  return normalized === IDENTITY_FIELD_ANCHORS.teach;
+}
+
+export function isIdentityTeachAthenaHref(
+  href: string | null | undefined,
+): boolean {
+  if (!href) return false;
+  try {
+    const url = new URL(href, "https://athena.local");
+    return (
+      url.pathname === "/identity" && isIdentityTeachAthenaHash(url.hash)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export type IdentityCardAccent =
   | "orange"
   | "blue"

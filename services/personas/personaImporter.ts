@@ -14,6 +14,7 @@ import {
   updateDiscussion,
 } from "@/services/discussionService";
 import { enqueueDiscussionGenerationJob } from "@/services/generationJobs/generationJobRunner";
+import { assertFreeAudienceIntelligenceForOrganization } from "@/services/organization/freeAudienceIntelligenceGuard";
 import {
   findExistingPersonaDuplicate,
   preparePersonaImportRows,
@@ -249,6 +250,12 @@ export async function ensurePersonaGenerationQueued(
     progress?: Record<string, unknown> | null;
   },
 ): Promise<{ persona: Persona; queued: boolean; jobId?: string }> {
+  await assertFreeAudienceIntelligenceForOrganization({
+    organizationId: persona.organization_id,
+    action:
+      options?.triggerType === "discussion_import" ? "generate" : "refresh",
+  });
+
   const ensured = await ensurePersonaBridgeDiscussion(persona);
   let current = ensured.persona;
   const discussionId = ensured.discussionId;
@@ -318,21 +325,43 @@ export async function markPersonaGenerationFailed(
   });
 }
 
-/** Manual Persona create — persist then enqueue generation. */
-export async function importPersonaManual(input: {
-  organizationId: string;
-  userId: string | null;
-  row: PersonaImportRow;
-  /** Internal provenance only. Never required for normal manual create. */
-  rawJson?: Record<string, unknown> | null;
-}): Promise<{
+type PersonaManualImportResult = {
   persona: Persona;
   duplicate: boolean;
   invalidReferenceWebsite: boolean;
   queued: boolean;
   jobId?: string;
   queueError?: string | null;
-}> {
+};
+
+/** Manual Persona create — persist then enqueue generation. */
+export async function importPersonaManual(
+  input: {
+    organizationId: string;
+    userId: string | null;
+    row: PersonaImportRow;
+    /** Internal provenance only. Never required for normal manual create. */
+    rawJson?: Record<string, unknown> | null;
+  },
+): Promise<PersonaManualImportResult> {
+  const { resolveAthenaPlan } = await import("@/services/organizationService");
+  const plan = await resolveAthenaPlan(input.organizationId);
+  if (plan === "free") {
+    const { persistFreeAudiencePersona } = await import(
+      "@/services/personas/freeAudienceOrchestration"
+    );
+    return persistFreeAudiencePersona(input);
+  }
+  return importPersonaManualUnchecked(input);
+}
+
+/** Persist + enqueue without Free reservation. Used by Free persist after reserve. */
+export async function importPersonaManualUnchecked(input: {
+  organizationId: string;
+  userId: string | null;
+  row: PersonaImportRow;
+  rawJson?: Record<string, unknown> | null;
+}): Promise<PersonaManualImportResult> {
   const mapped = mapRowToInput(
     input.row,
     input.organizationId,
@@ -411,6 +440,15 @@ export async function importPersonasFromRows(input: {
   createPersona?: typeof createPersona;
   ensureQueued?: typeof ensurePersonaGenerationQueued;
 }): Promise<PersonaImportSummary> {
+  const { resolveAthenaPlan } = await import("@/services/organizationService");
+  const plan = await resolveAthenaPlan(input.organizationId);
+  if (plan === "free") {
+    const { FreeAudienceGenerationError } = await import(
+      "@/lib/organization/freeAudienceGeneration"
+    );
+    throw new FreeAudienceGenerationError("FREE_AUDIENCE_CSV_DENIED");
+  }
+
   const batchId = randomUUID();
   const persist = input.createPersona ?? createPersona;
   const enqueue = input.ensureQueued ?? ensurePersonaGenerationQueued;

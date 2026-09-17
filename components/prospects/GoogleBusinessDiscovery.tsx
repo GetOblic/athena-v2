@@ -42,6 +42,7 @@ type GoogleBusinessDiscoveryProps = {
   authorMappingMissing: boolean;
   listingCapacityReached: boolean;
   prospectCapacityReached: boolean;
+  canAddProspect?: boolean;
 };
 
 function readGoogleMapsBrowserKey(): string {
@@ -82,6 +83,7 @@ export function GoogleBusinessDiscovery({
   authorMappingMissing,
   listingCapacityReached,
   prospectCapacityReached,
+  canAddProspect = true,
 }: GoogleBusinessDiscoveryProps) {
   const router = useRouter();
   const copy = messages.prospects.find.google;
@@ -188,6 +190,7 @@ export function GoogleBusinessDiscovery({
     loaderStatus === "loading" ||
     submitting;
   const canSubmit =
+    canAddProspect &&
     Boolean(selected) &&
     !submitting &&
     !authorMappingMissing &&
@@ -284,14 +287,16 @@ export function GoogleBusinessDiscovery({
         </div>
       ) : null}
 
-      <button
-        type="button"
-        disabled={!canSubmit}
-        onClick={() => void addSelectedBusiness()}
-        className={`${PROSPECT_LIBRARY_PRIMARY_ACTION} disabled:opacity-40`}
-      >
-        {submitting ? copy.adding : copy.addCta}
-      </button>
+      {canAddProspect ? (
+        <button
+          type="button"
+          disabled={!canSubmit}
+          onClick={() => void addSelectedBusiness()}
+          className={`${PROSPECT_LIBRARY_PRIMARY_ACTION} disabled:opacity-40`}
+        >
+          {submitting ? copy.adding : copy.addCta}
+        </button>
+      ) : null}
 
       {error ? (
         <div className="rounded-[24px] border border-rose-400/30 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100/80">

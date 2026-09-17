@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
+import { FreeAudienceIntelligenceError } from "@/lib/organization/freeAudienceIntelligence";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
 import { appendDiscussionUpdate } from "@/services/discussionService";
 import { enqueueDiscussionGenerationJob } from "@/services/generationJobs/generationJobRunner";
+import { assertCurrentPersonaIntelligenceDiscussion } from "@/services/organization/freeAudienceIntelligenceGuard";
+import { assertCurrentProspectIntelligenceDiscussion } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -20,6 +24,14 @@ export async function POST(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
+    await assertCurrentProspectIntelligenceDiscussion({
+      discussionId: id,
+      action: "regenerate",
+    });
+    await assertCurrentPersonaIntelligenceDiscussion({
+      discussionId: id,
+      action: "observation",
+    });
     const body = await request.json();
 
     const updateBody =
@@ -127,6 +139,20 @@ export async function POST(request: Request, context: RouteContext) {
           },
         },
         { status: 401 },
+      );
+    }
+
+    if (
+      error instanceof FreeConvertGenerationError ||
+      error instanceof FreeAudienceIntelligenceError
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        { status: error.httpStatus },
       );
     }
 

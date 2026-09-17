@@ -29,6 +29,12 @@ import type {
   PersonaConversationHistoryMessage,
   PersonaConversationVersionState,
 } from "@/services/personaConversation/personaConversationTypes";
+import { UpgradeExhaustedNotice } from "@/components/upgrade/UpgradeExhaustedNotice";
+import {
+  isFreePersonaAskComposerOpen,
+  type FreePersonaAskPresentation,
+} from "@/lib/organization/freePersonaAsk";
+import type { UpgradeContextualContent } from "@/lib/upgrade/upgradePresentation";
 import {
   PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN,
   PERSONA_DISCUSS_EVENT,
@@ -55,6 +61,8 @@ type PersonaConversationPanelProps = {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   chrome?: PersonaConversationChrome | null;
+  presentation?: FreePersonaAskPresentation;
+  upgradeContent?: UpgradeContextualContent | null;
 };
 
 const STARTER_QUESTIONS = [
@@ -137,6 +145,8 @@ function PersonaConversationPanelInner({
   open: openControlled,
   onOpenChange,
   chrome = null,
+  presentation = "full",
+  upgradeContent,
 }: PersonaConversationPanelProps) {
   const discussContext = usePersonaDiscussContext();
   const messagesRegionId = useId();
@@ -226,9 +236,11 @@ function PersonaConversationPanelInner({
     };
   }, []);
 
+  const composerOpen = isFreePersonaAskComposerOpen(presentation);
+
   async function sendMessage(raw: string) {
     const message = raw.trim();
-    if (!message || busy) return;
+    if (!composerOpen || !message || busy) return;
 
     const historyForRequest = messages.slice(-20);
     const nextMessages: PersonaConversationHistoryMessage[] = [
@@ -392,18 +404,40 @@ function PersonaConversationPanelInner({
           </p>
         ) : null}
 
+        {presentation === "exhausted" ? (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-5">
+            <p className="text-sm leading-6 text-white/85">
+              {chrome?.exhaustedTitle ??
+                "Athena has answered your audience question."}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-white/55">
+              {chrome?.exhaustedHelper ??
+                "Your conversation remains available here."}
+            </p>
+          </div>
+        ) : null}
+
         <div className="mt-4 flex flex-wrap gap-2">
-          {starterQuestions.map((question) => (
-            <button
-              key={question}
-              type="button"
-              disabled={busy}
-              onClick={() => void sendMessage(question)}
-              className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-left text-xs text-white/70 transition hover:border-[var(--athena-orange)]/40 hover:text-white disabled:opacity-40"
-            >
-              {question}
-            </button>
-          ))}
+          {starterQuestions.map((question) =>
+            composerOpen ? (
+              <button
+                key={question}
+                type="button"
+                disabled={busy}
+                onClick={() => void sendMessage(question)}
+                className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-left text-xs text-white/70 transition hover:border-[var(--athena-orange)]/40 hover:text-white disabled:opacity-40"
+              >
+                {question}
+              </button>
+            ) : (
+              <span
+                key={question}
+                className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-left text-xs text-white/50"
+              >
+                {question}
+              </span>
+            ),
+          )}
         </div>
 
         <div
@@ -441,35 +475,58 @@ function PersonaConversationPanelInner({
           ) : null}
         </div>
 
+        {presentation === "exhausted" && upgradeContent ? (
+          <div className="mt-4" data-athena-ask-continuation="true">
+            <UpgradeExhaustedNotice
+              {...upgradeContent}
+              headingLevel={3}
+              action={{ kind: "none" }}
+            />
+          </div>
+        ) : null}
+
         {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
-          <label htmlFor="persona-conversation-input" className="sr-only">
-            {chrome?.inputLabel ?? "Ask Athena about this audience"}
-          </label>
-          <textarea
-            id="persona-conversation-input"
-            ref={inputRef}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={3}
-            disabled={busy}
-            placeholder={
-              chrome?.placeholder ?? "Ask Athena about this audience…"
-            }
-            className="w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-50"
-          />
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
-              disabled={busy || !draft.trim()}
-              className="rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {busy
-                ? (chrome?.sending ?? "Sending…")
-                : (chrome?.send ?? "Send")}
-            </button>
+        {composerOpen ? (
+          <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+            <label htmlFor="persona-conversation-input" className="sr-only">
+              {chrome?.inputLabel ?? "Ask Athena about this audience"}
+            </label>
+            <textarea
+              id="persona-conversation-input"
+              ref={inputRef}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={handleKeyDown}
+              rows={3}
+              disabled={busy}
+              placeholder={
+                chrome?.placeholder ?? "Ask Athena about this audience…"
+              }
+              className="w-full resize-y rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-50"
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                disabled={busy || !draft.trim()}
+                className="rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {busy
+                  ? (chrome?.sending ?? "Sending…")
+                  : (chrome?.send ?? "Send")}
+              </button>
+              <button
+                type="button"
+                onClick={clearChat}
+                disabled={busy || (messages.length === 0 && !assetReference)}
+                className="rounded-full border border-white/15 px-5 py-3 text-sm text-white/70 disabled:opacity-40"
+              >
+                {chrome?.clear ?? "Clear"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="mt-4">
             <button
               type="button"
               onClick={clearChat}
@@ -479,7 +536,7 @@ function PersonaConversationPanelInner({
               {chrome?.clear ?? "Clear"}
             </button>
           </div>
-        </form>
+        )}
       </AthenaCollapsibleSection>
     </div>
   );

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
 import {
   ProspectCapacityExceededError,
   isProspectCapacityExceededError,
 } from "@/services/prospects/prospectCapacity";
+import { createFreeConvertManualProspect } from "@/services/prospects/freeConvertOrchestration";
 import { importProspectManual } from "@/services/prospects/prospectImporter";
 import { toPublicProspect } from "@/services/prospects/prospectPublic";
+import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -69,13 +72,32 @@ export async function POST(request: Request) {
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
     const body = (await request.json()) as Record<string, unknown>;
-    const row = rowFromBody(body);
+    const {
+      organization_id: _organizationId,
+      organizationId: _organizationIdCamel,
+      user_id: _userId,
+      userId: _userIdCamel,
+      athena_plan: _athenaPlan,
+      athenaPlan: _athenaPlanCamel,
+      ...rest
+    } = body;
+    const row = rowFromBody(rest);
 
-    const result = await importProspectManual({
-      organizationId,
-      userId,
-      row,
+    const convertContext = await assertCurrentFreeConvertGeneration({
+      action: "create",
     });
+    const result =
+      convertContext.athenaPlan === "free"
+        ? await createFreeConvertManualProspect({
+            organizationId,
+            userId,
+            row,
+          })
+        : await importProspectManual({
+            organizationId,
+            userId,
+            row,
+          });
 
     if (result.duplicate) {
       return json({
@@ -116,6 +138,17 @@ export async function POST(request: Request) {
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

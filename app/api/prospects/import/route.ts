@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
 import {
   parseProspectCsvDocument,
   validateProspectCsvDataRowLimit,
 } from "@/services/prospects/prospectCsv";
 import { importProspectsFromRows } from "@/services/prospects/prospectImporter";
+import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -25,6 +27,9 @@ export async function POST(request: Request) {
   try {
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
+    await assertCurrentFreeConvertGeneration({
+      action: "import",
+    });
     const contentType = request.headers.get("content-type") ?? "";
 
     let csvText: string | null = null;
@@ -167,6 +172,17 @@ export async function POST(request: Request) {
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

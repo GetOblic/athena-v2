@@ -170,7 +170,7 @@ describe("social planner detail presentation", () => {
     assert.match(card, /onDiscussWithAthena\(\{ date: asset\.date \}\)/);
     assert.match(card, /<MessageCircleQuestionMark /);
     assert.doesNotMatch(card, /showContinue=\{false\}/);
-    assert.match(detail, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
+    assert.match(detail, /readOnlyFreeStarter \? undefined : handleDiscussWithAthena/);
     assert.match(detail, /data-ask-athena-slot/);
     assert.match(spec, /variant="utility"/);
     assert.match(spec, /showContinue=\{false\}/);

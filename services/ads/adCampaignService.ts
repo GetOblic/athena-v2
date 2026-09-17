@@ -37,6 +37,30 @@ function touch(): string {
   return new Date().toISOString();
 }
 
+export async function organizationHasAdCampaignWithStatus(
+  organizationId: string,
+  statuses: AdCampaignStatus[],
+): Promise<boolean> {
+  if (statuses.length === 0) return false;
+  const { data, error } = await supabaseAdmin
+    .from("ad_campaigns")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .in("status", statuses)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[ATHENA_ADS] status_exists_failed", {
+      organizationId,
+      error: error.message,
+    });
+    throw new Error("Failed to load ad campaigns.");
+  }
+
+  return Boolean(data?.id);
+}
+
 export async function listAdCampaigns(
   organizationId: string,
 ): Promise<AdCampaign[]> {

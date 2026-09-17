@@ -4,6 +4,12 @@ import {
   AthenaConversationPanel,
   type AthenaConversationChrome,
 } from "@/components/conversation/AthenaConversationPanel";
+import { UpgradeExhaustedNotice } from "@/components/upgrade/UpgradeExhaustedNotice";
+import {
+  isFreeHelpAskComposerOpen,
+  type FreeHelpAskPresentation,
+} from "@/lib/organization/freeHelpAsk";
+import type { UpgradeContextualContent } from "@/lib/upgrade/upgradePresentation";
 import {
   GETTING_STARTED_CONVERSATION_STORAGE_KEY,
   buildGettingStartedConversationStorageKey,
@@ -29,6 +35,11 @@ export const GETTING_STARTED_CONVERSATION_EXAMPLE_PROMPTS = [
 export const GETTING_STARTED_CONVERSATION_ENDPOINT =
   "/api/getting-started/conversation";
 
+export type GettingStartedConversationAskCopy = {
+  exhaustedTitle: string;
+  exhaustedHelper: string;
+};
+
 type GettingStartedConversationPanelProps = {
   title?: string;
   description?: string;
@@ -42,7 +53,25 @@ type GettingStartedConversationPanelProps = {
   readOnlyNotice?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  presentation?: FreeHelpAskPresentation;
+  askCopy?: GettingStartedConversationAskCopy;
+  upgradeContent?: UpgradeContextualContent | null;
 };
+
+function HelpAskStatusNotice({
+  title,
+  helper,
+}: {
+  title: string;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
+      <p className="text-sm leading-6 text-white/85">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-white/55">{helper}</p>
+    </div>
+  );
+}
 
 export function GettingStartedConversationPanel({
   title = GETTING_STARTED_CONVERSATION_TITLE,
@@ -57,8 +86,19 @@ export function GettingStartedConversationPanel({
   readOnlyNotice,
   open,
   onOpenChange,
+  presentation = "available",
+  askCopy,
+  upgradeContent,
 }: GettingStartedConversationPanelProps) {
   const storageKey = buildGettingStartedConversationStorageKey();
+  const composerOpen = isFreeHelpAskComposerOpen(presentation);
+  const statusNotice =
+    presentation === "exhausted" && askCopy ? (
+      <HelpAskStatusNotice
+        title={askCopy.exhaustedTitle}
+        helper={askCopy.exhaustedHelper}
+      />
+    ) : null;
 
   return (
     <div className="max-w-4xl">
@@ -81,6 +121,20 @@ export function GettingStartedConversationPanel({
         submitLabel={submitLabel}
         emptyStateTitle={emptyStateTitle}
         readOnlyNotice={readOnlyNotice}
+        hideComposer={!composerOpen}
+        suggestionInteraction={
+          presentation === "exhausted" ? "static" : "fill"
+        }
+        statusNotice={statusNotice}
+        afterValue={
+          presentation === "exhausted" && upgradeContent ? (
+            <UpgradeExhaustedNotice
+              {...upgradeContent}
+              headingLevel={3}
+              action={{ kind: "none" }}
+            />
+          ) : null
+        }
       />
     </div>
   );

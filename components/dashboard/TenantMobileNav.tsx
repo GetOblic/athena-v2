@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 import {
-  TenantHelpCard,
+  TenantAthenaWordmark,
+  TenantChromeAfterNav,
   TenantNavList,
 } from "@/components/dashboard/TenantSidebar";
 import { groupTenantNav } from "@/components/dashboard/tenantNavigation";
 import type { LocalizedTenantNavItem } from "@/components/dashboard/tenantNavigation";
+import type { UpgradeSidebarContent } from "@/lib/upgrade/upgradePresentation";
+import type { AthenaPlan } from "@/services/athenaPlan";
 
 const focusRingClassName =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)]";
@@ -24,6 +27,8 @@ export type TenantMobileNavProps = {
   utilitiesLabel: string;
   moreToolsLabel: string;
   poweredByGetOblic: string;
+  athenaPlan?: AthenaPlan;
+  fullAthenaInvite?: UpgradeSidebarContent | null;
 };
 
 export function TenantMobileNav({
@@ -37,6 +42,8 @@ export function TenantMobileNav({
   utilitiesLabel,
   moreToolsLabel,
   poweredByGetOblic,
+  athenaPlan,
+  fullAthenaInvite,
 }: TenantMobileNavProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -107,7 +114,10 @@ export function TenantMobileNav({
                 className={`min-w-0 transition hover:opacity-90 ${focusRingClassName}`}
                 onClick={() => setOpen(false)}
               >
-                <div className="text-2xl font-bold tracking-tight">ATHENA</div>
+                <TenantAthenaWordmark
+                  titleClassName="text-2xl font-bold tracking-tight"
+                  athenaPlan={athenaPlan}
+                />
                 <div className="mt-1 text-sm text-white/45">{tagline}</div>
               </Link>
               <button
@@ -133,13 +143,18 @@ export function TenantMobileNav({
               moreToolsLabel={moreToolsLabel}
             />
 
-            {help ? (
-              <div className="mt-6">
-                <TenantHelpCard title={help.label} subtitle={help.subtitle ?? ""} />
-              </div>
-            ) : null}
-
-            <div className="mt-6 text-xs text-white/30">{poweredByGetOblic}</div>
+            <TenantChromeAfterNav
+              help={
+                help
+                  ? {
+                      title: help.label,
+                      subtitle: help.subtitle ?? "",
+                    }
+                  : undefined
+              }
+              poweredByGetOblic={poweredByGetOblic}
+              invite={fullAthenaInvite}
+            />
           </div>
         </div>
       ) : (

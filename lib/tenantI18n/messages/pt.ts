@@ -60,6 +60,15 @@ export const pt: TenantMessages = {
     closeMenu: "Fechar menu",
     mainNavigation: "Navegação principal",
   },
+  upgrade: {
+    fullAthena: "Full Athena",
+    continueWithFullAthena: "Continuar com Full Athena",
+    availableWithFullAthena: "Disponível com Full Athena",
+    sidebarEyebrow: "ATHENA FREE",
+    sidebarHeadline: "Desbloqueie todo o potencial da Athena",
+    sidebarSupportingText:
+      "Aceda ao Intelligence OS completo e continue para além dos limites do Free.",
+  },
   nav: {
     dashboard: "Painel",
     gettingStarted: "Primeiros passos",
@@ -83,6 +92,14 @@ export const pt: TenantMessages = {
     generateTractionSubtitle: "Chegue ao público certo",
     convertOpportunities: "Converta oportunidades",
     convertOpportunitiesSubtitle: "Ganhe mais clientes",
+    teachAthenaFirst: "Ensine a Athena primeiro",
+    teachAthenaAction: "Ensinar a Athena →",
+    buildVisibilityTeachAthena:
+      "A Athena precisa entender o seu negócio antes de analisar a sua visibilidade.",
+    generateTractionTeachAthena:
+      "A Athena precisa entender o seu negócio antes de criar audiências e conteúdo.",
+    convertOpportunitiesTeachAthena:
+      "A Athena precisa entender o seu negócio antes de ajudar você a encontrar e aproveitar oportunidades.",
     utilities: "Utilitários",
     athenaInbox: "Athena Inbox",
     settings: "Definições",
@@ -341,6 +358,99 @@ export const pt: TenantMessages = {
     readiness: {
       title: "Preparação do negócio",
       intro: "Os quatro domínios de crescimento, como verificação secundária compacta.",
+    },
+    freeStarter: {
+      eyebrow: "Athena Free",
+      readyTitle: "Athena está pronta",
+      readyBody: "Athena conhece o seu negócio.",
+      readyDetail:
+        "Ensinou à Athena como o seu negócio funciona e como comunica. Veja agora o que a Athena pode criar a partir dessa compreensão.",
+      createCta: "Criar o meu primeiro conteúdo",
+      creatingTitle: "Athena está a criar o seu primeiro conteúdo...",
+      creatingBody: "Athena está a preparar a sua primeira semana de conteúdo.",
+      resultTitle: "O seu primeiro conteúdo está pronto",
+      resultBody: "Eis a primeira peça que a Athena criou a partir do seu negócio.",
+      viewWeek: "Ver a semana completa",
+      failedTitle: "Athena não conseguiu concluir esta primeira semana",
+      failedBody:
+        "A geração não foi concluída. Pode tentar novamente quando estiver pronto.",
+      tryAgain: "Tentar novamente",
+      createFailed:
+        "Athena não conseguiu iniciar o seu primeiro conteúdo. Tente novamente.",
+    },
+    freeProgression: {
+      trainedTitle: "A Athena conhece o seu negócio.",
+      mixedTitle: "A Athena já está a trabalhar para si.",
+      consumedTitle: "O seu Intelligence OS está no sítio.",
+      remainingBody:
+        "A Athena aprendeu como o seu negócio funciona, a quem serve e como comunica. Experiências Free úteis ainda estão prontas a partir dessa compreensão.",
+      mixedBody:
+        "A Athena já criou trabalho útil a partir do seu negócio. Esse trabalho continua disponível, e ainda há mais experiências Free abertas.",
+      consumedBody:
+        "A Athena já construiu inteligência útil a partir do seu negócio. O seu trabalho continua disponível para abrir e usar.",
+      nextTitle: "Um próximo passo útil",
+      progressionTitle: "O seu crescimento",
+      progressionIntro:
+        "As quatro etapas de crescimento, com base no que a Athena já fez pelo seu negócio.",
+      defineDelivered: "A Athena compreende o seu negócio.",
+      defineCta: "Abrir Athena Brain",
+      visibilityAvailable: "A Athena pode criar a sua estratégia de visibilidade.",
+      visibilityDelivered:
+        "A Athena criou a sua estratégia de visibilidade. Esta análise continua disponível.",
+      visibilityProcessing: "A Athena está a criar a sua estratégia de visibilidade.",
+      visibilityFailed: "Esta estratégia de visibilidade não ficou concluída.",
+      visibilityAvailableCta: "Criar a sua análise de visibilidade",
+      visibilityOpenCta: "Abrir a sua análise de visibilidade",
+      audienceAvailable: "A Athena pode definir a sua audiência.",
+      audienceDelivered:
+        "A Athena compreende a sua audiência. A sua audiência continua disponível.",
+      audienceProcessing: "A Athena está a preparar a sua audiência.",
+      audienceAvailableCta: "Criar a sua audiência",
+      audienceOpenCta: "Abrir a sua audiência",
+      advertisingAvailable: "A Athena pode criar a sua campanha publicitária.",
+      advertisingDelivered:
+        "A Athena criou a sua campanha publicitária. A sua campanha continua disponível.",
+      advertisingProcessing: "A Athena está a criar a sua campanha publicitária.",
+      advertisingFailed: "Esta campanha publicitária não ficou concluída.",
+      advertisingAvailableCta: "Criar a sua campanha",
+      advertisingOpenCta: "Abrir a sua campanha",
+      socialAvailable: "A Athena pode criar a sua primeira semana de conteúdo.",
+      socialDelivered:
+        "A Athena criou a sua primeira semana de conteúdo. Essa semana continua disponível.",
+      socialProcessing: "A Athena está a criar a sua primeira semana de conteúdo.",
+      socialFailed: "Esta primeira semana não ficou concluída.",
+      socialAvailableCta: "Criar o seu primeiro conteúdo",
+      socialOpenCta: "Abrir a sua semana de conteúdo",
+      convertAvailable: "A Athena pode investigar uma oportunidade real.",
+      convertDelivered:
+        "A Athena investigou a sua oportunidade. Essa inteligência continua disponível.",
+      convertProcessing: "A Athena está a investigar a sua oportunidade.",
+      convertFailed: "Esta investigação de oportunidade não ficou concluída.",
+      convertBound: "A Athena está pronta para investigar a oportunidade que adicionou.",
+      convertAvailableCta: "Investigar uma oportunidade",
+      convertOpenCta: "Abrir a sua oportunidade",
+      itemAudience: "Audiência",
+      itemAdvertising: "Publicidade",
+      itemSocial: "Conteúdo social",
+      statusAvailable: "Pronto a começar",
+      statusDelivered: "Pronto",
+      statusProcessing: "Em curso",
+      statusFailed: "Precisa de atenção",
+      continuationRemainingHeadline: "Expanda o que o seu Intelligence OS pode fazer",
+      continuationMixedHeadline: "Continue a construir com Full Athena",
+      continuationConsumedHeadline: "O seu Intelligence OS pode ir mais longe",
+      continuationRemainingSupporting:
+        "A Athena já conhece o seu negócio. As experiências Free ainda abertas continuam suas.",
+      continuationMixedSupporting:
+        "A Athena já criou trabalho útil. Esses resultados continuam disponíveis, e a Full Athena permite-lhe continuar a construir.",
+      continuationConsumedSupporting:
+        "A Athena já construiu inteligência útil a partir do seu negócio. Esse trabalho continua disponível. A Full Athena permite-lhe continuar o mesmo trabalho.",
+      capability1:
+        "Continuar a afinar a inteligência do negócio e as conversas fundamentadas com a Athena",
+      capability2:
+        "Fazer mais análises de visibilidade e trabalhar com mais audiências",
+      capability3:
+        "Criar mais campanhas publicitárias, semanas de conteúdo social e oportunidades investigadas",
     },
   },
   gettingStarted: {
@@ -1024,6 +1134,17 @@ export const pt: TenantMessages = {
       "Obtenha orientação sobre o Athena Brain, a Visibilidade, as Audiências, a publicidade, o conteúdo social, os Prospects e como estas partes trabalham em conjunto.",
     conversationPlaceholder: "Faça uma pergunta sobre a Athena…",
     conversationInputLabel: "Faça uma pergunta sobre a Athena",
+    conversationExhaustedTitle: "A Athena respondeu à sua pergunta.",
+    conversationExhaustedHelper: "A sua conversa continua disponível aqui.",
+    conversationContinuation: {
+      headline: "Continue a perguntar à Athena como funciona o Intelligence OS",
+      capability1:
+        "Faça mais perguntas sobre as funcionalidades e os fluxos da Athena",
+      capability2:
+        "Receba orientação ao mover-se entre Athena Brain, Visibility, Audiences, Social Content e Convert Opportunities",
+      capability3:
+        "Continue a usar a Athena para orientação de produto contextual",
+    },
     example1: "O que devo concluir primeiro?",
     example2: "Qual é a diferença entre uma Audiência e um Prospect?",
     example3: "Como é que ensino à Athena o meu negócio?",
@@ -1267,6 +1388,9 @@ export const pt: TenantMessages = {
         "A Athena aprende com estas quatro coisas quando escolhe Treinar Athena. Não há um guardar separado.",
       teachTrainedHelper:
         "Alterar estes factos não atualiza a Athena até a retreinar.",
+      teachLearned: "A Athena já aprendeu o seu negócio",
+      teachLearnedHelper:
+        "Estes são os factos que a Athena já usa neste Brain.",
       gapsTitle: "O que a Athena ainda precisa",
       gapsEmpty:
         "Nada de material precisa de esclarecimento neste momento.",
@@ -1293,10 +1417,28 @@ export const pt: TenantMessages = {
       websiteLastDeepLearning: "Última aprendizagem profunda",
       websiteDeepScrapeHelp:
         "Aprendizagem opcional mais profunda do sítio. Retreine a Athena depois para a integrar no Brain.",
+      websiteLearnedHelp: "A Athena já aprendeu a partir deste website.",
       advancedTitle: "Compreensão avançada",
       otherToolsTitle: "Outras ferramentas",
       askAthenaSummary:
         "Pergunte o que a Athena compreende. As respostas não alteram o Brain.",
+      askAthenaUntrainedTitle: "Ensine primeiro o seu negócio à Athena.",
+      askAthenaUntrainedHelper:
+        "Depois de a Athena ter aprendido o seu negócio, pode perguntar o que ela compreende.",
+      askAthenaUntrainedAction: "Ensinar a Athena",
+      askAthenaExhaustedTitle: "A Athena mostrou-lhe o que compreende.",
+      askAthenaExhaustedHelper: "A sua conversa continua disponível aqui.",
+      askAthenaContinuation: {
+        headline: "Continue a explorar o que a Athena compreende",
+        supportingText:
+          "Continue a fazer à Athena perguntas fundamentadas sobre o seu negócio e a inteligência no Athena Brain.",
+        capability1:
+          "Faça mais perguntas sobre o que a Athena compreende do seu negócio",
+        capability2:
+          "Explore o Athena Brain e a inteligência atual do negócio com mais profundidade",
+        capability3:
+          "Continue a usar respostas fundamentadas no seu contexto Athena existente",
+      },
     },
     getoblic: {
       title: "GetOblic Links",
@@ -2023,6 +2165,31 @@ export const pt: TenantMessages = {
       statusWarning: "Aviso",
       statusInvalid: "Inválida",
     },
+    free: {
+      availableContext:
+        "A Athena pode definir uma audiência a partir do que já compreende do seu negócio.",
+      reservedNote: "A Athena está a preparar a sua audiência.",
+      completedNote:
+        "A Athena compreende a sua audiência. A sua audiência permanece disponível aqui.",
+      csvUnavailable: "Disponível com Full Athena",
+      csvLocked: {
+        headline: "Importe dados de audiência a partir de um CSV",
+        capability1:
+          "Carregue uma folha de cálculo para a Athena pré-visualizar como cada linha de audiência será lida",
+        capability2:
+          "Confirme a importação para criar essas audiências na Athena",
+      },
+      openAudience: "Abrir audiência",
+      continuation: {
+        headline: "Crie mais audiências com Full Athena",
+        capability1:
+          "Crie audiências adicionais para diferentes segmentos de clientes",
+        capability2:
+          "Use Ask Athena para sugerir novas audiências a partir da inteligência do seu negócio",
+        capability3:
+          "Crie audiências manualmente ou importe dados de audiência de um CSV quando precisar",
+      },
+    },
     detail: {
       eyebrow: "Audiência",
       summary: "Resumo",
@@ -2217,6 +2384,15 @@ export const pt: TenantMessages = {
       deploymentAsset: "Deployment Asset",
       currentExecutiveVersion: "Versão executiva atual",
       archivedExecutiveVersion: "Versão executiva arquivada",
+      exhaustedTitle: "A Athena respondeu à sua pergunta sobre esta audiência.",
+      exhaustedHelper: "A sua conversa continua disponível aqui.",
+      continuation: {
+        headline: "Continue a explorar esta audiência com Full Athena",
+        capability1: "Faça mais perguntas fundamentadas sobre esta audiência",
+        capability2: "Explore motivações, objeções e comportamento de compra",
+        capability3:
+          "Afine o messaging, os canais e as decisões de experiência do cliente com a inteligência que a Athena já construiu",
+      },
     },
     deepScrape: {
       button: "Deep Scrape sítio de referência",
@@ -2488,8 +2664,19 @@ export const pt: TenantMessages = {
         directoryLabel: "Pesquisar no diretório GetOblic",
         directoryDescription:
           "Pesquise negócios já listados no GetOblic e adicione um às suas oportunidades.",
+        directoryUnavailable: "Disponível com Full Athena",
+        directoryContinuation: {
+          headline: "Pesquise no diretório GetOblic com Full Athena",
+          capability1: "Descubra negócios no diretório GetOblic",
+          capability2:
+            "Adicione negócios do diretório à Athena como oportunidades",
+          capability3:
+            "Investigue esses prospects com o fluxo Convert da Athena",
+        },
         googleLabel: "Encontrar um negócio no Google",
         googleDescription: "Procure um negócio real no Google e adicione-o.",
+        googleUnavailable:
+          "A sua oportunidade Free já foi investigada.",
       },
       google: {
         inputLabel: "Negócio no Google",
@@ -2930,6 +3117,46 @@ export const pt: TenantMessages = {
       regenerating: "A gerar Executive Intelligence",
       genericError:
         "O Deep Scrape do sítio web falhou. Tente novamente mais tarde.",
+    },
+    free: {
+      availableSubtitle:
+        "A Athena pode investigar uma oportunidade real de um negócio que escolha.",
+      availableContext:
+        "Encontre um negócio ou adicione um você mesmo. A Athena investigará essa oportunidade uma vez.",
+      findContext:
+        "A pesquisa pode ser repetida. Adicionar um negócio inicia a sua única oportunidade investigada.",
+      manualContext:
+        "Adicione um negócio real, incluindo o sítio, para a Athena o investigar.",
+      boundNote:
+        "A Athena está pronta para investigar a oportunidade que adicionou. Abra esse prospect para continuar.",
+      processingNote:
+        "A Athena está a investigar a sua oportunidade inicial de Convert Opportunities.",
+      completedNote:
+        "A Athena investigou a sua oportunidade. A inteligência e o outreach continuam disponíveis para ler e copiar.",
+      continuation: {
+        headline: "Persiga mais oportunidades com Full Athena",
+        capability1: "Investigue prospects adicionais",
+        capability2:
+          "Construa inteligência de mais negócios que quer perseguir",
+        capability3:
+          "Continue a transformar a inteligência do prospect em outreach e próximos passos",
+      },
+      failedNote:
+        "Esta tentativa não terminou. Pode repetir o mesmo prospect.",
+      historicalNote:
+        "Já existe uma oportunidade investigada. A Athena não iniciará outra nesta conta Free.",
+      openBoundProspect: "Abrir esta oportunidade",
+      retrySameProspect: "Repetir este prospect",
+      websiteRequired:
+        "Adicione o sítio deles antes de a Athena investigar esta oportunidade.",
+      csvUnavailable: "Disponível com Full Athena",
+      csvLocked: {
+        headline: "Importe prospects a partir de um CSV",
+        capability1:
+          "Carregue uma folha de cálculo para a Athena pré-visualizar como cada linha de negócio será lida",
+        capability2:
+          "Confirme a importação para adicionar esses prospects à Athena",
+      },
     },
     executive: {
       heading: "Inteligência do prospect",
@@ -3414,6 +3641,30 @@ export const pt: TenantMessages = {
         "Eliminar esta campanha de Anúncios de forma permanente? Esta ação não pode ser anulada.",
       failed: "Falha ao eliminar a campanha publicitária.",
     },
+    free: {
+      availableSubtitle:
+        "A Athena pode criar uma campanha publicitária a partir do que já compreende do seu negócio.",
+      availableContext:
+        "A Athena criará uma campanha publicitária a partir do negócio que já aprendeu. O brief é opcional.",
+      newContext:
+        "A Athena criará uma campanha publicitária a partir do que já compreende. O brief é opcional.",
+      processingNote: "A Athena está a criar a sua campanha publicitária.",
+      completedNote:
+        "A Athena criou a sua campanha publicitária. Esta campanha continua disponível para leitura.",
+      continuation: {
+        headline: "Crie mais campanhas com Full Athena",
+        capability1:
+          "Crie campanhas adicionais para diferentes audiências ou ofertas",
+        capability2:
+          "Gere nova estratégia de campanha e direções criativas para Facebook, Instagram, TikTok e Google Search",
+        capability3:
+          "Continue a usar a inteligência de negócio e de audiência da Athena ao criar anúncios",
+      },
+      failedNote:
+        "Esta tentativa não terminou. Pode repetir a mesma campanha.",
+      historicalNote:
+        "Já existe uma campanha publicitária disponível. A Athena não criará outra nesta conta Free.",
+    },
   },
   seo: {
     backToDashboard: "← Painel",
@@ -3519,6 +3770,41 @@ export const pt: TenantMessages = {
         "Inteligência estratégica de conteúdo: quão abrangente o conteúdo atual cobre as áreas de que as pessoas precisam para descobrir e compreender o que oferece.",
       healthCardHelp:
         "Evidência técnica on-page determinística das páginas analisadas pela Athena.",
+    },
+    free: {
+      availableSubtitle:
+        "A Athena pode criar uma estratégia de visibilidade a partir do que já compreende do seu negócio.",
+      availableContext:
+        "A Athena criará uma estratégia de visibilidade a partir do negócio que já aprendeu.",
+      newContext:
+        "A Athena criará uma estratégia de visibilidade a partir do que já compreende. Um brief é opcional.",
+      processingNote: "A Athena está a criar a sua estratégia de visibilidade.",
+      completedNote:
+        "A Athena criou a sua estratégia de visibilidade. Esta análise continua disponível para leitura.",
+      continuation: {
+        headline: "Aprofunde a sua visibilidade com Full Athena",
+        capability1:
+          "Continue a analisar como o negócio aparece na pesquisa",
+        capability2:
+          "Crie análises adicionais de estratégia de visibilidade ou regenere uma nova versão",
+        capability3:
+          "Use essas conclusões para identificar oportunidades de visibilidade e de conteúdo",
+      },
+      failedNote:
+        "Esta tentativa não terminou. Pode repetir a mesma análise.",
+      historicalNote:
+        "Já existe uma análise de visibilidade. A Athena não criará outra nesta conta Free.",
+      intelligenceOnly:
+        "A estratégia de visibilidade é a análise que a Athena pode criar aqui.",
+      technicalUnavailable:
+        "A saúde técnica do site não faz parte desta estratégia de visibilidade Free.",
+      technicalLocked: {
+        headline: "Analise a saúde técnica do site com Full Athena",
+        capability1:
+          "Reveja a evidência técnica on-page da Website Intelligence, incluindo títulos, descrições, cabeçalhos, canonicals, redirecionamentos, schema e textos alt das imagens",
+        capability2:
+          "Receba uma avaliação Technical SEO fundamentada em provas e um plano de ação para as páginas que a Athena já analisou",
+      },
     },
     new: {
       eyebrow: "Espaço de trabalho SEO",
@@ -3895,6 +4181,7 @@ export const pt: TenantMessages = {
   socialPlanner: {
     backToDashboard: "← Painel",
     backToSocialPlanner: "Voltar ao conteúdo social",
+    backToHome: "Voltar ao início",
     backToDailyPlanner: "Voltar às Redes sociais diárias",
     backToEvergreenPlanner: "Voltar ao Conteúdo evergreen",
     eyebrow: "Generate Traction",
@@ -3975,6 +4262,22 @@ export const pt: TenantMessages = {
     whyThisWeekWorks: "Porque é que esta semana funciona",
     productionGuidance: "Orientação de produção",
     createAnotherWeek: "Criar outra semana",
+    free: {
+      continuation: {
+        headline: "Continue a construir o seu conteúdo com Full Athena",
+        capability1:
+          "Planeie semanas adicionais de conteúdo Daily Social e Evergreen",
+        capability2:
+          "Gere conteúdo para diferentes audiências, temas ou prioridades do negócio",
+        capability3:
+          "Continue a usar a inteligência da Athena para moldar o conteúdo social futuro",
+      },
+    },
+    freeStarterWeek: {
+      eyebrow: "Athena Free",
+      title: "Sua semana inicial",
+      body: "A Athena criou esta semana a partir do que aprendeu sobre o seu negócio.",
+    },
     thinkDifferently: "Tentar outra abordagem",
     thinkDifferentlyTitle:
       "Criar uma versão materialmente diferente desta semana.",

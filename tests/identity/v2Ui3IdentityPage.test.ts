@@ -13,8 +13,12 @@ import { IdentityWebsiteKnowledge } from "../../components/identity/IdentityWebs
 import { IdentityWhatAthenaKnows } from "../../components/identity/IdentityWhatAthenaKnows";
 import {
   hasSuccessfulAthenaTraining,
+  IDENTITY_FIELD_ANCHORS,
+  IDENTITY_TEACH_ATHENA_HREF,
   IDENTITY_UPDATE_LOCATION_HREFS,
   isAthenaBrainTraining,
+  isIdentityTeachAthenaHash,
+  isIdentityTeachAthenaHref,
   localizeUpdateLocation,
   readWebsiteKnowledgeFlags,
   shouldOpenTeachAthena,
@@ -117,10 +121,9 @@ function sampleIdentity(
 describe("V2-UI-3C Identity page composition", () => {
   it("keeps TenantAppShell currentPath=/identity and tenant load contracts", () => {
     const page = read("app/identity/page.tsx");
-    assert.match(
-      page,
-      /<TenantAppShell currentPath="\/identity" messages=\{messages\}>/,
-    );
+    assert.match(page, /currentPath="\/identity"/);
+    assert.match(page, /\{\.\.\.freeProgression\}/);
+    assert.match(page, /loadFreeProgressionState/);
     assert.match(page, /getAthenaIdentityByUserId\(userId, organizationId\)/);
     assert.match(page, /requireCurrentOrganizationContext/);
     assert.match(page, /upsertAthenaIdentity/);
@@ -165,7 +168,15 @@ describe("V2-UI-3C Identity page composition", () => {
     assert.match(teach, /rows=\{6\}/);
     assert.match(teach, /rows=\{8\}/);
     assert.match(teach, /id=\{IDENTITY_FIELD_ANCHORS\.voice\}/);
+    assert.match(teach, /IdentityTeachAthenaDisclosure/);
     assert.match(teach, /scroll-mt-24/);
+    assert.equal(IDENTITY_FIELD_ANCHORS.teach, "identity-teach");
+    assert.equal(IDENTITY_TEACH_ATHENA_HREF, "/identity#identity-teach");
+    assert.equal(isIdentityTeachAthenaHash("#identity-teach"), true);
+    assert.equal(isIdentityTeachAthenaHash("identity-teach"), true);
+    assert.equal(isIdentityTeachAthenaHash("#identity-voice"), false);
+    assert.equal(isIdentityTeachAthenaHref("/identity#identity-teach"), true);
+    assert.equal(isIdentityTeachAthenaHref("/identity"), false);
     assert.match(page, /greetingName: String\(formData\.get\("greeting_name"/);
     assert.match(page, /aboutYou: String\(formData\.get\("about_you"/);
     assert.match(page, /expertise: String\(formData\.get\("expertise"/);
@@ -191,12 +202,17 @@ describe("V2-UI-3C Identity page composition", () => {
       page,
       /initiallyAvailable=\{identity\?\.brain_status === "ready" && hasWebsite\}/,
     );
-    assert.match(conversation, /defaultOpen=\{false\}/);
+    assert.match(conversation, /embedded/);
+    assert.doesNotMatch(conversation, /defaultOpen/);
     assert.match(conversation, /IDENTITY_CONVERSATION_ENDPOINT/);
     assert.match(conversation, /\/api\/identity\/conversation/);
     assert.doesNotMatch(conversation, /Apply|upsertAthenaIdentity|saveIdentity/);
     assert.match(deep, /syncedInitiallyAvailable/);
     assert.equal(en.identity.conversationTitle, "Ask Athena what it understands");
+    assert.equal(
+      en.identity.page.askAthenaSummary,
+      "Ask what Athena understands. Responses do not change the Brain.",
+    );
     assert.match(
       en.identity.conversationDescription,
       /do not change the Brain/,
@@ -300,12 +316,19 @@ describe("V2-UI-3C Identity page composition", () => {
       "components/identity/IdentityAdvancedUnderstanding.tsx",
     );
     const other = read("components/identity/IdentityOtherTools.tsx");
+    const teachDeepLink = read(
+      "components/identity/identityTeachAthenaDeepLink.tsx",
+    );
     for (const source of [teach, knows, gaps, website, advanced, other]) {
       assert.match(source, /defaultOpen=\{false\}/);
     }
     assert.match(page, /defaultOpen=\{false\}/);
     assert.doesNotMatch(page, /defaultOpen=\{true\}/);
     assert.doesNotMatch(page, /shouldOpenTeachAthena/);
+    assert.match(teachDeepLink, /id=\{IDENTITY_FIELD_ANCHORS\.teach\}/);
+    assert.match(teachDeepLink, /defaultOpen=\{defaultOpen\}/);
+    assert.match(teachDeepLink, /hashchange/);
+    assert.doesNotMatch(teach, /"use client"/);
     assert.match(teach, /GraduationCap/);
     assert.match(knows, /<Brain /);
     assert.match(gaps, /<Target /);
@@ -457,6 +480,10 @@ describe("V2-UI-3C Identity page composition", () => {
     );
     assert.match(
       read("components/identity/TrainAthenaSubmitButton.tsx"),
+      /"use client"/,
+    );
+    assert.match(
+      read("components/identity/identityTeachAthenaDeepLink.tsx"),
       /"use client"/,
     );
   });

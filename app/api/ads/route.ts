@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { FreeTractionGenerationError } from "@/lib/organization/freeTractionGeneration";
 import {
   AdCampaignBriefValidationError,
   normalizeAdCampaignBrief,
 } from "@/services/ads/adCampaignBrief";
+import { createFreeTractionAdCampaignWithJob } from "@/services/ads/freeTractionOrchestration";
 import { createAdCampaignWithJob } from "@/services/ads/adCampaignOrchestration";
 import { toPublicAdCampaignDetail, toPublicAdCampaignSummary } from "@/services/ads/adCampaignPublic";
 import { listAdCampaigns } from "@/services/ads/adCampaignService";
@@ -10,6 +12,7 @@ import {
   extractAdsCandidatePersonaId,
   resolveAdsTargetPersona,
 } from "@/services/ads/adsTargetPersona";
+import { assertCurrentFreeTractionGeneration } from "@/services/organization/freeTractionGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -95,16 +98,27 @@ export async function POST(request: Request) {
         : rest;
 
     const brief = normalizeAdCampaignBrief(briefSource);
+    const tractionContext = await assertCurrentFreeTractionGeneration({
+      action: "create",
+    });
     const targetPersona = await resolveAdsTargetPersona({
       personaId: extractAdsCandidatePersonaId(rest),
       organizationId,
     });
-    const { campaign, job } = await createAdCampaignWithJob({
-      organizationId,
-      userId,
-      brief,
-      authorizedTargetPersonaId: targetPersona?.id ?? null,
-    });
+    const { campaign, job } =
+      tractionContext.athenaPlan === "free"
+        ? await createFreeTractionAdCampaignWithJob({
+            organizationId,
+            userId,
+            brief,
+            authorizedTargetPersonaId: targetPersona?.id ?? null,
+          })
+        : await createAdCampaignWithJob({
+            organizationId,
+            userId,
+            brief,
+            authorizedTargetPersonaId: targetPersona?.id ?? null,
+          });
 
     return json(
       {
@@ -134,6 +148,16 @@ export async function POST(request: Request) {
           error: { code: error.code, message: error.message },
         },
         400,
+      );
+    }
+    if (error instanceof FreeTractionGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
     console.error("[ATHENA_ADS_API] create_failed", error);

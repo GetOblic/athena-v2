@@ -7,6 +7,7 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { writeClipboardText } from "@/lib/clipboard";
@@ -71,6 +72,19 @@ export type AthenaConversationPanelProps = {
   submitLabel?: string;
   emptyStateTitle?: string;
   chrome?: AthenaConversationChrome;
+  /**
+   * Render the conversation body without an inner collapsible card or heading.
+   * Used when a parent section already provides the title, summary, and shell.
+   */
+  embedded?: boolean;
+  /** Hide the textarea / Ask action without changing Clear or history. */
+  hideComposer?: boolean;
+  /** How suggestion prompts behave. Default fills the textarea only. */
+  suggestionInteraction?: "fill" | "static" | "hidden";
+  /** Optional honest status copy shown instead of a working form. */
+  statusNotice?: ReactNode;
+  /** Optional post-transcript continuation. Never rendered before delivered value. */
+  afterValue?: ReactNode;
 };
 
 function ThinkingIndicator() {
@@ -100,6 +114,11 @@ function AthenaConversationPanelInner({
   submitLabel = "Ask Athena",
   emptyStateTitle = "Try asking",
   chrome = DEFAULT_CONVERSATION_CHROME,
+  embedded = false,
+  hideComposer = false,
+  suggestionInteraction = "fill",
+  statusNotice,
+  afterValue,
 }: AthenaConversationPanelProps) {
   const messagesRegionId = useId();
   const generatedInputId = useId();
@@ -163,7 +182,7 @@ function AthenaConversationPanelInner({
 
   async function sendMessage(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || busy || inFlightRef.current) {
+    if (!trimmed || busy || inFlightRef.current || hideComposer) {
       return;
     }
 
@@ -280,28 +299,36 @@ function AthenaConversationPanelInner({
     }
   }
 
-  return (
-    <div id={panelId} className="scroll-mt-24">
-      <AthenaCollapsibleSection
-        title={title}
-        defaultOpen={defaultOpen}
-        open={open}
-        onOpenChange={onOpenChange}
-      >
-        <p className="max-w-2xl text-sm leading-6 text-white/45">
-          {description}
-        </p>
+  const conversationBody = (
+    <>
+      {embedded ? null : (
+        <>
+          <p className="max-w-2xl text-sm leading-6 text-white/45">
+            {description}
+          </p>
 
-        <p className="mt-3 text-xs leading-5 text-white/35">{readOnlyNotice}</p>
+          <p className="mt-3 text-xs leading-5 text-white/35">{readOnlyNotice}</p>
+        </>
+      )}
+
+        {statusNotice ? (
+          <div
+            className={embedded ? "mb-4" : "mt-6 mb-4"}
+            data-athena-ask-status="true"
+          >
+            {statusNotice}
+          </div>
+        ) : null}
 
         <div
           id={messagesRegionId}
-          className="mt-6 space-y-4"
+          className={embedded ? "space-y-4" : "mt-6 space-y-4"}
           aria-live="polite"
           aria-relevant="additions"
           aria-busy={pendingResponse || busy}
         >
           {messages.length === 0 && !pendingResponse ? (
+            suggestionInteraction === "hidden" ? null : (
             <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/35">
                 {emptyStateTitle}
@@ -309,6 +336,11 @@ function AthenaConversationPanelInner({
               <ul className="mt-3 space-y-2">
                 {examplePrompts.map((example) => (
                   <li key={example}>
+                    {suggestionInteraction === "static" ? (
+                      <span className="text-left text-sm text-white/65">
+                        “{example}”
+                      </span>
+                    ) : (
                     <button
                       type="button"
                       disabled={busy}
@@ -320,10 +352,12 @@ function AthenaConversationPanelInner({
                     >
                       “{example}”
                     </button>
+                    )}
                   </li>
                 ))}
               </ul>
             </div>
+            )
           ) : (
             <>
               {messages.map((message, index) => {
@@ -380,6 +414,12 @@ function AthenaConversationPanelInner({
           )}
         </div>
 
+        {afterValue ? (
+          <div className="mt-4" data-athena-ask-continuation="true">
+            {afterValue}
+          </div>
+        ) : null}
+
         {error ? (
           <div
             className="mt-4 rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100"
@@ -404,6 +444,18 @@ function AthenaConversationPanelInner({
           </div>
         ) : null}
 
+        {hideComposer ? (
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={clearConversation}
+              disabled={busy || messages.length === 0}
+              className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-white/60 transition hover:bg-white/[0.06] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--athena-orange)] disabled:opacity-40"
+            >
+              {clearLabel}
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="mt-6 space-y-3">
           <label htmlFor={resolvedInputId} className="sr-only">
             {inputLabel ?? title}
@@ -443,7 +495,24 @@ function AthenaConversationPanelInner({
             </div>
           </div>
         </form>
-      </AthenaCollapsibleSection>
+        )}
+    </>
+  );
+
+  return (
+    <div id={panelId} className="scroll-mt-24">
+      {embedded ? (
+        conversationBody
+      ) : (
+        <AthenaCollapsibleSection
+          title={title}
+          defaultOpen={defaultOpen}
+          open={open}
+          onOpenChange={onOpenChange}
+        >
+          {conversationBody}
+        </AthenaCollapsibleSection>
+      )}
     </div>
   );
 }

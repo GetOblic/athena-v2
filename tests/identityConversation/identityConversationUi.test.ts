@@ -25,14 +25,20 @@ function read(relativePath: string): string {
 }
 
 describe("identity conversation UI", () => {
-  it("panel is present with correct copy and collapsed by default", () => {
+  it("panel is present with correct copy and no inner heading or collapse", () => {
     const html = renderToStaticMarkup(
       createElement(IdentityConversationPanel, {
         opaqueScope: "abcdef0123456789",
       }),
     );
-    assert.match(html, new RegExp(IDENTITY_CONVERSATION_TITLE));
-    assert.match(html, /aria-expanded="false"/);
+    assert.doesNotMatch(html, new RegExp(IDENTITY_CONVERSATION_TITLE));
+    assert.doesNotMatch(html, /aria-expanded/);
+    assert.doesNotMatch(html, /<h2/);
+    assert.match(html, /Try asking/);
+    assert.match(html, /Ask a question about your business or Athena/);
+    assert.match(html, /<textarea/);
+    assert.match(html, /Ask Athena/);
+    assert.match(html, /Clear conversation/);
     assert.equal(IDENTITY_CONVERSATION_DESCRIPTION.includes("positioning"), true);
     assert.equal(
       IDENTITY_CONVERSATION_PLACEHOLDER,
@@ -56,7 +62,7 @@ describe("identity conversation UI", () => {
     ]);
   });
 
-  it("places Ask Athena at trained #3 and untrained #1 without flattening the double-collapse", () => {
+  it("places Ask Athena at trained #3 and untrained #1 inside one outer section", () => {
     const page = read("app/identity/page.tsx");
     assert.match(page, /IdentityConversationPanel/);
     assert.match(page, /buildConversationScopeFingerprint/);
@@ -86,10 +92,19 @@ describe("identity conversation UI", () => {
     assert.match(page, /<IdentityConversationPanel/);
     assert.match(page, /<DeepScrapeWebsiteButton/);
     assert.equal((page.match(/<DeepScrapeWebsiteButton/g) ?? []).length, 1);
+    const askAthena = page.slice(
+      page.indexOf("const askAthena = ("),
+      page.indexOf("const deepScrape"),
+    );
+    assert.match(askAthena, /title=\{copy\.conversationTitle\}/);
+    assert.match(askAthena, /summary=\{copy\.page\.askAthenaSummary\}/);
+    assert.match(askAthena, /defaultOpen=\{false\}/);
     const conversation = read(
       "components/identity/IdentityConversationPanel.tsx",
     );
-    assert.match(conversation, /defaultOpen=\{false\}/);
+    assert.match(conversation, /embedded/);
+    assert.doesNotMatch(conversation, /defaultOpen/);
+    assert.doesNotMatch(conversation, /AthenaCollapsibleSection/);
   });
 
   it("panel stays outside mutation surfaces", () => {

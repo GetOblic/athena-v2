@@ -148,7 +148,11 @@ describe("getting started conversation UI", () => {
     const gettingStartedHtml = renderToStaticMarkup(
       createElement(GettingStartedConversationPanel),
     );
-    assert.match(identityHtml, new RegExp(IDENTITY_CONVERSATION_TITLE));
+    assert.doesNotMatch(identityHtml, new RegExp(IDENTITY_CONVERSATION_TITLE));
+    assert.doesNotMatch(
+      identityHtml,
+      new RegExp(GETTING_STARTED_CONVERSATION_TITLE),
+    );
     assert.match(
       gettingStartedHtml,
       new RegExp(GETTING_STARTED_CONVERSATION_TITLE),

@@ -642,7 +642,7 @@ describe("Social Planner dedicated calendar detail routing", () => {
     assert.match(card, /showContinue/);
     assert.match(card, /copy\.discussWithAthena/);
     assert.match(detail, /SocialPlannerAskAthenaPanel/);
-    assert.match(detail, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
+    assert.match(detail, /readOnlyFreeStarter \? undefined : handleDiscussWithAthena/);
     assert.match(panel, /copy\.askAthenaTitle/);
     assert.match(detail, /buildSocialCalendarAssetInteractionType/);
     assert.match(detail, /initiallyDone=\{Boolean\(doneByAssetType\[interactionKey\]\)\}/);
@@ -754,7 +754,7 @@ describe("Social Planner 7-day quick navigation", () => {
     assert.match(card, /<CopyButton/);
     assert.match(card, /showContinue/);
     assert.match(card, /copy\.discussWithAthena/);
-    assert.match(detail, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
+    assert.match(detail, /readOnlyFreeStarter \? undefined : handleDiscussWithAthena/);
     assert.match(detail, /data-ask-athena-slot/);
     assert.match(detail, /SocialPlannerAskAthenaPanel/);
     assert.match(detail, /copy\.thinkDifferently/);

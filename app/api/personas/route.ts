@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { FreeAudienceGenerationError } from "@/lib/organization/freeAudienceGeneration";
 import { importPersonaManual } from "@/services/personas/personaImporter";
 import { toPublicPersona } from "@/services/personas/personaPublic";
+import { assertCurrentFreeAudienceGeneration } from "@/services/organization/freeAudienceGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -77,6 +79,7 @@ export async function POST(request: Request) {
   try {
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
+    await assertCurrentFreeAudienceGeneration({ action: "persist" });
     const body = (await request.json()) as Record<string, unknown>;
     const row = rowFromBody(body);
 
@@ -121,6 +124,17 @@ export async function POST(request: Request) {
       queued ? 202 : 201,
     );
   } catch (error) {
+    if (error instanceof FreeAudienceGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
+      );
+    }
+
     if (error instanceof OrganizationAccessError) {
       return json(
         {

@@ -34,11 +34,13 @@ import type { TenantMessages } from "@/lib/tenantI18n/types";
 type AdCampaignGenerateFormProps = {
   messages?: TenantMessages;
   targetAudience?: AdsTargetAudienceView | null;
+  starterContext?: string | null;
 };
 
 export function AdCampaignGenerateForm({
   messages,
   targetAudience = null,
+  starterContext = null,
 }: AdCampaignGenerateFormProps) {
   const copy = messages?.ads.new ?? en.ads.new;
   const audienceHelp =
@@ -119,6 +121,9 @@ export function AdCampaignGenerateForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {starterContext ? (
+        <p className="text-sm leading-7 text-white/60">{starterContext}</p>
+      ) : null}
       <section className={`${AD_CREATE_CARD_SHELL} ${AD_CREATE_CONTEXT_SURFACE}`}>
         <div className="flex items-start gap-4">
           <span

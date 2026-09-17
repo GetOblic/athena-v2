@@ -25,6 +25,7 @@ import {
   SOCIAL_DETAIL_DAY_NAV_CHIP,
   SOCIAL_DETAIL_DEFAULT_OPEN,
   SOCIAL_DETAIL_FAILED_SURFACE,
+  SOCIAL_DETAIL_FREE_STARTER_NOTE,
   SOCIAL_DETAIL_HEADER_WELL,
   SOCIAL_DETAIL_ICON,
   SOCIAL_DETAIL_ICON_WELL,
@@ -54,6 +55,8 @@ import {
 } from "@/lib/tenantI18n/socialPlannerPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
+import { UpgradeCompletionCard } from "@/components/upgrade/UpgradeCompletionCard";
+import { socialUpgradeContent } from "@/lib/upgrade/freeFeatureUpgradePresentation";
 import { buildSocialCalendarAssetInteractionType } from "@/services/assetInteractions/assetInteractionKeys";
 import {
   isAssetUsageTag,
@@ -72,6 +75,7 @@ type SocialCalendarDetailProps = {
   onCreateAnotherWeek: () => void;
   onThinkDifferently?: () => void;
   onApplySuggestions?: () => void;
+  readOnlyFreeStarter?: boolean;
   messages?: TenantMessages;
   language?: OrganizationLanguage;
   locale?: TenantFormattingLocale;
@@ -89,6 +93,7 @@ export function SocialCalendarDetail({
   onCreateAnotherWeek,
   onThinkDifferently,
   onApplySuggestions,
+  readOnlyFreeStarter = false,
   messages,
   locale = "en-US",
 }: SocialCalendarDetailProps) {
@@ -150,15 +155,17 @@ export function SocialCalendarDetail({
         <p className="mt-4 text-sm leading-7 text-rose-100/75">
           {calendar.error?.message || copy.generationFailedTryAgain}
         </p>
-        <div className="mt-6" data-ready-actions="">
-          <button
-            type="button"
-            onClick={onCreateAnotherWeek}
-            className={SOCIAL_DETAIL_UTILITY_ACTION}
-          >
-            {copy.createAnotherWeek}
-          </button>
-        </div>
+        {readOnlyFreeStarter ? null : (
+          <div className="mt-6" data-ready-actions="">
+            <button
+              type="button"
+              onClick={onCreateAnotherWeek}
+              className={SOCIAL_DETAIL_UTILITY_ACTION}
+            >
+              {copy.createAnotherWeek}
+            </button>
+          </div>
+        )}
       </section>
     );
   }
@@ -170,15 +177,17 @@ export function SocialCalendarDetail({
           {copy.couldNotDisplay}
         </h2>
         <p className="mt-3 text-sm leading-7 text-white/50">{periodLabel}</p>
-        <div className="mt-6" data-ready-actions="">
-          <button
-            type="button"
-            onClick={onCreateAnotherWeek}
-            className={SOCIAL_DETAIL_UTILITY_ACTION}
-          >
-            {copy.createAnotherWeek}
-          </button>
-        </div>
+        {readOnlyFreeStarter ? null : (
+          <div className="mt-6" data-ready-actions="">
+            <button
+              type="button"
+              onClick={onCreateAnotherWeek}
+              className={SOCIAL_DETAIL_UTILITY_ACTION}
+            >
+              {copy.createAnotherWeek}
+            </button>
+          </div>
+        )}
       </section>
     );
   }
@@ -196,6 +205,7 @@ export function SocialCalendarDetail({
       onCreateAnotherWeek={onCreateAnotherWeek}
       onThinkDifferently={onThinkDifferently}
       onApplySuggestions={onApplySuggestions}
+      readOnlyFreeStarter={readOnlyFreeStarter}
       messages={dictionary}
       locale={locale}
     />
@@ -213,6 +223,7 @@ function SocialCalendarReadyDetail({
   onCreateAnotherWeek,
   onThinkDifferently,
   onApplySuggestions,
+  readOnlyFreeStarter,
   messages,
   locale,
 }: {
@@ -228,6 +239,7 @@ function SocialCalendarReadyDetail({
   onCreateAnotherWeek: () => void;
   onThinkDifferently?: () => void;
   onApplySuggestions?: () => void;
+  readOnlyFreeStarter: boolean;
   messages: TenantMessages;
   locale: TenantFormattingLocale;
 }) {
@@ -310,15 +322,17 @@ function SocialCalendarReadyDetail({
           {copy.couldNotDisplay}
         </h2>
         <p className="mt-3 text-sm leading-7 text-white/50">{periodLabel}</p>
-        <div className="mt-6" data-ready-actions="">
-          <button
-            type="button"
-            onClick={onCreateAnotherWeek}
-            className={SOCIAL_DETAIL_UTILITY_ACTION}
-          >
-            {copy.createAnotherWeek}
-          </button>
-        </div>
+        {readOnlyFreeStarter ? null : (
+          <div className="mt-6" data-ready-actions="">
+            <button
+              type="button"
+              onClick={onCreateAnotherWeek}
+              className={SOCIAL_DETAIL_UTILITY_ACTION}
+            >
+              {copy.createAnotherWeek}
+            </button>
+          </div>
+        )}
       </section>
     );
   }
@@ -414,28 +428,47 @@ function SocialCalendarReadyDetail({
             ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2" data-ready-actions="">
-          {onThinkDifferently ? (
+        {readOnlyFreeStarter ? null : (
+          <div className="flex flex-wrap items-center gap-2" data-ready-actions="">
+            {onThinkDifferently ? (
+              <button
+                type="button"
+                title={copy.thinkDifferentlyTitle}
+                disabled={thinkDifferentlyPending}
+                onClick={onThinkDifferently}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-5 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+              >
+                <RefreshCw className="size-4" aria-hidden="true" />
+                {copy.thinkDifferently}
+              </button>
+            ) : null}
             <button
               type="button"
-              title={copy.thinkDifferentlyTitle}
-              disabled={thinkDifferentlyPending}
-              onClick={onThinkDifferently}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[var(--athena-success)]/30 bg-[var(--athena-success)]/15 px-5 py-3 text-sm font-semibold text-[var(--athena-success)] transition hover:border-[var(--athena-success)]/45 hover:bg-[var(--athena-success)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+              onClick={onCreateAnotherWeek}
+              className={SOCIAL_DETAIL_UTILITY_ACTION}
             >
-              <RefreshCw className="size-4" aria-hidden="true" />
-              {copy.thinkDifferently}
+              {copy.createAnotherWeek}
             </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={onCreateAnotherWeek}
-            className={SOCIAL_DETAIL_UTILITY_ACTION}
-          >
-            {copy.createAnotherWeek}
-          </button>
-        </div>
+          </div>
+        )}
       </div>
+
+      {readOnlyFreeStarter ? (
+        <div
+          data-free-starter-week=""
+          className={SOCIAL_DETAIL_FREE_STARTER_NOTE}
+        >
+          <div className="text-xs font-semibold uppercase tracking-[0.35em] text-cyan-200/80">
+            {copy.freeStarterWeek.eyebrow}
+          </div>
+          <p className="mt-2 text-base font-semibold tracking-tight text-white">
+            {copy.freeStarterWeek.title}
+          </p>
+          <p className="mt-1 text-sm leading-6 text-white/55">
+            {copy.freeStarterWeek.body}
+          </p>
+        </div>
+      ) : null}
 
       {thinkDifferentlyError ? (
         <p className="text-sm text-rose-100/80">{thinkDifferentlyError}</p>
@@ -547,7 +580,9 @@ function SocialCalendarReadyDetail({
                 <SocialCalendarEvergreenDayCard
                   key={`${day.date}-${day.evergreenFormat}`}
                   day={day}
-                  onDiscussWithAthena={handleDiscussWithAthena}
+                  onDiscussWithAthena={
+                    readOnlyFreeStarter ? undefined : handleDiscussWithAthena
+                  }
                   tracking={{
                     sourceType: "social_calendar",
                     sourceId: calendar.id,
@@ -571,7 +606,9 @@ function SocialCalendarReadyDetail({
                 <SocialCalendarDayCard
                   key={`${asset.date}-${asset.assetType}`}
                   asset={asset}
-                  onDiscussWithAthena={handleDiscussWithAthena}
+                  onDiscussWithAthena={
+                    readOnlyFreeStarter ? undefined : handleDiscussWithAthena
+                  }
                   tracking={{
                     sourceType: "social_calendar",
                     sourceId: calendar.id,
@@ -589,20 +626,31 @@ function SocialCalendarReadyDetail({
             })}
       </div>
 
-      <div data-ask-athena-slot="">
-        <SocialPlannerAskAthenaPanel
-          calendarId={calendar.id}
-          assetReference={discussAssetReference}
-          onAssetReferenceChange={setDiscussAssetReference}
-          discussFocusLabel={discussFocusLabel}
-          applyPending={applyPending}
-          applyError={applyError}
-          onApply={onApplySuggestions}
-          open={askOpen}
-          onOpenChange={setAskOpen}
-          messages={messages}
+      {readOnlyFreeStarter ? null : (
+        <div data-ask-athena-slot="">
+          <SocialPlannerAskAthenaPanel
+            calendarId={calendar.id}
+            assetReference={discussAssetReference}
+            onAssetReferenceChange={setDiscussAssetReference}
+            discussFocusLabel={discussFocusLabel}
+            applyPending={applyPending}
+            applyError={applyError}
+            onApply={onApplySuggestions}
+            open={askOpen}
+            onOpenChange={setAskOpen}
+            messages={messages}
+          />
+        </div>
+      )}
+
+      {readOnlyFreeStarter ? (
+        <UpgradeCompletionCard
+          {...socialUpgradeContent({
+            continuation: copy.free.continuation,
+            upgrade: messages.upgrade,
+          })}
         />
-      </div>
+      ) : null}
     </section>
   );
 }

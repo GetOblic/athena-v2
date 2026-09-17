@@ -140,6 +140,10 @@ export type LocalizedTenantNavItem = {
   stageNumber?: number;
   label: string;
   subtitle?: string;
+  lockedHeading?: string;
+  lockedExplanation?: string;
+  lockedActionLabel?: string;
+  lockedActionHref?: string;
 };
 
 function pathMatches(currentPath: string, href: string, exact?: boolean): boolean {
@@ -207,3 +211,17 @@ export const tenantNavRowClassName = {
   inactive: "text-white/60 hover:bg-white/5 hover:text-white",
   disabled: "cursor-not-allowed opacity-50 text-white/60",
 } as const;
+
+/** Shared Free-untrained desktop hover/focus card. Not page-specific. */
+export const lockedGrowthNavGuidanceClassName = {
+  group: "group relative z-0 hover:z-30 focus-within:z-30",
+  panel:
+    "pointer-events-none invisible absolute inset-x-0 top-full z-30 pt-1 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100",
+  card: "rounded-xl border border-white/10 bg-[var(--athena-bg)] p-3 shadow-lg shadow-black/40",
+} as const;
+
+export const tenantSidebarFrameClassName =
+  "sticky top-0 z-20 hidden h-dvh min-h-0 w-64 shrink-0 flex-col overflow-y-auto border-r border-[var(--athena-border)] bg-[var(--athena-panel)] p-5 lg:flex";
+
+/** Pins Need help / Full Athena / Powered by to the sidebar fold when space remains. */
+export const tenantChromeAfterNavClassName = "mt-auto shrink-0";

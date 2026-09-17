@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { FreeVisibilityGenerationError } from "@/lib/organization/freeVisibilityGeneration";
+import { assertCurrentFreeVisibilityGeneration } from "@/services/organization/freeVisibilityGenerationGuard";
 import {
   SeoReportOrchestrationNotFoundError,
   TechnicalSeoEvidenceInsufficientError,
@@ -43,6 +45,11 @@ export async function POST(
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
 
+    await assertCurrentFreeVisibilityGeneration({
+      action: "regenerate",
+      reportId: id,
+    });
+
     const { report, job } = await regenerateSeoReport({
       sourceReportId: id,
       organizationId,
@@ -68,6 +75,16 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+    if (error instanceof FreeVisibilityGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
     if (error instanceof SeoReportOrchestrationNotFoundError) {

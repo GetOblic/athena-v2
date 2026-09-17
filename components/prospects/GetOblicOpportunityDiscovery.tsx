@@ -43,6 +43,7 @@ type ConvertPayload = {
 type GetOblicOpportunityDiscoveryProps = {
   messages: TenantMessages;
   prospectCapacityReached: boolean;
+  canAddProspect?: boolean;
 };
 
 function convertFailureCopy(
@@ -73,6 +74,7 @@ function convertFailureCopy(
 export function GetOblicOpportunityDiscovery({
   messages,
   prospectCapacityReached,
+  canAddProspect = true,
 }: GetOblicOpportunityDiscoveryProps) {
   const router = useRouter();
   const copy = messages.prospects.find;
@@ -125,6 +127,7 @@ export function GetOblicOpportunityDiscovery({
   }
 
   async function convertHit(hit: GetOblicOpportunitySearchHit) {
+    if (!canAddProspect) return;
     setConvertingId(hit.wordpress_listing_id);
     setFailedId(null);
     setFailureMessage(null);
@@ -242,9 +245,10 @@ export function GetOblicOpportunityDiscovery({
                 failedId === hit.wordpress_listing_id ? failureMessage : null
               }
               addDisabled={
-                prospectCapacityReached &&
-                hit.athena_claim_status !== "INCOMPLETE_FOR_THIS_ORG" &&
-                hit.athena_claim_status !== "OWNED_BY_THIS_ORG"
+                !canAddProspect ||
+                (prospectCapacityReached &&
+                  hit.athena_claim_status !== "INCOMPLETE_FOR_THIS_ORG" &&
+                  hit.athena_claim_status !== "OWNED_BY_THIS_ORG")
               }
               onAdd={(item) => void convertHit(item)}
               onOpen={(item) => void convertHit(item)}

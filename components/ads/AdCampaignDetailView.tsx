@@ -45,11 +45,17 @@ import type { PublicAdCampaignDetail } from "@/services/ads/adCampaignPublic";
 type AdCampaignDetailViewProps = {
   campaign: PublicAdCampaignDetail;
   messages?: TenantMessages;
+  allowRegenerate?: boolean;
+  allowRetrySame?: boolean;
+  boundaryNote?: string | null;
 };
 
 export function AdCampaignDetailView({
   campaign,
   messages,
+  allowRegenerate = true,
+  allowRetrySame = true,
+  boundaryNote = null,
 }: AdCampaignDetailViewProps) {
   const dictionary = messages ?? en;
   const copy = dictionary.ads;
@@ -69,7 +75,8 @@ export function AdCampaignDetailView({
     strategyCampaignTheme: pkg?.googleSearch.campaignTheme,
   });
   const canCreateAnotherVersion =
-    campaign.status === "Ready" || campaign.status === "Processing Failed";
+    allowRegenerate &&
+    (campaign.status === "Ready" || campaign.status === "Processing Failed");
 
   async function handleRegenerate() {
     if (regenerating) return;
@@ -144,9 +151,14 @@ export function AdCampaignDetailView({
                 {copy.detail.audience}: {snapshot.audience}
               </p>
             ) : null}
-            {campaign.status === "Ready" ? (
+            {campaign.status === "Ready" && allowRegenerate ? (
               <p className="mt-3 max-w-3xl text-sm leading-6 text-white/40">
                 {copy.traction.readyStay}
+              </p>
+            ) : null}
+            {boundaryNote ? (
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-white/40">
+                {boundaryNote}
               </p>
             ) : null}
           </div>
@@ -182,6 +194,8 @@ export function AdCampaignDetailView({
         initialStage={campaign.generationStage}
         initialErrorMessage={campaign.errorMessage}
         messages={dictionary}
+        allowRegenerate={allowRegenerate}
+        allowRetrySame={allowRetrySame}
       />
 
       {pkg ? (

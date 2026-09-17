@@ -66,7 +66,10 @@ export type AthenaConversationErrorCode =
   | "RATE_LIMITED"
   | "PROVIDER_RATE_LIMITED"
   | "PROVIDER_ERROR"
-  | "INTERNAL_ERROR";
+  | "INTERNAL_ERROR"
+  | "FREE_IDENTITY_ASK_UNTRAINED"
+  | "FREE_IDENTITY_ASK_EXHAUSTED"
+  | "FREE_HELP_ASK_EXHAUSTED";
 
 export type AthenaConversationFailureResult = {
   ok: false;

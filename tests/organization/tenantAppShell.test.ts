@@ -85,6 +85,7 @@ const SHELLED_PAGES = [
   "app/ads/[id]/page.tsx",
   "app/social-planner/page.tsx",
   "app/social-planner/[id]/page.tsx",
+  "components/socialPlanner/SocialPlannerHistoryRoutePage.tsx",
   "app/inbox/page.tsx",
   "app/getting-started/page.tsx",
   "app/intelligence-domains/page.tsx",
@@ -413,6 +414,11 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
       "nav.generateTractionSubtitle",
       "nav.convertOpportunities",
       "nav.convertOpportunitiesSubtitle",
+      "nav.teachAthenaFirst",
+      "nav.teachAthenaAction",
+      "nav.buildVisibilityTeachAthena",
+      "nav.generateTractionTeachAthena",
+      "nav.convertOpportunitiesTeachAthena",
       "nav.utilities",
       "nav.athenaInbox",
       "nav.settings",
@@ -452,39 +458,29 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
     const seo = read("app/seo/page.tsx");
     const seoNew = read("app/seo/new/page.tsx");
     const seoDetail = read("app/seo/[id]/page.tsx");
-    assert.match(home, /<TenantAppShell currentPath="\/" messages=\{messages\}>/);
-    assert.match(
-      identity,
-      /<TenantAppShell currentPath="\/identity" messages=\{messages\}>/,
-    );
-    assert.match(
-      prospects,
-      /<TenantAppShell currentPath="\/prospects" messages=\{messages\}>/,
-    );
+    assert.match(home, /<TenantAppShell/);
+    assert.match(home, /currentPath="\/"/);
+    assert.match(home, /athenaPlan=\{athenaPlan\}/);
+    assert.match(home, /defineKind=\{define\.kind\}/);
+    assert.match(identity, /currentPath="\/identity"/);
+    assert.match(identity, /\{\.\.\.freeProgression\}/);
+    assert.match(prospects, /currentPath="\/prospects"/);
+    assert.match(prospects, /\{\.\.\.freeProgression\}/);
     const prospectImport = read("app/prospects/import/page.tsx");
     const prospectFind = read("app/prospects/find/page.tsx");
     const prospectDetail = read("app/prospects/[id]/page.tsx");
-    assert.match(
-      prospectImport,
-      /<TenantAppShell currentPath="\/prospects\/import" messages=\{messages\}>/,
-    );
-    assert.match(
-      prospectFind,
-      /<TenantAppShell currentPath="\/prospects\/find" messages=\{messages\}>/,
-    );
-    assert.match(
-      prospectDetail,
-      /<TenantAppShell currentPath=\{`\/prospects\/\$\{id\}`\} messages=\{messages\}>/,
-    );
-    assert.match(seo, /<TenantAppShell currentPath="\/seo" messages=\{messages\}>/);
-    assert.match(
-      seoNew,
-      /<TenantAppShell currentPath="\/seo\/new" messages=\{messages\}>/,
-    );
-    assert.match(
-      seoDetail,
-      /<TenantAppShell currentPath=\{`\/seo\/\$\{id\}`\} messages=\{messages\}>/,
-    );
+    assert.match(prospectImport, /currentPath="\/prospects\/import"/);
+    assert.match(prospectImport, /\{\.\.\.freeProgression\}/);
+    assert.match(prospectFind, /currentPath="\/prospects\/find"/);
+    assert.match(prospectFind, /\{\.\.\.freeProgression\}/);
+    assert.match(prospectDetail, /currentPath=\{`\/prospects\/\$\{id\}`\}/);
+    assert.match(prospectDetail, /\{\.\.\.freeProgression\}/);
+    assert.match(seo, /currentPath="\/seo"/);
+    assert.match(seo, /\{\.\.\.freeProgression\}/);
+    assert.match(seoNew, /currentPath="\/seo\/new"/);
+    assert.match(seoNew, /\{\.\.\.freeProgression\}/);
+    assert.match(seoDetail, /currentPath=\{`\/seo\/\$\{id\}`\}/);
+    assert.match(seoDetail, /\{\.\.\.freeProgression\}/);
     for (const source of [
       home,
       identity,
@@ -562,7 +558,7 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
 
     assert.match(
       gettingStarted,
-      /<TenantAppShell currentPath="\/getting-started" messages=\{messages\}>/,
+      /currentPath="\/getting-started"/,
     );
     assert.match(
       intelligenceDomains,

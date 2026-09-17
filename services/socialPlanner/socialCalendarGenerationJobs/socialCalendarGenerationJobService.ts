@@ -13,6 +13,10 @@ import {
   type AthenaSocialCalendarGenerationJob,
 } from "@/services/socialPlanner/socialCalendarGenerationJobs/socialCalendarGenerationJobTypes";
 import { getAthenaWorkerConfig } from "@/services/generationJobs/generationJobWorkerConfig";
+import {
+  consumeFreeStarterIfReserved,
+  releaseFreeStarterIfReserved,
+} from "@/services/organization/freeStarterAuthority";
 
 export const SOCIAL_CALENDAR_GENERATION_JOB_TABLE =
   "athena_social_calendar_generation_jobs" as const;
@@ -215,7 +219,14 @@ export async function completeSocialCalendarGenerationJobWithClaim(input: {
   }
 
   const row = unwrapRpcRow(data);
-  return row ? mapSocialCalendarGenerationJobRow(row) : null;
+  const job = row ? mapSocialCalendarGenerationJobRow(row) : null;
+  if (job) {
+    await consumeFreeStarterIfReserved({
+      organizationId: job.organization_id,
+      calendarId: job.calendar_id,
+    });
+  }
+  return job;
 }
 
 export async function failSocialCalendarGenerationJobWithClaim(input: {
@@ -257,7 +268,14 @@ export async function failSocialCalendarGenerationJobWithClaim(input: {
   }
 
   const row = unwrapRpcRow(data);
-  return row ? mapSocialCalendarGenerationJobRow(row) : null;
+  const job = row ? mapSocialCalendarGenerationJobRow(row) : null;
+  if (job?.status === "failed") {
+    await releaseFreeStarterIfReserved({
+      organizationId: job.organization_id,
+      calendarId: job.calendar_id,
+    });
+  }
+  return job;
 }
 
 export { isActiveSocialCalendarGenerationJobStatus };

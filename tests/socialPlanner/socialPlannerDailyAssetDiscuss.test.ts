@@ -77,7 +77,7 @@ describe("Social Planner V30 L2 daily-asset Discuss UI", () => {
     assert.match(card, /<CopyButton/);
     assert.match(card, /showContinue/);
     assert.match(spec, /showContinue=\{false\}/);
-    assert.match(detail, /onDiscussWithAthena=\{handleDiscussWithAthena\}/);
+    assert.match(detail, /readOnlyFreeStarter \? undefined : handleDiscussWithAthena/);
     assert.match(detail, /assets\.map\(\(asset\) =>/);
     assert.match(detail, /SocialCalendarDayCard/);
   });

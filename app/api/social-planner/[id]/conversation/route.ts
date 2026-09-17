@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { ATHENA_REQUEST_ID_HEADER } from "@/services/athenaConversation/athenaConversationTypes";
+import { FreeSocialPlannerGenerationError } from "@/lib/organization/freeSocialPlannerGeneration";
+import { assertCurrentFreeSocialPlannerGeneration } from "@/services/organization/freeSocialPlannerGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -111,6 +113,7 @@ export async function POST(
     }
 
     const { organizationId } = await requireCurrentOrganizationContext();
+    await assertCurrentFreeSocialPlannerGeneration();
 
     let body: unknown;
     try {
@@ -142,6 +145,16 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+        requestId,
+      );
+    }
+    if (error instanceof FreeSocialPlannerGenerationError) {
+      return json(
+        {
+          ok: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
         requestId,
       );
     }

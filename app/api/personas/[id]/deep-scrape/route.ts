@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { FreeAudienceIntelligenceError } from "@/lib/organization/freeAudienceIntelligence";
+import { assertCurrentFreeAudienceIntelligence } from "@/services/organization/freeAudienceIntelligenceGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -32,6 +34,8 @@ export async function POST(
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
 
+    await assertCurrentFreeAudienceIntelligence({ action: "deep_scrape" });
+
     const result = await enqueuePersonaReferenceWebsiteDeepScrape({
       personaId: id,
       organizationId,
@@ -64,6 +68,16 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeAudienceIntelligenceError) {
+      return json(
+        {
+          ok: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

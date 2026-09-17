@@ -49,6 +49,8 @@ type SeoReportStatusPanelProps = {
   initialErrorMessage?: string | null;
   initialErrorCode?: string | null;
   messages?: TenantMessages;
+  allowRegenerate?: boolean;
+  allowRetrySame?: boolean;
 };
 
 export function SeoReportStatusPanel({
@@ -58,6 +60,8 @@ export function SeoReportStatusPanel({
   initialErrorMessage = null,
   initialErrorCode = null,
   messages,
+  allowRegenerate = true,
+  allowRetrySame = true,
 }: SeoReportStatusPanelProps) {
   const copy = messages?.seo.statusPanel ?? en.seo.statusPanel;
   const visibility = messages?.seo.visibility ?? en.seo.visibility;
@@ -164,8 +168,10 @@ export function SeoReportStatusPanel({
       }>(response);
       if (!payload.ok) {
         if (payload.error?.code === "READY_IMMUTABLE") {
-          await handleRegenerate();
-          return;
+          if (allowRegenerate) {
+            await handleRegenerate();
+            return;
+          }
         }
         setActionError(payload.error?.message || copy.retryFailed);
         return;
@@ -228,6 +234,7 @@ export function SeoReportStatusPanel({
             </p>
           ) : null}
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            {allowRetrySame || allowRegenerate ? (
             <button
               type="button"
               onClick={() => void handleRetryGenerate()}
@@ -236,6 +243,8 @@ export function SeoReportStatusPanel({
             >
               {regenerating ? copy.working : copy.retryThis}
             </button>
+            ) : null}
+            {allowRegenerate ? (
             <button
               type="button"
               onClick={() => void handleRegenerate()}
@@ -244,6 +253,7 @@ export function SeoReportStatusPanel({
             >
               {copy.startNewSameBrief}
             </button>
+            ) : null}
             <Link
               href="/seo"
               className="w-full rounded-2xl border border-white/15 px-5 py-3 text-center text-sm font-semibold text-white/80 sm:w-auto"

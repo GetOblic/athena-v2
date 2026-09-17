@@ -19,6 +19,7 @@ import {
 } from "@/services/socialPlanner/socialCalendarDto";
 import { listSocialCalendars } from "@/services/socialPlanner/socialCalendarService";
 import type { SocialCalendarImplementedPlannerKind } from "@/services/socialPlanner/socialCalendarPlannerKind";
+import { loadFreeProgressionState } from "@/services/organization/freeProgressionState";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 
 export async function SocialPlannerHistoryRoutePage({
@@ -27,7 +28,10 @@ export async function SocialPlannerHistoryRoutePage({
   plannerKind: SocialCalendarImplementedPlannerKind;
 }) {
   const { organizationId } = await requireCurrentOrganizationContext();
-  const { locale, messages } = await getTenantLocalization();
+  const [{ locale, messages }, freeProgression] = await Promise.all([
+    getTenantLocalization(),
+    loadFreeProgressionState(),
+  ]);
   const copy = messages.socialPlanner;
   const isEvergreen = plannerKind === "evergreen";
 
@@ -56,7 +60,11 @@ export async function SocialPlannerHistoryRoutePage({
   }
 
   return (
-    <TenantAppShell currentPath="/social-planner" messages={messages}>
+    <TenantAppShell
+      currentPath="/social-planner"
+      messages={messages}
+      {...freeProgression}
+    >
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <span
           className={

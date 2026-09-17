@@ -6,6 +6,8 @@ import {
   isActiveGenerationJobStatus,
   markDiscussionPendingGenerationFollowUp,
 } from "@/services/generationJobs/generationJobService";
+import { assertPersonaIntelligenceFreeAudienceEnqueue } from "@/services/organization/freeAudienceIntelligenceGuard";
+import { assertProspectIntelligenceFreeConvertEnqueue } from "@/services/organization/freeConvertGenerationGuard";
 import { shouldRequestFollowUpWhenActiveJobExists } from "@/services/generationJobs/generationJobWorkerConfig";
 import type {
   AthenaGenerationJob,
@@ -73,6 +75,17 @@ export async function enqueueDiscussionGenerationJob(input: {
   /** Optional job progress intent (e.g. Think Differently pipeline). */
   progress?: Record<string, unknown> | null;
 }): Promise<EnqueueGenerationJobResult> {
+  await assertProspectIntelligenceFreeConvertEnqueue({
+    organizationId: input.organizationId,
+    discussionId: input.discussionId,
+    triggerType: input.triggerType,
+  });
+  await assertPersonaIntelligenceFreeAudienceEnqueue({
+    organizationId: input.organizationId,
+    discussionId: input.discussionId,
+    triggerType: input.triggerType,
+  });
+
   const existing = await getActiveGenerationJobForDiscussion(
     input.discussionId,
     input.organizationId,

@@ -36,6 +36,8 @@ type ProspectRefreshIntelligenceButtonProps = {
   chrome?: ProspectRefreshChrome | null;
   hasCurrentVersion?: boolean;
   intelligenceStatus?: string | null;
+  showGenerate?: boolean;
+  showThinkDifferently?: boolean;
 };
 
 function ButtonSpinner() {
@@ -58,6 +60,8 @@ export function ProspectRefreshIntelligenceButton({
   chrome = null,
   hasCurrentVersion = false,
   intelligenceStatus = null,
+  showGenerate = true,
+  showThinkDifferently = true,
 }: ProspectRefreshIntelligenceButtonProps) {
   const router = useRouter();
   const {
@@ -169,7 +173,7 @@ export function ProspectRefreshIntelligenceButton({
   return (
     <div className="flex flex-col items-stretch gap-2">
       <div className="flex flex-wrap items-center gap-3">
-        {hasCurrentVersion ? (
+        {hasCurrentVersion && showThinkDifferently ? (
           <button
             type="button"
             data-prospect-header-action="think-differently"
@@ -193,6 +197,7 @@ export function ProspectRefreshIntelligenceButton({
               : (chrome?.thinkDifferently ?? "Try another approach")}
           </button>
         ) : null}
+        {showGenerate ? (
         <button
           type="button"
           data-prospect-header-action={ready || hasCurrentVersion ? "refresh" : "generate"}
@@ -213,6 +218,7 @@ export function ProspectRefreshIntelligenceButton({
           )}
           {primaryLabel}
         </button>
+        ) : null}
       </div>
       {message ? (
         <p className="text-sm text-white/60 whitespace-pre-wrap sm:text-right">

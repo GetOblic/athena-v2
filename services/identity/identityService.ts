@@ -1,6 +1,11 @@
 import { generateReview } from "@/services/aiService";
+import {
+  assertFreeIdentityGenerationAllowed,
+  isIdentityBrainObtained,
+} from "@/lib/organization/freeIdentityGeneration";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { assertTenantRecord, createTenantScope } from "@/lib/tenantDatabase";
+import { resolveAthenaPlan } from "@/services/organizationService";
 import {
   hasUsableStoredHomepageLearning,
   readStoredHomepageLearning,
@@ -286,6 +291,15 @@ export async function compileMasterIdentityProfile(
 export async function upsertAthenaIdentity(
   input: UpsertAthenaIdentityInput,
 ): Promise<AthenaIdentity | null> {
+  const [athenaPlan, existing] = await Promise.all([
+    resolveAthenaPlan(input.organizationId),
+    getAthenaIdentityByUserId(input.userId, input.organizationId),
+  ]);
+  assertFreeIdentityGenerationAllowed({
+    athenaPlan,
+    trained: isIdentityBrainObtained(existing),
+  });
+
   const { data, error } = await supabaseAdmin
     .from("athena_identity")
     .upsert(

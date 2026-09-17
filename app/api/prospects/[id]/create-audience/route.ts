@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import { FreeAudienceGenerationError } from "@/lib/organization/freeAudienceGeneration";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
+import { assertCurrentFreeAudienceGeneration } from "@/services/organization/freeAudienceGenerationGuard";
+import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
 import {
   createAudienceFromProspect,
   CreateAudienceFromProspectError,
@@ -36,6 +40,11 @@ export async function POST(
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
     const { id: prospectId } = await context.params;
+    await assertCurrentFreeConvertGeneration({
+      action: "sync_ai",
+      prospectId,
+    });
+    await assertCurrentFreeAudienceGeneration({ action: "prospect" });
 
     let clientOrganizationId: unknown;
     try {
@@ -65,6 +74,34 @@ export async function POST(
       requestId,
     );
   } catch (error) {
+    if (error instanceof FreeAudienceGenerationError) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: error.code,
+            message: error.message,
+          },
+        },
+        error.httpStatus,
+        requestId,
+      );
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return json(
+        {
+          ok: false,
+          error: {
+            code: error.code,
+            message: error.message,
+          },
+        },
+        error.httpStatus,
+        requestId,
+      );
+    }
+
     if (error instanceof OrganizationAccessError) {
       return json(
         {

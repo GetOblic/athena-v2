@@ -296,7 +296,7 @@ describe("FREE-1 Athena plan — organization resolver", () => {
     assert.equal(await resolveAthenaPlan("missing"), "full");
   });
 
-  it("reads organizations by organizationId only and is not wired into tenant surfaces", () => {
+  it("reads organizations by organizationId only and is not wired into tenant authorization or feature surfaces", () => {
     const service = read("services/organizationService.ts");
     const resolver = sliceBetween(
       service,
@@ -315,6 +315,13 @@ describe("FREE-1 Athena plan — organization resolver", () => {
     );
     assert.doesNotMatch(context, /athenaPlan|athena_plan|resolveAthenaPlan/);
 
+    const allowedPlanConsumers = new Set([
+      "components/dashboard/TenantAppShell.tsx",
+      "components/dashboard/TenantSidebar.tsx",
+      "components/dashboard/TenantMobileNav.tsx",
+      "app/identity/page.tsx",
+      "app/social-planner/[id]/page.tsx",
+    ]);
     const forbiddenRoots = [
       "middleware.ts",
       "lib/supabase/middleware.ts",
@@ -330,14 +337,63 @@ describe("FREE-1 Athena plan — organization resolver", () => {
     for (const root of forbiddenRoots) {
       const files = root.endsWith(".ts") ? [root] : listFiles(root, /\.(ts|tsx)$/);
       for (const file of files) {
+        if (allowedPlanConsumers.has(file)) {
+          continue;
+        }
         const source = read(file);
         assert.doesNotMatch(
           source,
           /athenaPlan|athena_plan|resolveAthenaPlan/,
-          `${file} must not consume Athena plan in FREE-1`,
+          `${file} must not consume Athena plan outside authorized Free surfaces`,
         );
       }
     }
+
+    const identity = read("app/identity/page.tsx");
+    assert.match(identity, /isFreeIdentityGenerationLocked/);
+    assert.match(identity, /freeProgression\.athenaPlan/);
+    assert.doesNotMatch(identity, /athenaPlanBadgeLabel|FREE badge|Upgrade/);
+  });
+});
+
+describe("FREE-2 Athena plan — Home consumption authority", () => {
+  it("Home reads the persisted organization plan after tenant resolution", () => {
+    const home = read("app/page.tsx");
+    assert.match(home, /requireTenantContext/);
+    assert.match(home, /resolveAthenaPlan\(organizationId\)/);
+    assert.match(home, /athenaPlan=\{athenaPlan\}/);
+    assert.match(home, /defineKind=\{define\.kind\}/);
+    assert.doesNotMatch(home, /freesubaccountv2|getoblic\.com/i);
+    assert.doesNotMatch(home, /organization\.name|user\.email|userId.*athenaPlan/);
+    assert.doesNotMatch(home, /localStorage|sessionStorage|document\.cookie/);
+    assert.match(home, /HomePriorityList/);
+    assert.match(home, /HomeBusinessReadiness/);
+    assert.match(home, /HomeOpportunityPipeline/);
+    assert.match(home, /HomeGetOblicCapacity/);
+    assert.match(home, /buildHomePriorities\(toHomePriorityInput\(snapshot\)\)/);
+  });
+
+  it("does not put plan into middleware, auth, tenant authorization, or navigation", () => {
+    const context = sliceBetween(
+      read("services/organizationService.ts"),
+      "export async function requireCurrentOrganizationContext",
+      "export type IngestionOrganizationInput",
+    );
+    assert.doesNotMatch(context, /athenaPlan|athena_plan|resolveAthenaPlan/);
+
+    assert.doesNotMatch(read("middleware.ts"), /athenaPlan|athena_plan|resolveAthenaPlan/);
+    assert.doesNotMatch(
+      read("lib/supabase/middleware.ts"),
+      /athenaPlan|athena_plan|resolveAthenaPlan/,
+    );
+    assert.doesNotMatch(
+      read("components/dashboard/tenantNavigation.ts"),
+      /athenaPlan|athena_plan|resolveAthenaPlan|FREE|FULL/,
+    );
+    assert.doesNotMatch(
+      read("services/tenantContext.ts"),
+      /athenaPlan|athena_plan|resolveAthenaPlan/,
+    );
   });
 });
 

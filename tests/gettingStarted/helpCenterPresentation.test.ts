@@ -57,7 +57,7 @@ const ASK_COPY_BY_LANGUAGE: Record<string, { cta: string; hint: string }> = {
 };
 
 describe("help center presentation", () => {
-  it("page stays behind login and does not provision org context", () => {
+  it("page stays behind login and does not call org context directly", () => {
     const page = read("app/getting-started/page.tsx");
     assert.match(page, /createSupabaseServerClient/);
     assert.match(page, /supabase\.auth\.getUser/);
@@ -69,10 +69,9 @@ describe("help center presentation", () => {
     assert.doesNotMatch(page, /provisionTenantForAuthenticatedUser/);
     assert.doesNotMatch(page, /TenantBackLink/);
     assert.doesNotMatch(page, /<main\b/);
-    assert.match(
-      page,
-      /<TenantAppShell currentPath="\/getting-started" messages=\{messages\}>/,
-    );
+    assert.match(page, /currentPath="\/getting-started"/);
+    assert.match(page, /\{\.\.\.freeProgression\}/);
+    assert.match(page, /loadFreeProgressionState/);
   });
 
   it("does not recreate V1 onboarding pamphlet content", () => {

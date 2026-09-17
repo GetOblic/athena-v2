@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
+import { FreeAudienceIntelligenceError } from "@/lib/organization/freeAudienceIntelligence";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
 import { enqueueDiscussionGenerationJob } from "@/services/generationJobs/generationJobRunner";
+import { assertCurrentPersonaIntelligenceDiscussion } from "@/services/organization/freeAudienceIntelligenceGuard";
+import { assertCurrentProspectIntelligenceDiscussion } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -50,6 +54,14 @@ export async function POST(_request: Request, context: RouteContext) {
     }
 
     try {
+      await assertCurrentProspectIntelligenceDiscussion({
+        discussionId: id,
+        action: "generate",
+      });
+      await assertCurrentPersonaIntelligenceDiscussion({
+        discussionId: id,
+        action: "refresh",
+      });
       const enqueueResult = await enqueueDiscussionGenerationJob({
         organizationId,
         discussionId: id,
@@ -88,6 +100,19 @@ export async function POST(_request: Request, context: RouteContext) {
         202,
       );
     } catch (error) {
+      if (
+        error instanceof FreeConvertGenerationError ||
+        error instanceof FreeAudienceIntelligenceError
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            success: false,
+            error: { code: error.code, message: error.message },
+          },
+          error.httpStatus,
+        );
+      }
       console.error("Failed to queue regeneration:", error);
       return jsonResponse(
         {

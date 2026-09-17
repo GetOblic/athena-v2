@@ -33,6 +33,8 @@ type PersonaDetailHeaderProps = {
   audienceToolsActions: ReactNode;
   utilityActions: ReactNode;
   destructiveAction: ReactNode;
+  showObservation?: boolean;
+  canInitiateAsk?: boolean;
 };
 
 function PersonaHeaderActionGroup({
@@ -76,6 +78,8 @@ export function PersonaDetailHeader({
   audienceToolsActions,
   utilityActions,
   destructiveAction,
+  showObservation = true,
+  canInitiateAsk = true,
 }: PersonaDetailHeaderProps) {
   return (
     <header data-persona-journey="header" className="mb-8">
@@ -130,35 +134,39 @@ export function PersonaDetailHeader({
                 document
                   .getElementById(PERSONA_DETAIL_ANCHORS.conversation)
                   ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                document
-                  .getElementById(PERSONA_DETAIL_ANCHORS.conversationInput)
-                  ?.focus();
+                if (canInitiateAsk) {
+                  document
+                    .getElementById(PERSONA_DETAIL_ANCHORS.conversationInput)
+                    ?.focus();
+                }
               }, 0);
             }}
           >
             <MessageSquare className="size-4" />
             {discussLabel}
           </button>
-          <button
-            type="button"
-            data-persona-header-action="observation"
-            className={PERSONA_HEADER_OBSERVATION_CLASS}
-            onClick={() => {
-              if (typeof window === "undefined") return;
-              window.dispatchEvent(new Event(PERSONA_TEACH_EVENT));
-              window.setTimeout(() => {
-                document
-                  .getElementById(PERSONA_DETAIL_ANCHORS.observation)
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                document
-                  .getElementById(PERSONA_DETAIL_ANCHORS.observationField)
-                  ?.focus();
-              }, 40);
-            }}
-          >
-            <MessageSquarePlus className="size-4" />
-            {observationLabel}
-          </button>
+          {showObservation ? (
+            <button
+              type="button"
+              data-persona-header-action="observation"
+              className={PERSONA_HEADER_OBSERVATION_CLASS}
+              onClick={() => {
+                if (typeof window === "undefined") return;
+                window.dispatchEvent(new Event(PERSONA_TEACH_EVENT));
+                window.setTimeout(() => {
+                  document
+                    .getElementById(PERSONA_DETAIL_ANCHORS.observation)
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  document
+                    .getElementById(PERSONA_DETAIL_ANCHORS.observationField)
+                    ?.focus();
+                }, 40);
+              }}
+            >
+              <MessageSquarePlus className="size-4" />
+              {observationLabel}
+            </button>
+          ) : null}
           {intelligenceActions}
         </PersonaHeaderActionGroup>
 

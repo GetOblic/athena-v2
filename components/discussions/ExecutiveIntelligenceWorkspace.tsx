@@ -16,6 +16,10 @@ import { StrategicAssetBlueprint } from "@/components/assetBlueprints/StrategicA
 import { PersonaAudienceJourney } from "@/components/personas/PersonaAudienceJourney";
 import { PersonaDiscussProvider } from "@/components/personas/personaDiscussContext";
 import {
+  isFreePersonaAskComposerOpen,
+  type FreePersonaAskPresentation,
+} from "@/lib/organization/freePersonaAsk";
+import {
   PERSONA_DETAIL_COLLAPSIBLE_DEFAULT_OPEN,
   type PersonaJourneyChrome,
 } from "@/lib/personas/personaDetailPresentation";
@@ -177,6 +181,7 @@ type ExecutiveIntelligenceWorkspaceProps = {
     | ProspectConversationChrome
     | ExecutiveVersionLabelChrome
     | null;
+  showConversation?: boolean;
   /** Optional shared Copy / Discuss / prompt-block chrome. English defaults remain. */
   assetChrome?: DeploymentAssetsChrome | null;
   /** Persona-only business-facing titles for the 14 analysis keys. */
@@ -193,6 +198,7 @@ type ExecutiveIntelligenceWorkspaceProps = {
   >["messages"] | null;
   personaProfileEditor?: ReactNode;
   personaCrossLinks?: ReactNode;
+  personaAskPresentation?: FreePersonaAskPresentation;
 };
 
 function formatVersionGeneratedAt(
@@ -271,6 +277,7 @@ export function ExecutiveIntelligenceWorkspace({
   chrome = null,
   locale = null,
   conversationChrome = null,
+  showConversation = true,
   assetChrome = null,
   personaSectionTitles = null,
   tenantMessages = null,
@@ -279,6 +286,7 @@ export function ExecutiveIntelligenceWorkspace({
   personaLibraryMessages = null,
   personaProfileEditor = null,
   personaCrossLinks = null,
+  personaAskPresentation = "full",
 }: ExecutiveIntelligenceWorkspaceProps) {
   const { isGenerating, isCompleted } = useDiscussionRegeneration();
   const isProspect = sourceKind === "prospect";
@@ -508,6 +516,10 @@ export function ExecutiveIntelligenceWorkspace({
           : (conversationChrome?.archivedExecutiveVersion ??
             "Archived Executive Version");
 
+  const canInitiatePersonaAsk = isFreePersonaAskComposerOpen(
+    personaAskPresentation,
+  );
+
   function handleDiscussWithAthena(payload: {
     executiveVersionId: string;
     assetKind: "deployment" | "blueprint";
@@ -515,6 +527,17 @@ export function ExecutiveIntelligenceWorkspace({
   }) {
     // Identifiers only — never pass asset body. Changing target does not clear messages.
     if (isPersona) {
+      if (!canInitiatePersonaAsk) {
+        setPersonaConversationOpen(true);
+        if (typeof window !== "undefined") {
+          window.setTimeout(() => {
+            document
+              .getElementById("persona-conversation")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 0);
+        }
+        return;
+      }
       setPersonaConversationAssetReference({
         kind: payload.assetKind,
         key: payload.assetKey,
@@ -547,7 +570,7 @@ export function ExecutiveIntelligenceWorkspace({
   }
 
   const prospectConversationSlot =
-    isProspect && prospectId?.trim() ? (
+    isProspect && showConversation && prospectId?.trim() ? (
       <ProspectConversationPanel
         prospectId={prospectId.trim()}
         executiveVersionId={viewModel.executiveVersionId}

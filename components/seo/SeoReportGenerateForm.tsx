@@ -6,20 +6,26 @@ import { useRouter } from "next/navigation";
 import { Gauge, Telescope } from "lucide-react";
 import { SEO_CHOICE_CARD } from "@/components/seo/seoPagePresentation";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import { UpgradeHint } from "@/components/upgrade/UpgradeHint";
 import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { en } from "@/lib/tenantI18n/messages/en";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
+import { technicalSeoUpgradeContent } from "@/lib/upgrade/freeSecondaryUpgradePresentation";
 import type { SeoGenerationType } from "@/services/seo/seoGenerationType";
 
 type SeoReportGenerateFormProps = {
   messages?: TenantMessages;
   technicalSelectable?: boolean;
+  allowTechnical?: boolean;
+  starterContext?: string | null;
 };
 
 export function SeoReportGenerateForm({
   messages,
   technicalSelectable = true,
+  allowTechnical = true,
+  starterContext = null,
 }: SeoReportGenerateFormProps) {
   const copy = messages?.seo.new ?? en.seo.new;
   const lenses = messages?.seo.lenses ?? en.seo.lenses;
@@ -40,7 +46,8 @@ export function SeoReportGenerateForm({
 
   async function handleGenerate() {
     if (submittingRef.current) return;
-    if (generationType === "technical" && !technicalSelectable) return;
+    if (generationType === "technical" && (!technicalSelectable || !allowTechnical))
+      return;
     unlockCompletionSound();
     submittingRef.current = true;
     setSubmitting(true);
@@ -103,6 +110,10 @@ export function SeoReportGenerateForm({
       }}
       className="space-y-6"
     >
+      {starterContext ? (
+        <p className="text-sm leading-7 text-white/60">{starterContext}</p>
+      ) : null}
+
       <fieldset className="space-y-3">
         <legend className="text-xs font-semibold uppercase tracking-[0.22em] text-white/40">
           {copy.chooseWhat}
@@ -138,6 +149,7 @@ export function SeoReportGenerateForm({
               </span>
             </span>
           </label>
+          {allowTechnical ? (
           <label
             className={
               !technicalSelectable
@@ -184,6 +196,20 @@ export function SeoReportGenerateForm({
               ) : null}
             </span>
           </label>
+          ) : (
+          <div
+            data-seo-generation-option="technical"
+            data-seo-generation-available="false"
+            className="rounded-2xl border border-dashed border-white/18 bg-[linear-gradient(180deg,rgba(56,189,248,0.06),transparent_72%)] px-4 py-4"
+          >
+            <UpgradeHint
+              {...technicalSeoUpgradeContent({
+                locked: (messages ?? en).seo.free.technicalLocked,
+                upgrade: (messages ?? en).upgrade,
+              })}
+            />
+          </div>
+          )}
         </div>
       </fieldset>
 
@@ -240,7 +266,11 @@ export function SeoReportGenerateForm({
 
       <button
         type="submit"
-        disabled={submitting || (generationType === "technical" && !technicalSelectable)}
+        disabled={
+          submitting ||
+          (generationType === "technical" &&
+            (!technicalSelectable || !allowTechnical))
+        }
         className="w-full rounded-full bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 disabled:opacity-60 sm:w-auto"
       >
         {submitting ? copy.starting : copy.startAnalysis}

@@ -54,6 +54,9 @@ type ProspectDetailHeaderProps = {
   intelligenceGroupLabel: string;
   prospectToolsLabel: string;
   directoryGroupLabel: string;
+  showAskAthena?: boolean;
+  showEditProfile?: boolean;
+  showAddObservation?: boolean;
 };
 
 function ProspectHeaderActionGroup({
@@ -108,8 +111,11 @@ export function ProspectDetailHeader({
   intelligenceGroupLabel,
   prospectToolsLabel,
   directoryGroupLabel,
+  showAskAthena = true,
+  showEditProfile = true,
+  showAddObservation = true,
 }: ProspectDetailHeaderProps) {
-  const askAthenaButton = hasDiscussion ? (
+  const askAthenaButton = hasDiscussion && showAskAthena ? (
     <button
       type="button"
       data-prospect-header-action="ask-athena"
@@ -127,7 +133,7 @@ export function ProspectDetailHeader({
     </button>
   ) : null;
 
-  const observationButton = hasDiscussion ? (
+  const observationButton = hasDiscussion && showAddObservation ? (
     <button
       type="button"
       data-prospect-header-action="observation"
@@ -146,7 +152,7 @@ export function ProspectDetailHeader({
     </button>
   ) : null;
 
-  const editButton = (
+  const editButton = showEditProfile ? (
     <button
       type="button"
       data-prospect-header-action="edit-profile"
@@ -159,7 +165,7 @@ export function ProspectDetailHeader({
       <Pencil className="size-4" />
       {editProfileLabel}
     </button>
-  );
+  ) : null;
 
   const openWebsiteButton = websiteHref ? (
     <a

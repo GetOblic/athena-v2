@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
+import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -60,6 +62,10 @@ export async function POST(
       await requireCurrentOrganizationContext();
 
     const prospect = await getProspectById(id, organizationId);
+    await assertCurrentFreeConvertGeneration({
+      action: "sync_ai",
+      prospectId: prospect?.id ?? id,
+    });
     if (!prospect) {
       return json(
         {
@@ -107,6 +113,22 @@ export async function POST(
         },
         401,
         requestId,
+      );
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: { code: error.code, message: error.message },
+        },
+        {
+          status: error.httpStatus,
+          headers: {
+            "Cache-Control": "no-store",
+            [ATHENA_REQUEST_ID_HEADER]: requestId,
+          },
+        },
       );
     }
 

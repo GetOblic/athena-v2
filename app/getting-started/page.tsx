@@ -4,6 +4,8 @@ import { HelpCenterView } from "@/components/getting-started/HelpCenterView";
 import { tenantConversationWrapperChrome } from "@/lib/tenantI18n/conversationChrome";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { loadFreeHelpAskPageState } from "@/services/organization/freeHelpAskAuthority";
+import { loadFreeProgressionState } from "@/services/organization/freeProgressionState";
 
 export default async function GettingStartedPage({
   searchParams,
@@ -19,7 +21,11 @@ export default async function GettingStartedPage({
     redirect("/login");
   }
 
-  const { messages } = await getTenantLocalization();
+  const [{ messages }, freeProgression, helpAsk] = await Promise.all([
+    getTenantLocalization(),
+    loadFreeProgressionState(),
+    loadFreeHelpAskPageState(),
+  ]);
   const copy = messages.gettingStarted;
   const conversationChrome = tenantConversationWrapperChrome(messages);
   const params = searchParams ? await searchParams : {};
@@ -27,11 +33,17 @@ export default async function GettingStartedPage({
     typeof params.topic === "string" ? params.topic : null;
 
   return (
-    <TenantAppShell currentPath="/getting-started" messages={messages}>
+    <TenantAppShell
+      currentPath="/getting-started"
+      messages={messages}
+      {...freeProgression}
+    >
       <HelpCenterView
         copy={copy}
         initialTopicId={initialTopicId}
         conversationChrome={conversationChrome}
+        conversationPresentation={helpAsk.presentation}
+        upgradeCopy={messages.upgrade}
       />
     </TenantAppShell>
   );

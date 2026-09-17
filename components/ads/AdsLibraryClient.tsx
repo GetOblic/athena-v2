@@ -18,6 +18,7 @@ type AdsLibraryClientProps = {
   loadError?: string | null;
   messages?: TenantMessages;
   language?: OrganizationLanguage;
+  allowCreate?: boolean;
 };
 
 function formatDate(
@@ -34,6 +35,7 @@ export function AdsLibraryClient({
   loadError = null,
   messages,
   language = "en",
+  allowCreate = true,
 }: AdsLibraryClientProps) {
   const copy = messages?.ads ?? en.ads;
   const [query, setQuery] = useState("");
@@ -75,12 +77,14 @@ export function AdsLibraryClient({
         <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-white/50">
           {copy.emptyBody}
         </p>
-        <Link
-          href="/ads/new"
-          className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
-        >
-          {copy.generateAds}
-        </Link>
+        {allowCreate ? (
+          <Link
+            href="/ads/new"
+            className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
+          >
+            {copy.generateAds}
+          </Link>
+        ) : null}
       </div>
     );
   }
@@ -94,12 +98,14 @@ export function AdsLibraryClient({
           placeholder={copy.searchPlaceholder}
           className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none sm:max-w-md"
         />
-        <Link
-          href="/ads/new"
-          className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
-        >
-          {copy.generateAds}
-        </Link>
+        {allowCreate ? (
+          <Link
+            href="/ads/new"
+            className="inline-flex w-full items-center justify-center rounded-2xl bg-[var(--athena-orange)] px-6 py-3 text-sm font-semibold text-white sm:w-auto"
+          >
+            {copy.generateAds}
+          </Link>
+        ) : null}
       </div>
 
       <div className="grid gap-4">

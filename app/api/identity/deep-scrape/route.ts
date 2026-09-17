@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { FreeIdentityGenerationError } from "@/lib/organization/freeIdentityGeneration";
 import { getAthenaIdentityByUserId } from "@/services/identity/identityService";
+import { assertCurrentFreeIdentityGeneration } from "@/services/organization/freeIdentityGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -47,6 +49,8 @@ export async function POST() {
       );
     }
 
+    await assertCurrentFreeIdentityGeneration();
+
     const root = normalizeRootWebsiteUrl(identity.website);
     if (!root) {
       return json(
@@ -91,6 +95,16 @@ export async function POST() {
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeIdentityGenerationError) {
+      return json(
+        {
+          ok: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

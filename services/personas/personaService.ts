@@ -116,6 +116,27 @@ function mapPersonaRow(data: Persona): Persona {
   };
 }
 
+export async function organizationHasPersona(
+  organizationId: string,
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from("personas")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[ATHENA_FREE_AUDIENCE] persona_exists_failed", {
+      organizationId,
+      error: error.message,
+    });
+    throw new Error("Failed to load Personas for this organization.");
+  }
+
+  return Boolean(data?.id);
+}
+
 export async function getPersonas(organizationId: string): Promise<Persona[]> {
   const { data, error } = await supabaseAdmin
     .from("personas")

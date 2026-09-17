@@ -23,6 +23,12 @@ import { createWorkerIdentity } from "@/services/generationJobs/generationJobWor
 import { createRegenerationRunId } from "@/lib/regenerationDiagnostics";
 import { getDiscussionById } from "@/services/discussionService";
 import {
+  isPersonaIntelligenceBridge,
+  PERSONA_INTELLIGENCE_PLATFORM,
+} from "@/services/personas/personaBridgeMarker";
+import { isProspectIntelligenceBridge } from "@/services/prospects/prospectBridgeMarker";
+import { resolveAthenaPlan } from "@/services/organizationService";
+import {
   markProspectGenerationFailed,
   markProspectGenerationReady,
   prepareProspectBridgeBeforeGeneration,
@@ -33,7 +39,6 @@ import {
   preparePersonaBridgeBeforeGeneration,
 } from "@/services/personas/personaImporter";
 import { isThinkDifferentlyJobProgress } from "@/services/brain/generationContracts/executiveGenerationMode";
-import { PERSONA_INTELLIGENCE_PLATFORM } from "@/services/personas/personaBridgeMarker";
 import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
 import { processThinkDifferentlyWorkflow } from "@/services/workflows/thinkDifferentlyWorkflow";
@@ -178,6 +183,11 @@ export async function executeClaimedGenerationJob(
       if (!completed) {
         return "claim_lost";
       }
+
+      await markProspectGenerationReady(
+        job.discussion_id,
+        job.organization_id,
+      );
 
       await maybeEnqueueFollowUp(job);
       console.log("[ATHENA_WORKER] job_completed", {
@@ -513,6 +523,20 @@ async function maybeEnqueueFollowUp(job: AthenaGenerationJob): Promise<void> {
 
   if (!pending.pending) {
     return;
+  }
+
+  const discussion = await getDiscussionById(
+    job.discussion_id,
+    job.organization_id,
+  );
+  if (
+    isProspectIntelligenceBridge(discussion) ||
+    isPersonaIntelligenceBridge(discussion)
+  ) {
+    const athenaPlan = await resolveAthenaPlan(job.organization_id);
+    if (athenaPlan === "free") {
+      return;
+    }
   }
 
   // Parent should be terminal. If it is somehow still active, restore the

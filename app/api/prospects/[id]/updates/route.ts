@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
 import { appendDiscussionUpdate } from "@/services/discussionService";
 import { enqueueDiscussionGenerationJob } from "@/services/generationJobs/generationJobRunner";
 import { getProspectById, updateProspect } from "@/services/prospects/prospectService";
+import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -48,6 +50,10 @@ export async function POST(
     }
 
     const prospect = await getProspectById(id, organizationId);
+    await assertCurrentFreeConvertGeneration({
+      action: "regenerate",
+      prospectId: prospect?.id ?? id,
+    });
     if (!prospect?.linked_discussion_id) {
       return json(
         {
@@ -126,6 +132,17 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

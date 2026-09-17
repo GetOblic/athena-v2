@@ -183,6 +183,30 @@ export async function getProspects(
   return ((data ?? []) as Prospect[]).map(mapProspectRow);
 }
 
+export async function organizationHasProspectWithStatus(
+  organizationId: string,
+  statuses: readonly string[],
+): Promise<boolean> {
+  if (statuses.length === 0) return false;
+  const { data, error } = await supabaseAdmin
+    .from("prospects")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .in("status", statuses)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[ATHENA_FREE_CONVERT] status_exists_failed", {
+      organizationId,
+      error: error.message,
+    });
+    throw new Error("Failed to load prospects.");
+  }
+
+  return Boolean(data?.id);
+}
+
 export async function getProspectById(
   id: string,
   organizationId: string,

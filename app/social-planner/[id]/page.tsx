@@ -5,15 +5,21 @@ import { ArrowLeft } from "lucide-react";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { SocialPlannerDetailWorkspace } from "@/components/socialPlanner/SocialPlannerDetailWorkspace";
 import { SOCIAL_PLANNER_CALENDAR_ID_RE } from "@/components/socialPlanner/socialPlannerClient";
+import { isFreeConsumedStarterCalendarView } from "@/lib/organization/freeStarter";
 import { SOCIAL_DETAIL_BACK_LINK } from "@/lib/socialPlanner/socialPlannerDetailPresentation";
 import { socialPlannerWorkspaceHref } from "@/lib/socialPlanner/socialPlannerRouting";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { getOrganizationAiWorkspacePreferences } from "@/services/identity/aiWorkspacePreferences";
 import { toBlueprintBrandDirectionInput } from "@/services/identity/blueprintBrandDirection";
 import { getOrganizationBrandIdentity } from "@/services/identity/brandIdentityService";
+import { loadFreeProgressionState } from "@/services/organization/freeProgressionState";
+import { loadFreeStarterAuthority } from "@/services/organization/freeStarterAuthority";
 import { toSocialCalendarDetailDto } from "@/services/socialPlanner/socialCalendarDto";
 import { getSocialCalendarById } from "@/services/socialPlanner/socialCalendarService";
-import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import {
+  requireCurrentOrganizationContext,
+  resolveAthenaPlan,
+} from "@/services/organizationService";
 
 export default async function SocialPlannerDetailPage({
   params,
@@ -21,18 +27,33 @@ export default async function SocialPlannerDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { organizationId } = await requireCurrentOrganizationContext();
-  const [{ language, locale, messages }, continuationPreferences, organizationBrand] =
-    await Promise.all([
-      getTenantLocalization(),
-      getOrganizationAiWorkspacePreferences(organizationId),
-      getOrganizationBrandIdentity(organizationId).catch((error) => {
-        console.error("[BRAND_DIRECTION] social_planner_load_failed", error);
-        return null;
-      }),
-    ]);
+  const { id } = await params;
+  const [
+    { language, locale, messages },
+    continuationPreferences,
+    organizationBrand,
+    athenaPlan,
+    freeProgression,
+    starter,
+  ] = await Promise.all([
+    getTenantLocalization(),
+    getOrganizationAiWorkspacePreferences(organizationId),
+    getOrganizationBrandIdentity(organizationId).catch((error) => {
+      console.error("[BRAND_DIRECTION] social_planner_load_failed", error);
+      return null;
+    }),
+    resolveAthenaPlan(organizationId),
+    loadFreeProgressionState(),
+    loadFreeStarterAuthority(organizationId),
+  ]);
   const brandDirection = toBlueprintBrandDirectionInput(organizationBrand);
   const copy = messages.socialPlanner;
-  const { id } = await params;
+  const readOnlyFreeStarter = isFreeConsumedStarterCalendarView({
+    athenaPlan,
+    starterStatus: starter.status,
+    starterCalendarId: starter.calendarId,
+    currentCalendarId: id,
+  });
 
   let initialDetail: ReturnType<typeof toSocialCalendarDetailDto> | null = null;
   let initialDetailError: "not_found" | "load_failed" | null = null;
@@ -54,21 +75,31 @@ export default async function SocialPlannerDetailPage({
   }
 
   return (
-    <TenantAppShell currentPath={`/social-planner/${id}`} messages={messages}>
+    <TenantAppShell
+      currentPath={`/social-planner/${id}`}
+      messages={messages}
+      athenaPlan={athenaPlan}
+      defineKind={freeProgression.defineKind}
+    >
       <Link
-        href={socialPlannerWorkspaceHref({
-          planner: initialDetail?.plannerKind,
-        })}
+        href={
+          readOnlyFreeStarter
+            ? "/"
+            : socialPlannerWorkspaceHref({
+                planner: initialDetail?.plannerKind,
+              })
+        }
         className={`mb-6 ${SOCIAL_DETAIL_BACK_LINK}`}
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
-        {copy.backToSocialPlanner}
+        {readOnlyFreeStarter ? copy.backToHome : copy.backToSocialPlanner}
       </Link>
       <SocialPlannerDetailWorkspace
         initialDetail={initialDetail}
         initialDetailError={initialDetailError}
         continuationPreferences={continuationPreferences}
         brandDirection={brandDirection}
+        readOnlyFreeStarter={readOnlyFreeStarter}
         messages={messages}
         language={language}
         locale={locale}

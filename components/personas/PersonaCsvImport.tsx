@@ -5,6 +5,8 @@ import { useId, useRef, useState } from "react";
 import { AlertTriangle, BookOpen, FileSpreadsheet } from "lucide-react";
 import { PersonaCreationBlock } from "@/components/personas/PersonaCreationBlock";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import { UpgradeHint } from "@/components/upgrade/UpgradeHint";
+import { personaCsvUpgradeContent } from "@/lib/upgrade/freeSecondaryUpgradePresentation";
 import {
   PERSONA_IMPORT_ADVANCED_ICON,
   PERSONA_IMPORT_ADVANCED_SURFACE,
@@ -75,9 +77,13 @@ function previewRowWarningText(
 
 type PersonaCsvImportProps = {
   messages: TenantMessages;
+  available?: boolean;
 };
 
-export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
+export function PersonaCsvImport({
+  messages,
+  available = true,
+}: PersonaCsvImportProps) {
   const copy = messages.personas.import;
   const list = messages.personas.list;
   const meta = messages.personas.metadata;
@@ -211,6 +217,16 @@ export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
       accent="cyan"
       icon={<FileSpreadsheet className="size-5" />}
     >
+      {!available ? (
+        <UpgradeHint
+          {...personaCsvUpgradeContent({
+            locked: messages.personas.free.csvLocked,
+            upgrade: messages.upgrade,
+            availabilityLabel: messages.personas.free.csvUnavailable,
+          })}
+        />
+      ) : (
+      <>
       <div>
         <a
           href="/templates/athena-persona-import-template.csv"
@@ -480,6 +496,8 @@ export function PersonaCsvImport({ messages }: PersonaCsvImportProps) {
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </PersonaCreationBlock>
   );

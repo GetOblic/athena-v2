@@ -31,12 +31,16 @@ type ProspectsLibraryClientProps = {
   prospects: ProspectLibraryRow[];
   messages?: TenantMessages;
   language?: OrganizationLanguage;
+  showFindCreate?: boolean;
+  boundProspectHref?: string | null;
 };
 
 export function ProspectsLibraryClient({
   prospects,
   messages,
   language = "en",
+  showFindCreate = true,
+  boundProspectHref = null,
 }: ProspectsLibraryClientProps) {
   const list = messages?.prospects.list;
   const [query, setQuery] = useState("");
@@ -85,6 +89,7 @@ export function ProspectsLibraryClient({
           {list?.emptyHelp ??
             "Athena can write prospect intelligence and outreach drafts from the information you provide. A website helps."}
         </p>
+        {showFindCreate ? (
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
           <Link
             href="/prospects/find"
@@ -93,6 +98,16 @@ export function ProspectsLibraryClient({
             {list?.findOpportunitiesCta ?? "Find opportunities"}
           </Link>
         </div>
+        ) : boundProspectHref ? (
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Link
+            href={boundProspectHref}
+            className={PROSPECT_LIBRARY_PRIMARY_ACTION}
+          >
+            {messages?.prospects.free.openBoundProspect ?? "Open this opportunity"}
+          </Link>
+        </div>
+        ) : null}
       </div>
     );
   }

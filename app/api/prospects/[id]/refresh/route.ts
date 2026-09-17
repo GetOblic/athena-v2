@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
+import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
+import { enqueueFreeConvertProspectGeneration } from "@/services/prospects/freeConvertOrchestration";
 import { ensureProspectGenerationQueued } from "@/services/prospects/prospectImporter";
 import { toPublicProspect } from "@/services/prospects/prospectPublic";
 import { getProspectById } from "@/services/prospects/prospectService";
+import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
+import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -38,10 +42,23 @@ export async function POST(
       );
     }
 
-    const result = await ensureProspectGenerationQueued(prospect, {
-      requestedBy: userId,
-      triggerType: "manual_refresh",
+    const convertContext = await assertCurrentFreeConvertGeneration({
+      action: "generate",
+      prospectId: prospect.id,
+      hasWebsite: Boolean(normalizeWebsiteUrl(prospect.website)),
     });
+    const result =
+      convertContext.athenaPlan === "free"
+        ? await enqueueFreeConvertProspectGeneration({
+            organizationId,
+            userId,
+            prospect,
+            triggerType: "manual_refresh",
+          })
+        : await ensureProspectGenerationQueued(prospect, {
+            requestedBy: userId,
+            triggerType: "manual_refresh",
+          });
 
     return json(
       {
@@ -68,6 +85,17 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+
+    if (error instanceof FreeConvertGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
 

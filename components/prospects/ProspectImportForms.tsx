@@ -6,6 +6,8 @@ import { useState, type ReactNode } from "react";
 import { ProspectCreationBlock } from "@/components/prospects/ProspectCreationBlock";
 import { ProspectCsvImport } from "@/components/prospects/ProspectCsvImport";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
+import { UpgradeHint } from "@/components/upgrade/UpgradeHint";
+import { prospectCsvUpgradeContent } from "@/lib/upgrade/freeSecondaryUpgradePresentation";
 import { getLocalizedProspectImportFieldLabel } from "@/lib/tenantI18n/importPresentation";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
@@ -90,6 +92,8 @@ const ADVANCED_FIELD_KEYS = ["external_contact_id"] as const;
 
 type ProspectImportFormsProps = {
   messages: TenantMessages;
+  showCsvImport?: boolean;
+  showCsvLocked?: boolean;
 };
 
 function ManualCollapsedGroup({
@@ -115,7 +119,11 @@ function ManualCollapsedGroup({
   );
 }
 
-export function ProspectImportForms({ messages }: ProspectImportFormsProps) {
+export function ProspectImportForms({
+  messages,
+  showCsvImport = true,
+  showCsvLocked = false,
+}: ProspectImportFormsProps) {
   const router = useRouter();
   const copy = messages.prospects.import;
   const meta = messages.prospects.metadata;
@@ -308,17 +316,34 @@ export function ProspectImportForms({ messages }: ProspectImportFormsProps) {
         )}
       </section>
 
-      <ProspectCreationBlock
-        title={copy.csvTitle}
-        panelId="prospect-import-csv"
-        summary={copy.csvSummary}
-        className="mx-auto w-full min-w-0 max-w-3xl"
-      >
-        <p className="mb-6 text-sm leading-6 text-white/40">
-          {copy.csvDuplicatesHelp}
-        </p>
-        <ProspectCsvImport messages={messages} />
-      </ProspectCreationBlock>
+      {showCsvImport ? (
+        <ProspectCreationBlock
+          title={copy.csvTitle}
+          panelId="prospect-import-csv"
+          summary={copy.csvSummary}
+          className="mx-auto w-full min-w-0 max-w-3xl"
+        >
+          <p className="mb-6 text-sm leading-6 text-white/40">
+            {copy.csvDuplicatesHelp}
+          </p>
+          <ProspectCsvImport messages={messages} />
+        </ProspectCreationBlock>
+      ) : showCsvLocked ? (
+        <ProspectCreationBlock
+          title={copy.csvTitle}
+          panelId="prospect-import-csv"
+          summary={copy.csvSummary}
+          className="mx-auto w-full min-w-0 max-w-3xl"
+        >
+          <UpgradeHint
+            {...prospectCsvUpgradeContent({
+              locked: messages.prospects.free.csvLocked,
+              upgrade: messages.upgrade,
+              availabilityLabel: messages.prospects.free.csvUnavailable,
+            })}
+          />
+        </ProspectCreationBlock>
+      ) : null}
     </div>
   );
 }

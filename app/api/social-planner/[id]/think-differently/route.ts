@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { FreeSocialPlannerGenerationError } from "@/lib/organization/freeSocialPlannerGeneration";
+import { assertCurrentFreeSocialPlannerGeneration } from "@/services/organization/freeSocialPlannerGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -56,6 +58,7 @@ export async function POST(
 
     const { organizationId, userId } =
       await requireCurrentOrganizationContext();
+    await assertCurrentFreeSocialPlannerGeneration();
 
     let body: Record<string, unknown> = {};
     try {
@@ -111,6 +114,16 @@ export async function POST(
           error: { code: "UNAUTHORIZED", message: "Authentication required" },
         },
         401,
+      );
+    }
+    if (error instanceof FreeSocialPlannerGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
     if (error instanceof ThinkDifferentlySourceError) {

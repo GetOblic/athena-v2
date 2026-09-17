@@ -27,6 +27,7 @@ type IdentityWebsiteKnowledgeProps = {
   language: OrganizationLanguage;
   trained: boolean;
   deepScrape: ReactNode;
+  generationLocked?: boolean;
 };
 
 export function IdentityWebsiteKnowledge({
@@ -35,6 +36,7 @@ export function IdentityWebsiteKnowledge({
   language,
   trained,
   deepScrape,
+  generationLocked = false,
 }: IdentityWebsiteKnowledgeProps) {
   const page = messages.page;
   const copy = messages.executive;
@@ -76,23 +78,27 @@ export function IdentityWebsiteKnowledge({
     <AthenaCollapsibleSection
       id={IDENTITY_FIELD_ANCHORS.websiteKnowledge}
       title={page.websiteKnowledgeTitle}
-      summary={page.websiteDeepScrapeHelp}
+      summary={
+        generationLocked ? page.websiteLearnedHelp : page.websiteDeepScrapeHelp
+      }
       defaultOpen={false}
       tone="identity"
       icon={<Globe size={20} />}
       iconClassName={IDENTITY_CARD_ICON_CLASS.blue}
       className={`${IDENTITY_CARD_SURFACE_CLASS.blue} scroll-mt-24`}
       headerActions={
-        <div className="flex flex-wrap items-center gap-2">
-          {deepScrape}
-          <a
-            href={`#${IDENTITY_FIELD_ANCHORS.teach}`}
-            className={IDENTITY_HEADER_RETRAIN_ACTION_CLASS}
-          >
-            <RefreshCw size={16} aria-hidden="true" />
-            {trained ? messages.retrainAthena : messages.trainAthena}
-          </a>
-        </div>
+        generationLocked ? undefined : (
+          <div className="flex flex-wrap items-center gap-2">
+            {deepScrape}
+            <a
+              href={`#${IDENTITY_FIELD_ANCHORS.teach}`}
+              className={IDENTITY_HEADER_RETRAIN_ACTION_CLASS}
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+              {trained ? messages.retrainAthena : messages.trainAthena}
+            </a>
+          </div>
+        )
       }
     >
       <div className="space-y-4 text-sm leading-6 text-white/65">
@@ -183,7 +189,7 @@ export function IdentityWebsiteKnowledge({
       ) : null}
 
       <p className="mt-6 text-sm leading-6 text-white/50">
-        {page.websiteDeepScrapeHelp}
+        {generationLocked ? page.websiteLearnedHelp : page.websiteDeepScrapeHelp}
       </p>
     </AthenaCollapsibleSection>
   );

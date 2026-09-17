@@ -19,6 +19,10 @@ export const SOCIAL_DETAIL_HEADER_WELL =
 export const SOCIAL_DETAIL_SNAPSHOT =
   "rounded-[20px] border border-white/10 bg-[var(--athena-card)] bg-[linear-gradient(180deg,rgba(56,189,248,0.07),rgba(232,121,189,0.04)_58%,transparent_82%)] px-4 py-3 shadow-[0_0_18px_rgba(56,189,248,0.04)] sm:px-5";
 
+/** Subtle consumed-Free starter context. Not a paywall. */
+export const SOCIAL_DETAIL_FREE_STARTER_NOTE =
+  "rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5";
+
 export const SOCIAL_DETAIL_STRATEGY_SURFACE =
   "relative overflow-hidden !border-[rgba(167,139,250,0.32)] hover:!border-[rgba(167,139,250,0.50)] bg-[linear-gradient(180deg,rgba(167,139,250,0.10),rgba(167,139,250,0.03)_38%,transparent_74%)] shadow-[0_0_24px_rgba(167,139,250,0.05)] before:pointer-events-none before:absolute before:inset-y-5 before:left-0 before:w-[3px] before:rounded-r-full before:bg-[rgba(167,139,250,0.62)]";
 

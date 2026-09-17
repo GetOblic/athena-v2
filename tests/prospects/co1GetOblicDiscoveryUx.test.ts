@@ -56,7 +56,8 @@ describe("CO-1 Find Opportunities UX", () => {
 
   it("renders /prospects/find under the tenant Convert Opportunities shell", () => {
     const page = read("app/prospects/find/page.tsx");
-    assert.match(page, /TenantAppShell currentPath="\/prospects\/find"/);
+    assert.match(page, /currentPath="\/prospects\/find"/);
+    assert.match(page, /TenantAppShell/);
     assert.match(page, /requireCurrentOrganizationContext/);
     assert.match(page, /copy\.find\.title/);
     assert.match(page, /copy\.find\.subtitle/);

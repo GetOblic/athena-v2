@@ -24,6 +24,15 @@ import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWe
 import { ProspectCreateAudienceButton } from "@/components/prospects/ProspectCreateAudienceButton";
 import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
 import { shouldShowGetOblicListingReleaseAction } from "@/lib/prospects/getOblicListingReleasePresentation";
+import { shouldShowProspectCreateAudience } from "@/lib/personas/freeAudiencePresentation";
+import {
+  shouldShowProspectConvertToClient,
+  shouldShowProspectDeepScrape,
+  shouldShowProspectGenerate,
+  shouldShowProspectMeaningfulEdit,
+  shouldShowProspectRegenerate,
+  shouldShowProspectSyncAi,
+} from "@/lib/prospects/freeConvertPresentation";
 import { PROSPECT_BACK_LINK_CLASS } from "@/lib/prospects/prospectDetailPresentation";
 import {
   resolveProspectDisplayStatus,
@@ -65,6 +74,8 @@ import { hasCurrentKnowledgeBaseAsset } from "@/services/getoblicDirectory/getob
 import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { readObservedListingDescription } from "@/services/prospects/prospectGetoblicDescription";
 import { isGetOblicDerivedProspect } from "@/services/prospects/prospectGetOblicOwnership";
+import { loadFreeAudiencePageState } from "@/services/personas/freeAudiencePageState";
+import { loadFreeConvertPageState } from "@/services/prospects/freeConvertPageState";
 import { getProspectById } from "@/services/prospects/prospectService";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 
@@ -75,16 +86,42 @@ export default async function ProspectDetailsPage({
 }) {
   const { id } = await params;
   const { organizationId } = await requireCurrentOrganizationContext();
-  const [{ language, locale, messages }, prospect] = await Promise.all([
+  const [{ language, locale, messages }, prospect, freeConvert, freeAudience] =
+    await Promise.all([
     getTenantLocalization(),
     getProspectById(id, organizationId),
+    loadFreeConvertPageState(),
+    loadFreeAudiencePageState(),
   ]);
   const copy = messages.prospects;
   const executive = messages.prospects.executive;
+  const {
+    presentation,
+    convert,
+    boundProspectStatus: _boundProspectStatus,
+    ...freeProgression
+  } = freeConvert;
+  const isBoundProspect = Boolean(
+    convert.prospectId && convert.prospectId === prospect?.id,
+  );
+  const showSyncAi = shouldShowProspectSyncAi(presentation);
+  const showRegenerate = shouldShowProspectRegenerate(presentation);
+  const showMeaningfulEdit = shouldShowProspectMeaningfulEdit(presentation);
+  const showGenerate = shouldShowProspectGenerate({
+    presentation,
+    currentProspectId: prospect?.id,
+    boundProspectId: convert.prospectId,
+  });
+  const showDeepScrape = shouldShowProspectDeepScrape(presentation);
+  const showConvertToClient = shouldShowProspectConvertToClient(presentation);
 
   if (!prospect) {
     return (
-      <TenantAppShell currentPath={`/prospects/${id}`} messages={messages}>
+      <TenantAppShell
+        currentPath={`/prospects/${id}`}
+        messages={messages}
+        {...freeProgression}
+      >
         <Link href="/prospects" className={PROSPECT_BACK_LINK_CLASS}>
           <ArrowLeft className="size-4" aria-hidden="true" />
           {messages.nav.prospects}
@@ -243,6 +280,7 @@ export default async function ProspectDetailsPage({
       currentListingCopy={readObservedListingDescription(prospect.raw_json)}
       generatedListingDescription={prospect.generated_listing_description}
       messages={copy.getoblicDescription}
+      showGenerate={showSyncAi}
     />
   );
 
@@ -250,7 +288,8 @@ export default async function ProspectDetailsPage({
     <ProspectIdentityContactGlance prospect={prospect} messages={copy} />
   );
 
-  const addInformation = discussion ? (
+  const addInformation =
+    discussion && showRegenerate ? (
     <AppendProspectInformationForm
       prospectId={prospect.id}
       discussionId={discussion.id}
@@ -258,22 +297,32 @@ export default async function ProspectDetailsPage({
     />
   ) : null;
 
-  const generateActions = offerFullIntelligence ? (
+  const generateActions = offerFullIntelligence && showGenerate ? (
     <ProspectRefreshIntelligenceButton
       prospectId={prospect.id}
       discussionId={discussion?.id ?? prospect.linked_discussion_id ?? null}
       chrome={copy.detail}
       hasCurrentVersion={hasCurrentVersion}
       intelligenceStatus={intelligenceReadiness}
+      showGenerate={showGenerate}
+      showThinkDifferently={showRegenerate}
     />
-  ) : (
+  ) : showGenerate && isBoundProspect && !offerFullIntelligence ? (
+    <p className="text-sm leading-6 text-white/55">
+      {copy.free.websiteRequired}
+    </p>
+  ) : presentation === "full" && !offerFullIntelligence ? (
     <p className="text-sm leading-6 text-white/55">
       {copy.websiteCompletion.addWebsiteToStartResearch}
     </p>
-  );
+  ) : null;
 
   const pageBody = (
-    <TenantAppShell currentPath={`/prospects/${id}`} messages={messages}>
+    <TenantAppShell
+      currentPath={`/prospects/${id}`}
+      messages={messages}
+      {...freeProgression}
+    >
       <ProspectDetailHeader
         backHref="/prospects"
         backLabel={messages.nav.prospects}
@@ -293,6 +342,9 @@ export default async function ProspectDetailsPage({
         askAthenaLabel={copy.detail.askAthena}
         addObservationLabel={copy.detail.addObservation}
         editProfileLabel={copy.detail.editProfile}
+        showAskAthena={showSyncAi}
+        showAddObservation={showRegenerate}
+        showEditProfile={showMeaningfulEdit}
         openWebsiteLabel={copy.detail.openWebsite}
         completenessScore={
           <ProspectIntelligenceScore
@@ -302,6 +354,8 @@ export default async function ProspectDetailsPage({
         }
         generateActions={generateActions}
         createAudienceAction={
+          showSyncAi &&
+          shouldShowProspectCreateAudience(freeAudience.presentation) ? (
           <ProspectCreateAudienceButton
             prospectId={prospect.id}
             canCreate={hasCurrentVersion}
@@ -315,12 +369,13 @@ export default async function ProspectDetailsPage({
                 copy.detail.createAudienceRequiresIntelligence,
             }}
           />
+          ) : null
         }
         intelligenceGroupLabel={copy.detail.intelligence}
         prospectToolsLabel={copy.detail.prospectTools}
         directoryGroupLabel={copy.detail.getoblicDirectory}
         researchAction={
-          hasCurrentVersion && Boolean(prospect.website) ? (
+          showDeepScrape && hasCurrentVersion && Boolean(prospect.website) ? (
             <ProspectDeepScrapeWebsiteButton
               prospectId={prospect.id}
               initiallyAvailable={hasCurrentVersion && Boolean(prospect.website)}
@@ -330,6 +385,7 @@ export default async function ProspectDetailsPage({
           ) : null
         }
         clientConversionAction={
+          showConvertToClient ? (
           <ProspectConvertToClientAction
             prospectId={prospect.id}
             businessName={prospect.business_name}
@@ -338,6 +394,7 @@ export default async function ProspectDetailsPage({
             isGetOblicDerivedProspect={getoblicDerived}
             hasActiveGetOblicOwnership={hasActiveGetOblicOwnership}
           />
+          ) : null
         }
         lifecycleAction={
           <ProspectLifecycleStatusControl
@@ -428,6 +485,7 @@ export default async function ProspectDetailsPage({
             chrome={executive}
             locale={locale}
             conversationChrome={copy.conversation}
+            showConversation={showSyncAi}
             assetChrome={getSharedAssetChrome(messages)}
             tenantMessages={messages}
             afterProspectRecommendation={

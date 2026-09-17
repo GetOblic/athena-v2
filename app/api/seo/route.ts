@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
+import { FreeVisibilityGenerationError } from "@/lib/organization/freeVisibilityGeneration";
 import {
   SeoReportBriefValidationError,
   normalizeSeoReportBrief,
 } from "@/services/seo/seoReportBrief";
+import { createFreeVisibilitySeoReportWithJob } from "@/services/seo/freeVisibilityOrchestration";
 import {
   createSeoReportWithJob,
   TechnicalSeoEvidenceInsufficientError,
 } from "@/services/seo/seoReportOrchestration";
 import { toPublicSeoReportDetail, toPublicSeoReportSummary } from "@/services/seo/seoReportPublic";
 import { listSeoReports } from "@/services/seo/seoReportService";
+import { assertCurrentFreeVisibilityGeneration } from "@/services/organization/freeVisibilityGenerationGuard";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -93,11 +96,22 @@ export async function POST(request: Request) {
         : rest;
 
     const brief = normalizeSeoReportBrief(briefSource);
-    const { report, job } = await createSeoReportWithJob({
-      organizationId,
-      userId,
-      brief,
+    const visibilityContext = await assertCurrentFreeVisibilityGeneration({
+      action: "create",
+      generationType: brief.generationType,
     });
+    const { report, job } =
+      visibilityContext.athenaPlan === "free"
+        ? await createFreeVisibilitySeoReportWithJob({
+            organizationId,
+            userId,
+            brief,
+          })
+        : await createSeoReportWithJob({
+            organizationId,
+            userId,
+            brief,
+          });
 
     return json(
       {
@@ -127,6 +141,16 @@ export async function POST(request: Request) {
           error: { code: error.code, message: error.message },
         },
         400,
+      );
+    }
+    if (error instanceof FreeVisibilityGenerationError) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        error.httpStatus,
       );
     }
     if (error instanceof TechnicalSeoEvidenceInsufficientError) {

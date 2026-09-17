@@ -51,6 +51,10 @@ import {
   websiteIntelligenceHasUsableContent,
 } from "@/services/prospects/prospectWebsiteLearningPolicy";
 import { scrapeHomepageIntelligence } from "@/services/prospects/prospectWebsiteIntelligence";
+import {
+  consumeFreeConvertIfReserved,
+  releaseFreeConvertIfReserved,
+} from "@/services/organization/freeConvertAuthority";
 import type { AthenaGenerationTriggerType } from "@/services/generationJobs/generationJobTypes";
 import {
   logWebsiteLearning,
@@ -318,6 +322,11 @@ export async function markProspectGenerationReady(
         : undefined,
     last_activity: new Date().toISOString(),
   });
+
+  await consumeFreeConvertIfReserved({
+    organizationId,
+    prospectId: prospect.id,
+  });
 }
 
 export async function markProspectGenerationFailed(
@@ -333,6 +342,11 @@ export async function markProspectGenerationFailed(
   await updateProspect(prospect.id, organizationId, {
     status: "Processing Failed",
     last_activity: new Date().toISOString(),
+  });
+
+  await releaseFreeConvertIfReserved({
+    organizationId,
+    prospectId: prospect.id,
   });
 }
 
