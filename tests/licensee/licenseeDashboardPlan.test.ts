@@ -106,4 +106,24 @@ describe("Licensee dashboard plan — read-only surface", () => {
     assert.match(client, /messages\.subAccountCard\.masterNote/);
     assert.match(client, /messages\.dashboard\.createCompanyAccount/);
   });
+
+  it("places Useful Links after the plan and before search", () => {
+    const page = read("app/licensee/page.tsx");
+    const client = read("components/licensee/LicenseeDashboardClient.tsx");
+    const plan = page.indexOf("<LicenseePlanSection");
+    const links = page.indexOf("<LicenseeUsefulLinksCard");
+    const dashboard = page.indexOf("<LicenseeDashboardClient");
+
+    assert.ok(plan >= 0);
+    assert.ok(links > plan);
+    assert.ok(dashboard > links);
+    assert.match(page, /messages\.brand\.athenaBusinessLicensee/);
+    assert.match(client, /messages\.dashboard\.searchPlaceholder/);
+    assert.match(client, /href="\/licensee\/estimate"/);
+    assert.match(client, /href="\/licensee\/quote"/);
+    assert.match(client, /messages\.dashboard\.myCompany/);
+    assert.match(client, /messages\.dashboard\.pinned/);
+    assert.match(client, /messages\.dashboard\.allSubAccounts/);
+    assert.doesNotMatch(client, /LicenseeUsefulLinksCard|\/licensee\/useful-links/);
+  });
 });

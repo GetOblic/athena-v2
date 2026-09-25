@@ -2799,6 +2799,10 @@ export const en = {
       createAudienceRequiresIntelligence:
         "Generate prospect intelligence first",
       getoblicDirectory: "GetOblic Directory",
+      getoblicFunnel: "GetOblic Funnel",
+      getoblicFunnelAiAgents: "AI Agents",
+      getoblicFunnelVirtualPhone: "Virtual Phone",
+      getoblicFunnelCalendar: "Calendar",
       releaseGetOblicListing: "Release GetOblic listing",
       releaseGetOblicConfirm:
         "This GetOblic listing will be returned to the shared GetOblic inventory. It will no longer count against this account’s listing capacity. The Prospect and Athena research and intelligence will remain.",
@@ -4403,6 +4407,9 @@ export const en = {
       quoteTitle: "Athena Quote",
       quoteDescription:
         "Submit client work for private GetOblic fulfillment pricing.",
+      usefulLinksTitle: "Useful Links",
+      usefulLinksDescription:
+        "Open GetOblic tools for your own company: AI Agents, Virtual Phone, and Calendar.",
       emptyTitle: "Create your company account",
       emptyBody:
         "This will be the Athena workspace you use to grow your own business.",
@@ -4420,6 +4427,20 @@ export const en = {
       noPinned: "No pinned sub-accounts.",
       clientSubAccountsWillAppear: "Client sub-accounts will appear here.",
       allLinkedArePinned: "All linked sub-accounts are pinned.",
+    },
+    usefulLinks: {
+      title: "Useful Links",
+      intro:
+        "These GetOblic tools open for the company account you designated on the Master dashboard.",
+      aiAgents: "AI Agents",
+      virtualPhone: "Virtual Phone",
+      calendar: "Calendar",
+      unavailableTitle: "Links unavailable",
+      unavailableBody:
+        "These GetOblic links stay closed until your company account has a valid author mapping.",
+      noOwnCompanyTitle: "Designate your company account",
+      noOwnCompanyBody:
+        "Choose which account is your company from the Master dashboard before these links can open.",
     },
     plan: {
       title: "Your Licensee Plan",

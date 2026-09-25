@@ -17,3 +17,8 @@ body {
   background: var(--athena-bg);
   color: #ffffff;
 }
+
+/* Unlayered so it overrides Google's injected .pac-logo::after attribution. */
+.pac-container.pac-logo::after {
+  display: none !important;
+}

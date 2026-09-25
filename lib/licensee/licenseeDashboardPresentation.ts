@@ -87,6 +87,8 @@ export const LICENSEE_ESTIMATE_CARD_CLASS = `block rounded-[24px] border border-
 
 export const LICENSEE_QUOTE_CARD_CLASS = `block rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] px-5 py-5 transition ${LICENSEE_CARD_SURFACE.violet}`;
 
+export const LICENSEE_USEFUL_LINKS_CARD_CLASS = `mb-8 block rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] px-5 py-5 transition ${LICENSEE_CARD_SURFACE.orange}`;
+
 export const LICENSEE_PLAN_TITLE = "Your Licensee Plan";
 export const LICENSEE_PLAN_LANGUAGE_LABEL = "Default Language";
 export const LICENSEE_PLAN_LANGUAGE_SUPPORT = "Default for new sub-accounts";

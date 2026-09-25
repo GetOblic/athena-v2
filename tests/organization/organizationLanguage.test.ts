@@ -440,6 +440,7 @@ describe("V31 L1 organization language — Brain display and isolation", () => {
     const allowlisted = new Set([
       "services/organizationLanguage.ts",
       "services/organizationService.ts",
+      "services/googleBusiness/googleBusinessMakeService.ts",
       "services/licensee/licenseeIdentity.ts",
       "services/licensee/licenseeSubAccounts.ts",
       "services/superAdmin/superAdminAccounts.ts",

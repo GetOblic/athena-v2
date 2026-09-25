@@ -55,6 +55,14 @@ const SECTION_LABEL_KEYS = [
   "intelligence",
   "prospectTools",
   "getoblicDirectory",
+  "getoblicFunnel",
+] as const;
+
+const FUNNEL_LABEL_KEYS = [
+  "getoblicFunnel",
+  "getoblicFunnelAiAgents",
+  "getoblicFunnelVirtualPhone",
+  "getoblicFunnelCalendar",
 ] as const;
 
 const CREATE_AUDIENCE_KEYS = [
@@ -252,6 +260,22 @@ describe("Prospect detail presentation", () => {
           `${language}.detail.${key} empty`,
         );
       }
+      for (const key of FUNNEL_LABEL_KEYS) {
+        assert.equal(
+          typeof DICTIONARIES[language].prospects.detail[key],
+          "string",
+          `${language}.detail.${key}`,
+        );
+        assert.ok(
+          DICTIONARIES[language].prospects.detail[key].trim(),
+          `${language}.detail.${key} empty`,
+        );
+        assert.match(
+          DICTIONARIES[language].prospects.detail.getoblicFunnel,
+          /GetOblic/,
+          `${language}.detail.getoblicFunnel`,
+        );
+      }
       for (const key of CREATE_AUDIENCE_KEYS) {
         assert.equal(
           typeof DICTIONARIES[language].prospects.detail[key],
@@ -285,6 +309,13 @@ describe("Prospect detail presentation", () => {
         en.prospects.detail.getoblicDirectory,
         `${language}.detail.getoblicDirectory`,
       );
+      for (const key of FUNNEL_LABEL_KEYS) {
+        assert.notEqual(
+          DICTIONARIES[language].prospects.detail[key],
+          en.prospects.detail[key],
+          `${language}.detail.${key}`,
+        );
+      }
       assert.notEqual(
         DICTIONARIES[language].prospects.detail.createAudienceFromProspect,
         en.prospects.detail.createAudienceFromProspect,
@@ -499,6 +530,7 @@ describe("Prospect detail presentation", () => {
     assert.match(html, /data-prospect-header-actions="tools"/);
     assert.doesNotMatch(html, /data-prospect-header-actions="lifecycle"/);
     assert.doesNotMatch(html, /data-prospect-header-actions="directory"/);
+    assert.doesNotMatch(html, /data-prospect-header-actions="funnel"/);
     assert.doesNotMatch(html, /data-prospect-header-actions="destructive"/);
     assert.equal(
       (html.match(new RegExp(en.prospects.detail.intelligence, "g")) ?? []).length,
@@ -561,5 +593,97 @@ describe("Prospect detail presentation", () => {
     assert.match(html, new RegExp(en.prospects.detail.prospectTools));
     assert.doesNotMatch(html, /data-prospect-header-actions="primary"/);
     assert.doesNotMatch(html, /data-prospect-header-actions="create-audience"/);
+  });
+
+  it("places GetOblic Funnel after Directory and omits the group when unavailable", () => {
+    const header = read("components/prospects/ProspectDetailHeader.tsx");
+    const directorySlot = header.indexOf('name="directory"');
+    const funnelSlot = header.indexOf('name="funnel"');
+    assert.ok(directorySlot > 0);
+    assert.ok(funnelSlot > directorySlot);
+    assert.match(header, /PROSPECT_CTA_GROUP_LABEL/);
+    assert.match(header, /funnelAction \?/);
+
+    const withFunnel = renderToStaticMarkup(
+      createElement(
+        ProspectDetailHeader,
+        headerProps({
+          lifecycleAction: createElement(
+            "div",
+            { "data-prospect-header-action": "lifecycle" },
+            "Working status",
+          ),
+          directoryAction: createElement(
+            "button",
+            { type: "button" },
+            "Send Description to GetOblic",
+          ),
+          funnelGroupLabel: en.prospects.detail.getoblicFunnel,
+          funnelAction: createElement(
+            "a",
+            {
+              href: "https://claim.getoblic.com/business-portfolio-ai-agent-page",
+              "data-prospect-header-action": "getoblic-funnel-ai-agents",
+            },
+            "AI Agents",
+          ),
+        }),
+      ),
+    );
+    const groups = [
+      ...withFunnel.matchAll(/data-prospect-header-actions="([^"]+)"/g),
+    ].map((match) => match[1]);
+    const intelligence = withFunnel.indexOf(
+      'data-prospect-header-actions="intelligence"',
+    );
+    const tools = withFunnel.indexOf('data-prospect-header-actions="tools"');
+    const lifecycle = withFunnel.indexOf(
+      'data-prospect-header-actions="lifecycle"',
+    );
+    const directory = withFunnel.indexOf(
+      'data-prospect-header-actions="directory"',
+    );
+    const funnel = withFunnel.indexOf('data-prospect-header-actions="funnel"');
+
+    assert.deepEqual(groups, [
+      "intelligence",
+      "tools",
+      "lifecycle",
+      "directory",
+      "funnel",
+    ]);
+    assert.ok(intelligence < tools);
+    assert.ok(tools < lifecycle);
+    assert.ok(lifecycle < directory);
+    assert.ok(directory < funnel);
+    assert.match(withFunnel, new RegExp(en.prospects.detail.getoblicFunnel));
+    assert.match(
+      withFunnel,
+      new RegExp(PROSPECT_CTA_GROUP_LABEL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
+
+    const omitted = renderToStaticMarkup(
+      createElement(
+        ProspectDetailHeader,
+        headerProps({
+          lifecycleAction: createElement("div", null, "Working status"),
+          directoryAction: createElement("button", { type: "button" }, "Directory"),
+          funnelGroupLabel: en.prospects.detail.getoblicFunnel,
+          funnelAction: null,
+        }),
+      ),
+    );
+    const omittedGroups = [
+      ...omitted.matchAll(/data-prospect-header-actions="([^"]+)"/g),
+    ].map((match) => match[1]);
+    assert.deepEqual(omittedGroups, [
+      "intelligence",
+      "tools",
+      "lifecycle",
+      "directory",
+    ]);
+    assert.doesNotMatch(omitted, /data-prospect-header-actions="funnel"/);
+    assert.doesNotMatch(omitted, /GetOblic Funnel/);
+    assert.doesNotMatch(omitted, /data-prospect-header-action="getoblic-funnel-/);
   });
 });

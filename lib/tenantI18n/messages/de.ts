@@ -2849,6 +2849,10 @@ export const de: TenantMessages = {
       createAudienceRequiresIntelligence:
         "Zuerst Prospect-Intelligence erzeugen",
       getoblicDirectory: "GetOblic-Verzeichnis",
+      getoblicFunnel: "GetOblic-Trichter",
+      getoblicFunnelAiAgents: "KI-Agenten",
+      getoblicFunnelVirtualPhone: "Virtuelles Telefon",
+      getoblicFunnelCalendar: "Kalender",
       releaseGetOblicListing: "GetOblic-Listing freigeben",
       releaseGetOblicConfirm:
         "Dieses GetOblic-Listing wird ins gemeinsame GetOblic-Inventar zurückgegeben. Es zählt dann nicht mehr zur Listing-Kapazität dieses Kontos. Der Prospect und die Athena-Recherche und Intelligence bleiben erhalten.",
@@ -4491,6 +4495,9 @@ export const de: TenantMessages = {
       quoteTitle: "Athena Quote",
       quoteDescription:
         "Reichen Sie Kundenarbeit für eine vertrauliche GetOblic-Umsetzungspreisangabe ein.",
+      usefulLinksTitle: "Nützliche Links",
+      usefulLinksDescription:
+        "Öffnen Sie die GetOblic-Werkzeuge Ihres eigenen Unternehmens: KI-Agenten, virtuelles Telefon und Kalender.",
       emptyTitle: "Ihr Unternehmenskonto anlegen",
       emptyBody:
         "Das wird der Athena-Arbeitsbereich, mit dem Sie Ihr eigenes Unternehmen wachsen lassen.",
@@ -4508,6 +4515,20 @@ export const de: TenantMessages = {
       noPinned: "Keine angehefteten Unterkonten.",
       clientSubAccountsWillAppear: "Kunden-Unterkonten erscheinen hier.",
       allLinkedArePinned: "Alle verknüpften Unterkonten sind angeheftet.",
+    },
+    usefulLinks: {
+      title: "Nützliche Links",
+      intro:
+        "Diese GetOblic-Werkzeuge öffnen sich für das Unternehmenskonto, das Sie im Master-Dashboard festgelegt haben.",
+      aiAgents: "KI-Agenten",
+      virtualPhone: "Virtuelles Telefon",
+      calendar: "Kalender",
+      unavailableTitle: "Links nicht verfügbar",
+      unavailableBody:
+        "Diese GetOblic-Links bleiben geschlossen, bis Ihrem Unternehmenskonto ein gültiger Autor zugeordnet ist.",
+      noOwnCompanyTitle: "Legen Sie Ihr Unternehmenskonto fest",
+      noOwnCompanyBody:
+        "Legen Sie im Master-Dashboard fest, welches Konto Ihr Unternehmen ist, bevor diese Links geöffnet werden können.",
     },
     plan: {
       title: "Ihr Licensee-Plan",

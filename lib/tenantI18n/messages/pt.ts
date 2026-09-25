@@ -2886,6 +2886,10 @@ export const pt: TenantMessages = {
       createAudienceRequiresIntelligence:
         "Gere primeiro a inteligência do prospect",
       getoblicDirectory: "Diretório GetOblic",
+      getoblicFunnel: "Funil GetOblic",
+      getoblicFunnelAiAgents: "Agentes de IA",
+      getoblicFunnelVirtualPhone: "Telefone virtual",
+      getoblicFunnelCalendar: "Calendário",
       releaseGetOblicListing: "Libertar listing GetOblic",
       releaseGetOblicConfirm:
         "Este listing GetOblic será devolvido ao inventário GetOblic partilhado. Deixará de contar para a capacidade de listings desta conta. O Prospect e a investigação e inteligência Athena permanecerão.",
@@ -4526,6 +4530,9 @@ export const pt: TenantMessages = {
       quoteTitle: "Athena Quote",
       quoteDescription:
         "Submeta um projeto de cliente para um preço de realização GetOblic confidencial.",
+      usefulLinksTitle: "Links úteis",
+      usefulLinksDescription:
+        "Abra as ferramentas GetOblic da sua própria empresa: agentes de IA, telefone virtual e calendário.",
       emptyTitle: "Criar a conta da sua empresa",
       emptyBody:
         "Este será o espaço Athena que usará para fazer crescer o seu próprio negócio.",
@@ -4543,6 +4550,20 @@ export const pt: TenantMessages = {
       noPinned: "Nenhuma subconta afixada.",
       clientSubAccountsWillAppear: "As subcontas de clientes aparecerão aqui.",
       allLinkedArePinned: "Todas as subcontas associadas estão afixadas.",
+    },
+    usefulLinks: {
+      title: "Links úteis",
+      intro:
+        "Estas ferramentas GetOblic abrem-se para a conta da empresa que designou no painel Master.",
+      aiAgents: "Agentes de IA",
+      virtualPhone: "Telefone virtual",
+      calendar: "Calendário",
+      unavailableTitle: "Links indisponíveis",
+      unavailableBody:
+        "Estes links GetOblic permanecem fechados até a conta da sua empresa ter um autor válido.",
+      noOwnCompanyTitle: "Designe a conta da sua empresa",
+      noOwnCompanyBody:
+        "Escolha qual conta é a da sua empresa no painel Master antes de poder abrir estes links.",
     },
     plan: {
       title: "O seu plano Licensee",

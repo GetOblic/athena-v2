@@ -2859,6 +2859,10 @@ export const es: TenantMessages = {
       createAudienceRequiresIntelligence:
         "Genera primero la inteligencia del prospect",
       getoblicDirectory: "Directorio GetOblic",
+      getoblicFunnel: "Embudo GetOblic",
+      getoblicFunnelAiAgents: "Agentes de IA",
+      getoblicFunnelVirtualPhone: "Teléfono virtual",
+      getoblicFunnelCalendar: "Calendario",
       releaseGetOblicListing: "Liberar listing GetOblic",
       releaseGetOblicConfirm:
         "Este listing GetOblic volverá al inventario compartido de GetOblic. Dejará de contar en la capacidad de listings de esta cuenta. El Prospect y la investigación e inteligencia de Athena permanecerán.",
@@ -4500,6 +4504,9 @@ export const es: TenantMessages = {
       quoteTitle: "Athena Quote",
       quoteDescription:
         "Envía un proyecto cliente para un precio de realización GetOblic confidencial.",
+      usefulLinksTitle: "Enlaces útiles",
+      usefulLinksDescription:
+        "Abre las herramientas GetOblic de tu propia empresa: agentes de IA, teléfono virtual y calendario.",
       emptyTitle: "Crear la cuenta de tu empresa",
       emptyBody:
         "Este será el espacio Athena que usarás para hacer crecer tu propio negocio.",
@@ -4517,6 +4524,20 @@ export const es: TenantMessages = {
       noPinned: "No hay subcuentas fijadas.",
       clientSubAccountsWillAppear: "Las subcuentas de clientes aparecerán aquí.",
       allLinkedArePinned: "Todas las subcuentas vinculadas están fijadas.",
+    },
+    usefulLinks: {
+      title: "Enlaces útiles",
+      intro:
+        "Estas herramientas GetOblic se abren para la cuenta de empresa que designaste en el panel Master.",
+      aiAgents: "Agentes de IA",
+      virtualPhone: "Teléfono virtual",
+      calendar: "Calendario",
+      unavailableTitle: "Enlaces no disponibles",
+      unavailableBody:
+        "Estos enlaces de GetOblic permanecen cerrados hasta que la cuenta de tu empresa tenga un autor válido.",
+      noOwnCompanyTitle: "Designa la cuenta de tu empresa",
+      noOwnCompanyBody:
+        "Elige qué cuenta es la de tu empresa desde el panel Master antes de poder abrir estos enlaces.",
     },
     plan: {
       title: "Tu plan Licensee",

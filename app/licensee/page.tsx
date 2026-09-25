@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
 import { LicenseeDashboardClient } from "@/components/licensee/LicenseeDashboardClient";
 import { LicenseePlanSection } from "@/components/licensee/LicenseePlanSection";
+import { LicenseeUsefulLinksCard } from "@/components/licensee/LicenseeUsefulLinksCard";
 import { getLicenseeLocalization } from "@/lib/licensee/getLicenseeLocalization";
 import {
   buildLicenseePlanView,
@@ -131,6 +132,8 @@ export default async function LicenseeMasterPage({
             subAccountFeeLabel: messages.plan.subAccountFee,
           }}
         />
+
+        <LicenseeUsefulLinksCard messages={messages} />
 
         <LicenseeDashboardClient
           initialItems={dashboardItems}

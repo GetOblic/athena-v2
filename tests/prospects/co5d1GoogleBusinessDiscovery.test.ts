@@ -8,8 +8,9 @@ import "../getoblicDirectory/getoblicDirectoryTestEnv";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { flattenGoogleBusinessPlace } from "../../lib/googlePlaces/flattenGoogleBusiness";
+import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import { GOOGLE_BUSINESS_ADD_ACTION } from "../../lib/googlePlaces/googlePlacesTypes";
 import type { GooglePlaceResult } from "../../lib/googlePlaces/googlePlacesTypes";
 import { de } from "../../lib/tenantI18n/messages/de";
@@ -32,8 +33,10 @@ import {
 
 const ROOT = process.cwd();
 const ORG_A = "11111111-1111-1111-1111-111111111111";
+const ORG_B = "22222222-2222-2222-2222-222222222222";
 const WEBHOOK = "https://hook.example.test/google-business";
 const originalFetch = globalThis.fetch;
+const originalFrom = supabaseAdmin.from.bind(supabaseAdmin);
 
 const DICTIONARIES = { en, fr, es, it: itMessages, de, pt } as const;
 
@@ -93,6 +96,71 @@ function validPayload(overrides: Record<string, unknown> = {}) {
     timezone: "-300",
     ...overrides,
   };
+}
+
+function installOrganizationLanguages(
+  languages: Record<string, string | null | undefined>,
+): { ids: string[] } {
+  const ids: string[] = [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (supabaseAdmin as any).from = (table: string) => {
+    const filters: Record<string, string> = {};
+    const builder = {
+      select: () => builder,
+      eq: (column: string, value: string) => {
+        filters[column] = value;
+        return builder;
+      },
+      maybeSingle: async () => {
+        if (table !== "organizations") {
+          return { data: null, error: null };
+        }
+        const id = filters.id ?? "";
+        ids.push(id);
+        if (!Object.hasOwn(languages, id)) {
+          return { data: null, error: null };
+        }
+        return { data: { id, language: languages[id] }, error: null };
+      },
+    };
+    return builder;
+  };
+
+  return { ids };
+}
+
+function restoreSupabaseAdmin() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (supabaseAdmin as any).from = originalFrom;
+}
+
+async function captureMakeQuery(
+  organizationId: string,
+  payloadOverrides: Record<string, unknown> = {},
+): Promise<URL> {
+  let url = "";
+  await addGoogleBusinessListing(
+    {
+      organizationId,
+      payload: validPayload(payloadOverrides),
+    },
+    {
+      getSettings: async (requestedOrganizationId) => {
+        assert.equal(requestedOrganizationId, organizationId);
+        return settingsResult(42);
+      },
+      readWebhookUrl: () => WEBHOOK,
+      fetchImpl: (async (input) => {
+        url = String(input);
+        return new Response(
+          JSON.stringify({ listing_id: "8801", google_id: "ChIJexamplePlace" }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }) as typeof fetch,
+    },
+  );
+  return new URL(url);
 }
 
 function placeFixture(): GooglePlaceResult {
@@ -389,6 +457,14 @@ describe("CO-5D1 security and D1 boundaries", () => {
 });
 
 describe("CO-5D1 server Make integration", () => {
+  beforeEach(() => {
+    installOrganizationLanguages({ [ORG_A]: "en" });
+  });
+
+  afterEach(() => {
+    restoreSupabaseAdmin();
+  });
+
   it("sanitizes the client payload and ignores tenant identifiers", () => {
     const sanitized = sanitizeGoogleBusinessPayload(
       validPayload({
@@ -409,6 +485,17 @@ describe("CO-5D1 server Make integration", () => {
     assert.equal(Object.hasOwn(sanitized, "extra"), false);
     assert.throws(
       () => sanitizeGoogleBusinessPayload({ company_name: "X" }),
+      (error: unknown) => {
+        assert.ok(error instanceof GoogleBusinessMakeError);
+        assert.equal(error.code, "GOOGLE_BUSINESS_INVALID_PAYLOAD");
+        return true;
+      },
+    );
+    assert.throws(
+      () =>
+        sanitizeGoogleBusinessPayload(
+          validPayload({ action: "FR", funnel_name: "athena_FR" }),
+        ),
       (error: unknown) => {
         assert.ok(error instanceof GoogleBusinessMakeError);
         assert.equal(error.code, "GOOGLE_BUSINESS_INVALID_PAYLOAD");
@@ -450,13 +537,16 @@ describe("CO-5D1 server Make integration", () => {
     assert.equal(calls[0]?.init?.method, "GET");
     const url = new URL(calls[0]!.url);
     assert.equal(url.origin + url.pathname, WEBHOOK);
-    assert.equal(url.searchParams.get("action"), "business_add_listing_google");
+    assert.equal(url.searchParams.get("action"), "EN");
     assert.equal(url.searchParams.get("company_name"), "Oak Street Salon");
     assert.equal(url.searchParams.get("google_id"), "ChIJexamplePlace");
     assert.equal(url.searchParams.get("author_id"), "42");
     assert.notEqual(url.searchParams.get("author_id"), "999");
     assert.equal(url.searchParams.get("organization_id"), null);
-    assert.equal(url.searchParams.get("funnel_name"), "athena");
+    assert.equal(
+      url.searchParams.get("funnel_name"),
+      "business_add_listing_google_EN",
+    );
     assert.notEqual(url.searchParams.get("funnel_name"), "browser-override");
     assert.equal(url.searchParams.get("city"), "Dallas");
     assert.equal(url.searchParams.get("state"), "TX");
@@ -516,7 +606,12 @@ describe("CO-5D1 server Make integration", () => {
     const url = new URL(calls[0]!.url);
     assert.equal(url.searchParams.get("opening_hours"), "");
     assert.equal(url.searchParams.get("opening_hours_json"), '{"periods":[]}');
-    assert.equal(url.searchParams.get("funnel_name"), "athena");
+    assert.equal(url.searchParams.get("action"), "EN");
+    assert.equal(
+      url.searchParams.get("funnel_name"),
+      "business_add_listing_google_EN",
+    );
+    assert.notEqual(url.searchParams.get("funnel_name"), "browser-override");
     assert.equal(url.searchParams.get("author_id"), "42");
   });
 
@@ -727,7 +822,165 @@ describe("CO-5D1 server Make integration", () => {
     assert.match(service, /method: "GET"/);
     assert.match(service, /Never log the webhook URL or query string/);
     assert.match(service, /funnel_name/);
-    assert.match(service, /GOOGLE_BUSINESS_FUNNEL_NAME/);
+    assert.doesNotMatch(service, /GOOGLE_BUSINESS_FUNNEL_NAME/);
+    assert.match(service, /resolveOrganizationLanguage\(organizationId\)/);
+    assert.match(service, /language\.toUpperCase\(\)/);
+    assert.match(
+      service,
+      /params\.set\("action", languageCode\)/,
+    );
+    assert.match(
+      service,
+      /\$\{GOOGLE_BUSINESS_ADD_ACTION\}_\$\{languageCode\}/,
+    );
+    const makeTypes = read(
+      "services/googleBusiness/googleBusinessMakeTypes.ts",
+    );
+    assert.doesNotMatch(makeTypes, /GOOGLE_BUSINESS_FUNNEL_NAME/);
+    assert.match(service, /action !== GOOGLE_BUSINESS_ADD_ACTION/);
+    assert.doesNotMatch(service, /params\.set\("action", payload\.action\)/);
+    assert.doesNotMatch(service, /accept-language|navigator\.language|document\.cookie/i);
+    assert.doesNotMatch(service, /default_language/);
+    assert.doesNotMatch(service, /payload\.language|raw\.language|body\.language/);
+    assert.doesNotMatch(service, /raw\.organizationId|raw\.organization_id|payload\.organizationId/);
+    const payloadType = read("lib/googlePlaces/googlePlacesTypes.ts");
+    assert.match(payloadType, /action: GoogleBusinessAction/);
+    assert.doesNotMatch(payloadType, /funnel_name/);
+    const flatten = read("lib/googlePlaces/flattenGoogleBusiness.ts");
+    assert.match(flatten, /action: GOOGLE_BUSINESS_ADD_ACTION/);
+  });
+
+  it("sends FR and business_add_listing_google_FR when organizations.language is fr", async () => {
+    installOrganizationLanguages({ [ORG_A]: "fr" });
+    const url = await captureMakeQuery(ORG_A, {
+      action: GOOGLE_BUSINESS_ADD_ACTION,
+      funnel_name: "athena_FR",
+      language: "en",
+    });
+    assert.equal(url.searchParams.get("action"), "FR");
+    assert.equal(
+      url.searchParams.get("funnel_name"),
+      "business_add_listing_google_FR",
+    );
+  });
+
+  it("sends EN and business_add_listing_google_EN when organizations.language is en", async () => {
+    installOrganizationLanguages({ [ORG_A]: "en" });
+    const url = await captureMakeQuery(ORG_A, {
+      funnel_name: "athena",
+      language: "fr",
+    });
+    assert.equal(url.searchParams.get("action"), "EN");
+    assert.equal(
+      url.searchParams.get("funnel_name"),
+      "business_add_listing_google_EN",
+    );
+  });
+
+  it("sends the remaining supported organization languages on the Make query", async () => {
+    const cases = [
+      ["es", "ES", "business_add_listing_google_ES"],
+      ["it", "IT", "business_add_listing_google_IT"],
+      ["de", "DE", "business_add_listing_google_DE"],
+      ["pt", "PT", "business_add_listing_google_PT"],
+    ] as const;
+
+    for (const [language, action, funnelName] of cases) {
+      installOrganizationLanguages({ [ORG_A]: language });
+      const url = await captureMakeQuery(ORG_A, {
+        funnel_name: "athena_FR",
+        language: "fr",
+      });
+      assert.equal(url.searchParams.get("action"), action);
+      assert.equal(url.searchParams.get("funnel_name"), funnelName);
+    }
+  });
+
+  it("does not let a browser language action or funnel_name become Make authority", async () => {
+    let fetched = false;
+    await assert.rejects(
+      () =>
+        addGoogleBusinessListing(
+          {
+            organizationId: ORG_A,
+            payload: validPayload({
+              action: "FR",
+              funnel_name: "athena_FR",
+            }),
+          },
+          {
+            getSettings: async () => settingsResult(42),
+            readWebhookUrl: () => WEBHOOK,
+            fetchImpl: (async () => {
+              fetched = true;
+              return new Response("{}", { status: 200 });
+            }) as typeof fetch,
+          },
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof GoogleBusinessMakeError);
+        assert.equal(error.code, "GOOGLE_BUSINESS_INVALID_PAYLOAD");
+        return true;
+      },
+    );
+    assert.equal(fetched, false);
+
+    installOrganizationLanguages({ [ORG_A]: "en" });
+    const url = await captureMakeQuery(ORG_A, {
+      action: GOOGLE_BUSINESS_ADD_ACTION,
+      funnel_name: "athena_FR",
+    });
+    assert.equal(url.searchParams.get("action"), "EN");
+    assert.equal(
+      url.searchParams.get("funnel_name"),
+      "business_add_listing_google_EN",
+    );
+    assert.notEqual(url.searchParams.get("funnel_name"), "athena_FR");
+  });
+
+  it("uses the server organization language when the body claims another organization", async () => {
+    const lookups = installOrganizationLanguages({
+      [ORG_A]: "fr",
+      [ORG_B]: "en",
+    });
+    let settingsOrganizationId = "";
+    let url = "";
+    await addGoogleBusinessListing(
+      {
+        organizationId: ORG_A,
+        payload: validPayload({
+          organization_id: ORG_B,
+          organizationId: ORG_B,
+          language: "en",
+          funnel_name: "athena_EN",
+        }),
+      },
+      {
+        getSettings: async (organizationId) => {
+          settingsOrganizationId = organizationId;
+          return settingsResult(42);
+        },
+        readWebhookUrl: () => WEBHOOK,
+        fetchImpl: (async (input) => {
+          url = String(input);
+          return new Response(
+            JSON.stringify({ listing_id: "8801", google_id: "ChIJexamplePlace" }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }) as typeof fetch,
+      },
+    );
+
+    const requestUrl = new URL(url);
+    assert.equal(settingsOrganizationId, ORG_A);
+    assert.deepEqual(lookups.ids, [ORG_A]);
+    assert.equal(requestUrl.searchParams.get("action"), "FR");
+    assert.equal(
+      requestUrl.searchParams.get("funnel_name"),
+      "business_add_listing_google_FR",
+    );
+    assert.notEqual(requestUrl.searchParams.get("funnel_name"), "athena_EN");
+    assert.equal(requestUrl.searchParams.get("organization_id"), null);
   });
 });
 

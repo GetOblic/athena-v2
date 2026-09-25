@@ -2848,6 +2848,10 @@ export const fr: TenantMessages = {
       createAudienceRequiresIntelligence:
         "Générez d’abord l’intelligence prospect",
       getoblicDirectory: "Répertoire GetOblic",
+      getoblicFunnel: "Tunnel GetOblic",
+      getoblicFunnelAiAgents: "Agents IA",
+      getoblicFunnelVirtualPhone: "Téléphone virtuel",
+      getoblicFunnelCalendar: "Calendrier",
       releaseGetOblicListing: "Libérer le listing GetOblic",
       releaseGetOblicConfirm:
         "Ce listing GetOblic sera renvoyé à l’inventaire GetOblic partagé. Il ne comptera plus dans la capacité de listings de ce compte. Le Prospect et les recherches et l’intelligence Athena resteront.",
@@ -4491,6 +4495,9 @@ export const fr: TenantMessages = {
       quoteTitle: "Athena Quote",
       quoteDescription:
         "Soumettez un projet client pour un prix de réalisation GetOblic confidentiel.",
+      usefulLinksTitle: "Liens utiles",
+      usefulLinksDescription:
+        "Ouvrez les outils GetOblic de votre propre entreprise : agents IA, téléphone virtuel et calendrier.",
       emptyTitle: "Créer le compte de votre entreprise",
       emptyBody:
         "Ce sera l’espace Athena que vous utiliserez pour développer votre propre activité.",
@@ -4508,6 +4515,20 @@ export const fr: TenantMessages = {
       noPinned: "Aucun sous-compte épinglé.",
       clientSubAccountsWillAppear: "Les sous-comptes clients apparaîtront ici.",
       allLinkedArePinned: "Tous les sous-comptes liés sont épinglés.",
+    },
+    usefulLinks: {
+      title: "Liens utiles",
+      intro:
+        "Ces outils GetOblic s’ouvrent pour le compte entreprise que vous avez désigné dans le tableau de bord Master.",
+      aiAgents: "Agents IA",
+      virtualPhone: "Téléphone virtuel",
+      calendar: "Calendrier",
+      unavailableTitle: "Liens indisponibles",
+      unavailableBody:
+        "Ces liens GetOblic restent fermés tant que le compte de votre entreprise n’a pas d’auteur valide.",
+      noOwnCompanyTitle: "Désignez le compte de votre entreprise",
+      noOwnCompanyBody:
+        "Choisissez le compte de votre entreprise depuis le tableau de bord Master avant de pouvoir ouvrir ces liens.",
     },
     plan: {
       title: "Votre offre Licensee",

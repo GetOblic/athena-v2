@@ -18,11 +18,16 @@ import { ProspectConvertToClientAction } from "@/components/prospects/ProspectCo
 import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectLifecycleStatusControl";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import { ProspectDeepScrapeWebsiteButton } from "@/components/prospects/ProspectDeepScrapeWebsiteButton";
+import { GetOblicFunnelControls } from "@/components/prospects/GetOblicFunnelControls";
 import { GetOblicListingOutboundControls } from "@/components/prospects/GetOblicListingOutboundControls";
 import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicListingReleaseControl";
 import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
 import { ProspectCreateAudienceButton } from "@/components/prospects/ProspectCreateAudienceButton";
 import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
+import {
+  buildGetOblicFunnelPresentation,
+  readLinkedGetOblicFunnelContactId,
+} from "@/lib/prospects/getOblicFunnelPresentation";
 import { shouldShowGetOblicListingReleaseAction } from "@/lib/prospects/getOblicListingReleasePresentation";
 import { shouldShowProspectCreateAudience } from "@/lib/personas/freeAudiencePresentation";
 import {
@@ -72,6 +77,7 @@ import { getProspectClientConversionState } from "@/services/licensee/licenseePr
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { hasCurrentKnowledgeBaseAsset } from "@/services/getoblicDirectory/getoblicDirectoryKnowledgeBaseService";
 import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
+import { resolveLicenseeOwnCompanyGetOblicAuthorId } from "@/services/prospects/getOblicFunnelAuthor";
 import { readObservedListingDescription } from "@/services/prospects/prospectGetoblicDescription";
 import { isGetOblicDerivedProspect } from "@/services/prospects/prospectGetOblicOwnership";
 import { loadFreeAudiencePageState } from "@/services/personas/freeAudiencePageState";
@@ -207,12 +213,25 @@ export default async function ProspectDetailsPage({
     }),
   );
   const websiteHref = normalizeWebsiteUrl(prospect.website);
-  const [activeGetOblicLink, conversionState, canConvertProspectToClient] =
-    await Promise.all([
-      getActiveGetOblicLinkForProspect(organizationId, prospect.id),
-      getProspectClientConversionState(prospect.id),
-      isLicenseeOwnCompanyOrganization(organizationId),
-    ]);
+  const [
+    activeGetOblicLink,
+    conversionState,
+    canConvertProspectToClient,
+    licenseeOwnCompanyAuthor,
+  ] = await Promise.all([
+    getActiveGetOblicLinkForProspect(organizationId, prospect.id),
+    getProspectClientConversionState(prospect.id),
+    isLicenseeOwnCompanyOrganization(organizationId),
+    resolveLicenseeOwnCompanyGetOblicAuthorId(organizationId),
+  ]);
+  const getOblicFunnel = licenseeOwnCompanyAuthor
+    ? buildGetOblicFunnelPresentation({
+        authorId: licenseeOwnCompanyAuthor.authorId,
+        contactId: readLinkedGetOblicFunnelContactId(activeGetOblicLink),
+        businessName: prospect.business_name.trim(),
+        licenseeDefaultLanguage: licenseeOwnCompanyAuthor.licenseeDefaultLanguage,
+      })
+    : null;
   const getoblicDerived = isGetOblicDerivedProspect(prospect);
   const hasActiveGetOblicOwnership = activeGetOblicLink != null;
   const showGetOblicOutbound =
@@ -428,6 +447,19 @@ export default async function ProspectDetailsPage({
                 />
               ) : null}
             </>
+          ) : null
+        }
+        funnelGroupLabel={copy.detail.getoblicFunnel}
+        funnelAction={
+          getOblicFunnel ? (
+            <GetOblicFunnelControls
+              aiAgentsHref={getOblicFunnel.aiAgentsHref}
+              virtualPhoneHref={getOblicFunnel.virtualPhoneHref}
+              calendarHref={getOblicFunnel.calendarHref}
+              aiAgentsLabel={copy.detail.getoblicFunnelAiAgents}
+              virtualPhoneLabel={copy.detail.getoblicFunnelVirtualPhone}
+              calendarLabel={copy.detail.getoblicFunnelCalendar}
+            />
           ) : null
         }
       />

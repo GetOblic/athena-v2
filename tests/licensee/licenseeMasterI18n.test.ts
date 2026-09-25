@@ -76,6 +76,17 @@ describe("Licensee Master i18n — catalog", () => {
     const canonical = collectKeyPaths(en.licensee);
     assert.ok(canonical.includes("common.logout"));
     assert.ok(canonical.includes("plan.defaultLanguage"));
+    assert.ok(canonical.includes("dashboard.usefulLinksTitle"));
+    assert.ok(canonical.includes("dashboard.usefulLinksDescription"));
+    assert.ok(canonical.includes("usefulLinks.title"));
+    assert.ok(canonical.includes("usefulLinks.intro"));
+    assert.ok(canonical.includes("usefulLinks.aiAgents"));
+    assert.ok(canonical.includes("usefulLinks.virtualPhone"));
+    assert.ok(canonical.includes("usefulLinks.calendar"));
+    assert.ok(canonical.includes("usefulLinks.unavailableTitle"));
+    assert.ok(canonical.includes("usefulLinks.unavailableBody"));
+    assert.ok(canonical.includes("usefulLinks.noOwnCompanyTitle"));
+    assert.ok(canonical.includes("usefulLinks.noOwnCompanyBody"));
     assert.ok(canonical.includes("estimate.heroTitle"));
     assert.ok(canonical.includes("estimateAskAthena.title"));
     assert.ok(canonical.includes("quote.heroTitle"));
@@ -95,6 +106,21 @@ describe("Licensee Master i18n — catalog", () => {
       );
       for (const leaf of collectLeaves(DICTIONARIES[language].licensee)) {
         assert.ok(leaf.text.trim().length > 0, `${language} ${leaf.path}`);
+      }
+      const links = DICTIONARIES[language].licensee.usefulLinks;
+      assert.match(links.intro, /GetOblic/);
+      assert.match(links.unavailableBody, /GetOblic/);
+      assert.match(DICTIONARIES[language].licensee.dashboard.usefulLinksDescription, /GetOblic/);
+      assert.doesNotMatch(
+        `${links.intro} ${links.unavailableBody} ${DICTIONARIES[language].licensee.dashboard.usefulLinksDescription}`,
+        /Getoblic|GETOBLIC/,
+      );
+      if (language !== "en") {
+        assert.notEqual(links.title, en.licensee.usefulLinks.title);
+        assert.notEqual(
+          links.unavailableTitle,
+          en.licensee.usefulLinks.unavailableTitle,
+        );
       }
     }
   });
@@ -339,6 +365,31 @@ describe("Licensee Master i18n — isolation", () => {
   });
 });
 
+describe("Licensee Master i18n — Useful Links", () => {
+  it("dashboard card and destination page use the Master catalog", () => {
+    const page = read("app/licensee/page.tsx");
+    const destination = read("app/licensee/useful-links/page.tsx");
+    const card = read("components/licensee/LicenseeUsefulLinksCard.tsx");
+    const panel = read("components/licensee/LicenseeUsefulLinksPanel.tsx");
+    assert.match(page, /LicenseeUsefulLinksCard/);
+    assert.match(card, /messages\.dashboard\.usefulLinksTitle/);
+    assert.match(card, /messages\.dashboard\.usefulLinksDescription/);
+    assert.match(card, /messages\.common\.open/);
+    assert.match(destination, /getLicenseeLocalization/);
+    assert.match(destination, /licenseeAccount\.default_language/);
+    assert.match(destination, /messages\.brand\.businessLicensee/);
+    assert.match(destination, /messages\.usefulLinks\.title/);
+    assert.match(destination, /messages\.usefulLinks\.intro/);
+    assert.match(destination, /messages\.common\.backToMasterDashboard/);
+    assert.match(panel, /messages\.usefulLinks\.aiAgents/);
+    assert.match(panel, /messages\.usefulLinks\.virtualPhone/);
+    assert.match(panel, /messages\.usefulLinks\.calendar/);
+    assert.match(panel, /messages\.usefulLinks\.unavailableTitle/);
+    assert.match(panel, /messages\.usefulLinks\.noOwnCompanyTitle/);
+    assert.match(panel, /messages\.common\.open/);
+  });
+});
+
 describe("Licensee Master i18n — hard-coded copy audit", () => {
   it("catches new raw English Licensee UI literals outside documented exceptions", () => {
     const allowed = [
@@ -368,14 +419,22 @@ describe("Licensee Master i18n — hard-coded copy audit", () => {
       "Create Sub-account",
       "Your Licensee Plan",
       "Master dashboard",
+      "Useful Links",
+      "Links unavailable",
+      "AI Agents",
+      "Virtual Phone",
+      "Calendar",
     ];
     const surfaces = [
       "app/licensee/page.tsx",
       "app/licensee/estimate/page.tsx",
       "app/licensee/quote/page.tsx",
+      "app/licensee/useful-links/page.tsx",
       "app/licensee/sub-accounts/new/page.tsx",
       "components/licensee/LicenseeDashboardClient.tsx",
       "components/licensee/LicenseePlanSection.tsx",
+      "components/licensee/LicenseeUsefulLinksCard.tsx",
+      "components/licensee/LicenseeUsefulLinksPanel.tsx",
       "components/licensee/estimate/LicenseeEstimateClient.tsx",
       "components/licensee/BackToMasterCta.tsx",
     ];

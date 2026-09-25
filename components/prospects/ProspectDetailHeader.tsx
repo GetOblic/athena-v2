@@ -50,10 +50,12 @@ type ProspectDetailHeaderProps = {
   lifecycleAction: ReactNode;
   clientConversionAction?: ReactNode;
   directoryAction?: ReactNode;
+  funnelAction?: ReactNode;
   createAudienceAction?: ReactNode;
   intelligenceGroupLabel: string;
   prospectToolsLabel: string;
   directoryGroupLabel: string;
+  funnelGroupLabel?: string;
   showAskAthena?: boolean;
   showEditProfile?: boolean;
   showAddObservation?: boolean;
@@ -107,10 +109,12 @@ export function ProspectDetailHeader({
   lifecycleAction,
   clientConversionAction = null,
   directoryAction = null,
+  funnelAction = null,
   createAudienceAction = null,
   intelligenceGroupLabel,
   prospectToolsLabel,
   directoryGroupLabel,
+  funnelGroupLabel = "",
   showAskAthena = true,
   showEditProfile = true,
   showAddObservation = true,
@@ -278,6 +282,12 @@ export function ProspectDetailHeader({
             label={directoryGroupLabel}
           >
             {directoryAction}
+          </ProspectHeaderActionGroup>
+        ) : null}
+
+        {funnelAction ? (
+          <ProspectHeaderActionGroup name="funnel" label={funnelGroupLabel}>
+            {funnelAction}
           </ProspectHeaderActionGroup>
         ) : null}
       </div>

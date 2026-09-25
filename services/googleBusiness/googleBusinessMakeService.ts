@@ -12,13 +12,13 @@ import {
 } from "@/lib/googlePlaces/googlePlacesTypes";
 import { getGetOblicDirectorySettings } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import {
-  GOOGLE_BUSINESS_FUNNEL_NAME,
   GOOGLE_BUSINESS_MAKE_TIMEOUT_MS,
   GOOGLE_BUSINESS_MAKE_WEBHOOK_ENV,
   GoogleBusinessMakeError,
   googleBusinessMakeErrorMessage,
   type GoogleBusinessMakeResult,
 } from "@/services/googleBusiness/googleBusinessMakeTypes";
+import { resolveOrganizationLanguage } from "@/services/organizationService";
 
 const PAYLOAD_FIELD_MAX = 4_000;
 
@@ -137,9 +137,10 @@ function isAbortError(error: unknown): boolean {
 function buildMakeQuery(
   payload: GoogleBusinessPayload,
   authorId: number,
+  languageCode: string,
 ): URLSearchParams {
   const params = new URLSearchParams();
-  params.set("action", payload.action);
+  params.set("action", languageCode);
   params.set("company_name", payload.company_name);
   params.set("google_id", payload.google_id);
 
@@ -152,7 +153,7 @@ function buildMakeQuery(
 
   params.set("opening_hours", payload.opening_hours);
   params.set("opening_hours_json", payload.opening_hours_json);
-  params.set("funnel_name", GOOGLE_BUSINESS_FUNNEL_NAME);
+  params.set("funnel_name", `${GOOGLE_BUSINESS_ADD_ACTION}_${languageCode}`);
   params.set("author_id", String(authorId));
   return params;
 }
@@ -187,8 +188,9 @@ export async function addGoogleBusinessListing(
   const readWebhookUrl = deps.readWebhookUrl ?? defaultWebhookUrl;
   const timeoutMs = deps.timeoutMs ?? GOOGLE_BUSINESS_MAKE_TIMEOUT_MS;
 
+  const organizationId = input.organizationId;
   const payload = sanitizeGoogleBusinessPayload(input.payload);
-  const settingsResult = await getSettings(input.organizationId);
+  const settingsResult = await getSettings(organizationId);
 
   const authorId = settingsResult.configured
     ? readPositiveInteger(settingsResult.settings.wordpress_author_id)
@@ -210,7 +212,9 @@ export async function addGoogleBusinessListing(
     fail("GOOGLE_BUSINESS_WEBHOOK_NOT_CONFIGURED");
   }
 
-  const query = buildMakeQuery(payload, authorId);
+  const language = await resolveOrganizationLanguage(organizationId);
+  const languageCode = language.toUpperCase();
+  const query = buildMakeQuery(payload, authorId, languageCode);
   for (const [key, value] of query.entries()) {
     requestUrl.searchParams.set(key, value);
   }

@@ -371,3 +371,53 @@ export async function resolveAuthorizedSubAccountHandoff(input: {
     ownerEmail: ownerUser.user.email,
   };
 }
+
+/**
+ * Read-only controlling Licensee for a tenant organization.
+ * One LicenseeAccount per licensee_sub_accounts row, in row order, not deduped.
+ * Applies to managed clients and to the Licensee Own Company organization.
+ * Returns null when the lookup fails or a relationship row cannot be resolved.
+ * Returns [] when the organization has no Licensee relationship.
+ * Callers fail closed unless the result length is exactly one.
+ */
+export async function listControllingLicenseeAccountsForOrganization(
+  organizationId: string,
+): Promise<LicenseeAccount[] | null> {
+  const id = organizationId.trim();
+  if (!id) {
+    return [];
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("licensee_sub_accounts")
+    .select("licensee_account_id")
+    .eq("organization_id", id);
+
+  if (error) {
+    if (!isMissingLicenseeRelationError(error)) {
+      console.error(
+        "licensee_sub_accounts controlling licensee lookup failed:",
+        error,
+      );
+    }
+    return null;
+  }
+
+  const accounts: LicenseeAccount[] = [];
+  for (const row of data ?? []) {
+    const licenseeAccountId =
+      typeof row.licensee_account_id === "string"
+        ? row.licensee_account_id.trim()
+        : "";
+    if (!licenseeAccountId) {
+      return null;
+    }
+    const account = await getLicenseeAccountById(licenseeAccountId);
+    if (!account) {
+      return null;
+    }
+    accounts.push(account);
+  }
+
+  return accounts;
+}

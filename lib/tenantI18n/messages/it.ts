@@ -2841,6 +2841,10 @@ export const it: TenantMessages = {
       createAudienceRequiresIntelligence:
         "Genera prima l’intelligence del prospect",
       getoblicDirectory: "Directory GetOblic",
+      getoblicFunnel: "Imbuto GetOblic",
+      getoblicFunnelAiAgents: "Agenti IA",
+      getoblicFunnelVirtualPhone: "Telefono virtuale",
+      getoblicFunnelCalendar: "Calendario",
       releaseGetOblicListing: "Rilascia listing GetOblic",
       releaseGetOblicConfirm:
         "Questo listing GetOblic tornerà all’inventario GetOblic condiviso. Non conterà più nella capacità di listing di questo account. Il Prospect e la ricerca e l’intelligence Athena resteranno.",
@@ -4480,6 +4484,9 @@ export const it: TenantMessages = {
       quoteTitle: "Athena Quote",
       quoteDescription:
         "Invia un progetto cliente per un prezzo di realizzazione GetOblic riservato.",
+      usefulLinksTitle: "Link utili",
+      usefulLinksDescription:
+        "Apri gli strumenti GetOblic della tua azienda: agenti IA, telefono virtuale e calendario.",
       emptyTitle: "Crea l’account della tua azienda",
       emptyBody:
         "Questo sarà lo spazio Athena che userai per far crescere la tua attività.",
@@ -4497,6 +4504,20 @@ export const it: TenantMessages = {
       noPinned: "Nessun sottoconto fissato.",
       clientSubAccountsWillAppear: "I sottoconti cliente compariranno qui.",
       allLinkedArePinned: "Tutti i sottoconti collegati sono fissati.",
+    },
+    usefulLinks: {
+      title: "Link utili",
+      intro:
+        "Questi strumenti GetOblic si aprono per il conto aziendale che hai designato nel pannello Master.",
+      aiAgents: "Agenti IA",
+      virtualPhone: "Telefono virtuale",
+      calendar: "Calendario",
+      unavailableTitle: "Link non disponibili",
+      unavailableBody:
+        "Questi link GetOblic restano chiusi finché il conto della tua azienda non ha un autore valido.",
+      noOwnCompanyTitle: "Designa il conto della tua azienda",
+      noOwnCompanyBody:
+        "Scegli quale conto è quello della tua azienda dal pannello Master prima di poter aprire questi link.",
     },
     plan: {
       title: "Il tuo piano Licensee",
