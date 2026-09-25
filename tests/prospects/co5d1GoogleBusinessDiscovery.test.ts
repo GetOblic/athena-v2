@@ -502,6 +502,20 @@ describe("CO-5D1 server Make integration", () => {
         return true;
       },
     );
+    assert.throws(
+      () =>
+        sanitizeGoogleBusinessPayload(
+          validPayload({
+            action: "business_add_listing_google_FR",
+            funnel_name: "athena_FR",
+          }),
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof GoogleBusinessMakeError);
+        assert.equal(error.code, "GOOGLE_BUSINESS_INVALID_PAYLOAD");
+        return true;
+      },
+    );
   });
 
   it("resolves wordpress_author_id server-side and calls Make with GET query fields", async () => {
@@ -537,16 +551,16 @@ describe("CO-5D1 server Make integration", () => {
     assert.equal(calls[0]?.init?.method, "GET");
     const url = new URL(calls[0]!.url);
     assert.equal(url.origin + url.pathname, WEBHOOK);
-    assert.equal(url.searchParams.get("action"), "EN");
+    assert.equal(
+      url.searchParams.get("action"),
+      "business_add_listing_google_EN",
+    );
     assert.equal(url.searchParams.get("company_name"), "Oak Street Salon");
     assert.equal(url.searchParams.get("google_id"), "ChIJexamplePlace");
     assert.equal(url.searchParams.get("author_id"), "42");
     assert.notEqual(url.searchParams.get("author_id"), "999");
     assert.equal(url.searchParams.get("organization_id"), null);
-    assert.equal(
-      url.searchParams.get("funnel_name"),
-      "business_add_listing_google_EN",
-    );
+    assert.equal(url.searchParams.get("funnel_name"), "athena_EN");
     assert.notEqual(url.searchParams.get("funnel_name"), "browser-override");
     assert.equal(url.searchParams.get("city"), "Dallas");
     assert.equal(url.searchParams.get("state"), "TX");
@@ -606,11 +620,11 @@ describe("CO-5D1 server Make integration", () => {
     const url = new URL(calls[0]!.url);
     assert.equal(url.searchParams.get("opening_hours"), "");
     assert.equal(url.searchParams.get("opening_hours_json"), '{"periods":[]}');
-    assert.equal(url.searchParams.get("action"), "EN");
     assert.equal(
-      url.searchParams.get("funnel_name"),
+      url.searchParams.get("action"),
       "business_add_listing_google_EN",
     );
+    assert.equal(url.searchParams.get("funnel_name"), "athena_EN");
     assert.notEqual(url.searchParams.get("funnel_name"), "browser-override");
     assert.equal(url.searchParams.get("author_id"), "42");
   });
@@ -822,21 +836,23 @@ describe("CO-5D1 server Make integration", () => {
     assert.match(service, /method: "GET"/);
     assert.match(service, /Never log the webhook URL or query string/);
     assert.match(service, /funnel_name/);
-    assert.doesNotMatch(service, /GOOGLE_BUSINESS_FUNNEL_NAME/);
+    assert.match(service, /GOOGLE_BUSINESS_FUNNEL_NAME/);
+    assert.doesNotMatch(service, /"athena"/);
     assert.match(service, /resolveOrganizationLanguage\(organizationId\)/);
-    assert.match(service, /language\.toUpperCase\(\)/);
+    assert.match(service, /language === "fr" \? "FR" : "EN"/);
+    assert.doesNotMatch(service, /language\.toUpperCase\(\)/);
     assert.match(
       service,
-      /params\.set\("action", languageCode\)/,
+      /\$\{GOOGLE_BUSINESS_ADD_ACTION\}_\$\{makeLanguageCode\}/,
     );
     assert.match(
       service,
-      /\$\{GOOGLE_BUSINESS_ADD_ACTION\}_\$\{languageCode\}/,
+      /\$\{GOOGLE_BUSINESS_FUNNEL_NAME\}_\$\{makeLanguageCode\}/,
     );
     const makeTypes = read(
       "services/googleBusiness/googleBusinessMakeTypes.ts",
     );
-    assert.doesNotMatch(makeTypes, /GOOGLE_BUSINESS_FUNNEL_NAME/);
+    assert.match(makeTypes, /GOOGLE_BUSINESS_FUNNEL_NAME = "athena"/);
     assert.match(service, /action !== GOOGLE_BUSINESS_ADD_ACTION/);
     assert.doesNotMatch(service, /params\.set\("action", payload\.action\)/);
     assert.doesNotMatch(service, /accept-language|navigator\.language|document\.cookie/i);
@@ -850,49 +866,52 @@ describe("CO-5D1 server Make integration", () => {
     assert.match(flatten, /action: GOOGLE_BUSINESS_ADD_ACTION/);
   });
 
-  it("sends FR and business_add_listing_google_FR when organizations.language is fr", async () => {
+  it("sends business_add_listing_google_FR and athena_FR when organizations.language is fr", async () => {
     installOrganizationLanguages({ [ORG_A]: "fr" });
     const url = await captureMakeQuery(ORG_A, {
       action: GOOGLE_BUSINESS_ADD_ACTION,
-      funnel_name: "athena_FR",
+      funnel_name: "athena_EN",
       language: "en",
     });
-    assert.equal(url.searchParams.get("action"), "FR");
     assert.equal(
-      url.searchParams.get("funnel_name"),
+      url.searchParams.get("action"),
       "business_add_listing_google_FR",
     );
+    assert.equal(url.searchParams.get("funnel_name"), "athena_FR");
+    assert.notEqual(url.searchParams.get("funnel_name"), "athena_EN");
   });
 
-  it("sends EN and business_add_listing_google_EN when organizations.language is en", async () => {
+  it("sends business_add_listing_google_EN and athena_EN when organizations.language is en", async () => {
     installOrganizationLanguages({ [ORG_A]: "en" });
     const url = await captureMakeQuery(ORG_A, {
-      funnel_name: "athena",
+      funnel_name: "athena_FR",
       language: "fr",
     });
-    assert.equal(url.searchParams.get("action"), "EN");
     assert.equal(
-      url.searchParams.get("funnel_name"),
+      url.searchParams.get("action"),
       "business_add_listing_google_EN",
     );
+    assert.equal(url.searchParams.get("funnel_name"), "athena_EN");
+    assert.notEqual(url.searchParams.get("funnel_name"), "athena_FR");
   });
 
-  it("sends the remaining supported organization languages on the Make query", async () => {
-    const cases = [
-      ["es", "ES", "business_add_listing_google_ES"],
-      ["it", "IT", "business_add_listing_google_IT"],
-      ["de", "DE", "business_add_listing_google_DE"],
-      ["pt", "PT", "business_add_listing_google_PT"],
-    ] as const;
-
-    for (const [language, action, funnelName] of cases) {
+  it("maps es, it, de, and pt organization languages to the EN Make contract", async () => {
+    for (const language of ["es", "it", "de", "pt"] as const) {
       installOrganizationLanguages({ [ORG_A]: language });
       const url = await captureMakeQuery(ORG_A, {
         funnel_name: "athena_FR",
         language: "fr",
       });
-      assert.equal(url.searchParams.get("action"), action);
-      assert.equal(url.searchParams.get("funnel_name"), funnelName);
+      assert.equal(
+        url.searchParams.get("action"),
+        "business_add_listing_google_EN",
+      );
+      assert.equal(url.searchParams.get("funnel_name"), "athena_EN");
+      assert.notEqual(url.searchParams.get("action"), `${language.toUpperCase()}`);
+      assert.notEqual(
+        url.searchParams.get("funnel_name"),
+        `business_add_listing_google_${language.toUpperCase()}`,
+      );
     }
   });
 
@@ -925,17 +944,48 @@ describe("CO-5D1 server Make integration", () => {
     );
     assert.equal(fetched, false);
 
+    fetched = false;
+    await assert.rejects(
+      () =>
+        addGoogleBusinessListing(
+          {
+            organizationId: ORG_A,
+            payload: validPayload({
+              action: "business_add_listing_google_FR",
+              funnel_name: "athena_FR",
+              language: "fr",
+            }),
+          },
+          {
+            getSettings: async () => settingsResult(42),
+            readWebhookUrl: () => WEBHOOK,
+            fetchImpl: (async () => {
+              fetched = true;
+              return new Response("{}", { status: 200 });
+            }) as typeof fetch,
+          },
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof GoogleBusinessMakeError);
+        assert.equal(error.code, "GOOGLE_BUSINESS_INVALID_PAYLOAD");
+        return true;
+      },
+    );
+    assert.equal(fetched, false);
+
     installOrganizationLanguages({ [ORG_A]: "en" });
     const url = await captureMakeQuery(ORG_A, {
       action: GOOGLE_BUSINESS_ADD_ACTION,
       funnel_name: "athena_FR",
+      language: "fr",
     });
-    assert.equal(url.searchParams.get("action"), "EN");
     assert.equal(
-      url.searchParams.get("funnel_name"),
+      url.searchParams.get("action"),
       "business_add_listing_google_EN",
     );
+    assert.equal(url.searchParams.get("funnel_name"), "athena_EN");
     assert.notEqual(url.searchParams.get("funnel_name"), "athena_FR");
+    assert.notEqual(url.searchParams.get("action"), "FR");
   });
 
   it("uses the server organization language when the body claims another organization", async () => {
@@ -974,13 +1024,40 @@ describe("CO-5D1 server Make integration", () => {
     const requestUrl = new URL(url);
     assert.equal(settingsOrganizationId, ORG_A);
     assert.deepEqual(lookups.ids, [ORG_A]);
-    assert.equal(requestUrl.searchParams.get("action"), "FR");
     assert.equal(
-      requestUrl.searchParams.get("funnel_name"),
+      requestUrl.searchParams.get("action"),
       "business_add_listing_google_FR",
     );
+    assert.equal(requestUrl.searchParams.get("funnel_name"), "athena_FR");
     assert.notEqual(requestUrl.searchParams.get("funnel_name"), "athena_EN");
     assert.equal(requestUrl.searchParams.get("organization_id"), null);
+  });
+
+  it("maps missing or invalid organization language through the resolver fallback to EN", async () => {
+    const invalid = [null, undefined, "", "xx", "english"] as const;
+    for (const language of invalid) {
+      installOrganizationLanguages({ [ORG_A]: language });
+      const url = await captureMakeQuery(ORG_A, {
+        language: "fr",
+        funnel_name: "athena_FR",
+      });
+      assert.equal(
+        url.searchParams.get("action"),
+        "business_add_listing_google_EN",
+      );
+      assert.equal(url.searchParams.get("funnel_name"), "athena_EN");
+    }
+
+    installOrganizationLanguages({});
+    const missing = await captureMakeQuery(ORG_A, {
+      language: "fr",
+      funnel_name: "athena_FR",
+    });
+    assert.equal(
+      missing.searchParams.get("action"),
+      "business_add_listing_google_EN",
+    );
+    assert.equal(missing.searchParams.get("funnel_name"), "athena_EN");
   });
 });
 

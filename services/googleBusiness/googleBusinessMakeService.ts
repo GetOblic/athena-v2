@@ -12,6 +12,7 @@ import {
 } from "@/lib/googlePlaces/googlePlacesTypes";
 import { getGetOblicDirectorySettings } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import {
+  GOOGLE_BUSINESS_FUNNEL_NAME,
   GOOGLE_BUSINESS_MAKE_TIMEOUT_MS,
   GOOGLE_BUSINESS_MAKE_WEBHOOK_ENV,
   GoogleBusinessMakeError,
@@ -137,10 +138,10 @@ function isAbortError(error: unknown): boolean {
 function buildMakeQuery(
   payload: GoogleBusinessPayload,
   authorId: number,
-  languageCode: string,
+  makeLanguageCode: "EN" | "FR",
 ): URLSearchParams {
   const params = new URLSearchParams();
-  params.set("action", languageCode);
+  params.set("action", `${GOOGLE_BUSINESS_ADD_ACTION}_${makeLanguageCode}`);
   params.set("company_name", payload.company_name);
   params.set("google_id", payload.google_id);
 
@@ -153,7 +154,10 @@ function buildMakeQuery(
 
   params.set("opening_hours", payload.opening_hours);
   params.set("opening_hours_json", payload.opening_hours_json);
-  params.set("funnel_name", `${GOOGLE_BUSINESS_ADD_ACTION}_${languageCode}`);
+  params.set(
+    "funnel_name",
+    `${GOOGLE_BUSINESS_FUNNEL_NAME}_${makeLanguageCode}`,
+  );
   params.set("author_id", String(authorId));
   return params;
 }
@@ -213,8 +217,9 @@ export async function addGoogleBusinessListing(
   }
 
   const language = await resolveOrganizationLanguage(organizationId);
-  const languageCode = language.toUpperCase();
-  const query = buildMakeQuery(payload, authorId, languageCode);
+  // Make accepts FR and EN only. es, it, de, and pt use the EN outbound contract.
+  const makeLanguageCode = language === "fr" ? "FR" : "EN";
+  const query = buildMakeQuery(payload, authorId, makeLanguageCode);
   for (const [key, value] of query.entries()) {
     requestUrl.searchParams.set(key, value);
   }
