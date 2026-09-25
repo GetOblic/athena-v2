@@ -2673,20 +2673,20 @@ export const pt: TenantMessages = {
           capability3:
             "Investigue esses prospects com o fluxo Convert da Athena",
         },
-        googleLabel: "Encontrar um negócio no Google",
-        googleDescription: "Procure um negócio real no Google e adicione-o.",
+        googleLabel: "Encontrar um negócio específico",
+        googleDescription: "Procure um negócio real e adicione-o.",
         googleUnavailable:
           "A sua oportunidade Free já foi investigada.",
       },
       google: {
-        inputLabel: "Negócio no Google",
+        inputLabel: "Pesquisa de negócio",
         inputPlaceholder: "Escreva o nome de um negócio",
         selected: "Negócio selecionado",
         addCta: "Adicionar este negócio",
         adding: "A adicionar…",
         loading: "A carregar a pesquisa Google…",
         startTyping:
-          "Comece a escrever e escolha um negócio nas sugestões do Google.",
+          "Comece a escrever e escolha um negócio nas sugestões.",
         choosePlace: "Escolha um negócio nas sugestões do Google.",
         missingKey:
           "A pesquisa Google ainda não está configurada neste espaço Athena.",

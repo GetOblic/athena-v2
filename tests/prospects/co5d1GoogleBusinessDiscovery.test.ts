@@ -233,7 +233,7 @@ describe("CO-5D1 two-method Find opportunities UX", () => {
     const page = read("app/prospects/find/page.tsx");
     assert.equal(
       en.prospects.find.methods.googleLabel,
-      "Find One Business on Google",
+      "Find One Specific Business",
     );
     assert.match(methods, /googleLabel/);
     assert.match(google, /NEXT_PUBLIC_GOOGLE_MAPS_API_KEY/);
@@ -1093,5 +1093,35 @@ describe("CO-5D1 i18n", () => {
       es.prospects.find.google.success,
       en.prospects.find.google.success,
     );
+  });
+
+  it("keeps the four Find-one-business presentation strings free of Google", () => {
+    assert.equal(
+      en.prospects.find.methods.googleLabel,
+      "Find One Specific Business",
+    );
+    assert.equal(
+      en.prospects.find.methods.googleDescription,
+      "Look up one real business and add it.",
+    );
+    assert.equal(en.prospects.find.google.inputLabel, "Business search");
+    assert.equal(
+      en.prospects.find.google.startTyping,
+      "Start typing, then choose a business from the suggestions.",
+    );
+
+    for (const language of ORGANIZATION_LANGUAGES) {
+      const find = DICTIONARIES[language].prospects.find;
+      for (const value of [
+        find.methods.googleLabel,
+        find.methods.googleDescription,
+        find.google.inputLabel,
+        find.google.startTyping,
+      ]) {
+        assert.equal(typeof value, "string");
+        assert.ok(value.length > 0, language);
+        assert.doesNotMatch(value, /Google/i, language);
+      }
+    }
   });
 });

@@ -2629,20 +2629,20 @@ export const it: TenantMessages = {
           capability3:
             "Ricerca quei prospect con il flusso Convert di Athena",
         },
-        googleLabel: "Trova un’azienda su Google",
-        googleDescription: "Cerca un’azienda reale su Google e aggiungila.",
+        googleLabel: "Trova un’azienda specifica",
+        googleDescription: "Cerca un’azienda reale e aggiungila.",
         googleUnavailable:
           "La tua opportunità Free è già stata ricercata.",
       },
       google: {
-        inputLabel: "Azienda su Google",
+        inputLabel: "Ricerca di un’azienda",
         inputPlaceholder: "Digita il nome di un’azienda",
         selected: "Azienda selezionata",
         addCta: "Aggiungi questa azienda",
         adding: "Aggiunta…",
         loading: "Caricamento della ricerca Google…",
         startTyping:
-          "Inizia a digitare, poi scegli un’azienda dai suggerimenti Google.",
+          "Inizia a digitare, poi scegli un’azienda dai suggerimenti.",
         choosePlace: "Scegli un’azienda dai suggerimenti Google.",
         missingKey:
           "La ricerca Google non è ancora configurata per questo spazio Athena.",

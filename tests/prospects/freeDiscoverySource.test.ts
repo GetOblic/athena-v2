@@ -325,11 +325,16 @@ describe("FREE discovery i18n", () => {
     );
     assert.equal(
       en.prospects.find.methods.googleLabel,
-      "Find One Business on Google",
+      "Find One Specific Business",
     );
     assert.equal(
       en.prospects.find.methods.googleDescription,
-      "Look up one real business on Google and add it.",
+      "Look up one real business and add it.",
+    );
+    assert.equal(en.prospects.find.google.inputLabel, "Business search");
+    assert.equal(
+      en.prospects.find.google.startTyping,
+      "Start typing, then choose a business from the suggestions.",
     );
     assert.equal(
       en.prospects.find.methods.googleUnavailable,

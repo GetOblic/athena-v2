@@ -2634,21 +2634,21 @@ export const de: TenantMessages = {
           capability3:
             "Diese Prospects mit Athenas Convert-Ablauf recherchieren",
         },
-        googleLabel: "Ein Unternehmen bei Google finden",
+        googleLabel: "Ein bestimmtes Unternehmen finden",
         googleDescription:
-          "Suchen Sie ein echtes Unternehmen bei Google und fügen Sie es hinzu.",
+          "Suchen Sie ein echtes Unternehmen und fügen Sie es hinzu.",
         googleUnavailable:
           "Ihre Free-Chance wurde bereits recherchiert.",
       },
       google: {
-        inputLabel: "Unternehmen bei Google",
+        inputLabel: "Unternehmenssuche",
         inputPlaceholder: "Geben Sie einen Unternehmensnamen ein",
         selected: "Ausgewähltes Unternehmen",
         addCta: "Dieses Unternehmen hinzufügen",
         adding: "Wird hinzugefügt…",
         loading: "Google-Suche wird geladen…",
         startTyping:
-          "Beginnen Sie zu tippen und wählen Sie dann ein Unternehmen aus den Google-Vorschlägen.",
+          "Beginnen Sie zu tippen und wählen Sie dann ein Unternehmen aus den Vorschlägen.",
         choosePlace: "Wählen Sie ein Unternehmen aus den Google-Vorschlägen.",
         missingKey:
           "Die Google-Suche ist für diesen Athena-Arbeitsbereich noch nicht konfiguriert.",

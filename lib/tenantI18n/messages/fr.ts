@@ -2635,21 +2635,21 @@ export const fr: TenantMessages = {
           capability3:
             "Recherchez ces prospects avec le flux Convert d’Athena",
         },
-        googleLabel: "Trouver une entreprise sur Google",
+        googleLabel: "Trouver une entreprise spécifique",
         googleDescription:
-          "Recherchez une entreprise réelle sur Google et ajoutez-la.",
+          "Recherchez une entreprise réelle et ajoutez-la.",
         googleUnavailable:
           "Votre opportunité Free a déjà été recherchée.",
       },
       google: {
-        inputLabel: "Entreprise sur Google",
+        inputLabel: "Recherche d’entreprise",
         inputPlaceholder: "Saisissez le nom d’une entreprise",
         selected: "Entreprise sélectionnée",
         addCta: "Ajouter cette entreprise",
         adding: "Ajout…",
         loading: "Chargement de la recherche Google…",
         startTyping:
-          "Commencez à saisir, puis choisissez une entreprise dans les suggestions Google.",
+          "Commencez à saisir, puis choisissez une entreprise dans les suggestions.",
         choosePlace: "Choisissez une entreprise dans les suggestions Google.",
         missingKey:
           "La recherche Google n’est pas encore configurée pour cet espace Athena.",

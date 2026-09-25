@@ -2593,19 +2593,19 @@ export const en = {
           capability3:
             "Research those prospects using Athena's Convert workflow",
         },
-        googleLabel: "Find One Business on Google",
-        googleDescription: "Look up one real business on Google and add it.",
+        googleLabel: "Find One Specific Business",
+        googleDescription: "Look up one real business and add it.",
         googleUnavailable: "Your Free opportunity has already been researched.",
       },
       google: {
-        inputLabel: "Business on Google",
+        inputLabel: "Business search",
         inputPlaceholder: "Type a business name",
         selected: "Selected business",
         addCta: "Add this business",
         adding: "Adding…",
         loading: "Loading Google search…",
         startTyping:
-          "Start typing, then choose a business from the Google suggestions.",
+          "Start typing, then choose a business from the suggestions.",
         choosePlace: "Choose a business from the Google suggestions.",
         missingKey:
           "Google search isn’t configured for this Athena workspace yet.",
