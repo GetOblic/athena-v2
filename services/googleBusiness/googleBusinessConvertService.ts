@@ -2,9 +2,10 @@
  * CO-5D2 Google selection → Make → verified WordPress listing → canonical
  * Prospect. Make assigns author_id; Athena never POSTs /listings/{id}/author.
  * The post-Make GET waits on a bounded stabilization helper. That helper
- * does not call Make again. Its reads use a shorter timeout than the global
- * WordPress client timeout. Exhausted NOT_FOUND does not issue another
- * create-path GET. Conversion never queues generation.
+ * does not call Make again. Its reads use the stabilization attempt
+ * timeout, which may exceed the global WordPress timeout. Exhausted
+ * NOT_FOUND does not issue another create-path GET. Conversion never
+ * queues generation.
  *
  * Never import this module from client components.
  */

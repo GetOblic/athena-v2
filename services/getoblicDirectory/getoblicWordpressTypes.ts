@@ -8,6 +8,15 @@ export const GETOBLIC_WORDPRESS_DEFAULT_BASE_URL =
 
 export const GETOBLIC_WORDPRESS_DEFAULT_TIMEOUT_MS = 12_000;
 
+/**
+ * Ceiling for an explicit per-request timeout. Omitting timeoutMs still
+ * uses the 12s default, so inventory-pool and Directory Add reads do not
+ * change. Post-Make stabilization is the production caller that reaches
+ * this ceiling: a listing GET from the Athena production host was observed
+ * at 12.520588s, which cannot finish inside 12_000ms.
+ */
+export const GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS = 13_000;
+
 export type GetOblicWordpressErrorCode =
   | "CONFIG_MISSING"
   | "TIMEOUT"

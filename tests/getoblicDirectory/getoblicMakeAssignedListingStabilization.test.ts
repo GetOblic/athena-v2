@@ -27,6 +27,7 @@ import {
 import { GOOGLE_BUSINESS_MAKE_TIMEOUT_MS } from "../../services/googleBusiness/googleBusinessMakeTypes";
 import {
   GETOBLIC_WORDPRESS_DEFAULT_TIMEOUT_MS,
+  GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS,
   GetOblicWordpressError,
   type GetOblicWordpressListing,
 } from "../../services/getoblicDirectory/getoblicWordpressTypes";
@@ -80,23 +81,28 @@ async function withWarnings<T>(
 }
 
 describe("Make-assigned listing stabilization policy", () => {
-  it("uses a shorter stabilization budget than claim verification", () => {
+  it("lets one stabilization read outlast the observed slow listing GET", () => {
+    const observedSlowReadMs = 12_520.588;
     assert.equal(GETOBLIC_WORDPRESS_DEFAULT_TIMEOUT_MS, 12_000);
+    assert.equal(GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS, 13_000);
     assert.equal(GOOGLE_BUSINESS_MAKE_TIMEOUT_MS, 12_000);
     assert.equal(MAKE_ASSIGNED_STABILIZATION_MAX_ATTEMPTS, 2);
     assert.deepEqual([...MAKE_ASSIGNED_STABILIZATION_RETRY_DELAYS_MS], [500]);
-    assert.equal(MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS, 4_000);
+    assert.equal(
+      MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS,
+      GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS,
+    );
+    assert.ok(GETOBLIC_WORDPRESS_DEFAULT_TIMEOUT_MS < observedSlowReadMs);
     assert.ok(
-      MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS <
-        GETOBLIC_WORDPRESS_DEFAULT_TIMEOUT_MS,
+      MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS > observedSlowReadMs,
     );
     assert.equal(MAKE_ASSIGNED_STABILIZATION_MAX_ADDED_WAIT_MS, 500);
-    assert.equal(MAKE_ASSIGNED_STABILIZATION_MAX_REMOTE_CALL_MS, 8_000);
+    assert.equal(MAKE_ASSIGNED_STABILIZATION_MAX_REMOTE_CALL_MS, 26_000);
     assert.equal(MAKE_ASSIGNED_CLAIM_READ_MAX_ATTEMPTS, 2);
     assert.deepEqual([...MAKE_ASSIGNED_CLAIM_READ_RETRY_DELAYS_MS], [500]);
     assert.equal(MAKE_ASSIGNED_CLAIM_READ_MAX_ADDED_WAIT_MS, 500);
     assert.equal(MAKE_ASSIGNED_CLAIM_READ_MAX_REMOTE_CALL_MS, 24_000);
-    assert.equal(MAKE_ASSIGNED_GOOGLE_CONVERSION_MAX_WALL_CLOCK_MS, 45_000);
+    assert.equal(MAKE_ASSIGNED_GOOGLE_CONVERSION_MAX_WALL_CLOCK_MS, 63_000);
     assert.equal(
       MAKE_ASSIGNED_GOOGLE_CONVERSION_MAX_WALL_CLOCK_MS,
       GOOGLE_BUSINESS_MAKE_TIMEOUT_MS +
@@ -438,7 +444,16 @@ describe("Make-assigned retry ownership", () => {
       /readMakeAssignedListingToleratingTransientFailure/,
     );
     assert.match(client, /GETOBLIC_WORDPRESS_DEFAULT_TIMEOUT_MS/);
-    assert.match(client, /Math\.min\(override, defaultMs\)/);
+    assert.match(client, /GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS/);
+    assert.match(
+      client,
+      /Math\.min\(override, GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS\)/,
+    );
+    assert.doesNotMatch(claim, /MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS/);
+    assert.doesNotMatch(
+      convert,
+      /MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS/,
+    );
     assert.match(google, /MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS/);
     assert.match(google, /remoteListingConfirmedMissing/);
     assert.match(convert, /remoteListingConfirmedMissing/);

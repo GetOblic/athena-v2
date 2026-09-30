@@ -42,9 +42,13 @@ describe("GetOblic WordPress client configuration", () => {
       /https:\/\/getoblic.com\/wp-json\/athena\/v1/,
     );
     assert.match(types, /12_000/);
+    assert.match(types, /GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS = 13_000/);
     assert.match(client, /signal: controller.signal/);
     assert.match(client, /cache:\s*"no-store"/);
-    assert.match(client, /Math\.min\(override, defaultMs\)/);
+    assert.match(
+      client,
+      /Math\.min\(override, GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS\)/,
+    );
   });
 
   it("uses a shorter listing timeout without raising the default", async () => {
@@ -92,8 +96,90 @@ describe("GetOblic WordPress client configuration", () => {
 
       await expectTimeout(undefined, 12_000);
       await expectTimeout(4_000, 4_000);
-      await expectTimeout(60_000, 12_000);
+      await expectTimeout(13_000, 13_000);
+      await expectTimeout(60_000, 13_000);
     } finally {
+      globalThis.setTimeout = originalSetTimeout;
+    }
+  });
+
+  it("completes a listing GET slower than 12s only above the observed 12.520588s read", async () => {
+    process.env.ATHENA_V2_DIRECTORY_API_KEY = "test-directory-key";
+    const observedSlowReadMs = 12_520.588;
+    const armed: number[] = [];
+    const pending: Array<ReturnType<typeof setTimeout>> = [];
+    const originalSetTimeout = globalThis.setTimeout;
+    const originalClearTimeout = globalThis.clearTimeout;
+    globalThis.setTimeout = ((handler, timeout, ...args) => {
+      const ms = typeof timeout === "number" ? timeout : 0;
+      armed.push(ms);
+      if (ms <= observedSlowReadMs) {
+        return originalSetTimeout(handler as TimerHandler, 0, ...args);
+      }
+      const timer = originalSetTimeout(handler as TimerHandler, 60_000, ...args);
+      pending.push(timer);
+      return timer;
+    }) as typeof setTimeout;
+    globalThis.fetch = (async (_input, init) => {
+      const signal = init?.signal;
+      const budget = armed[armed.length - 1] ?? 0;
+      if (budget <= observedSlowReadMs) {
+        if (signal?.aborted) {
+          throw Object.assign(new Error("aborted"), { name: "AbortError" });
+        }
+        return await new Promise<Response>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => {
+            reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+          });
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          success: true,
+          wordpress_listing_id: 1000,
+          status: "publish",
+          title: "One Stop Auto",
+          author_id: 271520168,
+          google_id: "ChIJ59W5thcnAIgR3iJ4DY-MEX0",
+          google_place_url: null,
+          knowledge_base: null,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    try {
+      const { getWordpressListingById } = await import(
+        "../../services/getoblicDirectory/getoblicWordpressClient"
+      );
+      const { GetOblicWordpressError } = await import(
+        "../../services/getoblicDirectory/getoblicWordpressTypes"
+      );
+      const { MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS } = await import(
+        "../../services/getoblicDirectory/getoblicMakeAssignedListingStabilization"
+      );
+
+      await assert.rejects(
+        () => getWordpressListingById(1000),
+        (error: unknown) => {
+          assert.ok(error instanceof GetOblicWordpressError);
+          assert.equal(error.code, "TIMEOUT");
+          return true;
+        },
+      );
+      assert.equal(armed[0], 12_000);
+      assert.ok(armed[0]! < observedSlowReadMs);
+
+      const listing = await getWordpressListingById(1000, {
+        timeoutMs: MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS,
+      });
+      assert.equal(listing.wordpress_listing_id, 1000);
+      assert.equal(listing.author_id, 271520168);
+      assert.equal(listing.google_id, "ChIJ59W5thcnAIgR3iJ4DY-MEX0");
+      assert.equal(armed[1], MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS);
+      assert.ok(armed[1]! > observedSlowReadMs);
+    } finally {
+      for (const timer of pending) originalClearTimeout(timer);
       globalThis.setTimeout = originalSetTimeout;
     }
   });

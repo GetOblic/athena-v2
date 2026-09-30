@@ -7,9 +7,10 @@
  *
  * 1. waitForMakeAssignedListingToStabilize — post-Make identity convergence.
  *    NOT_FOUND, a temporary author, a blank Google ID, and transient
- *    transport failures are retried once. Each attempt uses a shorter
- *    client timeout than the global WordPress timeout. A conflicting
- *    non-empty Google ID is not retried.
+ *    transport failures are retried once. Each attempt may wait longer
+ *    than the global WordPress timeout, up to
+ *    MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS, so one slow listing
+ *    GET can finish. A conflicting non-empty Google ID is not retried.
  * 2. readMakeAssignedListingToleratingTransientFailure — claim re-read.
  *    Transport failures only, one retry, at the global WordPress timeout.
  *    That second attempt is what keeps one GetOblic TIMEOUT from stranding
@@ -28,8 +29,11 @@
  * Worst-case remote ceiling for one Google conversion, when stabilization
  * succeeds on its last attempt and claim verification then times out twice:
  * Make once + stabilization + claim verification. See
- * MAKE_ASSIGNED_GOOGLE_CONVERSION_MAX_WALL_CLOCK_MS. Exhausted NOT_FOUND
- * does not start another listing GET on the create path.
+ * MAKE_ASSIGNED_GOOGLE_CONVERSION_MAX_WALL_CLOCK_MS. That sum includes the
+ * claim re-read and no further listing GET: a ready preloaded listing skips
+ * the convert-time GET, and a make-assigned claim skips the inventory-pool
+ * eligibility GET. Exhausted NOT_FOUND does not start another listing GET
+ * on the create path.
  *
  * Never import this module from client components.
  */
@@ -37,6 +41,7 @@
 import { googleBusinessIdsEqual } from "@/services/getoblicDirectory/getoblicGoogleId";
 import {
   GETOBLIC_WORDPRESS_DEFAULT_TIMEOUT_MS,
+  GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS,
   GetOblicWordpressError,
   type GetOblicWordpressListing,
 } from "@/services/getoblicDirectory/getoblicWordpressTypes";
@@ -46,7 +51,8 @@ export const MAKE_ASSIGNED_STABILIZATION_MAX_ATTEMPTS = 2 as const;
 
 export const MAKE_ASSIGNED_STABILIZATION_RETRY_DELAYS_MS = [500] as const;
 
-export const MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS = 4_000;
+export const MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS =
+  GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS;
 
 export const MAKE_ASSIGNED_STABILIZATION_MAX_ADDED_WAIT_MS =
   MAKE_ASSIGNED_STABILIZATION_RETRY_DELAYS_MS[0];

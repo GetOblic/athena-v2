@@ -15,6 +15,7 @@ import { GETOBLIC_PROSPECT_SOURCE } from "../../services/getoblicDirectory/getob
 import type { GetOblicConvertDependencies } from "../../services/getoblicDirectory/getoblicDirectoryConvertService";
 import { GetOblicDirectoryError } from "../../services/getoblicDirectory/getoblicDirectoryErrors";
 import {
+  MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS,
   MAKE_ASSIGNED_STABILIZATION_MAX_ATTEMPTS,
   MAKE_ASSIGNED_STABILIZATION_RETRY_DELAYS_MS,
 } from "../../services/getoblicDirectory/getoblicMakeAssignedListingStabilization";
@@ -237,6 +238,7 @@ describe("CO-5D2 Google convert orchestration", () => {
     const port = convertDeps();
     const makeCalls: unknown[] = [];
     const listingReads: number[] = [];
+    const listingTimeouts: Array<number | undefined> = [];
     const result = await convertGoogleBusinessSelection(
       {
         organizationId: ORG_A,
@@ -250,8 +252,9 @@ describe("CO-5D2 Google convert orchestration", () => {
           makeCalls.push(input);
           return { wordpress_listing_id: LISTING_ID, google_id: GOOGLE_ID };
         },
-        getListingById: async (id) => {
+        getListingById: async (id, options) => {
           listingReads.push(id);
+          listingTimeouts.push(options?.timeoutMs);
           return port.getListingById(id);
         },
       },
@@ -260,6 +263,9 @@ describe("CO-5D2 Google convert orchestration", () => {
 
     assert.equal(makeCalls.length, 1);
     assert.equal(listingReads.length, 1);
+    assert.deepEqual(listingTimeouts, [
+      MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS,
+    ]);
     assert.equal(listingReads[0], LISTING_ID);
     assert.equal(result.make.wordpress_listing_id, LISTING_ID);
     assert.equal(result.conversion.outcome, "created");
@@ -507,7 +513,21 @@ describe("CO-5D2 Google convert orchestration", () => {
   });
 
   it("accepts a mapped-author listing in convert and rejects an inventory-pool listing", async () => {
-    const mapped = convertDeps();
+    const directoryTimeouts: Array<number | undefined> = [];
+    const mapped = convertDeps({
+      getListingById: async (id, options) => {
+        directoryTimeouts.push(options?.timeoutMs);
+        return {
+          wordpress_listing_id: id,
+          status: "publish",
+          title: "Oak Street Salon",
+          author_id: 42,
+          google_id: GOOGLE_ID,
+          google_place_url: null,
+          knowledge_base: null,
+        };
+      },
+    });
     const created = await convertGetOblicDirectoryListing(
       {
         organizationId: ORG_A,
@@ -527,6 +547,7 @@ describe("CO-5D2 Google convert orchestration", () => {
     );
     assert.equal(created.outcome, "created");
     assert.equal(created.generation_queued, false);
+    assert.deepEqual(directoryTimeouts, [undefined]);
     assert.equal(
       (mapped.claimed[0] as { verification?: { mode?: string } }).verification
         ?.mode,
@@ -609,6 +630,7 @@ function scriptedSelection(
   );
   const makeCalls: unknown[] = [];
   const delays: number[] = [];
+  const timeouts: Array<number | undefined> = [];
   let readCount = 0;
   const run = () =>
     convertGoogleBusinessSelection(
@@ -627,7 +649,8 @@ function scriptedSelection(
         sleep: async (ms) => {
           delays.push(ms);
         },
-        getListingById: async (id) => {
+        getListingById: async (id, options) => {
+          timeouts.push(options?.timeoutMs);
           const step = reads[readCount];
           readCount += 1;
           if (!step) {
@@ -648,6 +671,7 @@ function scriptedSelection(
     port,
     makeCalls,
     delays,
+    timeouts,
     readCount: () => readCount,
     run,
   };
@@ -670,6 +694,10 @@ describe("CO-5D2 post-Make listing stabilization", () => {
     const result = await script.run();
     assert.equal(script.makeCalls.length, 1);
     assert.equal(script.readCount(), 2);
+    assert.deepEqual(script.timeouts, [
+      MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS,
+      MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS,
+    ]);
     assert.deepEqual(script.delays, [
       MAKE_ASSIGNED_STABILIZATION_RETRY_DELAYS_MS[0],
     ]);

@@ -7,6 +7,7 @@
 import {
   GETOBLIC_WORDPRESS_DEFAULT_BASE_URL,
   GETOBLIC_WORDPRESS_DEFAULT_TIMEOUT_MS,
+  GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS,
   GetOblicWordpressError,
   type GetOblicWordpressAuthorAssignment,
   type GetOblicWordpressDescriptionUpdate,
@@ -787,7 +788,7 @@ function resolveWordpressTimeoutMs(
   if (override == null || !Number.isFinite(override) || override <= 0) {
     return defaultMs;
   }
-  return Math.min(override, defaultMs);
+  return Math.min(override, GETOBLIC_WORDPRESS_MAX_TIMEOUT_MS);
 }
 
 async function wordpressFetch(
