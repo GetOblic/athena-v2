@@ -2,8 +2,10 @@
  * Server-only Google business Make caller.
  * Never import this module from client components.
  * Never log the webhook URL or query string.
+ * Invalid Make bodies log structural metadata only.
  */
 
+import { randomUUID } from "node:crypto";
 import {
   GOOGLE_BUSINESS_ADD_ACTION,
   GOOGLE_BUSINESS_EMPTY_OPENING_HOURS_JSON,
@@ -135,6 +137,125 @@ function isAbortError(error: unknown): boolean {
   return name === "AbortError" || name === "TimeoutError";
 }
 
+const GOOGLE_BUSINESS_MAKE_INVALID_RESPONSE_EVENT =
+  "[GOOGLE_BUSINESS_MAKE_INVALID_RESPONSE]" as const;
+
+const INVALID_RESPONSE_TOP_LEVEL_KEY_CAP = 16;
+const TOP_LEVEL_KEY_MAX_LENGTH = 64;
+const CONTENT_TYPE_MAX = 120;
+
+const GOOGLE_BUSINESS_INVALID_RESPONSE_REASONS = [
+  "BODY_READ_FAILED",
+  "EMPTY_BODY",
+  "NON_JSON",
+  "NON_OBJECT",
+  "INVALID_LISTING_ID",
+  "MISSING_GOOGLE_ID",
+] as const;
+
+type GoogleBusinessInvalidResponseReason =
+  (typeof GOOGLE_BUSINESS_INVALID_RESPONSE_REASONS)[number];
+
+type InvalidResponseObservation = {
+  reason: GoogleBusinessInvalidResponseReason;
+  status: number;
+  contentType: string | null;
+  bodyBytes: number | null;
+  jsonParsed: boolean;
+  parsed: unknown;
+};
+
+function structuralType(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+  if (Array.isArray(value)) {
+    return "array";
+  }
+  return typeof value;
+}
+
+function isDigitString(value: unknown): boolean {
+  return typeof value === "string" && /^\d+$/.test(value.trim());
+}
+
+function readSafeContentType(value: string | null): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  if (!cleaned || /:\/\/|\?/.test(cleaned)) {
+    return null;
+  }
+  return cleaned.length > CONTENT_TYPE_MAX
+    ? cleaned.slice(0, CONTENT_TYPE_MAX)
+    : cleaned;
+}
+
+function readTopLevelKeys(value: unknown): string[] {
+  if (!isRecord(value)) {
+    return [];
+  }
+  return Object.keys(value)
+    .filter((key) => key.length > 0 && key.length <= TOP_LEVEL_KEY_MAX_LENGTH)
+    .sort()
+    .slice(0, INVALID_RESPONSE_TOP_LEVEL_KEY_CAP);
+}
+
+function readOwn(
+  record: Record<string, unknown> | null,
+  key: string,
+): { present: boolean; value: unknown } {
+  if (!record || !Object.hasOwn(record, key)) {
+    return { present: false, value: undefined };
+  }
+  return { present: true, value: record[key] };
+}
+
+function buildInvalidResponseDiagnostic(input: InvalidResponseObservation) {
+  const record =
+    input.jsonParsed && isRecord(input.parsed) ? input.parsed : null;
+  const listing = readOwn(record, "listing_id");
+  const googleId = readOwn(record, "google_id");
+  const success = readOwn(record, "success");
+
+  return {
+    diagnostic_id: randomUUID(),
+    rejection_reason: input.reason,
+    make_http_status: input.status,
+    content_type: readSafeContentType(input.contentType),
+    body_bytes: input.bodyBytes,
+    json_parsed: input.jsonParsed,
+    top_level_type: input.jsonParsed ? structuralType(input.parsed) : null,
+    top_level_keys: input.jsonParsed ? readTopLevelKeys(input.parsed) : [],
+    listing_id_present: listing.present,
+    listing_id_type: listing.present ? structuralType(listing.value) : null,
+    listing_id_digit_string: listing.present
+      ? isDigitString(listing.value)
+      : false,
+    listing_id_positive_integer:
+      listing.present && readPositiveInteger(listing.value) != null,
+    google_id_present: googleId.present,
+    google_id_type: googleId.present ? structuralType(googleId.value) : null,
+    google_id_blank_after_trim:
+      googleId.present &&
+      typeof googleId.value === "string" &&
+      googleId.value.trim().length === 0,
+    success_present: success.present,
+    success_type: success.present ? structuralType(success.value) : null,
+  };
+}
+
+function rejectInvalidMakeResponse(input: InvalidResponseObservation): never {
+  const diagnostic = buildInvalidResponseDiagnostic(input);
+  console.error(GOOGLE_BUSINESS_MAKE_INVALID_RESPONSE_EVENT, diagnostic);
+  fail("GOOGLE_BUSINESS_INVALID_RESPONSE");
+}
+
+function utf8ByteLength(text: string): number {
+  return Buffer.byteLength(text, "utf8");
+}
+
 function buildMakeQuery(
   payload: GoogleBusinessPayload,
   authorId: number,
@@ -162,19 +283,39 @@ function buildMakeQuery(
   return params;
 }
 
-function parseMakeResult(payload: unknown): GoogleBusinessMakeResult {
+function parseMakeResult(
+  payload: unknown,
+  http: { status: number; contentType: string | null; bodyBytes: number },
+): GoogleBusinessMakeResult {
+  const observation = {
+    status: http.status,
+    contentType: http.contentType,
+    bodyBytes: http.bodyBytes,
+    jsonParsed: true,
+    parsed: payload,
+  };
+
   if (!isRecord(payload)) {
-    fail("GOOGLE_BUSINESS_INVALID_RESPONSE");
+    rejectInvalidMakeResponse({
+      ...observation,
+      reason: "NON_OBJECT",
+    });
   }
 
   const listingId = readPositiveInteger(payload.listing_id);
   const googleId = readTrimmedString(payload.google_id);
 
   if (listingId == null) {
-    fail("GOOGLE_BUSINESS_INVALID_RESPONSE");
+    rejectInvalidMakeResponse({
+      ...observation,
+      reason: "INVALID_LISTING_ID",
+    });
   }
   if (!googleId) {
-    fail("GOOGLE_BUSINESS_INVALID_RESPONSE");
+    rejectInvalidMakeResponse({
+      ...observation,
+      reason: "MISSING_GOOGLE_ID",
+    });
   }
 
   return {
@@ -240,18 +381,52 @@ export async function addGoogleBusinessListing(
       fail("GOOGLE_BUSINESS_REMOTE_FAILED");
     }
 
-    const text = await response.text().catch(() => "");
-    let parsed: unknown = null;
-    if (!text.trim()) {
-      fail("GOOGLE_BUSINESS_INVALID_RESPONSE");
+    const contentType = response.headers.get("content-type");
+    let text: string;
+    try {
+      text = await response.text();
+    } catch {
+      rejectInvalidMakeResponse({
+        reason: "BODY_READ_FAILED",
+        status: response.status,
+        contentType,
+        bodyBytes: null,
+        jsonParsed: false,
+        parsed: undefined,
+      });
     }
+
+    const bodyBytes = utf8ByteLength(text);
+    if (!text.trim()) {
+      rejectInvalidMakeResponse({
+        reason: "EMPTY_BODY",
+        status: response.status,
+        contentType,
+        bodyBytes,
+        jsonParsed: false,
+        parsed: undefined,
+      });
+    }
+
+    let parsed: unknown;
     try {
       parsed = JSON.parse(text) as unknown;
     } catch {
-      fail("GOOGLE_BUSINESS_INVALID_RESPONSE");
+      rejectInvalidMakeResponse({
+        reason: "NON_JSON",
+        status: response.status,
+        contentType,
+        bodyBytes,
+        jsonParsed: false,
+        parsed: undefined,
+      });
     }
 
-    return parseMakeResult(parsed);
+    return parseMakeResult(parsed, {
+      status: response.status,
+      contentType,
+      bodyBytes,
+    });
   } catch (error) {
     if (error instanceof GoogleBusinessMakeError) {
       throw error;
