@@ -32,6 +32,7 @@ import {
   getGetOblicDirectorySettings,
   mapListingLinkRow,
 } from "@/services/getoblicDirectory/getoblicDirectoryService";
+import { readMakeAssignedListingToleratingTransientFailure } from "@/services/getoblicDirectory/getoblicMakeAssignedListingStabilization";
 import {
   assignWordpressListingAuthor,
   getWordpressListingById,
@@ -153,6 +154,11 @@ export type ClaimKnownListingWordpressPort = {
   getListingById: typeof getWordpressListingById;
   assignListingAuthor: typeof assignWordpressListingAuthor;
   resolveOrCreateUser?: typeof resolveOrCreateWordpressUser;
+  /**
+   * Timer override for Make-assigned transient listing re-reads.
+   * Omitted in production.
+   */
+  sleep?: (ms: number) => Promise<void>;
 };
 
 const defaultWordpressPort: ClaimKnownListingWordpressPort = {
@@ -645,10 +651,14 @@ async function acquireMakeAssignedClaim(args: {
   expectedGoogleId: string;
   expectedWordpressAuthorId: number;
 }): Promise<ClaimKnownListingResult> {
+  // Transport retries only. Author and Google ID stay exact-match checks
+  // on the listing this read returns, so this loop cannot nest inside
+  // post-Make identity convergence.
   const listingLookup = await lookupRemoteListing(
     args.reserved,
     args.wordpress,
     args.now,
+    { retryTransientTransport: true },
   );
   if (listingLookup.outcome !== "found") {
     return listingLookup.result;
@@ -929,12 +939,20 @@ async function lookupRemoteListing(
   reserved: GetOblicListingLink,
   wordpress: ClaimKnownListingWordpressPort,
   now: Date,
+  options?: { retryTransientTransport?: boolean },
 ): Promise<
   | { outcome: "found"; listing: GetOblicWordpressListing }
   | { outcome: "halt"; result: ClaimKnownListingResult }
 > {
   try {
-    const listing = await wordpress.getListingById(reserved.wordpress_listing_id);
+    const listing = options?.retryTransientTransport
+      ? await readMakeAssignedListingToleratingTransientFailure({
+          wordpressListingId: reserved.wordpress_listing_id,
+          readListing: () =>
+            wordpress.getListingById(reserved.wordpress_listing_id),
+          sleep: wordpress.sleep,
+        })
+      : await wordpress.getListingById(reserved.wordpress_listing_id);
     return { outcome: "found", listing };
   } catch (error) {
     if (isWordpressListingNotFound(error)) {

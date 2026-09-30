@@ -44,6 +44,58 @@ describe("GetOblic WordPress client configuration", () => {
     assert.match(types, /12_000/);
     assert.match(client, /signal: controller.signal/);
     assert.match(client, /cache:\s*"no-store"/);
+    assert.match(client, /Math\.min\(override, defaultMs\)/);
+  });
+
+  it("uses a shorter listing timeout without raising the default", async () => {
+    process.env.ATHENA_V2_DIRECTORY_API_KEY = "test-directory-key";
+    const delays: number[] = [];
+    const originalSetTimeout = globalThis.setTimeout;
+    globalThis.setTimeout = ((handler, timeout, ...args) => {
+      if (typeof timeout === "number") delays.push(timeout);
+      return originalSetTimeout(handler as TimerHandler, 0, ...args);
+    }) as typeof setTimeout;
+    globalThis.fetch = (async (_input, init) => {
+      const signal = init?.signal;
+      if (signal?.aborted) {
+        throw Object.assign(new Error("aborted"), { name: "AbortError" });
+      }
+      return await new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener("abort", () => {
+          reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+        });
+      });
+    }) as typeof fetch;
+
+    try {
+      const { getWordpressListingById } = await import(
+        "../../services/getoblicDirectory/getoblicWordpressClient"
+      );
+      const { GetOblicWordpressError } = await import(
+        "../../services/getoblicDirectory/getoblicWordpressTypes"
+      );
+      const expectTimeout = async (timeoutMs: number | undefined, expected: number) => {
+        delays.length = 0;
+        await assert.rejects(
+          () =>
+            timeoutMs == null
+              ? getWordpressListingById(1000)
+              : getWordpressListingById(1000, { timeoutMs }),
+          (error: unknown) => {
+            assert.ok(error instanceof GetOblicWordpressError);
+            assert.equal(error.code, "TIMEOUT");
+            return true;
+          },
+        );
+        assert.deepEqual(delays, [expected]);
+      };
+
+      await expectTimeout(undefined, 12_000);
+      await expectTimeout(4_000, 4_000);
+      await expectTimeout(60_000, 12_000);
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+    }
   });
 
   it("fails closed without leaking the key when the API key is missing", async () => {

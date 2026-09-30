@@ -114,6 +114,11 @@ export type GetOblicConvertInput = {
   expectedGoogleId?: string;
   expectedWordpressAuthorId?: number;
   preloadedListing?: GetOblicWordpressListing | null;
+  /**
+   * Post-Make stabilization already exhausted NOT_FOUND. Skip the create-path
+   * listing GET. Existing-prospect resume still runs before this applies.
+   */
+  remoteListingConfirmedMissing?: boolean;
 };
 
 export type GetOblicConvertResult = {
@@ -544,7 +549,7 @@ export async function convertGetOblicDirectoryListing(
       organizationId,
       wordpressListingId,
       prospect: reclaimedProspect,
-      listing: null,
+      listing: input.preloadedListing ?? null,
       observed,
       created: false,
       input,
@@ -558,13 +563,17 @@ export async function convertGetOblicDirectoryListing(
       organizationId,
       wordpressListingId,
       prospect: originProspect,
-      listing: null,
+      listing: input.preloadedListing ?? null,
       observed,
       created: false,
       input,
       dependencies,
       wordpress,
     });
+  }
+
+  if (!input.preloadedListing && input.remoteListingConfirmedMissing) {
+    return emptyResult("remote_missing");
   }
 
   let listing: GetOblicWordpressListing;
@@ -908,6 +917,7 @@ async function finishExistingProspect(args: {
       organizationId: args.organizationId,
       dependencies: args.dependencies,
       requestedBy: args.input.actorUserId,
+      skipRemoteListingRead: args.input.remoteListingConfirmedMissing === true,
     });
   } catch (error) {
     if (
@@ -1019,6 +1029,7 @@ async function finalizeAfterClaim(args: {
   organizationId: string;
   dependencies: GetOblicConvertDependencies;
   requestedBy: string | null;
+  skipRemoteListingRead?: boolean;
 }): Promise<GetOblicConvertResult> {
   let prospect = args.prospect;
 
@@ -1046,6 +1057,7 @@ async function finalizeAfterClaim(args: {
     args.listing,
     args.wordpressListingId,
     args.dependencies,
+    args.skipRemoteListingRead === true,
   );
   const imported = resolveGetOblicListingImport(listing, args.observed);
   const fillEmpty = await omitCollidingImportedWebsite({
@@ -1786,9 +1798,13 @@ async function resolveListingForImport(
   listing: GetOblicWordpressListing | null,
   wordpressListingId: number,
   dependencies: Pick<GetOblicConvertDependencies, "getListingById">,
+  skipRemoteRead = false,
 ): Promise<GetOblicWordpressListing | null> {
   if (listing) {
     return listing;
+  }
+  if (skipRemoteRead) {
+    return null;
   }
   try {
     return await dependencies.getListingById(wordpressListingId);

@@ -1,7 +1,10 @@
 /**
  * CO-5D2 Google selection → Make → verified WordPress listing → canonical
  * Prospect. Make assigns author_id; Athena never POSTs /listings/{id}/author.
- * Conversion never queues generation.
+ * The post-Make GET waits on a bounded stabilization helper. That helper
+ * does not call Make again. Its reads use a shorter timeout than the global
+ * WordPress client timeout. Exhausted NOT_FOUND does not issue another
+ * create-path GET. Conversion never queues generation.
  *
  * Never import this module from client components.
  */
@@ -17,6 +20,11 @@ import {
 } from "@/services/getoblicDirectory/getoblicDirectoryConvertService";
 import { getGetOblicDirectorySettings } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { googleBusinessIdsEqual } from "@/services/getoblicDirectory/getoblicGoogleId";
+import {
+  MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS,
+  waitForMakeAssignedListingToStabilize,
+  type MakeAssignedListingSleep,
+} from "@/services/getoblicDirectory/getoblicMakeAssignedListingStabilization";
 import { getWordpressListingById } from "@/services/getoblicDirectory/getoblicWordpressClient";
 import {
   GetOblicWordpressError,
@@ -51,6 +59,11 @@ export type ConvertGoogleBusinessSelectionDeps = {
   getSettings?: typeof getGetOblicDirectorySettings;
   getListingById?: typeof getWordpressListingById;
   convertListing?: typeof convertGetOblicDirectoryListing;
+  /**
+   * Timer override for post-Make listing stabilization.
+   * Production uses the real delay.
+   */
+  sleep?: MakeAssignedListingSleep;
 };
 
 function fail(code: GoogleBusinessMakeError["code"]): never {
@@ -125,25 +138,40 @@ export async function convertGoogleBusinessSelection(
   }
 
   let listing: GetOblicWordpressListing | null = null;
+  let remoteListingConfirmedMissing = false;
   try {
-    listing = await getListingById(make.wordpress_listing_id);
+    const stabilized = await waitForMakeAssignedListingToStabilize({
+      wordpressListingId: make.wordpress_listing_id,
+      expectedGoogleId: payload.google_id,
+      expectedWordpressAuthorId: mappedAuthorId,
+      readListing: (wordpressListingId) =>
+        getListingById(wordpressListingId, {
+          timeoutMs: MAKE_ASSIGNED_STABILIZATION_ATTEMPT_TIMEOUT_MS,
+        }),
+      sleep: deps.sleep,
+    });
+    if (stabilized.outcome === "ready") {
+      listing = mergeEmptyListingFromGooglePayload(stabilized.listing, payload);
+    } else if (stabilized.outcome === "author_mismatch") {
+      fail("GOOGLE_BUSINESS_AUTHOR_MISMATCH");
+    } else if (
+      stabilized.outcome === "google_id_conflict" ||
+      stabilized.outcome === "google_id_unavailable"
+    ) {
+      fail("GOOGLE_BUSINESS_GOOGLE_ID_MISMATCH");
+    } else {
+      remoteListingConfirmedMissing = true;
+    }
   } catch (error) {
+    if (error instanceof GoogleBusinessMakeError) {
+      throw error;
+    }
     if (!isWordpressListingNotFound(error)) {
       if (error instanceof GetOblicDirectoryError) {
         throw error;
       }
       throw mapWordpressLookupError(error);
     }
-  }
-
-  if (listing) {
-    if (!googleBusinessIdsEqual(listing.google_id, payload.google_id)) {
-      fail("GOOGLE_BUSINESS_GOOGLE_ID_MISMATCH");
-    }
-    if (listing.author_id !== mappedAuthorId) {
-      fail("GOOGLE_BUSINESS_AUTHOR_MISMATCH");
-    }
-    listing = mergeEmptyListingFromGooglePayload(listing, payload);
   }
 
   const conversion = await convertListing(
@@ -158,6 +186,7 @@ export async function convertGoogleBusinessSelection(
       expectedGoogleId: payload.google_id,
       expectedWordpressAuthorId: mappedAuthorId,
       preloadedListing: listing,
+      remoteListingConfirmedMissing,
     },
     convertDependencies,
     wordpress,

@@ -780,16 +780,28 @@ function parseKnowledgeBaseUpdate(
   };
 }
 
+function resolveWordpressTimeoutMs(
+  defaultMs: number,
+  override: number | undefined,
+): number {
+  if (override == null || !Number.isFinite(override) || override <= 0) {
+    return defaultMs;
+  }
+  return Math.min(override, defaultMs);
+}
+
 async function wordpressFetch(
   path: string,
   init: {
     method: string;
     body?: unknown;
+    timeoutMs?: number;
   },
 ): Promise<{ status: number; payload: unknown }> {
   const config = readConfig();
+  const timeoutMs = resolveWordpressTimeoutMs(config.timeoutMs, init.timeoutMs);
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const headers: Record<string, string> = {
@@ -896,10 +908,12 @@ export async function resolveOrCreateWordpressUser(
 
 export async function getWordpressListingById(
   wordpressListingId: number,
+  options?: { timeoutMs?: number },
 ): Promise<GetOblicWordpressListing> {
   const id = parseGetOblicWordpressListingId(wordpressListingId);
   const { payload } = await wordpressFetch(`/listings/${id}`, {
     method: "GET",
+    timeoutMs: options?.timeoutMs,
   });
   return parseListing(payload);
 }

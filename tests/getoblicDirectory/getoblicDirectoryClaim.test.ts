@@ -15,6 +15,7 @@ import {
   toPublicGetOblicClaim,
   type ClaimKnownListingWordpressPort,
 } from "../../services/getoblicDirectory/getoblicDirectoryClaimService";
+import { MAKE_ASSIGNED_CLAIM_READ_MAX_ATTEMPTS } from "../../services/getoblicDirectory/getoblicMakeAssignedListingStabilization";
 import { GetOblicWordpressError } from "../../services/getoblicDirectory/getoblicWordpressTypes";
 import {
   GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
@@ -2495,6 +2496,57 @@ describe("GetOblic consumeGetOblicListingAllocation wrapper", () => {
   });
 });
 
+describe("GetOblic inventory-pool claim reads", () => {
+  it("does not retry a transient network failure", async () => {
+    const store = {
+      settings: [defaultSettings()],
+      prospects: [defaultProspect()],
+      links: [] as LinkRow[],
+      events: [] as EventRow[],
+    };
+    installStore(store);
+    let reads = 0;
+    const wordpress = successWordpress({
+      sleep: async () => {
+        throw new Error("inventory-pool claims must not retry listing reads");
+      },
+      getListingById: async (id) => {
+        reads += 1;
+        if (reads === 1) {
+          return {
+            wordpress_listing_id: id,
+            status: "publish",
+            title: "Listing",
+            author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
+            google_id: null,
+            google_place_url: null,
+            knowledge_base: null,
+          };
+        }
+        throw new GetOblicWordpressError("NETWORK", "unavailable", 502);
+      },
+    });
+    await assert.rejects(
+      () => claim({}, wordpress),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_REMOTE_TRANSIENT");
+        assert.equal(error.link?.relationship_status, "claiming");
+        return true;
+      },
+    );
+    // Eligibility probe, then one verification read. A retry would sleep.
+    assert.equal(reads, 2);
+    assert.equal(store.links.length, 1);
+    assert.equal(store.events.length, 1);
+    assert.equal(store.links[0]?.relationship_status, "claiming");
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+  });
+});
+
 describe("GetOblic claim public payload", () => {
   it("omits foreign tenant identifiers from the public claim shape", () => {
     const publicClaim = {
@@ -2580,16 +2632,23 @@ describe("GetOblic make-assigned claim (Google / no author POST)", () => {
       events: [] as EventRow[],
     };
     installStore(store);
+    let reads = 0;
     const wordpress = successWordpress({
-      getListingById: async (id) => ({
-        wordpress_listing_id: id,
-        status: "publish",
-        title: "Oak Street Salon",
-        author_id: 42,
-        google_id: "ChIJotherPlace",
-        google_place_url: null,
-        knowledge_base: null,
-      }),
+      sleep: async () => {
+        throw new Error("conflicting Google ID must not be retried");
+      },
+      getListingById: async (id) => {
+        reads += 1;
+        return {
+          wordpress_listing_id: id,
+          status: "publish",
+          title: "Oak Street Salon",
+          author_id: 42,
+          google_id: "ChIJotherPlace",
+          google_place_url: null,
+          knowledge_base: null,
+        };
+      },
     });
     await assert.rejects(
       () =>
@@ -2609,6 +2668,7 @@ describe("GetOblic make-assigned claim (Google / no author POST)", () => {
         return true;
       },
     );
+    assert.equal(reads, 1);
     assert.equal(
       wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
       false,
@@ -2623,16 +2683,23 @@ describe("GetOblic make-assigned claim (Google / no author POST)", () => {
       events: [] as EventRow[],
     };
     installStore(store);
+    let reads = 0;
     const wordpress = successWordpress({
-      getListingById: async (id) => ({
-        wordpress_listing_id: id,
-        status: "publish",
-        title: "Oak Street Salon",
-        author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
-        google_id: "ChIJexamplePlace",
-        google_place_url: null,
-        knowledge_base: null,
-      }),
+      sleep: async () => {
+        throw new Error("confirmed author mismatch must not be retried");
+      },
+      getListingById: async (id) => {
+        reads += 1;
+        return {
+          wordpress_listing_id: id,
+          status: "publish",
+          title: "Oak Street Salon",
+          author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
+          google_id: "ChIJexamplePlace",
+          google_place_url: null,
+          knowledge_base: null,
+        };
+      },
     });
     await assert.rejects(
       () =>
@@ -2652,9 +2719,183 @@ describe("GetOblic make-assigned claim (Google / no author POST)", () => {
         return true;
       },
     );
+    assert.equal(reads, 1);
     assert.equal(
       wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
       false,
     );
+  });
+
+  it("completes an existing claiming link after a transient listing timeout", async () => {
+    const store = {
+      settings: [defaultSettings({ wordpress_author_id: 42 })],
+      prospects: [defaultProspect()],
+      links: [
+        completeLink({
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 1000,
+          relationship_status: "claiming",
+          last_remote_error: "TIMEOUT: GetOblic Directory request timed out.",
+          last_remote_error_at: "2026-09-01T00:00:00.000Z",
+        }),
+      ],
+      events: [
+        {
+          id: "event-existing",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          listing_link_id: "link-1",
+          wordpress_listing_id: 1000,
+          event_kind: "allocate_existing",
+          period_start: "2026-09-01",
+          idempotency_key: buildGetOblicAllocateExistingIdempotencyKey(
+            ORG_A,
+            1000,
+          ),
+          actor_user_id: null,
+          actor_licensee_account_id: null,
+        },
+      ] as EventRow[],
+    };
+    installStore(store);
+    let reads = 0;
+    const wordpress = successWordpress({
+      sleep: async () => {},
+      getListingById: async (id) => {
+        reads += 1;
+        if (reads === 1) {
+          throw new GetOblicWordpressError(
+            "TIMEOUT",
+            "GetOblic Directory request timed out.",
+            504,
+          );
+        }
+        return {
+          wordpress_listing_id: id,
+          status: "publish",
+          title: "Franklin Automotive",
+          author_id: 42,
+          google_id: "ChIJexamplePlace",
+          google_place_url: null,
+          knowledge_base: null,
+        };
+      },
+    });
+    const result = await claim(
+      {
+        verification: {
+          mode: "make_assigned",
+          expectedGoogleId: "ChIJexamplePlace",
+          expectedWordpressAuthorId: 42,
+        },
+      },
+      wordpress,
+    );
+    assert.equal(result.outcome, "linked");
+    assert.equal(store.links.length, 1);
+    assert.equal(store.links[0]?.id, "link-1");
+    assert.equal(store.links[0]?.relationship_status, "linked");
+    assert.equal(store.links[0]?.wordpress_author_id, 42);
+    assert.equal(store.links[0]?.google_id_snapshot, "ChIJexamplePlace");
+    assert.equal(store.links[0]?.last_remote_error, null);
+    assert.equal(store.events.length, 1);
+    assert.equal(reads, 2);
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+  });
+
+  it("keeps a claiming link and the timeout text when Make-assigned reads are exhausted", async () => {
+    const store = {
+      settings: [defaultSettings({ wordpress_author_id: 42 })],
+      prospects: [defaultProspect()],
+      links: [] as LinkRow[],
+      events: [] as EventRow[],
+    };
+    installStore(store);
+    let reads = 0;
+    const wordpress = successWordpress({
+      sleep: async () => {},
+      getListingById: async () => {
+        reads += 1;
+        throw new GetOblicWordpressError(
+          "TIMEOUT",
+          "GetOblic Directory request timed out.",
+          504,
+        );
+      },
+    });
+    await assert.rejects(
+      () =>
+        claim(
+          {
+            verification: {
+              mode: "make_assigned",
+              expectedGoogleId: "ChIJexamplePlace",
+              expectedWordpressAuthorId: 42,
+            },
+          },
+          wordpress,
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_REMOTE_TRANSIENT");
+        assert.equal(error.link?.relationship_status, "claiming");
+        assert.match(
+          String(error.link?.last_remote_error),
+          /^TIMEOUT: GetOblic Directory request timed out\./,
+        );
+        return true;
+      },
+    );
+    assert.equal(reads, MAKE_ASSIGNED_CLAIM_READ_MAX_ATTEMPTS);
+    assert.equal(store.links.length, 1);
+    assert.equal(store.links[0]?.relationship_status, "claiming");
+    assert.equal(store.events.length, 1);
+    assert.equal(
+      wordpress.calls.some((call) => call.startsWith("assignAuthor:")),
+      false,
+    );
+  });
+
+  it("does not retry a Make-assigned not-found into another listing read", async () => {
+    const store = {
+      settings: [defaultSettings({ wordpress_author_id: 42 })],
+      prospects: [defaultProspect()],
+      links: [] as LinkRow[],
+      events: [] as EventRow[],
+    };
+    installStore(store);
+    let reads = 0;
+    const wordpress = successWordpress({
+      sleep: async () => {
+        throw new Error("claim-time not-found must not be retried");
+      },
+      getListingById: async () => {
+        reads += 1;
+        throw new GetOblicWordpressError(
+          "NOT_FOUND",
+          "Listing not found.",
+          404,
+          "LISTING_NOT_FOUND",
+        );
+      },
+    });
+    const result = await claim(
+      {
+        verification: {
+          mode: "make_assigned",
+          expectedGoogleId: "ChIJexamplePlace",
+          expectedWordpressAuthorId: 42,
+        },
+      },
+      wordpress,
+    );
+    assert.equal(result.outcome, "remote_missing");
+    assert.equal(reads, 1);
+    assert.equal(store.links.length, 1);
+    assert.equal(store.events.length, 1);
   });
 });

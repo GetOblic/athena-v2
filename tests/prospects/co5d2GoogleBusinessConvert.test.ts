@@ -13,6 +13,11 @@ import { GOOGLE_BUSINESS_ADD_ACTION } from "../../lib/googlePlaces/googlePlacesT
 import { convertGetOblicDirectoryListing } from "../../services/getoblicDirectory/getoblicDirectoryConvertService";
 import { GETOBLIC_PROSPECT_SOURCE } from "../../services/getoblicDirectory/getoblicDirectoryConvertService";
 import type { GetOblicConvertDependencies } from "../../services/getoblicDirectory/getoblicDirectoryConvertService";
+import { GetOblicDirectoryError } from "../../services/getoblicDirectory/getoblicDirectoryErrors";
+import {
+  MAKE_ASSIGNED_STABILIZATION_MAX_ATTEMPTS,
+  MAKE_ASSIGNED_STABILIZATION_RETRY_DELAYS_MS,
+} from "../../services/getoblicDirectory/getoblicMakeAssignedListingStabilization";
 import type { GetOblicListingLink } from "../../services/getoblicDirectory/getoblicDirectoryTypes";
 import { GetOblicWordpressError } from "../../services/getoblicDirectory/getoblicWordpressTypes";
 import {
@@ -254,6 +259,7 @@ describe("CO-5D2 Google convert orchestration", () => {
     );
 
     assert.equal(makeCalls.length, 1);
+    assert.equal(listingReads.length, 1);
     assert.equal(listingReads[0], LISTING_ID);
     assert.equal(result.make.wordpress_listing_id, LISTING_ID);
     assert.equal(result.conversion.outcome, "created");
@@ -356,6 +362,8 @@ describe("CO-5D2 Google convert orchestration", () => {
 
   it("fails before convert when the listing author is not the mapped org author", async () => {
     const port = convertDeps();
+    const delays: number[] = [];
+    let reads = 0;
     await assert.rejects(
       () =>
         convertGoogleBusinessSelection(
@@ -371,15 +379,21 @@ describe("CO-5D2 Google convert orchestration", () => {
               wordpress_listing_id: LISTING_ID,
               google_id: GOOGLE_ID,
             }),
-            getListingById: async (id) => ({
-              wordpress_listing_id: id,
-              status: "publish",
-              title: "Oak Street Salon",
-              author_id: 99,
-              google_id: GOOGLE_ID,
-              google_place_url: null,
-              knowledge_base: null,
-            }),
+            sleep: async (ms) => {
+              delays.push(ms);
+            },
+            getListingById: async (id) => {
+              reads += 1;
+              return {
+                wordpress_listing_id: id,
+                status: "publish",
+                title: "Oak Street Salon",
+                author_id: 99,
+                google_id: GOOGLE_ID,
+                google_place_url: null,
+                knowledge_base: null,
+              };
+            },
           },
           port,
         ),
@@ -389,12 +403,16 @@ describe("CO-5D2 Google convert orchestration", () => {
         return true;
       },
     );
+    assert.equal(reads, MAKE_ASSIGNED_STABILIZATION_MAX_ATTEMPTS);
+    assert.deepEqual(delays, [...MAKE_ASSIGNED_STABILIZATION_RETRY_DELAYS_MS]);
     assert.equal(port.created.length, 0);
     assert.equal(port.claimed.length, 0);
   });
 
   it("fails before convert when the listing google_id does not match the selection", async () => {
     const port = convertDeps();
+    const delays: number[] = [];
+    let reads = 0;
     await assert.rejects(
       () =>
         convertGoogleBusinessSelection(
@@ -410,15 +428,21 @@ describe("CO-5D2 Google convert orchestration", () => {
               wordpress_listing_id: LISTING_ID,
               google_id: GOOGLE_ID,
             }),
-            getListingById: async (id) => ({
-              wordpress_listing_id: id,
-              status: "publish",
-              title: "Oak Street Salon",
-              author_id: 42,
-              google_id: "ChIJotherPlace",
-              google_place_url: null,
-              knowledge_base: null,
-            }),
+            sleep: async (ms) => {
+              delays.push(ms);
+            },
+            getListingById: async (id) => {
+              reads += 1;
+              return {
+                wordpress_listing_id: id,
+                status: "publish",
+                title: "Oak Street Salon",
+                author_id: 42,
+                google_id: "ChIJotherPlace",
+                google_place_url: null,
+                knowledge_base: null,
+              };
+            },
           },
           port,
         ),
@@ -428,11 +452,15 @@ describe("CO-5D2 Google convert orchestration", () => {
         return true;
       },
     );
+    assert.equal(reads, 1);
+    assert.deepEqual(delays, []);
     assert.equal(port.created.length, 0);
   });
 
   it("maps a WordPress listing 404 into convert remote_missing without creating a Prospect", async () => {
     const port = convertDeps();
+    let preReads = 0;
+    let convertReads = 0;
     const result = await convertGoogleBusinessSelection(
       {
         organizationId: ORG_A,
@@ -446,7 +474,9 @@ describe("CO-5D2 Google convert orchestration", () => {
           wordpress_listing_id: LISTING_ID,
           google_id: GOOGLE_ID,
         }),
+        sleep: async () => {},
         getListingById: async () => {
+          preReads += 1;
           throw new GetOblicWordpressError(
             "NOT_FOUND",
             "Listing not found.",
@@ -458,6 +488,7 @@ describe("CO-5D2 Google convert orchestration", () => {
       {
         ...port,
         getListingById: async () => {
+          convertReads += 1;
           throw new GetOblicWordpressError(
             "NOT_FOUND",
             "Listing not found.",
@@ -467,6 +498,8 @@ describe("CO-5D2 Google convert orchestration", () => {
         },
       },
     );
+    assert.equal(preReads, MAKE_ASSIGNED_STABILIZATION_MAX_ATTEMPTS);
+    assert.equal(convertReads, 0);
     assert.equal(result.conversion.outcome, "remote_missing");
     assert.equal(result.conversion.prospect_id, null);
     assert.equal(result.conversion.generation_queued, false);
@@ -548,6 +581,253 @@ describe("CO-5D2 Google convert orchestration", () => {
     assert.equal(merged.phone, "already-on-listing");
     assert.equal(merged.google_place_url, "https://maps.google.com/?cid=1");
     assert.equal(merged.address, "100 Oak St, Dallas, TX 75201, USA");
+  });
+});
+
+type ScriptedRead =
+  | { kind: "ok"; listing?: Record<string, unknown> }
+  | { kind: "error"; error: unknown };
+
+function publishedListing(overrides: Record<string, unknown> = {}) {
+  return {
+    status: "publish",
+    title: "Oak Street Salon",
+    author_id: 42,
+    google_id: GOOGLE_ID,
+    google_place_url: null,
+    knowledge_base: null,
+    ...overrides,
+  };
+}
+
+function scriptedSelection(
+  reads: ScriptedRead[],
+  convertGetListingById?: GetOblicConvertDependencies["getListingById"],
+) {
+  const port = convertDeps(
+    convertGetListingById ? { getListingById: convertGetListingById } : {},
+  );
+  const makeCalls: unknown[] = [];
+  const delays: number[] = [];
+  let readCount = 0;
+  const run = () =>
+    convertGoogleBusinessSelection(
+      {
+        organizationId: ORG_A,
+        payload: validPayload(),
+        actorUserId: "user-1",
+        actorLicenseeAccountId: null,
+      },
+      {
+        getSettings: port.getSettings,
+        addListing: async (input) => {
+          makeCalls.push(input);
+          return { wordpress_listing_id: LISTING_ID, google_id: GOOGLE_ID };
+        },
+        sleep: async (ms) => {
+          delays.push(ms);
+        },
+        getListingById: async (id) => {
+          const step = reads[readCount];
+          readCount += 1;
+          if (!step) {
+            throw new Error(`unexpected listing read ${readCount}`);
+          }
+          if (step.kind === "error") {
+            throw step.error;
+          }
+          return {
+            wordpress_listing_id: id,
+            ...publishedListing(step.listing),
+          };
+        },
+      },
+      port,
+    );
+  return {
+    port,
+    makeCalls,
+    delays,
+    readCount: () => readCount,
+    run,
+  };
+}
+
+function timeoutError(): GetOblicWordpressError {
+  return new GetOblicWordpressError(
+    "TIMEOUT",
+    "GetOblic Directory request timed out.",
+    504,
+  );
+}
+
+describe("CO-5D2 post-Make listing stabilization", () => {
+  it("retries a timeout once and still calls Make only once", async () => {
+    const script = scriptedSelection([
+      { kind: "error", error: timeoutError() },
+      { kind: "ok" },
+    ]);
+    const result = await script.run();
+    assert.equal(script.makeCalls.length, 1);
+    assert.equal(script.readCount(), 2);
+    assert.deepEqual(script.delays, [
+      MAKE_ASSIGNED_STABILIZATION_RETRY_DELAYS_MS[0],
+    ]);
+    assert.equal(result.conversion.outcome, "created");
+    assert.equal(script.port.created.length, 1);
+    assert.equal(script.port.claimed.length, 1);
+    assert.equal(result.conversion.generation_queued, false);
+  });
+
+  it("retries a network failure and then creates one Prospect", async () => {
+    const script = scriptedSelection([
+      {
+        kind: "error",
+        error: new GetOblicWordpressError("NETWORK", "unavailable", 502),
+      },
+      { kind: "ok" },
+    ]);
+    const result = await script.run();
+    assert.equal(result.conversion.outcome, "created");
+    assert.equal(script.makeCalls.length, 1);
+    assert.equal(script.readCount(), 2);
+    assert.equal(script.port.created.length, 1);
+    assert.equal(script.port.claimed.length, 1);
+  });
+
+  it("exhausts repeated timeouts without a Prospect or a second Make call", async () => {
+    const script = scriptedSelection([
+      { kind: "error", error: timeoutError() },
+      { kind: "error", error: timeoutError() },
+    ]);
+    await assert.rejects(
+      () => script.run(),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_REMOTE_TRANSIENT");
+        assert.equal(error.status, 504);
+        return true;
+      },
+    );
+    assert.equal(script.makeCalls.length, 1);
+    assert.equal(script.readCount(), MAKE_ASSIGNED_STABILIZATION_MAX_ATTEMPTS);
+    assert.deepEqual(script.delays, [
+      ...MAKE_ASSIGNED_STABILIZATION_RETRY_DELAYS_MS,
+    ]);
+    assert.equal(script.port.created.length, 0);
+    assert.equal(script.port.claimed.length, 0);
+  });
+
+  it("treats an immediate not-found as eventual consistency and then converts", async () => {
+    const script = scriptedSelection([
+      {
+        kind: "error",
+        error: new GetOblicWordpressError(
+          "NOT_FOUND",
+          "Listing not found.",
+          404,
+          "LISTING_NOT_FOUND",
+        ),
+      },
+      { kind: "ok" },
+    ]);
+    const result = await script.run();
+    assert.equal(result.conversion.outcome, "created");
+    assert.equal(script.makeCalls.length, 1);
+    assert.equal(script.readCount(), 2);
+    assert.equal(script.port.created.length, 1);
+  });
+
+  it("waits for a temporary author and still requires the mapped author", async () => {
+    const script = scriptedSelection([
+      { kind: "ok", listing: { author_id: 7 } },
+      { kind: "ok", listing: { author_id: 42 } },
+    ]);
+    const result = await script.run();
+    assert.equal(result.conversion.outcome, "created");
+    assert.equal(script.readCount(), 2);
+    assert.equal(script.makeCalls.length, 1);
+    assert.equal(script.port.created.length, 1);
+    assert.equal(script.port.claimed.length, 1);
+    const claimInput = script.port.claimed[0] as {
+      verification?: { expectedWordpressAuthorId?: number };
+    };
+    assert.equal(claimInput.verification?.expectedWordpressAuthorId, 42);
+  });
+
+  it("accepts a Google ID that appears on a later read", async () => {
+    const script = scriptedSelection([
+      { kind: "ok", listing: { google_id: null } },
+      { kind: "ok" },
+    ]);
+    const result = await script.run();
+    assert.equal(result.conversion.outcome, "created");
+    assert.equal(script.readCount(), 2);
+    assert.equal(script.makeCalls.length, 1);
+    assert.equal(script.port.created.length, 1);
+  });
+
+  it("retries a blank Google ID and rejects a later conflicting ID without converting", async () => {
+    const blankThenConflict = scriptedSelection([
+      { kind: "ok", listing: { google_id: "" } },
+      { kind: "ok", listing: { google_id: "ChIJotherPlace" } },
+    ]);
+    await assert.rejects(
+      () => blankThenConflict.run(),
+      (error: unknown) => {
+        assert.ok(error instanceof GoogleBusinessMakeError);
+        assert.equal(error.code, "GOOGLE_BUSINESS_GOOGLE_ID_MISMATCH");
+        return true;
+      },
+    );
+    assert.equal(blankThenConflict.readCount(), 2);
+    assert.equal(blankThenConflict.makeCalls.length, 1);
+    assert.equal(blankThenConflict.port.created.length, 0);
+    assert.equal(blankThenConflict.port.claimed.length, 0);
+
+    const blankExhausted = scriptedSelection([
+      { kind: "ok", listing: { google_id: null } },
+      { kind: "ok", listing: { google_id: "  " } },
+    ]);
+    await assert.rejects(
+      () => blankExhausted.run(),
+      (error: unknown) => {
+        assert.ok(error instanceof GoogleBusinessMakeError);
+        assert.equal(error.code, "GOOGLE_BUSINESS_GOOGLE_ID_MISMATCH");
+        return true;
+      },
+    );
+    assert.equal(
+      blankExhausted.readCount(),
+      MAKE_ASSIGNED_STABILIZATION_MAX_ATTEMPTS,
+    );
+    assert.equal(blankExhausted.port.created.length, 0);
+  });
+
+  it("does not retry authentication failures or call Make again", async () => {
+    const script = scriptedSelection([
+      {
+        kind: "error",
+        error: new GetOblicWordpressError(
+          "UNAUTHORIZED",
+          "Invalid API key.",
+          401,
+          "INVALID_API_KEY",
+        ),
+      },
+    ]);
+    await assert.rejects(
+      () => script.run(),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_REMOTE_AUTH_FAILED");
+        return true;
+      },
+    );
+    assert.equal(script.readCount(), 1);
+    assert.deepEqual(script.delays, []);
+    assert.equal(script.makeCalls.length, 1);
+    assert.equal(script.port.created.length, 0);
   });
 });
 
