@@ -44,7 +44,7 @@ export const ESTIMATE_SHARED_OUTPUT_RULES = `
 ${SHARED_JSON_OUTPUT_RULES}
 
 Athena Estimate rules:
-- Return ONLY valid JSON matching the requested schemaVersion "estimate_v1".
+- Return ONLY valid JSON. The object schemaVersion is "estimate_v1" and the same object includes the deliveryEmail sibling. Do not wrap either value in a second object.
 - No markdown. No code fences. No chain-of-thought. No commentary outside JSON.
 - You are producing commercial pricing intelligence for a Licensee to charge THEIR client.
 - This is NOT a GetOblic fulfillment quote, invoice, binding valuation, or live market research product.

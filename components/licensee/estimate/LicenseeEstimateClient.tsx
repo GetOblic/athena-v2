@@ -17,6 +17,10 @@ import { CreateClientQuoteFromEstimate } from "@/components/licensee/clientQuote
 import { EstimateAskAthenaPanel } from "@/components/licensee/estimate/EstimateAskAthenaPanel";
 import { EstimateProspectSelect } from "@/components/licensee/estimate/EstimateProspectSelect";
 import {
+  EstimateSuggestedEmailSection,
+  shouldRenderSuggestedEmailSection,
+} from "@/components/licensee/estimate/EstimateSuggestedEmailSection";
+import {
   ESTIMATE_POLL_INTERVAL_MS,
   ESTIMATE_PROJECT_NEED_MIN_LENGTH,
   ESTIMATE_PROSPECT_REMOVED_LABEL,
@@ -41,6 +45,7 @@ import {
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import { licenseeErrorMessage } from "@/lib/licensee/licenseeErrorPresentation";
 import type {
+  PublicAthenaEstimateDeliveryEmail,
   PublicAthenaEstimateDetail,
   PublicAthenaEstimateSummary,
 } from "@/services/estimate/athenaEstimatePublic";
@@ -152,6 +157,10 @@ export function LicenseeEstimateClient({
 
   const [activeEstimate, setActiveEstimate] =
     useState<PublicAthenaEstimateDetail | null>(null);
+  /** Hides Suggested Email while a different Estimate detail is loading. */
+  const [suggestedEmailHold, setSuggestedEmailHold] = useState(false);
+  /** Bumps when a detail is opened so the editor reloads persisted text. */
+  const [suggestedEmailLoadToken, setSuggestedEmailLoadToken] = useState(0);
   const [history, setHistory] = useState<PublicAthenaEstimateSummary[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -356,6 +365,7 @@ export function LicenseeEstimateClient({
   function handleCreateAnother() {
     stopPolling();
     activeIdRef.current = null;
+    setSuggestedEmailHold(false);
     setActiveEstimate(null);
     resetFormFields();
     const form = document.getElementById("athena-estimate-form");
@@ -445,6 +455,8 @@ export function LicenseeEstimateClient({
   }
 
   async function openHistoryItem(id: string) {
+    const switching = activeEstimate != null && activeEstimate.id !== id;
+    if (switching) setSuggestedEmailHold(true);
     setSubmitError(null);
     try {
       const response = await fetch(`/api/licensee/estimate/${id}`, {
@@ -461,6 +473,7 @@ export function LicenseeEstimateClient({
         );
         return;
       }
+      setSuggestedEmailLoadToken((token) => token + 1);
       setActiveEstimate(payload.estimate);
       if (isInFlightStatus(payload.estimate.status)) {
         startPolling(payload.estimate.id);
@@ -473,6 +486,8 @@ export function LicenseeEstimateClient({
         ?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch {
       setSubmitError(messages.errors.openEstimateFailed);
+    } finally {
+      if (switching) setSuggestedEmailHold(false);
     }
   }
 
@@ -631,6 +646,15 @@ export function LicenseeEstimateClient({
     } catch {
       // Transient refresh failures stay silent; composer re-enables.
     }
+  }
+
+  function handleSuggestedEmailSaved(
+    estimateId: string,
+    deliveryEmail: PublicAthenaEstimateDeliveryEmail,
+  ) {
+    setActiveEstimate((prev) =>
+      prev && prev.id === estimateId ? { ...prev, deliveryEmail } : prev,
+    );
   }
 
   const pkg = activeEstimate?.package ?? null;
@@ -1073,6 +1097,20 @@ export function LicenseeEstimateClient({
             <p className="text-xs leading-5 text-white/35">
               {pkg.guidanceDisclaimer}
             </p>
+
+            {shouldRenderSuggestedEmailSection({
+              status: activeEstimate.status,
+              hasPackage: pkg != null,
+              detailPending: suggestedEmailHold,
+            }) ? (
+              <EstimateSuggestedEmailSection
+                key={`${activeEstimate.id}:${suggestedEmailLoadToken}`}
+                estimateId={activeEstimate.id}
+                deliveryEmail={activeEstimate.deliveryEmail}
+                messages={estimate}
+                onSaved={handleSuggestedEmailSaved}
+              />
+            ) : null}
 
             <div
               className="flex flex-wrap items-start gap-3"

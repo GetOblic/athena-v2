@@ -9,6 +9,7 @@
 import {
   deriveAthenaEstimateProspectRemoved,
 } from "@/services/estimate/athenaEstimateProspectTarget";
+import { toEffectiveEstimateDeliveryEmail } from "@/services/estimate/estimateDeliveryEmail";
 import type {
   AthenaEstimate,
   AthenaEstimateGenerationStage,
@@ -18,6 +19,7 @@ import type {
   EstimateMoney,
   EstimateRequest,
 } from "@/services/estimate/athenaEstimateTypes";
+import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
 export type PublicAthenaEstimateSummary = {
   id: string;
@@ -47,8 +49,20 @@ export type PublicAthenaEstimateSummary = {
   relationshipConnected: boolean;
 };
 
+/**
+ * Authenticated Licensee detail only. Effective text is edited when present,
+ * otherwise generated. Null when the row has no usable email record.
+ */
+export type PublicAthenaEstimateDeliveryEmail = {
+  subject: string;
+  body: string;
+  language: OrganizationLanguage;
+  edited: boolean;
+};
+
 export type PublicAthenaEstimateDetail = PublicAthenaEstimateSummary & {
   package: AthenaEstimatePackage | null;
+  deliveryEmail: PublicAthenaEstimateDeliveryEmail | null;
 };
 
 /** Ready Estimates expose package; processing/failed never expose partial packages. */
@@ -101,8 +115,13 @@ export function toPublicAthenaEstimateDetail(
   );
   const isReady = estimate.status === "Ready";
 
+  const effective = isReady
+    ? toEffectiveEstimateDeliveryEmail(estimate.delivery_email_json)
+    : null;
+
   return {
     ...summary,
     package: isReady ? estimate.package_json : null,
+    deliveryEmail: effective,
   };
 }

@@ -10,6 +10,11 @@ import type {
   AthenaEstimate,
   EstimateRequest,
 } from "@/services/estimate/athenaEstimateTypes";
+import {
+  buildGeneratedEstimateDeliveryEmailRecord,
+  type EstimateDeliveryEmailRecordV1,
+  type EstimateDeliveryEmailV1,
+} from "@/services/estimate/estimateDeliveryEmail";
 import { resolveLicenseeSubAccountTitle } from "@/services/licensee/licenseeSubAccountTypes";
 
 export type { AthenaEstimate } from "@/services/estimate/athenaEstimateTypes";
@@ -382,4 +387,111 @@ export async function markAthenaEstimateEnqueueFailed(input: {
     })
     .eq("id", input.estimateId)
     .eq("licensee_account_id", input.licenseeAccountId);
+}
+
+/**
+ * Store a validated generated delivery email after Ready.
+ * Writes only delivery_email_json, and only while that column is null.
+ * A null email is a no-op. Persistence errors are logged and swallowed so a
+ * Ready Estimate is never demoted to Processing Failed.
+ */
+export async function persistGeneratedEstimateDeliveryEmailIfAbsent(
+  input: {
+    estimateId: string;
+    licenseeAccountId: string;
+    deliveryEmail: EstimateDeliveryEmailV1 | null;
+  },
+  deps?: {
+    db?: Pick<typeof supabaseAdmin, "from">;
+  },
+): Promise<void> {
+  if (!input.deliveryEmail) return;
+
+  const record = buildGeneratedEstimateDeliveryEmailRecord(input.deliveryEmail);
+  const db = deps?.db ?? supabaseAdmin;
+
+  try {
+    const { error } = await db
+      .from("athena_estimates")
+      .update({
+        delivery_email_json: record,
+      })
+      .eq("id", input.estimateId)
+      .eq("licensee_account_id", input.licenseeAccountId)
+      .eq("status", "Ready")
+      .is("delivery_email_json", null);
+
+    if (error) {
+      console.error("[ATHENA_ESTIMATE] delivery_email_persist_failed", {
+        estimateId: input.estimateId,
+        error: error.message,
+      });
+    }
+  } catch (error) {
+    console.error("[ATHENA_ESTIMATE] delivery_email_persist_failed", {
+      estimateId: input.estimateId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Replace the delivery-email edited overlay on a visible Ready Estimate.
+ * The caller supplies the full record; this write does not read or reshape it.
+ * Matches only an owned Ready row whose delivery_email_json is already present.
+ * Returns false when that guard matches nothing. Does not touch package,
+ * request, Prospect context, or status.
+ */
+export async function persistEditedEstimateDeliveryEmail(
+  input: {
+    estimateId: string;
+    licenseeAccountId: string;
+    record: EstimateDeliveryEmailRecordV1;
+  },
+  deps?: {
+    db?: Pick<typeof supabaseAdmin, "from">;
+  },
+): Promise<boolean> {
+  const db = deps?.db ?? supabaseAdmin;
+  try {
+    const { data, error } = await db
+      .from("athena_estimates")
+      .update({
+        delivery_email_json: input.record,
+      })
+      .eq("id", input.estimateId)
+      .eq("licensee_account_id", input.licenseeAccountId)
+      .eq("status", "Ready")
+      .is("hidden_at", null)
+      .not("delivery_email_json", "is", null)
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      console.error("[ATHENA_ESTIMATE] delivery_email_edit_failed", {
+        estimateId: input.estimateId,
+        error: error.message,
+      });
+      throw new Error("Failed to save Estimate delivery email.");
+    }
+
+    return Boolean(
+      data &&
+        typeof data === "object" &&
+        "id" in data &&
+        data.id,
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Failed to save Estimate delivery email."
+    ) {
+      throw error;
+    }
+    console.error("[ATHENA_ESTIMATE] delivery_email_edit_failed", {
+      estimateId: input.estimateId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new Error("Failed to save Estimate delivery email.");
+  }
 }

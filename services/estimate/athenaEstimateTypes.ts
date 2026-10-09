@@ -4,6 +4,8 @@
  * no API or orchestration.
  */
 
+import type { EstimateDeliveryEmailRecordV1 } from "@/services/estimate/estimateDeliveryEmail";
+
 export const ATHENA_ESTIMATE_STATUSES = [
   "Queued",
   "Processing",
@@ -144,7 +146,8 @@ export type AthenaEstimatePackage = {
 /**
  * Row shape for athena_estimates (service-role persistence).
  * Ready request_json / package_json / prospect_generation_context_json are
- * immutable at the service layer.
+ * immutable at the service layer. delivery_email_json is a separate nullable
+ * record and is never part of the package.
  */
 export type AthenaEstimate = {
   id: string;
@@ -165,6 +168,11 @@ export type AthenaEstimate = {
   status: AthenaEstimateStatus;
   generation_stage: AthenaEstimateGenerationStage | string | null;
   package_json: AthenaEstimatePackage | null;
+  /**
+   * Optional delivery email record. Null on historical rows and when generation
+   * did not store one. Malformed JSON maps to null without hiding package_json.
+   */
+  delivery_email_json: EstimateDeliveryEmailRecordV1 | null;
   error_code: string | null;
   error_message: string | null;
   currency_code: string | null;

@@ -2,7 +2,7 @@ import { ESTIMATE_SHARED_OUTPUT_RULES } from "@/services/ai/prompts/estimate/est
 import type { EstimateRequest } from "@/services/estimate/athenaEstimateTypes";
 import type { EstimateGeoCurrencyResult } from "@/services/estimate/estimateGeoCurrency";
 
-export const ESTIMATE_USER_PROMPT_VERSION = "estimate_user_v1";
+export const ESTIMATE_USER_PROMPT_VERSION = "estimate_user_v2";
 
 export function buildEstimateUserPrompt(input: {
   trustedContext: string;
@@ -21,6 +21,11 @@ export function buildEstimateUserPrompt(input: {
    * Prompt builders must not import catalogs or resolve language themselves.
    */
   outputLanguageInstruction?: string | null;
+  /**
+   * Server-resolved Master language code for deliveryEmail.language.
+   * Defaults to English when the pipeline has no Master language.
+   */
+  outputLanguageCode?: string | null;
 }): string {
   const currencyCode = input.geoCurrency.currencyCode;
   const currencyResolution = input.geoCurrency.currencyResolution;
@@ -34,6 +39,11 @@ export function buildEstimateUserPrompt(input: {
     input.prospectCommercialTargetIntelligence.trim()
       ? `\n${input.prospectCommercialTargetIntelligence.trim()}\n`
       : "";
+  const languageCode =
+    typeof input.outputLanguageCode === "string" &&
+    /^[a-z]{2}$/.test(input.outputLanguageCode)
+      ? input.outputLanguageCode
+      : "en";
 
   return `
 OBJECTIVE:
@@ -108,7 +118,13 @@ REQUIRED JSON SHAPE:
     "configured": true
   },
   "marketResearchClaimed": false,
-  "competitorQuotesFabricated": false
+  "competitorQuotesFabricated": false,
+  "deliveryEmail": {
+    "schemaVersion": "estimate_delivery_email_v1",
+    "language": "${languageCode}",
+    "subject": string,
+    "body": string
+  }
 }
 
 FIELD RULES:
@@ -122,6 +138,33 @@ FIELD RULES:
 - scopeInterpretation: concrete statement of what is being priced.
 - pricingRationale: explain why this price fits THIS client/project using relevant Athena evidence.
 - guidanceDisclaimer may be temporary; the server will normalize the final disclaimer.
+
+DELIVERY EMAIL (same JSON object — not a second model response):
+Write deliveryEmail for the Licensee to send with this Estimate or the resulting proposal PDF.
+Use only the business context already in this prompt. Do not invent facts.
+
+- schemaVersion must be exactly "estimate_delivery_email_v1".
+- language must be exactly "${languageCode}".
+- Write the subject and body only in that language.
+- subject: one single line, maximum 120 characters, specific to this business and project.
+- Do not start the subject with Re: or Fwd:.
+- Do not mention Athena, GetOblic, OpenRouter, or any model in the subject or body.
+- No generic spam, urgency bait, or exaggerated claims.
+- body: plain text, no HTML or markdown, maximum 2000 characters.
+- Target about 90–160 words, normally three short paragraphs.
+- Address the decision maker only when decision_maker is present in PROSPECT COMMERCIAL TARGET INTELLIGENCE.
+- Otherwise address the business. If there is no Prospect block, address the organization identity in TRUSTED ATHENA EVIDENCE.
+- If industry or other context is absent from the authorized context, omit it.
+- Do not imply a prior call, meeting, email, promise, or agreement.
+- Summarize the proposed scope accurately.
+- Explain the commercial relevance for this business.
+- State the recommended investment as the recommendedClientPrice amount together with the currency code ${currencyCode}. The amount and currency must match this package.
+- End with one clear next step.
+- Do not invent meetings, discounts, start dates, or guarantees.
+- Do not expose pricing methodology, internal reasoning, or Licensee margins.
+- Do not invent a recipient email, phone number, or sender legal/tax identity.
+- Do not invent a personal sender name, title, or signature. No Own Company identity is provided.
+- Do not paste guidanceDisclaimer, or any part of it, into the email.
 
 ${ESTIMATE_SHARED_OUTPUT_RULES}
 `.trim();

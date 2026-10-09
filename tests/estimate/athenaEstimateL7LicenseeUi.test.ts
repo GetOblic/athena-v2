@@ -294,4 +294,72 @@ describe("Athena Estimate L7 — Licensee Master UI", () => {
       false,
     );
   });
+
+  it("suggested email sits after the disclaimer and before Estimate actions", () => {
+    const client = read(
+      "components/licensee/estimate/LicenseeEstimateClient.tsx",
+    );
+    const disclaimer = client.indexOf("{pkg.guidanceDisclaimer}");
+    const email = client.indexOf("<EstimateSuggestedEmailSection");
+    const actions = client.indexOf('data-estimate-ready-actions="true"');
+    const quote = client.indexOf("<CreateClientQuoteFromEstimate");
+    const ask = client.indexOf("<EstimateAskAthenaPanel");
+    const ready = client.indexOf('activeEstimate?.status === "Ready" && pkg');
+    const failed = client.indexOf(
+      'activeEstimate?.status === "Processing Failed"',
+    );
+    assert.ok(failed > 0 && failed < ready);
+    assert.ok(ready < disclaimer && disclaimer < email && email < actions);
+    assert.ok(actions < quote && quote < ask);
+    assert.equal(client.split("<EstimateSuggestedEmailSection").length - 1, 1);
+    assert.match(client, /shouldRenderSuggestedEmailSection/);
+    assert.match(client, /estimate\.regenerate|messages\.estimate\.regenerate/);
+    assert.match(client, /estimate\.createAnother|messages\.estimate\.createAnother/);
+    assert.match(client, /data-estimate-regenerate-action="true"/);
+  });
+
+  it("opens a different Estimate without keeping the previous suggested email on screen", () => {
+    const client = read(
+      "components/licensee/estimate/LicenseeEstimateClient.tsx",
+    );
+    const openStart = client.indexOf("async function openHistoryItem");
+    const openEnd = client.indexOf("async function handleRegenerate");
+    const openBody = client.slice(openStart, openEnd);
+    assert.match(openBody, /setSuggestedEmailHold\(true\)/);
+    assert.match(openBody, /setSuggestedEmailLoadToken/);
+    assert.match(openBody, /setSuggestedEmailHold\(false\)/);
+    assert.match(client, /detailPending: suggestedEmailHold/);
+    assert.match(client, /key=\{`\$\{activeEstimate\.id\}:\$\{suggestedEmailLoadToken\}`\}/);
+  });
+
+  it("polling does not reload the suggested-email editor", () => {
+    const client = read(
+      "components/licensee/estimate/LicenseeEstimateClient.tsx",
+    );
+    const pollStart = client.indexOf("const pollDetail");
+    const pollEnd = client.indexOf("const startPolling");
+    assert.ok(pollStart > 0 && pollEnd > pollStart);
+    const pollBody = client.slice(pollStart, pollEnd);
+    assert.doesNotMatch(pollBody, /setSuggestedEmailLoadToken|setSuggestedEmailHold/);
+    assert.match(pollBody, /setActiveEstimate\(payload\.estimate\)/);
+  });
+
+  it("suggested email does not send mail or enter the quotation PDF", () => {
+    const client = read(
+      "components/licensee/estimate/LicenseeEstimateClient.tsx",
+    );
+    const section = read(
+      "components/licensee/estimate/EstimateSuggestedEmailSection.tsx",
+    );
+    const pdf = read("services/clientQuote/pdf/renderClientQuotePdf.ts");
+    assert.match(
+      section,
+      /\/api\/licensee\/estimate\/\$\{requestEstimateId\}\/delivery-email/,
+    );
+    assert.match(section, /method: "PATCH"/);
+    assert.doesNotMatch(`${client}\n${section}`, /mailto:|nodemailer|sendMail|sendgrid/i);
+    assert.doesNotMatch(pdf, /deliveryEmail|delivery_email|suggestedEmail/);
+    assert.match(client, /href="\/licensee\/quote"/);
+    assert.doesNotMatch(client, /go\.getoblic\.com|NQfn7tnDbGyyq9JVei6Q/);
+  });
 });

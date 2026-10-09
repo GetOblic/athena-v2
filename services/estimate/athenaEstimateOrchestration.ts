@@ -33,8 +33,16 @@ import {
   listAthenaEstimatesForLicensee,
   loadOrganizationNameSnapshot,
   markAthenaEstimateEnqueueFailed,
+  persistEditedEstimateDeliveryEmail,
   type AthenaEstimate,
 } from "@/services/estimate/athenaEstimateService";
+import {
+  applyLicenseeEstimateDeliveryEmailEdit,
+  EstimateDeliveryEmailEditError,
+  toEffectiveEstimateDeliveryEmail,
+  validateLicenseeEstimateDeliveryEmailEdit,
+  type EffectiveEstimateDeliveryEmail,
+} from "@/services/estimate/estimateDeliveryEmail";
 import {
   toPublicAthenaEstimateDetail,
   toPublicAthenaEstimateSummary,
@@ -43,7 +51,10 @@ import {
 } from "@/services/estimate/athenaEstimatePublic";
 import { enqueueAthenaEstimateGenerationJob } from "@/services/estimate/estimateGenerationJobs/estimateGenerationJobService";
 import type { AthenaEstimateGenerationJob } from "@/services/estimate/estimateGenerationJobs/estimateGenerationJobTypes";
-import { assertLicenseeOwnsSubAccount } from "@/services/licensee/licenseeIdentity";
+import {
+  assertLicenseeOwnsSubAccount,
+  LicenseeAccessError,
+} from "@/services/licensee/licenseeIdentity";
 import { requireLicenseeMasterAccount } from "@/services/licensee/licenseeSubAccounts";
 import { getProspects } from "@/services/prospects/prospectService";
 import type { EstimateRequest } from "@/services/estimate/athenaEstimateTypes";
@@ -283,4 +294,122 @@ export async function hideAthenaEstimateForMaster(input: {
     }
     throw error;
   }
+}
+
+/**
+ * Licensee Master edit of the delivery-email overlay.
+ * Ownership comes from the authenticated Master and the stored Estimate.
+ * Only Ready Estimates that already have a delivery email can be edited.
+ * Generated subject and body stay on the record.
+ */
+export async function updateAthenaEstimateDeliveryEmailForMaster(
+  input: {
+    masterUserId: string;
+    estimateId: string;
+    body: unknown;
+  },
+  deps?: {
+    requireMaster?: typeof requireLicenseeMasterAccount;
+    getEstimate?: typeof getAthenaEstimateByIdForLicensee;
+    assertOwnsSubAccount?: typeof assertLicenseeOwnsSubAccount;
+    persistEdit?: typeof persistEditedEstimateDeliveryEmail;
+    now?: () => string;
+  },
+): Promise<EffectiveEstimateDeliveryEmail> {
+  const requireMaster = deps?.requireMaster ?? requireLicenseeMasterAccount;
+  const getEstimate = deps?.getEstimate ?? getAthenaEstimateByIdForLicensee;
+  const assertOwns = deps?.assertOwnsSubAccount ?? assertLicenseeOwnsSubAccount;
+  const persistEdit = deps?.persistEdit ?? persistEditedEstimateDeliveryEmail;
+  const now = deps?.now ?? (() => new Date().toISOString());
+
+  const masterAccount = await requireMaster(input.masterUserId);
+  const estimate = await getEstimate(input.estimateId, masterAccount.id);
+  if (!estimate) {
+    throw new EstimateDeliveryEmailEditError(
+      "NOT_FOUND",
+      "Estimate not found.",
+    );
+  }
+
+  const authorized = await assertOwns({
+    masterUserId: input.masterUserId,
+    organizationId: estimate.organization_id,
+  });
+  if (authorized.licenseeAccountId !== masterAccount.id) {
+    throw new LicenseeAccessError("Licensee account identity mismatch.");
+  }
+
+  if (estimate.status !== "Ready") {
+    throw new EstimateDeliveryEmailEditError(
+      "ESTIMATE_NOT_READY",
+      "Only a Ready Estimate delivery email can be edited.",
+    );
+  }
+  if (!estimate.delivery_email_json) {
+    throw new EstimateDeliveryEmailEditError(
+      "EMAIL_NOT_AVAILABLE",
+      "This Estimate has no delivery email to edit.",
+    );
+  }
+
+  const text = validateLicenseeEstimateDeliveryEmailEdit(input.body);
+  const editedAt = now();
+  const next = applyLicenseeEstimateDeliveryEmailEdit(
+    estimate.delivery_email_json,
+    text,
+    editedAt,
+  );
+
+  let saved = false;
+  try {
+    saved = await persistEdit({
+      estimateId: estimate.id,
+      licenseeAccountId: masterAccount.id,
+      record: next,
+    });
+  } catch (error) {
+    console.error("[ATHENA_ESTIMATE] delivery_email_edit_failed", {
+      estimateId: estimate.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new EstimateDeliveryEmailEditError(
+      "PERSISTENCE_FAILED",
+      "Failed to save Estimate delivery email.",
+    );
+  }
+
+  if (!saved) {
+    const current = await getEstimate(estimate.id, masterAccount.id);
+    if (!current) {
+      throw new EstimateDeliveryEmailEditError(
+        "NOT_FOUND",
+        "Estimate not found.",
+      );
+    }
+    if (current.status !== "Ready") {
+      throw new EstimateDeliveryEmailEditError(
+        "ESTIMATE_NOT_READY",
+        "Only a Ready Estimate delivery email can be edited.",
+      );
+    }
+    if (!current.delivery_email_json) {
+      throw new EstimateDeliveryEmailEditError(
+        "EMAIL_NOT_AVAILABLE",
+        "This Estimate has no delivery email to edit.",
+      );
+    }
+    throw new EstimateDeliveryEmailEditError(
+      "PERSISTENCE_FAILED",
+      "Failed to save Estimate delivery email.",
+    );
+  }
+
+  const effective = toEffectiveEstimateDeliveryEmail(next);
+  if (!effective?.edited) {
+    throw new EstimateDeliveryEmailEditError(
+      "PERSISTENCE_FAILED",
+      "Failed to save Estimate delivery email.",
+    );
+  }
+  return effective;
 }

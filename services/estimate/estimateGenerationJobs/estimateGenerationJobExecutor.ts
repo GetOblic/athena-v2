@@ -25,6 +25,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   getAthenaEstimateByIdForLicenseeIncludingHidden,
+  persistGeneratedEstimateDeliveryEmailIfAbsent,
   type AthenaEstimate,
 } from "@/services/estimate/athenaEstimateService";
 import { validateEstimateProspectGenerationContext } from "@/services/estimate/athenaEstimateProspectContext";
@@ -87,6 +88,11 @@ export type EstimateExecutorDeps = {
   prospectContextDeps?: ComposeEstimateProspectContextDeps;
   /** Test seam — defaults to Estimate job RPC wrappers. */
   jobOps?: EstimateJobOps;
+  /**
+   * Optional seam for the post-Ready email write.
+   * Defaults to the guarded delivery_email_json update.
+   */
+  persistGeneratedDeliveryEmail?: typeof persistGeneratedEstimateDeliveryEmailIfAbsent;
 };
 
 async function defaultResolveMasterUserId(input: {
@@ -257,6 +263,9 @@ export async function executeClaimedEstimateGenerationJob(
     complete: completeEstimateGenerationJobWithClaim,
     fail: failEstimateGenerationJobWithClaim,
   };
+  const persistGeneratedDeliveryEmail =
+    deps.persistGeneratedDeliveryEmail ??
+    persistGeneratedEstimateDeliveryEmailIfAbsent;
 
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   let claimLost = false;
@@ -431,8 +440,9 @@ export async function executeClaimedEstimateGenerationJob(
     const licenseeAccount = await getLicenseeAccountById(
       job.licensee_account_id,
     );
+    const masterOutputLanguage = licenseeAccount?.default_language ?? "en";
     const outputLanguageInstruction = buildEstimateOutputLanguageInstruction(
-      licenseeAccount?.default_language ?? "en",
+      masterOutputLanguage,
     );
 
     const result = await runPipeline({
@@ -442,6 +452,7 @@ export async function executeClaimedEstimateGenerationJob(
       prospectCommercialTargetIntelligence:
         prospectFreeze.prospectCommercialTargetIntelligence,
       outputLanguageInstruction,
+      outputLanguage: masterOutputLanguage,
       onStage: async (stage) => {
         currentStage = stage;
         const renewed = await renewLease(stage);
@@ -510,6 +521,25 @@ export async function executeClaimedEstimateGenerationJob(
         estimateId: job.estimate_id,
       });
       return "claim_lost";
+    }
+
+    // Email persistence is separate from package_json. A write failure must
+    // not fail the job or demote the Ready Estimate.
+    try {
+      await persistGeneratedDeliveryEmail({
+        estimateId: estimate.id,
+        licenseeAccountId: estimate.licensee_account_id,
+        deliveryEmail: result.deliveryEmail ?? null,
+      });
+    } catch (persistError) {
+      console.error("[ATHENA_ESTIMATE_JOBS] delivery_email_persist_failed", {
+        jobId: job.id,
+        estimateId: job.estimate_id,
+        error:
+          persistError instanceof Error
+            ? persistError.message
+            : String(persistError),
+      });
     }
 
     console.log("[ATHENA_ESTIMATE_JOBS] execute_completed", {

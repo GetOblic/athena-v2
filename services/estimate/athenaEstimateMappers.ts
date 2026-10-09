@@ -4,6 +4,7 @@
 
 import { normalizeEstimateRequest } from "@/services/estimate/athenaEstimateRequest";
 import { validateEstimateProspectGenerationContext } from "@/services/estimate/athenaEstimateProspectContext";
+import { parseEstimateDeliveryEmailRecord } from "@/services/estimate/estimateDeliveryEmail";
 import {
   isAthenaEstimateCurrencyResolution,
   isAthenaEstimateStatus,
@@ -104,6 +105,9 @@ export function mapAthenaEstimateRow(
     status,
     generation_stage,
     package_json: mapPackage(row.package_json, status),
+    delivery_email_json: parseEstimateDeliveryEmailRecord(
+      row.delivery_email_json,
+    ),
     error_code: (row.error_code as string | null) ?? null,
     error_message: (row.error_message as string | null) ?? null,
     currency_code: (row.currency_code as string | null) ?? null,

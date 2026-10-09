@@ -1,6 +1,6 @@
 /**
  * Athena Estimate generation pipeline (V26 L5).
- * Single bounded LLM call → validate/normalize → package.
+ * Single bounded LLM call → validate/normalize package → optional delivery email.
  * Authorization recheck and methodology gate belong in the executor (before this runs).
  */
 
@@ -10,6 +10,12 @@ import { buildEstimateUserPrompt } from "@/services/ai/prompts/estimate/estimate
 import type { EstimateRequest } from "@/services/estimate/athenaEstimateTypes";
 import type { AthenaEstimatePackage } from "@/services/estimate/athenaEstimateTypes";
 import type { AthenaEstimateGenerationStage } from "@/services/estimate/athenaEstimateTypes";
+import {
+  validateEstimateDeliveryEmail,
+  type EstimateDeliveryEmailV1,
+} from "@/services/estimate/estimateDeliveryEmail";
+import { resolveEstimateOutputLanguage } from "@/services/estimate/estimateOutputLanguage";
+import type { OrganizationLanguage } from "@/services/organizationLanguage";
 import {
   composeEstimateOrganizationContext,
   type ComposeEstimateOrganizationContextDeps,
@@ -100,10 +106,17 @@ export async function runEstimateGenerationPipeline(input: {
    * Never derived from selected organization language or client input.
    */
   outputLanguageInstruction?: string | null;
+  /**
+   * Master language code. Wins over the instruction text when both are set.
+   * Used for deliveryEmail.language validation. Does not change estimate_v1.
+   */
+  outputLanguage?: OrganizationLanguage | null;
   onStage?: EstimatePipelineStageCallback;
   deps?: EstimateGenerationPipelineDeps;
 }): Promise<{
   package: AthenaEstimatePackage;
+  /** Null when the sibling email is missing or fails validation. */
+  deliveryEmail: EstimateDeliveryEmailV1 | null;
   context: EstimateOrganizationContext;
 }> {
   if (!input.methodology.configured || !input.methodology.instructionText.trim()) {
@@ -141,6 +154,11 @@ export async function runEstimateGenerationPipeline(input: {
     });
   }
 
+  const outputLanguage = resolveEstimateOutputLanguage({
+    outputLanguage: input.outputLanguage,
+    outputLanguageInstruction: input.outputLanguageInstruction,
+  });
+
   await onStage("generating_estimate");
   const userPrompt = buildEstimateUserPrompt({
     trustedContext: context.composedTrustedContext,
@@ -152,6 +170,7 @@ export async function runEstimateGenerationPipeline(input: {
     prospectCommercialTargetIntelligence:
       input.prospectCommercialTargetIntelligence ?? null,
     outputLanguageInstruction: input.outputLanguageInstruction ?? null,
+    outputLanguageCode: outputLanguage,
   });
 
   let raw: string;
@@ -176,15 +195,18 @@ export async function runEstimateGenerationPipeline(input: {
   }
 
   const parsed = parseJsonObject(raw, "generating_estimate");
+  const deliveryEmailRaw = parsed.deliveryEmail;
+  const estimateRaw: Record<string, unknown> = { ...parsed };
+  delete estimateRaw.deliveryEmail;
 
   await onStage("validating");
+  let estimatePackage: AthenaEstimatePackage;
   try {
-    const estimatePackage = normalizeAndValidateEstimatePackage({
-      raw: parsed,
+    estimatePackage = normalizeAndValidateEstimatePackage({
+      raw: estimateRaw,
       geoCurrency: context.geoCurrency,
       methodology: input.methodology,
     });
-    return { package: estimatePackage, context };
   } catch (error) {
     if (error instanceof AthenaEstimatePackageValidationError) {
       throw new EstimateGenerationPipelineError({
@@ -203,5 +225,37 @@ export async function runEstimateGenerationPipeline(input: {
       stage: "validating",
       retryable: true,
     });
+  }
+
+  return {
+    package: estimatePackage,
+    deliveryEmail: acceptDeliveryEmail({
+      raw: deliveryEmailRaw,
+      language: outputLanguage,
+      amount: estimatePackage.recommendedClientPrice.amount,
+      currencyCode: estimatePackage.recommendedClientPrice.currencyCode,
+    }),
+    context,
+  };
+}
+
+/**
+ * Email failure must not fail a valid Estimate package.
+ */
+function acceptDeliveryEmail(input: {
+  raw: unknown;
+  language: OrganizationLanguage;
+  amount: number;
+  currencyCode: string;
+}): EstimateDeliveryEmailV1 | null {
+  try {
+    return validateEstimateDeliveryEmail({
+      raw: input.raw,
+      language: input.language,
+      recommendedClientPriceAmount: input.amount,
+      currencyCode: input.currencyCode,
+    });
+  } catch {
+    return null;
   }
 }

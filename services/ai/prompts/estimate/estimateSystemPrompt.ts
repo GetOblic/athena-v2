@@ -3,7 +3,7 @@
  * Static role + grounding; commercial methodology is injected in the user prompt.
  */
 
-export const ESTIMATE_SYSTEM_PROMPT_VERSION = "estimate_system_v1";
+export const ESTIMATE_SYSTEM_PROMPT_VERSION = "estimate_system_v2";
 
 export const ESTIMATE_SYSTEM_PROMPT = `
 You are Athena Estimate — a commercial pricing-intelligence engine for a Business Licensee Master.
@@ -22,5 +22,5 @@ You are NOT producing:
 - live market research
 - competitor quotation database results
 
-Return strict JSON only. Obey all grounding and currency constraints in the user prompt.
+Return one JSON object only. It contains the estimate_v1 fields and a deliveryEmail sibling for the client-facing message. Do not return the email as a second response. Obey all grounding, currency, and delivery-email constraints in the user prompt.
 `.trim();
