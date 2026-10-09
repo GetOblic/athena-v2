@@ -1,8 +1,10 @@
 /**
  * Issued client quotation PDF.
  * Commercial content comes only from the immutable issued snapshot.
- * The live Estimate, Prospect, issuer profile, and organization
- * business fields are not read.
+ * Billing frequency and per-frequency totals are read from that snapshot.
+ * They are not recalculated, combined, or annualized.
+ * The live Estimate, Prospect, issuer profile, organization business
+ * fields, and service templates are not read.
  */
 
 import PDFDocument from "pdfkit";
@@ -21,6 +23,8 @@ import {
 import { localizeClientQuoteSystemAppendixHeading } from "@/services/clientQuote/pdf/clientQuotePdfAppendixHeadings";
 import { clientQuotePdfVisibleAppendixSections } from "@/services/clientQuote/pdf/clientQuotePdfGuidance";
 import {
+  clientQuotePdfBillingFrequencyLabel,
+  clientQuotePdfFrequencyTotalLabel,
   clientQuotePdfLabels,
   type ClientQuotePdfLabels,
 } from "@/services/clientQuote/pdf/clientQuotePdfLabels";
@@ -31,10 +35,15 @@ import {
   type ClientQuotePdfLogoDownload,
 } from "@/services/clientQuote/pdf/clientQuotePdfLogo";
 import { resolveClientQuotePdfTheme, type ClientQuotePdfTheme } from "@/services/clientQuote/pdf/clientQuotePdfTheme";
-import type {
-  ClientQuoteIssuedSnapshotV1,
-  ClientQuoteLineItem,
-  ClientQuotePostalAddress,
+import {
+  CLIENT_QUOTE_BILLING_FREQUENCIES,
+  isClientQuoteBillingFrequency,
+  type ClientQuoteBillingFrequency,
+  type ClientQuoteFrequencyTotals,
+  type ClientQuoteIssuedSnapshotV1,
+  type ClientQuoteLineItem,
+  type ClientQuotePostalAddress,
+  type ClientQuoteTotals,
 } from "@/services/clientQuote/clientQuoteTypes";
 
 const PAGE = {
@@ -55,6 +64,21 @@ const AMOUNT_W = 90;
 const DESC_W = WIDTH - QTY_W - PRICE_W - AMOUNT_W;
 
 type Align = "left" | "right" | "center";
+
+/**
+ * Frozen frequency groups in canonical order.
+ * An absent or empty list means the snapshot predates recurring pricing.
+ * Unknown cadences are ignored. Groups are not summed or annualized.
+ */
+export function clientQuotePdfFrequencyGroups(
+  groups: readonly ClientQuoteFrequencyTotals[] | null | undefined,
+): ClientQuoteFrequencyTotals[] {
+  if (!groups || groups.length === 0) return [];
+  return CLIENT_QUOTE_BILLING_FREQUENCIES.flatMap((billingFrequency) => {
+    const match = groups.find((group) => group.billingFrequency === billingFrequency);
+    return match ? [match] : [];
+  });
+}
 
 function clean(value: string | null | undefined): string | null {
   if (value == null) return null;
@@ -166,7 +190,7 @@ class ClientQuotePdfLayout {
     this.drawFirstPage();
     this.drawProject();
     this.drawServices();
-    this.drawTotals();
+    this.drawFinancialSummary();
     this.drawNarrative(
       this.labels.paymentTerms,
       [clean(this.snapshot.paymentTerms.summary), clean(this.snapshot.paymentTerms.scheduleNote)]
@@ -631,11 +655,23 @@ class ClientQuotePdfLayout {
     );
   }
 
+  private lineBillingCaption(line: ClientQuoteLineItem): string | null {
+    if (!isClientQuoteBillingFrequency(line.billingFrequency)) return null;
+    const frequency = clientQuotePdfBillingFrequencyLabel(this.labels, line.billingFrequency);
+    return `${this.labels.billing}: ${frequency}`;
+  }
+
   private drawLineItem(line: ClientQuoteLineItem) {
     const { fonts } = this.theme;
     const description = wrapClientQuotePdfTokens(line.description);
-    const descHeight = this.measure(description, fonts.regular, 9, DESC_W - 16, 1.4);
-    const rowHeight = Math.max(descHeight, 12) + 12;
+    const caption = this.lineBillingCaption(line);
+    const descWidth = DESC_W - 16;
+    const descHeight = this.measure(description, fonts.regular, 9, descWidth, 1.4);
+    const captionHeight = caption
+      ? this.measure(caption, fonts.regular, 8, descWidth, 0.4)
+      : 0;
+    const captionBlock = caption ? captionHeight + 3 : 0;
+    const rowHeight = Math.max(descHeight, 12) + captionBlock + 12;
     const capacity = this.limitY() - this.freshContentTop() - 22;
     if (rowHeight <= capacity) {
       this.ensure(rowHeight);
@@ -644,23 +680,52 @@ class ClientQuotePdfLayout {
         description,
         LEFT + 8,
         y + 6,
-        DESC_W - 16,
+        descWidth,
         fonts.regular,
         9,
         this.theme.ink,
         1.4,
         descHeight,
       );
+      if (caption) {
+        this.paint(
+          caption,
+          LEFT + 8,
+          y + 6 + Math.max(descHeight, 12) + 2,
+          descWidth,
+          fonts.regular,
+          8,
+          this.theme.muted,
+          0.4,
+          captionHeight,
+        );
+      }
       this.paintAmountRow(y + 6, line);
       this.y = y + rowHeight;
       this.doc.y = this.y;
       this.drawRowRule();
       return;
     }
-    this.ensure(28);
+    this.ensure(caption ? 42 : 28);
     this.paintAmountRow(this.y + 2, line);
     this.advance(16);
-    this.flowText(description, LEFT + 8, DESC_W - 16, fonts.regular, 9, this.theme.ink, 1.4);
+    if (caption) {
+      const height = this.measure(caption, fonts.regular, 8, descWidth, 0.4);
+      if (this.limitY() - this.y < height + 4) this.newPage();
+      this.paint(
+        caption,
+        LEFT + 8,
+        this.y,
+        descWidth,
+        fonts.regular,
+        8,
+        this.theme.muted,
+        0.4,
+        height,
+      );
+      this.advance(height + 4);
+    }
+    this.flowText(description, LEFT + 8, descWidth, fonts.regular, 9, this.theme.ink, 1.4);
     this.advance(6);
     this.drawRowRule();
   }
@@ -702,9 +767,59 @@ class ClientQuotePdfLayout {
     this.doc.restore();
   }
 
-  private drawTotals() {
+  private frequencyTotalHeading(frequency: ClientQuoteBillingFrequency): string {
+    return clientQuotePdfFrequencyTotalLabel(this.labels, frequency);
+  }
+
+  /**
+   * Legacy snapshots have no frequency groups and keep one unlabeled total.
+   * A single recurring group keeps one block and names its cadence.
+   * Mixed groups render one block each, in canonical order, and never
+   * paint snapshot.totals as a combined or annualized figure.
+   */
+  private drawFinancialSummary() {
+    const groups = clientQuotePdfFrequencyGroups(this.snapshot.frequencyTotals);
+    if (groups.length === 0) {
+      this.drawTotalsBlock(this.snapshot.totals, null);
+      return;
+    }
+    if (groups.length === 1) {
+      const group = groups[0];
+      const heading =
+        group.billingFrequency === "one_time"
+          ? null
+          : this.frequencyTotalHeading(group.billingFrequency);
+      this.drawTotalsBlock(group.totals, heading);
+      return;
+    }
+    this.drawMixedFrequencySummary(groups);
+  }
+
+  private drawMixedFrequencySummary(groups: readonly ClientQuoteFrequencyTotals[]) {
     const { fonts } = this.theme;
-    const totals = this.snapshot.totals;
+    const title = this.labels.frequencyTotalsTitle;
+    const titleHeight = this.measure(title, fonts.bold, 8, WIDTH, 0.6);
+    this.advance(16);
+    this.ensure(titleHeight + 160);
+    this.paint(
+      title,
+      LEFT,
+      this.y,
+      WIDTH,
+      fonts.bold,
+      8,
+      this.theme.accent,
+      0.6,
+      titleHeight,
+    );
+    this.advance(titleHeight + 2);
+    for (const group of groups) {
+      this.drawTotalsBlock(group.totals, this.frequencyTotalHeading(group.billingFrequency));
+    }
+  }
+
+  private drawTotalsBlock(totals: ClientQuoteTotals, heading: string | null) {
+    const { fonts } = this.theme;
     const taxLabel =
       this.snapshot.tax.kind === "percentage" && clean(this.snapshot.tax.label)
         ? `${this.labels.tax} · ${clean(this.snapshot.tax.label)}`
@@ -721,10 +836,29 @@ class ClientQuotePdfLayout {
     const rowH = rows.reduce((sum, row) => {
       return sum + Math.max(16, this.measure(row.label, fonts.regular, 9, labelW, 0.5) + 4);
     }, 0);
-    const block = rowH + 36;
+    const headingHeight = heading
+      ? this.measure(heading, fonts.bold, 8, boxW, 0.4) + 6
+      : 0;
+    const block = headingHeight + rowH + 36;
     this.advance(12);
     this.ensure(block);
     const x = RIGHT - boxW;
+    if (heading) {
+      const textHeight = headingHeight - 6;
+      this.paint(
+        heading,
+        x,
+        this.y,
+        boxW,
+        fonts.bold,
+        8,
+        this.theme.accent,
+        0.4,
+        textHeight,
+        "right",
+      );
+      this.advance(headingHeight);
+    }
     let cursor = this.y;
     for (const row of rows) {
       const height = Math.max(16, this.measure(row.label, fonts.regular, 9, labelW, 0.5) + 4);

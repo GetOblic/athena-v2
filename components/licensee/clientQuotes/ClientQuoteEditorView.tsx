@@ -4,9 +4,13 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ClientQuotePdfDownloadButton } from "@/components/licensee/clientQuotes/ClientQuotePdfDownloadButton";
 import type { LicenseeMessages } from "@/lib/licensee/getLicenseeLocalization";
+import { clientQuoteBillingFrequencyLabel } from "@/lib/licensee/clientQuoteEditorMessages";
 import {
   addClientQuoteAppendixSection,
   addClientQuoteLine,
+  clientQuoteCurrencyOptions,
+  clientQuoteFrequencyGroupsForDisplay,
+  clientQuoteHasMixedBillingFrequency,
   formatClientQuoteDate,
   formatClientQuoteMinorAmount,
   moveClientQuoteLineAt,
@@ -20,15 +24,33 @@ import {
   type ClientQuoteEditorDraft,
   type ClientQuoteIssueRequirement,
   type ClientQuoteIssuerEdit,
+  type ClientQuoteLineEdit,
   type ClientQuotePostalAddressEdit,
 } from "@/lib/licensee/clientQuoteEditorModel";
-import { CLIENT_QUOTE_FIELD_LIMITS } from "@/services/clientQuote/clientQuoteTypes";
-import type { ClientQuoteTotals } from "@/services/clientQuote/clientQuoteTypes";
+import {
+  CLIENT_QUOTE_BILLING_FREQUENCIES,
+  CLIENT_QUOTE_FIELD_LIMITS,
+  isClientQuoteBillingFrequency,
+} from "@/services/clientQuote/clientQuoteTypes";
+import type {
+  ClientQuoteBillingFrequency,
+  ClientQuoteFrequencyTotals,
+  ClientQuoteTotals,
+} from "@/services/clientQuote/clientQuoteTypes";
 import {
   ORGANIZATION_LANGUAGES,
   isOrganizationLanguage,
   organizationLanguageLabel,
 } from "@/services/organizationLanguage";
+
+export type ClientQuoteTemplateChoice = {
+  id: string;
+  name: string;
+  description: string;
+  unitPriceMinor: number;
+  currencyCode: string;
+  billingFrequency: ClientQuoteBillingFrequency;
+};
 
 const FIELD_CLASS =
   "w-full rounded-2xl border border-white/20 bg-[#161922] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-[var(--athena-orange)] focus:ring-2 focus:ring-[var(--athena-orange)]/30";
@@ -45,6 +67,17 @@ export type ClientQuoteEditorViewProps = {
   editor: ClientQuoteEditorDraft;
   lineTotalsMinor: number[] | null;
   totals: ClientQuoteTotals | null;
+  frequencyTotals?: readonly ClientQuoteFrequencyTotals[] | null;
+  pendingCurrencyCode?: string | null;
+  onCurrencyChange?: (currencyCode: string) => void;
+  onConfirmCurrencyChange?: () => void;
+  onCancelCurrencyChange?: () => void;
+  templatesOpen?: boolean;
+  templatesPhase?: "loading" | "error" | "ready";
+  templateChoices?: readonly ClientQuoteTemplateChoice[];
+  onToggleTemplates?: () => void;
+  onRetryTemplates?: () => void;
+  onInsertTemplate?: (templateId: string) => void;
   locale: string;
   messages: LicenseeMessages;
   pending: "save" | "issue" | "revise" | null;
@@ -251,6 +284,97 @@ function MoneyRow({
   );
 }
 
+function CurrencyControl({
+  readOnly,
+  busy,
+  currencyCode,
+  pendingCurrencyCode,
+  copy,
+  onCurrencyChange,
+  onConfirmCurrencyChange,
+  onCancelCurrencyChange,
+}: {
+  readOnly: boolean;
+  busy: boolean;
+  currencyCode: string;
+  pendingCurrencyCode: string | null;
+  copy: LicenseeMessages["clientQuotes"];
+  onCurrencyChange?: (currencyCode: string) => void;
+  onConfirmCurrencyChange?: () => void;
+  onCancelCurrencyChange?: () => void;
+}) {
+  const options = readOnly ? null : clientQuoteCurrencyOptions(currencyCode);
+  if (!options) {
+    return (
+      <p
+        className="mt-3 max-w-2xl text-sm leading-6 text-white/50"
+        data-client-quote-currency={currencyCode}
+      >
+        {readOnly ? copy.currencyIssuedLocked : copy.currencyLocked}{" "}
+        <span className="font-medium text-white">{currencyCode}</span>
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-4 max-w-xl" data-client-quote-currency-selectable="true">
+      <label className="block">
+        <span className={LABEL_CLASS}>{copy.currencyLabel}</span>
+        <select
+          data-field="currencyCode"
+          data-client-quote-currency={currencyCode}
+          value={currencyCode}
+          disabled={busy || pendingCurrencyCode != null}
+          onChange={(event) => onCurrencyChange?.(event.target.value)}
+          className={`${FIELD_CLASS} md:max-w-xs`}
+        >
+          {options.map((code) => (
+            <option key={code} value={code}>
+              {code === "USD" ? copy.currencyUsd : code === "EUR" ? copy.currencyEur : code}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="mt-2 text-sm leading-6 text-white/50">{copy.currencyHint}</p>
+      {pendingCurrencyCode ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="client-quote-currency-title"
+          data-client-quote-currency-confirm="true"
+          className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-500/10 p-4"
+        >
+          <h2 id="client-quote-currency-title" className="text-sm font-semibold text-white">
+            {copy.currencyChangeTitle}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-amber-50">{copy.currencyChangeBody}</p>
+          <p className="mt-2 text-sm text-white" data-client-quote-currency-pending={pendingCurrencyCode}>
+            {pendingCurrencyCode}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              data-client-quote-currency-confirm-action="true"
+              onClick={onConfirmCurrencyChange}
+              className="rounded-full bg-[var(--athena-orange)] px-4 py-2 text-sm font-semibold text-white"
+            >
+              {copy.currencyChangeConfirm}
+            </button>
+            <button
+              type="button"
+              data-client-quote-currency-cancel="true"
+              onClick={onCancelCurrencyChange}
+              className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white"
+            >
+              {copy.currencyChangeCancel}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ClientQuoteEditorView({
   mode,
   quoteNumber,
@@ -259,6 +383,17 @@ export function ClientQuoteEditorView({
   editor,
   lineTotalsMinor,
   totals,
+  frequencyTotals = null,
+  pendingCurrencyCode = null,
+  onCurrencyChange,
+  onConfirmCurrencyChange,
+  onCancelCurrencyChange,
+  templatesOpen = false,
+  templatesPhase = "loading",
+  templateChoices = [],
+  onToggleTemplates,
+  onRetryTemplates,
+  onInsertTemplate,
   locale,
   messages,
   pending,
@@ -276,6 +411,10 @@ export function ClientQuoteEditorView({
   const readOnly = mode === "issued";
   const busy = pending !== null;
   const missing = new Set(missingRequirements);
+  const mixedFrequency = clientQuoteHasMixedBillingFrequency(editor);
+  const frequencyGroups = clientQuoteFrequencyGroupsForDisplay(frequencyTotals);
+  const showGroupedTotals = frequencyGroups.length > 1;
+  const lineLimitReached = editor.lines.length >= CLIENT_QUOTE_FIELD_LIMITS.lineItems;
 
   function patchIssuer(partial: Partial<ClientQuoteIssuerEdit>) {
     onChange({ ...editor, issuer: { ...editor.issuer, ...partial } });
@@ -283,6 +422,15 @@ export function ClientQuoteEditorView({
 
   function patchCustomer(partial: Partial<ClientQuoteEditorDraft["customer"]>) {
     onChange({ ...editor, customer: { ...editor.customer, ...partial } });
+  }
+
+  function patchLine(index: number, partial: Partial<ClientQuoteLineEdit>) {
+    onChange({
+      ...editor,
+      lines: editor.lines.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...partial } : item,
+      ),
+    });
   }
 
   const discountLabel =
@@ -305,10 +453,16 @@ export function ClientQuoteEditorView({
         <h1 className="mt-3 text-3xl font-semibold tracking-tight">
           {editor.projectTitle.trim() || copy.untitled}
         </h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-white/50" data-client-quote-currency={currencyCode}>
-          {copy.currencyLocked}{" "}
-          <span className="font-medium text-white">{currencyCode}</span>
-        </p>
+        <CurrencyControl
+          readOnly={readOnly}
+          busy={busy}
+          currencyCode={currencyCode}
+          pendingCurrencyCode={pendingCurrencyCode}
+          copy={copy}
+          onCurrencyChange={onCurrencyChange}
+          onConfirmCurrencyChange={onConfirmCurrencyChange}
+          onCancelCurrencyChange={onCancelCurrencyChange}
+        />
       </header>
 
       {readOnly ? (
@@ -597,19 +751,89 @@ export function ClientQuoteEditorView({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold text-white">{copy.servicesTitle}</h2>
           {readOnly ? null : (
-            <button
-              type="button"
-              data-client-quote-add-line="true"
-              disabled={busy || editor.lines.length >= CLIENT_QUOTE_FIELD_LIMITS.lineItems}
-              onClick={() => onChange(addClientQuoteLine(editor, currencyCode))}
-              className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
-            >
-              {copy.addLine}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                data-client-quote-add-line="true"
+                disabled={busy || lineLimitReached}
+                onClick={() => onChange(addClientQuoteLine(editor, currencyCode))}
+                className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
+              >
+                {copy.addLine}
+              </button>
+              <button
+                type="button"
+                data-client-quote-add-template="true"
+                aria-expanded={templatesOpen}
+                disabled={busy || lineLimitReached}
+                onClick={() => onToggleTemplates?.()}
+                className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
+              >
+                {copy.addFromTemplates}
+              </button>
+            </div>
           )}
         </div>
+        {readOnly || !templatesOpen ? null : (
+          <div
+            className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4"
+            data-client-quote-template-picker="true"
+          >
+            {templatesPhase === "loading" ? (
+              <p className="text-sm text-white/55" data-client-quote-template-loading="true">
+                {copy.templatesLoading}
+              </p>
+            ) : null}
+            {templatesPhase === "error" ? (
+              <div>
+                <p className="text-sm text-red-300" role="alert" data-client-quote-template-error="true">
+                  {copy.templatesLoadError}
+                </p>
+                <button
+                  type="button"
+                  data-client-quote-template-retry="true"
+                  onClick={() => onRetryTemplates?.()}
+                  className="mt-3 rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+                >
+                  {messages.common.retry}
+                </button>
+              </div>
+            ) : null}
+            {templatesPhase === "ready" && templateChoices.length === 0 ? (
+              <p className="text-sm text-white/55" data-client-quote-template-empty="true">
+                {copy.templatesEmpty}
+              </p>
+            ) : null}
+            {templatesPhase === "ready" && templateChoices.length > 0 ? (
+              <ul className="space-y-2">
+                {templateChoices.map((template) => (
+                  <li key={template.id}>
+                    <button
+                      type="button"
+                      data-client-quote-template={template.id}
+                      disabled={busy || lineLimitReached}
+                      onClick={() => onInsertTemplate?.(template.id)}
+                      className="flex w-full flex-col items-start gap-1 rounded-2xl border border-white/10 px-4 py-3 text-left hover:bg-white/5 disabled:opacity-50"
+                    >
+                      <span className="text-sm font-medium text-white">{template.name}</span>
+                      <span className="text-sm text-white/70">{template.description}</span>
+                      <span className="text-xs text-white/45">
+                        {clientQuoteBillingFrequencyLabel(messages, template.billingFrequency)}
+                        {" · "}
+                        {formatClientQuoteMinorAmount(template.unitPriceMinor, template.currencyCode)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        )}
         <div className="mt-5 space-y-4">
           {editor.lines.map((line, index) => {
+            const frequency = isClientQuoteBillingFrequency(line.billingFrequency)
+              ? line.billingFrequency
+              : "one_time";
             const lineTotal =
               lineTotalsMinor && lineTotalsMinor[index] != null
                 ? formatClientQuoteMinorAmount(lineTotalsMinor[index], currencyCode)
@@ -620,50 +844,59 @@ export function ClientQuoteEditorView({
                 data-client-quote-line={line.id}
                 className="rounded-2xl border border-white/10 bg-black/20 p-4"
               >
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_8rem_9rem_9rem]">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_8rem_9rem_11rem_9rem]">
                   <TextControl
                     label={copy.description}
                     value={line.description}
                     readOnly={readOnly}
                     field={`line.${line.id}.description`}
                     maxLength={CLIENT_QUOTE_FIELD_LIMITS.lineDescription}
-                    onChange={(description) =>
-                      onChange({
-                        ...editor,
-                        lines: editor.lines.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, description } : item,
-                        ),
-                      })
-                    }
+                    onChange={(description) => patchLine(index, { description })}
                   />
                   <TextControl
                     label={copy.quantity}
                     value={line.quantityText}
                     readOnly={readOnly}
                     field={`line.${line.id}.quantity`}
-                    onChange={(quantityText) =>
-                      onChange({
-                        ...editor,
-                        lines: editor.lines.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, quantityText } : item,
-                        ),
-                      })
-                    }
+                    onChange={(quantityText) => patchLine(index, { quantityText })}
                   />
                   <TextControl
                     label={copy.unitPrice}
                     value={line.unitPriceText}
                     readOnly={readOnly}
                     field={`line.${line.id}.unitPrice`}
-                    onChange={(unitPriceText) =>
-                      onChange({
-                        ...editor,
-                        lines: editor.lines.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, unitPriceText } : item,
-                        ),
-                      })
-                    }
+                    onChange={(unitPriceText) => patchLine(index, { unitPriceText })}
                   />
+                  {readOnly ? (
+                    <div>
+                      <div className={LABEL_CLASS}>{copy.billingFrequency}</div>
+                      <p
+                        className="text-sm leading-6 text-white"
+                        data-field={`line.${line.id}.billingFrequency`}
+                      >
+                        {clientQuoteBillingFrequencyLabel(messages, frequency)}
+                      </p>
+                    </div>
+                  ) : (
+                    <FieldShell label={copy.billingFrequency}>
+                      <select
+                        data-field={`line.${line.id}.billingFrequency`}
+                        value={frequency}
+                        onChange={(event) => {
+                          const next = event.target.value;
+                          if (!isClientQuoteBillingFrequency(next)) return;
+                          patchLine(index, { billingFrequency: next });
+                        }}
+                        className={FIELD_CLASS}
+                      >
+                        {CLIENT_QUOTE_BILLING_FREQUENCIES.map((frequency) => (
+                          <option key={frequency} value={frequency}>
+                            {clientQuoteBillingFrequencyLabel(messages, frequency)}
+                          </option>
+                        ))}
+                      </select>
+                    </FieldShell>
+                  )}
                   <div>
                     <div className={LABEL_CLASS}>{copy.lineTotal}</div>
                     <p className="py-3 text-sm font-medium text-white" data-field={`line.${line.id}.total`}>
@@ -729,7 +962,9 @@ export function ClientQuoteEditorView({
                 className={FIELD_CLASS}
               >
                 <option value="none">{copy.discountNone}</option>
-                <option value="fixed">{copy.discountFixed}</option>
+                <option value="fixed" disabled={mixedFrequency}>
+                  {copy.discountFixed}
+                </option>
                 <option value="percentage">{copy.discountPercentage}</option>
               </select>
             </FieldShell>
@@ -753,6 +988,15 @@ export function ClientQuoteEditorView({
             ) : null}
           </div>
         )}
+        {mixedFrequency ? (
+          <p
+            className="mt-4 text-sm leading-6 text-amber-100/80"
+            data-client-quote-fixed-discount="unavailable"
+            role={editor.discountKind === "fixed" ? "alert" : undefined}
+          >
+            {copy.fixedDiscountMixed}
+          </p>
+        ) : null}
 
         <h2 className="mt-8 text-lg font-semibold text-white">{copy.taxTitle}</h2>
         {readOnly ? (
@@ -800,13 +1044,57 @@ export function ClientQuoteEditorView({
           </div>
         )}
 
-        <h2 className="mt-8 text-lg font-semibold text-white">{copy.total}</h2>
+        <h2 className="mt-8 text-lg font-semibold text-white">
+          {showGroupedTotals ? copy.frequencySummaryTitle : copy.total}
+        </h2>
         {readOnly ? (
           <p className="mt-2 text-xs uppercase tracking-[0.14em] text-white/35">
             {copy.frozenTotals}
           </p>
         ) : null}
-        {totals ? (
+        {showGroupedTotals ? (
+          <div className="mt-4 space-y-5" data-client-quote-frequency-summary="true">
+            <p className="text-sm leading-6 text-white/55">{copy.frequencySummarySeparate}</p>
+            {frequencyGroups.map((group) => (
+              <section
+                key={group.billingFrequency}
+                data-client-quote-frequency-group={group.billingFrequency}
+              >
+                <h3 className="text-sm font-semibold text-white">
+                  {clientQuoteBillingFrequencyLabel(messages, group.billingFrequency)}
+                </h3>
+                <dl className="mt-2 space-y-2">
+                  <MoneyRow
+                    label={copy.subtotal}
+                    value={formatClientQuoteMinorAmount(group.totals.subtotalMinor, currencyCode)}
+                    field={`frequency.${group.billingFrequency}.subtotal`}
+                  />
+                  <MoneyRow
+                    label={copy.discount}
+                    value={formatClientQuoteMinorAmount(group.totals.discountMinor, currencyCode)}
+                    field={`frequency.${group.billingFrequency}.discount`}
+                  />
+                  <MoneyRow
+                    label={copy.taxableAmount}
+                    value={formatClientQuoteMinorAmount(group.totals.taxableMinor, currencyCode)}
+                    field={`frequency.${group.billingFrequency}.taxable`}
+                  />
+                  <MoneyRow
+                    label={copy.tax}
+                    value={formatClientQuoteMinorAmount(group.totals.taxMinor, currencyCode)}
+                    field={`frequency.${group.billingFrequency}.tax`}
+                  />
+                  <MoneyRow
+                    label={copy.total}
+                    value={formatClientQuoteMinorAmount(group.totals.totalMinor, currencyCode)}
+                    field={`frequency.${group.billingFrequency}.total`}
+                    emphasize
+                  />
+                </dl>
+              </section>
+            ))}
+          </div>
+        ) : totals ? (
           <dl className="mt-4 space-y-2" data-client-quote-totals="true">
             <MoneyRow
               label={copy.subtotal}
@@ -837,7 +1125,9 @@ export function ClientQuoteEditorView({
           </dl>
         ) : (
           <p className="mt-4 text-sm text-white/45" data-client-quote-totals="unavailable">
-            {copy.totalsUnavailable}
+            {mixedFrequency && editor.discountKind === "fixed"
+              ? copy.fixedDiscountMixed
+              : copy.totalsUnavailable}
           </p>
         )}
         <p className="mt-4 text-xs leading-5 text-white/40">{copy.totalsAuthority}</p>

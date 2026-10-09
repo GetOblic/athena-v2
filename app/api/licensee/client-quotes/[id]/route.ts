@@ -102,6 +102,7 @@ export async function PATCH(
       quoteId: id.trim(),
       draft: parsed.draft,
       contentLanguage: parsed.contentLanguage,
+      currencyCode: parsed.currencyCode,
       deps: createDefaultClientQuoteDeps(),
     });
     return json({ ok: true, quote: toPublicClientQuote(quote) });

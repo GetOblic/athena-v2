@@ -1528,3 +1528,241 @@ describe("quotation API and storage contracts", () => {
     assert.doesNotMatch(publicQuote, /client-quotes|clientQuoteService/);
   });
 });
+
+describe("draft currency selection", () => {
+  it("keeps the Estimate currency until an explicit USD or EUR change", async () => {
+    const harness = createHarness();
+    const quote = await createClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      estimateId: ESTIMATE,
+      recipient: { kind: "client" },
+      deps: harness.deps,
+    });
+    assert.equal(quote.currency_code, "USD");
+    assert.equal(quote.source_estimate_snapshot?.currencyCode, "USD");
+    const source = structuredClone(quote.source_estimate_snapshot);
+    const unitPrice = quote.draft_json.lineItems[0]?.unitPriceMinor;
+    assert.equal(unitPrice, 10000);
+    const estimateReads = harness.estimateReads.length;
+
+    const unchanged = await updateClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      quoteId: quote.id,
+      draft: quote.draft_json,
+      deps: harness.deps,
+    });
+    assert.equal(unchanged.currency_code, "USD");
+    assert.equal(unchanged.draft_json.lineItems[0]?.unitPriceMinor, unitPrice);
+
+    harness.setNow("2026-10-09T11:00:00.000Z");
+    const updated = await updateClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      quoteId: quote.id,
+      currencyCode: "eur",
+      draft: {
+        ...quote.draft_json,
+        lineItems: [
+          {
+            ...quote.draft_json.lineItems[0],
+            billingFrequency: "monthly",
+            lineTotalMinor: 1,
+          },
+          {
+            id: "line-2",
+            description: "Annual care",
+            quantity: { coefficient: 2, scale: 0 },
+            unitPriceMinor: 2500,
+            billingFrequency: "annually",
+            lineTotalMinor: 1,
+          },
+        ],
+        totals: {
+          subtotalMinor: 1,
+          discountMinor: 1,
+          taxableMinor: 1,
+          taxMinor: 1,
+          totalMinor: 1,
+        },
+        frequencyTotals: [],
+      },
+      deps: harness.deps,
+    });
+    assert.equal(updated.currency_code, "EUR");
+    assert.equal(updated.draft_json.currencyScale, 2);
+    assert.equal(updated.draft_json.lineItems[0]?.unitPriceMinor, unitPrice);
+    assert.equal(updated.draft_json.lineItems[0]?.billingFrequency, "monthly");
+    assert.equal(updated.draft_json.lineItems[1]?.unitPriceMinor, 2500);
+    assert.equal(updated.draft_json.lineItems[1]?.billingFrequency, "annually");
+    assert.notEqual(updated.draft_json.totals.totalMinor, 1);
+    assert.deepEqual(
+      updated.draft_json.frequencyTotals?.map((group) => group.billingFrequency),
+      ["monthly", "annually"],
+    );
+    assert.equal(updated.draft_json.frequencyTotals?.[0]?.totals.totalMinor, unitPrice);
+    assert.equal(updated.draft_json.frequencyTotals?.[1]?.totals.totalMinor, 5000);
+    assert.deepEqual(updated.source_estimate_snapshot, source);
+    assert.equal(harness.estimateReads.length, estimateReads);
+    assert.equal(harness.quotes.get(quote.id)?.currency_code, "EUR");
+
+    await expectCode(
+      () =>
+        updateClientQuoteDraftForMaster({
+          masterUserId: USER_B,
+          quoteId: quote.id,
+          currencyCode: "USD",
+          draft: updated.draft_json,
+          deps: harness.deps,
+        }),
+      "NOT_FOUND",
+    );
+    assert.equal(harness.quotes.get(quote.id)?.currency_code, "EUR");
+
+    const ready = await updateClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      quoteId: quote.id,
+      draft: issuable(updated.draft_json),
+      deps: harness.deps,
+    });
+    assert.equal(ready.currency_code, "EUR");
+    const issued = await issueClientQuoteForMaster({
+      masterUserId: USER_A,
+      quoteId: quote.id,
+      deps: harness.deps,
+    });
+    assert.equal(issued.status, "issued");
+    assert.equal(issued.currency_code, "EUR");
+    assert.equal(issued.issued_snapshot_json?.currencyCode, "EUR");
+    assert.equal(issued.issued_snapshot_json?.currencyScale, 2);
+    assert.equal(
+      issued.issued_snapshot_json?.lineItems[0]?.unitPriceMinor,
+      unitPrice,
+    );
+    assert.deepEqual(issued.source_estimate_snapshot, source);
+    await expectCode(
+      () =>
+        updateClientQuoteDraftForMaster({
+          masterUserId: USER_A,
+          quoteId: quote.id,
+          currencyCode: "USD",
+          draft: issued.draft_json,
+          deps: harness.deps,
+        }),
+      "ISSUED_IMMUTABLE",
+    );
+    assert.equal(harness.quotes.get(quote.id)?.currency_code, "EUR");
+
+    const revision = await reviseClientQuoteForMaster({
+      masterUserId: USER_A,
+      quoteId: quote.id,
+      deps: harness.deps,
+    });
+    assert.equal(revision.status, "draft");
+    assert.equal(revision.currency_code, "EUR");
+    assert.notEqual(revision.id, issued.id);
+    const revised = await updateClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      quoteId: revision.id,
+      currencyCode: "USD",
+      draft: revision.draft_json,
+      deps: harness.deps,
+    });
+    assert.equal(revised.currency_code, "USD");
+    assert.equal(revised.draft_json.lineItems[0]?.unitPriceMinor, unitPrice);
+    assert.equal(revised.draft_json.lineItems[0]?.billingFrequency, "monthly");
+    const frozen = await getClientQuoteForMaster({
+      masterUserId: USER_A,
+      quoteId: issued.id,
+      deps: harness.deps,
+    });
+    assert.equal(frozen.currency_code, "EUR");
+    assert.equal(frozen.issued_snapshot_json?.currencyCode, "EUR");
+  });
+
+  it("leaves historical ISO currencies unchanged unless a same-scale USD or EUR change is explicit", async () => {
+    const harness = createHarness();
+    const jpy = await createClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      estimateId: ESTIMATE,
+      recipient: { kind: "client" },
+      deps: {
+        ...harness.deps,
+        getEstimate: async () => ({
+          id: ESTIMATE,
+          licensee_account_id: LICENSEE_A,
+          organization_id: ORG_CLIENT,
+          organization_name_snapshot: "Northwind",
+          prospect_id: null,
+          prospect_business_name_snapshot: null,
+          status: "Ready",
+          package_json: readyPackage(1500, "JPY"),
+        }),
+      },
+    });
+    assert.equal(jpy.currency_code, "JPY");
+    assert.equal(jpy.draft_json.currencyScale, 0);
+    const kept = await updateClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      quoteId: jpy.id,
+      draft: {
+        ...jpy.draft_json,
+        totals: {
+          subtotalMinor: 1,
+          discountMinor: 1,
+          taxableMinor: 1,
+          taxMinor: 1,
+          totalMinor: 1,
+        },
+      },
+      deps: harness.deps,
+    });
+    assert.equal(kept.currency_code, "JPY");
+    assert.equal(kept.draft_json.lineItems[0]?.unitPriceMinor, 1500);
+    assert.equal(kept.draft_json.totals.totalMinor, 1500);
+    await expectCode(
+      () =>
+        updateClientQuoteDraftForMaster({
+          masterUserId: USER_A,
+          quoteId: jpy.id,
+          currencyCode: "EUR",
+          draft: jpy.draft_json,
+          deps: harness.deps,
+        }),
+      "INVALID_CLIENT_QUOTE",
+    );
+    assert.equal(harness.quotes.get(jpy.id)?.currency_code, "JPY");
+
+    const eurRequest = parseUpdateClientQuoteBody({
+      draft: { schemaVersion: "client_quote_draft_v1" },
+      currencyCode: " eur ",
+    });
+    assert.equal(isClientQuoteHttpFailure(eurRequest), false);
+    if (!isClientQuoteHttpFailure(eurRequest)) {
+      assert.equal(eurRequest.currencyCode, "EUR");
+    }
+    const omitted = parseUpdateClientQuoteBody({
+      draft: { schemaVersion: "client_quote_draft_v1" },
+      currency: "EUR",
+    });
+    assert.equal(isClientQuoteHttpFailure(omitted), false);
+    if (!isClientQuoteHttpFailure(omitted)) {
+      assert.equal(omitted.currencyCode, undefined);
+    }
+    assert.equal(
+      isClientQuoteHttpFailure(
+        parseUpdateClientQuoteBody({
+          draft: { schemaVersion: "client_quote_draft_v1" },
+          currencyCode: "JPY",
+        }),
+      ),
+      true,
+    );
+    const persistence = read("services/clientQuote/clientQuotePersistence.ts");
+    const updateStart = persistence.indexOf("async updateDraftQuote");
+    const updateSlice = persistence.slice(
+      updateStart,
+      persistence.indexOf("async issueQuote"),
+    );
+    assert.match(updateSlice, /currency_code: quote\.currency_code/);
+    assert.doesNotMatch(updateSlice, /source_estimate/);
+  });
+});

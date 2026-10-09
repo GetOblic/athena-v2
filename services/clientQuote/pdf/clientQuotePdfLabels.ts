@@ -4,6 +4,8 @@
  * or the current Master UI language. User narrative is not stored here.
  */
 
+import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
+import type { ClientQuoteBillingFrequency } from "@/services/clientQuote/clientQuoteTypes";
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
 export type ClientQuotePdfLabels = {
@@ -31,6 +33,16 @@ export type ClientQuotePdfLabels = {
   page: string;
   registration: string;
   taxIdentifier: string;
+  /** Line label for a frozen billing frequency. Not a new table column. */
+  billing: string;
+  frequencyOneTime: string;
+  frequencyMonthly: string;
+  frequencyQuarterly: string;
+  frequencyAnnually: string;
+  /** Section title used only when more than one frequency is present. */
+  frequencyTotalsTitle: string;
+  /** Heading for one frequency block. `{frequency}` is a localized cadence. */
+  frequencyTotal: string;
 };
 
 const LABELS: Record<OrganizationLanguage, ClientQuotePdfLabels> = {
@@ -59,6 +71,13 @@ const LABELS: Record<OrganizationLanguage, ClientQuotePdfLabels> = {
     page: "Page {page} of {pages}",
     registration: "Registration",
     taxIdentifier: "Tax ID",
+    billing: "Billing",
+    frequencyOneTime: "One-time",
+    frequencyMonthly: "Monthly",
+    frequencyQuarterly: "Quarterly",
+    frequencyAnnually: "Annually",
+    frequencyTotalsTitle: "Totals by billing frequency",
+    frequencyTotal: "{frequency} total",
   },
   fr: {
     documentTitle: "Devis",
@@ -85,6 +104,13 @@ const LABELS: Record<OrganizationLanguage, ClientQuotePdfLabels> = {
     page: "Page {page} sur {pages}",
     registration: "Immatriculation",
     taxIdentifier: "Identifiant fiscal",
+    billing: "Facturation",
+    frequencyOneTime: "Ponctuel",
+    frequencyMonthly: "Mensuel",
+    frequencyQuarterly: "Trimestriel",
+    frequencyAnnually: "Annuel",
+    frequencyTotalsTitle: "Totaux par fréquence de facturation",
+    frequencyTotal: "Total {frequency}",
   },
   es: {
     documentTitle: "Presupuesto",
@@ -111,6 +137,13 @@ const LABELS: Record<OrganizationLanguage, ClientQuotePdfLabels> = {
     page: "Página {page} de {pages}",
     registration: "Registro",
     taxIdentifier: "Identificación fiscal",
+    billing: "Facturación",
+    frequencyOneTime: "Pago único",
+    frequencyMonthly: "Mensual",
+    frequencyQuarterly: "Trimestral",
+    frequencyAnnually: "Anual",
+    frequencyTotalsTitle: "Totales por frecuencia de facturación",
+    frequencyTotal: "Total {frequency}",
   },
   it: {
     documentTitle: "Preventivo",
@@ -137,6 +170,13 @@ const LABELS: Record<OrganizationLanguage, ClientQuotePdfLabels> = {
     page: "Pagina {page} di {pages}",
     registration: "Registrazione",
     taxIdentifier: "Codice fiscale",
+    billing: "Fatturazione",
+    frequencyOneTime: "Una tantum",
+    frequencyMonthly: "Mensile",
+    frequencyQuarterly: "Trimestrale",
+    frequencyAnnually: "Annuale",
+    frequencyTotalsTitle: "Totali per frequenza di fatturazione",
+    frequencyTotal: "Totale {frequency}",
   },
   de: {
     documentTitle: "Angebot",
@@ -163,6 +203,13 @@ const LABELS: Record<OrganizationLanguage, ClientQuotePdfLabels> = {
     page: "Seite {page} von {pages}",
     registration: "Register",
     taxIdentifier: "Steuer-ID",
+    billing: "Abrechnung",
+    frequencyOneTime: "Einmalig",
+    frequencyMonthly: "Monatlich",
+    frequencyQuarterly: "Vierteljährlich",
+    frequencyAnnually: "Jährlich",
+    frequencyTotalsTitle: "Summen nach Abrechnungsrhythmus",
+    frequencyTotal: "{frequency} gesamt",
   },
   pt: {
     documentTitle: "Orçamento",
@@ -189,6 +236,13 @@ const LABELS: Record<OrganizationLanguage, ClientQuotePdfLabels> = {
     page: "Página {page} de {pages}",
     registration: "Registo",
     taxIdentifier: "Identificação fiscal",
+    billing: "Faturação",
+    frequencyOneTime: "Pontual",
+    frequencyMonthly: "Mensal",
+    frequencyQuarterly: "Trimestral",
+    frequencyAnnually: "Anual",
+    frequencyTotalsTitle: "Totais por frequência de faturação",
+    frequencyTotal: "Total {frequency}",
   },
 };
 
@@ -203,4 +257,30 @@ export function clientQuotePdfLabels(
     return LABELS[language as OrganizationLanguage];
   }
   return LABELS.en;
+}
+
+export function clientQuotePdfBillingFrequencyLabel(
+  labels: ClientQuotePdfLabels,
+  frequency: ClientQuoteBillingFrequency,
+): string {
+  switch (frequency) {
+    case "one_time":
+      return labels.frequencyOneTime;
+    case "monthly":
+      return labels.frequencyMonthly;
+    case "quarterly":
+      return labels.frequencyQuarterly;
+    case "annually":
+      return labels.frequencyAnnually;
+  }
+}
+
+/** Localized heading for one frequency's frozen total. Not an annualized value. */
+export function clientQuotePdfFrequencyTotalLabel(
+  labels: ClientQuotePdfLabels,
+  frequency: ClientQuoteBillingFrequency,
+): string {
+  return interpolateTenantMessage(labels.frequencyTotal, {
+    frequency: clientQuotePdfBillingFrequencyLabel(labels, frequency),
+  });
 }

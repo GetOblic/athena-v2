@@ -262,6 +262,7 @@ export function seedClientQuoteFromReadyEstimate(input: {
           description: projectTitle,
           quantity: { coefficient: 1, scale: 0 },
           unitPriceMinor: recommendedClientPriceMinor,
+          billingFrequency: "one_time",
         },
       ],
       paymentTerms: { summary: "", scheduleNote: null },

@@ -28,6 +28,8 @@ export type ParsedCreateClientQuoteBody = {
 export type ParsedUpdateClientQuoteBody = {
   draft: unknown;
   contentLanguage?: unknown;
+  /** Present only when the caller explicitly requests USD or EUR. */
+  currencyCode?: "USD" | "EUR";
 };
 
 export type ClientQuoteHttpFailure = {
@@ -107,9 +109,35 @@ export function parseUpdateClientQuoteBody(
       message: "draft is required.",
     };
   }
+  const contentLanguage = body.contentLanguage ?? body.content_language;
+  const hasCurrency =
+    Object.hasOwn(body, "currencyCode") || Object.hasOwn(body, "currency_code");
+  if (!hasCurrency) {
+    return {
+      draft: body.draft,
+      contentLanguage,
+    };
+  }
+  const raw = body.currencyCode ?? body.currency_code;
+  if (typeof raw !== "string") {
+    return {
+      status: 400,
+      code: "INVALID_BODY",
+      message: "currencyCode must be USD or EUR.",
+    };
+  }
+  const currencyCode = raw.trim().toUpperCase();
+  if (currencyCode !== "USD" && currencyCode !== "EUR") {
+    return {
+      status: 400,
+      code: "INVALID_BODY",
+      message: "currencyCode must be USD or EUR.",
+    };
+  }
   return {
     draft: body.draft,
-    contentLanguage: body.contentLanguage ?? body.content_language,
+    contentLanguage,
+    currencyCode,
   };
 }
 

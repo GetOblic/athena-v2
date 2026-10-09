@@ -359,6 +359,11 @@ export async function updateClientQuoteDraftForMaster(input: {
   quoteId: string;
   draft: unknown;
   contentLanguage?: unknown;
+  /**
+   * Explicit USD/EUR denomination change. Omitted means keep the stored
+   * currency, including historical ISO codes. Line prices are not converted.
+   */
+  currencyCode?: unknown;
   deps: ClientQuoteDeps;
 }): Promise<AthenaClientQuote> {
   const current = await getClientQuoteForMaster({
@@ -372,16 +377,25 @@ export async function updateClientQuoteDraftForMaster(input: {
     next = updateDraftClientQuote(current, input.draft, {
       updatedAt: input.deps.now(),
       contentLanguage: input.contentLanguage,
+      currencyCode: input.currencyCode,
     });
   } catch (error) {
     asOperationError(error);
   }
   if (
     next.licensee_account_id !== current.licensee_account_id ||
-    next.organization_id !== current.organization_id ||
-    next.currency_code !== current.currency_code
+    next.organization_id !== current.organization_id
   ) {
     throw clientQuoteInvalid("Quotation authority fields cannot be changed.");
+  }
+  if (next.currency_code !== current.currency_code) {
+    const approved =
+      typeof input.currencyCode === "string"
+        ? input.currencyCode.trim().toUpperCase()
+        : "";
+    if (approved !== next.currency_code) {
+      throw clientQuoteInvalid("Quotation authority fields cannot be changed.");
+    }
   }
   const saved = await input.deps.updateDraftQuote(next);
   if (!saved) throw clientQuoteIssuedImmutable();

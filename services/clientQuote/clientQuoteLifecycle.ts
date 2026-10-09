@@ -17,7 +17,11 @@ import {
   type ClientQuoteIssuedSnapshotV1,
   type ClientQuoteSourceEstimateSnapshot,
 } from "@/services/clientQuote/clientQuoteTypes";
-import { normalizeCurrencyCode } from "@/services/clientQuote/clientQuoteMoney";
+import {
+  currencyMinorUnitScale,
+  isClientQuoteSelectableCurrency,
+  normalizeCurrencyCode,
+} from "@/services/clientQuote/clientQuoteMoney";
 import {
   assertClientQuoteIssuable,
   assertQuoteNumber,
@@ -169,10 +173,42 @@ export function createDraftClientQuote(input: {
   });
 }
 
+/**
+ * Currency for a draft save.
+ * Omitted requests keep the stored currency, including historical ISO codes.
+ * An explicit value may only be USD or EUR, and only when the minor-unit
+ * scale matches. Line prices are not converted and are not rewritten here.
+ */
+export function resolveApprovedClientQuoteCurrency(
+  currentCurrency: string,
+  requestedCurrency: unknown,
+): string {
+  if (requestedCurrency == null) return currentCurrency;
+  let next: string;
+  try {
+    next = normalizeCurrencyCode(requestedCurrency);
+  } catch (error) {
+    if (error instanceof ClientQuoteCalculationError) {
+      fail(error.message);
+    }
+    throw error;
+  }
+  if (!isClientQuoteSelectableCurrency(next)) {
+    fail("Currency can only be changed to USD or EUR.");
+  }
+  if (next === currentCurrency) return currentCurrency;
+  if (currencyMinorUnitScale(currentCurrency) !== currencyMinorUnitScale(next)) {
+    fail(
+      "Currency change must keep the same minor-unit scale. Prices are not converted.",
+    );
+  }
+  return next;
+}
+
 export function updateDraftClientQuote(
   quote: AthenaClientQuote,
   draft: unknown,
-  meta: { updatedAt: unknown; contentLanguage?: unknown },
+  meta: { updatedAt: unknown; contentLanguage?: unknown; currencyCode?: unknown },
 ): AthenaClientQuote {
   if (quote.status === "issued") {
     throw new IssuedClientQuoteImmutableError();
@@ -180,7 +216,11 @@ export function updateDraftClientQuote(
   if (quote.status !== "draft") {
     throw new ClientQuoteLifecycleError("Only a draft quotation can be edited.");
   }
-  const nextDraft = normalizeClientQuoteDraft(draft, quote.currency_code);
+  const currencyCode = resolveApprovedClientQuoteCurrency(
+    quote.currency_code,
+    meta.currencyCode,
+  );
+  const nextDraft = normalizeClientQuoteDraft(draft, currencyCode);
   const contentLanguage =
     meta.contentLanguage == null
       ? quote.content_language
@@ -188,6 +228,7 @@ export function updateDraftClientQuote(
   return clone({
     ...quote,
     content_language: contentLanguage,
+    currency_code: currencyCode,
     draft_json: nextDraft,
     issued_snapshot_json: null,
     quote_number: null,
@@ -243,6 +284,7 @@ export function issueClientQuote(
     discount: clone(draft.discount),
     tax: clone(draft.tax),
     totals: { ...draft.totals },
+    frequencyTotals: clone(draft.frequencyTotals ?? []),
   };
   return clone({
     ...quote,

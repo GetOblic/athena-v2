@@ -52,6 +52,7 @@ type ProspectDetailHeaderProps = {
   directoryAction?: ReactNode;
   funnelAction?: ReactNode;
   createAudienceAction?: ReactNode;
+  createQuoteAction?: ReactNode;
   intelligenceGroupLabel: string;
   prospectToolsLabel: string;
   directoryGroupLabel: string;
@@ -111,6 +112,7 @@ export function ProspectDetailHeader({
   directoryAction = null,
   funnelAction = null,
   createAudienceAction = null,
+  createQuoteAction = null,
   intelligenceGroupLabel,
   prospectToolsLabel,
   directoryGroupLabel,
@@ -259,6 +261,12 @@ export function ProspectDetailHeader({
           )}
           {researchAction}
         </ProspectHeaderActionGroup>
+
+        {createQuoteAction ? (
+          <ProspectHeaderActionGroup name="quote">
+            {createQuoteAction}
+          </ProspectHeaderActionGroup>
+        ) : null}
 
         {toolActions.length > 0 ? (
           <ProspectHeaderActionGroup name="tools" label={prospectToolsLabel}>

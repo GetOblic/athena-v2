@@ -10,13 +10,19 @@ import {
   majorAmountToMinorUnits,
   normalizeCurrencyCode,
 } from "@/services/clientQuote/clientQuoteMoney";
+import { copyClientQuoteTemplateToLine } from "@/services/clientQuote/clientQuoteTemplateCopy";
 import {
+  CLIENT_QUOTE_BILLING_FREQUENCIES,
   CLIENT_QUOTE_DRAFT_SCHEMA_VERSION,
   CLIENT_QUOTE_FIELD_LIMITS,
   CLIENT_QUOTE_PERCENTAGE_RATE_DENOMINATOR,
   ClientQuoteCalculationError,
+  ClientQuoteValidationError,
+  isClientQuoteBillingFrequency,
+  type ClientQuoteBillingFrequency,
   type ClientQuoteDiscount,
   type ClientQuoteDraftV1,
+  type ClientQuoteFrequencyTotals,
   type ClientQuoteQuantity,
   type ClientQuoteTax,
   type ClientQuoteTotals,
@@ -57,7 +63,8 @@ export type ClientQuoteDraftBlocker =
   | "appendix"
   | "validity"
   | "contact"
-  | "calculation";
+  | "calculation"
+  | "fixedDiscountMixed";
 
 export type ClientQuotePostalAddressEdit = {
   line1: string;
@@ -98,6 +105,18 @@ export type ClientQuoteLineEdit = {
   description: string;
   quantityText: string;
   unitPriceText: string;
+  billingFrequency: ClientQuoteBillingFrequency;
+};
+
+/** Active template fields the editor may copy onto a new line. */
+export type ClientQuoteTemplateInsertSource = {
+  name: string;
+  description: string;
+  quantity: ClientQuoteQuantity;
+  unitPriceMinor: number;
+  currencyCode: string;
+  billingFrequency: ClientQuoteBillingFrequency;
+  deletedAt?: string | null;
 };
 
 export type ClientQuoteAppendixSectionEdit = {
@@ -132,11 +151,20 @@ export type ClientQuoteMoneyPreview = {
   currencyScale: number;
   lineTotalsMinor: number[];
   totals: ClientQuoteTotals;
+  frequencyTotals: ClientQuoteFrequencyTotals[];
 };
 
 export type ClientQuoteUpdateBody = {
   draft: ClientQuoteDraftV1;
   contentLanguage: OrganizationLanguage;
+  /** Sent only after an explicit USD or EUR selection. */
+  currencyCode?: "USD" | "EUR";
+};
+
+export type ClientQuoteLibraryFrequencyAmount = {
+  billingFrequency: ClientQuoteBillingFrequency;
+  totalMinor: number;
+  totalLabel: string;
 };
 
 export type ClientQuoteLibraryRow = {
@@ -146,8 +174,17 @@ export type ClientQuoteLibraryRow = {
   customerName: string;
   projectTitle: string;
   currencyCode: string;
-  totalMinor: number;
-  totalLabel: string;
+  /**
+   * The one amount shown for a single-frequency or pre-frequency quotation.
+   * Null when frequencyAmounts lists each billing frequency separately.
+   */
+  totalMinor: number | null;
+  totalLabel: string | null;
+  /**
+   * Canonical order, only when two or more frequency groups are stored.
+   * Empty for the single-amount display. Never a summed or annualized value.
+   */
+  frequencyAmounts: ClientQuoteLibraryFrequencyAmount[];
   dateIso: string;
   dateLabel: string;
   dateKind: "created" | "issued";
@@ -372,6 +409,13 @@ function parseValidUntil(value: string): string | null | "invalid" {
   return trimmed;
 }
 
+function billingFrequencyOf(
+  value: ClientQuoteBillingFrequency | null | undefined,
+): ClientQuoteBillingFrequency | null {
+  if (value == null) return "one_time";
+  return isClientQuoteBillingFrequency(value) ? value : null;
+}
+
 function zeroMajorInput(currencyCode: string): string {
   try {
     const scale = currencyMinorUnitScale(currencyCode);
@@ -419,6 +463,7 @@ function editorFromCommercial(source: CommercialSource): ClientQuoteEditorDraft 
         line.unitPriceMinor,
         source.currencyCode,
       ),
+      billingFrequency: billingFrequencyOf(line.billingFrequency) ?? "one_time",
     })),
     discountKind: discount.kind,
     discountAmountText:
@@ -508,6 +553,7 @@ export function addClientQuoteLine(
         description: "",
         quantityText: "1",
         unitPriceText: zeroMajorInput(currencyCode),
+        billingFrequency: "one_time",
       },
     ],
   };
@@ -543,6 +589,203 @@ export function moveClientQuoteLineAt(
   const [line] = lines.splice(index, 1);
   lines.splice(nextIndex, 0, line);
   return { ...editor, lines };
+}
+
+export function clientQuoteBillingFrequenciesPresent(
+  editor: ClientQuoteEditorDraft,
+): ClientQuoteBillingFrequency[] {
+  const present = new Set<ClientQuoteBillingFrequency>();
+  for (const line of editor.lines) {
+    const frequency = billingFrequencyOf(line.billingFrequency);
+    if (frequency) present.add(frequency);
+  }
+  return CLIENT_QUOTE_BILLING_FREQUENCIES.filter((frequency) => present.has(frequency));
+}
+
+export function clientQuoteHasMixedBillingFrequency(
+  editor: ClientQuoteEditorDraft,
+): boolean {
+  return clientQuoteBillingFrequenciesPresent(editor).length > 1;
+}
+
+export function setClientQuoteLineBillingFrequency(
+  editor: ClientQuoteEditorDraft,
+  index: number,
+  billingFrequency: ClientQuoteBillingFrequency,
+): ClientQuoteEditorDraft {
+  if (!isClientQuoteBillingFrequency(billingFrequency)) return editor;
+  if (index < 0 || index >= editor.lines.length) return editor;
+  const current = editor.lines[index];
+  if (!current || current.billingFrequency === billingFrequency) return editor;
+  return {
+    ...editor,
+    lines: editor.lines.map((line, lineIndex) =>
+      lineIndex === index ? { ...line, billingFrequency } : line,
+    ),
+  };
+}
+
+/**
+ * Currencies offered on an editable draft.
+ * A historical scale-2 code stays selected until the Master picks USD or EUR.
+ * A different minor-unit scale stays locked so prices are not reinterpreted.
+ */
+export function clientQuoteCurrencyOptions(currencyCode: string): string[] | null {
+  let current: string;
+  try {
+    current = normalizeCurrencyCode(currencyCode);
+  } catch (error) {
+    if (error instanceof ClientQuoteCalculationError) return null;
+    throw error;
+  }
+  if (currencyMinorUnitScale(current) !== currencyMinorUnitScale("USD")) {
+    return null;
+  }
+  const options = ["USD", "EUR"];
+  return options.includes(current) ? options : [current, ...options];
+}
+
+/**
+ * A priced line or a positive fixed discount must be confirmed before the
+ * denomination changes. Zero amounts do not. Unreadable amounts do.
+ */
+export function clientQuoteDraftHasPricedAmount(
+  editor: ClientQuoteEditorDraft,
+  currencyCode: string,
+): boolean {
+  for (const line of editor.lines) {
+    const amount = parseClientQuoteMajorAmount(line.unitPriceText, currencyCode);
+    if (amount == null) {
+      if (line.unitPriceText.trim()) return true;
+    } else if (amount > 0) {
+      return true;
+    }
+  }
+  if (editor.discountKind === "fixed") {
+    const discount = parseClientQuoteMajorAmount(
+      editor.discountAmountText,
+      currencyCode,
+    );
+    if (discount == null) {
+      if (editor.discountAmountText.trim()) return true;
+    } else if (discount > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export type ClientQuoteCurrencyDecision =
+  | { action: "ignore" }
+  | { action: "reject" }
+  | { action: "apply"; currencyCode: "USD" | "EUR" }
+  | { action: "confirm"; currencyCode: "USD" | "EUR" };
+
+/**
+ * Decide a draft currency selection.
+ * Confirmation is required when priced amounts already exist.
+ * Rejected selections leave the editor and the current currency untouched.
+ * Accepted selections do not rewrite line text or minor units.
+ */
+export function decideClientQuoteCurrencyChange(input: {
+  currentCurrency: string;
+  nextCurrency: string;
+  editor: ClientQuoteEditorDraft;
+}): ClientQuoteCurrencyDecision {
+  let current: string;
+  let next: string;
+  try {
+    current = normalizeCurrencyCode(input.currentCurrency);
+    next = normalizeCurrencyCode(input.nextCurrency);
+  } catch (error) {
+    if (error instanceof ClientQuoteCalculationError) return { action: "reject" };
+    throw error;
+  }
+  if (next === current) return { action: "ignore" };
+  if (next !== "USD" && next !== "EUR") return { action: "reject" };
+  if (currencyMinorUnitScale(current) !== currencyMinorUnitScale(next)) {
+    return { action: "reject" };
+  }
+  if (clientQuoteDraftHasPricedAmount(input.editor, current)) {
+    return { action: "confirm", currencyCode: next };
+  }
+  return { action: "apply", currencyCode: next };
+}
+
+/**
+ * Templates whose currency matches the selected quotation currency.
+ * There is no conversion. Other currencies stay out of the picker.
+ */
+export function compatibleClientQuoteTemplates<T extends { currencyCode: string }>(
+  templates: readonly T[],
+  currencyCode: string,
+): T[] {
+  let expected: string;
+  try {
+    expected = normalizeCurrencyCode(currencyCode);
+  } catch (error) {
+    if (error instanceof ClientQuoteCalculationError) return [];
+    throw error;
+  }
+  return templates.filter((template) => {
+    try {
+      return normalizeCurrencyCode(template.currencyCode) === expected;
+    } catch (error) {
+      if (error instanceof ClientQuoteCalculationError) return false;
+      throw error;
+    }
+  });
+}
+
+/**
+ * Copy a template onto a new draft line.
+ * Uses copyClientQuoteTemplateToLine. The template is not mutated, and the
+ * line does not keep templateId. Pricing stays with calculateClientQuote.
+ */
+export function insertClientQuoteTemplateLine(
+  editor: ClientQuoteEditorDraft,
+  template: ClientQuoteTemplateInsertSource,
+  currencyCode: string,
+): ClientQuoteEditorDraft {
+  if (editor.lines.length >= CLIENT_QUOTE_FIELD_LIMITS.lineItems) return editor;
+  let copied;
+  try {
+    copied = copyClientQuoteTemplateToLine({
+      template,
+      currencyCode,
+      lineId: createClientQuoteLineId(editor.lines.map((line) => line.id)),
+    });
+  } catch (error) {
+    if (error instanceof ClientQuoteValidationError) return editor;
+    throw error;
+  }
+  return {
+    ...editor,
+    lines: [
+      ...editor.lines,
+      {
+        id: copied.id,
+        description: copied.description,
+        quantityText: formatClientQuoteQuantity(copied.quantity),
+        unitPriceText: formatClientQuoteMajorInput(
+          copied.unitPriceMinor,
+          currencyCode,
+        ),
+        billingFrequency: copied.billingFrequency,
+      },
+    ],
+  };
+}
+
+/** Canonical frequency order. Omits frequencies that have no lines. */
+export function clientQuoteFrequencyGroupsForDisplay(
+  groups: readonly ClientQuoteFrequencyTotals[] | null | undefined,
+): ClientQuoteFrequencyTotals[] {
+  const source = groups ?? [];
+  return CLIENT_QUOTE_BILLING_FREQUENCIES.flatMap((billingFrequency) => {
+    const match = source.find((group) => group.billingFrequency === billingFrequency);
+    return match ? [match] : [];
+  });
 }
 
 export function setClientQuoteAppendixEnabled(
@@ -583,6 +826,9 @@ export function setClientQuoteDiscountKind(
   kind: ClientQuoteEditorDraft["discountKind"],
   currencyCode: string,
 ): ClientQuoteEditorDraft {
+  if (kind === "fixed" && clientQuoteHasMixedBillingFrequency(editor)) {
+    return editor;
+  }
   if (kind === editor.discountKind) return editor;
   return {
     ...editor,
@@ -618,6 +864,7 @@ type ParsedLine = {
   description: string;
   quantity: ClientQuoteQuantity;
   unitPriceMinor: number;
+  billingFrequency: ClientQuoteBillingFrequency;
 };
 
 function parseLine(
@@ -630,9 +877,12 @@ function parseLine(
     line.unitPriceText,
     currencyCode,
   );
-  if (!description || !quantity || unitPriceMinor == null) return null;
+  const billingFrequency = billingFrequencyOf(line.billingFrequency);
+  if (!description || !quantity || unitPriceMinor == null || !billingFrequency) {
+    return null;
+  }
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(line.id)) return null;
-  return { id: line.id, description, quantity, unitPriceMinor };
+  return { id: line.id, description, quantity, unitPriceMinor, billingFrequency };
 }
 
 function parseDiscount(
@@ -727,7 +977,14 @@ export function clientQuoteDraftBlockers(
   if (lines.length < 1 || lines.some((line) => line == null)) {
     blockers.push("lineItem");
   }
-  if (!parseDiscount(editor, currencyCode)) blockers.push("discount");
+  if (
+    editor.discountKind === "fixed" &&
+    clientQuoteHasMixedBillingFrequency(editor)
+  ) {
+    blockers.push("fixedDiscountMixed");
+  } else if (!parseDiscount(editor, currencyCode)) {
+    blockers.push("discount");
+  }
   if (!parseTax(editor)) blockers.push("tax");
   if (!appendixIsValid(editor)) blockers.push("appendix");
   const days = parseValidForDays(editor.validForDaysText);
@@ -737,10 +994,13 @@ export function clientQuoteDraftBlockers(
   if (
     !blockers.includes("lineItem") &&
     !blockers.includes("discount") &&
-    !blockers.includes("tax")
+    !blockers.includes("tax") &&
+    !blockers.includes("fixedDiscountMixed")
   ) {
     const preview = previewClientQuoteMoney(editor, currencyCode);
-    if (!preview.ok && preview.reason === "calculation") {
+    if (!preview.ok && preview.reason === "fixedDiscountMixed") {
+      blockers.push("fixedDiscountMixed");
+    } else if (!preview.ok && preview.reason === "calculation") {
       blockers.push("calculation");
     }
   }
@@ -752,10 +1012,16 @@ export function previewClientQuoteMoney(
   currencyCode: string,
 ):
   | { ok: true; preview: ClientQuoteMoneyPreview }
-  | { ok: false; reason: "incomplete" | "calculation" } {
+  | { ok: false; reason: "incomplete" | "calculation" | "fixedDiscountMixed" } {
   const lines = editor.lines.map((line) => parseLine(line, currencyCode));
   if (lines.length < 1 || lines.some((line) => line == null)) {
     return { ok: false, reason: "incomplete" };
+  }
+  if (
+    editor.discountKind === "fixed" &&
+    clientQuoteHasMixedBillingFrequency(editor)
+  ) {
+    return { ok: false, reason: "fixedDiscountMixed" };
   }
   const discount = parseDiscount(editor, currencyCode);
   const tax = parseTax(editor);
@@ -774,6 +1040,7 @@ export function previewClientQuoteMoney(
         currencyScale: calculated.currencyScale,
         lineTotalsMinor: calculated.lineTotalsMinor,
         totals: calculated.totals,
+        frequencyTotals: calculated.frequencyTotals,
       },
     };
   } catch (error) {
@@ -791,6 +1058,7 @@ export function previewClientQuoteMoney(
 export function editorDraftToUpdateBody(
   editor: ClientQuoteEditorDraft,
   currencyCode: string,
+  options?: { explicitCurrencyCode?: string },
 ):
   | { ok: true; body: ClientQuoteUpdateBody }
   | { ok: false; blockers: ClientQuoteDraftBlocker[] } {
@@ -798,10 +1066,13 @@ export function editorDraftToUpdateBody(
   if (blockers.length > 0) return { ok: false, blockers };
   const preview = previewClientQuoteMoney(editor, currencyCode);
   if (!preview.ok) {
-    return {
-      ok: false,
-      blockers: [preview.reason === "calculation" ? "calculation" : "lineItem"],
-    };
+    const blocker =
+      preview.reason === "fixedDiscountMixed"
+        ? "fixedDiscountMixed"
+        : preview.reason === "calculation"
+          ? "calculation"
+          : "lineItem";
+    return { ok: false, blockers: [blocker] };
   }
   const lines = editor.lines.map((line) => parseLine(line, currencyCode));
   const discount = parseDiscount(editor, currencyCode);
@@ -852,6 +1123,7 @@ export function editorDraftToUpdateBody(
       quantity: line.quantity,
       unitPriceMinor: line.unitPriceMinor,
       lineTotalMinor: preview.preview.lineTotalsMinor[index] ?? 0,
+      billingFrequency: line.billingFrequency,
     })),
     paymentTerms: {
       summary: editor.paymentSummary.trim(),
@@ -872,12 +1144,32 @@ export function editorDraftToUpdateBody(
     discount,
     tax,
     totals: preview.preview.totals,
+    frequencyTotals: preview.preview.frequencyTotals,
   };
+  let approvedCurrency: "USD" | "EUR" | undefined;
+  if (options?.explicitCurrencyCode != null) {
+    let requested = "";
+    let active = "";
+    try {
+      requested = normalizeCurrencyCode(options.explicitCurrencyCode);
+      active = normalizeCurrencyCode(currencyCode);
+    } catch (error) {
+      if (error instanceof ClientQuoteCalculationError) {
+        return { ok: false, blockers: ["calculation"] };
+      }
+      throw error;
+    }
+    if ((requested !== "USD" && requested !== "EUR") || requested !== active) {
+      return { ok: false, blockers: ["calculation"] };
+    }
+    approvedCurrency = requested;
+  }
   return {
     ok: true,
     body: {
       draft,
       contentLanguage: editor.contentLanguage,
+      ...(approvedCurrency ? { currencyCode: approvedCurrency } : {}),
     },
   };
 }
@@ -927,6 +1219,33 @@ export function filterClientQuotesForLibrary(
   );
 }
 
+function clientQuoteLibraryMoney(quote: PublicClientQuote): {
+  currencyCode: string;
+  totals: ClientQuoteTotals;
+  frequencyTotals?: readonly ClientQuoteFrequencyTotals[];
+} {
+  const issued =
+    quote.status === "issued" && quote.issuedSnapshot ? quote.issuedSnapshot : null;
+  if (issued) {
+    return {
+      currencyCode: issued.currencyCode,
+      totals: issued.totals,
+      frequencyTotals: issued.frequencyTotals,
+    };
+  }
+  return {
+    currencyCode: quote.currencyCode,
+    totals: quote.draft.totals,
+    frequencyTotals: quote.draft.frequencyTotals,
+  };
+}
+
+/**
+ * Library money comes from the stored draft, or from the frozen issued snapshot.
+ * It is not recalculated from line items, templates, or Estimates.
+ * One stored frequency, or no frequencyTotals, keeps a single amount.
+ * Mixed frequencies list each stored group and never use totals.totalMinor as a combined figure.
+ */
 export function clientQuoteLibraryRow(
   quote: PublicClientQuote,
   locale: string,
@@ -936,8 +1255,14 @@ export function clientQuoteLibraryRow(
     : null;
   const customerName = issued?.customer.name ?? quote.draft.customer.name;
   const projectTitle = issued?.projectTitle ?? quote.draft.projectTitle;
-  const totalMinor = issued?.totals.totalMinor ?? quote.draft.totals.totalMinor;
-  const currencyCode = issued?.currencyCode ?? quote.currencyCode;
+  const money = clientQuoteLibraryMoney(quote);
+  const groups = clientQuoteFrequencyGroupsForDisplay(money.frequencyTotals);
+  const mixed = groups.length > 1;
+  const totalMinor = mixed
+    ? null
+    : groups.length === 1
+      ? groups[0].totals.totalMinor
+      : money.totals.totalMinor;
   const dateIso =
     quote.status === "issued"
       ? quote.issuedAt ?? quote.createdAt
@@ -948,9 +1273,22 @@ export function clientQuoteLibraryRow(
     quoteNumber: quote.status === "issued" ? quote.quoteNumber : null,
     customerName,
     projectTitle,
-    currencyCode,
+    currencyCode: money.currencyCode,
     totalMinor,
-    totalLabel: formatClientQuoteMinorAmount(totalMinor, currencyCode),
+    totalLabel:
+      totalMinor == null
+        ? null
+        : formatClientQuoteMinorAmount(totalMinor, money.currencyCode),
+    frequencyAmounts: mixed
+      ? groups.map((group) => ({
+          billingFrequency: group.billingFrequency,
+          totalMinor: group.totals.totalMinor,
+          totalLabel: formatClientQuoteMinorAmount(
+            group.totals.totalMinor,
+            money.currencyCode,
+          ),
+        }))
+      : [],
     dateIso,
     dateLabel: formatClientQuoteTimestamp(dateIso, locale),
     dateKind: quote.status === "issued" ? "issued" : "created",

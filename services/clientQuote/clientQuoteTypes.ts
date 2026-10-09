@@ -35,6 +35,20 @@ export const CLIENT_QUOTE_STATUSES = ["draft", "issued"] as const;
 export type ClientQuoteStatus = (typeof CLIENT_QUOTE_STATUSES)[number];
 
 /**
+ * Canonical billing-frequency order. Grouped totals follow this sequence.
+ * Amounts are never multiplied out to a year and never added across frequencies.
+ */
+export const CLIENT_QUOTE_BILLING_FREQUENCIES = [
+  "one_time",
+  "monthly",
+  "quarterly",
+  "annually",
+] as const;
+
+export type ClientQuoteBillingFrequency =
+  (typeof CLIENT_QUOTE_BILLING_FREQUENCIES)[number];
+
+/**
  * Parts-per-million of the whole amount.
  * 1_000_000 = 100%, 200_000 = 20%, 88_750 = 8.875%.
  */
@@ -152,6 +166,12 @@ export type ClientQuoteLineItem = {
   unitPriceMinor: number;
   /** Domain-calculated. Client-supplied values are discarded. */
   lineTotalMinor: number;
+  /**
+   * Billing cadence of this line.
+   * Missing values normalize to one_time, and new drafts stamp one_time.
+   * Quotations issued before recurring pricing omit the field and stay unchanged.
+   */
+  billingFrequency?: ClientQuoteBillingFrequency;
 };
 
 export type ClientQuoteDiscount =
@@ -185,7 +205,8 @@ export type ClientQuoteAppendix = {
 };
 
 /**
- * Calculated commercial totals. There is no independently editable final total.
+ * Calculated commercial totals for a single billing frequency.
+ * There is no independently editable final total.
  * totalMinor = taxableMinor + taxMinor, and taxableMinor = subtotalMinor - discountMinor.
  */
 export type ClientQuoteTotals = {
@@ -194,6 +215,12 @@ export type ClientQuoteTotals = {
   taxableMinor: number;
   taxMinor: number;
   totalMinor: number;
+};
+
+/** Authoritative totals for one billing frequency. Groups are not annualized. */
+export type ClientQuoteFrequencyTotals = {
+  billingFrequency: ClientQuoteBillingFrequency;
+  totals: ClientQuoteTotals;
 };
 
 export type ClientQuoteDraftV1 = {
@@ -210,7 +237,22 @@ export type ClientQuoteDraftV1 = {
   appendix: ClientQuoteAppendix;
   discount: ClientQuoteDiscount;
   tax: ClientQuoteTax;
+  /**
+   * Compatibility total. It is not a combined contract value.
+   * One frequency: equal to that frequency's totals.
+   * Mixed, with a one_time group: the one_time group only.
+   * Mixed, with no one_time group: a zero-valued compatibility object.
+   * Unlike billing periods are never summed, and recurring charges are not annualized.
+   * frequencyTotals is authoritative for mixed quotations.
+   */
   totals: ClientQuoteTotals;
+  /**
+   * Per-frequency totals in canonical order: one_time, monthly, quarterly, annually.
+   * Only frequencies that have lines are included.
+   * Client-supplied values are discarded. Documents issued before recurring
+   * pricing omit this field and are not rewritten.
+   */
+  frequencyTotals?: ClientQuoteFrequencyTotals[];
 };
 
 /**
@@ -255,7 +297,14 @@ export type ClientQuoteIssuedSnapshotV1 = {
   appendix: ClientQuoteAppendix;
   discount: ClientQuoteDiscount;
   tax: ClientQuoteTax;
+  /**
+   * Frozen compatibility total. Same rules as the draft.
+   * A snapshot issued before recurring pricing has no frequencyTotals
+   * and must not be rewritten to invent one.
+   */
   totals: ClientQuoteTotals;
+  /** Frozen per-frequency totals. Absent on snapshots issued before recurring pricing. */
+  frequencyTotals?: ClientQuoteFrequencyTotals[];
 };
 
 /** Row shape for athena_client_quotes. */
@@ -346,6 +395,15 @@ export function isClientQuoteStatus(value: unknown): value is ClientQuoteStatus 
   return (
     typeof value === "string" &&
     (CLIENT_QUOTE_STATUSES as readonly string[]).includes(value)
+  );
+}
+
+export function isClientQuoteBillingFrequency(
+  value: unknown,
+): value is ClientQuoteBillingFrequency {
+  return (
+    typeof value === "string" &&
+    (CLIENT_QUOTE_BILLING_FREQUENCIES as readonly string[]).includes(value)
   );
 }
 

@@ -326,6 +326,7 @@ export function createDefaultClientQuoteDeps(): ClientQuoteDeps {
         .from("athena_client_quotes")
         .update({
           content_language: quote.content_language,
+          currency_code: quote.currency_code,
           draft_json: quote.draft_json,
           issued_snapshot_json: null,
           quote_number: null,
@@ -350,6 +351,7 @@ export function createDefaultClientQuoteDeps(): ClientQuoteDeps {
         .update({
           status: "issued",
           content_language: quote.content_language,
+          currency_code: quote.currency_code,
           draft_json: quote.draft_json,
           issued_snapshot_json: quote.issued_snapshot_json,
           quote_number: quote.quote_number,

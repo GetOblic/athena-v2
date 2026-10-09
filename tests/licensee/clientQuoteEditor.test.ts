@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { createElement } from "react";
@@ -20,10 +20,13 @@ import {
   buildCreateClientQuoteRequest,
   clientQuoteDraftBlockers,
   clientQuoteLibraryRow,
+  clientQuoteMatchesLibraryQuery,
+  compatibleClientQuoteTemplates,
   editorDraftFromQuote,
   filterClientQuotesForLibrary,
   editorDraftToUpdateBody,
   formatClientQuoteMinorAmount,
+  insertClientQuoteTemplateLine,
   missingClientQuoteIssueRequirements,
   moveClientQuoteLineAt,
   parseClientQuoteQuantityText,
@@ -32,11 +35,15 @@ import {
   ratePpmToPercentText,
   removeClientQuoteLineAt,
   setClientQuoteAppendixEnabled,
+  setClientQuoteDiscountKind,
+  setClientQuoteLineBillingFrequency,
   withClientQuoteDocumentLanguage,
   type ClientQuoteEditorDraft,
+  type ClientQuoteTemplateInsertSource,
 } from "../../lib/licensee/clientQuoteEditorModel";
 import {
   CLIENT_QUOTE_STABLE_ERROR_CODES,
+  clientQuoteBlockerMessage,
   clientQuoteErrorMessage,
 } from "../../lib/licensee/clientQuoteEditorMessages";
 import { de } from "../../lib/tenantI18n/messages/de";
@@ -46,11 +53,22 @@ import { fr } from "../../lib/tenantI18n/messages/fr";
 import { it as itMessages } from "../../lib/tenantI18n/messages/it";
 import { pt } from "../../lib/tenantI18n/messages/pt";
 import { calculateClientQuote } from "../../services/clientQuote/clientQuoteMoney";
+import { copyClientQuoteTemplateToLine } from "../../services/clientQuote/clientQuoteTemplateCopy";
+import {
+  createDraftClientQuote,
+  issueClientQuote,
+  reviseIssuedClientQuote,
+  updateDraftClientQuote,
+} from "../../services/clientQuote/clientQuoteLifecycle";
 import type { PublicClientQuote } from "../../services/clientQuote/clientQuotePublic";
 import {
+  CLIENT_QUOTE_BILLING_FREQUENCIES,
   CLIENT_QUOTE_DRAFT_SCHEMA_VERSION,
+  CLIENT_QUOTE_FIELD_LIMITS,
   CLIENT_QUOTE_ISSUED_SCHEMA_VERSION,
+  type ClientQuoteBillingFrequency,
   type ClientQuoteDraftV1,
+  type ClientQuoteFrequencyTotals,
   type ClientQuoteIssuedSnapshotV1,
 } from "../../services/clientQuote/clientQuoteTypes";
 import { assertClientQuoteIssuable, normalizeClientQuoteDraft } from "../../services/clientQuote/clientQuoteValidation";
@@ -234,11 +252,29 @@ function renderEditor(
     currencyCode?: string;
     quoteNumber?: string | null;
     totals?: PublicClientQuote["draft"]["totals"] | null;
+    frequencyTotals?: readonly ClientQuoteFrequencyTotals[] | null;
     lineTotalsMinor?: number[] | null;
+    messages?: typeof messages;
+    templatesOpen?: boolean;
+    templatesPhase?: "loading" | "error" | "ready";
+    templateChoices?: Array<{
+      id: string;
+      name: string;
+      description: string;
+      unitPriceMinor: number;
+      currencyCode: string;
+      billingFrequency: ClientQuoteBillingFrequency;
+    }>;
   } = {},
 ) {
   const currencyCode = options.currencyCode ?? "USD";
   const preview = previewClientQuoteMoney(editor, currencyCode);
+  const frequencyTotals =
+    options.frequencyTotals === undefined
+      ? preview.ok
+        ? preview.preview.frequencyTotals
+        : null
+      : options.frequencyTotals;
   return renderToStaticMarkup(
     createElement(ClientQuoteEditorView, {
       mode: options.mode ?? "draft",
@@ -254,8 +290,12 @@ function renderEditor(
           ? preview.preview.totals
           : null
         : options.totals,
+      frequencyTotals,
+      templatesOpen: options.templatesOpen ?? false,
+      templatesPhase: options.templatesPhase ?? "loading",
+      templateChoices: options.templateChoices ?? [],
       locale: "en-US",
-      messages,
+      messages: options.messages ?? messages,
       pending: null,
       notice: null,
       error: null,
@@ -289,12 +329,14 @@ describe("client quotation money display", () => {
         description: "Design",
         quantityText: "1",
         unitPriceText: "100.00",
+        billingFrequency: "one_time",
       },
       {
         id: "line-2",
         description: "Build",
         quantityText: "2",
         unitPriceText: "25.00",
+        billingFrequency: "one_time",
       },
     ];
     editor.discountKind = "percentage";
@@ -666,6 +708,7 @@ describe("client quotation routes and estimate entry", () => {
     assert.match(quotePage, /AthenaQuoteFormEmbed/);
     assert.match(quotePage, /href="\/licensee"/);
     assert.doesNotMatch(quotePage, /client-quotes/);
+    assert.doesNotMatch(quotePage, /billingFrequency|frequencyTotals|client-quote-templates/);
     assert.match(estimate, /href="\/licensee\/quote"/);
     assert.match(estimate, /estimate\.quoteCta|messages\.estimate\.quoteCta/);
     assert.match(dashboard, /href="\/licensee\/quote"/);
@@ -709,6 +752,18 @@ describe("client quotation catalogs", () => {
     assert.ok(canonical.includes("clearSearch"));
     assert.ok(canonical.includes("deleteDialogBody"));
     assert.ok(canonical.includes("deleteSuccess"));
+    assert.ok(canonical.includes("billingFrequency"));
+    assert.ok(canonical.includes("frequencyOneTime"));
+    assert.ok(canonical.includes("frequencyMonthly"));
+    assert.ok(canonical.includes("frequencyQuarterly"));
+    assert.ok(canonical.includes("frequencyAnnually"));
+    assert.ok(canonical.includes("addFromTemplates"));
+    assert.ok(canonical.includes("templatesEmpty"));
+    assert.ok(canonical.includes("templatesLoading"));
+    assert.ok(canonical.includes("templatesLoadError"));
+    assert.ok(canonical.includes("frequencySummaryTitle"));
+    assert.ok(canonical.includes("frequencySummarySeparate"));
+    assert.ok(canonical.includes("fixedDiscountMixed"));
     for (const language of ORGANIZATION_LANGUAGES) {
       const licensee = dictionaries[language].licensee;
       const paths = collectKeyPaths(licensee.clientQuotes);
@@ -745,6 +800,34 @@ describe("client quotation catalogs", () => {
         assert.notEqual(
           licensee.clientQuotes.searchPlaceholder,
           en.licensee.clientQuotes.searchPlaceholder,
+        );
+        assert.notEqual(
+          licensee.clientQuotes.billingFrequency,
+          en.licensee.clientQuotes.billingFrequency,
+        );
+        assert.notEqual(
+          licensee.clientQuotes.frequencyOneTime,
+          en.licensee.clientQuotes.frequencyOneTime,
+        );
+        assert.notEqual(
+          licensee.clientQuotes.addFromTemplates,
+          en.licensee.clientQuotes.addFromTemplates,
+        );
+        assert.notEqual(
+          licensee.clientQuotes.templatesEmpty,
+          en.licensee.clientQuotes.templatesEmpty,
+        );
+        assert.notEqual(
+          licensee.clientQuotes.templatesLoadError,
+          en.licensee.clientQuotes.templatesLoadError,
+        );
+        assert.notEqual(
+          licensee.clientQuotes.frequencySummaryTitle,
+          en.licensee.clientQuotes.frequencySummaryTitle,
+        );
+        assert.notEqual(
+          licensee.clientQuotes.fixedDiscountMixed,
+          en.licensee.clientQuotes.fixedDiscountMixed,
         );
       }
       const localized = getLicenseeLocalization(language).messages;
@@ -1012,5 +1095,928 @@ describe("EST-QUOTE-1D.5A presentation", () => {
     assert.match(library, /maskLock\.current/);
     assert.match(library, /deleteSuccess/);
     assert.doesNotMatch(library, /licenseeAccountId|organization_id|openrouter|workers\//i);
+  });
+});
+
+describe("client quotation library frequency totals", () => {
+  const catalogs = {
+    en,
+    fr,
+    es,
+    it: itMessages,
+    de,
+    pt,
+  } as const;
+
+  function amount(totalMinor: number) {
+    return {
+      subtotalMinor: totalMinor,
+      discountMinor: 0,
+      taxableMinor: totalMinor,
+      taxMinor: 0,
+      totalMinor,
+    };
+  }
+
+  function group(
+    billingFrequency: ClientQuoteBillingFrequency,
+    totalMinor: number,
+  ): ClientQuoteFrequencyTotals {
+    return { billingFrequency, totals: amount(totalMinor) };
+  }
+
+  function withDraftFrequencies(
+    quote: PublicClientQuote,
+    groups: readonly ClientQuoteFrequencyTotals[] | undefined,
+    compatibilityTotalMinor: number,
+  ): PublicClientQuote {
+    const draft = {
+      ...quote.draft,
+      totals: amount(compatibilityTotalMinor),
+    };
+    if (groups === undefined) {
+      delete draft.frequencyTotals;
+    } else {
+      draft.frequencyTotals = [...groups];
+    }
+    return { ...quote, draft };
+  }
+
+  function renderLibrary(
+    quotes: readonly PublicClientQuote[],
+    options: {
+      language?: OrganizationLanguage;
+      searchQuery?: string;
+    } = {},
+  ) {
+    const language = options.language ?? "en";
+    return renderToStaticMarkup(
+      createElement(ClientQuoteLibraryView, {
+        phase: "ready",
+        quotes,
+        error: null,
+        locale: "en-US",
+        messages: getLicenseeLocalization(language).messages,
+        searchQuery: options.searchQuery,
+        onRetry: () => undefined,
+      }),
+    );
+  }
+
+  it("keeps one total for a legacy quotation and a monthly-only quotation", () => {
+    const legacy = withDraftFrequencies(
+      quoteFixture({ id: "11111111-1111-4111-8111-111111111111" }),
+      undefined,
+      3431,
+    );
+    const emptyGroups = withDraftFrequencies(
+      quoteFixture({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }),
+      [],
+      3431,
+    );
+    const monthly = withDraftFrequencies(
+      quoteFixture({
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        draft: {
+          ...quoteFixture().draft,
+          customer: { ...quoteFixture().draft.customer, name: "Harbor Studio" },
+        },
+      }),
+      [group("monthly", 2500)],
+      1,
+    );
+    const legacyRow = clientQuoteLibraryRow(legacy, "en-US");
+    assert.equal(legacyRow.totalLabel, "34.31 USD");
+    assert.equal(legacyRow.totalMinor, 3431);
+    assert.deepEqual(legacyRow.frequencyAmounts, []);
+    assert.deepEqual(clientQuoteLibraryRow(emptyGroups, "en-US").frequencyAmounts, []);
+    assert.equal(clientQuoteLibraryRow(emptyGroups, "en-US").totalLabel, "34.31 USD");
+
+    const monthlyRow = clientQuoteLibraryRow(monthly, "en-US");
+    assert.equal(monthlyRow.totalLabel, "25.00 USD");
+    assert.equal(monthlyRow.totalMinor, 2500);
+    assert.deepEqual(monthlyRow.frequencyAmounts, []);
+    assert.notEqual(monthlyRow.totalMinor, 1);
+    assert.notEqual(monthlyRow.totalMinor, 2500 * 12);
+
+    const html = renderLibrary([legacy, monthly]);
+    assert.match(html, /data-client-quote-total="11111111-1111-4111-8111-111111111111"/);
+    assert.match(html, /data-client-quote-total="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"/);
+    assert.match(html, /34\.31 USD/);
+    assert.match(html, /25\.00 USD/);
+    assert.equal(html.includes("300.00 USD"), false);
+    assert.equal(html.includes("0.01 USD"), false);
+    assert.doesNotMatch(html, /data-client-quote-frequency-totals=/);
+    assert.doesNotMatch(html, /Monthly|One-time|Quarterly|Annually/);
+  });
+
+  it("lists mixed frequencies in canonical order and omits a zero compatibility total", () => {
+    const mixed = withDraftFrequencies(
+      quoteFixture({ id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }),
+      [group("monthly", 5000), group("one_time", 10000)],
+      10000,
+    );
+    const noOneTime = withDraftFrequencies(
+      quoteFixture({
+        id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        currencyCode: "EUR",
+        draft: {
+          ...quoteFixture({}, "EUR").draft,
+          customer: { ...quoteFixture().draft.customer, name: "Recurring Only" },
+        },
+      }),
+      [group("quarterly", 9000), group("monthly", 3000)],
+      0,
+    );
+    const mixedRow = clientQuoteLibraryRow(mixed, "en-US");
+    assert.equal(mixedRow.totalLabel, null);
+    assert.equal(mixedRow.totalMinor, null);
+    assert.deepEqual(
+      mixedRow.frequencyAmounts.map((entry) => entry.billingFrequency),
+      ["one_time", "monthly"],
+    );
+    assert.deepEqual(
+      mixedRow.frequencyAmounts.map((entry) => entry.totalLabel),
+      ["100.00 USD", "50.00 USD"],
+    );
+    const recurringRow = clientQuoteLibraryRow(noOneTime, "en-US");
+    assert.deepEqual(
+      recurringRow.frequencyAmounts.map((entry) => entry.billingFrequency),
+      ["monthly", "quarterly"],
+    );
+    assert.deepEqual(
+      recurringRow.frequencyAmounts.map((entry) => entry.totalMinor),
+      [3000, 9000],
+    );
+    assert.equal(recurringRow.frequencyAmounts.some((entry) => entry.totalMinor === 0), false);
+
+    const mixedHtml = renderLibrary([mixed]);
+    assert.match(
+      mixedHtml,
+      /data-client-quote-frequency-amount="cccccccc-cccc-4ccc-8ccc-cccccccccccc:one_time"/,
+    );
+    assert.match(
+      mixedHtml,
+      /data-client-quote-frequency-amount="cccccccc-cccc-4ccc-8ccc-cccccccccccc:monthly"/,
+    );
+    const oneTimeAt = mixedHtml.indexOf("One-time");
+    const monthlyAt = mixedHtml.indexOf("Monthly");
+    assert.ok(oneTimeAt >= 0 && monthlyAt > oneTimeAt);
+    assert.equal(mixedHtml.split("100.00 USD").length - 1, 1);
+    assert.equal(mixedHtml.split("50.00 USD").length - 1, 1);
+    assert.equal(mixedHtml.includes("150.00 USD"), false);
+    assert.equal(mixedHtml.includes("600.00 USD"), false);
+    assert.doesNotMatch(mixedHtml, /data-client-quote-total=/);
+
+    const recurringHtml = renderLibrary([noOneTime]);
+    assert.match(
+      recurringHtml,
+      /data-client-quote-frequency-amount="dddddddd-dddd-4ddd-8ddd-dddddddddddd:monthly"/,
+    );
+    assert.match(
+      recurringHtml,
+      /data-client-quote-frequency-amount="dddddddd-dddd-4ddd-8ddd-dddddddddddd:quarterly"/,
+    );
+    assert.doesNotMatch(
+      recurringHtml,
+      /data-client-quote-frequency-amount="dddddddd-dddd-4ddd-8ddd-dddddddddddd:one_time"/,
+    );
+    assert.doesNotMatch(recurringHtml, /(?<!\d)0\.00 EUR/);
+    assert.doesNotMatch(recurringHtml, /120\.00 EUR/);
+    assert.doesNotMatch(recurringHtml, /360\.00 EUR/);
+    const monthlyEur = recurringHtml.indexOf("30.00 EUR");
+    const quarterlyEur = recurringHtml.indexOf("90.00 EUR");
+    assert.ok(monthlyEur >= 0 && quarterlyEur > monthlyEur);
+    assert.doesNotMatch(recurringHtml, /One-time|data-client-quote-total=/);
+  });
+
+  it("formats mixed currency minor units and uses the frozen issued snapshot", () => {
+    const yen = withDraftFrequencies(
+      quoteFixture(
+        {
+          id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          currencyCode: "JPY",
+        },
+        "JPY",
+      ),
+      [group("annually", 400), group("monthly", 1500)],
+      0,
+    );
+    const fils = withDraftFrequencies(
+      quoteFixture({
+        id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        currencyCode: "BHD",
+        draft: {
+          ...quoteFixture({}, "BHD").draft,
+          currencyScale: 3,
+        },
+      }),
+      [group("one_time", 1050)],
+      1050,
+    );
+    assert.deepEqual(
+      clientQuoteLibraryRow(yen, "en-US").frequencyAmounts.map((entry) => entry.totalLabel),
+      ["1500 JPY", "400 JPY"],
+    );
+    assert.equal(clientQuoteLibraryRow(fils, "en-US").totalLabel, "1.050 BHD");
+    assert.deepEqual(clientQuoteLibraryRow(fils, "en-US").frequencyAmounts, []);
+
+    const base = quoteFixture({
+      id: "12121212-1212-4121-8121-121212121212",
+      status: "issued",
+      quoteNumber: "Q-2026-0042",
+      issuedAt: "2026-10-04T09:00:00.000Z",
+    });
+    const driftedDraft = withDraftFrequencies(
+      base,
+      [group("one_time", 1), group("monthly", 999)],
+      1,
+    );
+    const issued = {
+      ...driftedDraft,
+      issuedSnapshot: {
+        ...issuedSnapshot(base),
+        currencyCode: "USD",
+        totals: amount(0),
+        frequencyTotals: [group("quarterly", 7500), group("monthly", 2500)],
+      },
+    };
+    const issuedRow = clientQuoteLibraryRow(issued, "en-US");
+    assert.deepEqual(
+      issuedRow.frequencyAmounts.map((entry) => [entry.billingFrequency, entry.totalLabel]),
+      [
+        ["monthly", "25.00 USD"],
+        ["quarterly", "75.00 USD"],
+      ],
+    );
+    assert.equal(JSON.stringify(issuedRow).includes("0.01 USD"), false);
+    assert.equal(JSON.stringify(issuedRow).includes("9.99 USD"), false);
+
+    const historical = {
+      ...withDraftFrequencies(base, [group("monthly", 5000), group("quarterly", 9000)], 0),
+      issuedSnapshot: issuedSnapshot(base),
+    };
+    historical.issuedSnapshot = {
+      ...historical.issuedSnapshot,
+      totals: amount(3431),
+    };
+    delete historical.issuedSnapshot.frequencyTotals;
+    const historicalRow = clientQuoteLibraryRow(historical, "en-US");
+    assert.equal(historicalRow.totalLabel, "34.31 USD");
+    assert.deepEqual(historicalRow.frequencyAmounts, []);
+
+    const html = renderLibrary([yen, fils, issued]);
+    assert.match(html, /1500 JPY/);
+    assert.match(html, /400 JPY/);
+    assert.match(html, /1\.050 BHD/);
+    assert.match(html, /data-client-quote-total="ffffffff-ffff-4fff-8fff-ffffffffffff"/);
+    assert.doesNotMatch(html, /18000 JPY/);
+    assert.doesNotMatch(html, /(?<!\d)0 JPY/);
+    assert.doesNotMatch(html, /(?<!\d)0\.00 USD/);
+  });
+
+  it("localizes frequency labels in the six Master languages", () => {
+    const quote = withDraftFrequencies(
+      quoteFixture({ id: "34343434-3434-4343-8343-343434343434" }),
+      [
+        group("annually", 400),
+        group("quarterly", 300),
+        group("monthly", 200),
+        group("one_time", 100),
+      ],
+      100,
+    );
+    const expected = {
+      en: ["One-time", "Monthly", "Quarterly", "Annually"],
+      fr: ["Ponctuel", "Mensuel", "Trimestriel", "Annuel"],
+      es: ["Pago único", "Mensual", "Trimestral", "Anual"],
+      it: ["Una tantum", "Mensile", "Trimestrale", "Annuale"],
+      de: ["Einmalig", "Monatlich", "Vierteljährlich", "Jährlich"],
+      pt: ["Pontual", "Mensal", "Trimestral", "Anual"],
+    } as const;
+    assert.deepEqual(ORGANIZATION_LANGUAGES, ["en", "fr", "es", "it", "de", "pt"]);
+    for (const language of ORGANIZATION_LANGUAGES) {
+      const html = renderLibrary([quote], { language });
+      let cursor = -1;
+      for (const label of expected[language]) {
+        const at = html.indexOf(label);
+        assert.ok(at > cursor, `${language} ${label}`);
+        cursor = at;
+      }
+      assert.match(html, /1\.00 USD/);
+      assert.match(html, /2\.00 USD/);
+      assert.match(html, /3\.00 USD/);
+      assert.match(html, /4\.00 USD/);
+      assert.equal(html.includes("10.00 USD"), false);
+      assert.equal(html.includes("24.00 USD"), false);
+      assert.equal(catalogs[language].licensee.clientQuotes.frequencyMonthly.length > 0, true);
+    }
+  });
+
+  it("keeps search, numbering, status, open, and delete, and still excludes masked quotations", () => {
+    const older = quoteFixture();
+    const mixed = withDraftFrequencies(
+      quoteFixture({
+        id: "44444444-4444-4444-8444-444444444444",
+        createdAt: "2026-10-03T12:00:00.000Z",
+        status: "issued",
+        quoteNumber: "Q-2026-0007",
+        issuedAt: "2026-10-04T09:00:00.000Z",
+        draft: {
+          ...quoteFixture().draft,
+          customer: { ...quoteFixture().draft.customer, name: "Fabrikam Atelier" },
+          projectTitle: "Catalog migration",
+        },
+      }),
+      [group("monthly", 3000), group("quarterly", 9000)],
+      0,
+    );
+    mixed.issuedSnapshot = {
+      ...issuedSnapshot(mixed),
+      totals: amount(0),
+      frequencyTotals: [group("quarterly", 9000), group("monthly", 3000)],
+    };
+    const statusLabels = {
+      draft: messages.clientQuotes.statusDraft,
+      issued: messages.clientQuotes.statusIssued,
+    };
+    assert.equal(clientQuoteMatchesLibraryQuery(mixed, "fabrikam", statusLabels), true);
+    assert.equal(clientQuoteMatchesLibraryQuery(mixed, "q-2026-0007", statusLabels), true);
+    assert.equal(clientQuoteMatchesLibraryQuery(mixed, "issued", statusLabels), true);
+    assert.equal(clientQuoteMatchesLibraryQuery(mixed, "30.00", statusLabels), false);
+    assert.equal(clientQuoteMatchesLibraryQuery(mixed, "monthly", statusLabels), false);
+    assert.deepEqual(
+      filterClientQuotesForLibrary([older, mixed], "fabrikam", statusLabels).map(
+        (quote) => quote.id,
+      ),
+      [mixed.id],
+    );
+
+    const html = renderLibrary([older, mixed], { searchQuery: "fabrikam" });
+    assert.match(html, /Fabrikam Atelier/);
+    assert.match(html, /Q-2026-0007/);
+    assert.match(html, /data-client-quote-status="issued"/);
+    assert.match(html, /30\.00 USD/);
+    assert.match(html, /90\.00 USD/);
+    assert.doesNotMatch(html, /(?<!\d)0\.00 USD/);
+    assert.match(html, /data-client-quote-open="44444444-4444-4444-8444-444444444444"/);
+    assert.match(html, /data-client-quote-delete="44444444-4444-4444-8444-444444444444"/);
+    assert.doesNotMatch(html, /Northwind Studio/);
+    assert.doesNotMatch(html, /data-client-quote-total=/);
+
+    const service = read("services/clientQuote/clientQuoteService.ts");
+    const library = read("components/licensee/clientQuotes/LicenseeClientQuoteLibrary.tsx");
+    const view = read("components/licensee/clientQuotes/ClientQuoteLibraryView.tsx");
+    const projection = read("services/clientQuote/clientQuotePublic.ts");
+    assert.match(service, /!quote\.deleted_at/);
+    assert.match(library, /method: "DELETE"/);
+    assert.match(projection, /draft: quote\.draft_json/);
+    assert.match(projection, /issuedSnapshot: publicIssuedSnapshot/);
+    assert.doesNotMatch(view, /calculateClientQuote|openrouter|workers\/|gohighlevel/i);
+    assert.doesNotMatch(library, /calculateClientQuote|openrouter|workers\/|gohighlevel/i);
+    assert.doesNotMatch(projection, /calculateClientQuote|clientQuoteTemplate|athena_estimates/);
+    assert.doesNotMatch(
+      read("lib/licensee/clientQuoteEditorModel.ts").slice(
+        read("lib/licensee/clientQuoteEditorModel.ts").indexOf("function clientQuoteLibraryMoney"),
+      ),
+      /calculateClientQuote|athena_estimates|clientQuoteTemplate/,
+    );
+  });
+});
+
+function lineEdit(
+  id: string,
+  description: string,
+  unitPriceText: string,
+  billingFrequency: ClientQuoteBillingFrequency,
+  quantityText = "1",
+) {
+  return { id, description, quantityText, unitPriceText, billingFrequency };
+}
+
+function hostingTemplate(
+  overrides: Partial<ClientQuoteTemplateInsertSource> = {},
+): ClientQuoteTemplateInsertSource {
+  return {
+    name: "Managed hosting",
+    description: "Monthly hosting and backups",
+    quantity: { coefficient: 25, scale: 1 },
+    unitPriceMinor: 4000,
+    currencyCode: "USD",
+    billingFrequency: "quarterly",
+    ...overrides,
+  };
+}
+
+describe("EST-QUOTE-2B.3 recurring editor and template insertion", () => {
+  it("defaults missing frequency to one-time and preserves it across edits", () => {
+    const editor = editorDraftFromQuote(quoteFixture());
+    assert.equal(editor.lines[0]?.billingFrequency, "one_time");
+    const monthly = setClientQuoteLineBillingFrequency(editor, 0, "monthly");
+    assert.equal(monthly.lines[0]?.billingFrequency, "monthly");
+    assert.equal(monthly.lines[0]?.description, "Website rebuild");
+    const edited = {
+      ...monthly,
+      lines: monthly.lines.map((line) => ({
+        ...line,
+        description: "Care plan",
+        quantityText: "2",
+        unitPriceText: "12.50",
+      })),
+    };
+    assert.equal(edited.lines[0]?.billingFrequency, "monthly");
+    const added = addClientQuoteLine(edited, "USD");
+    assert.equal(added.lines[1]?.billingFrequency, "one_time");
+    assert.equal(added.lines[1]?.id, "line-2");
+    const moved = moveClientQuoteLineAt(
+      {
+        ...added,
+        lines: added.lines.map((line, index) =>
+          index === 1 ? { ...line, description: "Setup" } : line,
+        ),
+      },
+      1,
+      -1,
+    );
+    assert.deepEqual(
+      moved.lines.map((line) => line.billingFrequency),
+      ["one_time", "monthly"],
+    );
+    const html = renderEditor(monthly);
+    assert.match(html, /data-field="line.line-1.billingFrequency"/);
+    assert.match(html, /value="monthly"/);
+    assert.match(html, /One-time/);
+    assert.match(html, /Monthly/);
+    assert.match(html, /Quarterly/);
+    assert.match(html, /Annually/);
+    const languageOnly = withClientQuoteDocumentLanguage(monthly, "pt");
+    assert.equal(languageOnly.lines[0]?.billingFrequency, "monthly");
+    assert.equal(languageOnly.lines[0]?.description, "Website rebuild");
+    assert.equal(languageOnly.contentLanguage, "pt");
+  });
+
+  it("keeps a single frequency on the simple total and groups mixed frequencies without combining them", () => {
+    const monthlyOnly = editorDraftFromQuote(quoteFixture());
+    monthlyOnly.lines = [
+      lineEdit("line-1", "Care", "80.00", "monthly"),
+    ];
+    const single = previewClientQuoteMoney(monthlyOnly, "USD");
+    assert.equal(single.ok, true);
+    if (!single.ok) return;
+    assert.equal(single.preview.frequencyTotals.length, 1);
+    assert.equal(single.preview.frequencyTotals[0]?.billingFrequency, "monthly");
+    assert.deepEqual(single.preview.totals, single.preview.frequencyTotals[0]?.totals);
+    const singleHtml = renderEditor(monthlyOnly);
+    assert.match(singleHtml, /data-client-quote-totals="true"/);
+    assert.match(singleHtml, /data-field="totals.total"/);
+    assert.match(singleHtml, /80\.00 USD/);
+    assert.doesNotMatch(singleHtml, /data-client-quote-frequency-summary/);
+    assert.doesNotMatch(singleHtml, /960\.00 USD/);
+
+    const mixed = editorDraftFromQuote(quoteFixture());
+    mixed.lines = [
+      lineEdit("line-annually", "Annual retainer", "40.00", "annually"),
+      lineEdit("line-once", "Setup", "10.00", "one_time"),
+      lineEdit("line-quarter", "Quarterly review", "30.00", "quarterly"),
+      lineEdit("line-month", "Care", "20.00", "monthly"),
+    ];
+    mixed.discountKind = "percentage";
+    mixed.discountPercentText = "10";
+    mixed.taxKind = "percentage";
+    mixed.taxPercentText = "10";
+    const preview = previewClientQuoteMoney(mixed, "USD");
+    assert.equal(preview.ok, true);
+    if (!preview.ok) return;
+    const expected = calculateClientQuote({
+      currencyCode: "USD",
+      lineItems: [
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: 4000,
+          billingFrequency: "annually",
+        },
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: 1000,
+          billingFrequency: "one_time",
+        },
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: 3000,
+          billingFrequency: "quarterly",
+        },
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: 2000,
+          billingFrequency: "monthly",
+        },
+      ],
+      discount: { kind: "percentage", ratePpm: 100_000 },
+      tax: { kind: "percentage", ratePpm: 100_000, label: null },
+    });
+    assert.deepEqual(preview.preview.frequencyTotals, expected.frequencyTotals);
+    assert.deepEqual(
+      preview.preview.frequencyTotals.map((group) => group.billingFrequency),
+      ["one_time", "monthly", "quarterly", "annually"],
+    );
+    assert.equal(preview.preview.frequencyTotals[0]?.totals.subtotalMinor, 1000);
+    assert.equal(preview.preview.frequencyTotals[0]?.totals.discountMinor, 100);
+    assert.equal(preview.preview.frequencyTotals[0]?.totals.taxMinor, 90);
+    assert.equal(preview.preview.frequencyTotals[0]?.totals.totalMinor, 990);
+    assert.equal(preview.preview.frequencyTotals[1]?.totals.totalMinor, 1980);
+    assert.notEqual(
+      preview.preview.totals.totalMinor,
+      preview.preview.frequencyTotals.reduce(
+        (sum, group) => sum + group.totals.totalMinor,
+        0,
+      ),
+    );
+    const html = renderEditor(mixed);
+    const oneTimeAt = html.indexOf('data-client-quote-frequency-group="one_time"');
+    const monthlyAt = html.indexOf('data-client-quote-frequency-group="monthly"');
+    const quarterlyAt = html.indexOf('data-client-quote-frequency-group="quarterly"');
+    const annuallyAt = html.indexOf('data-client-quote-frequency-group="annually"');
+    assert.ok(oneTimeAt >= 0 && monthlyAt > oneTimeAt);
+    assert.ok(quarterlyAt > monthlyAt && annuallyAt > quarterlyAt);
+    assert.match(html, /Totals by billing frequency/);
+    assert.match(html, /not combined or converted to a yearly total/);
+    assert.match(html, /data-field="frequency.one_time.subtotal"/);
+    assert.match(html, /data-field="frequency.monthly.discount"/);
+    assert.match(html, /data-field="frequency.quarterly.taxable"/);
+    assert.match(html, /data-field="frequency.annually.tax"/);
+    assert.match(html, /data-field="frequency.monthly.total"/);
+    assert.match(html, /9\.90 USD/);
+    assert.match(html, /19\.80 USD/);
+    assert.match(html, /29\.70 USD/);
+    assert.match(html, /39\.60 USD/);
+    assert.doesNotMatch(html, /data-field="totals\.total"/);
+    assert.doesNotMatch(html, /data-client-quote-totals="true"/);
+    assert.doesNotMatch(html, /100\.00 USD|240\.00 USD|237\.60 USD/);
+
+    const yen = editorDraftFromQuote(quoteFixture({}, "JPY"));
+    yen.lines = [
+      lineEdit("line-1", "Setup", "1500", "one_time"),
+      lineEdit("line-2", "Care", "2000", "monthly"),
+    ];
+    const yenHtml = renderEditor(yen, { currencyCode: "JPY" });
+    assert.match(yenHtml, /1500 JPY/);
+    assert.match(yenHtml, /2000 JPY/);
+    assert.doesNotMatch(yenHtml, /3500 JPY|24000 JPY|1\.500 JPY/);
+
+    const fils = editorDraftFromQuote(quoteFixture({}, "BHD"));
+    fils.lines = [
+      lineEdit("line-1", "Setup", "1.050", "one_time"),
+      lineEdit("line-2", "Care", "2.000", "quarterly"),
+    ];
+    const filsHtml = renderEditor(fils, { currencyCode: "BHD" });
+    assert.match(filsHtml, /1\.050 BHD/);
+    assert.match(filsHtml, /2\.000 BHD/);
+  });
+
+  it("rejects a fixed discount when billing frequencies are mixed", () => {
+    const editor = editorDraftFromQuote(quoteFixture());
+    editor.lines = [
+      lineEdit("line-1", "Setup", "50.00", "one_time"),
+      lineEdit("line-2", "Care", "20.00", "monthly"),
+    ];
+    editor.discountKind = "none";
+    const refused = setClientQuoteDiscountKind(editor, "fixed", "USD");
+    assert.equal(refused.discountKind, "none");
+    editor.discountKind = "fixed";
+    editor.discountAmountText = "5.00";
+    const preview = previewClientQuoteMoney(editor, "USD");
+    assert.equal(preview.ok, false);
+    if (!preview.ok) assert.equal(preview.reason, "fixedDiscountMixed");
+    assert.deepEqual(clientQuoteDraftBlockers(editor, "USD"), ["fixedDiscountMixed"]);
+    const built = editorDraftToUpdateBody(editor, "USD");
+    assert.equal(built.ok, false);
+    if (built.ok) return;
+    assert.equal(built.blockers[0], "fixedDiscountMixed");
+    assert.match(
+      clientQuoteBlockerMessage(messages, "fixedDiscountMixed"),
+      /same billing frequency/,
+    );
+    const html = renderEditor(editor);
+    assert.match(html, /data-client-quote-fixed-discount="unavailable"/);
+    assert.match(html, /<option (?=[^>]*value="fixed")(?=[^>]*disabled="")[^>]*>/);
+    assert.doesNotMatch(html, /data-field="totals\.total"/);
+    assert.doesNotMatch(html, /data-client-quote-frequency-summary/);
+    editor.discountKind = "percentage";
+    editor.discountPercentText = "10";
+    const percentage = previewClientQuoteMoney(editor, "USD");
+    assert.equal(percentage.ok, true);
+    if (!percentage.ok) return;
+    assert.equal(percentage.preview.frequencyTotals[0]?.totals.discountMinor, 500);
+    assert.equal(percentage.preview.frequencyTotals[1]?.totals.discountMinor, 200);
+  });
+
+  it("inserts a currency-matched template as an independent line and stops at 50", () => {
+    const editor = editorDraftFromQuote(quoteFixture());
+    const template = hostingTemplate();
+    const original = structuredClone(template);
+    const eur = hostingTemplate({ currencyCode: "EUR", description: "Hébergement" });
+    const compatible = compatibleClientQuoteTemplates(
+      [
+        { id: "usd-upper", ...template },
+        { id: "eur", ...eur },
+        { id: "usd-lower", ...hostingTemplate({ currencyCode: "usd" }) },
+        { id: "bad", ...hostingTemplate({ currencyCode: "NOT-A-CODE" }) },
+      ],
+      "USD",
+    );
+    assert.deepEqual(
+      compatible.map((item) => item.id),
+      ["usd-upper", "usd-lower"],
+    );
+    assert.equal(insertClientQuoteTemplateLine(editor, eur, "USD"), editor);
+    assert.equal(
+      insertClientQuoteTemplateLine(
+        editor,
+        hostingTemplate({ deletedAt: "2026-10-10T00:00:00.000Z" }),
+        "USD",
+      ),
+      editor,
+    );
+    const inserted = insertClientQuoteTemplateLine(editor, template, "USD");
+    assert.notEqual(inserted, editor);
+    const copied = copyClientQuoteTemplateToLine({
+      template,
+      currencyCode: "USD",
+      lineId: "line-2",
+    });
+    const line = inserted.lines[1];
+    assert.ok(line);
+    assert.equal(line.id, "line-2");
+    assert.notEqual(line.id, "usd-upper");
+    assert.equal(line.description, copied.description);
+    assert.equal(line.quantityText, "2.5");
+    assert.equal(line.unitPriceText, "40.00");
+    assert.equal(line.billingFrequency, "quarterly");
+    assert.equal("templateId" in line, false);
+    assert.deepEqual(template, original);
+    const source = hostingTemplate();
+    source.description = "Catalog renamed";
+    source.unitPriceMinor = 1;
+    source.billingFrequency = "annually";
+    assert.equal(line.description, "Monthly hosting and backups");
+    assert.equal(line.billingFrequency, "quarterly");
+    const customized = {
+      ...inserted,
+      lines: inserted.lines.map((item, index) =>
+        index === 1
+          ? { ...item, description: "Custom hosting", unitPriceText: "55.00" }
+          : item,
+      ),
+    };
+    assert.equal(customized.lines[1]?.billingFrequency, "quarterly");
+    assert.equal(template.description, original.description);
+    const body = editorDraftToUpdateBody(customized, "USD");
+    assert.equal(body.ok, true);
+    if (!body.ok) return;
+    assert.equal(JSON.stringify(body.body).includes("templateId"), false);
+    assert.equal(body.body.draft.lineItems[1]?.description, "Custom hosting");
+    assert.equal(body.body.draft.lineItems[1]?.billingFrequency, "quarterly");
+    assert.equal(body.body.draft.lineItems[1]?.unitPriceMinor, 5500);
+
+    let full = editorDraftFromQuote(quoteFixture());
+    while (full.lines.length < CLIENT_QUOTE_FIELD_LIMITS.lineItems) {
+      full = addClientQuoteLine(full, "USD");
+    }
+    assert.equal(full.lines.length, 50);
+    assert.equal(insertClientQuoteTemplateLine(full, template, "USD"), full);
+    assert.equal(addClientQuoteLine(full, "USD"), full);
+    const fullHtml = renderEditor(full);
+    const addTemplate = fullHtml.slice(
+      fullHtml.indexOf('data-client-quote-add-template="true"'),
+      fullHtml.indexOf('data-client-quote-add-template="true"') + 220,
+    );
+    assert.match(addTemplate, /disabled=""/);
+
+    const loading = renderEditor(editor, {
+      templatesOpen: true,
+      templatesPhase: "loading",
+    });
+    assert.match(loading, /data-client-quote-add-template="true"/);
+    assert.match(loading, /data-client-quote-template-loading="true"/);
+    assert.match(loading, /Loading templates…/);
+    assert.doesNotMatch(loading, /data-client-quote-template-empty/);
+
+    const failed = renderEditor(editor, {
+      templatesOpen: true,
+      templatesPhase: "error",
+    });
+    assert.match(failed, /data-client-quote-template-error="true"/);
+    assert.match(failed, /Templates could not be loaded/);
+    assert.match(failed, /data-client-quote-template-retry="true"/);
+
+    const empty = renderEditor(editor, {
+      templatesOpen: true,
+      templatesPhase: "ready",
+      templateChoices: [],
+    });
+    assert.match(empty, /data-client-quote-template-empty="true"/);
+    assert.match(empty, /No compatible templates/);
+
+    const ready = renderEditor(editor, {
+      templatesOpen: true,
+      templatesPhase: "ready",
+      templateChoices: [
+        {
+          id: "tmpl-1",
+          name: template.name,
+          description: template.description,
+          unitPriceMinor: template.unitPriceMinor,
+          currencyCode: "USD",
+          billingFrequency: "quarterly",
+        },
+      ],
+    });
+    assert.match(ready, /data-client-quote-template="tmpl-1"/);
+    assert.match(ready, /Managed hosting/);
+    assert.match(ready, /Monthly hosting and backups/);
+    assert.match(ready, /40\.00 USD/);
+    assert.match(ready, /Quarterly/);
+    const editorSource = read(
+      "components/licensee/clientQuotes/LicenseeClientQuoteEditor.tsx",
+    );
+    assert.match(editorSource, /\/api\/licensee\/client-quote-templates/);
+    assert.match(
+      read("lib/licensee/clientQuoteEditorModel.ts"),
+      /copyClientQuoteTemplateToLine/,
+    );
+    assert.doesNotMatch(
+      read("components/licensee/clientQuotes/ClientQuoteEditorView.tsx"),
+      /calculateClientQuote/,
+    );
+    assert.equal(
+      existsSync(join(ROOT, "app/licensee/client-quote-templates/page.tsx")),
+      false,
+    );
+  });
+
+  it("saves, issues, and revises frequency while ignoring client totals", () => {
+    const editor = editorDraftFromQuote(quoteFixture());
+    editor.lines = [
+      lineEdit("line-1", "Setup", "50.00", "one_time"),
+      lineEdit("line-2", "Care", "20.00", "monthly"),
+    ];
+    editor.discountKind = "percentage";
+    editor.discountPercentText = "10";
+    const built = editorDraftToUpdateBody(editor, "USD");
+    assert.equal(built.ok, true);
+    if (!built.ok) return;
+    assert.equal("currencyCode" in built.body.draft, false);
+    assert.deepEqual(
+      built.body.draft.lineItems.map((line) => line.billingFrequency),
+      ["one_time", "monthly"],
+    );
+    const tampered = structuredClone(built.body.draft);
+    tampered.totals = {
+      subtotalMinor: 1,
+      discountMinor: 1,
+      taxableMinor: 1,
+      taxMinor: 1,
+      totalMinor: 1,
+    };
+    tampered.frequencyTotals = [];
+    tampered.lineItems[0].lineTotalMinor = 1;
+    const normalized = normalizeClientQuoteDraft(tampered, "USD");
+    assert.notEqual(normalized.totals.totalMinor, 1);
+    assert.equal(normalized.lineItems[0]?.lineTotalMinor, 5000);
+    assert.equal(normalized.frequencyTotals?.[0]?.billingFrequency, "one_time");
+    assert.equal(normalized.frequencyTotals?.[1]?.billingFrequency, "monthly");
+    assert.equal(normalized.frequencyTotals?.[1]?.totals.totalMinor, 1800);
+    assert.deepEqual(normalized.frequencyTotals, built.body.draft.frequencyTotals);
+
+    const legacy = editorDraftFromQuote(quoteFixture());
+    assert.equal(quoteFixture().draft.lineItems[0]?.billingFrequency, undefined);
+    assert.equal(legacy.lines[0]?.billingFrequency, "one_time");
+    const legacyBody = editorDraftToUpdateBody(legacy, "USD");
+    assert.equal(legacyBody.ok, true);
+    if (!legacyBody.ok) return;
+    assert.equal(legacyBody.body.draft.lineItems[0]?.billingFrequency, "one_time");
+    assert.equal(legacyBody.body.draft.frequencyTotals?.length, 1);
+    assert.deepEqual(
+      legacyBody.body.draft.totals,
+      legacyBody.body.draft.frequencyTotals?.[0]?.totals,
+    );
+
+    const created = createDraftClientQuote({
+      id: "11111111-1111-4111-8111-111111111111",
+      licenseeAccountId: "22222222-2222-4222-8222-222222222222",
+      organizationId: "33333333-3333-4333-8333-333333333333",
+      requestedBy: null,
+      contentLanguage: "fr",
+      currencyCode: "USD",
+      draft: built.body.draft,
+      sourceEstimateId: null,
+      sourceEstimateSnapshot: null,
+      revisedFromQuoteId: null,
+      createdAt: "2026-10-09T12:00:00.000Z",
+    });
+    const updated = updateDraftClientQuote(created, tampered, {
+      updatedAt: "2026-10-09T12:05:00.000Z",
+      contentLanguage: "fr",
+    });
+    assert.equal(updated.currency_code, "USD");
+    assert.equal(updated.draft_json.lineItems[1]?.billingFrequency, "monthly");
+    assert.notEqual(updated.draft_json.totals.totalMinor, 1);
+    const issued = issueClientQuote(updated, {
+      quoteNumber: "Q-2026-0099",
+      issuedAt: "2026-10-09T12:06:00.000Z",
+      updatedAt: "2026-10-09T12:06:00.000Z",
+    });
+    assert.equal(issued.issued_snapshot_json?.lineItems[0]?.billingFrequency, "one_time");
+    assert.equal(issued.issued_snapshot_json?.lineItems[1]?.billingFrequency, "monthly");
+    assert.deepEqual(
+      issued.issued_snapshot_json?.frequencyTotals,
+      issued.draft_json.frequencyTotals,
+    );
+    const revision = reviseIssuedClientQuote(issued, {
+      id: "44444444-4444-4444-8444-444444444444",
+      createdAt: "2026-10-09T13:00:00.000Z",
+    });
+    assert.equal(revision.status, "draft");
+    assert.equal(revision.currency_code, "USD");
+    assert.equal(issued.status, "issued");
+    assert.deepEqual(
+      revision.draft_json.lineItems.map((line) => line.billingFrequency),
+      ["one_time", "monthly"],
+    );
+    assert.equal(revision.draft_json.frequencyTotals?.[1]?.billingFrequency, "monthly");
+
+    const frozenEditor = editorDraftFromQuote({
+      ...quoteFixture(),
+      status: "issued",
+      quoteNumber: "Q-2026-0099",
+      issuedSnapshot: {
+        ...issuedSnapshot(quoteFixture()),
+        lineItems: normalized.lineItems,
+        discount: normalized.discount,
+        tax: normalized.tax,
+        totals: normalized.totals,
+        frequencyTotals: normalized.frequencyTotals,
+      },
+    });
+    assert.equal(frozenEditor.lines[1]?.billingFrequency, "monthly");
+    const issuedHtml = renderEditor(frozenEditor, {
+      mode: "issued",
+      quoteNumber: "Q-2026-0099",
+      totals: normalized.totals,
+      frequencyTotals: normalized.frequencyTotals,
+      lineTotalsMinor: normalized.lineItems.map((line) => line.lineTotalMinor),
+    });
+    assert.match(issuedHtml, /data-client-quote-mode="issued"/);
+    assert.match(issuedHtml, /data-field="line.line-2.billingFrequency"/);
+    assert.match(issuedHtml, /Monthly/);
+    assert.match(issuedHtml, /data-client-quote-frequency-summary="true"/);
+    assert.doesNotMatch(issuedHtml, /<input|<textarea|<select/);
+    assert.doesNotMatch(issuedHtml, /data-client-quote-add-template/);
+    assert.doesNotMatch(issuedHtml, /data-field="totals\.total"/);
+
+    const legacyIssued = renderEditor(editorDraftFromQuote(quoteFixture()), {
+      mode: "issued",
+      frequencyTotals: null,
+      totals: quoteFixture().draft.totals,
+    });
+    assert.match(legacyIssued, /data-field="totals.total"/);
+    assert.match(legacyIssued, /One-time/);
+    assert.doesNotMatch(legacyIssued, /data-client-quote-frequency-summary/);
+    assert.doesNotMatch(legacyIssued, /<select/);
+  });
+
+  it("labels frequency in the Master language and leaves authored text unchanged", () => {
+    const editor = setClientQuoteLineBillingFrequency(
+      editorDraftFromQuote(quoteFixture()),
+      0,
+      "monthly",
+    );
+    const french = getLicenseeLocalization("fr").messages;
+    const html = renderEditor(editor, { messages: french });
+    assert.match(html, /Fréquence de facturation/);
+    assert.match(html, /Mensuel/);
+    assert.match(html, /Ajouter depuis les modèles/);
+    assert.match(html, /Website rebuild/);
+    assert.match(html, /value="fr"/);
+    assert.doesNotMatch(html, /Reconstruction|Refonte du site/);
+    for (const language of ORGANIZATION_LANGUAGES) {
+      const copy = getLicenseeLocalization(language).messages.clientQuotes;
+      for (const frequency of CLIENT_QUOTE_BILLING_FREQUENCIES) {
+        const label =
+          frequency === "one_time"
+            ? copy.frequencyOneTime
+            : frequency === "monthly"
+              ? copy.frequencyMonthly
+              : frequency === "quarterly"
+                ? copy.frequencyQuarterly
+                : copy.frequencyAnnually;
+        assert.ok(label.trim().length > 0, `${language} ${frequency}`);
+      }
+      assert.ok(copy.addFromTemplates.trim().length > 0);
+      assert.ok(copy.templatesEmpty.trim().length > 0);
+      assert.ok(copy.templatesLoading.trim().length > 0);
+      assert.ok(copy.templatesLoadError.trim().length > 0);
+      assert.ok(copy.frequencySummarySeparate.trim().length > 0);
+    }
   });
 });

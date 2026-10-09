@@ -6,9 +6,12 @@ import { useRouter } from "next/navigation";
 import { ClientQuoteEditorView } from "@/components/licensee/clientQuotes/ClientQuoteEditorView";
 import type { LicenseeMessages } from "@/lib/licensee/getLicenseeLocalization";
 import {
+  compatibleClientQuoteTemplates,
+  decideClientQuoteCurrencyChange,
   editorDraftFromQuote,
   editorDraftToUpdateBody,
   formatClientQuoteTimestamp,
+  insertClientQuoteTemplateLine,
   isClientQuoteRouteId,
   missingClientQuoteIssueRequirements,
   previewClientQuoteMoney,
@@ -21,6 +24,7 @@ import {
 import { LICENSEE_ERROR_NOTICE_CLASS } from "@/lib/licensee/licenseeDashboardPresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import type { PublicClientQuote } from "@/services/clientQuote/clientQuotePublic";
+import type { PublicClientQuoteTemplate } from "@/services/clientQuote/clientQuoteTemplatePublic";
 
 type QuoteResponse = {
   ok?: boolean;
@@ -29,6 +33,13 @@ type QuoteResponse = {
 };
 
 type PendingAction = "save" | "issue" | "revise";
+type TemplatePhase = "loading" | "error" | "ready";
+
+type TemplateListResponse = {
+  ok?: boolean;
+  templates?: PublicClientQuoteTemplate[];
+  error?: { code?: string; message?: string };
+};
 
 export function LicenseeClientQuoteEditor({
   quoteId,
@@ -48,16 +59,25 @@ export function LicenseeClientQuoteEditor({
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [templatesPhase, setTemplatesPhase] = useState<TemplatePhase>("loading");
+  const [templates, setTemplates] = useState<PublicClientQuoteTemplate[]>([]);
+  const [selectedCurrency, setSelectedCurrency] = useState<string | null>(null);
+  const [pendingCurrency, setPendingCurrency] = useState<string | null>(null);
   const pendingRef = useRef<PendingAction | null>(null);
   const editorRef = useRef<ClientQuoteEditorDraft | null>(null);
   const quoteRef = useRef<PublicClientQuote | null>(null);
+  const selectedCurrencyRef = useRef<string | null>(null);
 
   const applyQuote = useCallback((next: PublicClientQuote) => {
     const draft = editorDraftFromQuote(next);
     quoteRef.current = next;
     editorRef.current = draft;
+    selectedCurrencyRef.current = next.currencyCode;
     setQuote(next);
     setEditor(draft);
+    setSelectedCurrency(next.currencyCode);
+    setPendingCurrency(null);
   }, []);
 
   const load = useCallback(async () => {
@@ -88,13 +108,88 @@ export function LicenseeClientQuoteEditor({
     }
   }, [applyQuote, copy.errors.generic, copy.errors.notFound, messages, quoteId]);
 
+  const loadTemplates = useCallback(async () => {
+    setTemplatesPhase("loading");
+    try {
+      const response = await fetch("/api/licensee/client-quote-templates", {
+        cache: "no-store",
+      });
+      const payload = await parseJsonResponse<TemplateListResponse>(response);
+      if (!response.ok || !payload.ok || !Array.isArray(payload.templates)) {
+        setTemplates([]);
+        setTemplatesPhase("error");
+        return;
+      }
+      setTemplates(payload.templates);
+      setTemplatesPhase("ready");
+    } catch {
+      setTemplates([]);
+      setTemplatesPhase("error");
+    }
+  }, []);
+
   useEffect(() => {
     pendingRef.current = null;
     setPending(null);
     setNotice(null);
     setError(null);
+    setTemplatesOpen(false);
+    setTemplates([]);
+    setTemplatesPhase("loading");
     void load();
   }, [load]);
+
+  function toggleTemplates() {
+    if (quoteRef.current?.status !== "draft") return;
+    setTemplatesOpen((open) => {
+      const next = !open;
+      if (next) void loadTemplates();
+      return next;
+    });
+  }
+
+  function insertTemplate(templateId: string) {
+    const currentEditor = editorRef.current;
+    const currentQuote = quoteRef.current;
+    if (!currentEditor || !currentQuote || currentQuote.status !== "draft") return;
+    const template = templates.find((item) => item.id === templateId);
+    if (!template) return;
+    const next = insertClientQuoteTemplateLine(
+      currentEditor,
+      template,
+      selectedCurrencyRef.current ?? currentQuote.currencyCode,
+    );
+    if (next === currentEditor) return;
+    updateEditor(next);
+  }
+
+  function commitCurrency(next: string) {
+    selectedCurrencyRef.current = next;
+    setSelectedCurrency(next);
+    setPendingCurrency(null);
+    setNotice(null);
+  }
+
+  function requestCurrency(next: string) {
+    const currentEditor = editorRef.current;
+    const currentQuote = quoteRef.current;
+    const currentCurrency = selectedCurrencyRef.current ?? currentQuote?.currencyCode;
+    if (!currentEditor || !currentQuote || !currentCurrency || currentQuote.status !== "draft") {
+      return;
+    }
+    const decision = decideClientQuoteCurrencyChange({
+      currentCurrency,
+      nextCurrency: next,
+      editor: currentEditor,
+    });
+    if (decision.action === "confirm") {
+      setPendingCurrency(decision.currencyCode);
+      return;
+    }
+    if (decision.action === "apply") {
+      commitCurrency(decision.currencyCode);
+    }
+  }
 
   function updateEditor(next: ClientQuoteEditorDraft) {
     if (quoteRef.current?.status === "issued") return;
@@ -109,7 +204,11 @@ export function LicenseeClientQuoteEditor({
     if (!currentEditor || !currentQuote || currentQuote.status !== "draft") {
       return null;
     }
-    const built = editorDraftToUpdateBody(currentEditor, currentQuote.currencyCode);
+    const currency = selectedCurrencyRef.current ?? currentQuote.currencyCode;
+    const built = editorDraftToUpdateBody(currentEditor, currency, {
+      explicitCurrencyCode:
+        currency !== currentQuote.currencyCode ? currency : undefined,
+    });
     if (!built.ok) {
       setError(clientQuoteBlockerMessage(messages, built.blockers[0]));
       return null;
@@ -153,7 +252,7 @@ export function LicenseeClientQuoteEditor({
     if (!current || !currentQuote || currentQuote.status !== "draft") return;
     const missing = missingClientQuoteIssueRequirements(
       current,
-      currentQuote.currencyCode,
+      selectedCurrencyRef.current ?? currentQuote.currencyCode,
     );
     if (missing.length > 0) {
       setNotice(null);
@@ -230,17 +329,23 @@ export function LicenseeClientQuoteEditor({
   }
 
   const issued = quote.status === "issued";
+  const activeCurrency = selectedCurrency ?? quote.currencyCode;
   const preview = issued
     ? null
-    : previewClientQuoteMoney(editor, quote.currencyCode);
+    : previewClientQuoteMoney(editor, activeCurrency);
   const frozen = issued ? quote.issuedSnapshot : null;
   const totals = frozen?.totals ?? (preview?.ok ? preview.preview.totals : null);
+  const frequencyTotals = issued
+    ? (frozen?.frequencyTotals ?? null)
+    : preview?.ok
+      ? preview.preview.frequencyTotals
+      : null;
   const lineTotalsMinor =
     frozen?.lineItems.map((line) => line.lineTotalMinor) ??
     (preview?.ok ? preview.preview.lineTotalsMinor : null);
   const missing = issued
     ? []
-    : missingClientQuoteIssueRequirements(editor, quote.currencyCode);
+    : missingClientQuoteIssueRequirements(editor, activeCurrency);
 
   return (
     <div className="space-y-6">
@@ -259,10 +364,23 @@ export function LicenseeClientQuoteEditor({
           frozen?.issuedAt ?? quote.issuedAt,
           locale,
         )}
-        currencyCode={frozen?.currencyCode ?? quote.currencyCode}
+        currencyCode={issued ? (frozen?.currencyCode ?? quote.currencyCode) : activeCurrency}
         editor={editor}
         lineTotalsMinor={lineTotalsMinor}
         totals={totals}
+        frequencyTotals={frequencyTotals}
+        pendingCurrencyCode={issued ? null : pendingCurrency}
+        onCurrencyChange={requestCurrency}
+        onConfirmCurrencyChange={() => {
+          if (pendingCurrency) commitCurrency(pendingCurrency);
+        }}
+        onCancelCurrencyChange={() => setPendingCurrency(null)}
+        templatesOpen={templatesOpen}
+        templatesPhase={templatesPhase}
+        templateChoices={compatibleClientQuoteTemplates(templates, activeCurrency)}
+        onToggleTemplates={toggleTemplates}
+        onRetryTemplates={() => void loadTemplates()}
+        onInsertTemplate={insertTemplate}
         locale={locale}
         messages={messages}
         pending={pending}

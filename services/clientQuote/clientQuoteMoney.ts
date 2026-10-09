@@ -7,13 +7,19 @@
  * A quotient N / D rounds away from zero when the remainder is at least
  * half of D (remainder * 2 >= D). Exact integers are unchanged.
  *
- * Calculation order, always in this sequence:
+ * Calculation order, always in this sequence, inside each billing-frequency group:
  * 1. line extension = round(unitPriceMinor * quantityCoefficient / 10^quantityScale)
- * 2. subtotal = sum of line extensions, in input order
+ * 2. subtotal = sum of that group's line extensions, in input order
  * 3. discount = fixed amount, or round(subtotal * ratePpm / 1_000_000)
  * 4. taxable amount = subtotal - discount
  * 5. tax = round(taxable amount * ratePpm / 1_000_000), or 0
  * 6. total = taxable amount + tax
+ *
+ * Groups follow one_time, monthly, quarterly, annually. A missing frequency is
+ * one_time. Percentage discount and percentage tax are rounded independently
+ * on each group. A fixed discount is allowed only when every line shares one
+ * frequency. Recurring charges are not multiplied into an annual total, and
+ * unlike billing periods are not added into the compatibility totals.
  *
  * One discount is applied: none, fixed, or percentage. Fixed and percentage
  * discounts are not stacked. Tax is an optional single percentage after discount.
@@ -26,10 +32,14 @@
  */
 
 import {
+  CLIENT_QUOTE_BILLING_FREQUENCIES,
   CLIENT_QUOTE_FIELD_LIMITS,
   CLIENT_QUOTE_PERCENTAGE_RATE_DENOMINATOR,
   ClientQuoteCalculationError,
+  isClientQuoteBillingFrequency,
+  type ClientQuoteBillingFrequency,
   type ClientQuoteDiscount,
+  type ClientQuoteFrequencyTotals,
   type ClientQuoteQuantity,
   type ClientQuoteTax,
   type ClientQuoteTotals,
@@ -45,6 +55,21 @@ export const CLIENT_QUOTE_CALCULATION_ORDER = [
   "tax",
   "total",
 ] as const;
+
+/**
+ * Currencies a Master may explicitly select on an editable draft.
+ * Both use a 2-digit minor unit, so a switch keeps integer minor amounts.
+ */
+export const CLIENT_QUOTE_SELECTABLE_CURRENCIES = ["USD", "EUR"] as const;
+
+export type ClientQuoteSelectableCurrency =
+  (typeof CLIENT_QUOTE_SELECTABLE_CURRENCIES)[number];
+
+export function isClientQuoteSelectableCurrency(
+  value: unknown,
+): value is ClientQuoteSelectableCurrency {
+  return value === "USD" || value === "EUR";
+}
 
 /** ISO 4217 minor-unit exponents that are not 2. */
 export const CLIENT_QUOTE_CURRENCY_SCALE_OVERRIDES: Readonly<
@@ -284,14 +309,128 @@ function toSafeMinor(value: bigint, message: string): number {
 export type ClientQuoteCalculationLine = {
   quantity: ClientQuoteQuantity;
   unitPriceMinor: number;
+  /** Missing and null normalize to one_time. */
+  billingFrequency?: ClientQuoteBillingFrequency | null;
 };
 
 export type ClientQuoteCalculationResult = {
   currencyCode: string;
   currencyScale: number;
+  /** Line extensions in input order, not grouped order. */
   lineTotalsMinor: number[];
+  /**
+   * Compatibility total. Single-frequency quotations equal that group.
+   * Mixed quotations mirror one_time when that group exists, otherwise
+   * a zero-valued object. This is not a combined or annualized contract value.
+   */
   totals: ClientQuoteTotals;
+  /** Authoritative per-frequency totals in canonical order. */
+  frequencyTotals: ClientQuoteFrequencyTotals[];
 };
+
+function readBillingFrequency(line: object): ClientQuoteBillingFrequency {
+  const value = (line as { billingFrequency?: unknown }).billingFrequency;
+  if (value == null) return "one_time";
+  if (isClientQuoteBillingFrequency(value)) return value;
+  fail("billingFrequency must be one_time, monthly, quarterly, or annually.");
+}
+
+function copyTotals(totals: ClientQuoteTotals): ClientQuoteTotals {
+  return {
+    subtotalMinor: totals.subtotalMinor,
+    discountMinor: totals.discountMinor,
+    taxableMinor: totals.taxableMinor,
+    taxMinor: totals.taxMinor,
+    totalMinor: totals.totalMinor,
+  };
+}
+
+/**
+ * Mixed quotations with no one_time lines expose this zero object as totals.
+ * It is a compatibility placeholder, not a commercial sum.
+ */
+function zeroCompatibilityTotals(): ClientQuoteTotals {
+  return {
+    subtotalMinor: 0,
+    discountMinor: 0,
+    taxableMinor: 0,
+    taxMinor: 0,
+    totalMinor: 0,
+  };
+}
+
+function compatibilityTotals(
+  frequencyTotals: readonly ClientQuoteFrequencyTotals[],
+): ClientQuoteTotals {
+  if (frequencyTotals.length === 1) {
+    return copyTotals(frequencyTotals[0].totals);
+  }
+  const oneTime = frequencyTotals.find(
+    (group) => group.billingFrequency === "one_time",
+  );
+  if (oneTime) return copyTotals(oneTime.totals);
+  return zeroCompatibilityTotals();
+}
+
+function adjustmentTotals(
+  subtotal: bigint,
+  discountInput: ClientQuoteDiscount,
+  taxInput: ClientQuoteTax,
+): { discount: bigint; taxable: bigint; tax: bigint; total: bigint } {
+  let discount = BigInt(0);
+  if (discountInput.kind === "none") {
+    discount = BigInt(0);
+  } else if (discountInput.kind === "fixed") {
+    const amountMinor = requireSafeInteger(
+      discountInput.amountMinor,
+      "Discount amount must be a nonnegative integer minor-unit amount.",
+      { min: 0, max: Number.MAX_SAFE_INTEGER },
+    );
+    discount = BigInt(amountMinor);
+    if (discount > subtotal) {
+      fail("Fixed discount exceeds the subtotal.");
+    }
+  } else if (discountInput.kind === "percentage") {
+    const ratePpm = parseRatePpm(discountInput.ratePpm, "Discount rate");
+    discount = divRoundHalfAwayFromZero(
+      subtotal * BigInt(ratePpm),
+      BigInt(CLIENT_QUOTE_PERCENTAGE_RATE_DENOMINATOR),
+    );
+    if (discount > subtotal) {
+      fail("Percentage discount exceeds the subtotal.");
+    }
+  } else {
+    fail("Discount kind must be none, fixed, or percentage.");
+  }
+
+  const taxable = subtotal - discount;
+  if (taxable < BigInt(0)) {
+    fail("Final total must be nonnegative.");
+  }
+
+  let tax = BigInt(0);
+  if (taxInput.kind === "none") {
+    tax = BigInt(0);
+  } else if (taxInput.kind === "percentage") {
+    const ratePpm = parseRatePpm(taxInput.ratePpm, "Tax rate");
+    tax = divRoundHalfAwayFromZero(
+      taxable * BigInt(ratePpm),
+      BigInt(CLIENT_QUOTE_PERCENTAGE_RATE_DENOMINATOR),
+    );
+  } else {
+    fail("Tax kind must be none or percentage.");
+  }
+
+  const total = taxable + tax;
+  if (total < BigInt(0)) {
+    fail("Final total must be nonnegative.");
+  }
+  if (total > MAX_MINOR || tax > MAX_MINOR) {
+    fail("Calculated amount exceeds the supported maximum.");
+  }
+
+  return { discount, taxable, tax, total };
+}
 
 export function calculateClientQuote(input: {
   currencyCode: unknown;
@@ -313,7 +452,7 @@ export function calculateClientQuote(input: {
   }
 
   const lineTotals: bigint[] = [];
-  let subtotal = BigInt(0);
+  const grouped = new Map<ClientQuoteBillingFrequency, bigint[]>();
   for (const line of input.lineItems) {
     if (!line || typeof line !== "object") {
       fail("Line item must be an object.");
@@ -324,67 +463,60 @@ export function calculateClientQuote(input: {
       "Unit price must be a nonnegative integer minor-unit amount.",
       { min: 0, max: Number.MAX_SAFE_INTEGER },
     );
+    const billingFrequency = readBillingFrequency(line);
     const extension = lineExtensionMinor({ quantity, unitPriceMinor });
     if (extension > MAX_MINOR) {
       fail("Calculated amount exceeds the supported maximum.");
     }
-    subtotal += extension;
-    if (subtotal > MAX_MINOR) {
-      fail("Calculated amount exceeds the supported maximum.");
-    }
+    const bucket = grouped.get(billingFrequency) ?? [];
+    bucket.push(extension);
+    grouped.set(billingFrequency, bucket);
     lineTotals.push(extension);
   }
 
-  let discount = BigInt(0);
-  if (input.discount.kind === "none") {
-    discount = BigInt(0);
-  } else if (input.discount.kind === "fixed") {
-    const amountMinor = requireSafeInteger(
-      input.discount.amountMinor,
-      "Discount amount must be a nonnegative integer minor-unit amount.",
-      { min: 0, max: Number.MAX_SAFE_INTEGER },
+  if (input.discount.kind === "fixed" && grouped.size > 1) {
+    fail(
+      "Fixed discount requires every line to use the same billing frequency.",
     );
-    discount = BigInt(amountMinor);
-    if (discount > subtotal) {
-      fail("Fixed discount exceeds the subtotal.");
+  }
+
+  const frequencyTotals: ClientQuoteFrequencyTotals[] = [];
+  for (const billingFrequency of CLIENT_QUOTE_BILLING_FREQUENCIES) {
+    const extensions = grouped.get(billingFrequency);
+    if (!extensions || extensions.length === 0) continue;
+    let subtotal = BigInt(0);
+    for (const extension of extensions) {
+      subtotal += extension;
+      if (subtotal > MAX_MINOR) {
+        fail("Calculated amount exceeds the supported maximum.");
+      }
     }
-  } else if (input.discount.kind === "percentage") {
-    const ratePpm = parseRatePpm(input.discount.ratePpm, "Discount rate");
-    discount = divRoundHalfAwayFromZero(
-      subtotal * BigInt(ratePpm),
-      BigInt(CLIENT_QUOTE_PERCENTAGE_RATE_DENOMINATOR),
-    );
-    if (discount > subtotal) {
-      fail("Percentage discount exceeds the subtotal.");
-    }
-  } else {
-    fail("Discount kind must be none, fixed, or percentage.");
-  }
-
-  const taxable = subtotal - discount;
-  if (taxable < BigInt(0)) {
-    fail("Final total must be nonnegative.");
-  }
-
-  let tax = BigInt(0);
-  if (input.tax.kind === "none") {
-    tax = BigInt(0);
-  } else if (input.tax.kind === "percentage") {
-    const ratePpm = parseRatePpm(input.tax.ratePpm, "Tax rate");
-    tax = divRoundHalfAwayFromZero(
-      taxable * BigInt(ratePpm),
-      BigInt(CLIENT_QUOTE_PERCENTAGE_RATE_DENOMINATOR),
-    );
-  } else {
-    fail("Tax kind must be none or percentage.");
-  }
-
-  const total = taxable + tax;
-  if (total < BigInt(0)) {
-    fail("Final total must be nonnegative.");
-  }
-  if (total > MAX_MINOR || tax > MAX_MINOR) {
-    fail("Calculated amount exceeds the supported maximum.");
+    const adjusted = adjustmentTotals(subtotal, input.discount, input.tax);
+    frequencyTotals.push({
+      billingFrequency,
+      totals: {
+        subtotalMinor: toSafeMinor(
+          subtotal,
+          "Calculated amount exceeds the supported maximum.",
+        ),
+        discountMinor: toSafeMinor(
+          adjusted.discount,
+          "Calculated amount exceeds the supported maximum.",
+        ),
+        taxableMinor: toSafeMinor(
+          adjusted.taxable,
+          "Calculated amount exceeds the supported maximum.",
+        ),
+        taxMinor: toSafeMinor(
+          adjusted.tax,
+          "Calculated amount exceeds the supported maximum.",
+        ),
+        totalMinor: toSafeMinor(
+          adjusted.total,
+          "Calculated amount exceeds the supported maximum.",
+        ),
+      },
+    });
   }
 
   return {
@@ -393,24 +525,7 @@ export function calculateClientQuote(input: {
     lineTotalsMinor: lineTotals.map((line) =>
       toSafeMinor(line, "Calculated amount exceeds the supported maximum."),
     ),
-    totals: {
-      subtotalMinor: toSafeMinor(
-        subtotal,
-        "Calculated amount exceeds the supported maximum.",
-      ),
-      discountMinor: toSafeMinor(
-        discount,
-        "Calculated amount exceeds the supported maximum.",
-      ),
-      taxableMinor: toSafeMinor(
-        taxable,
-        "Calculated amount exceeds the supported maximum.",
-      ),
-      taxMinor: toSafeMinor(tax, "Calculated amount exceeds the supported maximum."),
-      totalMinor: toSafeMinor(
-        total,
-        "Calculated amount exceeds the supported maximum.",
-      ),
-    },
+    totals: compatibilityTotals(frequencyTotals),
+    frequencyTotals,
   };
 }

@@ -31,6 +31,10 @@ import {
   truncateProjectNeed,
 } from "@/components/licensee/estimate/estimateUiHelpers";
 import {
+  resolveEstimateCreateQuotePreselection,
+  resolveRequestedProspectSelection,
+} from "@/lib/licensee/estimateCreateQuotePreselection";
+import {
   getLicenseeLocalization,
   type LicenseeMessages,
 } from "@/lib/licensee/getLicenseeLocalization";
@@ -50,6 +54,9 @@ type LicenseeEstimateClientProps = {
   subAccounts: LicenseeSubAccountListItem[];
   messages?: LicenseeMessages;
   locale?: string;
+  /** Untrusted Create Quote hints. Ignored unless they match this Master's clients. */
+  requestedOrganizationId?: string | null;
+  requestedProspectId?: string | null;
 };
 
 type ApiErrorBody = {
@@ -90,6 +97,8 @@ export function LicenseeEstimateClient({
   subAccounts,
   messages = getLicenseeLocalization("en").messages,
   locale = "en-US",
+  requestedOrganizationId = null,
+  requestedProspectId = null,
 }: LicenseeEstimateClientProps) {
   const estimate = messages.estimate;
   const howItWorks = useMemo(
@@ -118,11 +127,21 @@ export function LicenseeEstimateClient({
     messages.errors.prospectUnavailableRegenerate ||
     ESTIMATE_PROSPECT_UNAVAILABLE_REGENERATE_MESSAGE;
 
-  const [organizationId, setOrganizationId] = useState(
-    subAccounts[0]?.organizationId ?? "",
+  const [formSeed] = useState(() =>
+    resolveEstimateCreateQuotePreselection({
+      requestedOrganizationId,
+      requestedProspectId,
+      subAccounts,
+    }),
   );
+  const pendingProspectRef = useRef(formSeed.requestedProspectId);
+  const appliedProspectRef = useRef(formSeed.requestedProspectId == null);
+  const [organizationId, setOrganizationId] = useState(formSeed.organizationId);
   /** Optional commercial Prospect target for create — id only; server resolves snapshot. */
   const [prospectId, setProspectId] = useState<string | null>(null);
+  const [preselectionNotice, setPreselectionNotice] = useState<
+    "organization" | "prospect" | null
+  >(formSeed.notice);
   const [projectNeed, setProjectNeed] = useState("");
   const [additionalContext, setAdditionalContext] = useState("");
   const [timeframe, setTimeframe] = useState<"" | AthenaEstimateTimeframe>("");
@@ -300,6 +319,28 @@ export function LicenseeEstimateClient({
     startPolling(activeEstimate.id);
   }, [activeEstimate, startPolling, stopPolling]);
 
+  const handleProspectOptions = useCallback(
+    (result: { ok: boolean; prospectIds: string[] }) => {
+      if (appliedProspectRef.current) return;
+      const requested = pendingProspectRef.current;
+      appliedProspectRef.current = true;
+      pendingProspectRef.current = null;
+      if (!requested) return;
+      if (!result.ok) {
+        setProspectId(null);
+        setPreselectionNotice("prospect");
+        return;
+      }
+      const resolved = resolveRequestedProspectSelection({
+        requestedProspectId: requested,
+        selectableProspectIds: result.prospectIds,
+      });
+      setProspectId(resolved.prospectId);
+      if (!resolved.available) setPreselectionNotice("prospect");
+    },
+    [],
+  );
+
   function resetFormFields() {
     setProspectId(null);
     setProjectNeed("");
@@ -307,6 +348,9 @@ export function LicenseeEstimateClient({
     setTimeframe("");
     setFormError(null);
     setSubmitError(null);
+    setPreselectionNotice(null);
+    pendingProspectRef.current = null;
+    appliedProspectRef.current = true;
   }
 
   function handleCreateAnother() {
@@ -669,6 +713,24 @@ export function LicenseeEstimateClient({
           </div>
         ) : (
           <form className="mt-8 space-y-6" onSubmit={handleSubmit} noValidate>
+            {preselectionNotice === "organization" ? (
+              <p
+                role="status"
+                data-estimate-preselection="organization"
+                className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-5 py-4 text-sm text-amber-50"
+              >
+                {estimate.preselectionUnavailable}
+              </p>
+            ) : null}
+            {preselectionNotice === "prospect" ? (
+              <p
+                role="status"
+                data-estimate-preselection="prospect"
+                className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-5 py-4 text-sm text-amber-50"
+              >
+                {estimate.preselectionProspectUnavailable}
+              </p>
+            ) : null}
             <div>
               <label
                 htmlFor="estimate-organization"
@@ -684,6 +746,9 @@ export function LicenseeEstimateClient({
                 onChange={(event) => {
                   setOrganizationId(event.target.value);
                   setProspectId(null);
+                  pendingProspectRef.current = null;
+                  appliedProspectRef.current = true;
+                  setPreselectionNotice(null);
                 }}
                 className="mt-2 w-full rounded-2xl border border-white/20 bg-[#161922] px-4 py-3 text-sm text-white outline-none focus:border-[var(--athena-orange)] focus:ring-2 focus:ring-[var(--athena-orange)]/30"
               >
@@ -701,6 +766,7 @@ export function LicenseeEstimateClient({
               organizationId={organizationId}
               value={prospectId}
               onChange={setProspectId}
+              onProspectOptions={handleProspectOptions}
               disabled={submitting}
               messages={messages}
             />

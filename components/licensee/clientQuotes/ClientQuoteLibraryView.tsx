@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import type { LicenseeMessages } from "@/lib/licensee/getLicenseeLocalization";
+import { clientQuoteBillingFrequencyLabel } from "@/lib/licensee/clientQuoteEditorMessages";
 import {
   clientQuoteLibraryRow,
   filterClientQuotesForLibrary,
@@ -202,6 +203,15 @@ export function ClientQuoteLibraryView({
       <p className="mt-3 max-w-2xl text-sm leading-6 text-white/50">
         {copy.libraryIntro}
       </p>
+      <div className="mt-6">
+        <Link
+          href="/licensee/client-quotes/templates"
+          data-client-quote-manage-templates="true"
+          className="inline-flex rounded-full border border-white/15 px-4 py-2.5 text-sm font-medium text-white/80 hover:bg-white/5 hover:text-white"
+        >
+          {messages.clientQuoteTemplates.manageAction}
+        </Link>
+      </div>
 
       {notice ? (
         <p className="mt-6 text-sm text-emerald-100" role="status">
@@ -320,15 +330,42 @@ export function ClientQuoteLibraryView({
                   </div>
                   <div className="flex flex-row items-end justify-between gap-4 lg:flex-col lg:items-end">
                     <div className="text-right">
-                      <div className="text-xs uppercase tracking-[0.14em] text-white/35">
-                        {copy.totalLabel}
-                      </div>
-                      <div
-                        className="mt-1 text-lg font-semibold text-white"
-                        data-client-quote-total={row.id}
-                      >
-                        {row.totalLabel}
-                      </div>
+                      {row.frequencyAmounts.length > 1 ? (
+                        <ul
+                          className="space-y-1"
+                          data-client-quote-frequency-totals={row.id}
+                        >
+                          {row.frequencyAmounts.map((amount) => (
+                            <li
+                              key={amount.billingFrequency}
+                              data-client-quote-frequency-amount={`${row.id}:${amount.billingFrequency}`}
+                              className="flex items-baseline justify-end gap-3"
+                            >
+                              <span className="text-xs uppercase tracking-[0.14em] text-white/35">
+                                {clientQuoteBillingFrequencyLabel(
+                                  messages,
+                                  amount.billingFrequency,
+                                )}
+                              </span>
+                              <span className="text-lg font-semibold text-white">
+                                {amount.totalLabel}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <>
+                          <div className="text-xs uppercase tracking-[0.14em] text-white/35">
+                            {copy.totalLabel}
+                          </div>
+                          <div
+                            className="mt-1 text-lg font-semibold text-white"
+                            data-client-quote-total={row.id}
+                          >
+                            {row.totalLabel}
+                          </div>
+                        </>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       <button

@@ -11,12 +11,20 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LICENSEE_MASTER_MARKER_COOKIE } from "@/services/licensee/licenseeCookieNames";
 import { getLicenseeAccountByUserId } from "@/services/licensee/licenseeIdentity";
 import { listLicenseeSubAccountsForMaster } from "@/services/licensee/licenseeSubAccounts";
+import { readEstimateQueryValue } from "@/lib/licensee/estimateCreateQuotePreselection";
 import { isAccountAccessActive } from "@/services/superAdmin/accountAccessStatus";
 
 /**
  * Athena Estimate — Business Licensee Master commercial pricing intelligence.
  */
-export default async function LicenseeAthenaEstimatePage() {
+export default async function LicenseeAthenaEstimatePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    organizationId?: string | string[];
+    prospectId?: string | string[];
+  }>;
+}) {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -45,6 +53,7 @@ export default async function LicenseeAthenaEstimatePage() {
   }
 
   const subAccounts = await listLicenseeSubAccountsForMaster(user.id);
+  const params = searchParams ? await searchParams : {};
   const { messages, locale } = getLicenseeLocalization(
     licenseeAccount.default_language,
   );
@@ -63,6 +72,8 @@ export default async function LicenseeAthenaEstimatePage() {
             subAccounts={subAccounts}
             messages={messages}
             locale={locale}
+            requestedOrganizationId={readEstimateQueryValue(params.organizationId)}
+            requestedProspectId={readEstimateQueryValue(params.prospectId)}
           />
         </div>
       </div>

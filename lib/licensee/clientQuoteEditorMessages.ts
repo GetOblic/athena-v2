@@ -4,6 +4,7 @@
 
 import type { LicenseeMessages } from "@/lib/licensee/getLicenseeLocalization";
 import type { ClientQuoteDraftBlocker } from "@/lib/licensee/clientQuoteEditorModel";
+import type { ClientQuoteBillingFrequency } from "@/services/clientQuote/clientQuoteTypes";
 
 const CLIENT_QUOTE_ERROR_KEYS = {
   UNAUTHORIZED: "unauthorized",
@@ -58,6 +59,8 @@ export function clientQuoteBlockerMessage(
     case "tax":
     case "calculation":
       return copy.calculationFailed;
+    case "fixedDiscountMixed":
+      return copy.fixedDiscountMixed;
     case "appendix":
       return copy.appendixIncomplete;
     case "validity":
@@ -66,5 +69,22 @@ export function clientQuoteBlockerMessage(
       return copy.contactInvalid;
     default:
       return copy.errors.validation;
+  }
+}
+
+export function clientQuoteBillingFrequencyLabel(
+  messages: LicenseeMessages,
+  frequency: ClientQuoteBillingFrequency,
+): string {
+  const copy = messages.clientQuotes;
+  switch (frequency) {
+    case "one_time":
+      return copy.frequencyOneTime;
+    case "monthly":
+      return copy.frequencyMonthly;
+    case "quarterly":
+      return copy.frequencyQuarterly;
+    case "annually":
+      return copy.frequencyAnnually;
   }
 }

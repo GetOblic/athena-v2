@@ -27,6 +27,8 @@ type EstimateProspectSelectProps = {
   /** Extra disable (e.g. while Estimate is submitting). */
   disabled?: boolean;
   messages?: LicenseeMessages;
+  /** Fired once the authorized Prospect list settles. Does not select by itself. */
+  onProspectOptions?: (result: { ok: boolean; prospectIds: string[] }) => void;
 };
 
 type LoadStatus = "idle" | "loading" | "ready" | "empty" | "error";
@@ -44,6 +46,7 @@ export function EstimateProspectSelect({
   onChange,
   disabled = false,
   messages = getLicenseeLocalization("en").messages,
+  onProspectOptions,
 }: EstimateProspectSelectProps) {
   const [options, setOptions] = useState<EstimateProspectOption[]>([]);
   const [status, setStatus] = useState<LoadStatus>("idle");
@@ -96,6 +99,7 @@ export function EstimateProspectSelect({
             ),
           );
           setStatus("error");
+          onProspectOptions?.({ ok: false, prospectIds: [] });
           return;
         }
 
@@ -110,12 +114,17 @@ export function EstimateProspectSelect({
         setOptions(next);
         setError(null);
         setStatus(next.length === 0 ? "empty" : "ready");
+        onProspectOptions?.({
+          ok: true,
+          prospectIds: next.map((item) => item.id),
+        });
       } catch (err) {
         if (cancelled || controller.signal.aborted) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
         setOptions([]);
         setError(messages.estimate.prospectLoadFailed);
         setStatus("error");
+        onProspectOptions?.({ ok: false, prospectIds: [] });
       }
     };
 
@@ -125,8 +134,8 @@ export function EstimateProspectSelect({
       cancelled = true;
       controller.abort();
     };
-    // Refetch is keyed to the selected sub-account only.
-  }, [organizationId]);
+    // Refetch is keyed to the selected sub-account. The options callback is stable.
+  }, [organizationId, onProspectOptions]);
 
   const loading = status === "loading";
   const selectDisabled =

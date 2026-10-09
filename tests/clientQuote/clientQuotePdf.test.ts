@@ -30,6 +30,8 @@ import {
 } from "../../services/clientQuote/pdf/clientQuotePdfFilename";
 import {
   CLIENT_QUOTE_PDF_LABEL_KEYS,
+  clientQuotePdfBillingFrequencyLabel,
+  clientQuotePdfFrequencyTotalLabel,
   clientQuotePdfLabels,
 } from "../../services/clientQuote/pdf/clientQuotePdfLabels";
 import {
@@ -38,6 +40,7 @@ import {
 } from "../../services/clientQuote/pdf/clientQuotePdfLogo";
 import { resolveClientQuotePdfTheme } from "../../services/clientQuote/pdf/clientQuotePdfTheme";
 import {
+  clientQuotePdfFrequencyGroups,
   clientQuotePdfShouldAdvance,
   renderIssuedClientQuotePdf,
 } from "../../services/clientQuote/pdf/renderClientQuotePdf";
@@ -47,12 +50,16 @@ import {
   ESTIMATE_GUIDANCE_DISCLAIMER_FALLBACK,
 } from "../../services/estimate/estimatePackageNormalization";
 import {
+  CLIENT_QUOTE_BILLING_FREQUENCIES,
   CLIENT_QUOTE_ISSUED_SCHEMA_VERSION,
   CLIENT_QUOTE_SOURCE_ESTIMATE_SCHEMA_VERSION,
   emptyClientQuotePostalAddress,
   type AthenaClientQuote,
+  type ClientQuoteBillingFrequency,
+  type ClientQuoteFrequencyTotals,
   type ClientQuoteIssuedSnapshotV1,
   type ClientQuoteLineItem,
+  type ClientQuoteTotals,
 } from "../../services/clientQuote/clientQuoteTypes";
 import {
   ORGANIZATION_LANGUAGES,
@@ -158,14 +165,57 @@ function extractPdfSpans(pdf: Buffer): Span[] {
   return spans;
 }
 
-function line(description: string, unit = 10000, quantity = 1): ClientQuoteLineItem {
+function line(
+  description: string,
+  unit = 10000,
+  quantity = 1,
+  billingFrequency?: ClientQuoteBillingFrequency,
+): ClientQuoteLineItem {
   return {
     id: `line-${description.slice(0, 12)}`,
     description,
     quantity: { coefficient: quantity, scale: 0 },
     unitPriceMinor: unit,
     lineTotalMinor: unit * quantity,
+    ...(billingFrequency ? { billingFrequency } : {}),
   };
+}
+
+function quoteTotals(
+  subtotalMinor: number,
+  discountMinor: number,
+  taxableMinor: number,
+  taxMinor: number,
+  totalMinor: number,
+): ClientQuoteTotals {
+  return { subtotalMinor, discountMinor, taxableMinor, taxMinor, totalMinor };
+}
+
+function frequencyGroup(
+  billingFrequency: ClientQuoteBillingFrequency,
+  totals: ClientQuoteTotals,
+): ClientQuoteFrequencyTotals {
+  return { billingFrequency, totals };
+}
+
+/** Distinct from every legitimate line and group amount in the recurring fixtures. */
+const COMPATIBILITY_SENTINEL = quoteTotals(81000001, 81000002, 81000003, 81000004, 81000005);
+
+function assertMoney(
+  text: string,
+  amountMinor: number,
+  currencyCode: string,
+  currencyScale: number,
+  language: OrganizationLanguage,
+  present: boolean,
+) {
+  const formatted = formatClientQuotePdfMoney(
+    amountMinor,
+    currencyCode,
+    currencyScale,
+    language,
+  );
+  assert.equal(text.includes(formatted), present, formatted);
 }
 
 function snapshot(
@@ -1034,6 +1084,8 @@ describe("client quotation PDF download contract", () => {
     assert.doesNotMatch(route, /draft_json|getEstimate|getOrganization|brand_logo_storage_path/);
     assert.doesNotMatch(route, /openrouter|athenaWorker|workers\//i);
     assert.doesNotMatch(renderer, /openrouter|athenaWorker|getOrganization|athena_estimates|generateReview/i);
+    assert.doesNotMatch(renderer, /calculateClientQuote|clientQuoteTemplate/);
+    assert.match(renderer, /clientQuotePdfFrequencyGroups/);
     assert.doesNotMatch(logo, /sharp|identity\/logo/);
     assert.match(logo, /BRAND_LOGO_BUCKET/);
     assert.match(logo, /clientQuotePdfLogoHashMatches/);
@@ -1090,7 +1142,15 @@ describe("client quotation PDF download contract", () => {
       },
       projectTitle: "Northwind portal",
       scopeSummary: "Scope",
-      lines: [{ id: "1", description: "Work", quantityText: "1", unitPriceText: "10.00" }],
+      lines: [
+        {
+          id: "1",
+          description: "Work",
+          quantityText: "1",
+          unitPriceText: "10.00",
+          billingFrequency: "one_time",
+        },
+      ],
       discountKind: "none" as const,
       discountAmountText: "",
       discountPercentText: "",
@@ -1152,5 +1212,524 @@ describe("client quotation PDF download contract", () => {
     );
     assert.doesNotMatch(draftHtml, /data-client-quote-download-pdf/);
     assert.match(draftHtml, /data-client-quote-save="true"/);
+  });
+});
+
+describe("recurring client quotation PDF", () => {
+  const monthlyTotals = quoteTotals(250000, 25000, 225000, 22500, 247500);
+  const oneTimeTotals = quoteTotals(111117, 1111, 110006, 11001, 121007);
+  const quarterlyTotals = quoteTotals(82029, 8203, 73826, 14765, 88591);
+  const percentMonthly = quoteTotals(51017, 5101, 45916, 9183, 55099);
+  const percentQuarterly = quoteTotals(82029, 8203, 73826, 14765, 88591);
+
+  function recurringSnapshot(
+    overrides: Partial<ClientQuoteIssuedSnapshotV1> = {},
+  ): ClientQuoteIssuedSnapshotV1 {
+    return snapshot({
+      lineItems: [line("Retainer", 8800, 1, "monthly")],
+      discount: { kind: "none" },
+      tax: { kind: "none" },
+      totals: COMPATIBILITY_SENTINEL,
+      frequencyTotals: [frequencyGroup("monthly", monthlyTotals)],
+      ...overrides,
+    });
+  }
+
+  function assertSentinelAbsent(
+    text: string,
+    currencyCode: string,
+    language: OrganizationLanguage,
+  ) {
+    for (const amount of [
+      COMPATIBILITY_SENTINEL.subtotalMinor,
+      COMPATIBILITY_SENTINEL.discountMinor,
+      COMPATIBILITY_SENTINEL.taxableMinor,
+      COMPATIBILITY_SENTINEL.taxMinor,
+      COMPATIBILITY_SENTINEL.totalMinor,
+    ]) {
+      assertMoney(text, amount, currencyCode, 2, language, false);
+    }
+  }
+
+  it("orders frozen groups and ignores an empty or unknown list", () => {
+    assert.deepEqual(clientQuotePdfFrequencyGroups(undefined), []);
+    assert.deepEqual(clientQuotePdfFrequencyGroups([]), []);
+    const ordered = clientQuotePdfFrequencyGroups([
+      frequencyGroup("annually", quoteTotals(4, 0, 4, 0, 4)),
+      frequencyGroup("monthly", quoteTotals(2, 0, 2, 0, 2)),
+      frequencyGroup("quarterly", quoteTotals(3, 0, 3, 0, 3)),
+      frequencyGroup("one_time", quoteTotals(1, 0, 1, 0, 1)),
+    ]);
+    assert.deepEqual(
+      ordered.map((group) => group.billingFrequency),
+      ["one_time", "monthly", "quarterly", "annually"],
+    );
+    const duplicate = clientQuotePdfFrequencyGroups([
+      frequencyGroup("monthly", quoteTotals(2, 0, 2, 0, 2)),
+      frequencyGroup("monthly", quoteTotals(9, 0, 9, 0, 9)),
+    ]);
+    assert.equal(duplicate.length, 1);
+    assert.equal(duplicate[0]?.totals.totalMinor, 2);
+    const unknown = clientQuotePdfFrequencyGroups([
+      {
+        billingFrequency: "weekly",
+        totals: quoteTotals(9, 0, 9, 0, 9),
+      },
+    ] as unknown as ClientQuoteFrequencyTotals[]);
+    assert.deepEqual(unknown, []);
+  });
+
+  it("renders an EST-QUOTE-1 snapshot without frequency as one total", async () => {
+    const issued = snapshot();
+    assert.equal(issued.frequencyTotals, undefined);
+    assert.equal(issued.lineItems[0]?.billingFrequency, undefined);
+    const stored = structuredClone(issued);
+    const pdf = await renderIssuedClientQuotePdf(issued, {
+      downloadLogo: async () => {
+        throw new Error("live logo must not be read");
+      },
+    });
+    assert.deepEqual(issued, stored);
+    const text = extractPdfText(pdf);
+    assert.match(text, /Quotation/);
+    assert.match(text, /Q-2026-0007/);
+    assert.match(text, /Alpha Studio Ltd/);
+    assert.match(text, /Brand identity system/);
+    assert.match(text, /Description/);
+    assert.match(text, /Quantity/);
+    assert.match(text, /Unit price/);
+    assert.match(text, /Amount/);
+    assert.match(text, /Subtotal/);
+    assert.match(text, /Total/);
+    assertMoney(text, 319000, "USD", 2, "en", true);
+    assertMoney(text, 150000, "USD", 2, "en", true);
+    assert.equal(text.includes("Billing:"), false);
+    assert.equal(text.includes("One-time"), false);
+    assert.equal(text.includes("Monthly"), false);
+    assert.equal(text.includes("Totals by billing frequency"), false);
+    assert.equal(text.includes("one_time"), false);
+    assert.equal(text.includes("SECRET_ESTIMATE_CONTEXT"), false);
+    assert.equal(pdf.toString("latin1").includes(ESTIMATE_ID), false);
+  });
+
+  it("treats an empty frequencyTotals list as the legacy total", async () => {
+    const issued = snapshot({ frequencyTotals: [] });
+    const pdf = await renderIssuedClientQuotePdf(issued, {
+      downloadLogo: async () => null,
+    });
+    const text = extractPdfText(pdf);
+    assertMoney(text, issued.totals.totalMinor, "USD", 2, "en", true);
+    assert.equal(text.includes("Billing:"), false);
+    assert.equal(text.includes("Totals by billing frequency"), false);
+  });
+
+  it("renders a one-time quotation as one unlabeled total block", async () => {
+    const labels = clientQuotePdfLabels("en");
+    const issued = recurringSnapshot({
+      lineItems: [line("Setup workshop", 15000, 1, "one_time")],
+      frequencyTotals: [frequencyGroup("one_time", oneTimeTotals)],
+    });
+    const pdf = await renderIssuedClientQuotePdf(issued, {
+      downloadLogo: async () => null,
+    });
+    const text = extractPdfText(pdf);
+    assert.ok(text.includes(`${labels.billing}: ${labels.frequencyOneTime}`));
+    assert.ok(text.includes("Setup workshop"));
+    assert.equal(text.includes(clientQuotePdfFrequencyTotalLabel(labels, "one_time")), false);
+    assert.equal(text.includes(labels.frequencyTotalsTitle), false);
+    for (const amount of [
+      oneTimeTotals.subtotalMinor,
+      oneTimeTotals.discountMinor,
+      oneTimeTotals.taxableMinor,
+      oneTimeTotals.taxMinor,
+      oneTimeTotals.totalMinor,
+    ]) {
+      assertMoney(text, amount, "USD", 2, "en", true);
+    }
+    assertMoney(text, 15000, "USD", 2, "en", true);
+    assertSentinelAbsent(text, "USD", "en");
+    assert.equal(text.includes("one_time"), false);
+  });
+
+  it("labels a monthly quotation without annualizing it", async () => {
+    const labels = clientQuotePdfLabels("en");
+    const retainer = line("Monthly retainer", 8800, 2, "monthly");
+    retainer.lineTotalMinor = 17601;
+    const issued = recurringSnapshot({
+      lineItems: [retainer],
+      frequencyTotals: [frequencyGroup("monthly", monthlyTotals)],
+    });
+    const pdf = await renderIssuedClientQuotePdf(issued, {
+      downloadLogo: async () => null,
+    });
+    const text = extractPdfText(pdf);
+    assert.ok(text.includes(`${labels.billing}: ${labels.frequencyMonthly}`));
+    assert.ok(text.includes(clientQuotePdfFrequencyTotalLabel(labels, "monthly")));
+    assert.equal(text.includes(labels.frequencyTotalsTitle), false);
+    assert.ok(text.includes(labels.description));
+    assert.ok(text.includes(labels.quantity));
+    assert.ok(text.includes(labels.unitPrice));
+    assert.ok(text.includes(labels.amount));
+    assertMoney(text, 8800, "USD", 2, "en", true);
+    assertMoney(text, 17601, "USD", 2, "en", true);
+    assertMoney(text, 17600, "USD", 2, "en", false);
+    assertMoney(text, monthlyTotals.totalMinor, "USD", 2, "en", true);
+    assertMoney(text, monthlyTotals.totalMinor * 12, "USD", 2, "en", false);
+    assertMoney(text, 8800 * 12, "USD", 2, "en", false);
+    assertSentinelAbsent(text, "USD", "en");
+  });
+
+  it("renders mixed one-time and monthly blocks from frozen totals", async () => {
+    const labels = clientQuotePdfLabels("en");
+    const issued = recurringSnapshot({
+      lineItems: [
+        line("Setup workshop", 15000, 1, "one_time"),
+        line("Care plan", 6400, 1, "monthly"),
+      ],
+      frequencyTotals: [
+        frequencyGroup("monthly", monthlyTotals),
+        frequencyGroup("one_time", oneTimeTotals),
+      ],
+    });
+    const stored = structuredClone(issued);
+    const pdf = await renderIssuedClientQuotePdf(issued, {
+      downloadLogo: async () => null,
+    });
+    assert.deepEqual(issued, stored);
+    const text = extractPdfText(pdf);
+    const oneTimeHeading = clientQuotePdfFrequencyTotalLabel(labels, "one_time");
+    const monthlyHeading = clientQuotePdfFrequencyTotalLabel(labels, "monthly");
+    assert.ok(text.includes(labels.frequencyTotalsTitle));
+    assert.ok(text.indexOf(oneTimeHeading) >= 0);
+    assert.ok(text.indexOf(oneTimeHeading) < text.indexOf(monthlyHeading));
+    assert.ok(text.includes(`${labels.billing}: ${labels.frequencyOneTime}`));
+    assert.ok(text.includes(`${labels.billing}: ${labels.frequencyMonthly}`));
+    assertMoney(text, oneTimeTotals.totalMinor, "USD", 2, "en", true);
+    assertMoney(text, monthlyTotals.totalMinor, "USD", 2, "en", true);
+    assertMoney(text, oneTimeTotals.totalMinor + monthlyTotals.totalMinor, "USD", 2, "en", false);
+    assertMoney(text, monthlyTotals.totalMinor * 12, "USD", 2, "en", false);
+    assertSentinelAbsent(text, "USD", "en");
+    assert.equal(text.includes("SECRET_ESTIMATE_CONTEXT"), false);
+  });
+
+  it("renders monthly and quarterly with no one-time group and no combined total", async () => {
+    const labels = clientQuotePdfLabels("en");
+    const issued = recurringSnapshot({
+      lineItems: [
+        line("Care plan", 6400, 1, "monthly"),
+        line("Quarterly audit", 7300, 1, "quarterly"),
+      ],
+      frequencyTotals: [
+        frequencyGroup("quarterly", quarterlyTotals),
+        frequencyGroup("monthly", monthlyTotals),
+      ],
+    });
+    const pdf = await renderIssuedClientQuotePdf(issued, {
+      downloadLogo: async () => null,
+    });
+    const text = extractPdfText(pdf);
+    const monthlyHeading = clientQuotePdfFrequencyTotalLabel(labels, "monthly");
+    const quarterlyHeading = clientQuotePdfFrequencyTotalLabel(labels, "quarterly");
+    assert.ok(text.includes(labels.frequencyTotalsTitle));
+    assert.ok(text.indexOf(monthlyHeading) < text.indexOf(quarterlyHeading));
+    assert.equal(text.includes(labels.frequencyOneTime), false);
+    assert.equal(text.includes(clientQuotePdfFrequencyTotalLabel(labels, "one_time")), false);
+    assert.equal(text.includes(clientQuotePdfFrequencyTotalLabel(labels, "annually")), false);
+    assertMoney(text, monthlyTotals.totalMinor, "USD", 2, "en", true);
+    assertMoney(text, quarterlyTotals.totalMinor, "USD", 2, "en", true);
+    assertMoney(text, monthlyTotals.totalMinor + quarterlyTotals.totalMinor, "USD", 2, "en", false);
+    assertMoney(text, monthlyTotals.totalMinor * 12, "USD", 2, "en", false);
+    assertMoney(text, quarterlyTotals.totalMinor * 4, "USD", 2, "en", false);
+    assertSentinelAbsent(text, "USD", "en");
+  });
+
+  it("keeps percentage discount and tax inside each frequency group", async () => {
+    const issued = recurringSnapshot({
+      lineItems: [
+        line("Care plan", 6400, 1, "monthly"),
+        line("Quarterly audit", 7300, 1, "quarterly"),
+      ],
+      discount: { kind: "percentage", ratePpm: 100000 },
+      tax: { kind: "percentage", ratePpm: 200000, label: "VAT" },
+      frequencyTotals: [
+        frequencyGroup("quarterly", percentQuarterly),
+        frequencyGroup("monthly", percentMonthly),
+      ],
+    });
+    const pdf = await renderIssuedClientQuotePdf(issued, {
+      downloadLogo: async () => null,
+    });
+    const text = extractPdfText(pdf);
+    assert.match(text, /VAT/);
+    for (const totals of [percentMonthly, percentQuarterly]) {
+      assertMoney(text, totals.subtotalMinor, "USD", 2, "en", true);
+      assertMoney(text, totals.discountMinor, "USD", 2, "en", true);
+      assertMoney(text, totals.taxableMinor, "USD", 2, "en", true);
+      assertMoney(text, totals.taxMinor, "USD", 2, "en", true);
+      assertMoney(text, totals.totalMinor, "USD", 2, "en", true);
+    }
+    assertMoney(
+      text,
+      percentMonthly.discountMinor + percentQuarterly.discountMinor,
+      "USD",
+      2,
+      "en",
+      false,
+    );
+    assertMoney(
+      text,
+      percentMonthly.taxMinor + percentQuarterly.taxMinor,
+      "USD",
+      2,
+      "en",
+      false,
+    );
+    assertMoney(
+      text,
+      percentMonthly.totalMinor + percentQuarterly.totalMinor,
+      "USD",
+      2,
+      "en",
+      false,
+    );
+    assertSentinelAbsent(text, "USD", "en");
+  });
+
+  it("formats USD and EUR from the frozen snapshot", async () => {
+    const amount = 123456;
+    const usd = await renderIssuedClientQuotePdf(
+      recurringSnapshot({
+        currencyCode: "USD",
+        contentLanguage: "en",
+        frequencyTotals: [frequencyGroup("monthly", quoteTotals(amount, 0, amount, 0, amount))],
+      }),
+      { downloadLogo: async () => null },
+    );
+    const eur = await renderIssuedClientQuotePdf(
+      recurringSnapshot({
+        currencyCode: "EUR",
+        contentLanguage: "fr",
+        frequencyTotals: [frequencyGroup("monthly", quoteTotals(amount, 0, amount, 0, amount))],
+      }),
+      { downloadLogo: async () => null },
+    );
+    const usdText = extractPdfText(usd);
+    const eurText = extractPdfText(eur);
+    const usdAmount = formatClientQuotePdfMoney(amount, "USD", 2, "en");
+    const eurAmount = formatClientQuotePdfMoney(amount, "EUR", 2, "fr");
+    assert.notEqual(usdAmount, eurAmount);
+    assert.ok(usdText.includes(usdAmount), usdAmount);
+    assert.ok(eurText.includes(eurAmount), eurAmount);
+    assert.equal(usdText.includes(eurAmount), false);
+    assert.equal(eurText.includes(usdAmount), false);
+    assert.match(usdText, /Monthly total/);
+    assert.match(eurText, /Total Mensuel/);
+    assert.equal(eurText.includes("Monthly total"), false);
+  });
+
+  it("localizes billing chrome in six languages and keeps authored text", async () => {
+    const narrative = "AUTHOR_SERVICE_DESCRIPTION stays in the author's words.";
+    const note = "AUTHOR_COMMERCIAL_NOTE stays in the author's words.";
+    for (const language of ORGANIZATION_LANGUAGES) {
+      const labels = clientQuotePdfLabels(language);
+      for (const frequency of CLIENT_QUOTE_BILLING_FREQUENCIES) {
+        const name = clientQuotePdfBillingFrequencyLabel(labels, frequency);
+        assert.equal(name.includes("_"), false, `${language} ${frequency}`);
+        const heading = clientQuotePdfFrequencyTotalLabel(labels, frequency);
+        assert.equal(heading.includes("{frequency}"), false, heading);
+        assert.ok(heading.includes(name), `${language} ${heading}`);
+      }
+      const pdf = await renderIssuedClientQuotePdf(
+        recurringSnapshot({
+          contentLanguage: language,
+          projectTitle: narrative,
+          scopeSummary: narrative,
+          paymentTerms: { summary: note, scheduleNote: null },
+          lineItems: [
+            line(narrative, 15000, 1, "one_time"),
+            line("Care plan", 6400, 1, "monthly"),
+            line("Quarterly audit", 7300, 1, "quarterly"),
+            line("Annual review", 9100, 1, "annually"),
+          ],
+          frequencyTotals: [
+            frequencyGroup("annually", quoteTotals(40058, 0, 40058, 0, 40058)),
+            frequencyGroup("quarterly", quarterlyTotals),
+            frequencyGroup("monthly", monthlyTotals),
+            frequencyGroup("one_time", oneTimeTotals),
+          ],
+        }),
+        { downloadLogo: async () => null },
+      );
+      const text = extractPdfText(pdf);
+      const headings = CLIENT_QUOTE_BILLING_FREQUENCIES.map((frequency) =>
+        clientQuotePdfFrequencyTotalLabel(labels, frequency),
+      );
+      assert.ok(text.includes(labels.frequencyTotalsTitle), language);
+      for (const heading of headings) {
+        assert.ok(text.includes(heading), `${language} ${heading}`);
+      }
+      for (let index = 1; index < headings.length; index += 1) {
+        assert.ok(
+          text.indexOf(headings[index - 1] ?? "") < text.indexOf(headings[index] ?? ""),
+          language,
+        );
+      }
+      for (const frequency of CLIENT_QUOTE_BILLING_FREQUENCIES) {
+        assert.ok(
+          text.includes(
+            `${labels.billing}: ${clientQuotePdfBillingFrequencyLabel(labels, frequency)}`,
+          ),
+          `${language} ${frequency}`,
+        );
+      }
+      assert.ok(text.includes(narrative), language);
+      assert.ok(text.includes(note), language);
+      assert.equal(text.includes("one_time"), false, language);
+      assert.equal(text.includes("monthly"), false, language);
+      if (language !== "en") {
+        assert.equal(text.includes("Totals by billing frequency"), false, language);
+        assert.equal(text.includes("Billing:"), false, language);
+        assert.equal(text.includes("One-time"), false, language);
+        assert.equal(text.includes("Monthly total"), false, language);
+      }
+    }
+  });
+
+  it("paginates long recurring descriptions and keeps the frequency caption", async () => {
+    const description = `LONG_START ${"detailed delivery language ".repeat(18)} LONG_END`;
+    const lines = Array.from({ length: 18 }, (_, index) =>
+      line(index === 0 ? description : `Service line ${index + 1}`, 5000, 1, "monthly"),
+    );
+    const pdf = await renderIssuedClientQuotePdf(
+      recurringSnapshot({
+        lineItems: lines,
+        frequencyTotals: [frequencyGroup("monthly", monthlyTotals)],
+      }),
+      { downloadLogo: async () => null },
+    );
+    const text = extractPdfText(pdf);
+    assert.ok(pdfPageCount(pdf) >= 2);
+    assert.match(text, /LONG_START/);
+    assert.match(text, /LONG_END/);
+    assert.match(text, /Billing: Monthly/);
+    assert.match(text, /Monthly total/);
+    assert.match(text, /Page 2 of /);
+    assert.equal(text.includes("Totals by billing frequency"), false);
+  });
+
+  it("keeps the appendix optional and omits internal estimate guidance", async () => {
+    const hidden = await renderIssuedClientQuotePdf(
+      recurringSnapshot({
+        appendix: {
+          enabled: false,
+          sections: [{ heading: "APPENDIX_SHOULD_BE_ABSENT", body: "Hidden body" }],
+        },
+      }),
+      { downloadLogo: async () => null },
+    );
+    const hiddenText = extractPdfText(hidden);
+    assert.match(hiddenText, /Monthly total/);
+    assert.equal(hiddenText.includes("APPENDIX_SHOULD_BE_ABSENT"), false);
+    assert.equal(hiddenText.includes("Hidden body"), false);
+    assert.equal(hiddenText.includes("Appendix"), false);
+
+    const shown = await renderIssuedClientQuotePdf(
+      recurringSnapshot({
+        appendix: {
+          enabled: true,
+          sections: [
+            {
+              heading: CLIENT_QUOTE_APPENDIX_HEADINGS.guidance,
+              body: ESTIMATE_GUIDANCE_DISCLAIMER_DERIVED,
+            },
+            {
+              heading: "Delivery notes",
+              body: "APPENDIX_BODY_KEEP explains the saved section.",
+            },
+          ],
+        },
+      }),
+      { downloadLogo: async () => null },
+    );
+    const shownText = extractPdfText(shown);
+    assert.match(shownText, /Monthly total/);
+    assert.match(shownText, /Appendix/);
+    assert.match(shownText, /Delivery notes/);
+    assert.match(shownText, /APPENDIX_BODY_KEEP/);
+    assert.equal(shownText.includes(ESTIMATE_GUIDANCE_DISCLAIMER_DERIVED), false);
+    assert.equal(shownText.includes("not a binding quote or invoice"), false);
+  });
+
+  it("keeps the frozen brand and quote-owned logo behavior", async () => {
+    const logoPath = `quotes/${QUOTE_ID}/logo/PRIVATE_LOGO_PATH.png`;
+    const calls: string[] = [];
+    const pngPdf = await renderIssuedClientQuotePdf(
+      recurringSnapshot({
+        brand: {
+          logo: {
+            storagePath: logoPath,
+            mimeType: "image/png",
+            contentHash: sha256(PNG),
+          },
+        },
+      }),
+      {
+        downloadLogo: async (storagePath) => {
+          calls.push(storagePath);
+          return { bytes: PNG, mimeType: "image/png" };
+        },
+      },
+    );
+    assert.deepEqual(calls, [logoPath]);
+    assert.match(pngPdf.toString("latin1"), /\/Subtype \/Image/);
+    assert.equal(pngPdf.toString("latin1").includes("PRIVATE_LOGO_PATH"), false);
+    assert.match(pngPdf.toString("latin1"), /\/BaseFont \/Times-Bold/);
+    assert.match(pngPdf.toString("latin1"), new RegExp(pdfColor("#112233").replace(/\./g, "\\.")));
+    assert.match(extractPdfText(pngPdf), /Alpha Studio Ltd/);
+    assert.match(extractPdfText(pngPdf), /Monthly total/);
+
+    const webpPdf = await renderIssuedClientQuotePdf(
+      recurringSnapshot({
+        brand: {
+          font: null,
+          logo: {
+            storagePath: `quotes/${QUOTE_ID}/logo/mark.webp`,
+            mimeType: "image/webp",
+            contentHash: sha256(WEBP),
+          },
+        },
+      }),
+      {
+        downloadLogo: async () => ({ bytes: WEBP, mimeType: "image/webp" }),
+      },
+    );
+    assert.doesNotMatch(webpPdf.toString("latin1"), /\/Subtype \/Image/);
+    assert.match(extractPdfText(webpPdf), /Monthly total/);
+    assert.match(extractPdfText(webpPdf), /Alpha Studio Ltd/);
+    assert.equal(webpPdf.toString("latin1").includes("mark.webp"), false);
+  });
+
+  it("does not read live templates or estimates and leaves the GHL quote unchanged", () => {
+    const renderer = read("services/clientQuote/pdf/renderClientQuotePdf.ts");
+    const labels = read("services/clientQuote/pdf/clientQuotePdfLabels.ts");
+    const route = read("app/api/licensee/client-quotes/[id]/pdf/route.ts");
+    const ghl = read("app/licensee/quote/page.tsx");
+    const embed = read("components/quote/AthenaQuoteFormEmbed.tsx");
+    assert.match(renderer, /clientQuotePdfFrequencyGroups/);
+    assert.match(renderer, /frequencyTotals/);
+    assert.doesNotMatch(
+      renderer,
+      /calculateClientQuote|clientQuoteTemplate|athena_estimates|getEstimate|getOrganization|openrouter|athena_client_quote_templates/i,
+    );
+    assert.doesNotMatch(labels, /calculateClientQuote|clientQuoteTemplate|athena_estimates/);
+    assert.match(route, /loadIssuedClientQuoteSnapshotForPdf/);
+    assert.match(route, /renderIssuedClientQuotePdf/);
+    assert.match(route, /UNAUTHORIZED/);
+    assert.doesNotMatch(route, /draft_json|getEstimate|getOrganization/);
+    assert.match(ghl, /AthenaQuoteFormEmbed/);
+    assert.doesNotMatch(ghl, /client-quotes|clientQuote|renderIssuedClientQuotePdf|frequencyTotals/);
+    assert.match(embed, /ghl-athena-quote-form-embed/);
+    assert.match(embed, /NQfn7tnDbGyyq9JVei6Q/);
+    assert.doesNotMatch(embed, /client-quotes|clientQuotePdf|billingFrequency/);
   });
 });

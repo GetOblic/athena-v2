@@ -1118,3 +1118,523 @@ describe("client quote soft-mask migration", () => {
     assert.doesNotMatch(foundation, /deleted_at/);
   });
 });
+
+describe("client quote recurring pricing", () => {
+  const ZERO_TOTALS = {
+    subtotalMinor: 0,
+    discountMinor: 0,
+    taxableMinor: 0,
+    taxMinor: 0,
+    totalMinor: 0,
+  };
+
+  function commercialDraft(overrides: Record<string, unknown> = {}) {
+    return {
+      ...baseDraft(),
+      paymentTerms: { summary: "Due on receipt.", scheduleNote: null },
+      validity: { validForDays: 30, validUntil: null, note: null },
+      ...overrides,
+    };
+  }
+
+  function draftQuote(draft: unknown, id = QUOTE) {
+    return createDraftClientQuote({
+      id,
+      licenseeAccountId: LICENSEE,
+      organizationId: ORG,
+      requestedBy: USER,
+      contentLanguage: "en",
+      currencyCode: "USD",
+      draft,
+      sourceEstimateId: null,
+      sourceEstimateSnapshot: null,
+      revisedFromQuoteId: null,
+      createdAt: T0,
+    });
+  }
+
+  it("treats a missing frequency as one_time and keeps EST-QUOTE-1 rounding", () => {
+    const lines = [
+      { quantity: { coefficient: 2, scale: 0 }, unitPriceMinor: 1000 },
+      { quantity: { coefficient: 15, scale: 1 }, unitPriceMinor: 1000 },
+      { quantity: { coefficient: 1, scale: 1 }, unitPriceMinor: 5 },
+    ];
+    const discount = { kind: "percentage" as const, ratePpm: 100_000 };
+    const tax = { kind: "percentage" as const, ratePpm: 88_750, label: "VAT" };
+    const legacy = calculateClientQuote({
+      currencyCode: "USD",
+      lineItems: lines,
+      discount,
+      tax,
+    });
+    const stamped = calculateClientQuote({
+      currencyCode: "USD",
+      lineItems: lines.map((line) => ({ ...line, billingFrequency: "one_time" as const })),
+      discount,
+      tax,
+    });
+    assert.deepEqual(legacy, stamped);
+    assert.deepEqual(legacy.lineTotalsMinor, [2000, 1500, 1]);
+    assert.equal(legacy.totals.subtotalMinor, 3501);
+    assert.equal(legacy.totals.discountMinor, 350);
+    assert.equal(legacy.totals.taxableMinor, 3151);
+    assert.equal(legacy.totals.taxMinor, 280);
+    assert.equal(legacy.totals.totalMinor, 3431);
+    assert.equal(legacy.frequencyTotals.length, 1);
+    assert.equal(legacy.frequencyTotals[0]?.billingFrequency, "one_time");
+    assert.deepEqual(legacy.totals, legacy.frequencyTotals[0]?.totals);
+
+    const halfUp = calculateClientQuote({
+      currencyCode: "USD",
+      lineItems: [{ quantity: { coefficient: 1, scale: 0 }, unitPriceMinor: 5 }],
+      discount: { kind: "percentage", ratePpm: 500_000 },
+      tax: { kind: "none" },
+    });
+    assert.equal(halfUp.totals.discountMinor, 3);
+    assert.equal(halfUp.totals.totalMinor, 2);
+    assert.deepEqual(halfUp.totals, halfUp.frequencyTotals[0]?.totals);
+
+    const normalized = normalizeClientQuoteDraft(
+      {
+        ...baseDraft(),
+        frequencyTotals: [
+          {
+            billingFrequency: "annually",
+            totals: {
+              subtotalMinor: 9,
+              discountMinor: 9,
+              taxableMinor: 9,
+              taxMinor: 9,
+              totalMinor: 9,
+            },
+          },
+        ],
+      },
+      "USD",
+    );
+    assert.equal(normalized.schemaVersion, "client_quote_draft_v1");
+    assert.equal(normalized.lineItems[0]?.billingFrequency, "one_time");
+    assert.equal(normalized.frequencyTotals?.[0]?.billingFrequency, "one_time");
+    assert.equal(normalized.totals.totalMinor, 1000);
+    assert.deepEqual(normalized.totals, normalized.frequencyTotals?.[0]?.totals);
+
+    const fromNull = normalizeClientQuoteDraft(
+      {
+        ...baseDraft(),
+        lineItems: [
+          {
+            id: "line-1",
+            description: "Portal rebuild",
+            quantity: { coefficient: 1, scale: 0 },
+            unitPriceMinor: 1000,
+            billingFrequency: null,
+          },
+        ],
+      },
+      "USD",
+    );
+    assert.equal(fromNull.lineItems[0]?.billingFrequency, "one_time");
+    expectValidation(
+      () =>
+        normalizeClientQuoteDraft(
+          {
+            ...baseDraft(),
+            lineItems: [
+              {
+                id: "line-1",
+                description: "Portal rebuild",
+                quantity: { coefficient: 1, scale: 0 },
+                unitPriceMinor: 1000,
+                billingFrequency: "weekly",
+              },
+            ],
+          },
+          "USD",
+        ),
+      /billingFrequency/,
+    );
+    expectCalc(
+      () =>
+        calculateClientQuote({
+          currencyCode: "USD",
+          lineItems: [
+            {
+              quantity: { coefficient: 1, scale: 0 },
+              unitPriceMinor: 100,
+              billingFrequency: "weekly" as never,
+            },
+          ],
+          discount: { kind: "none" },
+          tax: { kind: "none" },
+        }),
+      /billingFrequency/,
+    );
+  });
+
+  it("prices one frequency without annualizing and keeps totals equal to that group", () => {
+    for (const billingFrequency of ["one_time", "monthly", "quarterly", "annually"] as const) {
+      const result = calculateClientQuote({
+        currencyCode: "USD",
+        lineItems: [
+          {
+            quantity: { coefficient: 1, scale: 0 },
+            unitPriceMinor: 1000,
+            billingFrequency,
+          },
+        ],
+        discount: { kind: "none" },
+        tax: { kind: "none" },
+      });
+      assert.equal(result.totals.totalMinor, 1000);
+      assert.equal(result.frequencyTotals.length, 1);
+      assert.equal(result.frequencyTotals[0]?.billingFrequency, billingFrequency);
+      assert.deepEqual(result.totals, result.frequencyTotals[0]?.totals);
+      assert.notEqual(result.totals.totalMinor, 12_000);
+      assert.notEqual(result.totals.totalMinor, 4_000);
+    }
+
+    const quarterly = calculateClientQuote({
+      currencyCode: "EUR",
+      lineItems: [
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: 5000,
+          billingFrequency: "quarterly",
+        },
+      ],
+      discount: { kind: "fixed", amountMinor: 1500 },
+      tax: { kind: "percentage", ratePpm: 100_000, label: null },
+    });
+    assert.equal(quarterly.totals.discountMinor, 1500);
+    assert.equal(quarterly.totals.taxableMinor, 3500);
+    assert.equal(quarterly.totals.taxMinor, 350);
+    assert.equal(quarterly.totals.totalMinor, 3850);
+    assert.deepEqual(quarterly.totals, quarterly.frequencyTotals[0]?.totals);
+  });
+
+  it("rounds percentage discount and tax independently and rejects mixed fixed discounts", () => {
+    const discounted = calculateClientQuote({
+      currencyCode: "USD",
+      lineItems: [
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: 5,
+          billingFrequency: "one_time",
+        },
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: 5,
+          billingFrequency: "monthly",
+        },
+      ],
+      discount: { kind: "percentage", ratePpm: 100_000 },
+      tax: { kind: "none" },
+    });
+    assert.deepEqual(
+      discounted.frequencyTotals.map((group) => group.billingFrequency),
+      ["one_time", "monthly"],
+    );
+    assert.equal(discounted.frequencyTotals[0]?.totals.discountMinor, 1);
+    assert.equal(discounted.frequencyTotals[1]?.totals.discountMinor, 1);
+    assert.equal(discounted.frequencyTotals[0]?.totals.totalMinor, 4);
+    assert.equal(discounted.frequencyTotals[1]?.totals.totalMinor, 4);
+    assert.deepEqual(discounted.totals, discounted.frequencyTotals[0]?.totals);
+    assert.notEqual(discounted.totals.totalMinor, 9);
+    assert.notEqual(
+      discounted.totals.totalMinor,
+      discounted.frequencyTotals[0].totals.totalMinor +
+        discounted.frequencyTotals[1].totals.totalMinor,
+    );
+
+    const taxed = calculateClientQuote({
+      currencyCode: "USD",
+      lineItems: [
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: 5,
+          billingFrequency: "quarterly",
+        },
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: 5,
+          billingFrequency: "monthly",
+        },
+      ],
+      discount: { kind: "none" },
+      tax: { kind: "percentage", ratePpm: 100_000, label: "VAT" },
+    });
+    assert.deepEqual(
+      taxed.frequencyTotals.map((group) => group.billingFrequency),
+      ["monthly", "quarterly"],
+    );
+    assert.equal(taxed.frequencyTotals[0]?.totals.taxMinor, 1);
+    assert.equal(taxed.frequencyTotals[1]?.totals.taxMinor, 1);
+    assert.equal(taxed.frequencyTotals[0]?.totals.totalMinor, 6);
+    assert.equal(taxed.frequencyTotals[1]?.totals.totalMinor, 6);
+    assert.deepEqual(taxed.totals, ZERO_TOTALS);
+    assert.notEqual(taxed.totals.totalMinor, 11);
+    assert.notEqual(taxed.totals.totalMinor, 12);
+    assert.notEqual(taxed.totals.taxMinor, 2);
+
+    expectCalc(
+      () =>
+        calculateClientQuote({
+          currencyCode: "USD",
+          lineItems: [
+            {
+              quantity: { coefficient: 1, scale: 0 },
+              unitPriceMinor: 5000,
+              billingFrequency: "one_time",
+            },
+            {
+              quantity: { coefficient: 1, scale: 0 },
+              unitPriceMinor: 5000,
+              billingFrequency: "annually",
+            },
+          ],
+          discount: { kind: "fixed", amountMinor: 100 },
+          tax: { kind: "none" },
+        }),
+      /same billing frequency/,
+    );
+  });
+
+  it("keeps group order, line order, and overflow inside one frequency", () => {
+    const ordered = calculateClientQuote({
+      currencyCode: "USD",
+      lineItems: [
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: 400,
+          billingFrequency: "quarterly",
+        },
+        {
+          quantity: { coefficient: 5, scale: 1 },
+          unitPriceMinor: 1,
+          billingFrequency: "monthly",
+        },
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: 10,
+          billingFrequency: "one_time",
+        },
+        {
+          quantity: { coefficient: 4, scale: 1 },
+          unitPriceMinor: 1,
+          billingFrequency: "monthly",
+        },
+      ],
+      discount: { kind: "none" },
+      tax: { kind: "none" },
+    });
+    assert.deepEqual(ordered.lineTotalsMinor, [400, 1, 10, 0]);
+    assert.deepEqual(
+      ordered.frequencyTotals.map((group) => group.billingFrequency),
+      ["one_time", "monthly", "quarterly"],
+    );
+    assert.equal(ordered.frequencyTotals[1]?.totals.subtotalMinor, 1);
+    assert.equal(ordered.totals.totalMinor, 10);
+    assert.equal(ordered.frequencyTotals[2]?.totals.totalMinor, 400);
+    assert.notEqual(ordered.totals.totalMinor, 411);
+
+    const separated = calculateClientQuote({
+      currencyCode: "JPY",
+      lineItems: [
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: Number.MAX_SAFE_INTEGER,
+          billingFrequency: "one_time",
+        },
+        {
+          quantity: { coefficient: 1, scale: 0 },
+          unitPriceMinor: Number.MAX_SAFE_INTEGER,
+          billingFrequency: "annually",
+        },
+      ],
+      discount: { kind: "none" },
+      tax: { kind: "none" },
+    });
+    assert.equal(separated.frequencyTotals.length, 2);
+    assert.equal(separated.totals.totalMinor, Number.MAX_SAFE_INTEGER);
+    assert.equal(separated.frequencyTotals[0]?.totals.totalMinor, Number.MAX_SAFE_INTEGER);
+    assert.equal(separated.frequencyTotals[1]?.totals.totalMinor, Number.MAX_SAFE_INTEGER);
+
+    expectCalc(
+      () =>
+        calculateClientQuote({
+          currencyCode: "JPY",
+          lineItems: [
+            {
+              quantity: { coefficient: 1, scale: 0 },
+              unitPriceMinor: Number.MAX_SAFE_INTEGER,
+              billingFrequency: "monthly",
+            },
+            {
+              quantity: { coefficient: 1, scale: 0 },
+              unitPriceMinor: Number.MAX_SAFE_INTEGER,
+              billingFrequency: "monthly",
+            },
+          ],
+          discount: { kind: "none" },
+          tax: { kind: "none" },
+        }),
+      /exceeds/,
+    );
+    expectCalc(
+      () =>
+        calculateClientQuote({
+          currencyCode: "JPY",
+          lineItems: [
+            {
+              quantity: { coefficient: 1, scale: 0 },
+              unitPriceMinor: Number.MAX_SAFE_INTEGER,
+              billingFrequency: "monthly",
+            },
+          ],
+          discount: { kind: "none" },
+          tax: { kind: "percentage", ratePpm: 1_000_000, label: null },
+        }),
+      /exceeds/,
+    );
+  });
+
+  it("seeds one one_time line and does not change the Estimate", () => {
+    const estimatePackage = {
+      schemaVersion: "estimate_v1" as const,
+      recommendedClientPrice: { amount: 250, currencyCode: "USD" },
+      scopeInterpretation: "Retain the portal.",
+      prospect_generation_context_json: { composedText: "SENTINEL_PROSPECT_CONTEXT" },
+    };
+    const before = structuredClone(estimatePackage);
+    Object.freeze(estimatePackage);
+    const seeded = seedClientQuoteFromReadyEstimate({
+      estimateId: ESTIMATE,
+      organizationId: ORG,
+      estimatePackage,
+      issuer: { legalName: "Alpha Studio Ltd" },
+      customer: { name: "Northwind" },
+    });
+    assert.deepEqual(estimatePackage, before);
+    assert.equal(seeded.draft.schemaVersion, "client_quote_draft_v1");
+    assert.equal(seeded.draft.lineItems.length, 1);
+    assert.equal(seeded.draft.lineItems[0]?.billingFrequency, "one_time");
+    assert.equal(seeded.draft.lineItems[0]?.unitPriceMinor, 25_000);
+    assert.equal(seeded.draft.frequencyTotals?.length, 1);
+    assert.equal(seeded.draft.frequencyTotals?.[0]?.billingFrequency, "one_time");
+    assert.deepEqual(seeded.draft.totals, seeded.draft.frequencyTotals?.[0]?.totals);
+    assert.equal(JSON.stringify(seeded).includes("SENTINEL_PROSPECT_CONTEXT"), false);
+  });
+
+  it("freezes frequencies on issue and preserves them on revision", () => {
+    const issued = issueClientQuote(
+      draftQuote(
+        commercialDraft({
+          lineItems: [
+            {
+              id: "setup",
+              description: "Setup",
+              quantity: { coefficient: 1, scale: 0 },
+              unitPriceMinor: 5000,
+              billingFrequency: "one_time",
+            },
+            {
+              id: "care",
+              description: "Care plan",
+              quantity: { coefficient: 1, scale: 0 },
+              unitPriceMinor: 2000,
+              billingFrequency: "monthly",
+            },
+          ],
+          discount: { kind: "percentage", ratePpm: 100_000 },
+          tax: { kind: "percentage", ratePpm: 100_000, label: "VAT" },
+        }),
+      ),
+      { quoteNumber: "Q-2001", issuedAt: T1, updatedAt: T1 },
+    );
+    const snapshot = issued.issued_snapshot_json;
+    assert.equal(snapshot?.schemaVersion, "client_quote_issued_v1");
+    assert.equal(snapshot?.lineItems[0]?.billingFrequency, "one_time");
+    assert.equal(snapshot?.lineItems[1]?.billingFrequency, "monthly");
+    assert.equal(snapshot?.frequencyTotals?.[0]?.totals.subtotalMinor, 5000);
+    assert.equal(snapshot?.frequencyTotals?.[0]?.totals.discountMinor, 500);
+    assert.equal(snapshot?.frequencyTotals?.[0]?.totals.taxMinor, 450);
+    assert.equal(snapshot?.frequencyTotals?.[0]?.totals.totalMinor, 4950);
+    assert.equal(snapshot?.frequencyTotals?.[1]?.billingFrequency, "monthly");
+    assert.equal(snapshot?.frequencyTotals?.[1]?.totals.totalMinor, 1980);
+    assert.deepEqual(snapshot?.totals, snapshot?.frequencyTotals?.[0]?.totals);
+    assert.deepEqual(snapshot?.frequencyTotals, issued.draft_json.frequencyTotals);
+    assert.notEqual(snapshot?.totals.totalMinor, 4950 + 1980);
+    assert.notEqual(snapshot?.totals.totalMinor, 2000 * 12);
+
+    const before = structuredClone(issued);
+    const revision = reviseIssuedClientQuote(issued, { id: REVISION, createdAt: T2 });
+    assert.deepEqual(issued, before);
+    assert.equal(revision.draft_json.schemaVersion, "client_quote_draft_v1");
+    assert.equal(revision.draft_json.lineItems[0]?.billingFrequency, "one_time");
+    assert.equal(revision.draft_json.lineItems[1]?.billingFrequency, "monthly");
+    assert.deepEqual(revision.draft_json.frequencyTotals, snapshot?.frequencyTotals);
+    assert.deepEqual(revision.draft_json.totals, snapshot?.totals);
+  });
+
+  it("revises a legacy issued snapshot as one_time without rewriting it", () => {
+    const issued = issueClientQuote(
+      draftQuote(
+        commercialDraft({
+          lineItems: [
+            {
+              id: "line-1",
+              description: "Build",
+              quantity: { coefficient: 2, scale: 0 },
+              unitPriceMinor: 1000,
+            },
+            {
+              id: "line-2",
+              description: "Review",
+              quantity: { coefficient: 15, scale: 1 },
+              unitPriceMinor: 1000,
+            },
+            {
+              id: "line-3",
+              description: "Rounding",
+              quantity: { coefficient: 1, scale: 1 },
+              unitPriceMinor: 5,
+            },
+          ],
+          discount: { kind: "percentage", ratePpm: 100_000 },
+          tax: { kind: "percentage", ratePpm: 88_750, label: "VAT" },
+        }),
+      ),
+      { quoteNumber: "Q-1001", issuedAt: T1, updatedAt: T1 },
+    );
+    const legacy = structuredClone(issued);
+    const legacySnapshot = legacy.issued_snapshot_json;
+    assert.ok(legacySnapshot);
+    for (const line of legacySnapshot.lineItems) delete line.billingFrequency;
+    delete legacySnapshot.frequencyTotals;
+    for (const line of legacy.draft_json.lineItems) delete line.billingFrequency;
+    delete legacy.draft_json.frequencyTotals;
+    assert.equal(legacySnapshot.schemaVersion, "client_quote_issued_v1");
+    assert.equal(legacySnapshot.totals.subtotalMinor, 3501);
+    assert.equal(legacySnapshot.totals.discountMinor, 350);
+    assert.equal(legacySnapshot.totals.taxableMinor, 3151);
+    assert.equal(legacySnapshot.totals.taxMinor, 280);
+    assert.equal(legacySnapshot.totals.totalMinor, 3431);
+    const fingerprint = structuredClone(legacy);
+
+    const revision = reviseIssuedClientQuote(legacy, { id: REVISION, createdAt: T2 });
+    assert.deepEqual(legacy, fingerprint);
+    assert.equal(JSON.stringify(legacy.issued_snapshot_json).includes("billingFrequency"), false);
+    assert.equal(JSON.stringify(legacy.issued_snapshot_json).includes("frequencyTotals"), false);
+    assert.equal(revision.status, "draft");
+    assert.equal(revision.issued_snapshot_json, null);
+    assert.equal(revision.draft_json.schemaVersion, "client_quote_draft_v1");
+    assert.equal(
+      revision.draft_json.lineItems.every((line) => line.billingFrequency === "one_time"),
+      true,
+    );
+    assert.deepEqual(revision.draft_json.totals, legacySnapshot.totals);
+    assert.equal(revision.draft_json.totals.totalMinor, 3431);
+    assert.deepEqual(revision.draft_json.totals, revision.draft_json.frequencyTotals?.[0]?.totals);
+    assert.equal(revision.draft_json.frequencyTotals?.[0]?.billingFrequency, "one_time");
+  });
+});

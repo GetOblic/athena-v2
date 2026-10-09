@@ -1,6 +1,7 @@
 /**
  * Structural validation for quotation payloads.
- * Totals are always replaced by calculateClientQuote. Client totals are ignored.
+ * Totals and frequencyTotals are always replaced by calculateClientQuote.
+ * Client totals are ignored. A missing billing frequency becomes one_time.
  */
 
 import {
@@ -27,7 +28,9 @@ import {
   ClientQuoteValidationError,
   emptyClientQuoteIssuedBrand,
   emptyClientQuotePostalAddress,
+  isClientQuoteBillingFrequency,
   type ClientQuoteAppendix,
+  type ClientQuoteBillingFrequency,
   type ClientQuoteCustomerSnapshot,
   type ClientQuoteDiscount,
   type ClientQuoteDraftV1,
@@ -370,6 +373,19 @@ function parseQuantity(
   return { coefficient, scale };
 }
 
+function parseBillingFrequency(
+  value: unknown,
+  path: string,
+  errors: string[],
+): ClientQuoteBillingFrequency | null {
+  if (value == null) return "one_time";
+  if (isClientQuoteBillingFrequency(value)) return value;
+  errors.push(
+    `${path}.billingFrequency must be one_time, monthly, quarterly, or annually.`,
+  );
+  return null;
+}
+
 function parseLineItems(
   value: unknown,
   errors: string[],
@@ -421,10 +437,21 @@ function parseLineItems(
         `${path}.unitPriceMinor must be a nonnegative integer minor-unit amount.`,
       );
     }
-    if (!id || !description || !quantity || typeof unitPriceMinor !== "number") {
+    const billingFrequency = parseBillingFrequency(
+      raw.billingFrequency,
+      path,
+      errors,
+    );
+    if (
+      !id ||
+      !description ||
+      !quantity ||
+      typeof unitPriceMinor !== "number" ||
+      !billingFrequency
+    ) {
       continue;
     }
-    items.push({ id, description, quantity, unitPriceMinor });
+    items.push({ id, description, quantity, unitPriceMinor, billingFrequency });
   }
   if (items.length !== value.length) return null;
   return items;
@@ -735,6 +762,7 @@ export function normalizeClientQuoteDraft(
     discount,
     tax,
     totals: calculated.totals,
+    frequencyTotals: calculated.frequencyTotals,
   };
 }
 

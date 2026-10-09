@@ -23,6 +23,7 @@ import { GetOblicListingOutboundControls } from "@/components/prospects/GetOblic
 import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicListingReleaseControl";
 import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
 import { ProspectCreateAudienceButton } from "@/components/prospects/ProspectCreateAudienceButton";
+import { ProspectCreateQuoteCta } from "@/components/prospects/ProspectCreateQuoteCta";
 import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
 import {
   buildGetOblicFunnelPresentation,
@@ -84,6 +85,7 @@ import { loadFreeAudiencePageState } from "@/services/personas/freeAudiencePageS
 import { loadFreeConvertPageState } from "@/services/prospects/freeConvertPageState";
 import { getProspectById } from "@/services/prospects/prospectService";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
+import { resolveProspectCreateQuoteAccess } from "@/services/licensee/prospectCreateQuoteAccess";
 
 export default async function ProspectDetailsPage({
   params,
@@ -336,6 +338,11 @@ export default async function ProspectDetailsPage({
     </p>
   ) : null;
 
+  const createQuoteAccess = await resolveProspectCreateQuoteAccess({
+    organizationId,
+    prospectId: prospect.id,
+  });
+
   const pageBody = (
     <TenantAppShell
       currentPath={`/prospects/${id}`}
@@ -372,6 +379,14 @@ export default async function ProspectDetailsPage({
           />
         }
         generateActions={generateActions}
+        createQuoteAction={
+          createQuoteAccess ? (
+            <ProspectCreateQuoteCta
+              href={createQuoteAccess.href}
+              language={createQuoteAccess.language}
+            />
+          ) : null
+        }
         createAudienceAction={
           showSyncAi &&
           shouldShowProspectCreateAudience(freeAudience.presentation) ? (
