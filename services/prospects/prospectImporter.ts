@@ -61,9 +61,18 @@ import {
   toProspectWebsiteLearningLogReason,
 } from "@/services/websiteLearning/websiteLearningObservability";
 
-/** Manual import may include GetOblic Type; CSV parsing does not populate it. */
+/**
+ * Manual import may include GetOblic Type and quotation identity.
+ * CSV parsing does not populate those fields.
+ */
 export type ProspectImportRow = ProspectCsvRow & {
   getoblic_type?: string | null;
+  legal_name?: string | null;
+  address_line2?: string | null;
+  postal_code?: string | null;
+  registration_number?: string | null;
+  tax_identifier?: string | null;
+  tax_identifier_label?: string | null;
 };
 export { parseProspectCsv };
 
@@ -109,6 +118,9 @@ function mapRowToInput(
     state: row.state,
     city: row.city,
     address: row.address,
+    address_line2: row.address_line2,
+    postal_code: row.postal_code,
+    legal_name: row.legal_name,
     company_size: row.company_size,
     revenue: row.revenue,
     employee_count: row.employee_count,
@@ -122,6 +134,9 @@ function mapRowToInput(
     job_title: row.job_title,
     email: row.email,
     phone: row.phone,
+    registration_number: row.registration_number,
+    tax_identifier: row.tax_identifier,
+    tax_identifier_label: row.tax_identifier_label,
     whatsapp_number: row.whatsapp_number,
     getoblic_type: row.getoblic_type,
     google_business_url: row.google_business_url,

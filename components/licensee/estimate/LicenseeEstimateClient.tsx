@@ -13,6 +13,7 @@ import {
 import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
 import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import { CreateClientQuoteFromEstimate } from "@/components/licensee/clientQuotes/CreateClientQuoteFromEstimate";
 import { EstimateAskAthenaPanel } from "@/components/licensee/estimate/EstimateAskAthenaPanel";
 import { EstimateProspectSelect } from "@/components/licensee/estimate/EstimateProspectSelect";
 import {
@@ -1007,7 +1008,10 @@ export function LicenseeEstimateClient({
               {pkg.guidanceDisclaimer}
             </p>
 
-            <div className="flex flex-wrap gap-3">
+            <div
+              className="flex flex-wrap items-start gap-3"
+              data-estimate-ready-actions="true"
+            >
               {activeEstimate.prospectRemoved ? (
                 <p
                   className="text-sm text-white/40"
@@ -1020,7 +1024,7 @@ export function LicenseeEstimateClient({
                   type="button"
                   disabled={regenerating}
                   onClick={() => void handleRegenerate()}
-                  className="inline-flex rounded-full border border-white/20 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
+                  className="inline-flex w-auto shrink-0 rounded-full border border-white/20 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/5 disabled:opacity-50"
                   data-estimate-regenerate-action="true"
                 >
                   {regenerating ? estimate.starting : estimate.regenerate}
@@ -1033,10 +1037,16 @@ export function LicenseeEstimateClient({
               <button
                 type="button"
                 onClick={handleCreateAnother}
-                className="inline-flex rounded-full bg-[var(--athena-orange)] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
+                className="inline-flex w-auto shrink-0 rounded-full bg-[var(--athena-orange)] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
               >
                 {estimate.createAnother}
               </button>
+              <CreateClientQuoteFromEstimate
+                estimateId={activeEstimate.id}
+                prospectId={activeEstimate.prospectId}
+                prospectRemoved={activeEstimate.prospectRemoved}
+                messages={messages}
+              />
             </div>
 
             <EstimateAskAthenaPanel

@@ -36,6 +36,7 @@ import {
   hydrateLicenseeProspectClientIntelligence,
   type LicenseeProspectClientContinuityState,
 } from "@/services/licensee/licenseeProspectClientIntelligenceHydration";
+import { hydrateLicenseeProspectClientCommercialIdentity } from "@/services/licensee/licenseeProspectClientCommercialHydration";
 import { getProspectById } from "@/services/prospects/prospectService";
 import {
   isGetOblicDerivedProspect,
@@ -241,6 +242,20 @@ async function tryHydrateLicenseeProspectClientIntelligence(input: {
   }
 }
 
+async function tryHydrateLicenseeProspectClientCommercialIdentity(input: {
+  clientOrganizationId: string;
+  prospect: object;
+}): Promise<void> {
+  try {
+    await hydrateLicenseeProspectClientCommercialIdentity({
+      clientOrganizationId: input.clientOrganizationId,
+      prospect: input.prospect,
+    });
+  } catch (error) {
+    console.warn("[COMMERCIAL_IDENTITY_HYDRATION_FAILED]", error);
+  }
+}
+
 async function toPromotionResultWithContinuity(
   conversion: LicenseeProspectClientConversion,
   flags: { alreadyActive: boolean; reattached: boolean },
@@ -250,6 +265,10 @@ async function toPromotionResultWithContinuity(
     clientOrganizationId: conversion.clientOrganizationId,
     website: prospect.website,
     websiteIntelligence: prospect.website_intelligence,
+  });
+  await tryHydrateLicenseeProspectClientCommercialIdentity({
+    clientOrganizationId: conversion.clientOrganizationId,
+    prospect,
   });
   return toPromotionResult(conversion, flags, continuityState);
 }

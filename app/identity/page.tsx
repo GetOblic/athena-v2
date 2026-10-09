@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
-import { MessageCircleQuestionMark, Palette } from "lucide-react";
+import { Building2, MessageCircleQuestionMark, Palette } from "lucide-react";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { AiWorkspacePreferencesSection } from "@/components/identity/AiWorkspacePreferencesSection";
 import { BrandIdentitySection } from "@/components/identity/BrandIdentitySection";
+import { BusinessInformationSection } from "@/components/identity/BusinessInformationSection";
 import { DeepScrapeWebsiteButton } from "@/components/identity/DeepScrapeWebsiteButton";
 import { GetOblicLinksCard } from "@/components/identity/GetOblicLinksCard";
 import { IdentityAdvancedUnderstanding } from "@/components/identity/IdentityAdvancedUnderstanding";
@@ -58,6 +59,11 @@ import {
 import { assertCurrentFreeIdentityGeneration } from "@/services/organization/freeIdentityGenerationGuard";
 import { loadFreeProgressionState } from "@/services/organization/freeProgressionState";
 import { loadFreeIdentityAskAuthority } from "@/services/organization/freeIdentityAskAuthority";
+import {
+  getOrganizationCommercialIdentity,
+  OrganizationCommercialIdentityNotFoundError,
+  updateOrganizationCommercialIdentity,
+} from "@/services/organization/organizationCommercialIdentity";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import {
   emptyFreeIdentityAskState,
@@ -97,6 +103,49 @@ async function saveIdentity(formData: FormData) {
   });
 
   redirect("/identity?saved=true");
+}
+
+async function saveBusinessInformation(formData: FormData) {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { organizationId } = await requireCurrentOrganizationContext();
+
+  try {
+    await updateOrganizationCommercialIdentity({
+      organizationId,
+      legal_name: String(formData.get("legal_name") ?? ""),
+      address: String(formData.get("address") ?? ""),
+      address_line2: String(formData.get("address_line2") ?? ""),
+      city: String(formData.get("city") ?? ""),
+      state: String(formData.get("state") ?? ""),
+      postal_code: String(formData.get("postal_code") ?? ""),
+      country: String(formData.get("country") ?? ""),
+      phone: String(formData.get("phone") ?? ""),
+      business_email: String(formData.get("business_email") ?? ""),
+      decision_maker: String(formData.get("decision_maker") ?? ""),
+      job_title: String(formData.get("job_title") ?? ""),
+      registration_number: String(formData.get("registration_number") ?? ""),
+      tax_identifier: String(formData.get("tax_identifier") ?? ""),
+      tax_identifier_label: String(formData.get("tax_identifier_label") ?? ""),
+    });
+  } catch (error) {
+    const code =
+      error instanceof OrganizationCommercialIdentityNotFoundError
+        ? "not_found"
+        : "save_failed";
+    redirect(`/identity?businessError=${encodeURIComponent(code)}`);
+  }
+
+  redirect("/identity?businessSaved=true");
 }
 
 async function saveBrandIdentity(formData: FormData) {
@@ -195,6 +244,8 @@ export default async function IdentityPage({
 }: {
   searchParams: Promise<{
     saved?: string;
+    businessSaved?: string;
+    businessError?: string;
     brandSaved?: string;
     brandError?: string;
     workspaceSaved?: string;
@@ -221,6 +272,8 @@ export default async function IdentityPage({
   const identity = await getAthenaIdentityByUserId(userId, organizationId);
   const organizationBrand =
     await getOrganizationBrandIdentity(organizationId);
+  const organizationCommercial =
+    await getOrganizationCommercialIdentity(organizationId);
   const aiWorkspacePreferences =
     await getOrganizationAiWorkspacePreferences(organizationId);
   const accountLanguageLabel = organizationLanguageLabel(language);
@@ -258,6 +311,12 @@ export default async function IdentityPage({
   const trainPendingLabel = trained
     ? copy.retrainingAthena
     : copy.trainingAthena;
+  const businessError = localizeFlashError(params.businessError, {
+    not_found: copy.flashBusinessNotFound,
+    save_failed: copy.flashBusinessSaveFailed,
+    "Organization not found.": copy.flashBusinessNotFound,
+    "Could not save business information.": copy.flashBusinessSaveFailed,
+  });
   const brandError = localizeFlashError(params.brandError, {
     not_found: copy.flashBrandNotFound,
     save_failed: copy.flashBrandSaveFailed,
@@ -282,6 +341,60 @@ export default async function IdentityPage({
       pendingLabel={trainPendingLabel}
       generationLocked={identityGenerationLocked}
     />
+  );
+
+  const businessInformation = (
+    <AthenaCollapsibleSection
+      title={copy.business.title}
+      summary={copy.business.description}
+      defaultOpen={false}
+      tone="identity"
+      icon={<Building2 size={20} />}
+      iconClassName={IDENTITY_CARD_ICON_CLASS.blue}
+      className={IDENTITY_CARD_SURFACE_CLASS.blue}
+    >
+      <BusinessInformationSection
+        key={[
+          organizationId,
+          organizationCommercial?.name ?? "",
+          organizationCommercial?.legal_name ?? "",
+          organizationCommercial?.address ?? "",
+          organizationCommercial?.address_line2 ?? "",
+          organizationCommercial?.city ?? "",
+          organizationCommercial?.state ?? "",
+          organizationCommercial?.postal_code ?? "",
+          organizationCommercial?.country ?? "",
+          organizationCommercial?.phone ?? "",
+          organizationCommercial?.business_email ?? "",
+          organizationCommercial?.decision_maker ?? "",
+          organizationCommercial?.job_title ?? "",
+          organizationCommercial?.registration_number ?? "",
+          organizationCommercial?.tax_identifier ?? "",
+          organizationCommercial?.tax_identifier_label ?? "",
+        ].join("|")}
+        tradingName={organizationCommercial?.name ?? ""}
+        initialValues={{
+          legal_name: organizationCommercial?.legal_name ?? "",
+          address: organizationCommercial?.address ?? "",
+          address_line2: organizationCommercial?.address_line2 ?? "",
+          city: organizationCommercial?.city ?? "",
+          state: organizationCommercial?.state ?? "",
+          postal_code: organizationCommercial?.postal_code ?? "",
+          country: organizationCommercial?.country ?? "",
+          phone: organizationCommercial?.phone ?? "",
+          business_email: organizationCommercial?.business_email ?? "",
+          decision_maker: organizationCommercial?.decision_maker ?? "",
+          job_title: organizationCommercial?.job_title ?? "",
+          registration_number: organizationCommercial?.registration_number ?? "",
+          tax_identifier: organizationCommercial?.tax_identifier ?? "",
+          tax_identifier_label:
+            organizationCommercial?.tax_identifier_label ?? "",
+        }}
+        saveBusinessInformation={saveBusinessInformation}
+        error={businessError}
+        messages={copy.business}
+      />
+    </AthenaCollapsibleSection>
   );
 
   const brandIdentity = (
@@ -440,6 +553,12 @@ export default async function IdentityPage({
         </div>
       )}
 
+      {params.businessSaved === "true" && (
+        <div className="mb-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
+          {copy.flashBusinessSaved}
+        </div>
+      )}
+
       {params.brandSaved === "true" && (
         <div className="mb-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">
           {copy.flashBrandSaved}
@@ -458,6 +577,7 @@ export default async function IdentityPage({
             ) : null}
             {askAthena}
             {teachAthena}
+            {businessInformation}
             {brandIdentity}
             {otherTools}
             {executive ? (
@@ -479,6 +599,7 @@ export default async function IdentityPage({
           <>
             {askAthena}
             {teachAthena}
+            {businessInformation}
             {brandIdentity}
             {otherTools}
             <IdentityWebsiteKnowledge

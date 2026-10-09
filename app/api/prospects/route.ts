@@ -36,6 +36,9 @@ function rowFromBody(body: Record<string, unknown>) {
     state: String(body.state ?? "") || null,
     city: String(body.city ?? "") || null,
     address: String(body.address ?? "") || null,
+    address_line2: String(body.address_line2 ?? body.addressLine2 ?? "") || null,
+    postal_code: String(body.postal_code ?? body.postalCode ?? "") || null,
+    legal_name: String(body.legal_name ?? body.legalName ?? "") || null,
     company_size: String(body.company_size ?? body.companySize ?? "") || null,
     revenue: String(body.revenue ?? "") || null,
     employee_count:
@@ -52,6 +55,13 @@ function rowFromBody(body: Record<string, unknown>) {
     job_title: String(body.job_title ?? body.jobTitle ?? "") || null,
     email: String(body.email ?? "") || null,
     phone: String(body.phone ?? "") || null,
+    registration_number:
+      String(body.registration_number ?? body.registrationNumber ?? "") || null,
+    tax_identifier:
+      String(body.tax_identifier ?? body.taxIdentifier ?? "") || null,
+    tax_identifier_label:
+      String(body.tax_identifier_label ?? body.taxIdentifierLabel ?? "") ||
+      null,
     whatsapp_number:
       String(body.whatsapp_number ?? body.whatsappNumber ?? "") || null,
     getoblic_type:

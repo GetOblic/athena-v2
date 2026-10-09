@@ -45,6 +45,8 @@ export type Prospect = {
   community_id: string | null;
   linked_discussion_id: string | null;
   business_name: string;
+  /** Legal name. Nullable. business_name stays the prospect display name. */
+  legal_name?: string | null;
   website: string | null;
   linkedin: string | null;
   facebook: string | null;
@@ -55,6 +57,8 @@ export type Prospect = {
   state: string | null;
   city: string | null;
   address: string | null;
+  address_line2?: string | null;
+  postal_code?: string | null;
   company_size: string | null;
   revenue: string | null;
   employee_count: string | null;
@@ -68,6 +72,9 @@ export type Prospect = {
   job_title: string | null;
   email: string | null;
   phone: string | null;
+  registration_number?: string | null;
+  tax_identifier?: string | null;
+  tax_identifier_label?: string | null;
   whatsapp_number: string | null;
   getoblic_type: string | null;
   google_business_url: string | null;
@@ -101,6 +108,9 @@ export type CreateProspectInput = {
   state?: string | null;
   city?: string | null;
   address?: string | null;
+  address_line2?: string | null;
+  postal_code?: string | null;
+  legal_name?: string | null;
   company_size?: string | null;
   revenue?: string | null;
   employee_count?: string | null;
@@ -114,6 +124,9 @@ export type CreateProspectInput = {
   job_title?: string | null;
   email?: string | null;
   phone?: string | null;
+  registration_number?: string | null;
+  tax_identifier?: string | null;
+  tax_identifier_label?: string | null;
   whatsapp_number?: string | null;
   getoblic_type?: string | null;
   google_business_url?: string | null;
@@ -158,6 +171,12 @@ function mapProspectRow(data: Prospect): Prospect {
     last_name: data.last_name ?? null,
     external_contact_id: data.external_contact_id ?? null,
     timezone: data.timezone ?? null,
+    address_line2: data.address_line2 ?? null,
+    postal_code: data.postal_code ?? null,
+    legal_name: data.legal_name ?? null,
+    registration_number: data.registration_number ?? null,
+    tax_identifier: data.tax_identifier ?? null,
+    tax_identifier_label: data.tax_identifier_label ?? null,
     whatsapp_number: data.whatsapp_number ?? null,
     getoblic_type: data.getoblic_type ?? null,
     generated_listing_description: parseProspectGeneratedListingDescription(
@@ -342,6 +361,9 @@ export async function createProspect(
       state: normalizeOptional(input.state),
       city: normalizeOptional(input.city),
       address: normalizeOptional(input.address),
+      address_line2: normalizeOptional(input.address_line2),
+      postal_code: normalizeOptional(input.postal_code),
+      legal_name: normalizeOptional(input.legal_name),
       company_size: normalizeOptional(input.company_size),
       revenue: normalizeOptional(input.revenue),
       employee_count: normalizeOptional(input.employee_count),
@@ -355,6 +377,9 @@ export async function createProspect(
       job_title: normalizeOptional(input.job_title),
       email: normalizeOptional(input.email),
       phone: normalizeOptional(input.phone),
+      registration_number: normalizeOptional(input.registration_number),
+      tax_identifier: normalizeOptional(input.tax_identifier),
+      tax_identifier_label: normalizeOptional(input.tax_identifier_label),
       whatsapp_number: normalizeOptional(input.whatsapp_number),
       getoblic_type: normalizeOptionalProspectGetOblicType(input.getoblic_type),
       google_business_url: normalizeOptional(input.google_business_url),
@@ -429,6 +454,15 @@ export async function updateProspect(
   if (input.address !== undefined) {
     payload.address = normalizeOptional(input.address);
   }
+  if (input.address_line2 !== undefined) {
+    payload.address_line2 = normalizeOptional(input.address_line2);
+  }
+  if (input.postal_code !== undefined) {
+    payload.postal_code = normalizeOptional(input.postal_code);
+  }
+  if (input.legal_name !== undefined) {
+    payload.legal_name = normalizeOptional(input.legal_name);
+  }
   if (input.company_size !== undefined) {
     payload.company_size = normalizeOptional(input.company_size);
   }
@@ -467,6 +501,15 @@ export async function updateProspect(
   }
   if (input.phone !== undefined) {
     payload.phone = normalizeOptional(input.phone);
+  }
+  if (input.registration_number !== undefined) {
+    payload.registration_number = normalizeOptional(input.registration_number);
+  }
+  if (input.tax_identifier !== undefined) {
+    payload.tax_identifier = normalizeOptional(input.tax_identifier);
+  }
+  if (input.tax_identifier_label !== undefined) {
+    payload.tax_identifier_label = normalizeOptional(input.tax_identifier_label);
   }
   if (input.whatsapp_number !== undefined) {
     payload.whatsapp_number = normalizeOptional(input.whatsapp_number);

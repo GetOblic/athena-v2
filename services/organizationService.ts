@@ -48,6 +48,25 @@ export type Organization = {
   brand_accent_color?: string | null;
   brand_background_color?: string | null;
   brand_font?: string | null;
+  /**
+   * Commercial quotation identity. Nullable until the columns exist.
+   * name stays the display name. Website stays on athena_identity.
+   * business_email is the commercial contact email, not the login email.
+   */
+  legal_name?: string | null;
+  address?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  business_email?: string | null;
+  decision_maker?: string | null;
+  job_title?: string | null;
+  registration_number?: string | null;
+  tax_identifier?: string | null;
+  tax_identifier_label?: string | null;
   /** Navigational Continue destinations — does not affect generation routing. */
   ai_workspace_preferences?: Record<string, unknown> | null;
   /** Most recent human workspace visit — operational metadata only. */

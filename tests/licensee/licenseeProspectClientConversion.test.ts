@@ -63,6 +63,23 @@ type OrganizationRow = {
   name: string;
   slug: string;
   language?: string;
+  legal_name?: string | null;
+  address?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  business_email?: string | null;
+  decision_maker?: string | null;
+  job_title?: string | null;
+  registration_number?: string | null;
+  tax_identifier?: string | null;
+  tax_identifier_label?: string | null;
+  brand_logo_storage_path?: string | null;
+  brand_primary_color?: string | null;
+  brand_font?: string | null;
 };
 
 type MembershipRow = {
@@ -2349,10 +2366,14 @@ describe("Prospect → Client language inheritance", () => {
     assert.equal(orgInserts.length, 1);
     assert.equal(orgInserts[0]?.values.language, "fr");
     assert.equal(fixture.organizations[result.clientOrganizationId]?.language, "fr");
-    assert.equal(
-      calls.updates.filter((row) => row.table === "organizations").length,
-      0,
-    );
+    const orgUpdates = calls.updates.filter((row) => row.table === "organizations");
+    assert.equal(orgUpdates.length, 1);
+    assert.equal(orgUpdates[0]?.values.business_email, "contact@joesplumbing.com");
+    for (const update of orgUpdates) {
+      assert.equal(Object.hasOwn(update.values, "language"), false);
+      assert.equal(Object.hasOwn(update.values, "name"), false);
+      assert.equal(Object.hasOwn(update.values, "slug"), false);
+    }
   });
 
   it("reversal and reactivation preserve the existing client organization language", async () => {
@@ -2363,6 +2384,9 @@ describe("Prospect → Client language inheritance", () => {
     const first = await promoteLicenseeProspectToClient(promoteInput());
     assert.equal(fixture.organizations[first.clientOrganizationId]?.language, "fr");
     fixture.licenseeByUserId[MASTER_USER_ID]!.default_language = "de";
+    const orgUpdatesAfterFirst = calls.updates.filter(
+      (row) => row.table === "organizations",
+    ).length;
 
     await reverseLicenseeProspectClientConversion(reverseInput());
     const orgInsertsAfterFirst = calls.inserts.filter(
@@ -2379,8 +2403,13 @@ describe("Prospect → Client language inheritance", () => {
     );
     assert.equal(
       calls.updates.filter((row) => row.table === "organizations").length,
-      0,
+      orgUpdatesAfterFirst,
     );
+    for (const update of calls.updates.filter(
+      (row) => row.table === "organizations",
+    )) {
+      assert.equal(Object.hasOwn(update.values, "language"), false);
+    }
   });
 
   it("idempotent active conversion does not mutate organization language", async () => {
@@ -2391,6 +2420,9 @@ describe("Prospect → Client language inheritance", () => {
     const first = await promoteLicenseeProspectToClient(promoteInput());
     assert.equal(fixture.organizations[first.clientOrganizationId]?.language, "it");
     fixture.licenseeByUserId[MASTER_USER_ID]!.default_language = "pt";
+    const orgUpdatesAfterFirst = calls.updates.filter(
+      (row) => row.table === "organizations",
+    ).length;
 
     const second = await promoteLicenseeProspectToClient(promoteInput());
     assert.equal(second.alreadyActive, true);
@@ -2402,8 +2434,13 @@ describe("Prospect → Client language inheritance", () => {
     );
     assert.equal(
       calls.updates.filter((row) => row.table === "organizations").length,
-      0,
+      orgUpdatesAfterFirst,
     );
+    for (const update of calls.updates.filter(
+      (row) => row.table === "organizations",
+    )) {
+      assert.equal(Object.hasOwn(update.values, "language"), false);
+    }
   });
 });
 
@@ -3378,5 +3415,223 @@ describe("BIC-1 prospect → client continuity hydration", () => {
       0,
     );
     assert.equal(fixture.prospects[0].website_intelligence?.about, "Family plumbing");
+  });
+});
+
+describe("EST-QUOTE-1C.2 prospect commercial identity handoff", () => {
+  function orgUpdates(calls: CallLog) {
+    return calls.updates.filter((row) => row.table === "organizations");
+  }
+
+  function commercialProspect() {
+    return makeProspect({
+      id: PROSPECT_A,
+      business_name: "Joe's Plumbing",
+      legal_name: "  Joe's Plumbing LLC  ",
+      address: " 12 Main St ",
+      address_line2: " Suite 4 ",
+      city: " Dallas ",
+      state: " TX ",
+      postal_code: " 75201 ",
+      country: " US ",
+      phone: " +1 214 555 0100 ",
+      email: " contact@joesplumbing.com ",
+      decision_maker: " Joe ",
+      job_title: " Owner ",
+      registration_number: " 12345 ",
+      tax_identifier: " VAT-9 ",
+      tax_identifier_label: " VAT ",
+      notes: "Licensee private notes",
+      additional_context: "Private CRM strategy",
+      website: "joesplumbing.example",
+      website_intelligence: {
+        provider: "homepage_only",
+        url: "https://joesplumbing.example",
+        scraped_at: "2026-08-02T00:00:00.000Z",
+        about: "Family plumbing",
+        services: "Repairs",
+      },
+    });
+  }
+
+  it("fills blank client commercial fields and leaves website intelligence on athena_identity", async () => {
+    const fixture = ownCompanyFixture({
+      prospects: [commercialProspect()],
+    });
+    const calls = installFixture(fixture);
+
+    const result = await promoteLicenseeProspectToClient(promoteInput());
+    const org = fixture.organizations[result.clientOrganizationId];
+
+    assert.equal(result.conversion.status, "active");
+    assert.equal(result.continuityState, "initialized");
+    assert.equal(org?.name, "Joe's Plumbing");
+    assert.equal(org?.legal_name, "Joe's Plumbing LLC");
+    assert.equal(org?.address, "12 Main St");
+    assert.equal(org?.address_line2, "Suite 4");
+    assert.equal(org?.city, "Dallas");
+    assert.equal(org?.state, "TX");
+    assert.equal(org?.postal_code, "75201");
+    assert.equal(org?.country, "US");
+    assert.equal(org?.phone, "+1 214 555 0100");
+    assert.equal(org?.business_email, "contact@joesplumbing.com");
+    assert.equal(org?.decision_maker, "Joe");
+    assert.equal(org?.job_title, "Owner");
+    assert.equal(org?.registration_number, "12345");
+    assert.equal(org?.tax_identifier, "VAT-9");
+    assert.equal(org?.tax_identifier_label, "VAT");
+    assert.equal(result.clientAccountEmail, "joesplumbing@getoblic.com");
+    assert.equal(fixture.authUsersByEmail["contact@joesplumbing.com"], undefined);
+    assert.equal(fixture.organizations[OWN_COMPANY_ORG_ID]?.business_email, undefined);
+    assert.equal(Object.hasOwn(org ?? {}, "notes"), false);
+    assert.equal(fixture.identities[0]?.website, "https://joesplumbing.example");
+    assert.equal(fixture.identities[0]?.website_intelligence?.about, "Family plumbing");
+    assert.equal(fixture.identities[0]?.master_profile, null);
+    assert.equal(fixture.prospects[0]?.notes, "Licensee private notes");
+
+    const update = orgUpdates(calls)[0];
+    assert.ok(update);
+    for (const forbidden of [
+      "name",
+      "slug",
+      "language",
+      "website",
+      "notes",
+      "website_intelligence",
+      "email",
+      "brand_logo_storage_path",
+      "brand_primary_color",
+      "brand_font",
+    ]) {
+      assert.equal(Object.hasOwn(update.values, forbidden), false);
+    }
+  });
+
+  it("fills only blank fields on retry and reconversion and keeps brand", async () => {
+    const fixture = ownCompanyFixture({
+      prospects: [commercialProspect()],
+    });
+    const calls = installFixture(fixture);
+
+    const first = await promoteLicenseeProspectToClient(promoteInput());
+    const org = fixture.organizations[first.clientOrganizationId]!;
+    const updatesAfterFirst = orgUpdates(calls).length;
+    org.legal_name = "Kept Legal";
+    org.city = "Kept City";
+    org.phone = null;
+    org.brand_primary_color = "#112233";
+    org.brand_logo_storage_path = "client/logo.png";
+    org.brand_font = "geist";
+    org.language = "fr";
+    org.slug = "kept-slug";
+    const keptName = org.name;
+
+    fixture.prospects[0].legal_name = "Overwrite Legal";
+    fixture.prospects[0].city = "Overwrite City";
+    fixture.prospects[0].phone = "555-0101";
+    fixture.prospects[0].email = "other@example.com";
+    fixture.prospects[0].notes = "changed private notes";
+
+    const second = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(second.alreadyActive, true);
+    assert.equal(second.clientOrganizationId, first.clientOrganizationId);
+    assert.equal(org.legal_name, "Kept Legal");
+    assert.equal(org.city, "Kept City");
+    assert.equal(org.phone, "555-0101");
+    assert.equal(org.business_email, "contact@joesplumbing.com");
+    assert.equal(org.name, keptName);
+    assert.equal(org.brand_primary_color, "#112233");
+    assert.equal(org.brand_logo_storage_path, "client/logo.png");
+    assert.equal(org.brand_font, "geist");
+    assert.equal(org.language, "fr");
+    assert.equal(org.slug, "kept-slug");
+    assert.equal(fixture.identities[0]?.website, "https://joesplumbing.example");
+
+    const updatesAfterFill = orgUpdates(calls).length;
+    assert.equal(updatesAfterFill, updatesAfterFirst + 1);
+
+    const third = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(third.alreadyActive, true);
+    assert.equal(orgUpdates(calls).length, updatesAfterFill);
+
+    await reverseLicenseeProspectClientConversion(reverseInput());
+    assert.equal(org.legal_name, "Kept Legal");
+    assert.equal(org.phone, "555-0101");
+    assert.equal(org.brand_primary_color, "#112233");
+    assert.equal(org.language, "fr");
+    assert.equal(fixture.organizations[first.clientOrganizationId], org);
+
+    const again = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(again.reattached, true);
+    assert.equal(again.clientOrganizationId, first.clientOrganizationId);
+    assert.equal(again.clientAccountEmail, first.clientAccountEmail);
+    assert.notEqual(again.clientAccountEmail, "other@example.com");
+    assert.equal(org.legal_name, "Kept Legal");
+    assert.equal(org.business_email, "contact@joesplumbing.com");
+    assert.equal(fixture.authUsersByEmail["other@example.com"], undefined);
+    assert.equal(fixture.authUsersByEmail["contact@joesplumbing.com"], undefined);
+    assert.equal(orgUpdates(calls).length, updatesAfterFill);
+  });
+
+  it("does not write an organization update when the Prospect has no commercial text", async () => {
+    const fixture = ownCompanyFixture();
+    fixture.prospects[0].email = "   ";
+    const calls = installFixture(fixture);
+
+    const result = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(result.conversion.status, "active");
+    assert.equal(orgUpdates(calls).length, 0);
+    assert.equal(
+      fixture.organizations[result.clientOrganizationId]?.business_email,
+      undefined,
+    );
+  });
+
+  it("keeps a successful conversion when commercial hydration fails and retries once", async () => {
+    const fixture = ownCompanyFixture({
+      prospects: [commercialProspect()],
+    });
+    const calls = installFixture(fixture);
+    const mockedFrom = supabaseAdmin.from.bind(supabaseAdmin);
+    let rejectCommercialWrite = true;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabaseAdmin as any).from = (table: string) => {
+      const builder = mockedFrom(table);
+      if (table !== "organizations" || !rejectCommercialWrite) return builder;
+      const originalUpdate = builder.update.bind(builder);
+      builder.update = (values: Record<string, unknown>) => {
+        if ("legal_name" in values || "business_email" in values) {
+          throw new Error("commercial columns missing");
+        }
+        return originalUpdate(values);
+      };
+      return builder;
+    };
+
+    const first = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(first.conversion.status, "active");
+    assert.equal(first.continuityState, "initialized");
+    assert.equal(first.clientAccountEmail, "joesplumbing@getoblic.com");
+    assert.equal(
+      fixture.organizations[first.clientOrganizationId]?.legal_name,
+      undefined,
+    );
+    assert.equal(fixture.identities[0]?.website, "https://joesplumbing.example");
+
+    rejectCommercialWrite = false;
+    const second = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(second.alreadyActive, true);
+    assert.equal(second.clientOrganizationId, first.clientOrganizationId);
+    assert.equal(
+      fixture.organizations[first.clientOrganizationId]?.legal_name,
+      "Joe's Plumbing LLC",
+    );
+    const updatesAfterRetry = orgUpdates(calls).length;
+    assert.equal(updatesAfterRetry, 1);
+
+    const third = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(third.alreadyActive, true);
+    assert.equal(orgUpdates(calls).length, updatesAfterRetry);
+    assert.equal(fixture.identities.length, 1);
   });
 });

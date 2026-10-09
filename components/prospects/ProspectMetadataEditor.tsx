@@ -41,6 +41,7 @@ type ProspectMetadataEditorProps = {
 
 const TEXT_FIELDS = [
   ["business_name", "Business Name"],
+  ["legal_name", "Legal Name"],
   ["website", "Website"],
   ["decision_maker", "Decision Maker / Contact Name"],
   ["first_name", "First Name"],
@@ -57,6 +58,11 @@ const TEXT_FIELDS = [
   ["state", "State"],
   ["city", "City"],
   ["address", "Address"],
+  ["address_line2", "Address Line 2"],
+  ["postal_code", "Postal Code"],
+  ["registration_number", "Registration Number"],
+  ["tax_identifier", "Tax Identifier"],
+  ["tax_identifier_label", "Tax Identifier Label"],
   ["company_size", "Company Size"],
   ["revenue", "Revenue"],
   ["employee_count", "Employee Count"],
@@ -70,6 +76,7 @@ const TEXT_FIELDS = [
 
 const FIELD_CHROME_KEYS: Record<string, keyof ProspectMetadataChrome> = {
   business_name: "businessName",
+  legal_name: "legalName",
   website: "website",
   decision_maker: "decisionMaker",
   first_name: "firstName",
@@ -86,6 +93,11 @@ const FIELD_CHROME_KEYS: Record<string, keyof ProspectMetadataChrome> = {
   state: "state",
   city: "city",
   address: "address",
+  address_line2: "addressLine2",
+  postal_code: "postalCode",
+  registration_number: "registrationNumber",
+  tax_identifier: "taxIdentifier",
+  tax_identifier_label: "taxIdentifierLabel",
   company_size: "companySize",
   revenue: "revenue",
   employee_count: "employeeCount",
@@ -121,6 +133,7 @@ const OPTIONAL_DISPLAY_FIELDS = new Set([
 
 type FormState = {
   business_name: string;
+  legal_name: string;
   website: string;
   decision_maker: string;
   first_name: string;
@@ -134,6 +147,11 @@ type FormState = {
   state: string;
   city: string;
   address: string;
+  address_line2: string;
+  postal_code: string;
+  registration_number: string;
+  tax_identifier: string;
+  tax_identifier_label: string;
   company_size: string;
   revenue: string;
   employee_count: string;
@@ -163,6 +181,7 @@ const URL_FIELDS = new Set([
 function formFromProspect(prospect: Prospect): FormState {
   return {
     business_name: prospect.business_name ?? "",
+    legal_name: prospect.legal_name ?? "",
     website: prospect.website ?? "",
     decision_maker: prospect.decision_maker ?? "",
     first_name: prospect.first_name ?? "",
@@ -176,6 +195,11 @@ function formFromProspect(prospect: Prospect): FormState {
     state: prospect.state ?? "",
     city: prospect.city ?? "",
     address: prospect.address ?? "",
+    address_line2: prospect.address_line2 ?? "",
+    postal_code: prospect.postal_code ?? "",
+    registration_number: prospect.registration_number ?? "",
+    tax_identifier: prospect.tax_identifier ?? "",
+    tax_identifier_label: prospect.tax_identifier_label ?? "",
     company_size: prospect.company_size ?? "",
     revenue: prospect.revenue ?? "",
     employee_count: prospect.employee_count ?? "",
