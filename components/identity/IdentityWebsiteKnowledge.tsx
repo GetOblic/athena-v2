@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Globe, RefreshCw } from "lucide-react";
+import { IdentityWebsiteKnowledgeDisclosure } from "@/components/identity/identityWebsiteKnowledgeDeepLink";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import { WebsiteAnalyzedPagesList } from "@/components/websiteLearning/WebsiteAnalyzedPagesList";
 import {
@@ -75,14 +76,13 @@ export function IdentityWebsiteKnowledge({
       : null;
 
   return (
-    <AthenaCollapsibleSection
+    <IdentityWebsiteKnowledgeDisclosure
       id={IDENTITY_FIELD_ANCHORS.websiteKnowledge}
       title={page.websiteKnowledgeTitle}
       summary={
         generationLocked ? page.websiteLearnedHelp : page.websiteDeepScrapeHelp
       }
       defaultOpen={false}
-      tone="identity"
       icon={<Globe size={20} />}
       iconClassName={IDENTITY_CARD_ICON_CLASS.blue}
       className={`${IDENTITY_CARD_SURFACE_CLASS.blue} scroll-mt-24`}
@@ -191,6 +191,6 @@ export function IdentityWebsiteKnowledge({
       <p className="mt-6 text-sm leading-6 text-white/50">
         {generationLocked ? page.websiteLearnedHelp : page.websiteDeepScrapeHelp}
       </p>
-    </AthenaCollapsibleSection>
+    </IdentityWebsiteKnowledgeDisclosure>
   );
 }

@@ -12,10 +12,19 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, it } from "node:test";
 import { BusinessInformationSection } from "../../components/identity/BusinessInformationSection";
+import { de } from "../../lib/tenantI18n/messages/de";
 import { en } from "../../lib/tenantI18n/messages/en";
+import { es } from "../../lib/tenantI18n/messages/es";
+import { fr } from "../../lib/tenantI18n/messages/fr";
+import { it as itMessages } from "../../lib/tenantI18n/messages/it";
+import { pt } from "../../lib/tenantI18n/messages/pt";
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
+import { readSubmittedCommercialField } from "../../services/organization/commercialIdentity";
+import { ORGANIZATION_LANGUAGES } from "../../services/organizationLanguage";
 import {
   OrganizationCommercialIdentityNotFoundError,
+  commercialIdentitySaveErrorCode,
+  getOrganizationCommercialIdentity,
   updateOrganizationCommercialIdentity,
 } from "../../services/organization/organizationCommercialIdentity";
 
@@ -46,6 +55,15 @@ type OrganizationRow = {
   registration_number?: string | null;
   tax_identifier?: string | null;
   tax_identifier_label?: string | null;
+  whatsapp_number?: string | null;
+  facebook?: string | null;
+  instagram?: string | null;
+  linkedin?: string | null;
+  google_business_url?: string | null;
+  category?: string | null;
+  industry?: string | null;
+  timezone?: string | null;
+  email?: string | null;
   brand_logo_storage_path?: string | null;
   brand_primary_color?: string | null;
   brand_font?: string | null;
@@ -126,6 +144,14 @@ const emptyValues = {
   registration_number: "",
   tax_identifier: "",
   tax_identifier_label: "",
+  whatsapp_number: "",
+  facebook: "",
+  instagram: "",
+  linkedin: "",
+  google_business_url: "",
+  category: "",
+  industry: "",
+  timezone: "",
 };
 
 describe("Sub-account Business Information", () => {
@@ -165,9 +191,36 @@ describe("Sub-account Business Information", () => {
       "registration_number",
       "tax_identifier",
       "tax_identifier_label",
+      "whatsapp_number",
+      "facebook",
+      "instagram",
+      "linkedin",
+      "google_business_url",
+      "category",
+      "industry",
+      "timezone",
     ]) {
       assert.match(html, new RegExp(`name="${name}"`));
     }
+    assert.ok(
+      html.indexOf("Business Classification") <
+        html.indexOf("Business Communication"),
+    );
+    assert.ok(
+      html.indexOf("Business Communication") < html.indexOf("Online Presence"),
+    );
+    assert.ok(html.indexOf("name=\"legal_name\"") < html.indexOf("Business Classification"));
+    assert.ok(
+      html.indexOf("Business Communication") < html.indexOf("name=\"business_email\""),
+    );
+    assert.ok(
+      html.indexOf("name=\"whatsapp_number\"") < html.indexOf("Online Presence"),
+    );
+    assert.ok(html.indexOf("Online Presence") < html.indexOf("name=\"facebook\""));
+    assert.doesNotMatch(html, /type="url"/);
+    assert.doesNotMatch(html, /placeholder=/);
+    assert.doesNotMatch(html, /<a\b/);
+    assert.match(html, /type="text"/);
     assert.doesNotMatch(html, /name="website"/);
     assert.doesNotMatch(html, /name="brand_primary_color"/);
     assert.doesNotMatch(html, /name="brand_font"/);
@@ -267,5 +320,348 @@ describe("Sub-account Business Information", () => {
     );
     assert.equal(calls.updates.length, 1);
     assert.equal(rows["org-b"]?.legal_name, "Other Legal");
+  });
+
+  it("loads channel values, saves edits, reloads them, and clears blanks to null", async () => {
+    const rows: Record<string, OrganizationRow> = {
+      "org-a": {
+        id: "org-a",
+        name: "Acme Trading",
+        slug: "acme-trading",
+        language: "fr",
+        email: "login@acme.test",
+        legal_name: "Acme Ltd",
+        business_email: "billing@acme.test",
+        phone: "555",
+        decision_maker: "Ada",
+        whatsapp_number: "+33 6 00",
+        facebook: "https://facebook.com/old",
+        instagram: "https://instagram.com/old",
+        linkedin: "https://linkedin.com/company/old",
+        google_business_url: "https://maps.google.com/maps?cid=1",
+        category: "Bakery",
+        industry: "Food",
+        timezone: "Europe/Paris",
+      },
+    };
+    const calls = installOrganizations(rows);
+    const loaded = await getOrganizationCommercialIdentity("org-a");
+    assert.ok(loaded);
+
+    const loadedHtml = renderToStaticMarkup(
+      createElement(BusinessInformationSection, {
+        tradingName: loaded.name,
+        initialValues: {
+          ...emptyValues,
+          legal_name: loaded.legal_name ?? "",
+          business_email: loaded.business_email ?? "",
+          phone: loaded.phone ?? "",
+          decision_maker: loaded.decision_maker ?? "",
+          whatsapp_number: loaded.whatsapp_number ?? "",
+          facebook: loaded.facebook ?? "",
+          instagram: loaded.instagram ?? "",
+          linkedin: loaded.linkedin ?? "",
+          google_business_url: loaded.google_business_url ?? "",
+          category: loaded.category ?? "",
+          industry: loaded.industry ?? "",
+          timezone: loaded.timezone ?? "",
+        },
+        saveBusinessInformation: async () => {},
+        messages: en.identity.business,
+      }),
+    );
+    assert.match(loadedHtml, /Acme Trading/);
+    assert.match(loadedHtml, /value="\+33 6 00"/);
+    assert.match(loadedHtml, /value="https:\/\/facebook\.com\/old"/);
+    assert.match(loadedHtml, /value="Bakery"/);
+    assert.match(loadedHtml, /value="Food"/);
+    assert.match(loadedHtml, /value="Europe\/Paris"/);
+    assert.match(loadedHtml, /value="billing@acme\.test"/);
+    assert.match(loadedHtml, /value="555"/);
+    assert.doesNotMatch(loadedHtml, /name="email"/);
+    assert.doesNotMatch(loadedHtml, /name="language"/);
+    assert.doesNotMatch(loadedHtml, /name="website"/);
+    assert.doesNotMatch(loadedHtml, /login@acme\.test/);
+
+    const form = new FormData();
+    form.set("legal_name", "Acme Ltd");
+    form.set("business_email", " billing@acme.test ");
+    form.set("phone", "555");
+    form.set("whatsapp_number", " +33 6 11 ");
+    form.set("facebook", " facebook.com/acme/ ");
+    form.set("instagram", "https://instagram.com/acme");
+    form.set("linkedin", "https://www.linkedin.com/company/acme");
+    form.set("google_business_url", " https://maps.google.com/maps?cid=9 ");
+    form.set("category", " Plumber ");
+    form.set("industry", " Home services ");
+    form.set("timezone", " America/New_York ");
+
+    const saved = await updateOrganizationCommercialIdentity({
+      organizationId: "org-a",
+      legal_name: readSubmittedCommercialField(form, "legal_name"),
+      business_email: readSubmittedCommercialField(form, "business_email"),
+      phone: readSubmittedCommercialField(form, "phone"),
+      decision_maker: readSubmittedCommercialField(form, "decision_maker"),
+      whatsapp_number: readSubmittedCommercialField(form, "whatsapp_number"),
+      facebook: readSubmittedCommercialField(form, "facebook"),
+      instagram: readSubmittedCommercialField(form, "instagram"),
+      linkedin: readSubmittedCommercialField(form, "linkedin"),
+      google_business_url: readSubmittedCommercialField(form, "google_business_url"),
+      category: readSubmittedCommercialField(form, "category"),
+      industry: readSubmittedCommercialField(form, "industry"),
+      timezone: readSubmittedCommercialField(form, "timezone"),
+    });
+
+    assert.equal(saved.legal_name, "Acme Ltd");
+    assert.equal(saved.business_email, "billing@acme.test");
+    assert.equal(saved.phone, "555");
+    assert.equal(saved.decision_maker, "Ada");
+    assert.equal(saved.whatsapp_number, "+33 6 11");
+    assert.equal(saved.facebook, "facebook.com/acme/");
+    assert.equal(saved.instagram, "https://instagram.com/acme");
+    assert.equal(saved.linkedin, "https://www.linkedin.com/company/acme");
+    assert.equal(saved.google_business_url, "https://maps.google.com/maps?cid=9");
+    assert.equal(saved.category, "Plumber");
+    assert.equal(saved.industry, "Home services");
+    assert.equal(saved.timezone, "America/New_York");
+    assert.equal(rows["org-a"]?.name, "Acme Trading");
+    assert.equal(rows["org-a"]?.language, "fr");
+    assert.equal(rows["org-a"]?.email, "login@acme.test");
+    assert.equal(Object.hasOwn(calls.updates[0]?.values ?? {}, "name"), false);
+    assert.equal(Object.hasOwn(calls.updates[0]?.values ?? {}, "language"), false);
+    assert.equal(Object.hasOwn(calls.updates[0]?.values ?? {}, "email"), false);
+    assert.equal(Object.hasOwn(calls.updates[0]?.values ?? {}, "decision_maker"), false);
+
+    const reloaded = await getOrganizationCommercialIdentity("org-a");
+    assert.ok(reloaded);
+    const reloadedHtml = renderToStaticMarkup(
+      createElement(BusinessInformationSection, {
+        tradingName: reloaded.name,
+        initialValues: {
+          ...emptyValues,
+          legal_name: reloaded.legal_name ?? "",
+          business_email: reloaded.business_email ?? "",
+          phone: reloaded.phone ?? "",
+          decision_maker: reloaded.decision_maker ?? "",
+          whatsapp_number: reloaded.whatsapp_number ?? "",
+          facebook: reloaded.facebook ?? "",
+          instagram: reloaded.instagram ?? "",
+          linkedin: reloaded.linkedin ?? "",
+          google_business_url: reloaded.google_business_url ?? "",
+          category: reloaded.category ?? "",
+          industry: reloaded.industry ?? "",
+          timezone: reloaded.timezone ?? "",
+        },
+        saveBusinessInformation: async () => {},
+        messages: fr.identity.business,
+      }),
+    );
+    assert.match(reloadedHtml, /value="\+33 6 11"/);
+    assert.match(reloadedHtml, /value="facebook\.com\/acme\/"/);
+    assert.doesNotMatch(reloadedHtml, /<a\b/);
+    assert.match(reloadedHtml, /value="Plumber"/);
+    assert.match(reloadedHtml, /value="Home services"/);
+    assert.match(reloadedHtml, /value="America\/New_York"/);
+    assert.match(reloadedHtml, /Catégorie/);
+    assert.match(reloadedHtml, /Communication commerciale/);
+    assert.doesNotMatch(reloadedHtml, />Category</);
+
+    const clear = new FormData();
+    clear.set("whatsapp_number", " ");
+    clear.set("facebook", "");
+    clear.set("instagram", "   ");
+    clear.set("linkedin", "");
+    clear.set("google_business_url", " ");
+    clear.set("category", "");
+    clear.set("industry", " ");
+    clear.set("timezone", "");
+    const cleared = await updateOrganizationCommercialIdentity({
+      organizationId: "org-a",
+      whatsapp_number: readSubmittedCommercialField(clear, "whatsapp_number"),
+      facebook: readSubmittedCommercialField(clear, "facebook"),
+      instagram: readSubmittedCommercialField(clear, "instagram"),
+      linkedin: readSubmittedCommercialField(clear, "linkedin"),
+      google_business_url: readSubmittedCommercialField(clear, "google_business_url"),
+      category: readSubmittedCommercialField(clear, "category"),
+      industry: readSubmittedCommercialField(clear, "industry"),
+      timezone: readSubmittedCommercialField(clear, "timezone"),
+      legal_name: readSubmittedCommercialField(clear, "legal_name"),
+    });
+    assert.equal(cleared.whatsapp_number, null);
+    assert.equal(cleared.facebook, null);
+    assert.equal(cleared.instagram, null);
+    assert.equal(cleared.linkedin, null);
+    assert.equal(cleared.google_business_url, null);
+    assert.equal(cleared.category, null);
+    assert.equal(cleared.industry, null);
+    assert.equal(cleared.timezone, null);
+    assert.equal(cleared.legal_name, "Acme Ltd");
+    assert.equal(cleared.business_email, "billing@acme.test");
+    assert.equal(cleared.phone, "555");
+    assert.equal(cleared.decision_maker, "Ada");
+    assert.equal(rows["org-a"]?.language, "fr");
+    assert.equal(rows["org-a"]?.email, "login@acme.test");
+
+    const clearedView = await getOrganizationCommercialIdentity("org-a");
+    assert.ok(clearedView);
+    const clearedHtml = renderToStaticMarkup(
+      createElement(BusinessInformationSection, {
+        tradingName: clearedView.name,
+        initialValues: {
+          ...emptyValues,
+          legal_name: clearedView.legal_name ?? "",
+          business_email: clearedView.business_email ?? "",
+          phone: clearedView.phone ?? "",
+          whatsapp_number: clearedView.whatsapp_number ?? "",
+          facebook: clearedView.facebook ?? "",
+          category: clearedView.category ?? "",
+          timezone: clearedView.timezone ?? "",
+        },
+        saveBusinessInformation: async () => {},
+        messages: en.identity.business,
+      }),
+    );
+    assert.match(clearedHtml, /value="Acme Ltd"/);
+    assert.match(clearedHtml, /value="billing@acme\.test"/);
+    assert.doesNotMatch(clearedHtml, /\+33 6 11/);
+    assert.doesNotMatch(clearedHtml, /facebook\.com\/acme/);
+    assert.doesNotMatch(clearedHtml, /Plumber/);
+  });
+
+  it("stores ordinary channel text and keeps save failures on the existing alert", async () => {
+    const rows: Record<string, OrganizationRow> = {
+      "org-a": {
+        id: "org-a",
+        name: "Acme Trading",
+        slug: "acme-trading",
+        language: "de",
+        email: "login@acme.test",
+        legal_name: "Acme Ltd",
+        facebook: "https://facebook.com/kept",
+        category: "Plumber",
+        business_email: "billing@acme.test",
+      },
+    };
+    const calls = installOrganizations(rows);
+    const form = new FormData();
+    form.set("legal_name", "Acme Ltd");
+    form.set("facebook", " My Facebook Page ");
+    form.set("instagram", " @example ");
+    form.set("category", "Changed");
+    form.set("business_email", "billing@acme.test");
+
+    const saved = await updateOrganizationCommercialIdentity({
+      organizationId: "org-a",
+      legal_name: readSubmittedCommercialField(form, "legal_name"),
+      facebook: readSubmittedCommercialField(form, "facebook"),
+      instagram: readSubmittedCommercialField(form, "instagram"),
+      category: readSubmittedCommercialField(form, "category"),
+      business_email: readSubmittedCommercialField(form, "business_email"),
+    });
+    assert.equal(calls.updates.length, 1);
+    assert.equal(saved.legal_name, "Acme Ltd");
+    assert.equal(saved.facebook, "My Facebook Page");
+    assert.equal(saved.instagram, "@example");
+    assert.equal(saved.category, "Changed");
+    assert.equal(saved.business_email, "billing@acme.test");
+    assert.equal(rows["org-a"]?.language, "de");
+    assert.equal(rows["org-a"]?.email, "login@acme.test");
+    assert.equal(
+      commercialIdentitySaveErrorCode(new OrganizationCommercialIdentityNotFoundError()),
+      "not_found",
+    );
+    assert.equal(commercialIdentitySaveErrorCode(new Error("boom")), "save_failed");
+
+    const html = renderToStaticMarkup(
+      createElement(BusinessInformationSection, {
+        tradingName: "Acme Trading",
+        initialValues: {
+          ...emptyValues,
+          legal_name: "Acme Ltd",
+          facebook: "My Facebook Page",
+          instagram: "@example",
+          category: "Changed",
+        },
+        saveBusinessInformation: async () => {},
+        error: en.identity.flashBusinessSaveFailed,
+        messages: en.identity.business,
+      }),
+    );
+    assert.match(html, /role="alert"/);
+    assert.match(html, /Could not save business information\./);
+    assert.match(html, /value="My Facebook Page"/);
+    assert.match(html, /value="@example"/);
+    assert.doesNotMatch(html, /Enter a valid Facebook address/);
+    assert.doesNotMatch(html, /<a\b/);
+    assert.doesNotMatch(html, /type="url"/);
+
+    const page = read("app/identity/page.tsx");
+    const section = read("components/identity/BusinessInformationSection.tsx");
+    assert.doesNotMatch(page, /invalid_url:/);
+    assert.doesNotMatch(page, /invalidFacebook/);
+    assert.doesNotMatch(section, /invalidFacebook|type="url"|placeholder=/);
+    assert.match(page, /defaultOpen=\{Boolean\(businessError\)\}/);
+    assert.match(page, /commercialIdentitySaveErrorCode/);
+  });
+
+  it("keeps business identity labels aligned in six languages without translating stored values", () => {
+    const dictionaries = {
+      en,
+      fr,
+      es,
+      it: itMessages,
+      de,
+      pt,
+    };
+    const englishKeys = Object.keys(en.identity.business).sort();
+    for (const language of ORGANIZATION_LANGUAGES) {
+      const business = dictionaries[language].identity.business;
+      assert.deepEqual(Object.keys(business).sort(), englishKeys, language);
+      for (const key of englishKeys) {
+        const value = business[key as keyof typeof business];
+        assert.equal(typeof value, "string", `${language}.${key}`);
+        assert.ok(value.trim().length > 0, `${language}.${key}`);
+      }
+      assert.notEqual(
+        business.category,
+        language === "en" ? "" : en.identity.business.category,
+      );
+      assert.notEqual(
+        business.googleBusiness,
+        language === "en" ? "" : en.identity.business.googleBusiness,
+      );
+      assert.equal(
+        Object.hasOwn(business, "invalidFacebook") ||
+          Object.hasOwn(business, "invalidInstagram") ||
+          Object.hasOwn(business, "invalidLinkedin") ||
+          Object.hasOwn(business, "invalidGoogleBusiness"),
+        false,
+        language,
+      );
+    }
+
+    const html = renderToStaticMarkup(
+      createElement(BusinessInformationSection, {
+        tradingName: "Acme Trading",
+        initialValues: {
+          ...emptyValues,
+          category: "Plumber",
+          industry: "Home services",
+          timezone: "America/New_York",
+          facebook: "https://facebook.com/acme",
+        },
+        saveBusinessInformation: async () => {},
+        messages: es.identity.business,
+      }),
+    );
+    assert.match(html, /Clasificación del negocio/);
+    assert.match(html, /Presencia en línea/);
+    assert.match(html, /value="Plumber"/);
+    assert.match(html, /value="Home services"/);
+    assert.match(html, /value="America\/New_York"/);
+    assert.match(html, /value="https:\/\/facebook\.com\/acme"/);
+    assert.doesNotMatch(html, />Category</);
+    assert.doesNotMatch(html, />Industry</);
+    assert.doesNotMatch(html, />Timezone</);
   });
 });

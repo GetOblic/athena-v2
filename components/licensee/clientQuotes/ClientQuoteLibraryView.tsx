@@ -3,18 +3,30 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
+import { IssuedDocumentCardEmail } from "@/components/licensee/clientDocuments/ClientDocumentSendByEmailLink";
+import { buildClientDocumentGmailHandoff } from "@/lib/licensee/clientDocumentGmailHandoff";
 import type { LicenseeMessages } from "@/lib/licensee/getLicenseeLocalization";
 import { clientQuoteBillingFrequencyLabel } from "@/lib/licensee/clientQuoteEditorMessages";
 import {
+  clientInvoiceDetailPath,
+  shouldShowCreateInvoiceAction,
+} from "@/lib/licensee/clientInvoiceEditorModel";
+import {
   clientQuoteLibraryRow,
   filterClientQuotesForLibrary,
+  isClientQuoteLibraryStatusFilter,
+  type ClientQuoteInvoiceRelationship,
+  type ClientQuoteLibraryPresentationStatus,
   type ClientQuoteLibraryRow,
+  type ClientQuoteLibraryStatusFilter,
 } from "@/lib/licensee/clientQuoteEditorModel";
 import {
   LICENSEE_EMPTY_STATE_CLASS,
   LICENSEE_ERROR_NOTICE_CLASS,
+  LICENSEE_FILTER_SELECT_CLASS,
   LICENSEE_PRIMARY_CTA_CLASS,
   LICENSEE_SEARCH_INPUT_CLASS,
+  LICENSEE_SUCCESS_CTA_CLASS,
 } from "@/lib/licensee/licenseeDashboardPresentation";
 import type { PublicClientQuote } from "@/services/clientQuote/clientQuotePublic";
 
@@ -31,30 +43,43 @@ export type ClientQuoteLibraryViewProps = {
   locale: string;
   messages: LicenseeMessages;
   searchQuery?: string;
+  statusFilter?: ClientQuoteLibraryStatusFilter;
+  invoiceLinks?: readonly ClientQuoteInvoiceRelationship[];
+  createInvoicePendingId?: string | null;
+  createInvoiceError?: string | null;
   onRetry: () => void;
   onMask?: (quoteId: string) => Promise<ClientQuoteMaskRequestResult>;
+  onCreateInvoice?: (quoteId: string) => void;
 };
+
+function libraryStatusLabel(
+  status: ClientQuoteLibraryPresentationStatus,
+  messages: LicenseeMessages,
+): string {
+  const copy = messages.clientQuotes;
+  if (status === "invoiced") return copy.statusInvoiced;
+  if (status === "issued") return copy.statusIssued;
+  return copy.statusDraft;
+}
 
 function StatusBadge({
   status,
   messages,
 }: {
-  status: PublicClientQuote["status"];
+  status: ClientQuoteLibraryPresentationStatus;
   messages: LicenseeMessages;
 }) {
-  const issued = status === "issued";
+  const success = status === "issued" || status === "invoiced";
   return (
     <span
       data-client-quote-status={status}
       className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] ${
-        issued
+        success
           ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-100"
           : "border-amber-400/30 bg-amber-500/10 text-amber-100"
       }`}
     >
-      {issued
-        ? messages.clientQuotes.statusIssued
-        : messages.clientQuotes.statusDraft}
+      {libraryStatusLabel(status, messages)}
     </span>
   );
 }
@@ -75,8 +100,7 @@ export function ClientQuoteMaskDialog({
   onConfirm: () => void;
 }) {
   const copy = messages.clientQuotes;
-  const statusLabel =
-    row.status === "issued" ? copy.statusIssued : copy.statusDraft;
+  const statusLabel = libraryStatusLabel(row.presentationStatus, messages);
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-6 sm:items-center">
       <div
@@ -112,7 +136,7 @@ export function ClientQuoteMaskDialog({
             <dt className="text-xs uppercase tracking-[0.14em] text-white/35">
               {copy.statusLabel}
             </dt>
-            <dd className="mt-1 text-white/85" data-client-quote-mask-status={row.status}>
+            <dd className="mt-1 text-white/85" data-client-quote-mask-status={row.presentationStatus}>
               {statusLabel}
             </dd>
           </div>
@@ -155,24 +179,55 @@ export function ClientQuoteLibraryView({
   locale,
   messages,
   searchQuery,
+  statusFilter: statusFilterProp,
+  invoiceLinks = [],
+  createInvoicePendingId = null,
+  createInvoiceError = null,
   onRetry,
   onMask,
+  onCreateInvoice,
 }: ClientQuoteLibraryViewProps) {
   const copy = messages.clientQuotes;
   const [uncontrolledQuery, setUncontrolledQuery] = useState("");
+  const [uncontrolledStatus, setUncontrolledStatus] =
+    useState<ClientQuoteLibraryStatusFilter>("all");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [masking, setMasking] = useState(false);
   const [maskError, setMaskError] = useState<string | null>(null);
   const query = searchQuery ?? uncontrolledQuery;
-  const statusLabels = { draft: copy.statusDraft, issued: copy.statusIssued };
-  const rows = filterClientQuotesForLibrary(quotes, query, statusLabels).map((quote) =>
-    clientQuoteLibraryRow(quote, locale),
+  const statusFilter = statusFilterProp ?? uncontrolledStatus;
+  const statusLabels = {
+    draft: copy.statusDraft,
+    issued: copy.statusIssued,
+    invoiced: copy.statusInvoiced,
+  };
+  const emailHandoffById = new Map(
+    quotes.map((quote) => [
+      quote.id,
+      quote.status === "issued" && quote.issuedSnapshot
+        ? buildClientDocumentGmailHandoff({
+            kind: "quote",
+            snapshot: quote.issuedSnapshot,
+          })
+        : null,
+    ]),
   );
+  const rows = filterClientQuotesForLibrary(
+    quotes,
+    query,
+    statusLabels,
+    statusFilter,
+    invoiceLinks,
+  ).map((quote) => clientQuoteLibraryRow(quote, locale, invoiceLinks));
   const pending = rows.find((row) => row.id === pendingId) ?? null;
   const searching = query.trim().length > 0;
 
   function setQuery(next: string) {
     if (searchQuery == null) setUncontrolledQuery(next);
+  }
+
+  function setStatus(next: ClientQuoteLibraryStatusFilter) {
+    if (statusFilterProp == null) setUncontrolledStatus(next);
   }
 
   async function confirmMask() {
@@ -267,6 +322,21 @@ export function ClientQuoteLibraryView({
               className={LICENSEE_SEARCH_INPUT_CLASS}
             />
           </div>
+          <select
+            value={statusFilter}
+            aria-label={copy.statusFilterLabel}
+            data-client-quote-status-filter={statusFilter}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (isClientQuoteLibraryStatusFilter(next)) setStatus(next);
+            }}
+            className={`${LICENSEE_FILTER_SELECT_CLASS} w-full sm:w-44`}
+          >
+            <option value="all">{copy.statusAll}</option>
+            <option value="draft">{copy.statusDraft}</option>
+            <option value="issued">{copy.statusIssued}</option>
+            <option value="invoiced">{copy.statusInvoiced}</option>
+          </select>
           {searching ? (
             <button
               type="button"
@@ -280,14 +350,23 @@ export function ClientQuoteLibraryView({
         </div>
       ) : null}
 
+      {createInvoiceError ? (
+        <p className="mt-4 text-sm text-red-300" role="alert" data-create-client-invoice-error="true">
+          {createInvoiceError}
+        </p>
+      ) : null}
+
       {phase === "ready" && quotes.length > 0 && rows.length === 0 ? (
         <div
           className={`mt-6 ${LICENSEE_EMPTY_STATE_CLASS}`}
-          data-client-quote-search-empty="true"
+          data-client-quote-search-empty={searching ? "true" : undefined}
+          data-client-quote-filter-empty={!searching ? "true" : undefined}
         >
-          <h2 className="text-xl font-semibold text-white">{copy.searchEmptyTitle}</h2>
+          <h2 className="text-xl font-semibold text-white">
+            {searching ? copy.searchEmptyTitle : copy.filterEmptyTitle}
+          </h2>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/50">
-            {copy.searchEmptyBody}
+            {searching ? copy.searchEmptyBody : copy.filterEmptyBody}
           </p>
         </div>
       ) : null}
@@ -303,7 +382,7 @@ export function ClientQuoteLibraryView({
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={row.status} messages={messages} />
+                      <StatusBadge status={row.presentationStatus} messages={messages} />
                       <span className="text-sm font-medium text-white/80">
                         {row.quoteNumber ?? copy.numberPending}
                       </span>
@@ -379,6 +458,37 @@ export function ClientQuoteLibraryView({
                       >
                         {copy.deleteAction}
                       </button>
+                      {row.presentationStatus === "invoiced" && row.finalizedInvoiceId ? (
+                        <Link
+                          href={clientInvoiceDetailPath(row.finalizedInvoiceId)}
+                          data-view-client-invoice={row.id}
+                          className={LICENSEE_SUCCESS_CTA_CLASS}
+                        >
+                          {copy.viewInvoice}
+                        </Link>
+                      ) : shouldShowCreateInvoiceAction(row.status) ? (
+                        <button
+                          type="button"
+                          data-create-client-invoice={row.id}
+                          data-create-client-invoice-pending={
+                            createInvoicePendingId === row.id ? "true" : "false"
+                          }
+                          disabled={createInvoicePendingId != null}
+                          onClick={() => onCreateInvoice?.(row.id)}
+                          className={LICENSEE_SUCCESS_CTA_CLASS}
+                        >
+                          {createInvoicePendingId === row.id
+                            ? copy.creatingInvoice
+                            : copy.createInvoice}
+                        </button>
+                      ) : null}
+                      {row.presentationStatus === "draft" ? null : (
+                        <IssuedDocumentCardEmail
+                          handoff={emailHandoffById.get(row.id) ?? null}
+                          messages={messages}
+                          documentKind="quote"
+                        />
+                      )}
                       <Link
                         href={`/licensee/client-quotes/${row.id}`}
                         className="inline-flex shrink-0 rounded-full bg-[var(--athena-orange)] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"

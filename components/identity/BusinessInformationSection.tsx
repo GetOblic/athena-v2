@@ -20,6 +20,14 @@ export type BusinessInformationValues = {
   registration_number: string;
   tax_identifier: string;
   tax_identifier_label: string;
+  whatsapp_number: string;
+  facebook: string;
+  instagram: string;
+  linkedin: string;
+  google_business_url: string;
+  category: string;
+  industry: string;
+  timezone: string;
 };
 
 type BusinessMessages = {
@@ -42,6 +50,17 @@ type BusinessMessages = {
   registrationNumber: string;
   taxIdentifier: string;
   taxIdentifierLabel: string;
+  classificationTitle: string;
+  communicationTitle: string;
+  onlinePresenceTitle: string;
+  category: string;
+  industry: string;
+  timezone: string;
+  whatsappNumber: string;
+  facebook: string;
+  instagram: string;
+  linkedin: string;
+  googleBusiness: string;
   save: string;
   saving: string;
 };
@@ -67,11 +86,22 @@ const DEFAULT_BUSINESS_MESSAGES: BusinessMessages = {
   registrationNumber: "Registration Number",
   taxIdentifier: "Tax Identifier",
   taxIdentifierLabel: "Tax Identifier Label",
+  classificationTitle: "Business Classification",
+  communicationTitle: "Business Communication",
+  onlinePresenceTitle: "Online Presence",
+  category: "Category",
+  industry: "Industry",
+  timezone: "Timezone",
+  whatsappNumber: "WhatsApp",
+  facebook: "Facebook",
+  instagram: "Instagram",
+  linkedin: "LinkedIn",
+  googleBusiness: "Google Business Profile",
   save: "Save Business Information",
   saving: "Saving…",
 };
 
-const EDITABLE_FIELDS = [
+const PROFILE_FIELDS = [
   ["legal_name", "legalName"],
   ["address", "address"],
   ["address_line2", "addressLine2"],
@@ -79,13 +109,36 @@ const EDITABLE_FIELDS = [
   ["state", "state"],
   ["postal_code", "postalCode"],
   ["country", "country"],
-  ["phone", "phone"],
-  ["business_email", "businessEmail"],
   ["decision_maker", "decisionMaker"],
   ["job_title", "jobTitle"],
   ["registration_number", "registrationNumber"],
   ["tax_identifier", "taxIdentifier"],
   ["tax_identifier_label", "taxIdentifierLabel"],
+] as const satisfies ReadonlyArray<
+  readonly [keyof BusinessInformationValues, keyof BusinessMessages]
+>;
+
+const CLASSIFICATION_FIELDS = [
+  ["category", "category"],
+  ["industry", "industry"],
+  ["timezone", "timezone"],
+] as const satisfies ReadonlyArray<
+  readonly [keyof BusinessInformationValues, keyof BusinessMessages]
+>;
+
+const COMMUNICATION_FIELDS = [
+  ["business_email", "businessEmail"],
+  ["phone", "phone"],
+  ["whatsapp_number", "whatsappNumber"],
+] as const satisfies ReadonlyArray<
+  readonly [keyof BusinessInformationValues, keyof BusinessMessages]
+>;
+
+const ONLINE_PRESENCE_FIELDS = [
+  ["facebook", "facebook"],
+  ["instagram", "instagram"],
+  ["linkedin", "linkedin"],
+  ["google_business_url", "googleBusiness"],
 ] as const satisfies ReadonlyArray<
   readonly [keyof BusinessInformationValues, keyof BusinessMessages]
 >;
@@ -117,6 +170,61 @@ function SaveBusinessButton({
   );
 }
 
+function CommercialFields({
+  fields,
+  values,
+  messages,
+}: {
+  fields: ReadonlyArray<
+    readonly [keyof BusinessInformationValues, keyof BusinessMessages]
+  >;
+  values: BusinessInformationValues;
+  messages: BusinessMessages;
+}) {
+  return (
+    <div className="grid gap-5 sm:grid-cols-2">
+      {fields.map(([name, labelKey]) => (
+        <label key={name} className="grid gap-2" htmlFor={name}>
+          <span className="text-sm font-medium text-white/80">
+            {messages[labelKey]}
+          </span>
+          <input
+            id={name}
+            name={name}
+            type="text"
+            defaultValue={values[name]}
+            className={fieldClassName}
+            autoComplete="off"
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function CommercialFieldGroup({
+  title,
+  fields,
+  values,
+  messages,
+}: {
+  title: string;
+  fields: ReadonlyArray<
+    readonly [keyof BusinessInformationValues, keyof BusinessMessages]
+  >;
+  values: BusinessInformationValues;
+  messages: BusinessMessages;
+}) {
+  return (
+    <div className="grid gap-4">
+      <h3 className="text-xs font-semibold tracking-[0.14em] text-white/40 uppercase">
+        {title}
+      </h3>
+      <CommercialFields fields={fields} values={values} messages={messages} />
+    </div>
+  );
+}
+
 export function BusinessInformationSection({
   tradingName,
   initialValues,
@@ -144,22 +252,29 @@ export function BusinessInformationSection({
       </div>
 
       <form action={saveBusinessInformation} className="grid gap-6">
-        <div className="grid gap-5 sm:grid-cols-2">
-          {EDITABLE_FIELDS.map(([name, labelKey]) => (
-            <label key={name} className="grid gap-2" htmlFor={name}>
-              <span className="text-sm font-medium text-white/80">
-                {messages[labelKey]}
-              </span>
-              <input
-                id={name}
-                name={name}
-                defaultValue={initialValues[name]}
-                className={fieldClassName}
-                autoComplete="off"
-              />
-            </label>
-          ))}
-        </div>
+        <CommercialFields
+          fields={PROFILE_FIELDS}
+          values={initialValues}
+          messages={messages}
+        />
+        <CommercialFieldGroup
+          title={messages.classificationTitle}
+          fields={CLASSIFICATION_FIELDS}
+          values={initialValues}
+          messages={messages}
+        />
+        <CommercialFieldGroup
+          title={messages.communicationTitle}
+          fields={COMMUNICATION_FIELDS}
+          values={initialValues}
+          messages={messages}
+        />
+        <CommercialFieldGroup
+          title={messages.onlinePresenceTitle}
+          fields={ONLINE_PRESENCE_FIELDS}
+          values={initialValues}
+          messages={messages}
+        />
 
         {error ? (
           <p className="text-sm text-rose-300/90" role="alert">

@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Banknote,
   Calculator,
   FileText,
   Plus,
@@ -30,6 +31,7 @@ import {
   formatLicenseeLastVisit,
   LICENSEE_CLIENT_QUOTES_CARD_CLASS,
   LICENSEE_EMPTY_STATE_CLASS,
+  LICENSEE_INVOICES_CARD_CLASS,
   LICENSEE_ERROR_NOTICE_CLASS,
   LICENSEE_ESTIMATE_CARD_CLASS,
   LICENSEE_ICON_WELL,
@@ -528,6 +530,34 @@ export function LicenseeDashboardClient({
                 </div>
                 <p className="mt-1 text-sm leading-6 text-white/50">
                   {messages.dashboard.clientQuotesDescription}
+                </p>
+              </div>
+            </div>
+            <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
+              {messages.common.open}
+            </span>
+          </div>
+        </Link>
+
+        <Link
+          href="/licensee/invoices"
+          className={LICENSEE_INVOICES_CARD_CLASS}
+          data-licensee-nav="invoices"
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <span
+                className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${LICENSEE_ICON_WELL.green}`}
+                aria-hidden="true"
+              >
+                <Banknote size={18} />
+              </span>
+              <div>
+                <div className="text-base font-semibold text-white">
+                  {messages.dashboard.invoicesTitle}
+                </div>
+                <p className="mt-1 text-sm leading-6 text-white/50">
+                  {messages.dashboard.invoicesDescription}
                 </p>
               </div>
             </div>

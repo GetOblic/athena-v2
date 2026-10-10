@@ -138,6 +138,7 @@ describe("FREE Google acquisition isolation", () => {
     assert.equal(mapped.row.address, "100 Oak St, Dallas, TX 75201, USA");
     assert.equal(mapped.row.city, "Dallas");
     assert.equal(mapped.row.state, "TX");
+    assert.equal(mapped.row.postal_code, "75201");
     assert.equal(mapped.row.country, "US");
     assert.equal(mapped.row.category, "hair_care");
     assert.equal(mapped.row.timezone, "-360");
@@ -156,6 +157,54 @@ describe("FREE Google acquisition isolation", () => {
     );
     assert.equal(withoutWebsite.row.website, null);
     assert.equal(withoutWebsite.row.source, "manual");
+  });
+
+  it("stores Google zip as postal_code and does not parse it from the address", () => {
+    const mapped = mapGoogleBusinessToFreeProspectRow(googlePayload());
+    assert.equal(mapped.row.postal_code, "75201");
+    assert.equal(mapped.rawJson.zip, "75201");
+    assert.equal(Object.hasOwn(mapped.rawJson, "postal_code"), false);
+
+    const distinctZip = mapGoogleBusinessToFreeProspectRow(
+      googlePayload({
+        address: "100 Oak St, Dallas, TX 75201, USA",
+        zip: "99999",
+      }),
+    );
+    assert.equal(distinctZip.row.postal_code, "99999");
+    assert.equal(distinctZip.row.address, "100 Oak St, Dallas, TX 75201, USA");
+    assert.equal(distinctZip.rawJson.zip, "99999");
+
+    const missingZip = mapGoogleBusinessToFreeProspectRow(
+      googlePayload({
+        address: "100 Oak St, Dallas, TX 75201, USA",
+        zip: "   ",
+      }),
+    );
+    assert.equal(missingZip.row.postal_code, null);
+    assert.equal(missingZip.row.city, "Dallas");
+    assert.equal(missingZip.row.category, "hair_care");
+    assert.equal(missingZip.row.google_business_url, "https://maps.google.com/?cid=1");
+    assert.equal(missingZip.row.source, "manual");
+
+    const absentZip = mapGoogleBusinessToFreeProspectRow(
+      googlePayload({ zip: undefined }),
+    );
+    assert.equal(absentZip.row.postal_code, null);
+    assert.equal(Object.hasOwn(absentZip.rawJson, "zip"), false);
+
+    assert.doesNotMatch(
+      read("services/googleBusiness/googleBusinessConvertService.ts"),
+      /postal_code|mapGoogleBusinessToFreeProspectRow/,
+    );
+    assert.doesNotMatch(
+      read("services/googleBusiness/googleBusinessMakeService.ts"),
+      /postal_code/,
+    );
+    assert.match(
+      read("lib/prospects/freeGoogleProspectMapping.ts"),
+      /postal_code:\s*optionalMapped\(payload\.zip\)/,
+    );
   });
 });
 

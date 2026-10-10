@@ -3,6 +3,7 @@
  * Master ↔ sub-account session handoffs.
  *
  * Prefer clearing at the handoff boundary over redesigning all persistence.
+ * GetOblic Links history is browser-local and is cleared here on handoff.
  */
 
 import {

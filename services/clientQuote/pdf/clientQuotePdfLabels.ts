@@ -260,7 +260,13 @@ export function clientQuotePdfLabels(
 }
 
 export function clientQuotePdfBillingFrequencyLabel(
-  labels: ClientQuotePdfLabels,
+  labels: Pick<
+    ClientQuotePdfLabels,
+    | "frequencyOneTime"
+    | "frequencyMonthly"
+    | "frequencyQuarterly"
+    | "frequencyAnnually"
+  >,
   frequency: ClientQuoteBillingFrequency,
 ): string {
   switch (frequency) {
@@ -277,7 +283,14 @@ export function clientQuotePdfBillingFrequencyLabel(
 
 /** Localized heading for one frequency's frozen total. Not an annualized value. */
 export function clientQuotePdfFrequencyTotalLabel(
-  labels: ClientQuotePdfLabels,
+  labels: Pick<
+    ClientQuotePdfLabels,
+    | "frequencyOneTime"
+    | "frequencyMonthly"
+    | "frequencyQuarterly"
+    | "frequencyAnnually"
+    | "frequencyTotal"
+  >,
   frequency: ClientQuoteBillingFrequency,
 ): string {
   return interpolateTenantMessage(labels.frequencyTotal, {

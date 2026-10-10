@@ -59,6 +59,18 @@ export const LICENSEE_SEARCH_INPUT_CLASS =
 export const LICENSEE_PRIMARY_CTA_CLASS =
   "inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[var(--athena-orange)] px-6 py-3.5 text-sm font-semibold text-white shadow-xl shadow-orange-500/20 transition hover:opacity-90";
 
+/** Compact status selector beside a Licensee search field. */
+export const LICENSEE_FILTER_SELECT_CLASS =
+  "h-[52px] shrink-0 rounded-2xl border border-white/15 bg-[#141820] px-4 text-sm text-white shadow-[0_10px_28px_rgba(0,0,0,0.32)] outline-none transition focus:border-[var(--athena-orange)] focus:ring-2 focus:ring-[var(--athena-orange)]/30";
+
+/**
+ * Solid success action. Same treatment as Convert to Client:
+ * --athena-success fill, white label, green shadow. Defined here so
+ * quotation and invoice screens do not import Prospect components.
+ */
+export const LICENSEE_SUCCESS_CTA_CLASS =
+  "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl bg-[var(--athena-success)] px-5 text-sm font-semibold text-white shadow-lg shadow-[0_10px_24px_rgba(0,208,132,0.20)] transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--athena-success)]/50 disabled:cursor-not-allowed disabled:opacity-40";
+
 export const LICENSEE_OPEN_ATHENA_CLASS =
   "inline-flex shrink-0 items-center justify-center rounded-full bg-[var(--athena-orange)] px-7 py-3.5 text-sm font-semibold text-white shadow-xl shadow-orange-500/25 transition hover:opacity-90 disabled:opacity-60";
 
@@ -88,6 +100,8 @@ export const LICENSEE_ESTIMATE_CARD_CLASS = `block rounded-[24px] border border-
 export const LICENSEE_QUOTE_CARD_CLASS = `block rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] px-5 py-5 transition ${LICENSEE_CARD_SURFACE.violet}`;
 
 export const LICENSEE_CLIENT_QUOTES_CARD_CLASS = `block rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] px-5 py-5 transition ${LICENSEE_CARD_SURFACE.warm}`;
+
+export const LICENSEE_INVOICES_CARD_CLASS = `block rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] px-5 py-5 transition ${LICENSEE_CARD_SURFACE.green}`;
 
 export const LICENSEE_USEFUL_LINKS_CARD_CLASS = `mb-8 block rounded-[24px] border border-[var(--athena-border)] bg-[var(--athena-card)] px-5 py-5 transition ${LICENSEE_CARD_SURFACE.orange}`;
 

@@ -174,7 +174,9 @@ export function parseSocialPlannerStructuredOutput(
     | "diversity_repair"
     | "think_differently_repair"
     | "revision_brief"
-    | "conversation_revision_repair",
+    | "conversation_revision_repair"
+    | "conversation_revision_single_day"
+    | "conversation_revision_single_day_repair",
 ): Record<string, unknown> {
   const candidates = [stripJsonFence(rawText)];
   const extracted = extractBalancedJsonObject(rawText);

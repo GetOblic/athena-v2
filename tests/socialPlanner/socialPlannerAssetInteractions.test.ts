@@ -550,8 +550,14 @@ describe("Social Planner V30 L3 non-interference", () => {
     const generateRevision = read(
       "services/socialPlanner/conversationRevision/generateConversationRevisionSocialCalendar.ts",
     );
+    const singleDay = read(
+      "services/socialPlanner/conversationRevision/generateSingleDayConversationRevision.ts",
+    );
+    const merge = read(
+      "services/socialPlanner/conversationRevision/mergeSingleDayRevisionPackage.ts",
+    );
 
-    for (const source of [think, apply, generateRevision]) {
+    for (const source of [think, apply, generateRevision, singleDay, merge]) {
       assert.doesNotMatch(source, /athena_asset_interactions/);
       assert.doesNotMatch(source, /recordAssetCopyInteraction/);
       assert.doesNotMatch(source, /addAssetUsageTag/);

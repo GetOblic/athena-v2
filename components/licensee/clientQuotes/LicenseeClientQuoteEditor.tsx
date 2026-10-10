@@ -18,6 +18,11 @@ import {
   type ClientQuoteEditorDraft,
 } from "@/lib/licensee/clientQuoteEditorModel";
 import {
+  clientInvoiceDetailPath,
+  submitCreateClientInvoice,
+} from "@/lib/licensee/clientInvoiceEditorModel";
+import { clientInvoiceErrorMessage } from "@/lib/licensee/clientInvoiceEditorMessages";
+import {
   clientQuoteBlockerMessage,
   clientQuoteErrorMessage,
 } from "@/lib/licensee/clientQuoteEditorMessages";
@@ -57,6 +62,7 @@ export function LicenseeClientQuoteEditor({
   const [quote, setQuote] = useState<PublicClientQuote | null>(null);
   const [editor, setEditor] = useState<ClientQuoteEditorDraft | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
+  const [createInvoicePending, setCreateInvoicePending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -65,6 +71,7 @@ export function LicenseeClientQuoteEditor({
   const [selectedCurrency, setSelectedCurrency] = useState<string | null>(null);
   const [pendingCurrency, setPendingCurrency] = useState<string | null>(null);
   const pendingRef = useRef<PendingAction | null>(null);
+  const createInvoiceLock = useRef(false);
   const editorRef = useRef<ClientQuoteEditorDraft | null>(null);
   const quoteRef = useRef<PublicClientQuote | null>(null);
   const selectedCurrencyRef = useRef<string | null>(null);
@@ -284,6 +291,33 @@ export function LicenseeClientQuoteEditor({
     }
   }
 
+  async function createInvoice() {
+    if (createInvoiceLock.current || pendingRef.current) return;
+    if (quoteRef.current?.status !== "issued") return;
+    createInvoiceLock.current = true;
+    setCreateInvoicePending(true);
+    setError(null);
+    let navigating = false;
+    try {
+      const result = await submitCreateClientInvoice({ quoteId });
+      if (!result.ok) {
+        setError(
+          result.network
+            ? messages.clientInvoices.errors.generic
+            : clientInvoiceErrorMessage(messages, result.code),
+        );
+        return;
+      }
+      navigating = true;
+      router.push(clientInvoiceDetailPath(result.invoiceId));
+    } finally {
+      if (!navigating) {
+        createInvoiceLock.current = false;
+        setCreateInvoicePending(false);
+      }
+    }
+  }
+
   async function reviseQuote() {
     if (pendingRef.current) return;
     if (quoteRef.current?.status !== "issued") return;
@@ -389,10 +423,13 @@ export function LicenseeClientQuoteEditor({
         missingRequirements={missing}
         revisedFromQuoteId={quote.revisedFromQuoteId}
         downloadQuoteId={issued ? quote.id : null}
+        issuedSnapshot={frozen}
         onChange={updateEditor}
+        createInvoicePending={createInvoicePending}
         onSave={() => void saveDraft()}
         onIssue={() => void issueQuote()}
         onRevise={() => void reviseQuote()}
+        onCreateInvoice={() => void createInvoice()}
       />
     </div>
   );

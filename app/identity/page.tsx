@@ -3,7 +3,10 @@ import { Building2, MessageCircleQuestionMark, Palette } from "lucide-react";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { AiWorkspacePreferencesSection } from "@/components/identity/AiWorkspacePreferencesSection";
 import { BrandIdentitySection } from "@/components/identity/BrandIdentitySection";
-import { BusinessInformationSection } from "@/components/identity/BusinessInformationSection";
+import {
+  BusinessInformationSection,
+  type BusinessInformationValues,
+} from "@/components/identity/BusinessInformationSection";
 import { DeepScrapeWebsiteButton } from "@/components/identity/DeepScrapeWebsiteButton";
 import { GetOblicLinksCard } from "@/components/identity/GetOblicLinksCard";
 import { IdentityAdvancedUnderstanding } from "@/components/identity/IdentityAdvancedUnderstanding";
@@ -59,9 +62,10 @@ import {
 import { assertCurrentFreeIdentityGeneration } from "@/services/organization/freeIdentityGenerationGuard";
 import { loadFreeProgressionState } from "@/services/organization/freeProgressionState";
 import { loadFreeIdentityAskAuthority } from "@/services/organization/freeIdentityAskAuthority";
+import { readSubmittedCommercialField } from "@/services/organization/commercialIdentity";
 import {
+  commercialIdentitySaveErrorCode,
   getOrganizationCommercialIdentity,
-  OrganizationCommercialIdentityNotFoundError,
   updateOrganizationCommercialIdentity,
 } from "@/services/organization/organizationCommercialIdentity";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
@@ -122,26 +126,40 @@ async function saveBusinessInformation(formData: FormData) {
   try {
     await updateOrganizationCommercialIdentity({
       organizationId,
-      legal_name: String(formData.get("legal_name") ?? ""),
-      address: String(formData.get("address") ?? ""),
-      address_line2: String(formData.get("address_line2") ?? ""),
-      city: String(formData.get("city") ?? ""),
-      state: String(formData.get("state") ?? ""),
-      postal_code: String(formData.get("postal_code") ?? ""),
-      country: String(formData.get("country") ?? ""),
-      phone: String(formData.get("phone") ?? ""),
-      business_email: String(formData.get("business_email") ?? ""),
-      decision_maker: String(formData.get("decision_maker") ?? ""),
-      job_title: String(formData.get("job_title") ?? ""),
-      registration_number: String(formData.get("registration_number") ?? ""),
-      tax_identifier: String(formData.get("tax_identifier") ?? ""),
-      tax_identifier_label: String(formData.get("tax_identifier_label") ?? ""),
+      legal_name: readSubmittedCommercialField(formData, "legal_name"),
+      address: readSubmittedCommercialField(formData, "address"),
+      address_line2: readSubmittedCommercialField(formData, "address_line2"),
+      city: readSubmittedCommercialField(formData, "city"),
+      state: readSubmittedCommercialField(formData, "state"),
+      postal_code: readSubmittedCommercialField(formData, "postal_code"),
+      country: readSubmittedCommercialField(formData, "country"),
+      phone: readSubmittedCommercialField(formData, "phone"),
+      business_email: readSubmittedCommercialField(formData, "business_email"),
+      decision_maker: readSubmittedCommercialField(formData, "decision_maker"),
+      job_title: readSubmittedCommercialField(formData, "job_title"),
+      registration_number: readSubmittedCommercialField(
+        formData,
+        "registration_number",
+      ),
+      tax_identifier: readSubmittedCommercialField(formData, "tax_identifier"),
+      tax_identifier_label: readSubmittedCommercialField(
+        formData,
+        "tax_identifier_label",
+      ),
+      whatsapp_number: readSubmittedCommercialField(formData, "whatsapp_number"),
+      facebook: readSubmittedCommercialField(formData, "facebook"),
+      instagram: readSubmittedCommercialField(formData, "instagram"),
+      linkedin: readSubmittedCommercialField(formData, "linkedin"),
+      google_business_url: readSubmittedCommercialField(
+        formData,
+        "google_business_url",
+      ),
+      category: readSubmittedCommercialField(formData, "category"),
+      industry: readSubmittedCommercialField(formData, "industry"),
+      timezone: readSubmittedCommercialField(formData, "timezone"),
     });
   } catch (error) {
-    const code =
-      error instanceof OrganizationCommercialIdentityNotFoundError
-        ? "not_found"
-        : "save_failed";
+    const code = commercialIdentitySaveErrorCode(error);
     redirect(`/identity?businessError=${encodeURIComponent(code)}`);
   }
 
@@ -343,11 +361,37 @@ export default async function IdentityPage({
     />
   );
 
+  const businessValues = {
+    legal_name: organizationCommercial?.legal_name ?? "",
+    address: organizationCommercial?.address ?? "",
+    address_line2: organizationCommercial?.address_line2 ?? "",
+    city: organizationCommercial?.city ?? "",
+    state: organizationCommercial?.state ?? "",
+    postal_code: organizationCommercial?.postal_code ?? "",
+    country: organizationCommercial?.country ?? "",
+    phone: organizationCommercial?.phone ?? "",
+    business_email: organizationCommercial?.business_email ?? "",
+    decision_maker: organizationCommercial?.decision_maker ?? "",
+    job_title: organizationCommercial?.job_title ?? "",
+    registration_number: organizationCommercial?.registration_number ?? "",
+    tax_identifier: organizationCommercial?.tax_identifier ?? "",
+    tax_identifier_label: organizationCommercial?.tax_identifier_label ?? "",
+    whatsapp_number: organizationCommercial?.whatsapp_number ?? "",
+    facebook: organizationCommercial?.facebook ?? "",
+    instagram: organizationCommercial?.instagram ?? "",
+    linkedin: organizationCommercial?.linkedin ?? "",
+    google_business_url: organizationCommercial?.google_business_url ?? "",
+    category: organizationCommercial?.category ?? "",
+    industry: organizationCommercial?.industry ?? "",
+    timezone: organizationCommercial?.timezone ?? "",
+  } satisfies BusinessInformationValues;
+
   const businessInformation = (
     <AthenaCollapsibleSection
+      key={businessError ?? "business-information"}
       title={copy.business.title}
       summary={copy.business.description}
-      defaultOpen={false}
+      defaultOpen={Boolean(businessError)}
       tone="identity"
       icon={<Building2 size={20} />}
       iconClassName={IDENTITY_CARD_ICON_CLASS.blue}
@@ -357,39 +401,10 @@ export default async function IdentityPage({
         key={[
           organizationId,
           organizationCommercial?.name ?? "",
-          organizationCommercial?.legal_name ?? "",
-          organizationCommercial?.address ?? "",
-          organizationCommercial?.address_line2 ?? "",
-          organizationCommercial?.city ?? "",
-          organizationCommercial?.state ?? "",
-          organizationCommercial?.postal_code ?? "",
-          organizationCommercial?.country ?? "",
-          organizationCommercial?.phone ?? "",
-          organizationCommercial?.business_email ?? "",
-          organizationCommercial?.decision_maker ?? "",
-          organizationCommercial?.job_title ?? "",
-          organizationCommercial?.registration_number ?? "",
-          organizationCommercial?.tax_identifier ?? "",
-          organizationCommercial?.tax_identifier_label ?? "",
+          ...Object.values(businessValues),
         ].join("|")}
         tradingName={organizationCommercial?.name ?? ""}
-        initialValues={{
-          legal_name: organizationCommercial?.legal_name ?? "",
-          address: organizationCommercial?.address ?? "",
-          address_line2: organizationCommercial?.address_line2 ?? "",
-          city: organizationCommercial?.city ?? "",
-          state: organizationCommercial?.state ?? "",
-          postal_code: organizationCommercial?.postal_code ?? "",
-          country: organizationCommercial?.country ?? "",
-          phone: organizationCommercial?.phone ?? "",
-          business_email: organizationCommercial?.business_email ?? "",
-          decision_maker: organizationCommercial?.decision_maker ?? "",
-          job_title: organizationCommercial?.job_title ?? "",
-          registration_number: organizationCommercial?.registration_number ?? "",
-          tax_identifier: organizationCommercial?.tax_identifier ?? "",
-          tax_identifier_label:
-            organizationCommercial?.tax_identifier_label ?? "",
-        }}
+        initialValues={businessValues}
         saveBusinessInformation={saveBusinessInformation}
         error={businessError}
         messages={copy.business}
@@ -519,6 +534,7 @@ export default async function IdentityPage({
           organizationId={organizationId}
           userId={userId}
           messages={copy.getoblic}
+          language={language}
         />
       }
     />

@@ -118,6 +118,39 @@ export const IDENTITY_UPDATE_LOCATION_HREFS = {
   "Website content": `#${IDENTITY_FIELD_ANCHORS.websiteKnowledge}`,
 } as const satisfies Record<IdentityUpdateLocation, string>;
 
+export type IdentityFieldDisclosure = "teach" | "websiteKnowledge";
+
+export type IdentityFieldHashResolution = {
+  disclosure: IdentityFieldDisclosure;
+  /** DOM id to scroll to after that disclosure is open. */
+  targetId: string;
+};
+
+const IDENTITY_FIELD_HASH_DISCLOSURES = {
+  [IDENTITY_FIELD_ANCHORS.teach]: "teach",
+  [IDENTITY_FIELD_ANCHORS.voice]: "teach",
+  [IDENTITY_FIELD_ANCHORS.knowledge]: "teach",
+  [IDENTITY_FIELD_ANCHORS.website]: "teach",
+  [IDENTITY_FIELD_ANCHORS.websiteKnowledge]: "websiteKnowledge",
+} as const satisfies Record<string, IdentityFieldDisclosure>;
+
+/**
+ * Maps a field hash to the disclosure that must open before the target exists.
+ * Unknown hashes return null and must not open an unrelated section.
+ */
+export function resolveIdentityFieldHash(
+  value: string | null | undefined,
+): IdentityFieldHashResolution | null {
+  if (!value) return null;
+  const targetId = value.startsWith("#") ? value.slice(1) : value;
+  const disclosure =
+    IDENTITY_FIELD_HASH_DISCLOSURES[
+      targetId as keyof typeof IDENTITY_FIELD_HASH_DISCLOSURES
+    ];
+  if (!disclosure) return null;
+  return { disclosure, targetId };
+}
+
 const PAGE_GROUP_KEYS = {
   Homepage: "pageGroupHomepage",
   About: "pageGroupAbout",

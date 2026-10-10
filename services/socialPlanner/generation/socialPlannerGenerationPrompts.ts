@@ -373,6 +373,35 @@ visualSupport is optional/nullable. Do not invent a static imagePrompt for text-
 `.trim();
 }
 
+/** Family-specific productionSpec contract. Shared with single-day revision. */
+export function buildSocialPlannerProductionSpecContract(): string {
+  const contract = buildSocialPlannerPackageOutputContract();
+  const marker = "PRODUCTION SPEC FAMILIES:";
+  const index = contract.indexOf(marker);
+  return index >= 0 ? contract.slice(index).trim() : contract;
+}
+
+/**
+ * Trusted organization intelligence, calendar facts, Trend Social, guidance,
+ * historical social memory, and integrity rules. Shared with single-day revision.
+ */
+export function buildSocialPlannerGenerationEvidenceBlocks(input: {
+  context: SocialPlannerGenerationContextV1;
+  userGuidance: string | null;
+  socialMemoryText?: string | null;
+}): string {
+  return [
+    trustedContextBlock(input.context),
+    `=== CALENDAR FACTS (AUTHORITATIVE DATES AND CANDIDATES) ===\n${calendarFactsBlock(input.context)}`,
+    trendSocialBlock(input.context),
+    userGuidanceBlock(input.userGuidance),
+    socialMemoryBlock(input.socialMemoryText),
+    integrityRules(input.context),
+  ]
+    .filter((block) => block.trim().length > 0)
+    .join("\n\n");
+}
+
 function primaryTargetAudienceBlock(
   context: SocialPlannerGenerationContextV1,
 ): string {

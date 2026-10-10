@@ -2,6 +2,8 @@
  * Map a sanitized Google business selection onto the existing Prospect
  * create contract. Free Google Add persists a normal prospect — not a
  * GetOblic listing. Do not invent columns or a Free prospect type.
+ * payload.zip is the postal code. Address text is not parsed for one.
+ * raw_json keeps the original zip and is not a historical rewrite.
  */
 
 import type { GoogleBusinessPayload } from "@/lib/googlePlaces/googlePlacesTypes";
@@ -28,6 +30,7 @@ export function mapGoogleBusinessToFreeProspectRow(
       address: optionalMapped(payload.address),
       city: optionalMapped(payload.city),
       state: optionalMapped(payload.state),
+      postal_code: optionalMapped(payload.zip),
       country: optionalMapped(payload.country),
       category:
         optionalMapped(payload.category) ?? optionalMapped(payload.tags),

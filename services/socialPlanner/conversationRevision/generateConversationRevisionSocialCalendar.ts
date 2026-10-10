@@ -1,10 +1,14 @@
 /**
  * L9 Conversation Revision generation.
  *
+ * Eligible single-day briefs generate one asset and copy the other six.
+ * Every other Daily brief keeps the full-week path:
  * revision generation → L4 validation/repair → L5 mode-aware history →
  * revision satisfaction → optional one L9 repair → L4 / L5 / satisfaction re-check.
  *
  * Does not persist, enqueue jobs, or rebuild the revision brief.
+ * An ineligible brief never enters the single-day path.
+ * A single-day path never falls back to seven-asset generation.
  */
 
 import { generateReview } from "@/services/aiService";
@@ -46,6 +50,8 @@ import {
   SOCIAL_PLANNER_CONVERSATION_REVISION_REPAIR_SYSTEM_PROMPT,
   buildConversationRevisionRepairPrompt,
 } from "@/services/socialPlanner/conversationRevision/socialPlannerRevisionPrompt";
+import { evaluateSingleDayConversationRevisionEligibility } from "@/services/socialPlanner/conversationRevision/singleDayRevisionEligibility";
+import { generateSingleDayConversationRevision } from "@/services/socialPlanner/conversationRevision/generateSingleDayConversationRevision";
 
 const CONVERSATION_REVISION_REPAIR_STAGE =
   "social_calendar_conversation_revision_repair" as const;
@@ -111,6 +117,11 @@ function buildConversationRevisionProvenance(input: {
     revisionRepairUsed: input.revisionRepairUsed,
     preservedDateCount: dateSets.preservedDates.length,
     revisedDateCount: dateSets.revisedDates.length,
+    singleDayRevision: false,
+    generatedDates: [],
+    copiedDates: [],
+    generatedAssetModel: null,
+    conversationRevisionSingleDayPromptVersion: null,
   };
 }
 
@@ -173,6 +184,21 @@ export async function generateConversationRevisionSocialCalendar(input: {
   }
 
   const memoryText = socialMemoryPromptText(socialMemory);
+  const singleDay = evaluateSingleDayConversationRevisionEligibility({
+    brief: input.revisionContext.brief,
+    periodDates: input.sourcePackage.period.dates,
+    plannerKind: "daily_social",
+  });
+  if (singleDay.eligible) {
+    return generateSingleDayConversationRevision({
+      ...input,
+      socialMemory,
+      socialMemoryText: memoryText,
+      targetDate: singleDay.targetDate,
+      preservedDates: singleDay.preservedDates,
+    });
+  }
+
   const generate = input.deps.generateReview ?? generateReview;
   const userGuidance = input.userGuidance ?? null;
   const dateSets = resolveRevisionDateSets({

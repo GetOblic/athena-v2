@@ -27,6 +27,12 @@ export const SOCIAL_PLANNER_CONVERSATION_REVISION_PROMPT_VERSION =
 export const SOCIAL_PLANNER_CONVERSATION_REVISION_REPAIR_PROMPT_VERSION =
   "social_planner_conversation_revision_repair_v2" as const;
 
+export const SOCIAL_PLANNER_CONVERSATION_REVISION_SINGLE_DAY_PROMPT_VERSION =
+  "social_planner_conversation_revision_single_day_v1" as const;
+
+export const SOCIAL_PLANNER_CONVERSATION_REVISION_SINGLE_DAY_REPAIR_PROMPT_VERSION =
+  "social_planner_conversation_revision_single_day_repair_v1" as const;
+
 export const SOCIAL_PLANNER_REVISION_SATISFACTION_ALGORITHM_VERSION =
   "social_planner_revision_satisfaction_v1" as const;
 
@@ -117,6 +123,15 @@ export type SocialPlannerConversationRevisionProvenance =
     revisionRepairUsed: boolean;
     preservedDateCount: number;
     revisedDateCount: number;
+    /**
+     * Present on Daily conversation revisions.
+     * Evergreen revisions omit these fields and stay on the full-week path.
+     */
+    singleDayRevision?: boolean;
+    generatedDates?: string[];
+    copiedDates?: string[];
+    generatedAssetModel?: string | null;
+    conversationRevisionSingleDayPromptVersion?: string | null;
   };
 
 export type SocialPlannerConversationRevisionGenerationResult =

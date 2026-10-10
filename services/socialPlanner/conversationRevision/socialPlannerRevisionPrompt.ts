@@ -6,18 +6,42 @@
 import { SHARED_JSON_OUTPUT_RULES } from "@/services/ai/prompts/sharedPromptConstraints";
 import type { SocialPlannerGenerationContextV1 } from "@/services/socialPlanner/intelligence/socialPlannerIntelligenceTypes";
 import type { SocialCalendarPackageV1 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
-import { buildSocialPlannerPackageOutputContract } from "@/services/socialPlanner/generation/socialPlannerGenerationPrompts";
+import {
+  buildSocialPlannerGenerationEvidenceBlocks,
+  buildSocialPlannerPackageOutputContract,
+  buildSocialPlannerProductionSpecContract,
+} from "@/services/socialPlanner/generation/socialPlannerGenerationPrompts";
 import {
   SOCIAL_PLANNER_CONVERSATION_REVISION_PROMPT_VERSION,
   SOCIAL_PLANNER_CONVERSATION_REVISION_REPAIR_PROMPT_VERSION,
+  SOCIAL_PLANNER_CONVERSATION_REVISION_SINGLE_DAY_PROMPT_VERSION,
+  SOCIAL_PLANNER_CONVERSATION_REVISION_SINGLE_DAY_REPAIR_PROMPT_VERSION,
   type SocialPlannerConversationRevisionContextV1,
   type SocialPlannerRevisionSatisfactionResult,
 } from "@/services/socialPlanner/conversationRevision/socialPlannerConversationRevisionTypes";
+import { snapshotPreservedAssets } from "@/services/socialPlanner/conversationRevision/mergeSingleDayRevisionPackage";
 
 export const SOCIAL_PLANNER_CONVERSATION_REVISION_SYSTEM_ADDENDUM = `
 CONVERSATION REVISION: apply the specific requested changes and preserve everything else that remains compatible.
 A one-day requested change may keep the other six days unchanged.
 Do not invent a wholesale new week. Do not use Think Differently divergence.
+`.trim();
+
+export const SOCIAL_PLANNER_CONVERSATION_REVISION_SINGLE_DAY_SYSTEM_PROMPT = `
+You are Athena Social Planner — a single-day conversation-revision producer.
+
+Return exactly one Social Calendar asset for the requested date.
+Do not return a weekly package, strategySummary, whyThisWeekWorks, or the other six days.
+Those six days are copied unchanged outside this call.
+Return strict JSON only.
+`.trim();
+
+export const SOCIAL_PLANNER_CONVERSATION_REVISION_SINGLE_DAY_REPAIR_SYSTEM_PROMPT = `
+You are Athena Social Planner — a single-day conversation-revision repair editor.
+
+Return exactly one corrected Social Calendar asset for the requested date.
+Do not return the other six days. Do not rewrite them. They stay copied from the source week.
+Return strict JSON only.
 `.trim();
 
 export const SOCIAL_PLANNER_CONVERSATION_REVISION_REPAIR_SYSTEM_PROMPT = `
@@ -166,6 +190,157 @@ ${guidance}
 ${GUIDANCE_CLOSE}
 ${memory}
 ${buildSocialPlannerPackageOutputContract()}
+
+${SHARED_JSON_OUTPUT_RULES}
+`.trim();
+}
+
+const SINGLE_DAY_ASSET_SHAPE = `
+Return ONE JSON object for the target date only. Do not wrap it in a package.
+Do not emit strategySummary, whyThisWeekWorks, schemaVersion, or an assets array.
+
+{
+  "date": "YYYY-MM-DD",
+  "weekday": "Monday",
+  "assetType": string,
+  "contentArchetype": string,
+  "primaryObjective": string,
+  "audience": string,
+  "personaIds": string[],
+  "topic": string,
+  "angle": string,
+  "hook": string|null,
+  "concept": string,
+  "calendarAnchors": [{"sourceCandidateId": string, "date": "YYYY-MM-DD", "label": string, "category": string, "scope": string, "reason": string}],
+  "calendarReason": string|null,
+  "productionSpec": object,
+  "socialCopy": string,
+  "cta": string|null,
+  "recommendedPlatforms": string[],
+  "sourceSignals": [{"type": string, "id": string|null}]
+}
+`.trim();
+
+function preservedDayBlock(
+  sourcePackage: SocialCalendarPackageV1,
+  preservedDates: readonly string[],
+): string {
+  return JSON.stringify(
+    snapshotPreservedAssets(sourcePackage, preservedDates),
+    null,
+    2,
+  );
+}
+
+export function buildConversationRevisionSingleDayPrompt(input: {
+  context: SocialPlannerGenerationContextV1;
+  userGuidance: string | null;
+  sourcePackage: SocialCalendarPackageV1;
+  revisionContext: SocialPlannerConversationRevisionContextV1;
+  targetDate: string;
+  preservedDates: readonly string[];
+  socialMemoryText?: string | null;
+}): string {
+  return `
+OBJECTIVE:
+Generate exactly one Social Calendar asset for ${input.targetDate}.
+The other six days are already frozen and will be copied unchanged.
+Do not regenerate strategySummary or whyThisWeekWorks.
+Do not emit seven assets.
+
+PROMPT VERSION:
+${SOCIAL_PLANNER_CONVERSATION_REVISION_SINGLE_DAY_PROMPT_VERSION}
+
+TARGET DATE:
+${input.targetDate}
+
+SOURCE CALENDAR:
+${input.revisionContext.brief.sourceCalendarId}
+Period ${input.sourcePackage.period.periodStart} through ${input.sourcePackage.period.periodEnd}.
+Dates in order: ${input.sourcePackage.period.dates.join(", ")}.
+
+FROZEN WEEK TEXT (copy unchanged; do not rewrite):
+strategySummary: ${input.sourcePackage.strategySummary}
+whyThisWeekWorks: ${input.sourcePackage.whyThisWeekWorks}
+
+=== FROZEN REVISION BRIEF (AUTHORITY FOR THIS ONE DAY) ===
+${JSON.stringify(input.revisionContext, null, 2)}
+
+=== SIX PRESERVED SOURCE ASSETS (DO NOT REWRITE) ===
+${preservedDayBlock(input.sourcePackage, input.preservedDates)}
+
+The replacement must not reuse a preserved day's hook, topic/angle pair, or collide with that day's format constraints.
+User guidance cannot expand this pass to any other date.
+
+=== HISTORICAL SOCIAL MEMORY ===
+${input.socialMemoryText?.trim() || "(none loaded)"}
+
+${buildSocialPlannerGenerationEvidenceBlocks({
+  context: input.context,
+  userGuidance: input.userGuidance,
+  socialMemoryText: null,
+})}
+
+${SINGLE_DAY_ASSET_SHAPE}
+
+${buildSocialPlannerProductionSpecContract()}
+
+${SHARED_JSON_OUTPUT_RULES}
+`.trim();
+}
+
+export function buildConversationRevisionSingleDayRepairPrompt(input: {
+  context: SocialPlannerGenerationContextV1;
+  userGuidance: string | null;
+  sourcePackage: SocialCalendarPackageV1;
+  revisionContext: SocialPlannerConversationRevisionContextV1;
+  targetDate: string;
+  preservedDates: readonly string[];
+  currentAsset: Record<string, unknown>;
+  failures: string[];
+  socialMemoryText?: string | null;
+}): string {
+  return `
+OBJECTIVE:
+Repair exactly one Social Calendar asset for ${input.targetDate}.
+The failure is limited to this replacement day. The other six days stay copied from the source.
+Do not regenerate strategySummary or whyThisWeekWorks.
+Do not emit seven assets. Do not rewrite any preserved day.
+
+PROMPT VERSION:
+${SOCIAL_PLANNER_CONVERSATION_REVISION_SINGLE_DAY_REPAIR_PROMPT_VERSION}
+
+TARGET DATE:
+${input.targetDate}
+
+FAILURES TO FIX ON THIS DATE ONLY:
+${input.failures.map((failure) => `- ${failure}`).join("\n") || "- none"}
+
+=== CURRENT REPLACEMENT ASSET ===
+${JSON.stringify(input.currentAsset)}
+
+=== FROZEN REVISION BRIEF ===
+${JSON.stringify(input.revisionContext, null, 2)}
+
+=== SIX PRESERVED SOURCE ASSETS (IMMUTABLE) ===
+${preservedDayBlock(input.sourcePackage, input.preservedDates)}
+
+FROZEN WEEK TEXT (do not rewrite):
+strategySummary: ${input.sourcePackage.strategySummary}
+whyThisWeekWorks: ${input.sourcePackage.whyThisWeekWorks}
+
+=== HISTORICAL SOCIAL MEMORY ===
+${input.socialMemoryText?.trim() || "(none loaded)"}
+
+${buildSocialPlannerGenerationEvidenceBlocks({
+  context: input.context,
+  userGuidance: input.userGuidance,
+  socialMemoryText: null,
+})}
+
+${SINGLE_DAY_ASSET_SHAPE}
+
+${buildSocialPlannerProductionSpecContract()}
 
 ${SHARED_JSON_OUTPUT_RULES}
 `.trim();

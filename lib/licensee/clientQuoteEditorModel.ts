@@ -167,9 +167,26 @@ export type ClientQuoteLibraryFrequencyAmount = {
   totalLabel: string;
 };
 
+export type ClientQuoteLibraryPresentationStatus = "draft" | "issued" | "invoiced";
+
+/**
+ * Active invoice occupying a quotation.
+ * Masked invoices are omitted before this reaches the library.
+ * status is the invoice status: issued means the invoice is finalized.
+ */
+export type ClientQuoteInvoiceRelationship = {
+  sourceQuoteId: string;
+  invoiceId: string;
+  status: "draft" | "issued";
+};
+
 export type ClientQuoteLibraryRow = {
   id: string;
+  /** Persisted quotation status. Never "invoiced". */
   status: PublicClientQuote["status"];
+  presentationStatus: ClientQuoteLibraryPresentationStatus;
+  /** Set only when an active finalized invoice occupies this quotation. */
+  finalizedInvoiceId: string | null;
   quoteNumber: string | null;
   customerName: string;
   projectTitle: string;
@@ -1187,12 +1204,72 @@ export function sortClientQuotesForLibrary(
 export type ClientQuoteLibraryStatusLabels = {
   draft: string;
   issued: string;
+  invoiced?: string;
 };
+
+/**
+ * Draft stays Draft. An issued quotation stays Issued until an active
+ * finalized invoice occupies it. A draft invoice, or a masked invoice
+ * omitted from the relationship list, does not qualify.
+ */
+export function clientQuoteLibraryPresentationStatus(
+  quote: Pick<PublicClientQuote, "status">,
+  relationship: Pick<ClientQuoteInvoiceRelationship, "status"> | null | undefined,
+): ClientQuoteLibraryPresentationStatus {
+  if (quote.status !== "issued") return "draft";
+  if (relationship?.status === "issued") return "invoiced";
+  return "issued";
+}
+
+export function clientQuoteInvoiceRelationshipForQuote(
+  quoteId: string,
+  relationships: readonly ClientQuoteInvoiceRelationship[],
+): ClientQuoteInvoiceRelationship | null {
+  let match: ClientQuoteInvoiceRelationship | null = null;
+  for (const relationship of relationships) {
+    if (relationship.sourceQuoteId !== quoteId) continue;
+    if (relationship.status === "issued") return relationship;
+    match = relationship;
+  }
+  return match;
+}
+
+export function parseClientQuoteInvoiceLinks(
+  value: unknown,
+): ClientQuoteInvoiceRelationship[] {
+  if (!Array.isArray(value)) return [];
+  const links: ClientQuoteInvoiceRelationship[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const sourceQuoteId =
+      typeof record.sourceQuoteId === "string" ? record.sourceQuoteId.trim() : "";
+    const invoiceId =
+      typeof record.invoiceId === "string" ? record.invoiceId.trim() : "";
+    const status = record.status;
+    if (!isClientQuoteRouteId(sourceQuoteId) || !isClientQuoteRouteId(invoiceId)) {
+      continue;
+    }
+    if (status !== "draft" && status !== "issued") continue;
+    links.push({ sourceQuoteId, invoiceId, status });
+  }
+  return links;
+}
+
+function clientQuoteLibraryStatusLabel(
+  presentation: ClientQuoteLibraryPresentationStatus,
+  statusLabels: ClientQuoteLibraryStatusLabels,
+): string {
+  if (presentation === "invoiced") return statusLabels.invoiced ?? "invoiced";
+  if (presentation === "issued") return statusLabels.issued;
+  return statusLabels.draft;
+}
 
 export function clientQuoteMatchesLibraryQuery(
   quote: PublicClientQuote,
   query: string,
   statusLabels: ClientQuoteLibraryStatusLabels,
+  relationships: readonly ClientQuoteInvoiceRelationship[] = [],
 ): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
@@ -1201,22 +1278,53 @@ export function clientQuoteMatchesLibraryQuery(
   const customerName = issued?.customer.name ?? quote.draft.customer.name;
   const projectTitle = issued?.projectTitle ?? quote.draft.projectTitle;
   const quoteNumber = quote.quoteNumber ?? "";
-  const statusLabel =
-    quote.status === "issued" ? statusLabels.issued : statusLabels.draft;
-  const haystack = [customerName, projectTitle, quoteNumber, quote.status, statusLabel]
+  const relationship = clientQuoteInvoiceRelationshipForQuote(quote.id, relationships);
+  const presentation = clientQuoteLibraryPresentationStatus(quote, relationship);
+  const statusLabel = clientQuoteLibraryStatusLabel(presentation, statusLabels);
+  const haystack = [customerName, projectTitle, quoteNumber, presentation, statusLabel]
     .join("\n")
     .toLowerCase();
   return haystack.includes(needle);
 }
 
+export const CLIENT_QUOTE_LIBRARY_STATUS_FILTERS = [
+  "all",
+  "draft",
+  "issued",
+  "invoiced",
+] as const;
+
+export type ClientQuoteLibraryStatusFilter =
+  (typeof CLIENT_QUOTE_LIBRARY_STATUS_FILTERS)[number];
+
+export function isClientQuoteLibraryStatusFilter(
+  value: string,
+): value is ClientQuoteLibraryStatusFilter {
+  return (CLIENT_QUOTE_LIBRARY_STATUS_FILTERS as readonly string[]).includes(value);
+}
+
+/**
+ * Status narrows the sorted library. Text search still runs on the
+ * remaining rows, including localized status words.
+ */
 export function filterClientQuotesForLibrary(
   quotes: readonly PublicClientQuote[],
   query: string,
   statusLabels: ClientQuoteLibraryStatusLabels,
+  statusFilter: ClientQuoteLibraryStatusFilter = "all",
+  relationships: readonly ClientQuoteInvoiceRelationship[] = [],
 ): PublicClientQuote[] {
-  return sortClientQuotesForLibrary(quotes).filter((quote) =>
-    clientQuoteMatchesLibraryQuery(quote, query, statusLabels),
-  );
+  return sortClientQuotesForLibrary(quotes).filter((quote) => {
+    if (statusFilter !== "all") {
+      const relationship = clientQuoteInvoiceRelationshipForQuote(
+        quote.id,
+        relationships,
+      );
+      const presentation = clientQuoteLibraryPresentationStatus(quote, relationship);
+      if (presentation !== statusFilter) return false;
+    }
+    return clientQuoteMatchesLibraryQuery(quote, query, statusLabels, relationships);
+  });
 }
 
 function clientQuoteLibraryMoney(quote: PublicClientQuote): {
@@ -1249,6 +1357,7 @@ function clientQuoteLibraryMoney(quote: PublicClientQuote): {
 export function clientQuoteLibraryRow(
   quote: PublicClientQuote,
   locale: string,
+  relationships: readonly ClientQuoteInvoiceRelationship[] = [],
 ): ClientQuoteLibraryRow {
   const issued = quote.status === "issued" && quote.issuedSnapshot
     ? quote.issuedSnapshot
@@ -1267,9 +1376,19 @@ export function clientQuoteLibraryRow(
     quote.status === "issued"
       ? quote.issuedAt ?? quote.createdAt
       : quote.createdAt;
+  const relationship = clientQuoteInvoiceRelationshipForQuote(quote.id, relationships);
+  const presentationStatus = clientQuoteLibraryPresentationStatus(quote, relationship);
+  const finalizedInvoiceId =
+    presentationStatus === "invoiced" &&
+    relationship &&
+    isClientQuoteRouteId(relationship.invoiceId)
+      ? relationship.invoiceId
+      : null;
   return {
     id: quote.id,
     status: quote.status,
+    presentationStatus,
+    finalizedInvoiceId,
     quoteNumber: quote.status === "issued" ? quote.quoteNumber : null,
     customerName,
     projectTitle,

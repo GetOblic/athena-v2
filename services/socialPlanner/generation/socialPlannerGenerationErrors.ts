@@ -41,6 +41,8 @@ export type SocialPlannerGenerationStage =
   | "revision_brief"
   | "conversation_revision_repair"
   | "conversation_revision_repair_validation"
+  | "conversation_revision_single_day"
+  | "conversation_revision_single_day_repair"
   | "revision_satisfaction";
 
 export class SocialPlannerGenerationError extends Error {

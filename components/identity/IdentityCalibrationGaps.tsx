@@ -2,6 +2,7 @@ import { Target } from "lucide-react";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import type { IdentityCalibrationGap } from "@/services/identity/identityExecutiveIntelligence";
+import { IdentityFieldDeepLink } from "@/components/identity/identityTeachAthenaDeepLink";
 import {
   IDENTITY_CARD_ICON_CLASS,
   IDENTITY_CARD_SURFACE_CLASS,
@@ -58,12 +59,12 @@ export function IdentityCalibrationGaps({
                 <div className="mt-2 text-sm text-[var(--athena-orange)]">
                   {copy.updatePrefix} {locationLabel}
                 </div>
-                <a
+                <IdentityFieldDeepLink
                   href={href}
                   className="mt-4 inline-flex w-full items-center justify-center rounded-full border border-[var(--athena-orange)]/40 bg-black/20 px-5 py-3 text-sm font-semibold text-white transition hover:bg-black/30 sm:w-auto"
                 >
                   {page.gapsGoToField}
-                </a>
+                </IdentityFieldDeepLink>
               </li>
             );
           })}

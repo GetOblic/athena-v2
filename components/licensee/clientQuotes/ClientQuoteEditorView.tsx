@@ -2,9 +2,15 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { ClientDocumentSendByEmailLink } from "@/components/licensee/clientDocuments/ClientDocumentSendByEmailLink";
 import { ClientQuotePdfDownloadButton } from "@/components/licensee/clientQuotes/ClientQuotePdfDownloadButton";
+import {
+  buildClientDocumentGmailHandoff,
+  type ClientQuoteGmailSnapshot,
+} from "@/lib/licensee/clientDocumentGmailHandoff";
 import type { LicenseeMessages } from "@/lib/licensee/getLicenseeLocalization";
 import { clientQuoteBillingFrequencyLabel } from "@/lib/licensee/clientQuoteEditorMessages";
+import { LICENSEE_SUCCESS_CTA_CLASS } from "@/lib/licensee/licenseeDashboardPresentation";
 import {
   addClientQuoteAppendixSection,
   addClientQuoteLine,
@@ -86,10 +92,14 @@ export type ClientQuoteEditorViewProps = {
   missingRequirements: readonly ClientQuoteIssueRequirement[];
   revisedFromQuoteId: string | null;
   downloadQuoteId?: string | null;
+  /** Frozen issued snapshot. Draft quotations do not receive one. */
+  issuedSnapshot?: ClientQuoteGmailSnapshot | null;
+  createInvoicePending?: boolean;
   onChange: (editor: ClientQuoteEditorDraft) => void;
   onSave: () => void;
   onIssue: () => void;
   onRevise: () => void;
+  onCreateInvoice?: () => void;
 };
 
 function requirementLabel(
@@ -402,14 +412,21 @@ export function ClientQuoteEditorView({
   missingRequirements,
   revisedFromQuoteId,
   downloadQuoteId = null,
+  issuedSnapshot = null,
+  createInvoicePending = false,
   onChange,
   onSave,
   onIssue,
   onRevise,
+  onCreateInvoice,
 }: ClientQuoteEditorViewProps) {
   const copy = messages.clientQuotes;
   const readOnly = mode === "issued";
-  const busy = pending !== null;
+  const emailHandoff =
+    readOnly && issuedSnapshot
+      ? buildClientDocumentGmailHandoff({ kind: "quote", snapshot: issuedSnapshot })
+      : null;
+  const busy = pending !== null || createInvoicePending;
   const missing = new Set(missingRequirements);
   const mixedFrequency = clientQuoteHasMixedBillingFrequency(editor);
   const frequencyGroups = clientQuoteFrequencyGroupsForDisplay(frequencyTotals);
@@ -1313,12 +1330,30 @@ export function ClientQuoteEditorView({
       </section>
 
       {readOnly ? (
-        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:justify-end">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
+          <button
+            type="button"
+            data-create-client-invoice="detail"
+            data-create-client-invoice-pending={createInvoicePending ? "true" : "false"}
+            disabled={busy}
+            onClick={onCreateInvoice}
+            className={`${LICENSEE_SUCCESS_CTA_CLASS} w-full sm:w-auto`}
+          >
+            {createInvoicePending ? copy.creatingInvoice : copy.createInvoice}
+          </button>
           {downloadQuoteId ? (
             <ClientQuotePdfDownloadButton
               quoteId={downloadQuoteId}
               disabled={busy}
               messages={messages}
+            />
+          ) : null}
+          {emailHandoff ? (
+            <ClientDocumentSendByEmailLink
+              handoff={emailHandoff}
+              messages={messages}
+              layout="detail"
+              documentKind="quote"
             />
           ) : null}
           <button

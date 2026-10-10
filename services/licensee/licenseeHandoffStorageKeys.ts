@@ -18,5 +18,6 @@ export const LICENSEE_HANDOFF_CLEAR_STORAGE_PREFIXES = [
   "athena:prospect-conversation:v1:",
   "athena-regeneration:",
   "athena-regeneration-autoselect-current:",
+  // Browser-local GetOblic Links history. Cleared on Master/sub-account handoff.
   "athena:getoblic-links:v1:",
 ] as const;

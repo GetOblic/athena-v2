@@ -67,6 +67,20 @@ export type Organization = {
   registration_number?: string | null;
   tax_identifier?: string | null;
   tax_identifier_label?: string | null;
+  /**
+   * Additional factual commercial identity. Nullable until the columns exist.
+   * URL-like social and Google Business values are normalized on write.
+   * timezone is stored text and does not drive scheduling or generation.
+   * category and industry stay distinct. Not copied into Brain or quotations.
+   */
+  whatsapp_number?: string | null;
+  facebook?: string | null;
+  instagram?: string | null;
+  linkedin?: string | null;
+  google_business_url?: string | null;
+  category?: string | null;
+  industry?: string | null;
+  timezone?: string | null;
   /** Navigational Continue destinations — does not affect generation routing. */
   ai_workspace_preferences?: Record<string, unknown> | null;
   /** Most recent human workspace visit — operational metadata only. */

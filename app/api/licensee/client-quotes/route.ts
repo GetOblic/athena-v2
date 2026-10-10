@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createDefaultClientInvoiceDeps } from "@/services/clientInvoice/clientInvoicePersistence";
+import { listActiveInvoiceQuoteLinksForMaster } from "@/services/clientInvoice/clientInvoiceService";
 import { createDefaultClientQuoteDeps } from "@/services/clientQuote/clientQuotePersistence";
 import {
   clientQuoteFailure,
@@ -48,11 +50,16 @@ export async function GET() {
     return jsonError(401, "UNAUTHORIZED", "Authentication required.");
   }
   try {
-    const quotes = await listClientQuotesForMaster(
-      userId,
-      createDefaultClientQuoteDeps(),
-    );
-    return json({ ok: true, quotes: quotes.map(toPublicClientQuote) });
+    const [quotes, links] = await Promise.all([
+      listClientQuotesForMaster(userId, createDefaultClientQuoteDeps()),
+      listActiveInvoiceQuoteLinksForMaster(userId, createDefaultClientInvoiceDeps()),
+    ]);
+    const quoteIds = new Set(quotes.map((quote) => quote.id));
+    return json({
+      ok: true,
+      quotes: quotes.map(toPublicClientQuote),
+      invoiceLinks: links.filter((link) => quoteIds.has(link.sourceQuoteId)),
+    });
   } catch (error) {
     return fail(error);
   }

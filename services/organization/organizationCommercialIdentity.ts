@@ -1,11 +1,14 @@
 /**
  * Persist organization commercial identity for the signed-in tenant.
- * Narrow payload: quotation contact fields only.
+ * Writes only organizations commercial columns, including the channel fields.
  * organizations.name stays the display name.
+ * organizations.language, slug, and brand columns are not written here.
  * Website stays on athena_identity.website.
- * Logo, brand colors, font, language, and slug are not written here.
+ * The authentication email is not written here.
+ * Prospect conversion, Brain, and quotation snapshots do not read the
+ * channel fields from this module.
  *
- * Requires the EST-QUOTE foundation columns. Do not apply that migration
+ * Requires the commercial identity columns. Do not apply migrations
  * from this module.
  */
 
@@ -26,6 +29,14 @@ export class OrganizationCommercialIdentityNotFoundError extends Error {
     super(message);
     this.name = "OrganizationCommercialIdentityNotFoundError";
   }
+}
+
+/** Stable business-information error code for the Identity page alert. */
+export function commercialIdentitySaveErrorCode(error: unknown): string {
+  if (error instanceof OrganizationCommercialIdentityNotFoundError) {
+    return "not_found";
+  }
+  return "save_failed";
 }
 
 export type OrganizationCommercialIdentity = {

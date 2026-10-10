@@ -33,6 +33,7 @@ import type {
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
+import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
 export type GetOblicLinksMessages = TenantMessages["identity"]["getoblic"];
 
@@ -212,6 +213,20 @@ function localizedFieldChrome(
   return { label: key, placeholder: "" };
 }
 
+/** Tenant Identity default. Licensee Useful Links passes its own base. */
+export const DEFAULT_GETOBLIC_LINKS_API_BASE = "/api/getoblic-links";
+
+export function getOblicLinksApiUrl(apiBase: string, suffix = ""): string {
+  const normalized = (apiBase.trim() || DEFAULT_GETOBLIC_LINKS_API_BASE).replace(
+    /\/+$/,
+    "",
+  );
+  if (!suffix) {
+    return normalized;
+  }
+  return `${normalized}/${suffix.replace(/^\/+/, "")}`;
+}
+
 async function apiJson<T>(
   input: RequestInfo,
   init?: RequestInit,
@@ -236,8 +251,13 @@ export function GetOblicLinksCard(props: {
   organizationId: string;
   userId: string;
   messages?: GetOblicLinksMessages;
+  /** Defaults to the tenant Identity routes. */
+  apiBase?: string;
+  /** Account language for guided destinations. Omitted uses non-French paths. */
+  language?: OrganizationLanguage;
 }) {
   const messages = props.messages ?? DEFAULT_GETOBLIC_MESSAGES;
+  const apiBase = props.apiBase?.trim() || DEFAULT_GETOBLIC_LINKS_API_BASE;
   const titleId = useId();
   const [healthStatus, setHealthStatus] = useState<
     "loading" | "healthy" | "unhealthy" | "unconfigured" | "error"
@@ -281,7 +301,7 @@ export function GetOblicLinksCard(props: {
     void (async () => {
       try {
         const { response, payload } = await apiJson<HealthPayload>(
-          "/api/getoblic-links/health",
+          getOblicLinksApiUrl(apiBase, "health"),
           undefined,
           messages.unexpectedResponse,
         );
@@ -313,7 +333,7 @@ export function GetOblicLinksCard(props: {
     return () => {
       cancelled = true;
     };
-  }, [messages.unexpectedResponse]);
+  }, [apiBase, messages.unexpectedResponse]);
 
   const openDialog = (mode: DialogMode, slug?: string | null) => {
     setBanner(null);
@@ -470,6 +490,7 @@ export function GetOblicLinksCard(props: {
           mode={dialogMode}
           organizationId={props.organizationId}
           userId={props.userId}
+          apiBase={apiBase}
           history={history}
           selectedSlug={selectedSlug}
           onClose={closeDialog}
@@ -480,6 +501,7 @@ export function GetOblicLinksCard(props: {
           copiedKey={copiedKey}
           onCopy={copyLink}
           messages={messages}
+          language={props.language}
         />
       ) : null}
     </div>
@@ -491,6 +513,7 @@ function GetOblicLinksDialog(props: {
   mode: DialogMode;
   organizationId: string;
   userId: string;
+  apiBase: string;
   history: GetOblicLinkHistoryEntry[];
   selectedSlug: string | null;
   onClose: () => void;
@@ -501,6 +524,7 @@ function GetOblicLinksDialog(props: {
   copiedKey: string | null;
   onCopy: (value: string, key: string) => Promise<void>;
   messages: GetOblicLinksMessages;
+  language?: OrganizationLanguage;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -581,6 +605,7 @@ function GetOblicLinksDialog(props: {
             <CreateLinkForm
               organizationId={props.organizationId}
               userId={props.userId}
+              apiBase={props.apiBase}
               onHistoryChange={props.onHistoryChange}
               onBanner={props.onBanner}
               onCreated={(slug) => {
@@ -588,6 +613,7 @@ function GetOblicLinksDialog(props: {
                 props.onModeChange("details");
               }}
               messages={props.messages}
+              language={props.language}
             />
           ) : null}
 
@@ -595,6 +621,7 @@ function GetOblicLinksDialog(props: {
             <ManageLinksPanel
               organizationId={props.organizationId}
               userId={props.userId}
+              apiBase={props.apiBase}
               history={props.history}
               onHistoryChange={props.onHistoryChange}
               onBanner={props.onBanner}
@@ -613,6 +640,7 @@ function GetOblicLinksDialog(props: {
             <LinkDetailsPanel
               organizationId={props.organizationId}
               userId={props.userId}
+              apiBase={props.apiBase}
               slug={props.selectedSlug}
               history={props.history}
               onHistoryChange={props.onHistoryChange}
@@ -633,10 +661,12 @@ function GetOblicLinksDialog(props: {
 function CreateLinkForm(props: {
   organizationId: string;
   userId: string;
+  apiBase: string;
   onHistoryChange: (entries: GetOblicLinkHistoryEntry[]) => void;
   onBanner: (banner: { tone: "success" | "error"; message: string } | null) => void;
   onCreated: (slug: string) => void;
   messages: GetOblicLinksMessages;
+  language?: OrganizationLanguage;
 }) {
   const [templateId, setTemplateId] =
     useState<GetOblicLinkTemplateId>("business_created");
@@ -660,6 +690,7 @@ function CreateLinkForm(props: {
           templateId,
           params,
           customUrl,
+          language: props.language,
         }),
         previewError: null as string | null,
       };
@@ -672,7 +703,13 @@ function CreateLinkForm(props: {
             : props.messages.unableToBuildDestination,
       };
     }
-  }, [templateId, params, customUrl, props.messages.unableToBuildDestination]);
+  }, [
+    templateId,
+    params,
+    customUrl,
+    props.language,
+    props.messages.unableToBuildDestination,
+  ]);
   const { preview, previewError } = previewState;
 
   async function onSubmit(event: FormEvent) {
@@ -694,7 +731,7 @@ function CreateLinkForm(props: {
       }
 
       const { response, payload } = await apiJson<LinkPayload>(
-        "/api/getoblic-links",
+        getOblicLinksApiUrl(props.apiBase),
         {
           method: "POST",
           body: JSON.stringify(body),
@@ -881,6 +918,7 @@ function CreateLinkForm(props: {
 function ManageLinksPanel({
   organizationId,
   userId,
+  apiBase,
   history,
   onHistoryChange,
   onCreate,
@@ -891,6 +929,7 @@ function ManageLinksPanel({
 }: {
   organizationId: string;
   userId: string;
+  apiBase: string;
   history: GetOblicLinkHistoryEntry[];
   onHistoryChange: (entries: GetOblicLinkHistoryEntry[]) => void;
   onBanner: (banner: { tone: "success" | "error"; message: string } | null) => void;
@@ -929,7 +968,7 @@ function ManageLinksPanel({
         for (const entry of entries) {
           try {
             const { response, payload } = await apiJson<LinkPayload>(
-              `/api/getoblic-links/${encodeURIComponent(entry.slug)}`,
+              getOblicLinksApiUrl(apiBase, encodeURIComponent(entry.slug)),
               undefined,
               messages.unexpectedResponse,
             );
@@ -962,7 +1001,7 @@ function ManageLinksPanel({
         setRefreshing(false);
       }
     },
-    [organizationId, userId, onHistoryChange, messages.unexpectedResponse],
+    [apiBase, organizationId, userId, onHistoryChange, messages.unexpectedResponse],
   );
 
   useEffect(() => {
@@ -973,7 +1012,7 @@ function ManageLinksPanel({
     return () => window.clearTimeout(timer);
     // Refresh once when Manage opens with the entries present at mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId, userId]);
+  }, [apiBase, organizationId, userId]);
 
   return (
     <div className="grid gap-5">
@@ -1137,6 +1176,7 @@ function ManageLinksPanel({
 function LinkDetailsPanel(props: {
   organizationId: string;
   userId: string;
+  apiBase: string;
   slug: string;
   history: GetOblicLinkHistoryEntry[];
   onHistoryChange: (entries: GetOblicLinkHistoryEntry[]) => void;
@@ -1166,7 +1206,7 @@ function LinkDetailsPanel(props: {
       setError(null);
       try {
         const { response, payload } = await apiJson<LinkPayload>(
-          `/api/getoblic-links/${encodeURIComponent(props.slug)}`,
+          getOblicLinksApiUrl(props.apiBase, encodeURIComponent(props.slug)),
           undefined,
           props.messages.unexpectedResponse,
         );
@@ -1233,7 +1273,7 @@ function LinkDetailsPanel(props: {
     };
     // Load once per slug open; history updates are written inside.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.slug, props.organizationId, props.userId]);
+  }, [props.apiBase, props.slug, props.organizationId, props.userId]);
 
   const shortUrlForQr = link?.short_url || historyEntry?.short_url || "";
 
@@ -1267,7 +1307,7 @@ function LinkDetailsPanel(props: {
     setError(null);
     try {
       const { response, payload } = await apiJson<LinkPayload>(
-        `/api/getoblic-links/${encodeURIComponent(props.slug)}`,
+        getOblicLinksApiUrl(props.apiBase, encodeURIComponent(props.slug)),
         {
           method: "PATCH",
           body: JSON.stringify(body),
@@ -1315,7 +1355,7 @@ function LinkDetailsPanel(props: {
     setError(null);
     try {
       const { response, payload } = await apiJson<ApiErrorPayload>(
-        `/api/getoblic-links/${encodeURIComponent(props.slug)}`,
+        getOblicLinksApiUrl(props.apiBase, encodeURIComponent(props.slug)),
         { method: "DELETE" },
         props.messages.unexpectedResponse,
       );

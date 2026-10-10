@@ -5,11 +5,13 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AthenaBrandLink } from "@/components/branding/AthenaBrandLink";
+import { GetOblicLinksCard } from "@/components/identity/GetOblicLinksCard";
 import {
   LicenseeUsefulLinksPanel,
   type LicenseeUsefulLinksPanelState,
 } from "@/components/licensee/LicenseeUsefulLinksPanel";
 import { getLicenseeLocalization } from "@/lib/licensee/getLicenseeLocalization";
+import { getTenantMessages } from "@/lib/tenantI18n/getTenantMessages";
 import {
   LICENSEE_DASHBOARD_CANVAS_CLASS,
   LICENSEE_DASHBOARD_SHELL_CLASS,
@@ -22,7 +24,12 @@ import { resolveLicenseeUsefulLinksAuthor } from "@/services/licensee/licenseeUs
 import { isAccountAccessActive } from "@/services/superAdmin/accountAccessStatus";
 
 /**
- * Licensee Master Useful Links — Own Company GetOblic tools only.
+ * Licensee Master Useful Links — Own Company claim tools, plus the existing
+ * GetOblic Links card when My Company is designated.
+ *
+ * GetOblic Links history is browser-local, keyed by My Company organization id
+ * and the authenticated Master user id. It may be cleared on Master/sub-account
+ * handoff. WordPress author mapping is required only for the claim links.
  */
 export default async function LicenseeUsefulLinksPage() {
   const supabase = await createSupabaseServerClient();
@@ -54,9 +61,11 @@ export default async function LicenseeUsefulLinksPage() {
 
   const { messages } = getLicenseeLocalization(licenseeAccount.default_language);
   const ownCompanyOrganizationId = licenseeAccount.own_company_organization_id;
-  const hasOwnCompany =
-    typeof ownCompanyOrganizationId === "string" &&
-    ownCompanyOrganizationId.trim().length > 0;
+  const resolvedOwnCompanyOrganizationId =
+    typeof ownCompanyOrganizationId === "string"
+      ? ownCompanyOrganizationId.trim()
+      : "";
+  const hasOwnCompany = resolvedOwnCompanyOrganizationId.length > 0;
   const authorId = await resolveLicenseeUsefulLinksAuthor(ownCompanyOrganizationId);
   const links = buildLicenseeUsefulLinks(
     authorId,
@@ -92,6 +101,21 @@ export default async function LicenseeUsefulLinksPage() {
         <div className="mt-8">
           <LicenseeUsefulLinksPanel messages={messages} state={state} />
         </div>
+
+        {hasOwnCompany ? (
+          <div className="mt-8">
+            <GetOblicLinksCard
+              organizationId={resolvedOwnCompanyOrganizationId}
+              userId={user.id}
+              apiBase="/api/licensee/getoblic-links"
+              language={licenseeAccount.default_language}
+              messages={
+                getTenantMessages(licenseeAccount.default_language).identity
+                  .getoblic
+              }
+            />
+          </div>
+        ) : null}
       </div>
     </main>
   );

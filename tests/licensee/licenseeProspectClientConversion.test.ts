@@ -80,6 +80,14 @@ type OrganizationRow = {
   brand_logo_storage_path?: string | null;
   brand_primary_color?: string | null;
   brand_font?: string | null;
+  whatsapp_number?: string | null;
+  facebook?: string | null;
+  instagram?: string | null;
+  linkedin?: string | null;
+  google_business_url?: string | null;
+  category?: string | null;
+  industry?: string | null;
+  timezone?: string | null;
 };
 
 type MembershipRow = {
@@ -3633,5 +3641,163 @@ describe("EST-QUOTE-1C.2 prospect commercial identity handoff", () => {
     assert.equal(third.alreadyActive, true);
     assert.equal(orgUpdates(calls).length, updatesAfterRetry);
     assert.equal(fixture.identities.length, 1);
+  });
+
+  function channelProspect() {
+    return makeProspect({
+      id: PROSPECT_A,
+      business_name: "Joe's Plumbing",
+      email: " contact@joesplumbing.com ",
+      whatsapp_number: " +1 214 555 0199 ",
+      facebook: " My Facebook Page ",
+      instagram: " @joesplumbing ",
+      linkedin: " https://www.linkedin.com/company/joesplumbing ",
+      google_business_url: " maps.google.com/?cid=1 ",
+      category: " Plumber ",
+      industry: " Home services ",
+      timezone: " America/Chicago ",
+      first_name: "Joe",
+      last_name: "Smith",
+      decision_maker: " ",
+      description: "Directory description",
+      notes: "Licensee private notes",
+      additional_context: "Private CRM strategy",
+      ads_content: "Ad copy",
+      external_contact_id: "crm-9",
+      region: "Texas",
+      lifecycle_status: "Qualified",
+      website: "joesplumbing.example",
+      website_intelligence: {
+        provider: "homepage_only",
+        url: "https://joesplumbing.example",
+        scraped_at: "2026-08-02T00:00:00.000Z",
+        about: "Family plumbing",
+      },
+    });
+  }
+
+  it("copies the eight channel fields without using the Prospect email as Auth", async () => {
+    const fixture = ownCompanyFixture({
+      prospects: [channelProspect()],
+    });
+    const calls = installFixture(fixture);
+
+    const result = await promoteLicenseeProspectToClient(promoteInput());
+    const org = fixture.organizations[result.clientOrganizationId];
+
+    assert.equal(result.conversion.status, "active");
+    assert.equal(result.clientAccountEmail, "joesplumbing@getoblic.com");
+    assert.equal(fixture.authUsersByEmail["contact@joesplumbing.com"], undefined);
+    assert.equal(org?.name, "Joe's Plumbing");
+    assert.equal(org?.language, "en");
+    assert.equal(org?.whatsapp_number, "+1 214 555 0199");
+    assert.equal(org?.facebook, "My Facebook Page");
+    assert.equal(org?.instagram, "@joesplumbing");
+    assert.equal(org?.linkedin, "https://www.linkedin.com/company/joesplumbing");
+    assert.equal(org?.google_business_url, "maps.google.com/?cid=1");
+    assert.equal(org?.category, "Plumber");
+    assert.equal(org?.industry, "Home services");
+    assert.equal(org?.timezone, "America/Chicago");
+    assert.equal(org?.decision_maker, undefined);
+    assert.equal(fixture.identities[0]?.about_you, null);
+    assert.equal(fixture.identities[0]?.website, "https://joesplumbing.example");
+    assert.equal(fixture.identities[0]?.website_intelligence?.about, "Family plumbing");
+    assert.equal(fixture.identities[0]?.brain_status, "pending");
+    assert.equal(fixture.identities[0]?.master_profile, null);
+    assert.equal(fixture.getoblicLinks.length, 0);
+    assert.equal(fixture.prospects[0]?.notes, "Licensee private notes");
+    assert.equal(calls.tables.includes("athena_getoblic_listing_links"), false);
+    assert.equal(calls.tables.includes("athena_generation_jobs"), false);
+    assert.equal(calls.tables.includes("discussions"), false);
+
+    const update = orgUpdates(calls)[0];
+    assert.ok(update);
+    for (const forbidden of [
+      "name",
+      "slug",
+      "language",
+      "email",
+      "notes",
+      "additional_context",
+      "ads_content",
+      "external_contact_id",
+      "lifecycle_status",
+      "region",
+      "description",
+      "about_you",
+      "first_name",
+      "last_name",
+      "decision_maker",
+      "website",
+      "website_intelligence",
+    ]) {
+      assert.equal(Object.hasOwn(update.values, forbidden), false);
+    }
+  });
+
+  it("keeps client-edited channel values and preserves non-URL text", async () => {
+    const fixture = ownCompanyFixture({
+      prospects: [
+        channelProspect(),
+      ],
+    });
+    fixture.prospects[0].facebook = "not a url";
+    const calls = installFixture(fixture);
+    const orgCount = () => Object.keys(fixture.organizations).length;
+
+    const first = await promoteLicenseeProspectToClient(promoteInput());
+    const org = fixture.organizations[first.clientOrganizationId]!;
+    const organizationsAfterFirst = orgCount();
+    assert.equal(first.clientAccountEmail, "joesplumbing@getoblic.com");
+    assert.equal(org.facebook, "not a url");
+    assert.equal(org.whatsapp_number, "+1 214 555 0199");
+    assert.equal(org.category, "Plumber");
+    assert.equal(fixture.conversions.length, 1);
+
+    org.whatsapp_number = "Kept WhatsApp";
+    org.facebook = "Kept page";
+    org.category = "Kept category";
+    org.timezone = null;
+    org.language = "fr";
+    const keptName = org.name;
+    fixture.prospects[0].whatsapp_number = "+1 999";
+    fixture.prospects[0].facebook = "https://facebook.com/overwrite";
+    fixture.prospects[0].category = "Overwrite category";
+    fixture.prospects[0].timezone = "Europe/Paris";
+    fixture.prospects[0].email = "other@example.com";
+
+    const second = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(second.alreadyActive, true);
+    assert.equal(second.clientOrganizationId, first.clientOrganizationId);
+    assert.equal(org.whatsapp_number, "Kept WhatsApp");
+    assert.equal(org.category, "Kept category");
+    assert.equal(org.facebook, "Kept page");
+    assert.equal(org.timezone, "Europe/Paris");
+    assert.equal(org.name, keptName);
+    assert.equal(org.language, "fr");
+    assert.equal(second.clientAccountEmail, first.clientAccountEmail);
+    assert.equal(fixture.authUsersByEmail["other@example.com"], undefined);
+    assert.equal(fixture.authUsersByEmail["contact@joesplumbing.com"], undefined);
+
+    await reverseLicenseeProspectClientConversion(reverseInput());
+    assert.equal(org.whatsapp_number, "Kept WhatsApp");
+    assert.equal(org.category, "Kept category");
+    assert.equal(org.language, "fr");
+    assert.equal(fixture.organizations[first.clientOrganizationId], org);
+    assert.equal(fixture.prospects[0]?.notes, "Licensee private notes");
+
+    const again = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(again.reattached, true);
+    assert.equal(again.clientOrganizationId, first.clientOrganizationId);
+    assert.equal(again.clientAccountEmail, first.clientAccountEmail);
+    assert.equal(orgCount(), organizationsAfterFirst);
+    assert.equal(fixture.conversions.length, 1);
+    assert.equal(org.whatsapp_number, "Kept WhatsApp");
+    assert.equal(org.facebook, "Kept page");
+    assert.equal(org.category, "Kept category");
+    assert.equal(org.timezone, "Europe/Paris");
+    assert.equal(fixture.identities.length, 1);
+    assert.equal(fixture.identities[0]?.master_profile, null);
+    assert.equal(fixture.getoblicLinks.length, 0);
   });
 });

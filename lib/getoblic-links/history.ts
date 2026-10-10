@@ -1,3 +1,10 @@
+/**
+ * Browser-local GetOblic Links history.
+ * Keyed by organization id and authenticated user id. Licensee Useful Links
+ * uses My Company organization id and the Master user id.
+ * There is no Supabase history table. Master/sub-account handoff clears every
+ * key under this prefix (see clearLicenseeHandoffBrowserStorage).
+ */
 import type {
   GetOblicLinkHistoryEntry,
   GetOblicLinkTemplateId,

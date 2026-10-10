@@ -83,6 +83,11 @@ export type SocialCalendarConversationRevisionProvenanceV1 =
     revisionRepairUsed: boolean;
     preservedDateCount: number;
     revisedDateCount: number;
+    singleDayRevision?: boolean;
+    generatedDates?: string[];
+    copiedDates?: string[];
+    generatedAssetModel?: string | null;
+    conversationRevisionSingleDayPromptVersion?: string | null;
   };
 
 export type SocialCalendarFrozenProvenanceV1 =
@@ -273,6 +278,18 @@ export function buildFrozenConversationRevisionProvenance(input: {
     revisionRepairUsed: input.generationProvenance.revisionRepairUsed,
     preservedDateCount: input.generationProvenance.preservedDateCount,
     revisedDateCount: input.generationProvenance.revisedDateCount,
+    ...(typeof input.generationProvenance.singleDayRevision === "boolean"
+      ? {
+          singleDayRevision: input.generationProvenance.singleDayRevision,
+          generatedDates: input.generationProvenance.generatedDates ?? [],
+          copiedDates: input.generationProvenance.copiedDates ?? [],
+          generatedAssetModel:
+            input.generationProvenance.generatedAssetModel ?? null,
+          conversationRevisionSingleDayPromptVersion:
+            input.generationProvenance
+              .conversationRevisionSingleDayPromptVersion ?? null,
+        }
+      : {}),
   };
 }
 

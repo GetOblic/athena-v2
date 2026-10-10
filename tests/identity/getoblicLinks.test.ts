@@ -25,6 +25,10 @@ import {
   buildTemplateDestinationUrl,
   GETOBLIC_LINK_TEMPLATES,
 } from "../../lib/getoblic-links/templates";
+import {
+  ORGANIZATION_LANGUAGES,
+  type OrganizationLanguage,
+} from "../../services/organizationLanguage";
 import { GetOblicWorkerError } from "../../lib/getoblic-links/types";
 import {
   assertBodyWithinLimit,
@@ -98,16 +102,18 @@ describe("GetOblic Links — templates", () => {
     assert.equal(url.searchParams.get("business_name"), "Acme & Co");
   });
 
-  it("builds AI Calendar destination", () => {
+  it("builds AI Calendar destination with both required parameters", () => {
     const destination = buildTemplateDestinationUrl({
       templateId: "ai_calendar",
-      params: { contact_id: "c1" },
+      params: { contact_id: "c1", business_name: "Acme" },
     });
     const url = new URL(destination);
     assert.equal(
-      url.href,
-      "https://voiceai.getoblic.com/ai-calendar-page?contact_id=c1",
+      url.origin + url.pathname,
+      "https://claim.getoblic.com/business-portfolio-booking-page",
     );
+    assert.equal(url.searchParams.get("contact_id"), "c1");
+    assert.equal(url.searchParams.get("business_name"), "Acme");
   });
 
   it("uses Custom URL via URL parsing", () => {
@@ -163,6 +169,276 @@ describe("GetOblic Links — templates", () => {
         }),
       /Business Name is required/i,
     );
+  });
+});
+
+const LOCALIZED_DESTINATIONS = {
+  business_created: {
+    fr: "https://claim.getoblic.com/business-demo-compte-ia-page",
+    shared: "https://claim.getoblic.com/business-created-page",
+  },
+  ai_calendar: {
+    fr: "https://claim.getoblic.com/business-portfolio-calendrier-ia",
+    shared: "https://claim.getoblic.com/business-portfolio-booking-page",
+  },
+} as const;
+
+function expectedDestination(
+  templateId: "business_created" | "ai_calendar",
+  language?: OrganizationLanguage,
+): string {
+  const paths = LOCALIZED_DESTINATIONS[templateId];
+  return language === "fr" ? paths.fr : paths.shared;
+}
+
+describe("GetOblic Links — localized template destinations", () => {
+  const params = {
+    contact_id: "contact_123",
+    business_name: "Café & Co",
+  };
+
+  it("selects the approved pathname for both templates in all six languages", () => {
+    for (const templateId of ["business_created", "ai_calendar"] as const) {
+      for (const language of ORGANIZATION_LANGUAGES) {
+        const destination = buildTemplateDestinationUrl({
+          templateId,
+          language,
+          params,
+        });
+        const url = new URL(destination);
+        assert.equal(
+          url.origin + url.pathname,
+          expectedDestination(templateId, language),
+          `${templateId}/${language}`,
+        );
+        assert.equal(url.searchParams.get("contact_id"), params.contact_id);
+        assert.equal(url.searchParams.get("business_name"), params.business_name);
+        assert.deepEqual(
+          [...url.searchParams.keys()],
+          ["contact_id", "business_name"],
+        );
+      }
+    }
+  });
+
+  it("uses French pathnames only for French", () => {
+    for (const templateId of ["business_created", "ai_calendar"] as const) {
+      const french = new URL(
+        buildTemplateDestinationUrl({
+          templateId,
+          language: "fr",
+          params,
+        }),
+      );
+      const english = new URL(
+        buildTemplateDestinationUrl({
+          templateId,
+          language: "en",
+          params,
+        }),
+      );
+      assert.notEqual(french.pathname, english.pathname);
+      assert.equal(
+        french.origin + french.pathname,
+        LOCALIZED_DESTINATIONS[templateId].fr,
+      );
+      for (const language of ["en", "es", "it", "de", "pt"] as const) {
+        const destination = buildTemplateDestinationUrl({
+          templateId,
+          language,
+          params,
+        });
+        assert.equal(
+          new URL(destination).origin + new URL(destination).pathname,
+          LOCALIZED_DESTINATIONS[templateId].shared,
+          language,
+        );
+      }
+    }
+  });
+
+  it("encodes business names with URLSearchParams", () => {
+    const destination = buildTemplateDestinationUrl({
+      templateId: "business_created",
+      language: "en",
+      params,
+    });
+    const calendar = buildTemplateDestinationUrl({
+      templateId: "ai_calendar",
+      language: "fr",
+      params,
+    });
+    for (const built of [destination, calendar]) {
+      const url = new URL(built);
+      const rawValue = built.split("business_name=")[1] ?? "";
+      assert.equal(url.searchParams.get("business_name"), "Café & Co");
+      assert.equal(
+        decodeURIComponent(rawValue.replace(/\+/g, "%20")),
+        "Café & Co",
+      );
+      assert.doesNotMatch(rawValue, /[& é]/);
+      assert.match(rawValue, /%26/);
+      assert.match(rawValue, /%C3%A9/i);
+    }
+  });
+
+  it("rejects a missing required parameter on both templates", () => {
+    for (const templateId of ["business_created", "ai_calendar"] as const) {
+      assert.throws(
+        () =>
+          buildTemplateDestinationUrl({
+            templateId,
+            language: "fr",
+            params: { business_name: "Acme" },
+          }),
+        /Contact ID is required/i,
+      );
+      assert.throws(
+        () =>
+          buildTemplateDestinationUrl({
+            templateId,
+            language: "es",
+            params: { contact_id: "c1", business_name: "   " },
+          }),
+        /Business Name is required/i,
+      );
+    }
+  });
+
+  it("falls back to the non-French pathname when language is omitted", () => {
+    for (const templateId of ["business_created", "ai_calendar"] as const) {
+      const omitted = buildTemplateDestinationUrl({ templateId, params });
+      const english = buildTemplateDestinationUrl({
+        templateId,
+        language: "en",
+        params,
+      });
+      assert.equal(omitted, english);
+      assert.equal(
+        new URL(omitted).origin + new URL(omitted).pathname,
+        LOCALIZED_DESTINATIONS[templateId].shared,
+      );
+    }
+  });
+
+  it("leaves Custom destinations unchanged for every language", () => {
+    const customUrl = "https://example.com/path?x=1&name=Café & Co";
+    const languages: Array<OrganizationLanguage | undefined> = [
+      undefined,
+      ...ORGANIZATION_LANGUAGES,
+    ];
+    for (const language of languages) {
+      assert.equal(
+        buildTemplateDestinationUrl({
+          templateId: "custom",
+          customUrl,
+          language,
+        }),
+        new URL(customUrl).toString(),
+      );
+    }
+  });
+
+  it("keeps catalog defaults on the non-French destinations and requires both fields", () => {
+    for (const templateId of ["business_created", "ai_calendar"] as const) {
+      const template = GETOBLIC_LINK_TEMPLATES.find(
+        (entry) => entry.id === templateId,
+      );
+      assert.equal(template?.baseUrl, LOCALIZED_DESTINATIONS[templateId].shared);
+      assert.deepEqual(
+        template?.fields.map((field) => [field.key, field.required]),
+        [
+          ["contact_id", true],
+          ["business_name", true],
+        ],
+      );
+    }
+  });
+
+  it("threads Identity and Licensee language into one preview that is submitted", () => {
+    const identity = read("app/identity/page.tsx");
+    const identityAt = identity.indexOf("<GetOblicLinksCard");
+    const identityCard = identity.slice(
+      identityAt,
+      identity.indexOf("/>", identityAt),
+    );
+    assert.match(identity, /getTenantLocalization\(\)/);
+    assert.match(identityCard, /language=\{language\}/);
+
+    const useful = read("app/licensee/useful-links/page.tsx");
+    const usefulAt = useful.indexOf("<GetOblicLinksCard");
+    const usefulCard = useful.slice(usefulAt, useful.indexOf("/>", usefulAt));
+    assert.match(usefulCard, /language=\{licenseeAccount\.default_language\}/);
+
+    const card = read("components/identity/GetOblicLinksCard.tsx");
+    assert.equal((card.match(/language=\{props\.language\}/g) ?? []).length, 2);
+    assert.equal((card.match(/buildTemplateDestinationUrl\(/g) ?? []).length, 1);
+    const form = card.slice(
+      card.indexOf("function CreateLinkForm"),
+      card.indexOf("function ManageLinksPanel"),
+    );
+    assert.match(form, /language:\s*props\.language/);
+    assert.match(form, /url: preview/);
+    assert.doesNotMatch(
+      card.slice(card.indexOf("function ManageLinksPanel")),
+      /buildTemplateDestinationUrl/,
+    );
+
+    const french = buildTemplateDestinationUrl({
+      templateId: "ai_calendar",
+      language: "fr",
+      params,
+    });
+    assert.equal(
+      french,
+      buildTemplateDestinationUrl({
+        templateId: "ai_calendar",
+        language: "fr",
+        params,
+      }),
+    );
+    assert.equal(
+      new URL(french).origin + new URL(french).pathname,
+      LOCALIZED_DESTINATIONS.ai_calendar.fr,
+    );
+  });
+
+  it("does not rewrite stored short links or other destination builders", () => {
+    const storage = new MemoryStorage();
+    const storedUrl =
+      "https://voiceai.getoblic.com/ai-calendar-page?contact_id=c1";
+    assert.equal(
+      writeGetOblicLinksHistory(
+        "org-1",
+        "user-1",
+        [sampleHistoryEntry({ url: storedUrl, template: "ai_calendar" })],
+        storage,
+      ),
+      true,
+    );
+    assert.equal(
+      readGetOblicLinksHistory("org-1", "user-1", storage)[0]?.url,
+      storedUrl,
+    );
+
+    const untouched = [
+      "lib/getoblic-links/history.ts",
+      "lib/getoblic-links/server.ts",
+      "lib/getoblic-links/qr.ts",
+      "lib/prospects/getOblicFunnelPresentation.ts",
+      "lib/licensee/licenseeUsefulLinksPresentation.ts",
+      "app/api/getoblic-links/route.ts",
+      "app/api/getoblic-links/[slug]/route.ts",
+      "app/api/getoblic-links/health/route.ts",
+      "app/api/licensee/getoblic-links/route.ts",
+      "app/api/licensee/getoblic-links/[slug]/route.ts",
+      "app/api/licensee/getoblic-links/health/route.ts",
+    ];
+    for (const file of untouched) {
+      const source = read(file);
+      assert.doesNotMatch(source, /buildTemplateDestinationUrl/, file);
+      assert.doesNotMatch(source, /business-demo-compte-ia-page/, file);
+    }
   });
 });
 
