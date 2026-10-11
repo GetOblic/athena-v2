@@ -8,9 +8,15 @@ export function directoryErrorStatus(code: GetOblicDirectoryErrorCode): number {
     case "GETOBLIC_PROSPECT_NOT_FOUND":
     case "GETOBLIC_LINK_NOT_FOUND":
       return 404;
+    case "GETOBLIC_UNCLAIMED_OUTBOUND_NOT_AUTHORIZED":
+    case "GETOBLIC_UNCLAIMED_PROSPECTING_NOT_AUTHORIZED":
+      return 403;
     case "GETOBLIC_INVALID_WORDPRESS_LISTING_ID":
     case "GETOBLIC_SEARCH_INVALID_REQUEST":
+    case "GETOBLIC_NEEDS_BUSINESS_NAME":
       return 400;
+    case "GETOBLIC_NAME_COLLISION":
+      return 409;
     case "GETOBLIC_REMOTE_AUTH_FAILED":
       return 503;
     case "GETOBLIC_REMOTE_TRANSIENT":

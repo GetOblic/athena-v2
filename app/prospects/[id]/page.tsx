@@ -77,6 +77,7 @@ import { isLicenseeOwnCompanyOrganization } from "@/services/licensee/licenseeId
 import { getProspectClientConversionState } from "@/services/licensee/licenseeProspectClientConversionReads";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { hasCurrentKnowledgeBaseAsset } from "@/services/getoblicDirectory/getoblicDirectoryKnowledgeBaseService";
+import { isAuthorizedUnclaimedGetOblicOutboundTarget } from "@/services/getoblicDirectory/getoblicOutboundContentAuthorization";
 import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { resolveLicenseeOwnCompanyGetOblicAuthorId } from "@/services/prospects/getOblicFunnelAuthor";
 import { readObservedListingDescription } from "@/services/prospects/prospectGetoblicDescription";
@@ -236,12 +237,22 @@ export default async function ProspectDetailsPage({
     : null;
   const getoblicDerived = isGetOblicDerivedProspect(prospect);
   const hasActiveGetOblicOwnership = activeGetOblicLink != null;
-  const showGetOblicOutbound =
+  const showLinkedOwnerGetOblicOutbound =
     activeGetOblicLink?.relationship_status === "linked";
   const showGetOblicRelease = shouldShowGetOblicListingReleaseAction({
     relationshipStatus: activeGetOblicLink?.relationship_status ?? null,
     conversionStatus: conversionState.status,
   });
+  const showUnclaimedGetOblicOutbound =
+    await isAuthorizedUnclaimedGetOblicOutboundTarget({
+      organizationId,
+      prospectId: prospect.id,
+      source: prospect.source,
+      rawJson: prospect.raw_json,
+      hasActiveLink: activeGetOblicLink != null,
+    });
+  const showGetOblicOutbound =
+    showLinkedOwnerGetOblicOutbound || showUnclaimedGetOblicOutbound;
   const offerFullIntelligence = shouldOfferProspectFullIntelligenceAction({
     source: prospect.source,
     website: prospect.website,

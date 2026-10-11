@@ -1,10 +1,13 @@
 /**
  * Athena V2 GetOblic Directory Knowledge Base push orchestration.
  *
- * Tenant-authenticated path: org context → org-scoped Prospect → linked
- * listing row → Current Executive Version → parsed knowledge_base_enhancement
- * → SHA-256 → Athena-side idempotency → existing WordPress PUT primitive →
- * persist KB sync metadata.
+ * Tenant-authenticated path: org context → shared outbound authorization →
+ * Current Executive Version → parsed knowledge_base_enhancement → SHA-256 →
+ * existing WordPress PUT primitive.
+ *
+ * Linked owners keep Athena-side idempotency and KB sync metadata.
+ * Authorized unclaimed Prospects perform the remote PUT only. They do not
+ * skip from a linked-row hash and they do not write listing-link metadata.
  *
  * This service does not claim listings, consume allocation, search, create
  * listings, release/unlink, or accept browser-supplied WordPress / version /
@@ -13,7 +16,7 @@
  * Concurrency limitation: the current schema cannot suppress two identical
  * in-flight PUTs. Simultaneous requests may both write WordPress. Required
  * correctness still holds: no cross-tenant mutation, no corrupted sync
- * metadata, and a successful final row reflects the current version/hash.
+ * metadata, and a successful final linked row reflects the current version/hash.
  */
 
 import { createHash } from "node:crypto";
@@ -24,14 +27,11 @@ import {
   GETOBLIC_LISTING_LINKS_TABLE,
   type GetOblicListingLink,
 } from "@/services/getoblicDirectory/getoblicDirectoryTypes";
-import {
-  getActiveGetOblicLinkForProspect,
-  mapListingLinkRow,
-} from "@/services/getoblicDirectory/getoblicDirectoryService";
+import { mapListingLinkRow } from "@/services/getoblicDirectory/getoblicDirectoryService";
+import { resolveGetOblicOutboundContentTarget } from "@/services/getoblicDirectory/getoblicOutboundContentAuthorization";
 import { putWordpressListingKnowledgeBase } from "@/services/getoblicDirectory/getoblicWordpressClient";
 import { GetOblicWordpressError } from "@/services/getoblicDirectory/getoblicWordpressTypes";
 import { getCurrentExecutiveVersion } from "@/services/executiveVersions/executiveVersionService";
-import { getProspectById } from "@/services/prospects/prospectService";
 
 const REMOTE_ERROR_MAX_LENGTH = 500;
 const KNOWLEDGE_BASE_ASSET_KEY = "knowledge_base_enhancement" as const;
@@ -42,7 +42,7 @@ export type KnowledgeBaseSyncResult = {
   success: true;
   outcome: KnowledgeBaseSyncOutcome;
   prospect_id: string;
-  listing_link_id: string;
+  listing_link_id: string | null;
   wordpress_listing_id: number;
   executive_version_id: string;
   content_sha256: string;
@@ -87,16 +87,12 @@ export async function syncGetOblicListingKnowledgeBase(
   wordpress: KnowledgeBaseWordpressPort = defaultWordpressPort,
 ): Promise<KnowledgeBaseSyncResult> {
   const now = input.now ?? new Date();
-  const prospect = await requireProspectInOrganization(
-    input.prospectId,
-    input.organizationId,
-  );
-  const link = await requireLinkedListing(
-    input.organizationId,
-    input.prospectId,
-  );
+  const target = await resolveGetOblicOutboundContentTarget({
+    organizationId: input.organizationId,
+    prospectId: input.prospectId,
+  });
 
-  const discussionId = prospect.linked_discussion_id?.trim() ?? "";
+  const discussionId = target.prospect.linked_discussion_id?.trim() ?? "";
   if (!discussionId) {
     throw currentExecutiveVersionMissingError();
   }
@@ -112,17 +108,47 @@ export async function syncGetOblicListingKnowledgeBase(
   const knowledgeBase = extractKnowledgeBaseBody(version.intelligence);
   const contentSha256 = hashKnowledgeBaseContent(knowledgeBase);
 
-  if (
-    link.kb_push_status === "success" &&
-    link.kb_last_pushed_executive_version_id === version.id &&
-    link.kb_last_content_sha256 === contentSha256
-  ) {
+  if (target.mode === "linked_owner") {
+    const link = target.link;
+    if (
+      link.kb_push_status === "success" &&
+      link.kb_last_pushed_executive_version_id === version.id &&
+      link.kb_last_content_sha256 === contentSha256
+    ) {
+      return {
+        success: true,
+        outcome: "already_current",
+        prospect_id: input.prospectId,
+        listing_link_id: link.id,
+        wordpress_listing_id: link.wordpress_listing_id,
+        executive_version_id: version.id,
+        content_sha256: contentSha256,
+        kb_push_status: "success",
+      };
+    }
+
+    try {
+      await wordpress.putKnowledgeBase(
+        link.wordpress_listing_id,
+        knowledgeBase,
+      );
+    } catch (error) {
+      await persistKnowledgeBaseFailure(link, now, error);
+      throw mapWordpressWriteError(error);
+    }
+
+    const persisted = await persistKnowledgeBaseSuccess(link, {
+      executiveVersionId: version.id,
+      contentSha256,
+      now,
+    });
+
     return {
       success: true,
-      outcome: "already_current",
+      outcome: "pushed",
       prospect_id: input.prospectId,
-      listing_link_id: link.id,
-      wordpress_listing_id: link.wordpress_listing_id,
+      listing_link_id: persisted.id,
+      wordpress_listing_id: persisted.wordpress_listing_id,
       executive_version_id: version.id,
       content_sha256: contentSha256,
       kb_push_status: "success",
@@ -130,97 +156,21 @@ export async function syncGetOblicListingKnowledgeBase(
   }
 
   try {
-    await wordpress.putKnowledgeBase(
-      link.wordpress_listing_id,
-      knowledgeBase,
-    );
+    await wordpress.putKnowledgeBase(target.wordpressListingId, knowledgeBase);
   } catch (error) {
-    await persistKnowledgeBaseFailure(link, now, error);
     throw mapWordpressWriteError(error);
   }
-
-  const persisted = await persistKnowledgeBaseSuccess(link, {
-    executiveVersionId: version.id,
-    contentSha256,
-    now,
-  });
 
   return {
     success: true,
     outcome: "pushed",
     prospect_id: input.prospectId,
-    listing_link_id: persisted.id,
-    wordpress_listing_id: persisted.wordpress_listing_id,
+    listing_link_id: null,
+    wordpress_listing_id: target.wordpressListingId,
     executive_version_id: version.id,
     content_sha256: contentSha256,
     kb_push_status: "success",
   };
-}
-
-async function requireProspectInOrganization(
-  prospectId: string,
-  organizationId: string,
-) {
-  const prospect = await getProspectById(prospectId, organizationId);
-  if (!prospect) {
-    throw new GetOblicDirectoryError(
-      "GETOBLIC_PROSPECT_NOT_FOUND",
-      "Prospect not found.",
-      404,
-    );
-  }
-  return prospect;
-}
-
-async function requireLinkedListing(
-  organizationId: string,
-  prospectId: string,
-): Promise<GetOblicListingLink> {
-  const active = await getActiveGetOblicLinkForProspect(
-    organizationId,
-    prospectId,
-  );
-  if (active) {
-    if (active.relationship_status === "linked") {
-      return active;
-    }
-    throw relationshipNotLinkedError();
-  }
-
-  if (await hasReleasedLinkForProspect(organizationId, prospectId)) {
-    throw relationshipNotLinkedError();
-  }
-
-  throw new GetOblicDirectoryError(
-    "GETOBLIC_LINK_NOT_FOUND",
-    "This Prospect has no GetOblic Directory listing.",
-    404,
-  );
-}
-
-async function hasReleasedLinkForProspect(
-  organizationId: string,
-  prospectId: string,
-): Promise<boolean> {
-  const { data, error } = await supabaseAdmin
-    .from(GETOBLIC_LISTING_LINKS_TABLE)
-    .select("id")
-    .eq("organization_id", organizationId)
-    .eq("prospect_id", prospectId)
-    .eq("relationship_status", "released")
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    console.error("Error looking up released GetOblic listing link:", error);
-    throw new GetOblicDirectoryError(
-      "GETOBLIC_LINK_NOT_FOUND",
-      "This Prospect has no GetOblic Directory listing.",
-      404,
-    );
-  }
-
-  return Boolean(data);
 }
 
 export function hasCurrentKnowledgeBaseAsset(intelligence: unknown): boolean {
@@ -387,14 +337,6 @@ function knowledgeBaseAssetMissingError(): GetOblicDirectoryError {
   return new GetOblicDirectoryError(
     "GETOBLIC_KNOWLEDGE_BASE_ASSET_MISSING",
     "Current Executive Version has no Knowledge Base asset.",
-    409,
-  );
-}
-
-function relationshipNotLinkedError(): GetOblicDirectoryError {
-  return new GetOblicDirectoryError(
-    "GETOBLIC_RELATIONSHIP_NOT_LINKED",
-    "This Prospect is not linked to a GetOblic listing.",
     409,
   );
 }

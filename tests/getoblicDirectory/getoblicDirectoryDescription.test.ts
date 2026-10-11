@@ -5,12 +5,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
-import { GetOblicDirectoryError } from "../../services/getoblicDirectory/getoblicDirectoryErrors";
+import {
+  directoryErrorStatus,
+  GetOblicDirectoryError,
+} from "../../services/getoblicDirectory/getoblicDirectoryErrors";
 import {
   resolveOutboundGeneratedDescription,
   syncGetOblicListingDescription,
   toPublicGetOblicDescriptionSync,
   type DescriptionWordpressPort,
+  type SyncGetOblicListingDescriptionInput,
 } from "../../services/getoblicDirectory/getoblicDirectoryDescriptionService";
 import { GetOblicWordpressError } from "../../services/getoblicDirectory/getoblicWordpressTypes";
 import { GETOBLIC_DESCRIPTION_MAX_CHARS } from "../../services/prospects/prospectGeneratedListingDescription";
@@ -25,6 +29,10 @@ const PROSPECT_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const GENERATED_DESCRIPTION =
   "Athena-generated directory copy for the linked GetOblic listing.";
 const OBSERVED_DESCRIPTION = "Observed listing copy that must never be sent.";
+const CANONICAL_LISTING_ID = 88021;
+const PROSPECT_OTHER = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+const AUTHORIZATION_RPC = "licensee_own_company_unclaimed_getoblic_authorized";
+const CANONICAL_ID_RPC = "prospect_canonical_wordpress_listing_id";
 
 type LinkRow = {
   id: string;
@@ -61,6 +69,7 @@ type ProspectRow = {
   linked_discussion_id: string | null;
   generated_listing_description: unknown;
   raw_json: unknown;
+  source?: string;
   created_at: string;
   updated_at: string;
 };
@@ -157,11 +166,14 @@ function successWordpress(
 function installStore(store: {
   prospects?: ProspectRow[];
   links?: LinkRow[];
+  authorization?: boolean | "error" | "true-string";
+  canonicalListingId?: number | string | null | "error";
 }): { ops: Op[] } {
   const ops: Op[] = [];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (supabaseAdmin as any).from = (table: string) => {
+    ops.push({ op: "from", table });
     const filters: Record<string, unknown> = {};
 
     const rowsForTable = (): Record<string, unknown>[] => {
@@ -200,6 +212,14 @@ function installStore(store: {
       limit() {
         return builder;
       },
+      update(values: Record<string, unknown>) {
+        ops.push({ op: "update", table, values });
+        return builder;
+      },
+      insert(values: Record<string, unknown>) {
+        ops.push({ op: "insert", table, values });
+        return builder;
+      },
       async maybeSingle() {
         const matched = matchingRows();
         return { data: matched[0] ?? null, error: null };
@@ -216,6 +236,25 @@ function installStore(store: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (supabaseAdmin as any).rpc = async (fn: string, args: Record<string, unknown> = {}) => {
     ops.push({ op: "rpc", table: fn, values: args });
+    if (fn === AUTHORIZATION_RPC) {
+      if (store.authorization === "error") {
+        return { data: null, error: { message: "authorization lookup failed" } };
+      }
+      if (store.authorization === "true-string") {
+        return { data: "true", error: null };
+      }
+      if (typeof store.authorization === "boolean") {
+        return { data: store.authorization, error: null };
+      }
+    }
+    if (fn === CANONICAL_ID_RPC) {
+      if (store.canonicalListingId === "error") {
+        return { data: null, error: { message: "canonical lookup failed" } };
+      }
+      if ("canonicalListingId" in store && store.canonicalListingId !== "error") {
+        return { data: store.canonicalListingId ?? null, error: null };
+      }
+    }
     return { data: null, error: { message: "unexpected rpc" } };
   };
 
@@ -520,15 +559,376 @@ describe("GetOblic description route contract", () => {
     assert.doesNotMatch(route, /ATHENA_V2_DIRECTORY_API_KEY/);
     assert.doesNotMatch(route, /NEXT_PUBLIC_ATHENA_V2_DIRECTORY/);
     assert.doesNotMatch(route, /x-api-key/);
+    const authorization = read(
+      "services/getoblicDirectory/getoblicOutboundContentAuthorization.ts",
+    );
     assert.match(service, /generated_listing_description/);
     assert.match(service, /resolveOutboundGeneratedDescription/);
     assert.match(service, /putWordpressListingDescription/);
-    assert.match(service, /relationship_status === "linked"/);
+    assert.match(service, /resolveGetOblicOutboundContentTarget/);
+    assert.match(authorization, /relationship_status === "linked"/);
     assert.doesNotMatch(service, /raw_json\?\.observed|observed\.description/);
     assert.doesNotMatch(service, /readObservedListingDescription/);
     assert.doesNotMatch(service, /wordpressListingId:\s*input/);
     assert.doesNotMatch(service, /description:\s*input/);
     assert.doesNotMatch(service, /claimKnownExistingListing/);
     assert.doesNotMatch(service, /consumeGetOblicListingAllocation/);
+  });
+});
+
+function unclaimedRawJson(): Record<string, unknown> {
+  return {
+    origin: "getoblic_directory",
+    organization_id: ORG_B,
+    wordpress_listing_id: 11111,
+    observed: {
+      description: OBSERVED_DESCRIPTION,
+      wordpress_listing_id: 22222,
+    },
+  };
+}
+
+function unclaimedProspect(overrides: Partial<ProspectRow> = {}): ProspectRow {
+  return defaultProspect({
+    source: "getoblic",
+    raw_json: unclaimedRawJson(),
+    ...overrides,
+  });
+}
+
+function unclaimedStore(
+  extra: {
+    prospects?: ProspectRow[];
+    links?: LinkRow[];
+    authorization?: boolean | "error" | "true-string";
+    canonicalListingId?: number | string | null | "error";
+  } = {},
+) {
+  return {
+    prospects: extra.prospects ?? [unclaimedProspect()],
+    links: extra.links ?? [],
+    authorization: extra.authorization ?? true,
+    canonicalListingId:
+      "canonicalListingId" in extra ? extra.canonicalListingId : CANONICAL_LISTING_ID,
+  };
+}
+
+function rpcOps(ops: Op[]): Op[] {
+  return ops.filter((operation) => operation.op === "rpc");
+}
+
+function mutationOps(ops: Op[]): Op[] {
+  return ops.filter(
+    (operation) => operation.op === "insert" || operation.op === "update",
+  );
+}
+
+async function expectSyncError(
+  run: () => Promise<unknown>,
+  code: string,
+  status?: number,
+) {
+  await assert.rejects(run, (error: unknown) => {
+    assert.ok(error instanceof GetOblicDirectoryError);
+    assert.equal(error.code, code);
+    if (status != null) assert.equal(error.status, status);
+    return true;
+  });
+}
+
+describe("GetOblic unclaimed description outbound", () => {
+  it("keeps a linked owner on the linked row and ignores unclaimed SQL", async () => {
+    const store = {
+      ...readyStore(),
+      authorization: false as const,
+      canonicalListingId: 1,
+    };
+    const wordpress = successWordpress();
+    const { ops } = installStore(store);
+    const result = await sync(store, wordpress);
+
+    assert.equal(result.listing_link_id, "link-1");
+    assert.equal(result.wordpress_listing_id, 36440);
+    assert.equal(wordpress.calls[0]?.listingId, 36440);
+    assert.equal(wordpress.calls[0]?.description, GENERATED_DESCRIPTION);
+    assert.equal(rpcOps(ops).length, 0);
+    assert.equal(mutationOps(ops).length, 0);
+  });
+
+  it("puts the SQL canonical listing id for an authorized unclaimed Prospect", async () => {
+    const prospect = unclaimedProspect();
+    const store = unclaimedStore({ prospects: [prospect] });
+    const wordpress = successWordpress();
+    const { ops } = installStore(store);
+    const result = await sync(store, wordpress);
+    const calls = rpcOps(ops);
+
+    assert.deepEqual(result, {
+      success: true,
+      prospect_id: PROSPECT_A,
+      listing_link_id: null,
+      wordpress_listing_id: CANONICAL_LISTING_ID,
+      changed: true,
+    });
+    assert.equal(wordpress.calls.length, 1);
+    assert.equal(wordpress.calls[0]?.listingId, CANONICAL_LISTING_ID);
+    assert.equal(wordpress.calls[0]?.description, GENERATED_DESCRIPTION);
+    assert.notEqual(wordpress.calls[0]?.description, OBSERVED_DESCRIPTION);
+    assert.notEqual(wordpress.calls[0]?.listingId, 11111);
+    assert.notEqual(wordpress.calls[0]?.listingId, 22222);
+    assert.deepEqual(
+      calls.map((call) => call.table),
+      [AUTHORIZATION_RPC, CANONICAL_ID_RPC],
+    );
+    assert.deepEqual(calls[0]?.values, { p_organization_id: ORG_A });
+    assert.deepEqual(calls[1]?.values, { p_raw: prospect.raw_json });
+    assert.equal(mutationOps(ops).length, 0);
+    assert.equal(store.links.length, 0);
+    assert.equal(store.prospects.length, 1);
+    assert.equal(
+      ops.some((operation) => operation.table === "licensee_accounts"),
+      false,
+    );
+    assert.equal(
+      ops.some((operation) => operation.table === "licensee_sub_accounts"),
+      false,
+    );
+  });
+
+  it("accepts a canonical id returned as a numeric string", async () => {
+    const store = unclaimedStore({ canonicalListingId: String(CANONICAL_LISTING_ID) });
+    const wordpress = successWordpress();
+    installStore(store);
+    const result = await sync(store, wordpress);
+    assert.equal(result.wordpress_listing_id, CANONICAL_LISTING_ID);
+    assert.equal(result.listing_link_id, null);
+    assert.equal(wordpress.calls[0]?.listingId, CANONICAL_LISTING_ID);
+  });
+
+  it("puts a listing claimed by another organization without mutating that link", async () => {
+    const foreign = defaultLinkedRow({
+      id: "other-org-link",
+      organization_id: ORG_B,
+      prospect_id: PROSPECT_OTHER,
+      wordpress_listing_id: CANONICAL_LISTING_ID,
+      relationship_status: "linked",
+    });
+    const before = JSON.stringify(foreign);
+    const store = unclaimedStore({ links: [foreign] });
+    const wordpress = successWordpress();
+    const { ops } = installStore(store);
+    const result = await sync(store, wordpress);
+
+    assert.equal(result.listing_link_id, null);
+    assert.equal(result.wordpress_listing_id, CANONICAL_LISTING_ID);
+    assert.equal(wordpress.calls[0]?.listingId, CANONICAL_LISTING_ID);
+    assert.equal(JSON.stringify(store.links[0]), before);
+    assert.equal(mutationOps(ops).length, 0);
+    assert.equal(store.links.length, 1);
+  });
+
+  it("blocks a remote PUT when unclaimed authorization is false", async () => {
+    const store = unclaimedStore({ authorization: false });
+    const wordpress = successWordpress();
+    const { ops } = installStore(store);
+    await expectSyncError(
+      () => sync(store, wordpress),
+      "GETOBLIC_UNCLAIMED_OUTBOUND_NOT_AUTHORIZED",
+      403,
+    );
+    assert.equal(directoryErrorStatus("GETOBLIC_UNCLAIMED_OUTBOUND_NOT_AUTHORIZED"), 403);
+    assert.equal(wordpress.calls.length, 0);
+    assert.deepEqual(
+      rpcOps(ops).map((call) => call.table),
+      [AUTHORIZATION_RPC],
+    );
+    assert.equal(mutationOps(ops).length, 0);
+    assert.equal(store.prospects.length, 1);
+  });
+
+  it("blocks a remote PUT when Own Company authorization is false", async () => {
+    const wordpress = successWordpress();
+    const store = unclaimedStore({ authorization: false });
+    const { ops } = installStore(store);
+    await expectSyncError(
+      () => sync(store, wordpress),
+      "GETOBLIC_UNCLAIMED_OUTBOUND_NOT_AUTHORIZED",
+      403,
+    );
+    assert.equal(wordpress.calls.length, 0);
+    assert.equal(
+      ops.some(
+        (operation) =>
+          operation.table === "licensee_accounts" ||
+          operation.table === "licensee_sub_accounts",
+      ),
+      false,
+    );
+    assert.equal(mutationOps(ops).length, 0);
+  });
+
+  it("fails closed when the authorization lookup errors", async () => {
+    const store = unclaimedStore({ authorization: "error" });
+    const wordpress = successWordpress();
+    installStore(store);
+    await expectSyncError(
+      () => sync(store, wordpress),
+      "GETOBLIC_UNCLAIMED_OUTBOUND_NOT_AUTHORIZED",
+      403,
+    );
+    assert.equal(wordpress.calls.length, 0);
+  });
+
+  it("fails closed when authorization is not a boolean true", async () => {
+    const store = unclaimedStore({ authorization: "true-string" });
+    const wordpress = successWordpress();
+    installStore(store);
+    await expectSyncError(
+      () => sync(store, wordpress),
+      "GETOBLIC_UNCLAIMED_OUTBOUND_NOT_AUTHORIZED",
+    );
+    assert.equal(wordpress.calls.length, 0);
+  });
+
+  it("blocks a remote PUT when the canonical listing id is missing or invalid", async () => {
+    const invalidIds: Array<number | string | null | "error"> = [
+      null,
+      0,
+      -1,
+      1.5,
+      "0",
+      "12.5",
+      "",
+      "error",
+    ];
+    const wordpress = successWordpress();
+    for (const canonicalListingId of invalidIds) {
+      wordpress.calls.length = 0;
+      const store = unclaimedStore({ canonicalListingId });
+      installStore(store);
+      await expectSyncError(
+        () => sync(store, wordpress),
+        "GETOBLIC_INVALID_WORDPRESS_LISTING_ID",
+        409,
+      );
+      assert.equal(wordpress.calls.length, 0, String(canonicalListingId));
+    }
+  });
+
+  it("blocks a non-GetOblic Prospect before unclaimed authorization", async () => {
+    const prospects = [
+      defaultProspect({
+        source: "manual",
+        raw_json: { origin: "getoblic_directory", wordpress_listing_id: 11111 },
+      }),
+      defaultProspect({
+        source: "getoblic",
+        raw_json: { origin: "manual", wordpress_listing_id: 11111 },
+      }),
+      defaultProspect({
+        source: " getoblic",
+        raw_json: unclaimedRawJson(),
+      }),
+      defaultProspect({ source: "getoblic", raw_json: null }),
+    ];
+    const wordpress = successWordpress();
+    for (const prospect of prospects) {
+      wordpress.calls.length = 0;
+      const store = unclaimedStore({ prospects: [prospect], links: [] });
+      const { ops } = installStore(store);
+      await expectSyncError(
+        () => sync(store, wordpress),
+        "GETOBLIC_LINK_NOT_FOUND",
+      );
+      assert.equal(wordpress.calls.length, 0);
+      assert.equal(rpcOps(ops).length, 0);
+    }
+  });
+
+  it("does not fall through from claiming, remote_missing, or released", async () => {
+    const wordpress = successWordpress();
+    for (const relationship_status of ["claiming", "remote_missing", "released"] as const) {
+      wordpress.calls.length = 0;
+      const store = unclaimedStore({
+        links: [
+          defaultLinkedRow({
+            relationship_status,
+            released_at:
+              relationship_status === "released"
+                ? "2026-09-15T12:00:00.000Z"
+                : null,
+          }),
+        ],
+      });
+      const { ops } = installStore(store);
+      await expectSyncError(
+        () => sync(store, wordpress),
+        "GETOBLIC_RELATIONSHIP_NOT_LINKED",
+      );
+      assert.equal(wordpress.calls.length, 0, relationship_status);
+      assert.equal(rpcOps(ops).length, 0, relationship_status);
+      assert.equal(mutationOps(ops).length, 0, relationship_status);
+    }
+  });
+
+  it("stops later unclaimed sends when authorization becomes false and leaves the Prospect", async () => {
+    const store = unclaimedStore();
+    const wordpress = successWordpress();
+    installStore(store);
+    const first = await sync(store, wordpress);
+    assert.equal(first.listing_link_id, null);
+    store.authorization = false;
+    await expectSyncError(
+      () => sync(store, wordpress),
+      "GETOBLIC_UNCLAIMED_OUTBOUND_NOT_AUTHORIZED",
+    );
+    assert.equal(wordpress.calls.length, 1);
+    assert.equal(store.prospects.length, 1);
+    assert.equal(store.links.length, 0);
+  });
+
+  it("ignores client organization and listing identity on the request", async () => {
+    const prospect = unclaimedProspect();
+    const store = unclaimedStore({ prospects: [prospect] });
+    const wordpress = successWordpress();
+    const { ops } = installStore(store);
+    const result = await syncGetOblicListingDescription(
+      {
+        organizationId: ORG_A,
+        prospectId: PROSPECT_A,
+        wordpressListingId: 1,
+        wordpress_listing_id: 2,
+        organization_id: ORG_B,
+        listingId: 3,
+      } as SyncGetOblicListingDescriptionInput,
+      wordpress,
+    );
+    const calls = rpcOps(ops);
+    assert.equal(result.wordpress_listing_id, CANONICAL_LISTING_ID);
+    assert.equal(wordpress.calls[0]?.listingId, CANONICAL_LISTING_ID);
+    assert.deepEqual(calls[0]?.values, { p_organization_id: ORG_A });
+    assert.deepEqual(calls[1]?.values, { p_raw: prospect.raw_json });
+    const authorization = read(
+      "services/getoblicDirectory/getoblicOutboundContentAuthorization.ts",
+    );
+    assert.match(authorization, /licensee_own_company_unclaimed_getoblic_authorized/);
+    assert.match(authorization, /prospect_canonical_wordpress_listing_id/);
+    assert.match(authorization, /p_organization_id:\s*organizationId/);
+    assert.match(authorization, /p_raw:\s*rawJson/);
+    assert.match(authorization, /UNCLAIMED_GETOBLIC_PROSPECT_SOURCE = "getoblic"/);
+    assert.match(
+      authorization,
+      /UNCLAIMED_GETOBLIC_PROSPECT_ORIGIN = "getoblic_directory"/,
+    );
+    assert.match(authorization, /source !== UNCLAIMED_GETOBLIC_PROSPECT_SOURCE/);
+    assert.doesNotMatch(
+      authorization,
+      /raw_json\.wordpress_listing_id|rawJson\.wordpress_listing_id|observed/,
+    );
+    assert.doesNotMatch(authorization, /\.insert\(|\.update\(/);
+    assert.doesNotMatch(
+      authorization,
+      /claimKnownExistingListing|consumeGetOblicListingAllocation/,
+    );
   });
 });

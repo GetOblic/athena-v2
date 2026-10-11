@@ -2605,6 +2605,8 @@ export const en = {
       sourceGetOblic: "GetOblic",
       available: "Available",
       addToOpportunities: "Add to opportunities",
+      addAsProspect: "Add as Prospect",
+      alreadyAdded: "Already added",
       alreadyInMyOpportunities: "Already in my opportunities",
       needsFinishing: "Needs finishing",
       finishAdding: "Finish adding",

@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
     email?: string;
     businessName?: string;
     defaultLanguage?: unknown;
+    allowUnclaimedGetoblicProspecting?: unknown;
   } = {};
   try {
     body = (await request.json()) as typeof body;
@@ -43,6 +44,8 @@ export async function POST(request: NextRequest) {
       email: String(body.email || ""),
       businessName: body.businessName ? String(body.businessName) : null,
       defaultLanguage: body.defaultLanguage,
+      allowUnclaimedGetoblicProspecting:
+        body.allowUnclaimedGetoblicProspecting,
     });
 
     return NextResponse.json(

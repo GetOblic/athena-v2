@@ -53,11 +53,34 @@ const I18N_KEYS = [
 ] as const;
 
 describe("GetOblic outbound controls placement", () => {
-  it("clusters the two outbound actions beside Release and only when linked", () => {
+  it("clusters the two outbound actions beside Release for linked owners and authorized unclaimed Prospects", () => {
     const page = read("app/prospects/[id]/page.tsx");
     const card = read("components/prospects/ProspectGetoblicDescriptionCard.tsx");
+    const controls = read(
+      "components/prospects/GetOblicListingOutboundControls.tsx",
+    );
     assert.match(page, /GetOblicListingOutboundControls/);
     assert.match(page, /GetOblicListingReleaseControl/);
+    assert.match(page, /showLinkedOwnerGetOblicOutbound/);
+    assert.match(page, /activeGetOblicLink\?\.relationship_status === "linked"/);
+    assert.match(page, /isAuthorizedUnclaimedGetOblicOutboundTarget/);
+    assert.match(page, /hasActiveLink: activeGetOblicLink != null/);
+    assert.match(
+      page,
+      /showGetOblicOutbound =\s*showLinkedOwnerGetOblicOutbound \|\| showUnclaimedGetOblicOutbound/,
+    );
+    assert.match(
+      page,
+      /shouldShowGetOblicListingReleaseAction\(\{[\s\S]*?relationshipStatus: activeGetOblicLink\?\.relationship_status/,
+    );
+    assert.match(
+      page,
+      /showGetOblicRelease &&\s*\(activeGetOblicLink\?\.relationship_status === "linked" \|\|\s*activeGetOblicLink\?\.relationship_status === "claiming"\)/,
+    );
+    assert.match(page, /readLinkedGetOblicFunnelContactId\(activeGetOblicLink\)/);
+    assert.match(page, /hasActiveGetOblicOwnership = activeGetOblicLink != null/);
+    assert.doesNotMatch(page, /showUnclaimedGetOblicOutbound &&/);
+    assert.doesNotMatch(controls, /unclaimed|wordpress_listing_id|relationship_status/);
     assert.match(page, /relationship_status === "linked"/);
     assert.match(page, /hasGeneratedDescription/);
     assert.match(page, /hasCurrentKnowledgeBase/);

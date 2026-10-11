@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FreeConvertGenerationError } from "@/lib/organization/freeConvertGeneration";
 import { GetOblicDirectoryError } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
+import { acquireUnclaimedGetoblicDirectoryProspect } from "@/services/getoblicDirectory/unclaimedGetoblicDirectoryAcquisition";
+import { resolveUnclaimedGetoblicDirectoryMode } from "@/services/getoblicDirectory/unclaimedGetoblicDirectoryMode";
 import {
   convertGetOblicDirectoryListing,
   convertOutcomeErrorCode,
@@ -11,6 +13,11 @@ import {
 import { LICENSEE_ORIGIN_COOKIE } from "@/services/licensee/licenseeCookieNames";
 import { parseLicenseeOriginCookieValue } from "@/services/licensee/licenseeOriginCookie";
 import { assertCurrentFreeConvertGeneration } from "@/services/organization/freeConvertGenerationGuard";
+import {
+  ProspectCapacityExceededError,
+  isProspectCapacityExceededError,
+  prospectCapacityExceededMessage,
+} from "@/services/prospects/prospectCapacity";
 import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
@@ -49,6 +56,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await assertCurrentFreeConvertGeneration({
+      action: "from_getoblic",
+    });
+
+    const directoryMode =
+      await resolveUnclaimedGetoblicDirectoryMode(organizationId);
+    if (directoryMode === "refused") {
+      throw new GetOblicDirectoryError(
+        "GETOBLIC_UNCLAIMED_PROSPECTING_NOT_AUTHORIZED",
+        "Athena couldn’t add this business.",
+        403,
+      );
+    }
+
+    if (directoryMode === "unclaimed") {
+      const acquired = await acquireUnclaimedGetoblicDirectoryProspect({
+        organizationId,
+        actorUserId: userId,
+        wordpressListingId:
+          body.wordpressListingId ?? body.wordpress_listing_id,
+      });
+      return json({
+        ok: true,
+        success: true,
+        conversion: {
+          outcome: acquired.inserted ? "created" : "reused",
+          prospect_id: acquired.prospectId,
+          website_ready: false,
+          status: "Saved",
+          generation_queued: false,
+        },
+      });
+    }
+
     const origin = parseLicenseeOriginCookieValue(
       request.cookies.get(LICENSEE_ORIGIN_COOKIE)?.value,
     );
@@ -57,9 +98,6 @@ export async function POST(request: NextRequest) {
         ? origin.licenseeAccountId
         : null;
 
-    await assertCurrentFreeConvertGeneration({
-      action: "from_getoblic",
-    });
     const result = await convertGetOblicDirectoryListing({
       organizationId,
       wordpressListingId:
@@ -114,6 +152,23 @@ export async function POST(request: NextRequest) {
           error: { code: error.code, message: error.message },
         },
         error.httpStatus,
+      );
+    }
+
+    if (
+      error instanceof ProspectCapacityExceededError ||
+      isProspectCapacityExceededError(error)
+    ) {
+      return json(
+        {
+          ok: false,
+          success: false,
+          error: {
+            code: "PROSPECT_CAPACITY_EXCEEDED",
+            message: prospectCapacityExceededMessage(),
+          },
+        },
+        409,
       );
     }
 

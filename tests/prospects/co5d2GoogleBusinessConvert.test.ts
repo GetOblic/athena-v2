@@ -8,7 +8,8 @@ import "../getoblicDirectory/getoblicDirectoryTestEnv";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import { GOOGLE_BUSINESS_ADD_ACTION } from "../../lib/googlePlaces/googlePlacesTypes";
 import { convertGetOblicDirectoryListing } from "../../services/getoblicDirectory/getoblicDirectoryConvertService";
 import { GETOBLIC_PROSPECT_SOURCE } from "../../services/getoblicDirectory/getoblicDirectoryConvertService";
@@ -28,6 +29,23 @@ import {
 } from "../../services/googleBusiness/googleBusinessConvertService";
 import { GoogleBusinessMakeError } from "../../services/googleBusiness/googleBusinessMakeTypes";
 import type { Prospect } from "../../services/prospects/prospectService";
+
+const originalRpc = supabaseAdmin.rpc.bind(supabaseAdmin);
+
+beforeEach(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (supabaseAdmin as any).rpc = async (fn: string) => {
+    if (fn === "licensee_own_company_unclaimed_getoblic_authorized") {
+      return { data: false, error: null };
+    }
+    return { data: null, error: { message: `unexpected rpc ${fn}` } };
+  };
+});
+
+afterEach(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (supabaseAdmin as any).rpc = originalRpc;
+});
 
 const ROOT = process.cwd();
 const ORG_A = "11111111-1111-1111-1111-111111111111";

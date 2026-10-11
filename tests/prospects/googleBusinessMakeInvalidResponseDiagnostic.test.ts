@@ -72,6 +72,7 @@ const ALWAYS_FORBIDDEN = [
 ];
 
 const originalFrom = supabaseAdmin.from.bind(supabaseAdmin);
+const originalRpc = supabaseAdmin.rpc.bind(supabaseAdmin);
 
 type ConsoleCall = unknown[];
 
@@ -105,6 +106,13 @@ function settingsResult(
 
 function installOrganizationLanguage(): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (supabaseAdmin as any).rpc = async (fn: string) => {
+    if (fn === "licensee_own_company_unclaimed_getoblic_authorized") {
+      return { data: false, error: null };
+    }
+    return { data: null, error: { message: `unexpected rpc ${fn}` } };
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (supabaseAdmin as any).from = (table: string) => {
     const builder = {
       select: () => builder,
@@ -123,6 +131,8 @@ function installOrganizationLanguage(): void {
 function restoreSupabaseAdmin(): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (supabaseAdmin as any).from = originalFrom;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (supabaseAdmin as any).rpc = originalRpc;
 }
 
 function captureConsoleError(): {

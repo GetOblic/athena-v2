@@ -28,6 +28,10 @@ import {
 } from "@/services/getoblicDirectory/getoblicMakeAssignedListingStabilization";
 import { getWordpressListingById } from "@/services/getoblicDirectory/getoblicWordpressClient";
 import {
+  resolveUnclaimedGetoblicDirectoryMode,
+  type UnclaimedGetoblicDirectoryMode,
+} from "@/services/getoblicDirectory/unclaimedGetoblicDirectoryMode";
+import {
   GetOblicWordpressError,
   type GetOblicWordpressListing,
 } from "@/services/getoblicDirectory/getoblicWordpressTypes";
@@ -65,6 +69,9 @@ export type ConvertGoogleBusinessSelectionDeps = {
    * Production uses the real delay.
    */
   sleep?: MakeAssignedListingSleep;
+  resolveDirectoryMode?: (
+    organizationId: string,
+  ) => Promise<UnclaimedGetoblicDirectoryMode>;
 };
 
 function fail(code: GoogleBusinessMakeError["code"]): never {
@@ -121,6 +128,17 @@ export async function convertGoogleBusinessSelection(
   const convertListing = deps.convertListing ?? convertGetOblicDirectoryListing;
 
   const payload = sanitizeGoogleBusinessPayload(input.payload);
+  const resolveDirectoryMode =
+    deps.resolveDirectoryMode ?? resolveUnclaimedGetoblicDirectoryMode;
+  const directoryMode = await resolveDirectoryMode(input.organizationId);
+  if (directoryMode !== "ordinary") {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_UNCLAIMED_PROSPECTING_NOT_AUTHORIZED",
+      "Athena couldn’t add this Google business.",
+      403,
+    );
+  }
+
   const settingsResult = await getSettings(input.organizationId);
   const mappedAuthorId = settingsResult.configured
     ? readPositiveInteger(settingsResult.settings.wordpress_author_id)

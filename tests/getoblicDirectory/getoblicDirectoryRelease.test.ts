@@ -871,7 +871,10 @@ describe("GetOblic listing release", () => {
     const kb = read(
       "services/getoblicDirectory/getoblicDirectoryKnowledgeBaseService.ts",
     );
-    assert.match(kb, /GETOBLIC_RELATIONSHIP_NOT_LINKED/);
+    const outboundAuthorization = read(
+      "services/getoblicDirectory/getoblicOutboundContentAuthorization.ts",
+    );
+    assert.match(outboundAuthorization, /GETOBLIC_RELATIONSHIP_NOT_LINKED/);
     assert.match(kb, /relationship_status !== "linked"/);
     const deleteProspect = read("services/prospects/prospectService.ts");
     assert.match(deleteProspect, /getActiveGetOblicLinkForProspect/);

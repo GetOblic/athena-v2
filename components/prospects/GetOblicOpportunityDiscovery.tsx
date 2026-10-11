@@ -44,6 +44,7 @@ type GetOblicOpportunityDiscoveryProps = {
   messages: TenantMessages;
   prospectCapacityReached: boolean;
   canAddProspect?: boolean;
+  directoryMode?: "ordinary" | "unclaimed" | "refused";
 };
 
 function convertFailureCopy(
@@ -75,6 +76,7 @@ export function GetOblicOpportunityDiscovery({
   messages,
   prospectCapacityReached,
   canAddProspect = true,
+  directoryMode = "ordinary",
 }: GetOblicOpportunityDiscoveryProps) {
   const router = useRouter();
   const copy = messages.prospects.find;
@@ -127,7 +129,17 @@ export function GetOblicOpportunityDiscovery({
   }
 
   async function convertHit(hit: GetOblicOpportunitySearchHit) {
-    if (!canAddProspect) return;
+    if (!canAddProspect || directoryMode === "refused") return;
+    const existingProspectId = hit.same_org_added_id?.trim() ?? "";
+    if (
+      directoryMode === "unclaimed" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        existingProspectId,
+      )
+    ) {
+      router.push(`/prospects/${existingProspectId}`);
+      return;
+    }
     setConvertingId(hit.wordpress_listing_id);
     setFailedId(null);
     setFailureMessage(null);
@@ -184,7 +196,7 @@ export function GetOblicOpportunityDiscovery({
 
   return (
     <div className="space-y-6">
-      {prospectCapacityReached ? (
+      {prospectCapacityReached && directoryMode !== "unclaimed" ? (
         <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
           {copy.prospectCapacityReached}
         </div>
@@ -244,9 +256,12 @@ export function GetOblicOpportunityDiscovery({
               failureMessage={
                 failedId === hit.wordpress_listing_id ? failureMessage : null
               }
+              unclaimedMode={directoryMode === "unclaimed"}
               addDisabled={
                 !canAddProspect ||
-                (prospectCapacityReached &&
+                directoryMode === "refused" ||
+                (directoryMode !== "unclaimed" &&
+                  prospectCapacityReached &&
                   hit.athena_claim_status !== "INCOMPLETE_FOR_THIS_ORG" &&
                   hit.athena_claim_status !== "OWNED_BY_THIS_ORG")
               }

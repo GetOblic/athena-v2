@@ -13,6 +13,7 @@ import type { OrganizationLanguage } from "@/services/organizationLanguage";
 import { DEFAULT_ORGANIZATION_LANGUAGE } from "@/services/organizationLanguage";
 import type { LicenseeCommercialFees } from "@/services/superAdmin/superAdminLicenseeCommercialFeeTypes";
 import type { LicenseeDefaultLanguageSetting } from "@/services/superAdmin/superAdminLicenseeDefaultLanguageTypes";
+import type { LicenseeUnclaimedGetoblicProspectingSetting } from "@/services/superAdmin/superAdminLicenseeUnclaimedGetoblicProspectingTypes";
 
 export const SUPER_ADMIN_DOMAIN_IDS = [
   "overview",
@@ -56,6 +57,7 @@ export type SuperAdminLicenseeView = {
   licenseeMonthlyFeeUsd: number;
   subAccountMonthlyFeeUsd: number;
   defaultLanguage: OrganizationLanguage;
+  allowUnclaimedGetoblicProspecting: boolean;
   getoblicRollup: SuperAdminGetOblicRollup;
   subAccounts: SuperAdminSubAccountView[];
 };
@@ -182,6 +184,7 @@ export function buildSuperAdminLicenseeViews(input: {
   accounts: ManageableAccount[];
   fees: LicenseeCommercialFees[];
   defaultLanguages?: LicenseeDefaultLanguageSetting[];
+  unclaimedGetoblicProspecting?: LicenseeUnclaimedGetoblicProspectingSetting[];
 }): SuperAdminLicenseeView[] {
   const accountByLicenseeId = new Map<string, ManageableAccount>();
   for (const account of input.accounts) {
@@ -197,11 +200,20 @@ export function buildSuperAdminLicenseeViews(input: {
   const languagesByLicenseeId = new Map(
     (input.defaultLanguages ?? []).map((row) => [row.licenseeAccountId, row]),
   );
+  const unclaimedGetoblicProspectingByLicenseeId = new Map(
+    (input.unclaimedGetoblicProspecting ?? []).map((row) => [
+      row.licenseeAccountId,
+      row,
+    ]),
+  );
 
   return input.groups.map((group) => {
     const account = accountByLicenseeId.get(group.licenseeAccountId) ?? null;
     const fees = feesByLicenseeId.get(group.licenseeAccountId);
     const language = languagesByLicenseeId.get(group.licenseeAccountId);
+    const permission = unclaimedGetoblicProspectingByLicenseeId.get(
+      group.licenseeAccountId,
+    );
     return {
       licenseeAccountId: group.licenseeAccountId,
       masterEmail: group.masterEmail,
@@ -215,6 +227,8 @@ export function buildSuperAdminLicenseeViews(input: {
       subAccountMonthlyFeeUsd: fees?.subAccountMonthlyFeeUsd ?? 0,
       defaultLanguage:
         language?.defaultLanguage ?? DEFAULT_ORGANIZATION_LANGUAGE,
+      allowUnclaimedGetoblicProspecting:
+        permission?.allowUnclaimedGetoblicProspecting === true,
       getoblicRollup: buildGetOblicRollup(group.subAccounts),
       subAccounts: group.subAccounts,
     };
@@ -259,6 +273,7 @@ export function buildSuperAdminDashboardView(input: {
   directoryAllocations: SuperAdminGetOblicDirectoryAllocationModel;
   licenseeCommercialFees: LicenseeCommercialFees[];
   licenseeDefaultLanguages?: LicenseeDefaultLanguageSetting[];
+  licenseeUnclaimedGetoblicProspecting?: LicenseeUnclaimedGetoblicProspectingSetting[];
   trendSocialPromptConfigured: boolean;
   estimateMethodologyConfigured: boolean;
 }): SuperAdminDashboardView {
@@ -267,6 +282,7 @@ export function buildSuperAdminDashboardView(input: {
     accounts: input.accounts,
     fees: input.licenseeCommercialFees,
     defaultLanguages: input.licenseeDefaultLanguages,
+    unclaimedGetoblicProspecting: input.licenseeUnclaimedGetoblicProspecting,
   });
 
   return {

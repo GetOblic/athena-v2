@@ -21,6 +21,7 @@ type OpportunityDiscoveryMethodsProps = {
   canAddProspect?: boolean;
   directoryAvailable?: boolean;
   googleAvailable?: boolean;
+  directoryMode?: "ordinary" | "unclaimed" | "refused";
 };
 
 function methodCardClass(selected: boolean): string {
@@ -57,9 +58,11 @@ export function OpportunityDiscoveryMethods({
   authorMappingMissing,
   canAddProspect = true,
   directoryAvailable = true,
-  googleAvailable = true,
+  googleAvailable: googleOffered = true,
+  directoryMode = "ordinary",
 }: OpportunityDiscoveryMethodsProps) {
   const copy = messages.prospects.find;
+  const googleAvailable = googleOffered && directoryMode === "ordinary";
   const directoryUnavailableId = useId();
   const googleUnavailableId = useId();
   const [method, setMethod] = useState<OpportunityDiscoveryMethod>(
@@ -190,6 +193,7 @@ export function OpportunityDiscoveryMethods({
             messages={messages}
             prospectCapacityReached={prospectCapacityReached}
             canAddProspect={canAddProspect}
+            directoryMode={directoryMode}
           />
         </div>
       ) : null}

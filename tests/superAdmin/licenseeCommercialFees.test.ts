@@ -539,7 +539,7 @@ describe("Super Admin Licensee commercial fees — contracts", () => {
     const createMaster = accounts.slice(start, end);
     assert.match(
       createMaster,
-      /\.insert\(\{\s*user_id: authUser\.id,\s*email,\s*default_language: defaultLanguage,\s*\}\)/,
+      /\.insert\(\{\s*user_id: authUser\.id,\s*email,\s*default_language: defaultLanguage,\s*allow_unclaimed_getoblic_prospecting:\s*allowUnclaimedGetoblicProspecting,\s*\}\)/,
     );
     assert.doesNotMatch(createMaster, /licensee_monthly_fee_usd/);
     assert.doesNotMatch(createMaster, /sub_account_monthly_fee_usd/);

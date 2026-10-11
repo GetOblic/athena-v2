@@ -2645,6 +2645,8 @@ export const de: TenantMessages = {
       sourceGetOblic: "GetOblic",
       available: "Verfügbar",
       addToOpportunities: "Zu Chancen hinzufügen",
+      addAsProspect: "Als Prospect hinzufügen",
+      alreadyAdded: "Bereits hinzugefügt",
       alreadyInMyOpportunities: "Bereits in meinen Chancen",
       needsFinishing: "Noch abzuschließen",
       finishAdding: "Hinzufügen abschließen",

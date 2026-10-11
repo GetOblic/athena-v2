@@ -18,6 +18,7 @@ import {
   getGetOblicDirectorySettings,
   getGetOblicListingCapacity,
 } from "@/services/getoblicDirectory/getoblicDirectoryService";
+import { resolveUnclaimedGetoblicDirectoryMode } from "@/services/getoblicDirectory/unclaimedGetoblicDirectoryMode";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { getOrganizationProspectCapacity } from "@/services/prospects/prospectCapacity";
 import { loadFreeConvertPageState } from "@/services/prospects/freeConvertPageState";
@@ -41,11 +42,12 @@ export default async function FindOpportunitiesPage() {
   const boundProspectHref = convert.prospectId
     ? `/prospects/${convert.prospectId}`
     : null;
-  const [settings, prospectCapacity] = await Promise.all([
+  const [settings, prospectCapacity, directoryMode] = await Promise.all([
     requireGoogleAuthorMapping
       ? getGetOblicDirectorySettings(organizationId)
       : Promise.resolve(null),
     getOrganizationProspectCapacity(organizationId),
+    resolveUnclaimedGetoblicDirectoryMode(organizationId),
   ]);
   const capacity =
     settings?.configured
@@ -104,6 +106,7 @@ export default async function FindOpportunitiesPage() {
         canAddProspect={canAddProspect}
         directoryAvailable={shouldOfferGetOblicDiscovery(presentation)}
         googleAvailable={shouldOfferGoogleDiscovery(presentation)}
+        directoryMode={directoryMode}
       />
     </TenantAppShell>
   );

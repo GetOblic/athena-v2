@@ -210,6 +210,7 @@ function installStore(store: {
   ownerEmails?: Record<string, string>;
   failNextLinkInsert?: boolean;
   failAllocationRpc?: boolean;
+  unclaimedDirectoryMode?: boolean;
   raceWinner?: LinkRow;
   injectReservedLink?: LinkRow;
 }): { ops: Op[] } {
@@ -438,6 +439,9 @@ function installStore(store: {
     args: Record<string, unknown> = {},
   ) => {
     ops.push({ op: "rpc", table: fn, values: args });
+    if (fn === "licensee_own_company_unclaimed_getoblic_authorized") {
+      return { data: store.unclaimedDirectoryMode === true, error: null };
+    }
     if (fn === RESERVE_GETOBLIC_LISTING_CAPACITY_RPC) {
       if (store.failAllocationRpc) {
         return { data: null, error: { message: "allocation rpc failed" } };

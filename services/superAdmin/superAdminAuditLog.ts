@@ -9,7 +9,8 @@ export type SuperAdminAuditAction =
   | "update_getoblic_directory_allowance"
   | "update_getoblic_directory_account"
   | "update_licensee_commercial_fees"
-  | "update_licensee_default_language";
+  | "update_licensee_default_language"
+  | "update_licensee_unclaimed_getoblic_prospecting";
 
 export type SuperAdminAuditAccountType = "athena" | "licensee";
 

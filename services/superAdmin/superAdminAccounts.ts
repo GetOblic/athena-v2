@@ -20,6 +20,10 @@ import {
   requireGetOblicSuperAdmin,
 } from "@/services/superAdmin/superAdminIdentity";
 import {
+  parseAllowUnclaimedGetoblicProspecting,
+  SuperAdminLicenseeUnclaimedGetoblicProspectingError,
+} from "@/services/superAdmin/superAdminLicenseeUnclaimedGetoblicProspecting";
+import {
   AthenaPlanInvalidError,
   DEFAULT_ATHENA_PLAN,
   parseAthenaPlan,
@@ -66,6 +70,26 @@ function normalizeEmail(email: string): string {
 
 function normalizeBusinessName(name: string): string {
   return name.trim().replace(/\s+/g, " ");
+}
+
+/**
+ * Omitted permission stays false. An explicit boolean is stored as given.
+ * Any other payload is rejected before Licensee creation.
+ */
+function resolveAllowUnclaimedGetoblicProspectingForCreate(
+  value: unknown,
+): boolean {
+  if (value === undefined) {
+    return false;
+  }
+  try {
+    return parseAllowUnclaimedGetoblicProspecting(value);
+  } catch (error) {
+    if (error instanceof SuperAdminLicenseeUnclaimedGetoblicProspectingError) {
+      throw new SuperAdminOperationError(error.code, error.message);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -362,6 +386,7 @@ export async function createLicenseeMasterAsSuperAdmin(input: {
   email: string;
   businessName?: string | null;
   defaultLanguage?: unknown;
+  allowUnclaimedGetoblicProspecting?: unknown;
 }): Promise<CreateLicenseeMasterResult> {
   const actor = await requireGetOblicSuperAdmin(input.actorUserId);
   const email = normalizeEmail(input.email);
@@ -386,6 +411,10 @@ export async function createLicenseeMasterAsSuperAdmin(input: {
       throw error;
     }
   }
+  const allowUnclaimedGetoblicProspecting =
+    resolveAllowUnclaimedGetoblicProspectingForCreate(
+      input.allowUnclaimedGetoblicProspecting,
+    );
 
   if (!email || !email.includes("@")) {
     throw new SuperAdminOperationError(
@@ -426,8 +455,12 @@ export async function createLicenseeMasterAsSuperAdmin(input: {
         user_id: authUser.id,
         email,
         default_language: defaultLanguage,
+        allow_unclaimed_getoblic_prospecting:
+          allowUnclaimedGetoblicProspecting,
       })
-      .select("id, user_id, email, default_language")
+      .select(
+        "id, user_id, email, default_language, allow_unclaimed_getoblic_prospecting",
+      )
       .single();
 
     if (insertError || !inserted?.id) {
@@ -458,6 +491,7 @@ export async function createLicenseeMasterAsSuperAdmin(input: {
         licenseeAccountId: inserted.id,
         businessName: businessName || null,
         defaultLanguage,
+        allowUnclaimedGetoblicProspecting,
         authUserCreated,
       },
       success: true,

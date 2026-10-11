@@ -11,6 +11,7 @@ import { listManageableAccountsForSuperAdmin } from "@/services/superAdmin/super
 import { listGetOblicDirectoryAllocationsForSuperAdmin } from "@/services/superAdmin/superAdminGetOblicDirectory";
 import { listLicenseeCommercialFeesForSuperAdmin } from "@/services/superAdmin/superAdminLicenseeCommercialFees";
 import { listLicenseeDefaultLanguagesForSuperAdmin } from "@/services/superAdmin/superAdminLicenseeDefaultLanguage";
+import { listLicenseeUnclaimedGetoblicProspectingForSuperAdmin } from "@/services/superAdmin/superAdminLicenseeUnclaimedGetoblicProspecting";
 import { getActiveEstimatePricingMethodologyInstruction } from "@/services/estimate/estimatePricingMethodologyInstruction";
 import { getActiveTrendSocialPromptInstruction } from "@/services/superAdmin/strategicBlueprintInstructions";
 import {
@@ -61,6 +62,8 @@ export default async function SuperAdminPage({
     await listLicenseeCommercialFeesForSuperAdmin(user.id);
   const licenseeDefaultLanguages =
     await listLicenseeDefaultLanguagesForSuperAdmin(user.id);
+  const licenseeUnclaimedGetoblicProspecting =
+    await listLicenseeUnclaimedGetoblicProspectingForSuperAdmin(user.id);
   const trendSocialPromptInstruction =
     await getActiveTrendSocialPromptInstruction();
   const estimatePricingMethodologyInstruction =
@@ -101,6 +104,9 @@ export default async function SuperAdminPage({
           initialDirectoryAllocations={directoryAllocations}
           initialLicenseeCommercialFees={licenseeCommercialFees}
           initialLicenseeDefaultLanguages={licenseeDefaultLanguages}
+          initialLicenseeUnclaimedGetoblicProspecting={
+            licenseeUnclaimedGetoblicProspecting
+          }
           initialTrendSocialPromptInstruction={{
             instructionText: trendSocialPromptInstruction.instructionText,
             revisionId: trendSocialPromptInstruction.revisionId,

@@ -44,6 +44,7 @@ import {
   type GetOblicWordpressListing,
 } from "@/services/getoblicDirectory/getoblicWordpressTypes";
 import { getProspectById } from "@/services/prospects/prospectService";
+import { resolveUnclaimedGetoblicDirectoryMode } from "@/services/getoblicDirectory/unclaimedGetoblicDirectoryMode";
 
 const REMOTE_ERROR_MAX_LENGTH = 500;
 const ACTIVE_STATUS_LIST = ["claiming", "linked", "remote_missing"] as const;
@@ -359,6 +360,17 @@ export async function claimKnownExistingListing(
   input: ClaimKnownListingInput,
   wordpress: ClaimKnownListingWordpressPort = defaultWordpressPort,
 ): Promise<ClaimKnownListingResult> {
+  const directoryMode = await resolveUnclaimedGetoblicDirectoryMode(
+    input.organizationId,
+  );
+  if (directoryMode !== "ordinary") {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_UNCLAIMED_PROSPECTING_NOT_AUTHORIZED",
+      "This listing could not be claimed.",
+      403,
+    );
+  }
+
   const wordpressListingId = parseWordpressListingId(input.wordpressListingId);
   const now = input.now ?? new Date();
 

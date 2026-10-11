@@ -30,6 +30,13 @@ type SuperAdminLicenseeDirectoryProps = {
     value: OrganizationLanguage,
   ) => void;
   onSaveDefaultLanguage: (licenseeAccountId: string) => void;
+  allowUnclaimedGetoblicProspectingDrafts: Record<string, boolean>;
+  savingAllowUnclaimedGetoblicProspectingKey: string | null;
+  onAllowUnclaimedGetoblicProspectingDraftChange: (
+    licenseeAccountId: string,
+    value: boolean,
+  ) => void;
+  onSaveAllowUnclaimedGetoblicProspecting: (licenseeAccountId: string) => void;
   onSetAccess: (userId: string, action: "deactivate" | "reactivate") => void;
   allowanceDrafts: Record<string, string>;
   accountEmailDrafts: Record<string, string>;
@@ -66,6 +73,10 @@ export function SuperAdminLicenseeDirectory({
   savingLanguageKey,
   onLanguageDraftChange,
   onSaveDefaultLanguage,
+  allowUnclaimedGetoblicProspectingDrafts,
+  savingAllowUnclaimedGetoblicProspectingKey,
+  onAllowUnclaimedGetoblicProspectingDraftChange,
+  onSaveAllowUnclaimedGetoblicProspecting,
   onSetAccess,
   allowanceDrafts,
   accountEmailDrafts,
@@ -173,6 +184,26 @@ export function SuperAdminLicenseeDirectory({
                 }
                 onSaveDefaultLanguage={() =>
                   onSaveDefaultLanguage(licensee.licenseeAccountId)
+                }
+                allowUnclaimedGetoblicProspectingDraft={
+                  allowUnclaimedGetoblicProspectingDrafts[
+                    licensee.licenseeAccountId
+                  ] ?? licensee.allowUnclaimedGetoblicProspecting
+                }
+                savingAllowUnclaimedGetoblicProspecting={
+                  savingAllowUnclaimedGetoblicProspectingKey ===
+                  licensee.licenseeAccountId
+                }
+                onAllowUnclaimedGetoblicProspectingDraftChange={(value) =>
+                  onAllowUnclaimedGetoblicProspectingDraftChange(
+                    licensee.licenseeAccountId,
+                    value,
+                  )
+                }
+                onSaveAllowUnclaimedGetoblicProspecting={() =>
+                  onSaveAllowUnclaimedGetoblicProspecting(
+                    licensee.licenseeAccountId,
+                  )
                 }
                 onSetAccess={onSetAccess}
                 allowanceDrafts={allowanceDrafts}

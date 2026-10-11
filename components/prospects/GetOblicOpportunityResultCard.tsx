@@ -32,6 +32,7 @@ export type GetOblicOpportunitySearchHit = {
     | "OWNED_BY_THIS_ORG"
     | "INCOMPLETE_FOR_THIS_ORG"
     | "UNAVAILABLE";
+  same_org_added_id?: string | null;
 };
 
 export type GetOblicOpportunityCardPhase =
@@ -40,7 +41,8 @@ export type GetOblicOpportunityCardPhase =
   | "incomplete"
   | "unavailable"
   | "in_progress"
-  | "failed";
+  | "failed"
+  | "already_added";
 
 export function resolveGetOblicOpportunityCardPhase(input: {
   claimStatus: string;
@@ -55,6 +57,23 @@ export function resolveGetOblicOpportunityCardPhase(input: {
   }
   if (input.claimStatus === "UNAVAILABLE") {
     return "unavailable";
+  }
+  if (input.inFlight) return "in_progress";
+  if (input.failed) return "failed";
+  return "available";
+}
+
+export function resolveUnclaimedDirectoryOpportunityCardPhase(input: {
+  claimStatus: string;
+  sameOrgUnclaimedProspectId?: string | null;
+  inFlight: boolean;
+  failed: boolean;
+}): GetOblicOpportunityCardPhase {
+  if (input.claimStatus === "OWNED_BY_THIS_ORG") {
+    return input.inFlight ? "in_progress" : "owned";
+  }
+  if (input.sameOrgUnclaimedProspectId?.trim()) {
+    return input.inFlight ? "in_progress" : "already_added";
   }
   if (input.inFlight) return "in_progress";
   if (input.failed) return "failed";
@@ -87,6 +106,7 @@ type GetOblicOpportunityResultCardProps = {
   failed: boolean;
   failureMessage?: string | null;
   addDisabled?: boolean;
+  unclaimedMode?: boolean;
   onAdd: (hit: GetOblicOpportunitySearchHit) => void;
   onOpen: (hit: GetOblicOpportunitySearchHit) => void;
 };
@@ -98,15 +118,23 @@ export function GetOblicOpportunityResultCard({
   failed,
   failureMessage,
   addDisabled = false,
+  unclaimedMode = false,
   onAdd,
   onOpen,
 }: GetOblicOpportunityResultCardProps) {
   const copy = messages.prospects.find;
-  const phase = resolveGetOblicOpportunityCardPhase({
-    claimStatus: hit.athena_claim_status,
-    inFlight,
-    failed,
-  });
+  const phase = unclaimedMode
+    ? resolveUnclaimedDirectoryOpportunityCardPhase({
+        claimStatus: hit.athena_claim_status,
+        sameOrgUnclaimedProspectId: hit.same_org_added_id,
+        inFlight,
+        failed,
+      })
+    : resolveGetOblicOpportunityCardPhase({
+        claimStatus: hit.athena_claim_status,
+        inFlight,
+        failed,
+      });
   const title = String(hit.title ?? "").trim() || copy.imageAlt;
   const category = firstGetOblicOpportunityCategoryName(hit.category);
   const location = String(hit.location_display ?? "").trim();
@@ -115,7 +143,9 @@ export function GetOblicOpportunityResultCard({
   const phaseLabel =
     phase === "owned"
       ? copy.alreadyInMyOpportunities
-      : phase === "incomplete"
+      : phase === "already_added"
+        ? copy.alreadyAdded
+        : phase === "incomplete"
         ? copy.needsFinishing
         : phase === "unavailable"
           ? copy.alreadyBeingPursued
@@ -160,10 +190,12 @@ export function GetOblicOpportunityResultCard({
               ? copy.tryAgain
               : phase === "incomplete"
                 ? copy.finishAdding
-                : copy.addToOpportunities}
+                : unclaimedMode
+                  ? copy.addAsProspect
+                  : copy.addToOpportunities}
           </button>
         ) : null}
-        {phase === "owned" ? (
+        {phase === "owned" || phase === "already_added" ? (
           <button
             type="button"
             disabled={inFlight}

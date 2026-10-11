@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, ChevronDown, Languages, Wallet } from "lucide-react";
+import { Building2, ChevronDown, Languages, ShieldCheck, Wallet } from "lucide-react";
 import type { SuperAdminLicenseeView } from "@/lib/superAdmin/superAdminDashboardView";
 import { SuperAdminSubAccountCard } from "@/components/superAdmin/SuperAdminSubAccountCard";
 import {
@@ -28,6 +28,10 @@ import {
   SUB_ACCOUNT_MONTHLY_FEE_LABEL,
 } from "@/services/superAdmin/superAdminLicenseeCommercialFeeTypes";
 import { LICENSEE_DEFAULT_LANGUAGE_LABEL } from "@/services/superAdmin/superAdminLicenseeDefaultLanguageTypes";
+import {
+  UNCLAIMED_GETOBLIC_PROSPECTING_LABEL,
+  UNCLAIMED_GETOBLIC_PROSPECTING_SUPPORTING_COPY,
+} from "@/services/superAdmin/superAdminLicenseeUnclaimedGetoblicProspectingTypes";
 
 type SuperAdminLicenseeCardProps = {
   licensee: SuperAdminLicenseeView;
@@ -44,6 +48,10 @@ type SuperAdminLicenseeCardProps = {
   savingDefaultLanguage: boolean;
   onDefaultLanguageDraftChange: (value: OrganizationLanguage) => void;
   onSaveDefaultLanguage: () => void;
+  allowUnclaimedGetoblicProspectingDraft: boolean;
+  savingAllowUnclaimedGetoblicProspecting: boolean;
+  onAllowUnclaimedGetoblicProspectingDraftChange: (value: boolean) => void;
+  onSaveAllowUnclaimedGetoblicProspecting: () => void;
   onSetAccess: (userId: string, action: "deactivate" | "reactivate") => void;
   allowanceDrafts: Record<string, string>;
   accountEmailDrafts: Record<string, string>;
@@ -82,6 +90,10 @@ export function SuperAdminLicenseeCard({
   savingDefaultLanguage,
   onDefaultLanguageDraftChange,
   onSaveDefaultLanguage,
+  allowUnclaimedGetoblicProspectingDraft,
+  savingAllowUnclaimedGetoblicProspecting,
+  onAllowUnclaimedGetoblicProspectingDraftChange,
+  onSaveAllowUnclaimedGetoblicProspecting,
   onSetAccess,
   allowanceDrafts,
   accountEmailDrafts,
@@ -148,6 +160,11 @@ export function SuperAdminLicenseeCard({
               {" · "}
               {LICENSEE_DEFAULT_LANGUAGE_LABEL}{" "}
               {organizationLanguageLabel(licensee.defaultLanguage)}
+              {" · "}
+              Unclaimed GetOblic prospecting{" "}
+              {licensee.allowUnclaimedGetoblicProspecting
+                ? "Enabled"
+                : "Disabled"}
             </div>
             <div className="mt-1 text-xs leading-5 text-white/40">
               {licensee.getoblicRollup.label}
@@ -327,6 +344,55 @@ export function SuperAdminLicenseeCard({
               <div className="text-xs text-white/40">
                 Current {organizationLanguageLabel(licensee.defaultLanguage)}
               </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <span
+                className={`grid size-9 place-items-center rounded-xl ${SUPER_ADMIN_ICON_WELL.violet}`}
+                aria-hidden="true"
+              >
+                <ShieldCheck size={16} />
+              </span>
+              <div>
+                <div className="text-sm font-medium text-white/80">
+                  {UNCLAIMED_GETOBLIC_PROSPECTING_LABEL}
+                </div>
+                <p className="mt-1 text-sm leading-6 text-white/45">
+                  {UNCLAIMED_GETOBLIC_PROSPECTING_SUPPORTING_COPY}
+                </p>
+              </div>
+            </div>
+            <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-white/80">
+              <input
+                type="checkbox"
+                checked={allowUnclaimedGetoblicProspectingDraft}
+                onChange={(event) =>
+                  onAllowUnclaimedGetoblicProspectingDraftChange(
+                    event.target.checked,
+                  )
+                }
+                aria-label={UNCLAIMED_GETOBLIC_PROSPECTING_LABEL}
+                className="mt-1"
+              />
+              <span>{UNCLAIMED_GETOBLIC_PROSPECTING_LABEL}</span>
+            </label>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-xs text-white/40">
+                Current{" "}
+                {licensee.allowUnclaimedGetoblicProspecting
+                  ? "Enabled"
+                  : "Disabled"}
+              </div>
+              <button
+                type="button"
+                disabled={pending || savingAllowUnclaimedGetoblicProspecting}
+                onClick={onSaveAllowUnclaimedGetoblicProspecting}
+                className={SUPER_ADMIN_PRIMARY_BUTTON_CLASS}
+              >
+                Save
+              </button>
             </div>
           </div>
 

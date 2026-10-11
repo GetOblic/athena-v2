@@ -301,6 +301,38 @@ export function firstGetOblicCategoryName(
   return null;
 }
 
+/**
+ * Row stamped by acquire_unclaimed_getoblic_prospect.
+ * Ordinary conversion writes attribution and a richer observed snapshot.
+ * Directory repeat-add of this exact row must not claim it.
+ */
+export function isExactUnclaimedGetoblicDirectoryProspect(
+  prospect: Pick<Prospect, "source" | "raw_json">,
+  wordpressListingId: number,
+): boolean {
+  if (prospect.source !== GETOBLIC_PROSPECT_SOURCE) return false;
+  const raw = prospect.raw_json;
+  if (!raw) return false;
+  const keys = Object.keys(raw);
+  if (
+    keys.length !== 3 ||
+    !keys.includes("origin") ||
+    !keys.includes("wordpress_listing_id") ||
+    !keys.includes("observed")
+  ) {
+    return false;
+  }
+  if (raw.origin !== GETOBLIC_PROSPECT_PROVENANCE_ORIGIN) return false;
+  if (readGetOblicListingIdentity(raw) !== wordpressListingId) return false;
+  const observed = asRecord(raw.observed);
+  if (!observed) return false;
+  const observedKeys = Object.keys(observed);
+  if (observedKeys.length !== 1 || observedKeys[0] !== "wordpress_listing_id") {
+    return false;
+  }
+  return readPositiveInteger(observed.wordpress_listing_id) === wordpressListingId;
+}
+
 export function readGetOblicListingIdentity(
   rawJson: Record<string, unknown> | null | undefined,
 ): number | null {
@@ -502,6 +534,25 @@ export async function convertGetOblicDirectoryListing(
     input.wordpressListingId,
   );
   const observed = sanitizeGetOblicConvertObserved(input.observed);
+
+  const unclaimedExisting = await dependencies.findOriginProspectByListingId(
+    organizationId,
+    wordpressListingId,
+  );
+  if (
+    unclaimedExisting?.organization_id === organizationId &&
+    isExactUnclaimedGetoblicDirectoryProspect(
+      unclaimedExisting,
+      wordpressListingId,
+    )
+  ) {
+    return presentProspect({
+      prospect: unclaimedExisting,
+      outcome: "reused",
+      generationQueued: false,
+      allocated: false,
+    });
+  }
 
   const activeClaim = await dependencies.getActiveListingClaim(
     wordpressListingId,
@@ -893,6 +944,17 @@ async function finishExistingProspect(args: {
   wordpress?: ClaimKnownListingWordpressPort;
 }): Promise<GetOblicConvertResult> {
   const prospect = args.prospect;
+  if (
+    prospect.organization_id === args.organizationId &&
+    isExactUnclaimedGetoblicDirectoryProspect(prospect, args.wordpressListingId)
+  ) {
+    return presentProspect({
+      prospect,
+      outcome: "reused",
+      generationQueued: false,
+      allocated: false,
+    });
+  }
 
   try {
     const claim = await args.dependencies.claimKnownExistingListing(

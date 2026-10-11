@@ -46,6 +46,11 @@ import {
   LICENSEE_DEFAULT_LANGUAGE_LABEL,
   type LicenseeDefaultLanguageSetting,
 } from "@/services/superAdmin/superAdminLicenseeDefaultLanguageTypes";
+import {
+  UNCLAIMED_GETOBLIC_PROSPECTING_LABEL,
+  UNCLAIMED_GETOBLIC_PROSPECTING_SUPPORTING_COPY,
+  type LicenseeUnclaimedGetoblicProspectingSetting,
+} from "@/services/superAdmin/superAdminLicenseeUnclaimedGetoblicProspectingTypes";
 
 type GovernedInstructionState = {
   instructionText: string;
@@ -59,6 +64,7 @@ type SuperAdminDashboardClientProps = {
   initialDirectoryAllocations: SuperAdminGetOblicDirectoryAllocationModel;
   initialLicenseeCommercialFees: LicenseeCommercialFees[];
   initialLicenseeDefaultLanguages: LicenseeDefaultLanguageSetting[];
+  initialLicenseeUnclaimedGetoblicProspecting: LicenseeUnclaimedGetoblicProspectingSetting[];
   initialTrendSocialPromptInstruction: GovernedInstructionState;
   initialEstimatePricingMethodologyInstruction: GovernedInstructionState;
   notice?: string | null;
@@ -74,6 +80,10 @@ type CommercialFeeSaveApiBody = ApiErrorBody & {
 
 type DefaultLanguageSaveApiBody = ApiErrorBody & {
   setting?: LicenseeDefaultLanguageSetting;
+};
+
+type UnclaimedGetoblicProspectingSaveApiBody = ApiErrorBody & {
+  setting?: LicenseeUnclaimedGetoblicProspectingSetting;
 };
 
 type ApiErrorBody = {
@@ -140,6 +150,7 @@ export function SuperAdminDashboardClient({
   initialDirectoryAllocations,
   initialLicenseeCommercialFees,
   initialLicenseeDefaultLanguages,
+  initialLicenseeUnclaimedGetoblicProspecting,
   initialTrendSocialPromptInstruction,
   initialEstimatePricingMethodologyInstruction,
   notice,
@@ -162,6 +173,8 @@ export function SuperAdminDashboardClient({
   const [licenseeName, setLicenseeName] = useState("");
   const [licenseeDefaultLanguage, setLicenseeDefaultLanguage] =
     useState<OrganizationLanguage>(DEFAULT_ORGANIZATION_LANGUAGE);
+  const [allowUnclaimedGetoblicProspecting, setAllowUnclaimedGetoblicProspecting] =
+    useState(false);
   const [trendSocialPromptText, setTrendSocialPromptText] = useState(
     initialTrendSocialPromptInstruction.instructionText,
   );
@@ -213,12 +226,29 @@ export function SuperAdminDashboardClient({
   const [savingLanguageKey, setSavingLanguageKey] = useState<string | null>(
     null,
   );
+  const [
+    licenseeUnclaimedGetoblicProspecting,
+    setLicenseeUnclaimedGetoblicProspecting,
+  ] = useState(initialLicenseeUnclaimedGetoblicProspecting);
+  const [
+    allowUnclaimedGetoblicProspectingDrafts,
+    setAllowUnclaimedGetoblicProspectingDrafts,
+  ] = useState<Record<string, boolean>>(() =>
+    buildAllowUnclaimedGetoblicProspectingDrafts(
+      initialLicenseeUnclaimedGetoblicProspecting,
+    ),
+  );
+  const [
+    savingAllowUnclaimedGetoblicProspectingKey,
+    setSavingAllowUnclaimedGetoblicProspectingKey,
+  ] = useState<string | null>(null);
 
   const view = buildSuperAdminDashboardView({
     accounts: initialAccounts,
     directoryAllocations,
     licenseeCommercialFees,
     licenseeDefaultLanguages,
+    licenseeUnclaimedGetoblicProspecting,
     trendSocialPromptConfigured: trendSocialPromptMeta.configured,
     estimateMethodologyConfigured: estimateMethodologyMeta.configured,
   });
@@ -260,10 +290,12 @@ export function SuperAdminDashboardClient({
         email: licenseeEmail,
         businessName: licenseeName || undefined,
         defaultLanguage: licenseeDefaultLanguage,
+        allowUnclaimedGetoblicProspecting,
       });
       setLicenseeEmail("");
       setLicenseeName("");
       setLicenseeDefaultLanguage(DEFAULT_ORGANIZATION_LANGUAGE);
+      setAllowUnclaimedGetoblicProspecting(false);
       setLocalNotice("Business Licensee Master created.");
       refresh();
     } catch (err) {
@@ -598,6 +630,78 @@ export function SuperAdminDashboardClient({
     }
   }
 
+  function allowUnclaimedGetoblicProspectingDraftFor(
+    licenseeAccountId: string,
+  ): boolean {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        allowUnclaimedGetoblicProspectingDrafts,
+        licenseeAccountId,
+      )
+    ) {
+      return (
+        allowUnclaimedGetoblicProspectingDrafts[licenseeAccountId] === true
+      );
+    }
+    return (
+      licenseeUnclaimedGetoblicProspecting.find(
+        (row) => row.licenseeAccountId === licenseeAccountId,
+      )?.allowUnclaimedGetoblicProspecting === true
+    );
+  }
+
+  function updateAllowUnclaimedGetoblicProspectingDraft(
+    licenseeAccountId: string,
+    value: boolean,
+  ) {
+    setAllowUnclaimedGetoblicProspectingDrafts((current) => ({
+      ...current,
+      [licenseeAccountId]: value,
+    }));
+  }
+
+  async function saveAllowUnclaimedGetoblicProspecting(
+    licenseeAccountId: string,
+  ) {
+    const nextAllow =
+      allowUnclaimedGetoblicProspectingDraftFor(licenseeAccountId);
+
+    setError(null);
+    setLocalNotice(null);
+    setSavingAllowUnclaimedGetoblicProspectingKey(licenseeAccountId);
+    try {
+      const payload = (await patchJson(
+        "/api/super/accounts/licensee/unclaimed-getoblic-prospecting",
+        {
+          licenseeAccountId,
+          allowUnclaimedGetoblicProspecting: nextAllow,
+        },
+      )) as UnclaimedGetoblicProspectingSaveApiBody;
+      const next = payload.setting;
+      if (!next) {
+        throw new Error(
+          "Save succeeded without a refreshed unclaimed GetOblic prospecting setting.",
+        );
+      }
+      setLicenseeUnclaimedGetoblicProspecting((current) =>
+        replaceAllowUnclaimedGetoblicProspectingRow(current, next),
+      );
+      setAllowUnclaimedGetoblicProspectingDrafts((current) => ({
+        ...current,
+        [next.licenseeAccountId]: next.allowUnclaimedGetoblicProspecting,
+      }));
+      setLocalNotice(`${UNCLAIMED_GETOBLIC_PROSPECTING_LABEL} saved.`);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Save unclaimed GetOblic prospecting failed.",
+      );
+    } finally {
+      setSavingAllowUnclaimedGetoblicProspectingKey(null);
+    }
+  }
+
   async function saveEstimatePricingMethodology(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -737,6 +841,25 @@ export function SuperAdminDashboardClient({
           Licensee. Existing organizations are not changed.
         </span>
       </label>
+      <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-white/80">
+        <input
+          type="checkbox"
+          checked={allowUnclaimedGetoblicProspecting}
+          onChange={(event) =>
+            setAllowUnclaimedGetoblicProspecting(event.target.checked)
+          }
+          aria-label={UNCLAIMED_GETOBLIC_PROSPECTING_LABEL}
+          className="mt-1"
+        />
+        <span>
+          <span className="font-medium text-white/80">
+            {UNCLAIMED_GETOBLIC_PROSPECTING_LABEL}
+          </span>
+          <span className="mt-1 block text-sm leading-6 text-white/40">
+            {UNCLAIMED_GETOBLIC_PROSPECTING_SUPPORTING_COPY}
+          </span>
+        </span>
+      </label>
     </>
   );
 
@@ -770,6 +893,18 @@ export function SuperAdminDashboardClient({
           savingLanguageKey={savingLanguageKey}
           onLanguageDraftChange={updateLanguageDraft}
           onSaveDefaultLanguage={saveLicenseeDefaultLanguage}
+          allowUnclaimedGetoblicProspectingDrafts={
+            allowUnclaimedGetoblicProspectingDrafts
+          }
+          savingAllowUnclaimedGetoblicProspectingKey={
+            savingAllowUnclaimedGetoblicProspectingKey
+          }
+          onAllowUnclaimedGetoblicProspectingDraftChange={
+            updateAllowUnclaimedGetoblicProspectingDraft
+          }
+          onSaveAllowUnclaimedGetoblicProspecting={
+            saveAllowUnclaimedGetoblicProspecting
+          }
           onSetAccess={setAccess}
           allowanceDrafts={allowanceDrafts}
           accountEmailDrafts={accountEmailDrafts}
@@ -872,6 +1007,31 @@ function buildLanguageDrafts(
     drafts[row.licenseeAccountId] = row.defaultLanguage;
   }
   return drafts;
+}
+
+function buildAllowUnclaimedGetoblicProspectingDrafts(
+  rows: LicenseeUnclaimedGetoblicProspectingSetting[],
+): Record<string, boolean> {
+  const drafts: Record<string, boolean> = {};
+  for (const row of rows) {
+    drafts[row.licenseeAccountId] = row.allowUnclaimedGetoblicProspecting;
+  }
+  return drafts;
+}
+
+function replaceAllowUnclaimedGetoblicProspectingRow(
+  rows: LicenseeUnclaimedGetoblicProspectingSetting[],
+  next: LicenseeUnclaimedGetoblicProspectingSetting,
+): LicenseeUnclaimedGetoblicProspectingSetting[] {
+  let replaced = false;
+  const updated = rows.map((row) => {
+    if (row.licenseeAccountId !== next.licenseeAccountId) {
+      return row;
+    }
+    replaced = true;
+    return next;
+  });
+  return replaced ? updated : [...updated, next];
 }
 
 function replaceLanguageRow(
