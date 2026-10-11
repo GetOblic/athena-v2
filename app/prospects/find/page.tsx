@@ -37,17 +37,19 @@ export default async function FindOpportunitiesPage() {
     ...freeProgression
   } = freeConvert;
   const canAddProspect = shouldShowProspectFindAdd(presentation);
-  const requireGoogleAuthorMapping =
-    shouldRequireGoogleAuthorMapping(presentation);
   const boundProspectHref = convert.prospectId
     ? `/prospects/${convert.prospectId}`
     : null;
-  const [settings, prospectCapacity, directoryMode] = await Promise.all([
+  const directoryMode =
+    await resolveUnclaimedGetoblicDirectoryMode(organizationId);
+  const requireGoogleAuthorMapping =
+    shouldRequireGoogleAuthorMapping(presentation) &&
+    directoryMode !== "unclaimed";
+  const [settings, prospectCapacity] = await Promise.all([
     requireGoogleAuthorMapping
       ? getGetOblicDirectorySettings(organizationId)
       : Promise.resolve(null),
     getOrganizationProspectCapacity(organizationId),
-    resolveUnclaimedGetoblicDirectoryMode(organizationId),
   ]);
   const capacity =
     settings?.configured
@@ -107,6 +109,7 @@ export default async function FindOpportunitiesPage() {
         directoryAvailable={shouldOfferGetOblicDiscovery(presentation)}
         googleAvailable={shouldOfferGoogleDiscovery(presentation)}
         directoryMode={directoryMode}
+        fullAthena={presentation === "full"}
       />
     </TenantAppShell>
   );

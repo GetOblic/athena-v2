@@ -11,6 +11,10 @@ export function directoryErrorStatus(code: GetOblicDirectoryErrorCode): number {
     case "GETOBLIC_UNCLAIMED_OUTBOUND_NOT_AUTHORIZED":
     case "GETOBLIC_UNCLAIMED_PROSPECTING_NOT_AUTHORIZED":
       return 403;
+    case "GETOBLIC_GOOGLE_PLACE_NOT_LISTED":
+      return 404;
+    case "GETOBLIC_GOOGLE_PLACE_AMBIGUOUS":
+      return 409;
     case "GETOBLIC_INVALID_WORDPRESS_LISTING_ID":
     case "GETOBLIC_SEARCH_INVALID_REQUEST":
     case "GETOBLIC_NEEDS_BUSINESS_NAME":

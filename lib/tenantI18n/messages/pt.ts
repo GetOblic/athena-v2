@@ -2717,6 +2717,8 @@ export const pt: TenantMessages = {
         googleDescription: "Procure um negócio real e adicione-o.",
         googleUnavailable:
           "A sua oportunidade Free já foi investigada.",
+        googleAcquisitionUnavailable:
+          "A Athena não pode adicionar um negócio do Google neste espaço.",
       },
       google: {
         inputLabel: "Pesquisa de negócio",
@@ -2737,6 +2739,10 @@ export const pt: TenantMessages = {
         addFailed:
           "A Athena não conseguiu adicionar este negócio do Google. Tente novamente.",
         success: "A Athena adicionou esta oportunidade.",
+        notInGetOblic:
+          "Este negócio não está listado no GetOblic, por isso a Athena não o adicionou.",
+        ambiguousListing:
+          "A Athena encontrou mais do que uma listagem GetOblic para este negócio e não adicionou nenhuma.",
       },
     },
     websiteCompletion: {

@@ -43,6 +43,7 @@ type GoogleBusinessDiscoveryProps = {
   listingCapacityReached: boolean;
   prospectCapacityReached: boolean;
   canAddProspect?: boolean;
+  directoryMode?: "ordinary" | "unclaimed" | "refused";
 };
 
 function readGoogleMapsBrowserKey(): string {
@@ -73,6 +74,12 @@ function googleFailureCopy(
     case "GETOBLIC_LISTING_NOT_CLAIMABLE":
     case "GOOGLE_BUSINESS_AUTHOR_MISMATCH":
       return find.alreadyBeingPursued;
+    case "GETOBLIC_GOOGLE_PLACE_NOT_LISTED":
+      return copy.notInGetOblic;
+    case "GETOBLIC_GOOGLE_PLACE_AMBIGUOUS":
+      return copy.ambiguousListing;
+    case "GETOBLIC_UNCLAIMED_PROSPECTING_NOT_AUTHORIZED":
+      return find.methods.googleAcquisitionUnavailable;
     default:
       return fallback;
   }
@@ -84,6 +91,7 @@ export function GoogleBusinessDiscovery({
   listingCapacityReached,
   prospectCapacityReached,
   canAddProspect = true,
+  directoryMode = "ordinary",
 }: GoogleBusinessDiscoveryProps) {
   const router = useRouter();
   const copy = messages.prospects.find.google;
@@ -150,6 +158,11 @@ export function GoogleBusinessDiscovery({
 
   async function addSelectedBusiness() {
     if (!selected || submitting || authorMappingMissing) {
+      if (directoryMode !== "unclaimed" || !selected || submitting) {
+        return;
+      }
+    }
+    if (directoryMode === "refused") {
       return;
     }
 
@@ -193,26 +206,33 @@ export function GoogleBusinessDiscovery({
     canAddProspect &&
     Boolean(selected) &&
     !submitting &&
-    !authorMappingMissing &&
-    !prospectCapacityReached &&
+    directoryMode !== "refused" &&
+    (directoryMode === "unclaimed" || !authorMappingMissing) &&
+    (directoryMode === "unclaimed" || !prospectCapacityReached) &&
     loaderStatus === "ready";
 
   return (
     <div className="space-y-6">
       {authorMappingMissing ? (
-        <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
-          {copy.authorMappingMissing}
-        </div>
+        directoryMode === "unclaimed" ? null : (
+          <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
+            {copy.authorMappingMissing}
+          </div>
+        )
       ) : null}
       {listingCapacityReached ? (
-        <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
-          {find.listingCapacityReached}
-        </div>
+        directoryMode === "unclaimed" ? null : (
+          <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
+            {find.listingCapacityReached}
+          </div>
+        )
       ) : null}
       {prospectCapacityReached ? (
-        <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
-          {find.prospectCapacityReached}
-        </div>
+        directoryMode === "unclaimed" ? null : (
+          <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
+            {find.prospectCapacityReached}
+          </div>
+        )
       ) : null}
       {loaderStatus === "missing_key" ? (
         <div className={`${PROSPECT_CAPACITY_SURFACE_CLASS} text-sm leading-6 text-white/70`}>
@@ -294,7 +314,11 @@ export function GoogleBusinessDiscovery({
           onClick={() => void addSelectedBusiness()}
           className={`${PROSPECT_LIBRARY_PRIMARY_ACTION} disabled:opacity-40`}
         >
-          {submitting ? copy.adding : copy.addCta}
+          {submitting
+            ? copy.adding
+            : directoryMode === "unclaimed"
+              ? find.addAsProspect
+              : copy.addCta}
         </button>
       ) : null}
 

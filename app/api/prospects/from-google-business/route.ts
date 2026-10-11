@@ -7,6 +7,8 @@ import {
   convertOutcomeHttpStatus,
   toPublicGetOblicConversion,
 } from "@/services/getoblicDirectory/getoblicDirectoryConvertService";
+import { acquireUnclaimedGetoblicProspectByGooglePlaceId } from "@/services/getoblicDirectory/unclaimedGetoblicGooglePlaceAcquisition";
+import { resolveUnclaimedGetoblicDirectoryMode } from "@/services/getoblicDirectory/unclaimedGetoblicDirectoryMode";
 import { convertGoogleBusinessSelection } from "@/services/googleBusiness/googleBusinessConvertService";
 import { sanitizeGoogleBusinessPayload } from "@/services/googleBusiness/googleBusinessMakeService";
 import { GoogleBusinessMakeError } from "@/services/googleBusiness/googleBusinessMakeTypes";
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
         ? origin.licenseeAccountId
         : null;
 
-    sanitizeGoogleBusinessPayload(body);
+    const googleBusiness = sanitizeGoogleBusinessPayload(body);
 
     const convertContext = await assertCurrentFreeConvertGeneration({
       action: "create",
@@ -90,6 +92,33 @@ export async function POST(request: NextRequest) {
         },
         result.queued ? 202 : 200,
       );
+    }
+
+    const directoryMode =
+      await resolveUnclaimedGetoblicDirectoryMode(organizationId);
+    if (directoryMode === "refused") {
+      throw new GetOblicDirectoryError(
+        "GETOBLIC_UNCLAIMED_PROSPECTING_NOT_AUTHORIZED",
+        "Athena couldn’t add this Google business.",
+        403,
+      );
+    }
+
+    if (directoryMode === "unclaimed") {
+      const acquired = await acquireUnclaimedGetoblicProspectByGooglePlaceId({
+        organizationId,
+        actorUserId: userId,
+        googleId: googleBusiness.google_id,
+      });
+      return json({
+        ok: true,
+        success: true,
+        conversion: {
+          outcome: acquired.inserted ? "created" : "reused",
+          prospect_id: acquired.prospectId,
+          generation_queued: false,
+        },
+      });
     }
 
     const { make, conversion } = await convertGoogleBusinessSelection({

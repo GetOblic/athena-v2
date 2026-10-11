@@ -2673,6 +2673,8 @@ export const it: TenantMessages = {
         googleDescription: "Cerca un’azienda reale e aggiungila.",
         googleUnavailable:
           "La tua opportunità Free è già stata ricercata.",
+        googleAcquisitionUnavailable:
+          "Athena non può aggiungere un’azienda Google per questo spazio.",
       },
       google: {
         inputLabel: "Ricerca di un’azienda",
@@ -2693,6 +2695,10 @@ export const it: TenantMessages = {
         addFailed:
           "Athena non ha potuto aggiungere questa azienda Google. Riprova.",
         success: "Athena ha aggiunto questa opportunità.",
+        notInGetOblic:
+          "Questa azienda non è presente in GetOblic, quindi Athena non l’ha aggiunta.",
+        ambiguousListing:
+          "Athena ha trovato più di una scheda GetOblic per questa azienda e non ne ha aggiunta una.",
       },
     },
     websiteCompletion: {

@@ -22,6 +22,7 @@ type OpportunityDiscoveryMethodsProps = {
   directoryAvailable?: boolean;
   googleAvailable?: boolean;
   directoryMode?: "ordinary" | "unclaimed" | "refused";
+  fullAthena?: boolean;
 };
 
 function methodCardClass(selected: boolean): string {
@@ -60,9 +61,13 @@ export function OpportunityDiscoveryMethods({
   directoryAvailable = true,
   googleAvailable: googleOffered = true,
   directoryMode = "ordinary",
+  fullAthena = false,
 }: OpportunityDiscoveryMethodsProps) {
   const copy = messages.prospects.find;
-  const googleAvailable = googleOffered && directoryMode === "ordinary";
+  const googleAvailable =
+    googleOffered &&
+    (directoryMode === "ordinary" ||
+      (fullAthena && directoryMode === "unclaimed"));
   const directoryUnavailableId = useId();
   const googleUnavailableId = useId();
   const [method, setMethod] = useState<OpportunityDiscoveryMethod>(
@@ -179,7 +184,9 @@ export function OpportunityDiscoveryMethods({
                   id={googleUnavailableId}
                   className="mt-1 text-sm leading-6 text-sky-200/85"
                 >
-                  {copy.methods.googleUnavailable}
+                  {fullAthena && directoryMode === "refused"
+                    ? copy.methods.googleAcquisitionUnavailable
+                    : copy.methods.googleUnavailable}
                 </p>
               </div>
             </div>
@@ -206,6 +213,7 @@ export function OpportunityDiscoveryMethods({
             listingCapacityReached={listingCapacityReached}
             prospectCapacityReached={prospectCapacityReached}
             canAddProspect={canAddProspect}
+            directoryMode={directoryMode}
           />
         </div>
       ) : null}

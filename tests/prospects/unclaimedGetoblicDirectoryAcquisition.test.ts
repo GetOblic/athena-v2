@@ -739,7 +739,14 @@ describe("unclaimed directory cards, copy, and ordinary limits", () => {
       discovery,
       /directoryMode !== "unclaimed" &&\s*prospectCapacityReached &&/,
     );
-    assert.match(methods, /googleOffered && directoryMode === "ordinary"/);
+    assert.match(
+      methods,
+      /fullAthena && directoryMode === "unclaimed"/,
+    );
+    assert.match(
+      read("components/prospects/GoogleBusinessDiscovery.tsx"),
+      /directoryMode === "unclaimed" \|\| !prospectCapacityReached/,
+    );
     assert.match(methods, /googleAvailable && !directoryAvailable/);
   });
 });

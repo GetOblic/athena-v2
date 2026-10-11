@@ -2636,6 +2636,8 @@ export const en = {
         googleLabel: "Find One Specific Business",
         googleDescription: "Look up one real business and add it.",
         googleUnavailable: "Your Free opportunity has already been researched.",
+        googleAcquisitionUnavailable:
+          "Athena can’t add a Google business for this workspace.",
       },
       google: {
         inputLabel: "Business search",
@@ -2655,6 +2657,10 @@ export const en = {
           "This workspace isn’t mapped to a GetOblic account yet, so Athena can’t add a Google business.",
         addFailed: "Athena couldn’t add this Google business. Try again.",
         success: "Athena added this opportunity.",
+        notInGetOblic:
+          "This business isn’t listed in GetOblic, so Athena didn’t add it.",
+        ambiguousListing:
+          "Athena found more than one GetOblic listing for this business and didn’t add one.",
       },
     },
     websiteCompletion: {
