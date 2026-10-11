@@ -7,6 +7,7 @@ import { normalizeDiscussionLifecycleKey } from "@/lib/discussionStatus";
 import { classifyOpportunityPriority } from "@/lib/opportunityPriority";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getDashboardStats } from "@/services/dashboardService";
+import type { OrganizationReadSnapshot } from "@/services/brain/organizationReadSnapshot";
 import { getTodaysIntelligence } from "@/services/todaysIntelligenceService";
 import { getDomainLearningTimeline } from "@/services/intelligenceDomainService";
 import type {
@@ -158,10 +159,11 @@ export async function loadOperationalMemory(
     monitor: OpportunityMemoryEntry[];
     lowPriority: OpportunityMemoryEntry[];
   },
+  organizationReadSnapshot?: OrganizationReadSnapshot,
 ): Promise<OperationalMemory> {
   const [dashboard, todaysIntelligence] = await Promise.all([
-    getDashboardStats(organizationId),
-    getTodaysIntelligence(organizationId),
+    getDashboardStats(organizationId, organizationReadSnapshot),
+    getTodaysIntelligence(organizationId, organizationReadSnapshot),
   ]);
 
   const pendingEditorialTotal =
@@ -190,13 +192,17 @@ export async function loadOperationalMemory(
 export async function enrichKnowledgeMemory(
   base: KnowledgeMemory,
   organizationId: string,
+  organizationReadSnapshot?: OrganizationReadSnapshot,
 ): Promise<KnowledgeMemory> {
   const [communityIntelligence, productionIntelligence] = await Promise.all([
     fetchRecentCommunityIntelligence(organizationId),
     fetchRecentProductionIntelligence(organizationId),
   ]);
 
-  const todays = await getTodaysIntelligence(organizationId);
+  const todays = await getTodaysIntelligence(
+    organizationId,
+    organizationReadSnapshot,
+  );
 
   return {
     ...base,

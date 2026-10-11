@@ -39,6 +39,10 @@ import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
 import type { DiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDiscussionById, getDiscussions } from "@/services/discussionService";
 import { getKnowledgeAssets } from "@/services/knowledgeAssetService";
+import {
+  matchingOrganizationReadSnapshot,
+  type OrganizationReadSnapshot,
+} from "@/services/brain/organizationReadSnapshot";
 import { getCanonicalOpportunities } from "@/services/opportunityService";
 import { belongsToOrganization } from "@/services/organizationService";
 import { getCanonicalReviews } from "@/services/reviewService";
@@ -103,6 +107,7 @@ async function verifyOptionalDiscussion(
 
 type ExecutiveMemoryBuildInput = BuildExecutiveMemoryParams & {
   sourceContext?: ExecutiveMemorySourceContext;
+  organizationReadSnapshot?: OrganizationReadSnapshot;
 };
 
 export async function buildExecutiveMemory(
@@ -114,6 +119,10 @@ export async function buildExecutiveMemory(
   const focusDomainId = params.domainId?.trim() || null;
   const focusDiscussionId = params.discussionId?.trim() || null;
   const source = params.sourceContext;
+  const records = matchingOrganizationReadSnapshot(
+    organizationId,
+    params.organizationReadSnapshot,
+  );
 
   const [
     resolvedDiscussions,
@@ -126,8 +135,8 @@ export async function buildExecutiveMemory(
   ] = await Promise.all([
     getDiscussions(organizationId),
     getAnalyzedDiscussionIds(organizationId),
-    getCanonicalOpportunities(organizationId),
-    getCanonicalReviews(organizationId),
+    getCanonicalOpportunities(organizationId, records?.opportunities),
+    getCanonicalReviews(organizationId, records?.reviews),
     getKnowledgeAssets(organizationId),
     fetchRecentAnalyses(organizationId),
     fetchRecentBlueprints(organizationId),

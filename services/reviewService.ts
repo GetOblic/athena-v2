@@ -4,6 +4,7 @@ import {
 } from "@/lib/canonicalRecords";
 import { isProtectedBriefingStatus } from "@/lib/briefingStatus";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { recordsBelongToOrganization } from "@/services/brain/organizationReadSnapshot";
 
 export type AthenaReview = {
   id: string;
@@ -97,9 +98,9 @@ export async function getReviewCount(
   return reviews.length;
 }
 
-export async function getReviews(
+export async function readReviewOrganizationList(
   organizationId: string,
-): Promise<AthenaReview[]> {
+): Promise<{ records: AthenaReview[]; failed: boolean }> {
   const { data, error } = await supabaseAdmin
     .from("athena_reviews")
     .select("*")
@@ -108,16 +109,32 @@ export async function getReviews(
 
   if (error) {
     console.error(error);
-    return [];
+    return { records: [], failed: true };
   }
 
-  return data ?? [];
+  return { records: data ?? [], failed: false };
+}
+
+export async function getReviews(
+  organizationId: string,
+  records?: AthenaReview[],
+): Promise<AthenaReview[]> {
+  if (
+    records !== undefined &&
+    recordsBelongToOrganization(records, organizationId)
+  ) {
+    return records.slice();
+  }
+
+  const read = await readReviewOrganizationList(organizationId);
+  return read.records;
 }
 
 export async function getCanonicalReviews(
   organizationId: string,
+  records?: AthenaReview[],
 ): Promise<AthenaReview[]> {
-  const reviews = await getReviews(organizationId);
+  const reviews = await getReviews(organizationId, records);
   return dedupeBriefingsByOpportunity(reviews);
 }
 

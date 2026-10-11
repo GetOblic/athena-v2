@@ -5,6 +5,10 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getCanonicalBlueprintCount } from "@/services/assetBlueprints/assetBlueprintService";
 import { getAnalyzedDiscussionIds } from "@/services/discussionAnalysisService";
 import { getDiscussions } from "@/services/discussionService";
+import {
+  matchingOrganizationReadSnapshot,
+  type OrganizationReadSnapshot,
+} from "@/services/brain/organizationReadSnapshot";
 import { getCanonicalOpportunities } from "@/services/opportunityService";
 import { getCanonicalReviews } from "@/services/reviewService";
 
@@ -58,7 +62,12 @@ async function getKnowledgeConfidenceSnapshot(
 
 export async function getTodaysIntelligence(
   organizationId: string,
+  organizationReadSnapshot?: OrganizationReadSnapshot,
 ): Promise<TodaysIntelligence> {
+  const records = matchingOrganizationReadSnapshot(
+    organizationId,
+    organizationReadSnapshot,
+  );
   const [
     discussions,
     analyzedDiscussionIds,
@@ -69,8 +78,8 @@ export async function getTodaysIntelligence(
   ] = await Promise.all([
     getDiscussions(organizationId),
     getAnalyzedDiscussionIds(organizationId),
-    getCanonicalOpportunities(organizationId),
-    getCanonicalReviews(organizationId),
+    getCanonicalOpportunities(organizationId, records?.opportunities),
+    getCanonicalReviews(organizationId, records?.reviews),
     getCanonicalBlueprintCount(organizationId),
     getKnowledgeConfidenceSnapshot(organizationId),
   ]);

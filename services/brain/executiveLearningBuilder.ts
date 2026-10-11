@@ -30,6 +30,10 @@ import {
 } from "@/services/brain/executiveLearningTypes";
 import { MAX_EXECUTIVE_MEMORY_ANALYSES } from "@/services/brain/executiveMemoryTypes";
 import { getDiscussionById, getDiscussions } from "@/services/discussionService";
+import {
+  matchingOrganizationReadSnapshot,
+  type OrganizationReadSnapshot,
+} from "@/services/brain/organizationReadSnapshot";
 import { getCanonicalOpportunities, getOpportunityById } from "@/services/opportunityService";
 import { belongsToOrganization } from "@/services/organizationService";
 import { getReviewById, getReviews } from "@/services/reviewService";
@@ -119,6 +123,7 @@ async function verifyOptionalEntities(
 
 type BuildExecutiveLearningInput = BuildExecutiveLearningParams & {
   sourceMemory?: ExecutiveMemory;
+  organizationReadSnapshot?: OrganizationReadSnapshot;
 };
 
 export async function buildExecutiveLearning(
@@ -132,19 +137,25 @@ export async function buildExecutiveLearning(
   const focusOpportunityId = params.opportunityId?.trim() || null;
   const focusBriefingId = params.briefingId?.trim() || null;
 
+  const records = matchingOrganizationReadSnapshot(
+    organizationId,
+    params.organizationReadSnapshot,
+  );
+
   const memory =
     params.sourceMemory ??
     (await buildExecutiveMemory({
       organizationId,
       domainId: focusDomainId ?? undefined,
       discussionId: focusDiscussionId ?? undefined,
+      organizationReadSnapshot: params.organizationReadSnapshot,
     }));
 
   const [discussions, opportunities, allBriefings, analyses, updateCounts] =
     await Promise.all([
       getDiscussions(organizationId),
-      getCanonicalOpportunities(organizationId),
-      getReviews(organizationId),
+      getCanonicalOpportunities(organizationId, records?.opportunities),
+      getReviews(organizationId, records?.reviews),
       fetchAnalyses(organizationId),
       fetchDiscussionUpdateCounts(organizationId),
     ]);

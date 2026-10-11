@@ -51,6 +51,10 @@ import {
   countStatusDistribution,
 } from "@/services/brain/brainContextHelpers";
 import {
+  matchingOrganizationReadSnapshot,
+  type OrganizationReadSnapshot,
+} from "@/services/brain/organizationReadSnapshot";
+import {
   splitMemoryPhrases,
   splitTerminology,
 } from "@/services/brain/executiveMemoryHelpers";
@@ -503,11 +507,15 @@ type OrgDataBundle = {
 
 async function loadOrganizationData(
   organizationId: string,
+  organizationReadSnapshot?: Promise<OrganizationReadSnapshot>,
 ): Promise<OrgDataBundle | null> {
   const organization = await fetchOrganization(organizationId);
   if (!organization) {
     return null;
   }
+
+  const readSnapshot = async () =>
+    organizationReadSnapshot ? await organizationReadSnapshot : undefined;
 
   const [
     identity,
@@ -523,8 +531,18 @@ async function loadOrganizationData(
     buildDomainMemory(organizationId),
     getDiscussions(organizationId),
     getAnalyzedDiscussionIds(organizationId),
-    getCanonicalOpportunities(organizationId),
-    getCanonicalReviews(organizationId),
+    readSnapshot().then((snapshot) =>
+      getCanonicalOpportunities(
+        organizationId,
+        matchingOrganizationReadSnapshot(organizationId, snapshot)?.opportunities,
+      ),
+    ),
+    readSnapshot().then((snapshot) =>
+      getCanonicalReviews(
+        organizationId,
+        matchingOrganizationReadSnapshot(organizationId, snapshot)?.reviews,
+      ),
+    ),
     getKnowledgeAssets(organizationId),
     fetchRecentBlueprints(organizationId),
   ]);
@@ -846,9 +864,10 @@ function assembleContext(
 
 export async function buildBrainContextForOrganization(
   organizationId: string,
+  organizationReadSnapshot?: Promise<OrganizationReadSnapshot>,
 ): Promise<BrainEngineContext | null> {
   const orgId = assertOrganizationId(organizationId);
-  const bundle = await loadOrganizationData(orgId);
+  const bundle = await loadOrganizationData(orgId, organizationReadSnapshot);
 
   if (!bundle) {
     return null;
@@ -896,7 +915,10 @@ export async function buildBrainContextForDiscussion(
   params: BuildBrainContextForDiscussionParams,
 ): Promise<BrainEngineContext | null> {
   const orgId = assertOrganizationId(params.organizationId);
-  const bundle = await loadOrganizationData(orgId);
+  const bundle = await loadOrganizationData(
+    orgId,
+    params.organizationReadSnapshot,
+  );
 
   if (!bundle) {
     return null;
@@ -997,7 +1019,10 @@ export async function buildBrainContextForOpportunity(
   params: BuildBrainContextForOpportunityParams,
 ): Promise<BrainEngineContext | null> {
   const orgId = assertOrganizationId(params.organizationId);
-  const bundle = await loadOrganizationData(orgId);
+  const bundle = await loadOrganizationData(
+    orgId,
+    params.organizationReadSnapshot,
+  );
 
   if (!bundle) {
     return null;
@@ -1111,7 +1136,10 @@ export async function buildBrainContextForBriefing(
   params: BuildBrainContextForBriefingParams,
 ): Promise<BrainEngineContext | null> {
   const orgId = assertOrganizationId(params.organizationId);
-  const bundle = await loadOrganizationData(orgId);
+  const bundle = await loadOrganizationData(
+    orgId,
+    params.organizationReadSnapshot,
+  );
 
   if (!bundle) {
     return null;

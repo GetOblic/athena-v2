@@ -1,4 +1,5 @@
 import type { AthenaBrainContext } from "@/services/brain/brainContextTypes";
+import type { OrganizationReadSnapshot } from "@/services/brain/organizationReadSnapshot";
 import {
   buildExecutiveMemory,
   ExecutiveMemoryOrganizationRequiredError,
@@ -81,6 +82,7 @@ export async function getExecutiveMemory(
   params: BuildExecutiveMemoryParams & {
     sourceContext?: ExecutiveMemorySourceContext;
     bypassCache?: boolean;
+    organizationReadSnapshot?: OrganizationReadSnapshot;
   },
 ): Promise<ExecutiveMemory> {
   if (!params.organizationId?.trim()) {

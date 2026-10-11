@@ -2,6 +2,10 @@ import { dedupeBriefingsByOpportunity } from "@/lib/canonicalRecords";
 import { normalizeBriefingStatus } from "@/lib/briefingStatus";
 import { createTenantScope, type TenantTable } from "@/lib/tenantDatabase";
 import { getCanonicalBlueprintCount } from "@/services/assetBlueprints/assetBlueprintService";
+import {
+  matchingOrganizationReadSnapshot,
+  type OrganizationReadSnapshot,
+} from "@/services/brain/organizationReadSnapshot";
 import { getCanonicalOpportunities } from "@/services/opportunityService";
 import { getReviews } from "@/services/reviewService";
 
@@ -29,12 +33,17 @@ export type DashboardStats = {
 
 export async function getDashboardStats(
   organizationId: string,
+  organizationReadSnapshot?: OrganizationReadSnapshot,
 ): Promise<DashboardStats> {
+  const records = matchingOrganizationReadSnapshot(
+    organizationId,
+    organizationReadSnapshot,
+  );
   const [discussions, opportunities, reviews, strategicBlueprints] =
     await Promise.all([
       countTable("discussions", organizationId),
-      getCanonicalOpportunities(organizationId),
-      getReviews(organizationId),
+      getCanonicalOpportunities(organizationId, records?.opportunities),
+      getReviews(organizationId, records?.reviews),
       getCanonicalBlueprintCount(organizationId),
     ]);
 

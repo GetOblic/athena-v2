@@ -1,4 +1,5 @@
 import type { ExecutiveMemory } from "@/services/brain/executiveMemoryTypes";
+import type { OrganizationReadSnapshot } from "@/services/brain/organizationReadSnapshot";
 import {
   buildExecutiveLearning,
   ExecutiveLearningOrganizationRequiredError,
@@ -81,6 +82,7 @@ export async function getExecutiveLearning(
   params: BuildExecutiveLearningParams & {
     sourceMemory?: ExecutiveMemory;
     bypassCache?: boolean;
+    organizationReadSnapshot?: OrganizationReadSnapshot;
   },
 ): Promise<ExecutiveLearningSummary> {
   if (!params.organizationId?.trim()) {

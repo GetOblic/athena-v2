@@ -15,6 +15,7 @@ import type {
   MarketEvidenceEntry,
   PromotionCandidate,
 } from "@/services/brain/executiveLearningTypes";
+import type { OrganizationReadSnapshot } from "@/services/brain/organizationReadSnapshot";
 import type { ExecutiveReasoning } from "@/services/brain/executiveReasoningTypes";
 
 export const MAX_DISCUSSIONS_CONTEXT = 10;
@@ -415,16 +416,19 @@ export type BrainEngineContext = {
 export type BuildBrainContextForDiscussionParams = {
   organizationId: string;
   discussionId: string;
+  organizationReadSnapshot?: Promise<OrganizationReadSnapshot>;
 };
 
 export type BuildBrainContextForOpportunityParams = {
   organizationId: string;
   opportunityId: string;
+  organizationReadSnapshot?: Promise<OrganizationReadSnapshot>;
 };
 
 export type BuildBrainContextForBriefingParams = {
   organizationId: string;
   briefingId: string;
+  organizationReadSnapshot?: Promise<OrganizationReadSnapshot>;
 };
 
 export type IdentityRecord = AthenaIdentity;

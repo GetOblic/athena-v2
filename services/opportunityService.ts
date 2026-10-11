@@ -9,6 +9,7 @@ import {
   type OpportunityStatusKey,
 } from "@/lib/opportunityStatus";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { recordsBelongToOrganization } from "@/services/brain/organizationReadSnapshot";
 
 export type Opportunity = {
     id: string;
@@ -63,9 +64,9 @@ export async function getOpportunityCount(
     return opportunities.length;
 }
 
-export async function getOpportunities(
+export async function readOpportunityOrganizationList(
     organizationId: string,
-): Promise<Opportunity[]> {
+): Promise<{ records: Opportunity[]; failed: boolean }> {
     const { data, error } = await supabaseAdmin
         .from("opportunities")
         .select("*")
@@ -74,16 +75,32 @@ export async function getOpportunities(
 
     if (error) {
         console.error(error);
-        return [];
+        return { records: [], failed: true };
     }
 
-    return data ?? [];
+    return { records: data ?? [], failed: false };
+}
+
+export async function getOpportunities(
+    organizationId: string,
+    records?: Opportunity[],
+): Promise<Opportunity[]> {
+    if (
+        records !== undefined &&
+        recordsBelongToOrganization(records, organizationId)
+    ) {
+        return records.slice();
+    }
+
+    const read = await readOpportunityOrganizationList(organizationId);
+    return read.records;
 }
 
 export async function getCanonicalOpportunities(
     organizationId: string,
+    records?: Opportunity[],
 ): Promise<Opportunity[]> {
-    const opportunities = await getOpportunities(organizationId);
+    const opportunities = await getOpportunities(organizationId, records);
     return dedupeOpportunitiesByDiscussion(opportunities);
 }
 
