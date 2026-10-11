@@ -162,10 +162,21 @@ describe("V2 Home source contract", () => {
     const helperEnd = jobs.indexOf("export async function getGenerationJobById");
     const helper = jobs.slice(helperStart, helperEnd);
     assert.match(helper, /\.select\(HOME_JOB_STATE_COLUMNS\)/);
+    assert.match(helper, /HOME_JOB_STATE_CHUNK/);
+    assert.match(jobs, /const HOME_JOB_STATE_CHUNK = 100;/);
+    assert.match(helper, /\.eq\("organization_id", organizationId\)/);
+    assert.match(helper, /\.in\("discussion_id", chunk\)/);
+    assert.match(helper, /\.order\("created_at", \{ ascending: false \}\)/);
+    assert.match(helper, /\.range\(/);
+    assert.doesNotMatch(helper, /updated_at/);
     assert.doesNotMatch(helper, /\.insert\(/);
     assert.doesNotMatch(helper, /\.update\(/);
     assert.doesNotMatch(helper, /\.upsert\(/);
     assert.doesNotMatch(helper, /createGenerationJob/);
+    const pageSize = Number(
+      jobs.match(/GENERATION_JOB_STATE_PAGE_SIZE = (\d+)/)?.[1],
+    );
+    assert.ok(pageSize > 0 && pageSize < 1000);
   });
 
   it("does not add a client Home island", () => {

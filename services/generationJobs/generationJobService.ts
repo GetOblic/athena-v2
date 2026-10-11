@@ -116,6 +116,8 @@ export async function getLatestGenerationJobForDiscussion(
 const HOME_JOB_STATE_COLUMNS =
   "discussion_id, status, current_stage, created_at";
 const HOME_JOB_STATE_CHUNK = 100;
+/** Stay under PostgREST's default 1,000-row response cap. */
+export const GENERATION_JOB_STATE_PAGE_SIZE = 500;
 const ACTIVE_GENERATION_JOB_STATUSES = [
   "queued",
   "processing",
@@ -145,8 +147,38 @@ function asJobStateRow(row: Record<string, unknown>): {
   };
 }
 
+function rememberJobDiscussionState(
+  byDiscussion: Map<string, GenerationJobDiscussionState>,
+  row: {
+    discussionId: string;
+    status: AthenaGenerationJob["status"];
+    currentStage: string | null;
+  },
+): void {
+  const current = byDiscussion.get(row.discussionId) ?? {
+    active: null,
+    latest: null,
+  };
+  const slim = {
+    status: row.status,
+    current_stage: row.currentStage,
+  };
+  if (!current.latest) {
+    current.latest = slim;
+  }
+  if (
+    !current.active &&
+    (ACTIVE_GENERATION_JOB_STATUSES as readonly string[]).includes(row.status)
+  ) {
+    current.active = slim;
+  }
+  byDiscussion.set(row.discussionId, current);
+}
+
 /**
- * Read-only batch job state for Home. One query per discussion-id chunk.
+ * Read-only batch job state for Home and the Prospect Library.
+ * Each discussion-id chunk walks created_at history until a short page.
+ * A failed page drops that chunk and leaves other chunks in place.
  * Does not create, claim, or mutate generation jobs.
  */
 export async function getGenerationJobStateForDiscussions(
@@ -165,45 +197,46 @@ export async function getGenerationJobStateForDiscussions(
 
   for (let index = 0; index < uniqueIds.length; index += HOME_JOB_STATE_CHUNK) {
     const chunk = uniqueIds.slice(index, index + HOME_JOB_STATE_CHUNK);
-    const { data, error } = await supabaseAdmin
-      .from("athena_generation_jobs")
-      .select(HOME_JOB_STATE_COLUMNS)
-      .eq("organization_id", organizationId)
-      .in("discussion_id", chunk)
-      .order("created_at", { ascending: false });
+    const chunkState = new Map<string, GenerationJobDiscussionState>();
+    let offset = 0;
+    let chunkFailed = false;
 
-    if (error) {
-      console.error("[ATHENA_JOB] Failed to load batched job state:", {
-        organizationId,
-        discussionCount: chunk.length,
-        error: error.message,
-      });
-      continue;
+    while (!chunkFailed) {
+      const { data, error } = await supabaseAdmin
+        .from("athena_generation_jobs")
+        .select(HOME_JOB_STATE_COLUMNS)
+        .eq("organization_id", organizationId)
+        .in("discussion_id", chunk)
+        .order("created_at", { ascending: false })
+        .range(offset, offset + GENERATION_JOB_STATE_PAGE_SIZE - 1);
+
+      if (error) {
+        console.error("[ATHENA_JOB] Failed to load batched job state:", {
+          organizationId,
+          discussionCount: chunk.length,
+          error: error.message,
+        });
+        chunkFailed = true;
+        break;
+      }
+
+      const rows = data ?? [];
+      for (const raw of rows) {
+        const row = asJobStateRow(raw as Record<string, unknown>);
+        if (!row) continue;
+        rememberJobDiscussionState(chunkState, row);
+      }
+
+      if (rows.length < GENERATION_JOB_STATE_PAGE_SIZE) {
+        break;
+      }
+      offset += GENERATION_JOB_STATE_PAGE_SIZE;
     }
 
-    for (const raw of data ?? []) {
-      const row = asJobStateRow(raw as Record<string, unknown>);
-      if (!row) continue;
-      const current = byDiscussion.get(row.discussionId) ?? {
-        active: null,
-        latest: null,
-      };
-      const slim = {
-        status: row.status,
-        current_stage: row.currentStage,
-      };
-      if (!current.latest) {
-        current.latest = slim;
-      }
-      if (
-        !current.active &&
-        (ACTIVE_GENERATION_JOB_STATUSES as readonly string[]).includes(
-          row.status,
-        )
-      ) {
-        current.active = slim;
-      }
-      byDiscussion.set(row.discussionId, current);
+    if (chunkFailed) continue;
+
+    for (const [discussionId, state] of chunkState) {
+      byDiscussion.set(discussionId, state);
     }
   }
 

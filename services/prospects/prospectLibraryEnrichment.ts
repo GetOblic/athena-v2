@@ -11,8 +11,8 @@ import {
   extractProspectDeploymentAssetKeys,
 } from "@/lib/prospectDeploymentAssetContract";
 import {
-  getActiveGenerationJobForDiscussion,
-  getLatestGenerationJobForDiscussion,
+  getGenerationJobStateForDiscussions,
+  type GenerationJobDiscussionState,
 } from "@/services/generationJobs/generationJobService";
 import {
   formatProspectOpportunityScore,
@@ -51,19 +51,71 @@ export type ProspectLibraryRow = Prospect & {
   getoblic_relationship_status: ActiveGetOblicRelationshipStatus | null;
 };
 
-function isCompleteCurrentVersionRow(row: {
+/** Same bound Home uses for current-version reads. */
+export const PROSPECT_LIBRARY_VERSION_CHUNK = 100;
+
+/**
+ * Columns the library reads from the current executive version.
+ * `suggested_cta` and `intelligence_blueprint_id` are PostgREST JSON-path
+ * aliases. Each alias is the extracted scalar, not an intelligence object.
+ */
+export const PROSPECT_LIBRARY_VERSION_COLUMNS =
+  "discussion_id, is_current, blueprint_id, generated_at, suggested_cta:intelligence->analysis->suggested_cta, intelligence_blueprint_id:intelligence->blueprint->id";
+
+type ProspectLibraryVersionRow = {
+  discussion_id?: string | null;
+  is_current?: boolean | null;
   blueprint_id?: string | null;
-  intelligence?: {
-    analysis?: { suggested_cta?: string | null } | null;
-    blueprint?: { id?: string | null } | null;
-  } | null;
-}): boolean {
-  const blueprintId =
-    row.blueprint_id ?? row.intelligence?.blueprint?.id ?? null;
-  if (!blueprintId) return false;
-  const cta = row.intelligence?.analysis?.suggested_cta ?? "";
+  generated_at?: unknown;
+  suggested_cta?: unknown;
+  intelligence_blueprint_id?: unknown;
+  intelligence?: unknown;
+  analysis?: unknown;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function readSuggestedCta(row: ProspectLibraryVersionRow): string {
+  if ("suggested_cta" in row) {
+    return typeof row.suggested_cta === "string" ? row.suggested_cta : "";
+  }
+  const analysis = asRecord(row.analysis);
+  if (typeof analysis?.suggested_cta === "string") {
+    return analysis.suggested_cta;
+  }
+  const intelligence = asRecord(row.intelligence);
+  const nested = asRecord(intelligence?.analysis);
+  if (typeof nested?.suggested_cta === "string") {
+    return nested.suggested_cta;
+  }
+  return "";
+}
+
+function readBlueprintId(row: ProspectLibraryVersionRow): string | null {
+  if (typeof row.blueprint_id === "string") {
+    return row.blueprint_id ? row.blueprint_id : null;
+  }
+  if ("intelligence_blueprint_id" in row) {
+    return typeof row.intelligence_blueprint_id === "string" &&
+      row.intelligence_blueprint_id
+      ? row.intelligence_blueprint_id
+      : null;
+  }
+  const intelligence = asRecord(row.intelligence);
+  const nestedId = asRecord(intelligence?.blueprint)?.id;
+  if (typeof nestedId === "string" && nestedId) return nestedId;
+  return null;
+}
+
+function isCompleteCurrentVersionRow(row: ProspectLibraryVersionRow): boolean {
+  if (!readBlueprintId(row)) return false;
   return isCompleteProspectDeploymentAssetSet(
-    extractProspectDeploymentAssetKeys(cta),
+    extractProspectDeploymentAssetKeys(readSuggestedCta(row)),
   );
 }
 
@@ -132,27 +184,52 @@ export async function enrichProspectsForLibrary(
   const discussionIds = prospects
     .map((prospect) => prospect.linked_discussion_id)
     .filter((id): id is string => Boolean(id));
+  const uniqueDiscussionIds = [...new Set(discussionIds)];
 
   const opportunityScoreByDiscussion = new Map<string, number>();
   const hasCurrentVersionByDiscussion = new Map<string, boolean>();
   const hasCompleteCurrentVersionByDiscussion = new Map<string, boolean>();
   const generatedAtByDiscussion = new Map<string, string>();
+  let jobStateByDiscussion = new Map<string, GenerationJobDiscussionState>();
 
-  if (discussionIds.length > 0) {
-    const [{ data: opportunities }, { data: versions }] = await Promise.all([
-      supabaseAdmin
-        .from("opportunities")
-        .select("discussion_id, score")
-        .eq("organization_id", organizationId)
-        .in("discussion_id", discussionIds),
-      supabaseAdmin
-        .from("athena_executive_intelligence_versions")
-        .select(
-          "discussion_id, is_current, blueprint_id, intelligence, generated_at",
-        )
-        .eq("organization_id", organizationId)
-        .in("discussion_id", discussionIds)
-        .eq("is_current", true),
+  if (uniqueDiscussionIds.length > 0) {
+    const opportunitiesPromise = supabaseAdmin
+      .from("opportunities")
+      .select("discussion_id, score")
+      .eq("organization_id", organizationId)
+      .in("discussion_id", uniqueDiscussionIds);
+
+    const versionsPromise = (async (): Promise<ProspectLibraryVersionRow[]> => {
+      const accumulated: ProspectLibraryVersionRow[] = [];
+      for (
+        let index = 0;
+        index < uniqueDiscussionIds.length;
+        index += PROSPECT_LIBRARY_VERSION_CHUNK
+      ) {
+        const chunk = uniqueDiscussionIds.slice(
+          index,
+          index + PROSPECT_LIBRARY_VERSION_CHUNK,
+        );
+        const { data, error } = await supabaseAdmin
+          .from("athena_executive_intelligence_versions")
+          .select(PROSPECT_LIBRARY_VERSION_COLUMNS)
+          .eq("organization_id", organizationId)
+          .in("discussion_id", chunk)
+          .eq("is_current", true);
+        // Match the single-query fallback: one failed batch drops every version row.
+        if (error != null || data == null) {
+          return [];
+        }
+        for (const row of data as ProspectLibraryVersionRow[]) {
+          accumulated.push(row);
+        }
+      }
+      return accumulated;
+    })();
+
+    const [{ data: opportunities }, versionRows] = await Promise.all([
+      opportunitiesPromise,
+      versionsPromise,
     ]);
 
     for (const row of opportunities ?? []) {
@@ -166,85 +243,85 @@ export async function enrichProspectsForLibrary(
       }
     }
 
-    for (const row of versions ?? []) {
+    for (const row of versionRows) {
       if (!row.discussion_id || !row.is_current) continue;
       hasCurrentVersionByDiscussion.set(row.discussion_id, true);
       hasCompleteCurrentVersionByDiscussion.set(
         row.discussion_id,
         isCompleteCurrentVersionRow(row),
       );
-      const generatedAt = readProspectLibraryGeneratedAt(
-        (row as { generated_at?: unknown }).generated_at,
-      );
+      const generatedAt = readProspectLibraryGeneratedAt(row.generated_at);
       if (generatedAt) {
         generatedAtByDiscussion.set(row.discussion_id, generatedAt);
       }
     }
+
+    jobStateByDiscussion = await getGenerationJobStateForDiscussions(
+      organizationId,
+      uniqueDiscussionIds,
+    );
   }
 
-  const enriched = await Promise.all(
-    prospects.map(async (prospect) => {
-      const discussionId = prospect.linked_discussion_id;
-      const [activeJob, latestJob] = discussionId
-        ? await Promise.all([
-            getActiveGenerationJobForDiscussion(discussionId, organizationId),
-            getLatestGenerationJobForDiscussion(discussionId, organizationId),
-          ])
-        : [null, null];
+  const enriched = prospects.map((prospect) => {
+    const discussionId = prospect.linked_discussion_id;
+    const jobState = discussionId
+      ? jobStateByDiscussion.get(discussionId)
+      : undefined;
+    const activeJob = jobState?.active ?? null;
+    const latestJob = jobState?.latest ?? null;
 
-      const hasCurrentVersion = discussionId
-        ? Boolean(hasCurrentVersionByDiscussion.get(discussionId))
-        : false;
-      const hasCompleteCurrentVersion = discussionId
-        ? Boolean(hasCompleteCurrentVersionByDiscussion.get(discussionId))
-        : false;
-      const getoblic_relationship_status =
-        presence?.activeStatusByProspectId.get(prospect.id) ?? null;
+    const hasCurrentVersion = discussionId
+      ? Boolean(hasCurrentVersionByDiscussion.get(discussionId))
+      : false;
+    const hasCompleteCurrentVersion = discussionId
+      ? Boolean(hasCompleteCurrentVersionByDiscussion.get(discussionId))
+      : false;
+    const getoblic_relationship_status =
+      presence?.activeStatusByProspectId.get(prospect.id) ?? null;
 
-      const hasTerminalJobFailure = Boolean(
-        !activeJob &&
-          latestJob?.status === "failed" &&
-          !hasCompleteCurrentVersion,
-      );
+    const hasTerminalJobFailure = Boolean(
+      !activeJob &&
+        latestJob?.status === "failed" &&
+        !hasCompleteCurrentVersion,
+    );
 
-      const display_status = resolveProspectDisplayStatus({
-        prospectStatus: prospect.status,
-        jobStatus: activeJob?.status ?? null,
-        jobStage: activeJob?.current_stage ?? null,
-        hasCurrentVersion,
-        hasCompleteCurrentVersion,
-        hasTerminalJobFailure,
-      });
+    const display_status = resolveProspectDisplayStatus({
+      prospectStatus: prospect.status,
+      jobStatus: activeJob?.status ?? null,
+      jobStage: activeJob?.current_stage ?? null,
+      hasCurrentVersion,
+      hasCompleteCurrentVersion,
+      hasTerminalJobFailure,
+    });
 
-      const display_opportunity_score = resolveProspectOpportunityScore({
-        canonicalScore: discussionId
-          ? opportunityScoreByDiscussion.get(discussionId) ?? null
-          : null,
-        denormalizedScore: prospect.opportunity_score,
-      });
+    const display_opportunity_score = resolveProspectOpportunityScore({
+      canonicalScore: discussionId
+        ? opportunityScoreByDiscussion.get(discussionId) ?? null
+        : null,
+      denormalizedScore: prospect.opportunity_score,
+    });
 
-      return {
-        ...prospect,
-        display_status,
-        display_lifecycle_status: normalizeProspectLifecycleStatus(
-          prospect.lifecycle_status,
-        ),
+    return {
+      ...prospect,
+      display_status,
+      display_lifecycle_status: normalizeProspectLifecycleStatus(
+        prospect.lifecycle_status,
+      ),
+      display_opportunity_score,
+      display_opportunity_score_label: formatProspectOpportunityScore(
         display_opportunity_score,
-        display_opportunity_score_label: formatProspectOpportunityScore(
-          display_opportunity_score,
-        ),
-        display_completeness_score: buildProspectLibraryCompleteness({
-          prospect,
-          hasCurrentVersion,
-          getoblicRelationshipStatus: getoblic_relationship_status,
-        }),
-        display_intelligence_generated_at: discussionId
-          ? generatedAtByDiscussion.get(discussionId) ?? null
-          : null,
-        getoblic_relationship_status,
-      };
-    }),
-  );
+      ),
+      display_completeness_score: buildProspectLibraryCompleteness({
+        prospect,
+        hasCurrentVersion,
+        getoblicRelationshipStatus: getoblic_relationship_status,
+      }),
+      display_intelligence_generated_at: discussionId
+        ? generatedAtByDiscussion.get(discussionId) ?? null
+        : null,
+      getoblic_relationship_status,
+    };
+  });
 
   return enriched;
 }
