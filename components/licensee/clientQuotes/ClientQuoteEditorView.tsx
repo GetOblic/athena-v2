@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ClientDocumentSendByEmailLink } from "@/components/licensee/clientDocuments/ClientDocumentSendByEmailLink";
+import { ClientQuotePaymentLinks } from "@/components/licensee/clientQuotes/ClientQuotePaymentLinks";
 import { ClientQuotePdfDownloadButton } from "@/components/licensee/clientQuotes/ClientQuotePdfDownloadButton";
 import {
   buildClientDocumentGmailHandoff,
@@ -1330,7 +1331,15 @@ export function ClientQuoteEditorView({
       </section>
 
       {readOnly ? (
-        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
+        <>
+          {downloadQuoteId ? (
+            <ClientQuotePaymentLinks
+              quoteId={downloadQuoteId}
+              currencyCode={currencyCode}
+              messages={messages}
+            />
+          ) : null}
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
           <button
             type="button"
             data-create-client-invoice="detail"
@@ -1366,6 +1375,7 @@ export function ClientQuoteEditorView({
             {pending === "revise" ? copy.creatingRevision : copy.createRevision}
           </button>
         </div>
+        </>
       ) : (
         <section
           className="rounded-2xl border border-white/10 bg-[var(--athena-card)] px-4 py-4 md:px-5"
