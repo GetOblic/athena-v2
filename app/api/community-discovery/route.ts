@@ -4,7 +4,6 @@ import {
   communityDiscoveryAuthFailure,
   readCommunityDiscoveryJson,
 } from "@/services/communityDiscovery/communityDiscoveryHttp";
-import { COMMUNITY_DISCOVERY_ROUTE_MAX_DURATION_SECONDS } from "@/services/communityDiscovery/communityDiscoveryLimits";
 import { createSupabasePublicCommunityCatalog } from "@/services/communityDiscovery/communityDiscoveryPersistence";
 import { discoverFacebookGroups } from "@/services/communityDiscovery/discoverCommunities";
 import { createBraveCommunitySearchProvider } from "@/services/communityDiscovery/braveSearchProvider";
@@ -12,7 +11,7 @@ import { requireCurrentOrganizationContext } from "@/services/organizationServic
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = COMMUNITY_DISCOVERY_ROUTE_MAX_DURATION_SECONDS;
+export const maxDuration = 30;
 
 function json(data: unknown, status = 200) {
   return NextResponse.json(data, {

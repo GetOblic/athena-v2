@@ -59,11 +59,9 @@ describe("community discovery API contract", () => {
     assert.match(savesRoute, /export async function POST/);
     assert.match(savesRoute, /saveOrganizationCommunity/);
     assert.match(savesRoute, /listSavedOrganizationCommunities/);
-    assert.equal(
-      COMMUNITY_DISCOVERY_ROUTE_MAX_DURATION_SECONDS,
-      30,
-    );
-    assert.match(discoveryRoute, /maxDuration/);
+    assert.equal(COMMUNITY_DISCOVERY_ROUTE_MAX_DURATION_SECONDS, 30);
+    assert.match(discoveryRoute, /export const maxDuration = 30;/);
+    assert.match(savesRoute, /export const maxDuration = 30;/);
   });
 
   it("keeps provider credentials server-side and stays inside the Gate 3A catalog", () => {
