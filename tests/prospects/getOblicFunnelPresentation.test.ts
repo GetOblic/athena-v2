@@ -613,7 +613,7 @@ describe("Licensee Own Company GetOblic author authority", () => {
         listingId: 946970,
         licenseeDefaultLanguage: french.licenseeDefaultLanguage,
       }),
-      "tel:+33939204080,946970#",
+      "tel:+33162045206,946970#",
     );
     assert.equal(
       buildGetOblicFunnelClaimHref({
@@ -939,7 +939,7 @@ const LINKED_FUNNEL_HREFS = {
     "https://claim.getoblic.com/business-portfolio-booking-page?author_id=42&contact_id=946970&business_name=Acme",
 } as const;
 
-const CALL_HREF_FR = "tel:+33939204080,946970#";
+const CALL_HREF_FR = "tel:+33162045206,946970#";
 const CALL_HREF_DEFAULT = "tel:+18666658001,946970#";
 
 function funnelActions(html: string): string[] {
@@ -1342,7 +1342,7 @@ describe("GetOblic Funnel Call and Claim CTAs", () => {
     );
     const presentation = read("lib/prospects/getOblicFunnelPresentation.ts");
     assert.match(presentation, /tel:\$\{telephone\},\$\{listingId\}#/);
-    assert.match(presentation, /\+33939204080/);
+    assert.match(presentation, /\+33162045206/);
     assert.match(presentation, /\+18666658001/);
     assert.doesNotMatch(presentation, /validateDestinationUrl/);
     assert.doesNotMatch(
@@ -1380,7 +1380,7 @@ describe("GetOblic Funnel Call and Claim CTAs", () => {
       .split("<a ")
       .find((anchor) => anchor.includes("getoblic-funnel-call-your-ai"));
     assert.ok(callAnchor);
-    assert.match(callAnchor, /href="tel:\+33939204080,946970#"/);
+    assert.match(callAnchor, /href="tel:\+33162045206,946970#"/);
     assert.doesNotMatch(callAnchor, /target="_blank"|rel="noopener noreferrer"/);
     const claimAnchor = html
       .split("<a ")
