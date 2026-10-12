@@ -14,8 +14,11 @@
  *
  * Official Payment Link url examples use https://buy.stripe.com/test_… in
  * test mode and https://buy.stripe.com/… in live mode. submit_type is left
- * at its default so the host stays buy.stripe.com. donate.stripe.com and
- * book.stripe.com are not accepted. Validation stays on the Gate 2A pattern.
+ * at its default so Stripe does not switch the host to donate.stripe.com or
+ * book.stripe.com. Those hosts are not accepted. A configured custom domain
+ * returns https://pay.getoblic.com/b/<token> live and
+ * https://pay.getoblic.com/b/test_<token> in test mode. Validation stays on
+ * the Gate 2A pattern for those two hosts only.
  */
 
 import {
@@ -159,6 +162,37 @@ export function buildStripePaymentLinkCreateBody(
 
 export function isOfficialStripePaymentLinkUrl(value: string): boolean {
   return STRIPE_PAYMENT_LINK_URL_PATTERN.test(value);
+}
+
+const PAYMENT_LINK_TOKEN_SEGMENT = /^(?:test_)?[A-Za-z0-9]{8,80}$/;
+
+/**
+ * Hostname and path shape for a Payment Link URL that failed validation.
+ * The token, query, fragment, userinfo, and raw URL are not returned.
+ */
+export function rejectedStripePaymentLinkUrlShape(value: string): {
+  hostname: string;
+  pathShape: string;
+} {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return { hostname: "invalid", pathShape: "invalid" };
+  }
+  const hostname = /^[a-z0-9.-]+$/.test(parsed.hostname) ? parsed.hostname : "invalid";
+  const segments = parsed.pathname.split("/").filter((segment) => segment.length > 0);
+  const shaped = segments.map((segment) => {
+    if (segment === "b") return "b";
+    if (PAYMENT_LINK_TOKEN_SEGMENT.test(segment)) return "<token>";
+    return "<segment>";
+  });
+  let pathShape = shaped.length === 0 ? "/" : `/${shaped.join("/")}`;
+  if (parsed.port) pathShape = `:${parsed.port}${pathShape}`;
+  if (parsed.username || parsed.password) pathShape = `userinfo${pathShape}`;
+  if (parsed.search) pathShape += "?<query>";
+  if (parsed.hash) pathShape += "#<fragment>";
+  return { hostname, pathShape };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

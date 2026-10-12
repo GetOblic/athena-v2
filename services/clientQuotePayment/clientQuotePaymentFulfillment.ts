@@ -16,8 +16,13 @@ import {
 
 export const STRIPE_PRICE_ID_PATTERN = /^price_[A-Za-z0-9]{8,80}$/;
 export const STRIPE_PAYMENT_LINK_ID_PATTERN = /^plink_[A-Za-z0-9]{8,80}$/;
+// HTTPS only. Token is 8–80 ASCII letters or digits, optionally prefixed by test_.
+// buy.stripe.com/<token>
+// buy.stripe.com/test_<token>
+// pay.getoblic.com/b/<token>
+// pay.getoblic.com/b/test_<token>
 export const STRIPE_PAYMENT_LINK_URL_PATTERN =
-  /^https:\/\/buy\.stripe\.com\/(?:test_)?[A-Za-z0-9]{8,80}$/;
+  /^https:\/\/(?:buy\.stripe\.com|pay\.getoblic\.com\/b)\/(?:test_)?[A-Za-z0-9]{8,80}$/;
 
 export type ClientQuotePaymentStripeFulfillmentInput = {
   licenseeAccountId: string;

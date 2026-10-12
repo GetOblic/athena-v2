@@ -40,6 +40,8 @@ import {
   buildStripePaymentLinkCreateBody,
   buildStripePriceCreateBody,
   isOfficialStripePaymentLinkUrl,
+  readStripePaymentLinkSnapshot,
+  rejectedStripePaymentLinkUrlShape,
   stripeIdempotencyRetryAllowed,
 } from "../../services/clientQuotePayment/clientQuotePaymentStripeContract";
 import {
@@ -66,6 +68,9 @@ const ISSUED_AT = "2026-01-15T08:30:00.000Z";
 const NOW = "2026-10-12T00:00:00.000Z";
 const DOCUMENTED_TEST_URL = "https://buy.stripe.com/test_cN25nr0iZ7bUa7meUY";
 const DOCUMENTED_LIVE_URL = "https://buy.stripe.com/cN25nr0iZ7bUa7meUY";
+const CONFIRMED_CUSTOM_URL = "https://pay.getoblic.com/b/14AdRb6Mt0NF4Fv1hmdIA08";
+const CUSTOM_TEST_URL = "https://pay.getoblic.com/b/test_14AdRb6Mt0NF4Fv1hmdIA08";
+const CONFIRMED_CUSTOM_TOKEN = "14AdRb6Mt0NF4Fv1hmdIA08";
 
 const originalError = console.error;
 const logged: string[] = [];
@@ -285,6 +290,7 @@ class StripeDouble {
   cache500 = false;
   failBalanceRemaining = 0;
   badLinkUrl = false;
+  linkUrlOverride: ((index: number) => string) | null = null;
   lookupPrices: unknown[] | null = null;
   hasMore = false;
   priceSeq = 0;
@@ -365,12 +371,19 @@ class StripeDouble {
     const params = new URLSearchParams(input.body ?? "");
     const priceId = params.get("line_items[0][price]");
     assert.ok(this.requests.some((row) => row.stripePriceId === priceId));
-    const url = this.badLinkUrl
-      ? "https://donate.stripe.com/test_cN25nr0iZ7bUa7meUY"
-      : this.linkSeq === 0
-        ? DOCUMENTED_TEST_URL
-        : `https://buy.stripe.com/test_Abcd1234Link${++this.linkSeq}Xx`;
-    if (!this.badLinkUrl && this.linkSeq === 0) this.linkSeq = 1;
+    let url: string;
+    if (this.linkUrlOverride) {
+      url = this.linkUrlOverride(this.linkSeq);
+      this.linkSeq += 1;
+    } else if (this.badLinkUrl) {
+      url = "https://donate.stripe.com/test_cN25nr0iZ7bUa7meUY";
+    } else if (this.linkSeq === 0) {
+      url = DOCUMENTED_TEST_URL;
+      this.linkSeq = 1;
+    } else {
+      this.linkSeq += 1;
+      url = `https://buy.stripe.com/test_Abcd1234Link${this.linkSeq}Xx`;
+    }
     const json = {
       id: `plink_Gate2bLink${String(this.linkSeq).padStart(2, "0")}`,
       object: "payment_link",
@@ -481,12 +494,81 @@ function holdDispatchAcknowledgment(base: ReturnType<typeof harness>) {
 
 describe("Stripe payment-link contract", () => {
   it("accepts documented test and live Payment Link URLs only", () => {
-    assert.equal(isOfficialStripePaymentLinkUrl(DOCUMENTED_TEST_URL), true);
-    assert.equal(isOfficialStripePaymentLinkUrl(DOCUMENTED_LIVE_URL), true);
-    assert.equal(isOfficialStripePaymentLinkUrl("https://donate.stripe.com/test_cN25nr0iZ7bUa7meUY"), false);
-    assert.equal(isOfficialStripePaymentLinkUrl("https://book.stripe.com/test_cN25nr0iZ7bUa7meUY"), false);
-    assert.equal(isOfficialStripePaymentLinkUrl("http://buy.stripe.com/test_cN25nr0iZ7bUa7meUY"), false);
-    assert.equal(isOfficialStripePaymentLinkUrl(`${DOCUMENTED_TEST_URL}?prefilled_email=a`), false);
+    const accepted = [
+      DOCUMENTED_TEST_URL,
+      DOCUMENTED_LIVE_URL,
+      "https://buy.stripe.com/test_aE1234567890abcd",
+      "https://buy.stripe.com/aE1234567890month",
+      `https://buy.stripe.com/${"a".repeat(8)}`,
+      `https://buy.stripe.com/test_${"a".repeat(8)}`,
+      `https://buy.stripe.com/${"a".repeat(80)}`,
+      CONFIRMED_CUSTOM_URL,
+      CUSTOM_TEST_URL,
+      `https://pay.getoblic.com/b/${"a".repeat(80)}`,
+    ];
+    for (const url of accepted) {
+      assert.equal(isOfficialStripePaymentLinkUrl(url), true, url);
+    }
+    assert.deepEqual(
+      readStripePaymentLinkSnapshot({
+        id: "plink_1N0aTestLink1234567",
+        object: "payment_link",
+        url: CONFIRMED_CUSTOM_URL,
+      }),
+      { id: "plink_1N0aTestLink1234567", url: CONFIRMED_CUSTOM_URL },
+    );
+    const rejected = [
+      "https://donate.stripe.com/test_cN25nr0iZ7bUa7meUY",
+      "https://book.stripe.com/test_cN25nr0iZ7bUa7meUY",
+      "http://buy.stripe.com/test_cN25nr0iZ7bUa7meUY",
+      "http://pay.getoblic.com/b/14AdRb6Mt0NF4Fv1hmdIA08",
+      `${DOCUMENTED_TEST_URL}?prefilled_email=a`,
+      `${CONFIRMED_CUSTOM_URL}?prefilled_email=a`,
+      `${CONFIRMED_CUSTOM_URL}#fragment`,
+      "https://user:secret@pay.getoblic.com/b/14AdRb6Mt0NF4Fv1hmdIA08",
+      "https://pay.getoblic.com:443/b/14AdRb6Mt0NF4Fv1hmdIA08",
+      "https://pay.getoblic.com/14AdRb6Mt0NF4Fv1hmdIA08",
+      "https://pay.getoblic.com/b/14AdRb6Mt0NF4Fv1hmdIA08/extra",
+      "https://pay.getoblic.com/b/14AdRb6Mt0NF4Fv1hmdIA08/",
+      "https://buy.stripe.com/b/14AdRb6Mt0NF4Fv1hmdIA08",
+      "https://pay.getoblic.com/c/pay/cs_live_abcdefghij",
+      "https://www.pay.getoblic.com/b/14AdRb6Mt0NF4Fv1hmdIA08",
+      "https://pay.getoblic.com.evil.example/b/14AdRb6Mt0NF4Fv1hmdIA08",
+      "https://evil.example/b/14AdRb6Mt0NF4Fv1hmdIA08",
+      "https://pay.getoblic.com/b/short",
+      "https://pay.getoblic.com/b/test_short",
+      "https://buy.stripe.com/short",
+      `https://buy.stripe.com/${"a".repeat(81)}`,
+      `https://pay.getoblic.com/b/test_${"a".repeat(81)}`,
+      "https://PAY.GETOBLIC.COM/b/14AdRb6Mt0NF4Fv1hmdIA08",
+      "https://pay.getoblic.com/B/14AdRb6Mt0NF4Fv1hmdIA08",
+      "https://notpay.getoblic.com/b/14AdRb6Mt0NF4Fv1hmdIA08",
+    ];
+    for (const url of rejected) {
+      assert.equal(isOfficialStripePaymentLinkUrl(url), false, url);
+      assert.equal(
+        readStripePaymentLinkSnapshot({
+          id: "plink_1N0aTestLink1234567",
+          object: "payment_link",
+          url,
+        }),
+        null,
+      );
+    }
+    const shape = rejectedStripePaymentLinkUrlShape(
+      `https://secret-user:secret-pass@evil.test:8443/b/${CONFIRMED_CUSTOM_TOKEN}?prefilled_email=leaked-buyer#${CONFIRMED_CUSTOM_TOKEN}`,
+    );
+    assert.deepEqual(shape, {
+      hostname: "evil.test",
+      pathShape: "userinfo:8443/b/<token>?<query>#<fragment>",
+    });
+    assert.equal(JSON.stringify(shape).includes(CONFIRMED_CUSTOM_TOKEN), false);
+    assert.equal(JSON.stringify(shape).includes("leaked-buyer"), false);
+    assert.equal(JSON.stringify(shape).includes("secret"), false);
+    assert.deepEqual(rejectedStripePaymentLinkUrlShape(CONFIRMED_CUSTOM_TOKEN), {
+      hostname: "invalid",
+      pathShape: "invalid",
+    });
     assert.equal(
       stripeIdempotencyRetryAllowed(NOW, new Date(Date.parse(NOW) + STRIPE_V1_IDEMPOTENCY_SAFE_WINDOW_MS - 1).toISOString()),
       true,
@@ -963,6 +1045,77 @@ describe("authenticated payment links", () => {
     assert.equal(ledger.all().length, 0);
     assert.equal(stripeDouble.calls.length, 0);
     assert.equal(logged.some((line) => line.includes(SECRET)), false);
+  });
+
+  it("persists a pay.getoblic.com Payment Link returned with HTTP 200", async () => {
+    const full = harness();
+    full.stripeDouble.linkUrlOverride = () => CONFIRMED_CUSTOM_URL;
+    const created = await post(full.deps, { kind: "one_time_full" });
+    const stored = full.memory.requests[0];
+    if (!stored) throw new Error("missing intent");
+    const linkCall = full.stripeDouble.calls.find((call) => call.path === "/v1/payment_links");
+    assert.equal(linkCall?.method, "POST");
+    assert.equal(linkCall?.idempotencyKey, stored.stripePaymentLinkIdempotencyKey);
+    assert.equal(linkCall?.body, buildStripePaymentLinkCreateBody(stored));
+    assert.equal(linkCall?.body?.includes("pay.getoblic.com"), false);
+    assert.equal(linkCall?.body?.includes("custom_domain"), false);
+    assert.equal(created.paymentRequests[0]?.paymentLinkUrl, CONFIRMED_CUSTOM_URL);
+    assert.equal(stored.stripePaymentLinkUrl, CONFIRMED_CUSTOM_URL);
+    assert.equal(stored.amountMinor, 10_000);
+    assert.equal(stored.licenseeAccountId, LICENSEE);
+    assert.equal(stored.purpose, "one_time_full");
+    const beforeRetry = full.stripeDouble.calls.length;
+    const repeated = await post(full.deps, { kind: "one_time_full" });
+    assert.equal(full.stripeDouble.calls.length, beforeRetry);
+    assert.equal(repeated.paymentRequests[0]?.paymentLinkUrl, CONFIRMED_CUSTOM_URL);
+    assert.equal(full.memory.requests.length, 1);
+    assert.equal(
+      full.memory.requests[0]?.stripePaymentLinkIdempotencyKey,
+      stored.stripePaymentLinkIdempotencyKey,
+    );
+
+    const split = harness();
+    split.stripeDouble.linkUrlOverride = (index) =>
+      index === 0 ? CONFIRMED_CUSTOM_URL : CUSTOM_TEST_URL;
+    const splitResult = await post(split.deps, { kind: "one_time_split", depositMinor: 2_500 });
+    assert.deepEqual(
+      splitResult.paymentRequests.map((row) => [row.purpose, row.amountMinor, row.paymentLinkUrl]),
+      [
+        ["one_time_deposit", 2_500, CONFIRMED_CUSTOM_URL],
+        ["one_time_balance", 7_500, CUSTOM_TEST_URL],
+      ],
+    );
+    assert.notEqual(
+      split.memory.requests[0]?.stripePaymentLinkIdempotencyKey,
+      split.memory.requests[1]?.stripePaymentLinkIdempotencyKey,
+    );
+    assert.equal(split.memory.requests[0]?.licenseeAccountId, LICENSEE);
+    const splitCalls = split.stripeDouble.calls.length;
+    await post(split.deps, { kind: "one_time_split", depositMinor: 2_500 });
+    assert.equal(split.stripeDouble.calls.length, splitCalls);
+    assert.equal(split.memory.requests.length, 2);
+  });
+
+  it("logs hostname and path shape when Stripe HTTP 200 returns a rejected URL", async () => {
+    const rejectedUrl = `https://rejected-host.example/b/${CONFIRMED_CUSTOM_TOKEN}?prefilled_email=leaked-buyer`;
+    const { deps, stripeDouble, memory } = harness();
+    stripeDouble.linkUrlOverride = () => rejectedUrl;
+    const start = logged.length;
+    await assert.rejects(
+      () => post(deps, { kind: "one_time_full" }),
+      (error: unknown) =>
+        error instanceof ClientQuotePaymentStripeError && error.code === "STRIPE_REJECTED",
+    );
+    assert.equal(memory.requests[0]?.stripePaymentLinkUrl, null);
+    assert.equal(memory.requests[0]?.stripePriceId == null, false);
+    const fresh = logged.slice(start).filter((line) => line.includes("stripe_payment_link_url_rejected"));
+    assert.equal(fresh.length, 1);
+    assert.match(fresh[0] ?? "", /"hostname":"rejected-host.example"/);
+    assert.match(fresh[0] ?? "", /"pathShape":"\/b\/<token>\?<query>"/);
+    assert.equal(fresh[0]?.includes(CONFIRMED_CUSTOM_TOKEN), false);
+    assert.equal(fresh[0]?.includes(rejectedUrl), false);
+    assert.equal(fresh[0]?.includes("leaked-buyer"), false);
+    assert.equal(stripeDouble.calls.filter((call) => call.path === "/v1/payment_links").length, 1);
   });
 });
 

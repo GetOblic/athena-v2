@@ -945,7 +945,7 @@ describe("client quote payment persistence", () => {
       decision: { kind: "one_time_full" },
     })[0];
     if (!intent) throw new Error("missing intent");
-    const mapped = mapClientQuotePaymentRequestRow({
+    const row = {
       id: "11111111-1111-4111-8111-111111111111",
       licensee_account_id: intent.requestParameters.licenseeAccountId,
       organization_id: intent.requestParameters.organizationId,
@@ -968,12 +968,44 @@ describe("client quote payment persistence", () => {
       stripe_price_idempotency_key: intent.stripePriceIdempotencyKey,
       stripe_payment_link_idempotency_key: intent.stripePaymentLinkIdempotencyKey,
       created_at: NOW,
-    });
+    };
+    const mapped = mapClientQuotePaymentRequestRow(row);
     assert.equal(mapped.amountMinor, 10_000);
     assert.equal(mapped.stripePriceId, null);
     assert.equal(mapped.stripePaymentLinkId, null);
     assert.equal(mapped.stripePaymentLinkUrl, null);
     assert.equal("status" in mapped, false);
+
+    const customUrl = "https://pay.getoblic.com/b/14AdRb6Mt0NF4Fv1hmdIA08";
+    const linkedRow = mapClientQuotePaymentRequestRow({
+      ...row,
+      stripe_price_id: "price_1N0aTestPrice123456",
+      stripe_payment_link_id: "plink_1N0aTestLink1234567",
+      stripe_payment_link_url: customUrl,
+    });
+    assert.equal(linkedRow.stripePaymentLinkUrl, customUrl);
+    assert.equal(linkedRow.amountMinor, mapped.amountMinor);
+    assert.equal(linkedRow.stripePriceIdempotencyKey, mapped.stripePriceIdempotencyKey);
+    const buyLive = mapClientQuotePaymentRequestRow({
+      ...row,
+      stripe_price_id: "price_1N0aTestPrice123456",
+      stripe_payment_link_id: "plink_1N0aTestLink1234567",
+      stripe_payment_link_url: "https://buy.stripe.com/cN25nr0iZ7bUa7meUY",
+    });
+    assert.equal(buyLive.stripePaymentLinkUrl, "https://buy.stripe.com/cN25nr0iZ7bUa7meUY");
+    assert.throws(
+      () =>
+        mapClientQuotePaymentRequestRow({
+          ...row,
+          stripe_price_id: "price_1N0aTestPrice123456",
+          stripe_payment_link_id: "plink_1N0aTestLink1234567",
+          stripe_payment_link_url: "https://pay.getoblic.com/14AdRb6Mt0NF4Fv1hmdIA08",
+        }),
+      (error: unknown) => {
+        expectCode(error, "PERSISTENCE_FAILED");
+        return true;
+      },
+    );
 
     assert.equal(
       mapClientQuotePaymentRpcError({
@@ -1497,5 +1529,61 @@ describe("client quote payment gate 2A-R", () => {
     );
     assert.match(adapter, new RegExp(RECORD_CLIENT_QUOTE_PAYMENT_REQUEST_STRIPE_FULFILLMENT_RPC));
     assert.doesNotMatch(adapter, /\.(update|insert|delete|upsert)\(/);
+  });
+
+  it("widens Payment Link URLs in a forward migration without changing fulfillment", () => {
+    const previous = readFileSync(join(ROOT, MIGRATION), "utf8");
+    const next = readFileSync(
+      join(ROOT, "supabase/migrations/20261012000003_accept_getoblic_stripe_payment_link_domain.sql"),
+      "utf8",
+    );
+    const oldPredicate =
+      "p_stripe_payment_link_url !~ '^https://buy\\.stripe\\.com/(test_)?[A-Za-z0-9]{8,80}$'";
+    const newPredicate =
+      "p_stripe_payment_link_url !~ '^https://(buy\\.stripe\\.com|pay\\.getoblic\\.com/b)/(test_)?[A-Za-z0-9]{8,80}$'";
+    const constraint =
+      "stripe_payment_link_url ~ '^https://(buy\\.stripe\\.com|pay\\.getoblic\\.com/b)/(test_)?[A-Za-z0-9]{8,80}$'";
+
+    function fulfillmentSource(sql: string): string {
+      const start = sql.indexOf(
+        "create or replace function public.record_client_quote_payment_request_stripe_fulfillment(",
+      );
+      const end = sql.indexOf(
+        "comment on function public.record_client_quote_payment_request_stripe_fulfillment",
+      );
+      assert.ok(start >= 0 && end > start);
+      return sql.slice(start, end);
+    }
+
+    assert.equal(previous.includes("pay.getoblic.com"), false);
+    assert.equal(
+      fulfillmentSource(next).split(newPredicate).join("URL_PREDICATE"),
+      fulfillmentSource(previous).split(oldPredicate).join("URL_PREDICATE"),
+    );
+    assert.equal(next.includes(constraint), true);
+    assert.equal(next.includes(newPredicate), true);
+    assert.match(next, /security definer/);
+    assert.match(next, /set search_path = pg_catalog, public, pg_temp/);
+    assert.match(
+      next,
+      /record_client_quote_payment_request_stripe_fulfillment\(\s*p_licensee_account_id uuid,\s*p_request_id uuid,\s*p_stripe_price_id text,\s*p_stripe_payment_link_id text,\s*p_stripe_payment_link_url text\s*\)/,
+    );
+    assert.match(
+      next,
+      /grant execute on function public\.record_client_quote_payment_request_stripe_fulfillment\(uuid, uuid, text, text, text\) to service_role/,
+    );
+    assert.match(next, /revoke all on function public\.record_client_quote_payment_request_stripe_fulfillment\(uuid, uuid, text, text, text\) from public/);
+    assert.match(next, /revoke all on function public\.record_client_quote_payment_request_stripe_fulfillment\(uuid, uuid, text, text, text\) from anon/);
+    assert.match(next, /revoke all on function public\.record_client_quote_payment_request_stripe_fulfillment\(uuid, uuid, text, text, text\) from authenticated/);
+    assert.match(
+      next,
+      /Stripe Payment Link URL on buy\.stripe\.com or pay\.getoblic\.com\/b\. Live and test-mode tokens are accepted\./,
+    );
+    assert.match(next, /for update/);
+    assert.doesNotMatch(next, /amount_minor/);
+    assert.doesNotMatch(next, /client_quote_payment_expires_at/);
+    assert.doesNotMatch(next, /alter table public\.athena_client_quotes/i);
+    assert.doesNotMatch(next, /alter table public\.athena_client_invoices/i);
+    assert.doesNotMatch(previous, /pay\.getoblic\.com/);
   });
 });

@@ -11,9 +11,11 @@ import {
   STRIPE_API_VERSION,
   STRIPE_PAYMENT_LINK_CREATE_PATH,
   STRIPE_PRICE_CREATE_PATH,
+  isOfficialStripePaymentLinkUrl,
   readStripePaymentLinkSnapshot,
   readStripePriceList,
   readStripePriceSnapshot,
+  rejectedStripePaymentLinkUrlShape,
   type StripePaymentLinkSnapshot,
   type StripePriceSnapshot,
 } from "@/services/clientQuotePayment/clientQuotePaymentStripeContract";
@@ -192,7 +194,18 @@ export function createStripePaymentClient(input: {
         return { outcome: "rejected" };
       }
       const link = readStripePaymentLinkSnapshot(response.json);
-      if (!link) return { outcome: "rejected" };
+      if (!link) {
+        if (response.status === 200 && isRecord(response.json)) {
+          const url = response.json.url;
+          if (typeof url === "string" && !isOfficialStripePaymentLinkUrl(url)) {
+            console.error(
+              "[CLIENT_QUOTE_PAYMENT] stripe_payment_link_url_rejected",
+              rejectedStripePaymentLinkUrlShape(url),
+            );
+          }
+        }
+        return { outcome: "rejected" };
+      }
       return { outcome: "success", value: link };
     },
     async findPriceByLookupKey(lookupKey) {
