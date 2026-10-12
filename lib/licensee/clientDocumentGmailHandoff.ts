@@ -1,12 +1,21 @@
 /**
  * Gmail compose handoff for an issued client quotation or invoice.
- * The URL is built from the frozen issued snapshot only.
- * It does not select a Gmail account and it does not send mail.
+ * The URL is built from the frozen issued snapshot.
+ * A quotation may also include already persisted official Stripe Payment Link
+ * URLs. This module does not create Stripe resources, select a Gmail account,
+ * or send mail.
  */
 
-import { clientDocumentEmailMessage, singleLine } from "@/lib/licensee/clientDocumentEmailCopy";
+import {
+  CLIENT_QUOTE_EMAIL_PAYMENT_PURPOSES,
+  clientDocumentEmailMessage,
+  singleLine,
+  type ClientQuoteEmailPaymentLink,
+  type ClientQuoteEmailPaymentPurpose,
+} from "@/lib/licensee/clientDocumentEmailCopy";
 import { buildClientInvoicePdfFilename } from "@/services/clientInvoice/pdf/clientInvoicePdfFilename";
 import { buildClientQuotePdfFilename } from "@/services/clientQuote/pdf/clientQuotePdfFilename";
+import { isOfficialStripePaymentLinkUrl } from "@/services/clientQuotePayment/clientQuotePaymentStripeContract";
 import {
   isOrganizationLanguage,
   type OrganizationLanguage,
@@ -64,6 +73,39 @@ export type ClientDocumentGmailHandoff = GmailComposeUrl & {
   pdfFilename: string;
 };
 
+export type ClientQuoteEmailPaymentLinkInput = {
+  purpose: string;
+  url: string | null | undefined;
+};
+
+const EMAIL_PAYMENT_PURPOSE_SET = new Set<string>(CLIENT_QUOTE_EMAIL_PAYMENT_PURPOSES);
+
+function isEmailPaymentPurpose(value: string): value is ClientQuoteEmailPaymentPurpose {
+  return EMAIL_PAYMENT_PURPOSE_SET.has(value);
+}
+
+/**
+ * Keeps the first official Payment Link URL for each supported purpose.
+ * Missing, blank, and non-official URLs are omitted. Nothing is invented.
+ */
+export function selectClientQuoteEmailPaymentLinks(
+  links: readonly ClientQuoteEmailPaymentLinkInput[] | null | undefined,
+): ClientQuoteEmailPaymentLink[] {
+  if (!links) return [];
+  const selected = new Map<ClientQuoteEmailPaymentPurpose, string>();
+  for (const link of links) {
+    if (!link || typeof link.purpose !== "string" || !isEmailPaymentPurpose(link.purpose)) {
+      continue;
+    }
+    if (selected.has(link.purpose)) continue;
+    if (typeof link.url !== "string" || !isOfficialStripePaymentLinkUrl(link.url)) continue;
+    selected.set(link.purpose, link.url);
+  }
+  return CLIENT_QUOTE_EMAIL_PAYMENT_PURPOSES.filter((purpose) => selected.has(purpose)).map(
+    (purpose) => ({ purpose, url: selected.get(purpose) as string }),
+  );
+}
+
 function codePoints(value: string): string[] {
   return Array.from(value);
 }
@@ -119,6 +161,37 @@ function longestFitting(
     }
   }
   return best;
+}
+
+/**
+ * Fits a quotation body that may end with whole Payment Link lines.
+ * Lines are removed from the end until the compose URL fits.
+ * Ordinary prose still uses the shared subject, body, and recipient fitting.
+ */
+function composeQuoteWithinCap(input: {
+  to: string | null;
+  subject: string;
+  bodies: readonly string[];
+}): GmailComposeUrl {
+  const subject = capSubject(input.subject);
+  const bodies = input.bodies.length > 0 ? input.bodies : [""];
+  for (const body of bodies) {
+    const normalized = body.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const href = assemble(input.to, subject, normalized);
+    if (fits(href)) {
+      return {
+        href,
+        subject,
+        body: normalized,
+        recipientIncluded: input.to !== null,
+      };
+    }
+  }
+  return buildGmailComposeUrl({
+    to: input.to,
+    subject,
+    body: bodies[bodies.length - 1] ?? "",
+  });
 }
 
 /**
@@ -214,7 +287,11 @@ function languageOf(value: OrganizationLanguage): OrganizationLanguage {
 
 export function buildClientDocumentGmailHandoff(
   input:
-    | { kind: "quote"; snapshot: ClientQuoteGmailSnapshot }
+    | {
+        kind: "quote";
+        snapshot: ClientQuoteGmailSnapshot;
+        paymentLinks?: readonly ClientQuoteEmailPaymentLinkInput[] | null;
+      }
     | { kind: "invoice"; snapshot: ClientInvoiceGmailSnapshot },
 ): ClientDocumentGmailHandoff {
   const snapshot = input.snapshot;
@@ -231,20 +308,41 @@ export function buildClientDocumentGmailHandoff(
         });
   const documentNumber =
     input.kind === "quote" ? input.snapshot.quoteNumber : input.snapshot.invoiceNumber;
-  const message = clientDocumentEmailMessage({
-    kind: input.kind,
+  const shared = {
     language: languageOf(snapshot.contentLanguage),
     documentNumber,
     projectTitle: snapshot.projectTitle,
     greetingName: greetingName(snapshot.customer),
     issuerName: issuerName(snapshot.issuer),
     pdfFilename,
-  });
-  const url = buildGmailComposeUrl({
-    to: recipient,
-    subject: message.subject,
-    body: message.body,
-  });
+  };
+  if (input.kind === "invoice") {
+    const message = clientDocumentEmailMessage({ kind: "invoice", ...shared });
+    const url = buildGmailComposeUrl({
+      to: recipient,
+      subject: message.subject,
+      body: message.body,
+    });
+    return {
+      ...url,
+      recipientMissing: recipient === null,
+      pdfFilename,
+    };
+  }
+
+  const selected = selectClientQuoteEmailPaymentLinks(input.paymentLinks);
+  const bodies: string[] = [];
+  let subject = "";
+  for (let count = selected.length; count >= 0; count -= 1) {
+    const message = clientDocumentEmailMessage({
+      kind: "quote",
+      ...shared,
+      paymentLinks: selected.slice(0, count),
+    });
+    subject = message.subject;
+    bodies.push(message.body);
+  }
+  const url = composeQuoteWithinCap({ to: recipient, subject, bodies });
   return {
     ...url,
     recipientMissing: recipient === null,

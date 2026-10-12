@@ -26,6 +26,11 @@ type LoadResult =
   | { ok: true; payload: ClientQuotePaymentLinkPayload }
   | { ok: false; code: string };
 
+export type ClientQuotePaymentLinksSettlement =
+  | { status: "loading" }
+  | { status: "ready"; payload: ClientQuotePaymentLinkPayload }
+  | { status: "failed" };
+
 async function readPaymentLinkResponse(response: Response): Promise<LoadResult> {
   const body = await parseJsonResponse<unknown>(response, {
     unexpectedMessage: "Payment links could not be loaded.",
@@ -54,10 +59,12 @@ export function ClientQuotePaymentLinks({
   quoteId,
   currencyCode,
   messages,
+  onPaymentLinksSettled,
 }: {
   quoteId: string;
   currencyCode: string;
   messages: LicenseeMessages;
+  onPaymentLinksSettled?: (settlement: ClientQuotePaymentLinksSettlement) => void;
 }) {
   const [phase, setPhase] = useState<"loading" | "load_failed" | "ready">("loading");
   const [payload, setPayload] = useState<ClientQuotePaymentLinkPayload | null>(null);
@@ -72,6 +79,8 @@ export function ClientQuotePaymentLinks({
   const lastDecision = useRef<ClientQuotePaymentLinkDecision | null>(null);
   const payloadRef = useRef<ClientQuotePaymentLinkPayload | null>(null);
   payloadRef.current = payload;
+  const settledRef = useRef(onPaymentLinksSettled);
+  settledRef.current = onPaymentLinksSettled;
 
   const applyPayload = useCallback((next: ClientQuotePaymentLinkPayload) => {
     setPayload(next);
@@ -80,6 +89,7 @@ export function ClientQuotePaymentLinks({
     setCanRetrySame(false);
     const mode = next.eligibility.oneTime?.existingMode ?? null;
     if (mode) setChoice(mode);
+    settledRef.current?.({ status: "ready", payload: next });
   }, []);
 
   const load = useCallback(
@@ -88,6 +98,7 @@ export function ClientQuotePaymentLinks({
       setPhase("loading");
       setFailureCode(null);
       setCanRetrySame(false);
+      settledRef.current?.({ status: "loading" });
       try {
         const response = await fetch(
           `/api/licensee/client-quotes/${encodeURIComponent(quoteId)}/payment-links`,
@@ -99,6 +110,7 @@ export function ClientQuotePaymentLinks({
         if (!result.ok) {
           setPhase("load_failed");
           setFailureCode(result.code);
+          settledRef.current?.({ status: "failed" });
           return;
         }
         applyPayload(result.payload);
@@ -106,6 +118,7 @@ export function ClientQuotePaymentLinks({
         if (signal?.aborted) return;
         setPhase("load_failed");
         setFailureCode("PAYMENT_LINK_FAILED");
+        settledRef.current?.({ status: "failed" });
       }
     },
     [applyPayload, quoteId],

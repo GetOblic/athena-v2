@@ -337,17 +337,13 @@ describe("Send by Email placement", () => {
     assert.equal(JSON.stringify(quote.issuedSnapshot), before);
     assert.match(html, /data-client-document-send-email="quote"/);
     assert.match(html, /data-client-document-send-layout="detail"/);
+    assert.match(html, /data-client-document-send-email-pending="true"/);
+    assert.equal(gmailHrefs(html).length, 0);
     assert.match(html, /data-create-client-invoice="detail"/);
     assert.match(html, /data-client-quote-download-pdf="true"/);
     assert.match(html, /data-client-quote-revise="true"/);
-    assert.match(html, /target="_blank"/);
-    assert.match(html, /rel="noopener noreferrer"/);
     assert.match(html, /<svg/);
-    const href = gmailHrefs(html)[0];
-    const url = new URL(href);
-    assert.equal(url.searchParams.get("to"), "buyer@example.com");
-    assert.equal(url.searchParams.get("body")?.includes("mutated-editor@example.com"), false);
-    assert.match(url.searchParams.get("su") ?? "", /^Quotation Q-2026-0001/);
+    assert.equal(JSON.stringify(quote.issuedSnapshot).includes("mutated-editor@example.com"), false);
     assert.match(html, new RegExp(CLIENT_DOCUMENT_SEND_EMAIL_DETAIL_CLASS.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
     const draftHtml = renderToStaticMarkup(

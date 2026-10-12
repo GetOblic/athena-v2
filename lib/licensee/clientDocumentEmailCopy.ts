@@ -1,9 +1,11 @@
 /**
  * Plain-text Gmail subjects and bodies for issued client documents.
  * Language follows the frozen document, not the Licensee Master UI.
- * The message names the document, the project, the recipient, the issuer,
- * and the PDF file. It does not carry amounts, scope, payment directions,
- * tax identifiers, or Athena identifiers.
+ * A quotation names the document, the project, the recipient, and the issuer.
+ * It does not name the PDF file. When official Payment Link URLs are supplied,
+ * those links are listed. An invoice still names the PDF file.
+ * Neither message carries amounts, scope, payment directions, tax identifiers,
+ * or Athena identifiers.
  */
 
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
@@ -12,6 +14,23 @@ const SUBJECT_MAX = 120;
 const ELLIPSIS = "…";
 
 type DocumentKind = "quote" | "invoice";
+
+export const CLIENT_QUOTE_EMAIL_PAYMENT_PURPOSES = [
+  "one_time_full",
+  "one_time_deposit",
+  "one_time_balance",
+  "monthly",
+  "quarterly",
+  "annually",
+] as const;
+
+export type ClientQuoteEmailPaymentPurpose =
+  (typeof CLIENT_QUOTE_EMAIL_PAYMENT_PURPOSES)[number];
+
+export type ClientQuoteEmailPaymentLink = {
+  purpose: ClientQuoteEmailPaymentPurpose;
+  url: string;
+};
 
 type LanguageCopy = {
   quoteTitle: string;
@@ -23,6 +42,12 @@ type LanguageCopy = {
   invoiceIntro: (number: string, project: string) => string;
   invoiceIntroBare: (number: string) => string;
   attachment: (filename: string) => string;
+  paymentFull: (url: string) => string;
+  paymentDeposit: (url: string) => string;
+  paymentBalance: (url: string) => string;
+  paymentMonthly: (url: string) => string;
+  paymentQuarterly: (url: string) => string;
+  paymentAnnual: (url: string) => string;
   regards: string;
 };
 
@@ -39,6 +64,12 @@ const COPY: Record<OrganizationLanguage, LanguageCopy> = {
       `Please find our invoice ${number} for ${project}.`,
     invoiceIntroBare: (number) => `Please find our invoice ${number}.`,
     attachment: (filename) => `PDF file: ${filename}`,
+    paymentFull: (url) => `Payment link: ${url}`,
+    paymentDeposit: (url) => `Deposit: ${url}`,
+    paymentBalance: (url) => `Remaining balance: ${url}`,
+    paymentMonthly: (url) => `Monthly payment link: ${url}`,
+    paymentQuarterly: (url) => `Quarterly payment link: ${url}`,
+    paymentAnnual: (url) => `Annual payment link: ${url}`,
     regards: "Kind regards,",
   },
   fr: {
@@ -53,6 +84,12 @@ const COPY: Record<OrganizationLanguage, LanguageCopy> = {
       `Veuillez trouver notre facture ${number} pour ${project}.`,
     invoiceIntroBare: (number) => `Veuillez trouver notre facture ${number}.`,
     attachment: (filename) => `Fichier PDF : ${filename}`,
+    paymentFull: (url) => `Lien de paiement : ${url}`,
+    paymentDeposit: (url) => `Acompte : ${url}`,
+    paymentBalance: (url) => `Solde restant : ${url}`,
+    paymentMonthly: (url) => `Lien de paiement mensuel : ${url}`,
+    paymentQuarterly: (url) => `Lien de paiement trimestriel : ${url}`,
+    paymentAnnual: (url) => `Lien de paiement annuel : ${url}`,
     regards: "Cordialement,",
   },
   es: {
@@ -67,6 +104,12 @@ const COPY: Record<OrganizationLanguage, LanguageCopy> = {
       `Adjuntamos nuestra factura ${number} para ${project}.`,
     invoiceIntroBare: (number) => `Adjuntamos nuestra factura ${number}.`,
     attachment: (filename) => `Archivo PDF: ${filename}`,
+    paymentFull: (url) => `Enlace de pago: ${url}`,
+    paymentDeposit: (url) => `Anticipo: ${url}`,
+    paymentBalance: (url) => `Saldo restante: ${url}`,
+    paymentMonthly: (url) => `Enlace de pago mensual: ${url}`,
+    paymentQuarterly: (url) => `Enlace de pago trimestral: ${url}`,
+    paymentAnnual: (url) => `Enlace de pago anual: ${url}`,
     regards: "Un saludo,",
   },
   it: {
@@ -81,6 +124,12 @@ const COPY: Record<OrganizationLanguage, LanguageCopy> = {
       `Inviamo la nostra fattura ${number} per ${project}.`,
     invoiceIntroBare: (number) => `Inviamo la nostra fattura ${number}.`,
     attachment: (filename) => `File PDF: ${filename}`,
+    paymentFull: (url) => `Link di pagamento: ${url}`,
+    paymentDeposit: (url) => `Acconto: ${url}`,
+    paymentBalance: (url) => `Saldo restante: ${url}`,
+    paymentMonthly: (url) => `Link di pagamento mensile: ${url}`,
+    paymentQuarterly: (url) => `Link di pagamento trimestrale: ${url}`,
+    paymentAnnual: (url) => `Link di pagamento annuale: ${url}`,
     regards: "Cordiali saluti,",
   },
   de: {
@@ -95,6 +144,12 @@ const COPY: Record<OrganizationLanguage, LanguageCopy> = {
       `anbei unsere Rechnung ${number} für ${project}.`,
     invoiceIntroBare: (number) => `anbei unsere Rechnung ${number}.`,
     attachment: (filename) => `PDF-Datei: ${filename}`,
+    paymentFull: (url) => `Zahlungslink: ${url}`,
+    paymentDeposit: (url) => `Anzahlung: ${url}`,
+    paymentBalance: (url) => `Restbetrag: ${url}`,
+    paymentMonthly: (url) => `Monatlicher Zahlungslink: ${url}`,
+    paymentQuarterly: (url) => `Vierteljährlicher Zahlungslink: ${url}`,
+    paymentAnnual: (url) => `Jährlicher Zahlungslink: ${url}`,
     regards: "Mit freundlichen Grüßen",
   },
   pt: {
@@ -109,6 +164,12 @@ const COPY: Record<OrganizationLanguage, LanguageCopy> = {
       `Segue a nossa fatura ${number} para ${project}.`,
     invoiceIntroBare: (number) => `Segue a nossa fatura ${number}.`,
     attachment: (filename) => `Ficheiro PDF: ${filename}`,
+    paymentFull: (url) => `Ligação de pagamento: ${url}`,
+    paymentDeposit: (url) => `Sinal: ${url}`,
+    paymentBalance: (url) => `Saldo restante: ${url}`,
+    paymentMonthly: (url) => `Ligação de pagamento mensal: ${url}`,
+    paymentQuarterly: (url) => `Ligação de pagamento trimestral: ${url}`,
+    paymentAnnual: (url) => `Ligação de pagamento anual: ${url}`,
     regards: "Com os melhores cumprimentos,",
   },
 };
@@ -141,6 +202,23 @@ function limitSubject(title: string, documentNumber: string, projectTitle: strin
   return `${sliceCodePoints(head, SUBJECT_MAX - 1).trimEnd()}${ELLIPSIS}`;
 }
 
+function paymentLine(copy: LanguageCopy, link: ClientQuoteEmailPaymentLink): string {
+  switch (link.purpose) {
+    case "one_time_full":
+      return copy.paymentFull(link.url);
+    case "one_time_deposit":
+      return copy.paymentDeposit(link.url);
+    case "one_time_balance":
+      return copy.paymentBalance(link.url);
+    case "monthly":
+      return copy.paymentMonthly(link.url);
+    case "quarterly":
+      return copy.paymentQuarterly(link.url);
+    case "annually":
+      return copy.paymentAnnual(link.url);
+  }
+}
+
 export function clientDocumentEmailMessage(input: {
   kind: DocumentKind;
   language: OrganizationLanguage;
@@ -149,6 +227,7 @@ export function clientDocumentEmailMessage(input: {
   greetingName: string;
   issuerName: string;
   pdfFilename: string;
+  paymentLinks?: readonly ClientQuoteEmailPaymentLink[];
 }): { subject: string; body: string } {
   const copy = COPY[input.language];
   const title = input.kind === "quote" ? copy.quoteTitle : copy.invoiceTitle;
@@ -156,7 +235,6 @@ export function clientDocumentEmailMessage(input: {
   const project = singleLine(input.projectTitle);
   const greeting = singleLine(input.greetingName);
   const issuer = singleLine(input.issuerName);
-  const filename = singleLine(input.pdfFilename);
   const intro =
     input.kind === "quote"
       ? project
@@ -170,10 +248,14 @@ export function clientDocumentEmailMessage(input: {
     "",
     intro,
     "",
-    copy.attachment(filename),
-    "",
-    copy.regards,
   ];
+  if (input.kind === "invoice") {
+    lines.push(copy.attachment(singleLine(input.pdfFilename)), "");
+  } else {
+    const paymentLines = (input.paymentLinks ?? []).map((link) => paymentLine(copy, link));
+    if (paymentLines.length > 0) lines.push(...paymentLines, "");
+  }
+  lines.push(copy.regards);
   if (issuer) lines.push(issuer);
   return {
     subject: limitSubject(title, number, project),

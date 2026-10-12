@@ -1,12 +1,20 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ClientDocumentSendByEmailLink } from "@/components/licensee/clientDocuments/ClientDocumentSendByEmailLink";
-import { ClientQuotePaymentLinks } from "@/components/licensee/clientQuotes/ClientQuotePaymentLinks";
+import { Mail } from "lucide-react";
+import {
+  CLIENT_DOCUMENT_SEND_EMAIL_DETAIL_CLASS,
+  ClientDocumentSendByEmailLink,
+} from "@/components/licensee/clientDocuments/ClientDocumentSendByEmailLink";
+import {
+  ClientQuotePaymentLinks,
+  type ClientQuotePaymentLinksSettlement,
+} from "@/components/licensee/clientQuotes/ClientQuotePaymentLinks";
 import { ClientQuotePdfDownloadButton } from "@/components/licensee/clientQuotes/ClientQuotePdfDownloadButton";
 import {
   buildClientDocumentGmailHandoff,
+  clientDocumentRecipientEmail,
   type ClientQuoteGmailSnapshot,
 } from "@/lib/licensee/clientDocumentGmailHandoff";
 import type { LicenseeMessages } from "@/lib/licensee/getLicenseeLocalization";
@@ -388,6 +396,48 @@ function CurrencyControl({
   );
 }
 
+type QuoteEmailSettlement = { status: "idle" } | ClientQuotePaymentLinksSettlement;
+
+function QuoteEmailPending({
+  messages,
+  recipientMissing,
+}: {
+  messages: LicenseeMessages;
+  recipientMissing: boolean;
+}) {
+  const copy = messages.clientDocuments;
+  return (
+    <div
+      className="flex w-full flex-col gap-2 sm:w-auto"
+      data-client-document-send-email="quote"
+      data-client-document-send-layout="detail"
+      data-client-document-send-email-pending="true"
+    >
+      <button
+        type="button"
+        disabled
+        className={CLIENT_DOCUMENT_SEND_EMAIL_DETAIL_CLASS}
+        aria-busy="true"
+      >
+        <Mail size={16} aria-hidden="true" />
+        {copy.sendByEmail}
+      </button>
+      <p className="text-xs leading-5 text-white/45" data-client-document-send-reminder="true">
+        {copy.sendReminder}
+      </p>
+      {recipientMissing ? (
+        <p
+          className="text-xs leading-5 text-amber-100"
+          role="status"
+          data-client-document-send-recipient-warning="true"
+        >
+          {copy.missingRecipient}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function ClientQuoteEditorView({
   mode,
   quoteNumber,
@@ -424,12 +474,41 @@ export function ClientQuoteEditorView({
   onRevise,
   onCreateInvoice,
 }: ClientQuoteEditorViewProps) {
+  const trackedQuoteId = downloadQuoteId ?? null;
+  const [paymentQuoteId, setPaymentQuoteId] = useState<string | null>(trackedQuoteId);
+  const [paymentLinksEmail, setPaymentLinksEmail] = useState<QuoteEmailSettlement>(
+    trackedQuoteId ? { status: "loading" } : { status: "idle" },
+  );
+  if (paymentQuoteId !== trackedQuoteId) {
+    setPaymentQuoteId(trackedQuoteId);
+    setPaymentLinksEmail(trackedQuoteId ? { status: "loading" } : { status: "idle" });
+  }
+  const onPaymentLinksSettled = useCallback((settlement: ClientQuotePaymentLinksSettlement) => {
+    setPaymentLinksEmail(settlement);
+  }, []);
+  const paymentSettlement: QuoteEmailSettlement =
+    paymentQuoteId !== trackedQuoteId
+      ? trackedQuoteId
+        ? { status: "loading" }
+        : { status: "idle" }
+      : paymentLinksEmail;
   const copy = messages.clientQuotes;
   const readOnly = mode === "issued";
   const directQuote = sourceEstimateId === null;
+  const emailLoading = Boolean(readOnly && issuedSnapshot && trackedQuoteId && paymentSettlement.status === "loading");
   const emailHandoff =
-    readOnly && issuedSnapshot
-      ? buildClientDocumentGmailHandoff({ kind: "quote", snapshot: issuedSnapshot })
+    readOnly && issuedSnapshot && !emailLoading
+      ? buildClientDocumentGmailHandoff({
+          kind: "quote",
+          snapshot: issuedSnapshot,
+          paymentLinks:
+            paymentSettlement.status === "ready"
+              ? paymentSettlement.payload.paymentRequests.map((row) => ({
+                  purpose: row.purpose,
+                  url: row.paymentLinkUrl,
+                }))
+              : undefined,
+        })
       : null;
   const busy = pending !== null || createInvoicePending;
   const missing = new Set(missingRequirements);
@@ -1351,6 +1430,7 @@ export function ClientQuoteEditorView({
               quoteId={downloadQuoteId}
               currencyCode={currencyCode}
               messages={messages}
+              onPaymentLinksSettled={onPaymentLinksSettled}
             />
           ) : null}
           <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
@@ -1377,6 +1457,11 @@ export function ClientQuoteEditorView({
               messages={messages}
               layout="detail"
               documentKind="quote"
+            />
+          ) : emailLoading && issuedSnapshot ? (
+            <QuoteEmailPending
+              messages={messages}
+              recipientMissing={clientDocumentRecipientEmail(issuedSnapshot.customer.email) == null}
             />
           ) : null}
           <button
