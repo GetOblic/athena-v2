@@ -436,8 +436,14 @@ describe("GetOblic Links — localized template destinations", () => {
     ];
     for (const file of untouched) {
       const source = read(file);
-      assert.doesNotMatch(source, /buildTemplateDestinationUrl/, file);
       assert.doesNotMatch(source, /business-demo-compte-ia-page/, file);
+      if (file === "lib/prospects/getOblicFunnelPresentation.ts") {
+        assert.match(source, /buildTemplateDestinationUrl\(\{/);
+        assert.match(source, /templateId:\s*"business_created"/);
+        assert.doesNotMatch(source, /validateDestinationUrl/);
+        continue;
+      }
+      assert.doesNotMatch(source, /buildTemplateDestinationUrl/, file);
     }
   });
 });

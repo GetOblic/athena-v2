@@ -12,7 +12,7 @@ import {
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
 
 export type LicenseeOwnCompanyGetOblicAuthor = {
-  authorId: number;
+  authorId: number | null;
   licenseeDefaultLanguage: OrganizationLanguage;
 };
 
@@ -50,15 +50,9 @@ export async function resolveLicenseeOwnCompanyGetOblicAuthorId(
     }
 
     const settings = await getGetOblicDirectorySettings(ownCompanyId);
-    if (!settings.configured) {
-      return null;
-    }
-    const authorId = readGetOblicFunnelPositiveInteger(
-      settings.settings.wordpress_author_id,
-    );
-    if (authorId == null) {
-      return null;
-    }
+    const authorId = settings.configured
+      ? readGetOblicFunnelPositiveInteger(settings.settings.wordpress_author_id)
+      : null;
     return {
       authorId,
       licenseeDefaultLanguage: licensee.default_language,

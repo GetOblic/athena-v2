@@ -26,7 +26,10 @@ import { ProspectCreateAudienceButton } from "@/components/prospects/ProspectCre
 import { ProspectCreateQuoteCta } from "@/components/prospects/ProspectCreateQuoteCta";
 import { ProspectRefreshIntelligenceButton } from "@/components/prospects/ProspectRefreshIntelligenceButton";
 import {
+  buildGetOblicFunnelCallHref,
+  buildGetOblicFunnelClaimHref,
   buildGetOblicFunnelPresentation,
+  readAuthorizedGetOblicFunnelListingId,
   readLinkedGetOblicFunnelContactId,
 } from "@/lib/prospects/getOblicFunnelPresentation";
 import { shouldShowGetOblicListingReleaseAction } from "@/lib/prospects/getOblicListingReleasePresentation";
@@ -77,7 +80,10 @@ import { isLicenseeOwnCompanyOrganization } from "@/services/licensee/licenseeId
 import { getProspectClientConversionState } from "@/services/licensee/licenseeProspectClientConversionReads";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
 import { hasCurrentKnowledgeBaseAsset } from "@/services/getoblicDirectory/getoblicDirectoryKnowledgeBaseService";
-import { isAuthorizedUnclaimedGetOblicOutboundTarget } from "@/services/getoblicDirectory/getoblicOutboundContentAuthorization";
+import {
+  isAuthorizedUnclaimedGetOblicOutboundTarget,
+  resolveGetOblicOutboundContentTarget,
+} from "@/services/getoblicDirectory/getoblicOutboundContentAuthorization";
 import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { resolveLicenseeOwnCompanyGetOblicAuthorId } from "@/services/prospects/getOblicFunnelAuthor";
 import { readObservedListingDescription } from "@/services/prospects/prospectGetoblicDescription";
@@ -227,6 +233,18 @@ export default async function ProspectDetailsPage({
     isLicenseeOwnCompanyOrganization(organizationId),
     resolveLicenseeOwnCompanyGetOblicAuthorId(organizationId),
   ]);
+  let authorizedGetOblicListingId: number | null = null;
+  try {
+    authorizedGetOblicListingId = readAuthorizedGetOblicFunnelListingId(
+      await resolveGetOblicOutboundContentTarget({
+        organizationId,
+        prospectId: prospect.id,
+      }),
+    );
+  } catch (error) {
+    console.error("[GETOBLIC_FUNNEL] outbound_authorization_refused", error);
+    authorizedGetOblicListingId = null;
+  }
   const getOblicFunnel = licenseeOwnCompanyAuthor
     ? buildGetOblicFunnelPresentation({
         authorId: licenseeOwnCompanyAuthor.authorId,
@@ -235,6 +253,21 @@ export default async function ProspectDetailsPage({
         licenseeDefaultLanguage: licenseeOwnCompanyAuthor.licenseeDefaultLanguage,
       })
     : null;
+  const callYourAiHref = buildGetOblicFunnelCallHref({
+    listingId: authorizedGetOblicListingId,
+    licenseeDefaultLanguage:
+      licenseeOwnCompanyAuthor?.licenseeDefaultLanguage ?? null,
+  });
+  const claimYourAiHref = buildGetOblicFunnelClaimHref({
+    authorId: licenseeOwnCompanyAuthor?.authorId ?? null,
+    listingId: authorizedGetOblicListingId,
+    businessName: prospect.business_name,
+    licenseeDefaultLanguage:
+      licenseeOwnCompanyAuthor?.licenseeDefaultLanguage ?? null,
+  });
+  const showGetOblicFunnel = Boolean(
+    getOblicFunnel || callYourAiHref || claimYourAiHref,
+  );
   const getoblicDerived = isGetOblicDerivedProspect(prospect);
   const hasActiveGetOblicOwnership = activeGetOblicLink != null;
   const showLinkedOwnerGetOblicOutbound =
@@ -477,14 +510,18 @@ export default async function ProspectDetailsPage({
         }
         funnelGroupLabel={copy.detail.getoblicFunnel}
         funnelAction={
-          getOblicFunnel ? (
+          showGetOblicFunnel ? (
             <GetOblicFunnelControls
-              aiAgentsHref={getOblicFunnel.aiAgentsHref}
-              virtualPhoneHref={getOblicFunnel.virtualPhoneHref}
-              calendarHref={getOblicFunnel.calendarHref}
+              aiAgentsHref={getOblicFunnel?.aiAgentsHref ?? null}
+              virtualPhoneHref={getOblicFunnel?.virtualPhoneHref ?? null}
+              calendarHref={getOblicFunnel?.calendarHref ?? null}
+              callHref={callYourAiHref}
+              claimHref={claimYourAiHref}
               aiAgentsLabel={copy.detail.getoblicFunnelAiAgents}
               virtualPhoneLabel={copy.detail.getoblicFunnelVirtualPhone}
               calendarLabel={copy.detail.getoblicFunnelCalendar}
+              callLabel={copy.detail.getoblicFunnelCallYourAi}
+              claimLabel={copy.detail.getoblicFunnelClaimYourAi}
             />
           ) : null
         }

@@ -1,10 +1,16 @@
 /**
  * Pure GetOblic Funnel hrefs for Prospect Detail.
  * Paths follow the controlling Licensee's default_language.
+ * Claim your AI reuses the business_created template and adds author_id.
+ * Call your AI is a tel: URI. It is not an HTTP destination.
  * Server-safe. No Licensee, settings, or WordPress I/O.
  */
 
-import type { OrganizationLanguage } from "@/services/organizationLanguage";
+import { buildTemplateDestinationUrl } from "@/lib/getoblic-links/templates";
+import {
+  isOrganizationLanguage,
+  type OrganizationLanguage,
+} from "@/services/organizationLanguage";
 
 const GETOBLIC_FUNNEL_ORIGIN = "https://claim.getoblic.com";
 
@@ -142,4 +148,125 @@ export function buildGetOblicFunnelPresentation(input: {
     virtualPhoneHref,
     calendarHref,
   };
+}
+
+const GETOBLIC_FUNNEL_CALL_TELEPHONE_FR = "+33939204080";
+const GETOBLIC_FUNNEL_CALL_TELEPHONE_DEFAULT = "+18666658001";
+
+const AUTHORIZED_GETOBLIC_FUNNEL_LISTING_MODES = new Set([
+  "linked_owner",
+  "unclaimed_authorized",
+]);
+
+/**
+ * Listing id for the two new CTAs.
+ * Only the resolver's authorized outcomes qualify.
+ * Claiming, remote_missing, released, and any other mode fail closed.
+ */
+export function readAuthorizedGetOblicFunnelListingId(
+  target:
+    | {
+        mode?: string | null;
+        wordpressListingId?: unknown;
+      }
+    | null
+    | undefined,
+): number | null {
+  if (!target || !AUTHORIZED_GETOBLIC_FUNNEL_LISTING_MODES.has(target.mode ?? "")) {
+    return null;
+  }
+  return readGetOblicFunnelPositiveInteger(target.wordpressListingId);
+}
+
+export function buildGetOblicFunnelCallHref(input: {
+  listingId: unknown;
+  licenseeDefaultLanguage: unknown;
+}): string | null {
+  const listingId = readGetOblicFunnelPositiveInteger(input.listingId);
+  if (listingId == null || !isOrganizationLanguage(input.licenseeDefaultLanguage)) {
+    return null;
+  }
+  const telephone =
+    input.licenseeDefaultLanguage === "fr"
+      ? GETOBLIC_FUNNEL_CALL_TELEPHONE_FR
+      : GETOBLIC_FUNNEL_CALL_TELEPHONE_DEFAULT;
+  return `tel:${telephone},${listingId}#`;
+}
+
+export function buildGetOblicFunnelClaimHref(input: {
+  authorId: unknown;
+  listingId: unknown;
+  businessName: unknown;
+  licenseeDefaultLanguage: unknown;
+}): string | null {
+  const authorId = readGetOblicFunnelPositiveInteger(input.authorId);
+  const listingId = readGetOblicFunnelPositiveInteger(input.listingId);
+  const businessName = readBusinessName(input.businessName);
+  if (
+    authorId == null ||
+    listingId == null ||
+    !businessName ||
+    !isOrganizationLanguage(input.licenseeDefaultLanguage)
+  ) {
+    return null;
+  }
+
+  let templateHref: string;
+  try {
+    templateHref = buildTemplateDestinationUrl({
+      templateId: "business_created",
+      language: input.licenseeDefaultLanguage,
+      params: {
+        contact_id: String(listingId),
+        business_name: businessName,
+      },
+    });
+  } catch {
+    return null;
+  }
+
+  let templateUrl: URL;
+  try {
+    templateUrl = new URL(templateHref);
+  } catch {
+    return null;
+  }
+  if (
+    templateUrl.origin !== GETOBLIC_FUNNEL_ORIGIN ||
+    templateUrl.username !== "" ||
+    templateUrl.password !== "" ||
+    templateUrl.hash !== "" ||
+    templateUrl.searchParams.get("contact_id") !== String(listingId) ||
+    templateUrl.searchParams.get("business_name") !== businessName ||
+    [...templateUrl.searchParams.keys()].length !== 2
+  ) {
+    return null;
+  }
+
+  const pathname = templateUrl.pathname;
+  const url = new URL(pathname, GETOBLIC_FUNNEL_ORIGIN);
+  if (url.origin !== GETOBLIC_FUNNEL_ORIGIN || url.pathname !== pathname) {
+    return null;
+  }
+  url.hash = "";
+  url.search = "";
+  url.searchParams.set("author_id", String(authorId));
+  url.searchParams.set("contact_id", String(listingId));
+  url.searchParams.set("business_name", businessName);
+  if (
+    url.origin !== GETOBLIC_FUNNEL_ORIGIN ||
+    url.pathname !== pathname ||
+    url.searchParams.get("author_id") !== String(authorId) ||
+    url.searchParams.get("contact_id") !== String(listingId) ||
+    url.searchParams.get("business_name") !== businessName ||
+    [...url.searchParams.keys()].length !== 3
+  ) {
+    return null;
+  }
+
+  const href = url.toString();
+  if (href.split("?").length !== 2) {
+    return null;
+  }
+  return href;
 }

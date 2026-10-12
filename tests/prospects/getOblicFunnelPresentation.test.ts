@@ -11,9 +11,14 @@ import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { GetOblicFunnelControls } from "../../components/prospects/GetOblicFunnelControls";
+import { ProspectDetailHeader } from "../../components/prospects/ProspectDetailHeader";
+import { validateDestinationUrl } from "../../lib/getoblic-links/validation";
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import {
+  buildGetOblicFunnelCallHref,
+  buildGetOblicFunnelClaimHref,
   buildGetOblicFunnelPresentation,
+  readAuthorizedGetOblicFunnelListingId,
   readLinkedGetOblicFunnelContactId,
 } from "../../lib/prospects/getOblicFunnelPresentation";
 import {
@@ -62,36 +67,48 @@ const FUNNEL_LABELS = {
     getoblicFunnelAiAgents: "AI Agents",
     getoblicFunnelVirtualPhone: "Virtual Phone",
     getoblicFunnelCalendar: "Calendar",
+    getoblicFunnelCallYourAi: "Call your AI",
+    getoblicFunnelClaimYourAi: "Claim your AI",
   },
   fr: {
     getoblicFunnel: "Tunnel GetOblic",
     getoblicFunnelAiAgents: "Agents IA",
     getoblicFunnelVirtualPhone: "Téléphone virtuel",
     getoblicFunnelCalendar: "Calendrier",
+    getoblicFunnelCallYourAi: "Appelez votre IA",
+    getoblicFunnelClaimYourAi: "Activez votre IA",
   },
   es: {
     getoblicFunnel: "Embudo GetOblic",
     getoblicFunnelAiAgents: "Agentes de IA",
     getoblicFunnelVirtualPhone: "Teléfono virtual",
     getoblicFunnelCalendar: "Calendario",
+    getoblicFunnelCallYourAi: "Llama a tu IA",
+    getoblicFunnelClaimYourAi: "Activa tu IA",
   },
   it: {
     getoblicFunnel: "Imbuto GetOblic",
     getoblicFunnelAiAgents: "Agenti IA",
     getoblicFunnelVirtualPhone: "Telefono virtuale",
     getoblicFunnelCalendar: "Calendario",
+    getoblicFunnelCallYourAi: "Chiama la tua IA",
+    getoblicFunnelClaimYourAi: "Attiva la tua IA",
   },
   de: {
     getoblicFunnel: "GetOblic-Trichter",
     getoblicFunnelAiAgents: "KI-Agenten",
     getoblicFunnelVirtualPhone: "Virtuelles Telefon",
     getoblicFunnelCalendar: "Kalender",
+    getoblicFunnelCallYourAi: "Ruf deine KI an",
+    getoblicFunnelClaimYourAi: "Aktiviere deine KI",
   },
   pt: {
     getoblicFunnel: "Funil GetOblic",
     getoblicFunnelAiAgents: "Agentes de IA",
     getoblicFunnelVirtualPhone: "Telefone virtual",
     getoblicFunnelCalendar: "Calendário",
+    getoblicFunnelCallYourAi: "Ligue para sua IA",
+    getoblicFunnelClaimYourAi: "Ative sua IA",
   },
 } as const;
 
@@ -525,7 +542,7 @@ describe("Licensee Own Company GetOblic author authority", () => {
     );
   });
 
-  it("fails closed when the controlling Licensee, Own Company, or author is missing", async () => {
+  it("fails closed when the controlling Licensee or Own Company is missing", async () => {
     const missingLicensee = installFixture({
       licensees: [licensee(LIC_A, OWN_A)],
       relationships: [],
@@ -552,25 +569,92 @@ describe("Licensee Own Company GetOblic author authority", () => {
     });
     assert.equal(await resolveLicenseeOwnCompanyGetOblicAuthorId(CLIENT), null);
     assert.deepEqual(settingsOrganizations(missingOwnCompany.calls), []);
+  });
 
+  it("keeps Licensee language when the Own Company author mapping is missing or invalid", async () => {
     const missingSettings = installFixture({
-      licensees: [licensee(LIC_A, OWN_A)],
+      licensees: [licensee(LIC_A, OWN_A, "es")],
       relationships: [{ licensee_account_id: LIC_A, organization_id: CLIENT }],
       settings: [settings(CLIENT, INVENTORY_POOL_AUTHOR)],
     });
-    assert.equal(await resolveLicenseeOwnCompanyGetOblicAuthorId(CLIENT), null);
+    const unconfigured = await resolveLicenseeOwnCompanyGetOblicAuthorId(CLIENT);
+    assert.ok(unconfigured);
+    assert.equal(unconfigured.authorId, null);
+    assert.equal(unconfigured.licenseeDefaultLanguage, "es");
     assert.deepEqual(settingsOrganizations(missingSettings.calls), [OWN_A]);
-
-    const missingAuthor = installFixture(
-      managedClientFixture(null, INVENTORY_POOL_AUTHOR),
+    assert.equal(
+      buildGetOblicFunnelCallHref({
+        listingId: 946970,
+        licenseeDefaultLanguage: unconfigured?.licenseeDefaultLanguage,
+      }),
+      "tel:+18666658001,946970#",
     );
-    assert.equal(await resolveLicenseeOwnCompanyGetOblicAuthorId(CLIENT), null);
+    assert.equal(
+      buildGetOblicFunnelClaimHref({
+        authorId: unconfigured?.authorId,
+        listingId: 946970,
+        businessName: "Clinique Paris-Bercy",
+        licenseeDefaultLanguage: unconfigured?.licenseeDefaultLanguage,
+      }),
+      null,
+    );
+
+    const missingAuthor = installFixture({
+      ...managedClientFixture(null, INVENTORY_POOL_AUTHOR),
+      licensees: [licensee(LIC_A, OWN_A, "fr"), licensee(LIC_B, OWN_B, "en")],
+    });
+    const french = await resolveLicenseeOwnCompanyGetOblicAuthorId(CLIENT);
+    assert.ok(french);
+    assert.equal(french.authorId, null);
+    assert.equal(french.licenseeDefaultLanguage, "fr");
     assert.deepEqual(settingsOrganizations(missingAuthor.calls), [OWN_A]);
+    assert.equal(
+      buildGetOblicFunnelCallHref({
+        listingId: 946970,
+        licenseeDefaultLanguage: french.licenseeDefaultLanguage,
+      }),
+      "tel:+33939204080,946970#",
+    );
+    assert.equal(
+      buildGetOblicFunnelClaimHref({
+        authorId: french.authorId,
+        listingId: 946970,
+        businessName: "Clinique Paris-Bercy",
+        licenseeDefaultLanguage: french.licenseeDefaultLanguage,
+      }),
+      null,
+    );
+    assert.equal(
+      buildGetOblicFunnelPresentation({
+        authorId: french.authorId,
+        contactId: 946970,
+        businessName: "Clinique Paris-Bercy",
+        licenseeDefaultLanguage: french.licenseeDefaultLanguage,
+      }),
+      null,
+    );
 
     for (const invalidAuthor of [0, -5, 1.5]) {
       const fixture = installFixture(managedClientFixture(invalidAuthor, CLIENT_AUTHOR));
+      const resolved = await resolveLicenseeOwnCompanyGetOblicAuthorId(CLIENT);
+      assert.ok(resolved, `author ${invalidAuthor}`);
+      assert.equal(resolved.authorId, null, `author ${invalidAuthor}`);
+      assert.equal(resolved.licenseeDefaultLanguage, "en", `author ${invalidAuthor}`);
       assert.equal(
-        await resolveLicenseeOwnCompanyGetOblicAuthorId(CLIENT),
+        buildGetOblicFunnelCallHref({
+          listingId: 946970,
+          licenseeDefaultLanguage: resolved?.licenseeDefaultLanguage,
+        }),
+        "tel:+18666658001,946970#",
+        `author ${invalidAuthor}`,
+      );
+      assert.equal(
+        buildGetOblicFunnelClaimHref({
+          authorId: resolved?.authorId,
+          listingId: 946970,
+          businessName: "Acme Clinic",
+          licenseeDefaultLanguage: resolved?.licenseeDefaultLanguage,
+        }),
         null,
         `author ${invalidAuthor}`,
       );
@@ -746,6 +830,24 @@ describe("Licensee Own Company GetOblic author authority", () => {
     });
     assert.ok(presentation);
     assert.equal(new URL(presentation.aiAgentsHref).pathname, FUNNEL_PATHS.aiAgents);
+    assert.equal(
+      buildGetOblicFunnelCallHref({
+        listingId: 946970,
+        licenseeDefaultLanguage: author.licenseeDefaultLanguage,
+      }),
+      "tel:+18666658001,946970#",
+    );
+    assert.equal(
+      new URL(
+        buildGetOblicFunnelClaimHref({
+          authorId: author.authorId,
+          listingId: 946970,
+          businessName: "Acme Clinic",
+          licenseeDefaultLanguage: author.licenseeDefaultLanguage,
+        }) ?? "",
+      ).pathname,
+      "/business-created-page",
+    );
   });
 });
 
@@ -821,7 +923,572 @@ describe("GetOblic Funnel Prospect Detail wiring", () => {
       assert.equal(detail.getoblicFunnelAiAgents, expected.getoblicFunnelAiAgents);
       assert.equal(detail.getoblicFunnelVirtualPhone, expected.getoblicFunnelVirtualPhone);
       assert.equal(detail.getoblicFunnelCalendar, expected.getoblicFunnelCalendar);
+      assert.equal(detail.getoblicFunnelCallYourAi, expected.getoblicFunnelCallYourAi);
+      assert.equal(detail.getoblicFunnelClaimYourAi, expected.getoblicFunnelClaimYourAi);
       assert.match(detail.getoblicFunnel, /GetOblic/);
     }
+  });
+});
+
+const LINKED_FUNNEL_HREFS = {
+  aiAgentsHref:
+    "https://claim.getoblic.com/business-portfolio-ai-agent-page?author_id=42&contact_id=946970&business_name=Acme",
+  virtualPhoneHref:
+    "https://claim.getoblic.com/business-portfolio-virtual-line-page?author_id=42&contact_id=946970&business_name=Acme",
+  calendarHref:
+    "https://claim.getoblic.com/business-portfolio-booking-page?author_id=42&contact_id=946970&business_name=Acme",
+} as const;
+
+const CALL_HREF_FR = "tel:+33939204080,946970#";
+const CALL_HREF_DEFAULT = "tel:+18666658001,946970#";
+
+function funnelActions(html: string): string[] {
+  return [...html.matchAll(/data-prospect-header-action="([^"]+)"/g)].map(
+    (match) => match[1] ?? "",
+  );
+}
+
+function renderFunnelHeader(funnelAction: ReturnType<typeof createElement>) {
+  return renderToStaticMarkup(
+    createElement(ProspectDetailHeader, {
+      backLabel: "Prospects",
+      eyebrow: "Prospect",
+      title: "Clinique Paris-Bercy",
+      intelligenceLabel: "Ready",
+      intelligenceStatus: "Ready",
+      ready: true,
+      hasDiscussion: false,
+      askAthenaLabel: "Ask Athena",
+      addObservationLabel: "Add observation",
+      editProfileLabel: "Edit profile",
+      openWebsiteLabel: "Open website",
+      completenessScore: createElement("span", null, "0"),
+      generateActions: null,
+      researchAction: null,
+      lifecycleAction: null,
+      directoryAction: null,
+      intelligenceGroupLabel: "Intelligence",
+      prospectToolsLabel: "Prospect Tools",
+      directoryGroupLabel: "GetOblic Directory",
+      funnelGroupLabel: en.prospects.detail.getoblicFunnel,
+      showAskAthena: false,
+      showEditProfile: false,
+      showAddObservation: false,
+      funnelAction,
+    }),
+  );
+}
+
+describe("GetOblic Funnel Call and Claim CTAs", () => {
+  it("keeps the existing three CTAs on their linked-only contract", () => {
+    const linked = readLinkedGetOblicFunnelContactId({
+      relationship_status: "linked",
+      wordpress_listing_id: 946970,
+    });
+    const presentation = buildGetOblicFunnelPresentation({
+      authorId: OWN_COMPANY_AUTHOR,
+      contactId: linked,
+      businessName: "Clinique Paris-Bercy",
+      licenseeDefaultLanguage: "en",
+    });
+    assert.equal(linked, 946970);
+    assert.ok(presentation);
+    assert.deepEqual(Object.keys(presentation).sort(), [
+      "aiAgentsHref",
+      "calendarHref",
+      "virtualPhoneHref",
+    ]);
+    assert.equal(
+      new URL(presentation.aiAgentsHref).pathname,
+      FUNNEL_PATHS.aiAgents,
+    );
+    assert.equal(
+      new URL(presentation.virtualPhoneHref).pathname,
+      FUNNEL_PATHS.virtualPhone,
+    );
+    assert.equal(
+      new URL(presentation.calendarHref).pathname,
+      FUNNEL_PATHS.calendar,
+    );
+
+    for (const relationship_status of [
+      "claiming",
+      "remote_missing",
+      "released",
+      "available",
+    ]) {
+      assert.equal(
+        readLinkedGetOblicFunnelContactId({
+          relationship_status,
+          wordpress_listing_id: 946970,
+        }),
+        null,
+        relationship_status,
+      );
+      assert.equal(
+        buildGetOblicFunnelPresentation({
+          authorId: OWN_COMPANY_AUTHOR,
+          contactId: readLinkedGetOblicFunnelContactId({
+            relationship_status,
+            wordpress_listing_id: 946970,
+          }),
+          businessName: "Clinique Paris-Bercy",
+          licenseeDefaultLanguage: "fr",
+        }),
+        null,
+        relationship_status,
+      );
+    }
+  });
+
+  it("shows all five CTAs for a linked Prospect and only the two new CTAs when unclaimed is authorized", () => {
+    const businessName = "Clinique Paris-Bercy";
+    const linkedListingId = readAuthorizedGetOblicFunnelListingId({
+      mode: "linked_owner",
+      wordpressListingId: 946970,
+    });
+    const linkedContactId = readLinkedGetOblicFunnelContactId({
+      relationship_status: "linked",
+      wordpress_listing_id: linkedListingId,
+    });
+    const linkedExisting = buildGetOblicFunnelPresentation({
+      authorId: 123456789,
+      contactId: linkedContactId,
+      businessName,
+      licenseeDefaultLanguage: "fr",
+    });
+    const linkedCall = buildGetOblicFunnelCallHref({
+      listingId: linkedListingId,
+      licenseeDefaultLanguage: "fr",
+    });
+    const linkedClaim = buildGetOblicFunnelClaimHref({
+      authorId: 123456789,
+      listingId: linkedListingId,
+      businessName,
+      licenseeDefaultLanguage: "fr",
+    });
+    assert.ok(linkedExisting);
+    assert.equal(linkedCall, CALL_HREF_FR);
+    assert.equal(
+      linkedClaim,
+      "https://claim.getoblic.com/business-demo-compte-ia-page?author_id=123456789&contact_id=946970&business_name=Clinique+Paris-Bercy",
+    );
+
+    assert.equal(
+      readLinkedGetOblicFunnelContactId({
+        relationship_status: "available",
+        wordpress_listing_id: 946970,
+      }),
+      null,
+    );
+    assert.equal(
+      buildGetOblicFunnelPresentation({
+        authorId: 123456789,
+        contactId: null,
+        businessName,
+        licenseeDefaultLanguage: "en",
+      }),
+      null,
+    );
+    const unclaimedListingId = readAuthorizedGetOblicFunnelListingId({
+      mode: "unclaimed_authorized",
+      wordpressListingId: 946970,
+    });
+    assert.equal(unclaimedListingId, 946970);
+    assert.equal(
+      buildGetOblicFunnelCallHref({
+        listingId: unclaimedListingId,
+        licenseeDefaultLanguage: "en",
+      }),
+      CALL_HREF_DEFAULT,
+    );
+    assert.equal(
+      buildGetOblicFunnelClaimHref({
+        authorId: 123456789,
+        listingId: unclaimedListingId,
+        businessName,
+        licenseeDefaultLanguage: "en",
+      }),
+      "https://claim.getoblic.com/business-created-page?author_id=123456789&contact_id=946970&business_name=Clinique+Paris-Bercy",
+    );
+  });
+
+  it("hides the new CTAs for unauthorized, revoked, and non-authorized ownership modes", () => {
+    for (const mode of [
+      "claiming",
+      "remote_missing",
+      "released",
+      "available",
+      "unauthorized",
+    ]) {
+      assert.equal(
+        readAuthorizedGetOblicFunnelListingId({
+          mode,
+          wordpressListingId: 946970,
+        }),
+        null,
+        mode,
+      );
+    }
+    assert.equal(readAuthorizedGetOblicFunnelListingId(null), null);
+    assert.equal(readAuthorizedGetOblicFunnelListingId(undefined), null);
+    assert.equal(
+      buildGetOblicFunnelCallHref({
+        listingId: readAuthorizedGetOblicFunnelListingId(null),
+        licenseeDefaultLanguage: "fr",
+      }),
+      null,
+    );
+    assert.equal(
+      buildGetOblicFunnelClaimHref({
+        authorId: 123456789,
+        listingId: null,
+        businessName: "Clinique Paris-Bercy",
+        licenseeDefaultLanguage: "fr",
+      }),
+      null,
+    );
+  });
+
+  it("fails closed on an invalid listing id, a missing author, or a blank business name", () => {
+    const unsafeListingIds = [
+      0,
+      -1,
+      1.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.MAX_SAFE_INTEGER + 1,
+      "946970",
+      "946970#",
+      null,
+      undefined,
+      "1 OR 1",
+    ];
+    for (const listingId of unsafeListingIds) {
+      assert.equal(
+        readAuthorizedGetOblicFunnelListingId({
+          mode: "linked_owner",
+          wordpressListingId: listingId,
+        }),
+        null,
+        `listing ${String(listingId)}`,
+      );
+      assert.equal(
+        readAuthorizedGetOblicFunnelListingId({
+          mode: "unclaimed_authorized",
+          wordpressListingId: listingId,
+        }),
+        null,
+        `unclaimed listing ${String(listingId)}`,
+      );
+      assert.equal(
+        buildGetOblicFunnelCallHref({
+          listingId,
+          licenseeDefaultLanguage: "en",
+        }),
+        null,
+        `call ${String(listingId)}`,
+      );
+      assert.equal(
+        buildGetOblicFunnelClaimHref({
+          authorId: 123456789,
+          listingId,
+          businessName: "Clinique Paris-Bercy",
+          licenseeDefaultLanguage: "en",
+        }),
+        null,
+        `claim ${String(listingId)}`,
+      );
+    }
+
+    assert.equal(
+      buildGetOblicFunnelCallHref({
+        listingId: 946970,
+        licenseeDefaultLanguage: "en",
+      }),
+      CALL_HREF_DEFAULT,
+    );
+    for (const authorId of [0, -1, 1.5, "123456789", null, undefined]) {
+      assert.equal(
+        buildGetOblicFunnelClaimHref({
+          authorId,
+          listingId: 946970,
+          businessName: "Clinique Paris-Bercy",
+          licenseeDefaultLanguage: "fr",
+        }),
+        null,
+        `author ${String(authorId)}`,
+      );
+    }
+    for (const businessName of ["", "   ", null, undefined]) {
+      assert.equal(
+        buildGetOblicFunnelClaimHref({
+          authorId: 123456789,
+          listingId: 946970,
+          businessName,
+          licenseeDefaultLanguage: "en",
+        }),
+        null,
+        `name ${String(businessName)}`,
+      );
+      assert.equal(
+        buildGetOblicFunnelCallHref({
+          listingId: 946970,
+          licenseeDefaultLanguage: "en",
+        }),
+        CALL_HREF_DEFAULT,
+        `call still open for ${String(businessName)}`,
+      );
+    }
+    assert.equal(
+      buildGetOblicFunnelCallHref({
+        listingId: 946970,
+        licenseeDefaultLanguage: null,
+      }),
+      null,
+    );
+    assert.equal(
+      buildGetOblicFunnelClaimHref({
+        authorId: 123456789,
+        listingId: 946970,
+        businessName: "Clinique Paris-Bercy",
+        licenseeDefaultLanguage: "xx",
+      }),
+      null,
+    );
+  });
+
+  it("formats the telephone extension and claim destination from Licensee language", () => {
+    assert.equal(
+      buildGetOblicFunnelCallHref({
+        listingId: 946970,
+        licenseeDefaultLanguage: "fr",
+      }),
+      CALL_HREF_FR,
+    );
+    for (const language of ORGANIZATION_LANGUAGES.filter((code) => code !== "fr")) {
+      assert.equal(
+        buildGetOblicFunnelCallHref({
+          listingId: 946970,
+          licenseeDefaultLanguage: language,
+        }),
+        CALL_HREF_DEFAULT,
+        language,
+      );
+      const claim = buildGetOblicFunnelClaimHref({
+        authorId: 123456789,
+        listingId: 946970,
+        businessName: "Clinique Paris-Bercy",
+        licenseeDefaultLanguage: language,
+      });
+      assert.equal(
+        claim,
+        "https://claim.getoblic.com/business-created-page?author_id=123456789&contact_id=946970&business_name=Clinique+Paris-Bercy",
+        language,
+      );
+    }
+
+    const names = [
+      "Clinique Paris-Bercy",
+      "Café André",
+      "North & West = Clinic",
+    ];
+    for (const businessName of names) {
+      const href = buildGetOblicFunnelClaimHref({
+        authorId: 123456789,
+        listingId: 946970,
+        businessName: `  ${businessName}  `,
+        licenseeDefaultLanguage: "fr",
+      });
+      assert.ok(href, businessName);
+      assert.equal(href.split("?").length, 2, businessName);
+      assert.equal(href.includes(" "), false, businessName);
+      const url = new URL(href);
+      assert.equal(url.origin, "https://claim.getoblic.com");
+      assert.equal(url.pathname, "/business-demo-compte-ia-page");
+      assert.deepEqual([...url.searchParams.keys()], [
+        "author_id",
+        "contact_id",
+        "business_name",
+      ]);
+      assert.equal(url.searchParams.get("author_id"), "123456789");
+      assert.equal(url.searchParams.get("contact_id"), "946970");
+      assert.equal(url.searchParams.get("business_name"), businessName);
+      assert.equal(url.hash, "");
+    }
+    const punctuated = buildGetOblicFunnelClaimHref({
+      authorId: 123456789,
+      listingId: 946970,
+      businessName: "North & West = Clinic",
+      licenseeDefaultLanguage: "de",
+    });
+    assert.ok(punctuated);
+    assert.match(punctuated, /%26/);
+    assert.match(punctuated, /%3D/);
+    assert.match(punctuated, /\+/);
+    assert.doesNotMatch(punctuated, /North & West/);
+    const accented = buildGetOblicFunnelClaimHref({
+      authorId: 123456789,
+      listingId: 946970,
+      businessName: "Café André",
+      licenseeDefaultLanguage: "pt",
+    });
+    assert.ok(accented);
+    assert.match(accented, /Caf%C3%A9\+Andr%C3%A9/);
+
+    assert.throws(
+      () => validateDestinationUrl(CALL_HREF_FR),
+      /valid HTTP or HTTPS URL/i,
+    );
+    const presentation = read("lib/prospects/getOblicFunnelPresentation.ts");
+    assert.match(presentation, /tel:\$\{telephone\},\$\{listingId\}#/);
+    assert.match(presentation, /\+33939204080/);
+    assert.match(presentation, /\+18666658001/);
+    assert.doesNotMatch(presentation, /validateDestinationUrl/);
+    assert.doesNotMatch(
+      presentation,
+      /business-demo-compte-ia-page|business-created-page/,
+    );
+  });
+
+  it("renders Call without target=_blank and keeps partial funnel eligibility", () => {
+    const html = renderToStaticMarkup(
+      createElement(GetOblicFunnelControls, {
+        ...LINKED_FUNNEL_HREFS,
+        callHref: CALL_HREF_FR,
+        claimHref:
+          "https://claim.getoblic.com/business-demo-compte-ia-page?author_id=123456789&contact_id=946970&business_name=Clinique+Paris-Bercy",
+        aiAgentsLabel: en.prospects.detail.getoblicFunnelAiAgents,
+        virtualPhoneLabel: en.prospects.detail.getoblicFunnelVirtualPhone,
+        calendarLabel: en.prospects.detail.getoblicFunnelCalendar,
+        callLabel: en.prospects.detail.getoblicFunnelCallYourAi,
+        claimLabel: en.prospects.detail.getoblicFunnelClaimYourAi,
+      }),
+    );
+    assert.deepEqual(funnelActions(html), [
+      "getoblic-funnel-ai-agents",
+      "getoblic-funnel-virtual-phone",
+      "getoblic-funnel-calendar",
+      "getoblic-funnel-call-your-ai",
+      "getoblic-funnel-claim-your-ai",
+    ]);
+    assert.equal((html.match(/target="_blank"/g) ?? []).length, 4);
+    assert.equal((html.match(/rel="noopener noreferrer"/g) ?? []).length, 4);
+    assert.equal((html.match(/lucide-external-link/g) ?? []).length, 4);
+    assert.match(html, /lucide-phone/);
+    const callAnchor = html
+      .split("<a ")
+      .find((anchor) => anchor.includes("getoblic-funnel-call-your-ai"));
+    assert.ok(callAnchor);
+    assert.match(callAnchor, /href="tel:\+33939204080,946970#"/);
+    assert.doesNotMatch(callAnchor, /target="_blank"|rel="noopener noreferrer"/);
+    const claimAnchor = html
+      .split("<a ")
+      .find((anchor) => anchor.includes("getoblic-funnel-claim-your-ai"));
+    assert.ok(claimAnchor);
+    assert.match(claimAnchor, /target="_blank"/);
+    assert.match(claimAnchor, /rel="noopener noreferrer"/);
+
+    const partial = renderToStaticMarkup(
+      createElement(GetOblicFunnelControls, {
+        callHref: CALL_HREF_DEFAULT,
+        claimHref: null,
+        aiAgentsHref: null,
+        virtualPhoneHref: null,
+        calendarHref: null,
+        aiAgentsLabel: en.prospects.detail.getoblicFunnelAiAgents,
+        virtualPhoneLabel: en.prospects.detail.getoblicFunnelVirtualPhone,
+        calendarLabel: en.prospects.detail.getoblicFunnelCalendar,
+        callLabel: en.prospects.detail.getoblicFunnelCallYourAi,
+        claimLabel: en.prospects.detail.getoblicFunnelClaimYourAi,
+      }),
+    );
+    assert.deepEqual(funnelActions(partial), ["getoblic-funnel-call-your-ai"]);
+    assert.doesNotMatch(partial, /target="_blank"|Claim your AI|AI Agents/);
+    const header = renderFunnelHeader(
+      createElement(GetOblicFunnelControls, {
+        callHref: CALL_HREF_DEFAULT,
+        claimHref:
+          "https://claim.getoblic.com/business-created-page?author_id=42&contact_id=946970&business_name=Acme",
+        callLabel: en.prospects.detail.getoblicFunnelCallYourAi,
+        claimLabel: en.prospects.detail.getoblicFunnelClaimYourAi,
+      }),
+    );
+    assert.match(header, /data-prospect-header-actions="funnel"/);
+    assert.match(header, new RegExp(en.prospects.detail.getoblicFunnel));
+    assert.deepEqual(
+      funnelActions(header).filter((action) => action.startsWith("getoblic-funnel-")),
+      ["getoblic-funnel-call-your-ai", "getoblic-funnel-claim-your-ai"],
+    );
+    assert.doesNotMatch(header, /data-prospect-header-actions="directory"/);
+    const omitted = renderFunnelHeader(createElement("span", null));
+    assert.match(omitted, /data-prospect-header-actions="funnel"/);
+    const hidden = renderToStaticMarkup(
+      createElement(ProspectDetailHeader, {
+        backLabel: "Prospects",
+        eyebrow: "Prospect",
+        title: "Clinique Paris-Bercy",
+        intelligenceLabel: "Ready",
+        intelligenceStatus: "Ready",
+        ready: true,
+        hasDiscussion: false,
+        askAthenaLabel: "Ask Athena",
+        addObservationLabel: "Add observation",
+        editProfileLabel: "Edit profile",
+        openWebsiteLabel: "Open website",
+        completenessScore: createElement("span", null, "0"),
+        generateActions: null,
+        researchAction: null,
+        lifecycleAction: null,
+        intelligenceGroupLabel: "Intelligence",
+        prospectToolsLabel: "Prospect Tools",
+        directoryGroupLabel: "GetOblic Directory",
+        funnelGroupLabel: en.prospects.detail.getoblicFunnel,
+        showEditProfile: false,
+        funnelAction: null,
+      }),
+    );
+    assert.doesNotMatch(hidden, /data-prospect-header-actions="funnel"/);
+    assert.doesNotMatch(hidden, /GetOblic Funnel/);
+  });
+
+  it("keeps Prospect Detail closed when outbound authorization is refused", () => {
+    const page = read("app/prospects/[id]/page.tsx");
+    const controls = read("components/prospects/GetOblicFunnelControls.tsx");
+    const resolveAt = page.indexOf("resolveGetOblicOutboundContentTarget");
+    const catchAt = page.indexOf("catch (error)", resolveAt);
+    assert.ok(resolveAt > 0);
+    assert.ok(catchAt > resolveAt);
+    assert.match(
+      page.slice(resolveAt, catchAt + 320),
+      /authorizedGetOblicListingId = null/,
+    );
+    assert.match(page, /readLinkedGetOblicFunnelContactId\(activeGetOblicLink\)/);
+    assert.match(page, /showGetOblicFunnel/);
+    assert.match(page, /funnelAction=\{[\s\S]*?showGetOblicFunnel \?/);
+    assert.doesNotMatch(page, /prospect\.phone/);
+    assert.doesNotMatch(page, /validateDestinationUrl/);
+    assert.doesNotMatch(page, /activeGetOblicLink\?\.wordpress_listing_id/);
+
+    const callAt = page.indexOf("buildGetOblicFunnelCallHref({");
+    const claimAt = page.indexOf("buildGetOblicFunnelClaimHref({");
+    assert.ok(callAt > 0);
+    assert.ok(claimAt > callAt);
+    assert.doesNotMatch(
+      page.slice(callAt, claimAt),
+      /authorId|prospect\.phone|validateDestinationUrl/,
+    );
+    assert.match(
+      page.slice(claimAt, claimAt + 420),
+      /authorId: licenseeOwnCompanyAuthor\?\.authorId/,
+    );
+
+    const telephone = controls.slice(
+      controls.indexOf("isTelHref(callHref)"),
+      controls.indexOf("isHttpsHref(claimHref)"),
+    );
+    assert.doesNotMatch(telephone, /target="_blank"/);
+    assert.match(controls, /target="_blank"/);
+    assert.match(controls, /rel="noopener noreferrer"/);
   });
 });

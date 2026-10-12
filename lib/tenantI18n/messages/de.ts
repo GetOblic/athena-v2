@@ -2900,6 +2900,8 @@ export const de: TenantMessages = {
       getoblicFunnelAiAgents: "KI-Agenten",
       getoblicFunnelVirtualPhone: "Virtuelles Telefon",
       getoblicFunnelCalendar: "Kalender",
+      getoblicFunnelCallYourAi: "Ruf deine KI an",
+      getoblicFunnelClaimYourAi: "Aktiviere deine KI",
       releaseGetOblicListing: "GetOblic-Listing freigeben",
       releaseGetOblicConfirm:
         "Dieses GetOblic-Listing wird ins gemeinsame GetOblic-Inventar zurückgegeben. Es zählt dann nicht mehr zur Listing-Kapazität dieses Kontos. Der Prospect und die Athena-Recherche und Intelligence bleiben erhalten.",
