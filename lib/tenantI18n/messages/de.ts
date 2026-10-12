@@ -4543,11 +4543,14 @@ export const de: TenantMessages = {
     dashboard: {
       searchPlaceholder: "Unternehmen, E-Mails, Notizen suchen…",
       createCompanyAccount: "Ihr Unternehmenskonto anlegen",
-      createSubAccount: "+ Unterkonto anlegen",
+      createSubAccount: "Unterkonto anlegen",
+      commercialToolsTitle: "Kaufmännische Werkzeuge",
+      getOblicServicesTitle: "GetOblic-Dienstleistungen",
+      clientSalesTitle: "Kundenvertrieb und Abrechnung",
       estimateTitle: "Athena Estimate",
       estimateDescription:
         "Wissen, was Sie dem Kunden berechnen — mit Athenas Kenntnis seines Unternehmens.",
-      quoteTitle: "Athena Quote",
+      quoteTitle: "GetOblic-Angebot anfordern",
       quoteDescription:
         "Reichen Sie Kundenarbeit für eine vertrauliche GetOblic-Umsetzungspreisangabe ein.",
       clientQuotesTitle: "Kundenangebote",

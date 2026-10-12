@@ -126,4 +126,76 @@ describe("Licensee dashboard plan — read-only surface", () => {
     assert.match(client, /messages\.dashboard\.allSubAccounts/);
     assert.doesNotMatch(client, /LicenseeUsefulLinksCard|\/licensee\/useful-links/);
   });
+
+  it("places Commercial Tools before search and separates GetOblic from client sales", () => {
+    const client = read("components/licensee/LicenseeDashboardClient.tsx");
+    const commercial = client.indexOf("messages.dashboard.commercialToolsTitle");
+    const getOblic = client.indexOf("messages.dashboard.getOblicServicesTitle");
+    const quote = client.indexOf('href="/licensee/quote"');
+    const clientSales = client.indexOf("messages.dashboard.clientSalesTitle");
+    const estimate = client.indexOf('href="/licensee/estimate"');
+    const clientQuotes = client.indexOf('href="/licensee/client-quotes"');
+    const invoices = client.indexOf('href="/licensee/invoices"');
+    const search = client.indexOf("messages.dashboard.searchPlaceholder");
+    const create = client.indexOf("messages.dashboard.createSubAccount");
+    const notice = client.indexOf("{notice ?");
+    const myCompany = client.indexOf("messages.dashboard.myCompany");
+
+    assert.ok(commercial >= 0 && commercial < getOblic);
+    assert.ok(getOblic < quote && quote < clientSales);
+    assert.ok(
+      clientSales < estimate && estimate < clientQuotes && clientQuotes < invoices,
+    );
+    assert.ok(invoices < search && search < create);
+    assert.ok(create < notice && notice < myCompany);
+
+    const getOblicBlock = client.slice(getOblic, clientSales);
+    const salesBlock = client.slice(clientSales, search);
+    assert.match(getOblicBlock, /href="\/licensee\/quote"/);
+    assert.match(getOblicBlock, /LICENSEE_QUOTE_CARD_CLASS/);
+    assert.match(getOblicBlock, /LICENSEE_ICON_WELL\.violet/);
+    assert.match(getOblicBlock, /<FileText /);
+    assert.match(getOblicBlock, /messages\.dashboard\.quoteTitle/);
+    assert.match(getOblicBlock, /messages\.dashboard\.quoteDescription/);
+    assert.match(getOblicBlock, /messages\.common\.open/);
+    assert.doesNotMatch(
+      getOblicBlock,
+      /href="\/licensee\/(estimate|client-quotes|invoices)"/,
+    );
+
+    assert.doesNotMatch(salesBlock, /href="\/licensee\/quote"/);
+    assert.match(salesBlock, /grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3/);
+    assert.doesNotMatch(salesBlock, /overflow-x|min-w-max|whitespace-nowrap/);
+    assert.match(salesBlock, /LICENSEE_ESTIMATE_CARD_CLASS/);
+    assert.match(salesBlock, /LICENSEE_ICON_WELL\.cyan/);
+    assert.match(salesBlock, /<Calculator /);
+    assert.match(salesBlock, /messages\.dashboard\.estimateTitle/);
+    assert.match(salesBlock, /LICENSEE_CLIENT_QUOTES_CARD_CLASS/);
+    assert.match(salesBlock, /LICENSEE_ICON_WELL\.warm/);
+    assert.match(salesBlock, /<Receipt /);
+    assert.match(salesBlock, /messages\.dashboard\.clientQuotesTitle/);
+    assert.match(salesBlock, /LICENSEE_INVOICES_CARD_CLASS/);
+    assert.match(salesBlock, /LICENSEE_ICON_WELL\.green/);
+    assert.match(salesBlock, /<Banknote /);
+    assert.match(salesBlock, /messages\.dashboard\.invoicesTitle/);
+    assert.match(salesBlock, /data-licensee-nav="invoices"/);
+    assert.equal((salesBlock.match(/<ClientFlowChevron \/>/g) ?? []).length, 2);
+    assert.ok(
+      salesBlock.lastIndexOf("<ClientFlowChevron />") <
+        salesBlock.indexOf('href="/licensee/invoices"'),
+    );
+
+    const chevron = client.slice(
+      client.indexOf("function ClientFlowChevron"),
+      client.indexOf("function EmptyState"),
+    );
+    assert.match(chevron, /<ChevronRight/);
+    assert.match(chevron, /aria-hidden="true"/);
+    assert.match(chevron, /\bhidden\b/);
+    assert.match(chevron, /md:block/);
+    assert.doesNotMatch(chevron, /<Link|<button|<a[\s>]/);
+    assert.equal((client.match(/<Plus\b/g) ?? []).length, 1);
+    assert.match(client, /messages\.dashboard\.pinned/);
+    assert.match(client, /messages\.dashboard\.allSubAccounts/);
+  });
 });

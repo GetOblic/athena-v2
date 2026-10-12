@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import {
   Banknote,
   Calculator,
+  ChevronRight,
   FileText,
   Plus,
   Receipt,
@@ -439,6 +440,129 @@ export function LicenseeDashboardClient({
 
   return (
     <div className="space-y-8">
+      <Section title={messages.dashboard.commercialToolsTitle}>
+        <div className="space-y-6">
+          <div>
+            <CommercialPartHeading title={messages.dashboard.getOblicServicesTitle} />
+            <Link href="/licensee/quote" className={LICENSEE_QUOTE_CARD_CLASS}>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span
+                    className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${LICENSEE_ICON_WELL.violet}`}
+                    aria-hidden="true"
+                  >
+                    <FileText size={18} />
+                  </span>
+                  <div>
+                    <div className="text-base font-semibold text-white">
+                      {messages.dashboard.quoteTitle}
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-white/50">
+                      {messages.dashboard.quoteDescription}
+                    </p>
+                  </div>
+                </div>
+                <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
+                  {messages.common.open}
+                </span>
+              </div>
+            </Link>
+          </div>
+
+          <div>
+            <CommercialPartHeading title={messages.dashboard.clientSalesTitle} />
+            <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="relative min-w-0">
+                <Link href="/licensee/estimate" className={LICENSEE_ESTIMATE_CARD_CLASS}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span
+                        className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${LICENSEE_ICON_WELL.cyan}`}
+                        aria-hidden="true"
+                      >
+                        <Calculator size={18} />
+                      </span>
+                      <div>
+                        <div className="text-base font-semibold text-white">
+                          {messages.dashboard.estimateTitle}
+                        </div>
+                        <p className="mt-1 text-sm leading-6 text-white/50">
+                          {messages.dashboard.estimateDescription}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
+                      {messages.common.open}
+                    </span>
+                  </div>
+                </Link>
+                <ClientFlowChevron />
+              </div>
+
+              <div className="relative min-w-0">
+                <Link
+                  href="/licensee/client-quotes"
+                  className={LICENSEE_CLIENT_QUOTES_CARD_CLASS}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span
+                        className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${LICENSEE_ICON_WELL.warm}`}
+                        aria-hidden="true"
+                      >
+                        <Receipt size={18} />
+                      </span>
+                      <div>
+                        <div className="text-base font-semibold text-white">
+                          {messages.dashboard.clientQuotesTitle}
+                        </div>
+                        <p className="mt-1 text-sm leading-6 text-white/50">
+                          {messages.dashboard.clientQuotesDescription}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
+                      {messages.common.open}
+                    </span>
+                  </div>
+                </Link>
+                <ClientFlowChevron />
+              </div>
+
+              <div className="relative min-w-0">
+                <Link
+                  href="/licensee/invoices"
+                  className={LICENSEE_INVOICES_CARD_CLASS}
+                  data-licensee-nav="invoices"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span
+                        className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${LICENSEE_ICON_WELL.green}`}
+                        aria-hidden="true"
+                      >
+                        <Banknote size={18} />
+                      </span>
+                      <div>
+                        <div className="text-base font-semibold text-white">
+                          {messages.dashboard.invoicesTitle}
+                        </div>
+                        <p className="mt-1 text-sm leading-6 text-white/50">
+                          {messages.dashboard.invoicesDescription}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
+                      {messages.common.open}
+                    </span>
+                  </div>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Section>
+
       <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:justify-between">
         <div className="relative w-full lg:max-w-xl">
           <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-white/45">
@@ -460,111 +584,6 @@ export function LicenseeDashboardClient({
           {items.length === 0
             ? messages.dashboard.createCompanyAccount
             : messages.dashboard.createSubAccount}
-        </Link>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Link href="/licensee/estimate" className={LICENSEE_ESTIMATE_CARD_CLASS}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <span
-                className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${LICENSEE_ICON_WELL.cyan}`}
-                aria-hidden="true"
-              >
-                <Calculator size={18} />
-              </span>
-              <div>
-                <div className="text-base font-semibold text-white">
-                  {messages.dashboard.estimateTitle}
-                </div>
-                <p className="mt-1 text-sm leading-6 text-white/50">
-                  {messages.dashboard.estimateDescription}
-                </p>
-              </div>
-            </div>
-            <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
-              {messages.common.open}
-            </span>
-          </div>
-        </Link>
-
-        <Link href="/licensee/quote" className={LICENSEE_QUOTE_CARD_CLASS}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <span
-                className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${LICENSEE_ICON_WELL.violet}`}
-                aria-hidden="true"
-              >
-                <FileText size={18} />
-              </span>
-              <div>
-                <div className="text-base font-semibold text-white">
-                  {messages.dashboard.quoteTitle}
-                </div>
-                <p className="mt-1 text-sm leading-6 text-white/50">
-                  {messages.dashboard.quoteDescription}
-                </p>
-              </div>
-            </div>
-            <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
-              {messages.common.open}
-            </span>
-          </div>
-        </Link>
-
-        <Link
-          href="/licensee/client-quotes"
-          className={LICENSEE_CLIENT_QUOTES_CARD_CLASS}
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <span
-                className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${LICENSEE_ICON_WELL.warm}`}
-                aria-hidden="true"
-              >
-                <Receipt size={18} />
-              </span>
-              <div>
-                <div className="text-base font-semibold text-white">
-                  {messages.dashboard.clientQuotesTitle}
-                </div>
-                <p className="mt-1 text-sm leading-6 text-white/50">
-                  {messages.dashboard.clientQuotesDescription}
-                </p>
-              </div>
-            </div>
-            <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
-              {messages.common.open}
-            </span>
-          </div>
-        </Link>
-
-        <Link
-          href="/licensee/invoices"
-          className={LICENSEE_INVOICES_CARD_CLASS}
-          data-licensee-nav="invoices"
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <span
-                className={`mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl ${LICENSEE_ICON_WELL.green}`}
-                aria-hidden="true"
-              >
-                <Banknote size={18} />
-              </span>
-              <div>
-                <div className="text-base font-semibold text-white">
-                  {messages.dashboard.invoicesTitle}
-                </div>
-                <p className="mt-1 text-sm leading-6 text-white/50">
-                  {messages.dashboard.invoicesDescription}
-                </p>
-              </div>
-            </div>
-            <span className="shrink-0 text-sm font-medium text-[var(--athena-orange)]">
-              {messages.common.open}
-            </span>
-          </div>
         </Link>
       </div>
 
@@ -794,6 +813,25 @@ function Section({
       </h2>
       {children}
     </section>
+  );
+}
+
+function CommercialPartHeading({ title }: { title: string }) {
+  return (
+    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/55">
+      {title}
+    </h3>
+  );
+}
+
+function ClientFlowChevron() {
+  return (
+    <span
+      className="pointer-events-none absolute top-1/2 right-[-1rem] hidden -translate-y-1/2 text-white/35 md:block"
+      aria-hidden="true"
+    >
+      <ChevronRight className="h-4 w-4" aria-hidden="true" />
+    </span>
   );
 }
 

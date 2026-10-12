@@ -78,6 +78,9 @@ describe("Licensee Master i18n — catalog", () => {
     assert.ok(canonical.includes("plan.defaultLanguage"));
     assert.ok(canonical.includes("dashboard.usefulLinksTitle"));
     assert.ok(canonical.includes("dashboard.usefulLinksDescription"));
+    assert.ok(canonical.includes("dashboard.commercialToolsTitle"));
+    assert.ok(canonical.includes("dashboard.getOblicServicesTitle"));
+    assert.ok(canonical.includes("dashboard.clientSalesTitle"));
     assert.ok(canonical.includes("usefulLinks.title"));
     assert.ok(canonical.includes("usefulLinks.intro"));
     assert.ok(canonical.includes("usefulLinks.aiAgents"));
@@ -221,6 +224,52 @@ describe("Licensee Master i18n — dashboard", () => {
     assert.match(client, /LICENSEE_OWN_COMPANY_CARD_CLASS/);
     assert.match(client, /LICENSEE_PRIMARY_CTA_CLASS/);
     assert.match(client, /from "lucide-react"/);
+  });
+
+  it("names Commercial Tools in all six languages and drops the duplicate create plus", () => {
+    assert.equal(en.licensee.dashboard.commercialToolsTitle, "Commercial Tools");
+    assert.equal(en.licensee.dashboard.getOblicServicesTitle, "GetOblic Services");
+    assert.equal(en.licensee.dashboard.clientSalesTitle, "Client Sales & Billing");
+    assert.equal(en.licensee.dashboard.quoteTitle, "Request a GetOblic Quote");
+    assert.equal(en.licensee.dashboard.createSubAccount, "Create Sub-account");
+    assert.equal(en.licensee.dashboard.createCompanyAccount, "Create your company account");
+    assert.equal(
+      en.licensee.subAccountCreate.createSubAccountTitle,
+      "Create Sub-account",
+    );
+    assert.equal(en.licensee.estimate.createSubAccountLink, "Create Sub-account");
+    assert.equal(
+      en.licensee.estimate.quoteTitle,
+      "Want GetOblic to fulfill this project?",
+    );
+    assert.equal(
+      en.licensee.estimate.quoteFootnote,
+      "Opens Athena Quote only — Estimate data is not transferred.",
+    );
+    assert.equal(en.licensee.quote.eyebrow, "Athena Quote");
+
+    for (const language of ORGANIZATION_LANGUAGES) {
+      const dashboard = DICTIONARIES[language].licensee.dashboard;
+      assert.equal(/^\s*\+/.test(dashboard.createSubAccount), false, language);
+      assert.match(dashboard.getOblicServicesTitle, /GetOblic/);
+      assert.match(dashboard.quoteTitle, /GetOblic/);
+      if (language !== "en") {
+        assert.notEqual(
+          dashboard.commercialToolsTitle,
+          en.licensee.dashboard.commercialToolsTitle,
+        );
+        assert.notEqual(
+          dashboard.getOblicServicesTitle,
+          en.licensee.dashboard.getOblicServicesTitle,
+        );
+        assert.notEqual(
+          dashboard.clientSalesTitle,
+          en.licensee.dashboard.clientSalesTitle,
+        );
+        assert.notEqual(dashboard.quoteTitle, en.licensee.dashboard.quoteTitle);
+        assert.notEqual(dashboard.quoteTitle, "Athena Quote");
+      }
+    }
   });
 });
 
@@ -420,6 +469,10 @@ describe("Licensee Master i18n — hard-coded copy audit", () => {
       "Your Licensee Plan",
       "Master dashboard",
       "Useful Links",
+      "Commercial Tools",
+      "GetOblic Services",
+      "Client Sales & Billing",
+      "Request a GetOblic Quote",
       "Links unavailable",
       "AI Agents",
       "Virtual Phone",

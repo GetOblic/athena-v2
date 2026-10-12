@@ -4454,11 +4454,14 @@ export const en = {
     dashboard: {
       searchPlaceholder: "Search businesses, emails, notes...",
       createCompanyAccount: "Create your company account",
-      createSubAccount: "+ Create Sub-account",
+      createSubAccount: "Create Sub-account",
+      commercialToolsTitle: "Commercial Tools",
+      getOblicServicesTitle: "GetOblic Services",
+      clientSalesTitle: "Client Sales & Billing",
       estimateTitle: "Athena Estimate",
       estimateDescription:
         "Know what to charge your client — using Athena’s knowledge of their business.",
-      quoteTitle: "Athena Quote",
+      quoteTitle: "Request a GetOblic Quote",
       quoteDescription:
         "Submit client work for private GetOblic fulfillment pricing.",
       clientQuotesTitle: "Client Quotes",
