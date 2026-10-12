@@ -1278,7 +1278,7 @@ export function ClientQuoteEditorView({
           <div className="mt-5 space-y-4">
             {editor.appendixSections.map((section, index) => (
               <div
-                key={`${index}-${section.heading}`}
+                key={index}
                 data-client-quote-appendix={index}
                 className="rounded-2xl border border-white/10 bg-black/20 p-4"
               >
