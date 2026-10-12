@@ -692,16 +692,28 @@ describe("persisted quotation payment links", () => {
     assert.match(new URL(overflow.href).searchParams.get("su") ?? "", /^Quotation /);
   });
 
-  it("leaves library cards without a payment section and reuses the detail GET", () => {
+  it("prepares a library email from the same handoff and the existing payment-link GET", () => {
     const library = read("components/licensee/clientQuotes/ClientQuoteLibraryView.tsx");
+    const email = read("components/licensee/clientDocuments/ClientDocumentSendByEmailLink.tsx");
     const editor = read("components/licensee/clientQuotes/ClientQuoteEditorView.tsx");
     const payments = read("components/licensee/clientQuotes/ClientQuotePaymentLinks.tsx");
     const handoffSource = read("lib/licensee/clientDocumentGmailHandoff.ts");
-    assert.match(
-      library,
-      /buildClientDocumentGmailHandoff\(\{[\s\S]*kind:\s*"quote"[\s\S]*snapshot:\s*quote\.issuedSnapshot/,
-    );
-    assert.doesNotMatch(library, /paymentLinks|\/payment-links/);
+    const mapped =
+      /paymentRequests\.map\(\(row\) => \(\{[\s\S]*purpose: row\.purpose[\s\S]*url: row\.paymentLinkUrl/;
+    assert.match(library, /QuoteLibraryCardEmail/);
+    assert.match(library, /snapshot=\{issuedSnapshotById\.get\(row\.id\)/);
+    assert.doesNotMatch(library, /buildClientDocumentGmailHandoff|\/payment-links|ClientQuotePaymentLinks/);
+    assert.doesNotMatch(library, /\bfetch\s*\(|method:\s*"POST"|api\.stripe\.com|useEffect\(/);
+    assert.match(email, /window\.open\(\s*"about:blank",\s*"_blank"\s*\)/);
+    assert.match(email, /location\.replace\(handoff\.href\)/);
+    assert.match(email, /Preparing email…/);
+    assert.match(email, /cache:\s*"no-store"/);
+    assert.match(email, /Accept:\s*"application\/json"/);
+    assert.match(email, /parseClientQuotePaymentLinkPayload/);
+    assert.match(email, mapped);
+    assert.match(editor, mapped);
+    assert.doesNotMatch(email, /useEffect\(|method:\s*"POST"|api\.stripe\.com/);
+    assert.doesNotMatch(email, /console\.(log|info|debug|warn|error)\s*\(/);
     const card = quoteWithLinks([]);
     assert.doesNotMatch(card.body, /Payment link:|Deposit:|buy\.stripe\.com|\.pdf/);
 

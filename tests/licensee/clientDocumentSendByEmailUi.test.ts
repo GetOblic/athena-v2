@@ -5,9 +5,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, it } from "node:test";
-import { createElement } from "react";
+import { after, before, describe, it } from "node:test";
+import { createElement, act } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
+import { JSDOM } from "jsdom";
 import { ClientInvoiceEditorView } from "../../components/licensee/clientInvoices/ClientInvoiceEditorView";
 import { ClientInvoiceLibraryView } from "../../components/licensee/clientInvoices/ClientInvoiceLibraryView";
 import {
@@ -17,7 +19,12 @@ import {
 import { ClientQuoteEditorView } from "../../components/licensee/clientQuotes/ClientQuoteEditorView";
 import { ClientQuoteLibraryView } from "../../components/licensee/clientQuotes/ClientQuoteLibraryView";
 import { editorDraftFromInvoice } from "../../lib/licensee/clientInvoiceEditorModel";
+import {
+  GMAIL_COMPOSE_MAX_URL_LENGTH,
+  buildClientDocumentGmailHandoff,
+} from "../../lib/licensee/clientDocumentGmailHandoff";
 import { editorDraftFromQuote } from "../../lib/licensee/clientQuoteEditorModel";
+import { parseClientQuotePaymentLinkPayload } from "../../lib/licensee/clientQuotePaymentLinksModel";
 import { getLicenseeLocalization } from "../../lib/licensee/getLicenseeLocalization";
 import { de } from "../../lib/tenantI18n/messages/de";
 import { en } from "../../lib/tenantI18n/messages/en";
@@ -295,17 +302,10 @@ describe("Send by Email placement", () => {
     assert.match(html, /Attach the PDF manually/);
     assert.match(html, /verify the Gmail From account before sending/);
     assert.doesNotMatch(html, /email was sent|message was sent/i);
-    const hrefs = gmailHrefs(html);
-    assert.equal(hrefs.length, 2);
-    for (const href of hrefs) {
-      const url = new URL(href);
-      assert.equal(url.searchParams.get("view"), "cm");
-      assert.equal(url.searchParams.has("authuser"), false);
-      assert.equal(href.includes("/u/"), false);
-      assert.equal(url.searchParams.get("body")?.includes("SCOPE-SENTINEL"), false);
-      assert.equal(url.searchParams.get("body")?.includes("issuer-secret@hidden.example"), false);
-      assert.equal(url.searchParams.get("body")?.includes("42424242"), false);
-    }
+    assert.equal(html.match(/data-client-document-send-email-button="true"/g)?.length, 2);
+    assert.equal(gmailHrefs(html).length, 0);
+    assert.doesNotMatch(html, /mail\.google\.com/);
+    assert.doesNotMatch(html, /SCOPE-SENTINEL-SHOULD-NOT-LEAK|issuer-secret@hidden\.example/);
     assert.match(html, new RegExp(CLIENT_DOCUMENT_SEND_EMAIL_CARD_CLASS.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
     const draftsOnly = renderToStaticMarkup(
@@ -338,6 +338,7 @@ describe("Send by Email placement", () => {
     assert.match(html, /data-client-document-send-email="quote"/);
     assert.match(html, /data-client-document-send-layout="detail"/);
     assert.match(html, /data-client-document-send-email-pending="true"/);
+    assert.doesNotMatch(html, /data-client-document-send-email-button/);
     assert.equal(gmailHrefs(html).length, 0);
     assert.match(html, /data-create-client-invoice="detail"/);
     assert.match(html, /data-client-quote-download-pdf="true"/);
@@ -379,6 +380,8 @@ describe("Send by Email placement", () => {
       }),
     );
     assert.equal(library.match(/data-client-document-send-email="invoice"/g)?.length, 1);
+    assert.match(library, /data-client-document-send-email-link="true"/);
+    assert.doesNotMatch(library, /data-client-document-send-email-button/);
     assert.match(library, /data-client-invoice-download-pdf="true"/);
     assert.match(library, new RegExp(`data-client-invoice-open="${INVOICE}"`));
     assert.match(library, new RegExp(`data-client-invoice-open="${DRAFT_INVOICE}"`));
@@ -478,11 +481,8 @@ describe("Send by Email placement", () => {
     assert.match(html, /data-client-document-send-recipient="omitted"/);
     assert.match(html, /data-client-document-send-recipient-warning="true"/);
     assert.match(html, /data-client-document-send-reminder="true"/);
-    const url = new URL(gmailHrefs(html)[0]);
-    assert.equal(url.searchParams.has("to"), false);
-    assert.match(url.searchParams.get("body") ?? "", /Hello Ada North,/);
-    assert.match(url.searchParams.get("su") ?? "", /^Quotation /);
-    assert.equal((url.searchParams.get("body") ?? "").includes("Bonjour"), false);
+    assert.equal(gmailHrefs(html).length, 0);
+    assert.doesNotMatch(html, /mail\.google\.com/);
     assert.doesNotMatch(html, /e-mail a été envoyé|email was sent/i);
 
     for (const language of ORGANIZATION_LANGUAGES) {
@@ -507,18 +507,643 @@ describe("Send by Email placement", () => {
     );
     assert.match(quoteEditor, /issuedSnapshot=\{frozen\}/);
     assert.match(invoiceEditor, /issuedSnapshot=\{frozen\}/);
-    const sources = [
+    const quiet = [
       "lib/licensee/clientDocumentGmailHandoff.ts",
       "lib/licensee/clientDocumentEmailCopy.ts",
-      "components/licensee/clientDocuments/ClientDocumentSendByEmailLink.tsx",
       "components/licensee/clientQuotes/ClientQuoteEditorView.tsx",
-      "components/licensee/clientQuotes/ClientQuoteLibraryView.tsx",
       "components/licensee/clientInvoices/ClientInvoiceEditorView.tsx",
       "components/licensee/clientInvoices/ClientInvoiceLibraryView.tsx",
     ].map(read);
-    const joined = sources.join("\n");
+    const emailControl = read(
+      "components/licensee/clientDocuments/ClientDocumentSendByEmailLink.tsx",
+    );
+    const quoteLibrary = read("components/licensee/clientQuotes/ClientQuoteLibraryView.tsx");
+    const joined = [...quiet, emailControl, quoteLibrary].join("\n");
     assert.match(joined, /from "lucide-react"/);
-    assert.doesNotMatch(joined, /\bfetch\s*\(/);
+    assert.doesNotMatch(quiet.join("\n"), /\bfetch\s*\(/);
+    assert.doesNotMatch(quoteLibrary, /\bfetch\s*\(|method:\s*"POST"|\/payment-links/);
+    assert.match(emailControl, /method:\s*"GET"/);
+    assert.match(emailControl, /\/payment-links/);
+    assert.doesNotMatch(emailControl, /method:\s*"POST"|api\.stripe\.com/);
     assert.doesNotMatch(joined, /authuser|\/u\/0/);
+  });
+});
+
+const FULL_URL = "https://buy.stripe.com/abcdefghij";
+const DEPOSIT_URL = "https://pay.getoblic.com/b/14AdRb6Mt0NF4Fv1hmdIA08";
+const BALANCE_URL = "https://buy.stripe.com/test_abcdefghij";
+const MONTHLY_URL = "https://pay.getoblic.com/b/test_14AdRb6Mt0NF4Fv1hmdIA08";
+const QUARTERLY_URL = "https://buy.stripe.com/quarterly1";
+const ANNUAL_URL = "https://pay.getoblic.com/b/annually01";
+
+type EmailLink = { purpose: string; url: string | null };
+type PublicQuote = ReturnType<typeof toPublicClientQuote>;
+
+function paymentApiBody(links: EmailLink[]) {
+  return {
+    ok: true,
+    paymentRequests: links.map((link) => {
+      const recurring =
+        link.purpose === "monthly" ||
+        link.purpose === "quarterly" ||
+        link.purpose === "annually";
+      return {
+        id: `req-${link.purpose}`,
+        purpose: link.purpose,
+        billingFrequency: recurring ? link.purpose : "one_time",
+        currencyCode: "EUR",
+        currencyScale: 2,
+        amountMinor: 1000,
+        oneTimeCollectionMode:
+          link.purpose === "one_time_full"
+            ? "full"
+            : link.purpose.startsWith("one_time")
+              ? "split"
+              : null,
+        depositMinor: null,
+        balanceMinor: null,
+        paymentLinkUrl: link.url,
+      };
+    }),
+    eligibility: {
+      expired: false,
+      canCreatePaymentRequest: false,
+      canInitiateStripe: false,
+      blockedReason: null,
+      oneTime: null,
+      recurring: [],
+    },
+  };
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function detailHandoff(quote: PublicQuote, links: EmailLink[] | null) {
+  const snapshot = quote.issuedSnapshot;
+  assert.ok(snapshot);
+  if (!links) return buildClientDocumentGmailHandoff({ kind: "quote", snapshot });
+  const payload = parseClientQuotePaymentLinkPayload(paymentApiBody(links));
+  assert.ok(payload, "payment-link fixture should parse");
+  return buildClientDocumentGmailHandoff({
+    kind: "quote",
+    snapshot,
+    paymentLinks: payload.paymentRequests.map((row) => ({
+      purpose: row.purpose,
+      url: row.paymentLinkUrl,
+    })),
+  });
+}
+
+function assertCompletePaymentUrls(body: string, urls: readonly string[]) {
+  assert.ok(body.includes(".pdf") === false);
+  for (const url of urls) {
+    const token = url.slice(url.lastIndexOf("/") + 1);
+    if (body.includes(token)) assert.equal(body.includes(url), true, url);
+    else assert.equal(body.includes(url), false, url);
+  }
+}
+
+describe("quote library click-time Gmail handoff", () => {
+  let container: HTMLElement;
+  let root: Root | null = null;
+  let restoreFetch: (() => void) | null = null;
+  let openCalls: { url: string; target: string }[] = [];
+  let fetchCalls: { url: string; method: string; cache: string | undefined; accept: string | null }[] =
+    [];
+  let fetchImpl: (url: string) => Promise<Response> = async () => {
+    throw new Error("unexpected fetch");
+  };
+  let popupMode: "popup" | "blocked" = "popup";
+  let activePopup: {
+    closed: boolean;
+    opener: unknown;
+    replacements: string[];
+    location: { href: string; replace: (next: string) => void };
+    document: Document;
+  } | null = null;
+  const originalFetch = globalThis.fetch;
+  const leaked: string[] = [];
+  const originalLog = console.log;
+  const originalInfo = console.info;
+  const originalDebug = console.debug;
+
+  function watchConsole(...args: unknown[]) {
+    const text = args.map((arg) => String(arg)).join(" ");
+    if (/buy\.stripe\.com|pay\.getoblic\.com|mail\.google\.com/.test(text)) leaked.push(text);
+  }
+
+  before(() => {
+    const dom = new JSDOM(
+      "<!doctype html><html><body><div id='quote-library-email-root'></div></body></html>",
+      { url: "http://localhost/", pretendToBeVisual: true },
+    );
+    const { window: domWindow } = dom;
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      writable: true,
+      value: domWindow,
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      writable: true,
+      value: domWindow.document,
+    });
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      writable: true,
+      value: domWindow.navigator,
+    });
+    globalThis.HTMLElement = domWindow.HTMLElement;
+    globalThis.HTMLButtonElement = domWindow.HTMLButtonElement;
+    globalThis.HTMLAnchorElement = domWindow.HTMLAnchorElement;
+    globalThis.Node = domWindow.Node;
+    globalThis.MutationObserver = domWindow.MutationObserver;
+    globalThis.getComputedStyle = domWindow.getComputedStyle.bind(domWindow);
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    Object.defineProperty(globalThis, "self", {
+      configurable: true,
+      writable: true,
+      value: domWindow,
+    });
+    container = domWindow.document.getElementById("quote-library-email-root")!;
+    console.log = watchConsole;
+    console.info = watchConsole;
+    console.debug = watchConsole;
+  });
+
+  after(() => {
+    console.log = originalLog;
+    console.info = originalInfo;
+    console.debug = originalDebug;
+    globalThis.fetch = originalFetch;
+  });
+
+  function installBrowser() {
+    openCalls = [];
+    fetchCalls = [];
+    activePopup = null;
+    popupMode = "popup";
+    window.open = ((url?: string | URL, target?: string) => {
+      openCalls.push({ url: String(url), target: String(target) });
+      if (popupMode === "blocked") return null;
+      const popupDom = new JSDOM(
+        "<!doctype html><html><head><title></title></head><body></body></html>",
+        { url: "about:blank" },
+      );
+      const popup = {
+        closed: false,
+        opener: window,
+        replacements: [] as string[],
+        location: {
+          href: "about:blank",
+          replace(next: string) {
+            popup.replacements.push(next);
+            popup.location.href = next;
+          },
+        },
+        document: popupDom.window.document,
+      };
+      activePopup = popup;
+      return popup as unknown as Window;
+    }) as typeof window.open;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const headers = new Headers(init?.headers);
+      fetchCalls.push({
+        url,
+        method: init?.method ?? "GET",
+        cache: init?.cache,
+        accept: headers.get("Accept"),
+      });
+      return fetchImpl(url);
+    }) as typeof fetch;
+    restoreFetch = () => {
+      globalThis.fetch = originalFetch;
+    };
+  }
+
+  async function renderQuotes(
+    quotes: PublicQuote[],
+    libraryMessages: typeof messages = messages,
+  ) {
+    if (root) {
+      await act(async () => {
+        root?.unmount();
+      });
+      root = null;
+    }
+    container.replaceChildren();
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(ClientQuoteLibraryView, {
+          phase: "ready",
+          quotes,
+          error: null,
+          locale: "en-US",
+          messages: libraryMessages,
+          onRetry: () => undefined,
+        }),
+      );
+    });
+  }
+
+  function sendButton(quoteId: string): HTMLButtonElement {
+    const button = container.querySelector(
+      `[data-client-quote-send-email="${quoteId}"] [data-client-document-send-email-button]`,
+    );
+    assert.ok(button instanceof HTMLButtonElement);
+    return button;
+  }
+
+  async function flush() {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  function assertPaymentGet(quoteId: string, index = 0) {
+    const call = fetchCalls[index];
+    assert.ok(call);
+    assert.equal(call.url, `/api/licensee/client-quotes/${quoteId}/payment-links`);
+    assert.equal(call.method, "GET");
+    assert.equal(call.cache, "no-store");
+    assert.equal(call.accept, "application/json");
+    assert.equal(call.url.includes("api.stripe.com"), false);
+  }
+
+  it("does not fetch payment links until the issued card is clicked", async () => {
+    installBrowser();
+    fetchImpl = async () => jsonResponse(paymentApiBody([]));
+    const draft = draftQuote();
+    const issued = toPublicClientQuote(issueQuote({ id: ISSUED_QUOTE }));
+    await renderQuotes([draft]);
+    assert.equal(fetchCalls.length, 0);
+    assert.equal(openCalls.length, 0);
+    assert.equal(container.querySelector("[data-client-document-send-email]"), null);
+
+    await renderQuotes([draft, issued]);
+    assert.equal(fetchCalls.length, 0);
+    assert.equal(container.querySelectorAll("[data-client-document-send-email-button]").length, 1);
+    assert.equal(gmailHrefs(container.innerHTML).length, 0);
+    assert.match(container.innerHTML, /Attach the PDF manually/);
+    assert.match(container.innerHTML, new RegExp(`data-client-quote-open="${ISSUED_QUOTE}"`));
+    assert.match(container.innerHTML, new RegExp(`data-client-quote-delete="${DRAFT_QUOTE}"`));
+    assert.match(container.innerHTML, new RegExp(`data-create-client-invoice="${ISSUED_QUOTE}"`));
+    restoreFetch?.();
+  });
+
+  it("opens one blank tab before the payment-link GET and matches the detail handoff", async () => {
+    installBrowser();
+    const quote = toPublicClientQuote(issueQuote({ id: ISSUED_QUOTE }));
+    const links = [{ purpose: "one_time_full", url: FULL_URL }];
+    let release: (response: Response) => void = () => undefined;
+    const order: string[] = [];
+    fetchImpl = (url) => {
+      order.push(url.includes("/payment-links") ? "fetch" : "other");
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    };
+    const previousOpen = window.open;
+    window.open = ((url?: string | URL, target?: string) => {
+      order.push("open");
+      return previousOpen.call(window, url, target);
+    }) as typeof window.open;
+    await renderQuotes([quote]);
+    assert.equal(fetchCalls.length, 0);
+    const button = sendButton(ISSUED_QUOTE);
+    await act(async () => {
+      button.click();
+      button.click();
+    });
+    assert.deepEqual(order, ["open", "fetch"]);
+    assert.equal(openCalls.length, 1);
+    assert.deepEqual(openCalls[0], { url: "about:blank", target: "_blank" });
+    assert.equal(fetchCalls.length, 1);
+    assertPaymentGet(ISSUED_QUOTE);
+    assert.ok(activePopup);
+    assert.equal(activePopup.opener, null);
+    assert.equal(activePopup.location.href, "about:blank");
+    assert.equal(activePopup.replacements.length, 0);
+    assert.equal(activePopup.document.title, "Preparing email");
+    assert.equal(activePopup.document.body.textContent, "Preparing email…");
+    assert.doesNotMatch(activePopup.document.body.innerHTML, /stripe|mail\.google|buyer@|Q-2026/);
+
+    await flush();
+    assert.equal(sendButton(ISSUED_QUOTE).disabled, true);
+    assert.equal(
+      container
+        .querySelector("[data-client-quote-send-email]")
+        ?.getAttribute("data-client-document-send-email-pending"),
+      "true",
+    );
+    sendButton(ISSUED_QUOTE).click();
+    assert.equal(openCalls.length, 1);
+    assert.equal(fetchCalls.length, 1);
+
+    const expected = detailHandoff(quote, links);
+    await act(async () => {
+      release(jsonResponse(paymentApiBody(links)));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    assert.equal(activePopup.replacements.length, 1);
+    assert.equal(activePopup.replacements[0], expected.href);
+    assert.equal(activePopup.location.href, expected.href);
+    const body = new URL(expected.href).searchParams.get("body") ?? "";
+    assert.match(body, /Payment link: https:\/\/buy\.stripe\.com\/abcdefghij/);
+    assert.equal(body.includes(".pdf"), false);
+    assert.equal(body.includes("SCOPE-SENTINEL"), false);
+    assert.equal(body.includes("issuer-secret@hidden.example"), false);
+    assert.equal(body.includes("42424242"), false);
+    assert.ok(expected.href.length <= GMAIL_COMPOSE_MAX_URL_LENGTH);
+    assert.equal(new URL(expected.href).searchParams.get("to"), "buyer@example.com");
+    assert.equal(container.querySelector("a[data-client-document-send-email-link]"), null);
+    assert.equal(leaked.length, 0);
+
+    const opensBefore = openCalls.length;
+    await act(async () => {
+      sendButton(ISSUED_QUOTE).click();
+    });
+    assert.equal(openCalls.length, opensBefore + 1);
+    assert.equal(fetchCalls.length, 2);
+    assertPaymentGet(ISSUED_QUOTE, 1);
+    assert.equal(fetchCalls.every((call) => call.method === "GET"), true);
+    restoreFetch?.();
+  });
+
+  it("fetches only the clicked quote and keeps the other card idle", async () => {
+    installBrowser();
+    fetchImpl = async () => jsonResponse(paymentApiBody([]));
+    const first = toPublicClientQuote(issueQuote({ id: ISSUED_QUOTE }));
+    const second = toPublicClientQuote(
+      issueQuote({
+        id: INVOICED_QUOTE,
+        customerName: "Fabrikam Atelier",
+        projectTitle: "Catalog migration",
+      }),
+    );
+    await renderQuotes([first, second]);
+    assert.equal(fetchCalls.length, 0);
+    await act(async () => {
+      sendButton(ISSUED_QUOTE).click();
+    });
+    await flush();
+    assert.equal(fetchCalls.length, 1);
+    assertPaymentGet(ISSUED_QUOTE);
+    assert.equal(fetchCalls.some((call) => call.url.includes(INVOICED_QUOTE)), false);
+    assert.equal(openCalls.length, 1);
+    await act(async () => {
+      sendButton(INVOICED_QUOTE).click();
+    });
+    await flush();
+    assert.equal(fetchCalls.length, 2);
+    assertPaymentGet(INVOICED_QUOTE, 1);
+    assert.equal(fetchCalls.some((call) => call.method !== "GET"), false);
+    restoreFetch?.();
+  });
+
+  it("matches detail for full, split, partial, recurring, and mixed links in every document language", async () => {
+    const shapes: Record<string, EmailLink[]> = {
+      full: [{ purpose: "one_time_full", url: FULL_URL }],
+      split: [
+        { purpose: "one_time_balance", url: BALANCE_URL },
+        { purpose: "one_time_deposit", url: DEPOSIT_URL },
+      ],
+      partial: [
+        { purpose: "one_time_deposit", url: DEPOSIT_URL },
+        { purpose: "one_time_balance", url: null },
+      ],
+      recurring: [
+        { purpose: "annually", url: ANNUAL_URL },
+        { purpose: "quarterly", url: QUARTERLY_URL },
+        { purpose: "monthly", url: MONTHLY_URL },
+      ],
+      mixed: [
+        { purpose: "annually", url: ANNUAL_URL },
+        { purpose: "one_time_full", url: FULL_URL },
+        { purpose: "monthly", url: MONTHLY_URL },
+      ],
+    };
+    for (const [name, links] of Object.entries(shapes)) {
+      installBrowser();
+      const quote = toPublicClientQuote(issueQuote({ id: ISSUED_QUOTE, contentLanguage: "en" }));
+      fetchImpl = async () => jsonResponse(paymentApiBody(links));
+      await renderQuotes([quote]);
+      await act(async () => {
+        sendButton(ISSUED_QUOTE).click();
+      });
+      await flush();
+      const expected = detailHandoff(quote, links);
+      assert.equal(activePopup?.replacements[0], expected.href, name);
+      const body = new URL(expected.href).searchParams.get("body") ?? "";
+      assertCompletePaymentUrls(body, links.flatMap((link) => (link.url ? [link.url] : [])));
+      assert.ok(expected.href.length <= GMAIL_COMPOSE_MAX_URL_LENGTH, name);
+    }
+
+    const allLinks = [
+      { purpose: "one_time_full", url: FULL_URL },
+      { purpose: "one_time_deposit", url: DEPOSIT_URL },
+      { purpose: "one_time_balance", url: BALANCE_URL },
+      { purpose: "monthly", url: MONTHLY_URL },
+      { purpose: "quarterly", url: QUARTERLY_URL },
+      { purpose: "annually", url: ANNUAL_URL },
+    ];
+    for (const language of ORGANIZATION_LANGUAGES) {
+      installBrowser();
+      const quote = toPublicClientQuote(
+        issueQuote({ id: ISSUED_QUOTE, contentLanguage: language }),
+      );
+      fetchImpl = async () => jsonResponse(paymentApiBody(allLinks));
+      await renderQuotes([quote]);
+      await act(async () => {
+        sendButton(ISSUED_QUOTE).click();
+      });
+      await flush();
+      const expected = detailHandoff(quote, allLinks);
+      assert.equal(activePopup?.replacements[0], expected.href, language);
+      const body = new URL(expected.href).searchParams.get("body") ?? "";
+      assert.equal(body.includes(".pdf"), false, language);
+      assert.equal(body.includes(FULL_URL), true, language);
+      assert.ok(expected.href.length <= GMAIL_COMPOSE_MAX_URL_LENGTH, language);
+    }
+    restoreFetch?.();
+  });
+
+  it("omits null and non-official links and falls back when the GET cannot be used", async () => {
+    installBrowser();
+    const quote = toPublicClientQuote(issueQuote({ id: ISSUED_QUOTE }));
+    const links = [
+      { purpose: "one_time_full", url: "https://evil.example/abcdefghij" },
+      { purpose: "one_time_deposit", url: null },
+      { purpose: "one_time_balance", url: BALANCE_URL },
+    ];
+    fetchImpl = async () => jsonResponse(paymentApiBody(links));
+    await renderQuotes([quote]);
+    await act(async () => {
+      sendButton(ISSUED_QUOTE).click();
+    });
+    await flush();
+    const expected = detailHandoff(quote, links);
+    assert.equal(activePopup?.replacements[0], expected.href);
+    const body = new URL(expected.href).searchParams.get("body") ?? "";
+    assert.equal(body.includes(BALANCE_URL), true);
+    assert.equal(body.includes("evil.example"), false);
+    assert.doesNotMatch(body, /Deposit:/);
+    assert.equal(body.includes(".pdf"), false);
+
+    const failures: Array<() => Promise<Response>> = [
+      async () => {
+        throw new Error("offline");
+      },
+      async () => new Response("<html>no</html>", { status: 500, headers: { "content-type": "text/html" } }),
+      async () => jsonResponse({ ok: false, error: { code: "PAYMENT_LINK_FAILED" } }, 400),
+      async () => jsonResponse({ ok: true }),
+      async () => jsonResponse({ ok: true, paymentRequests: [{ purpose: "not_a_purpose" }] }),
+    ];
+    const snapshotOnly = detailHandoff(quote, null).href;
+    for (const [index, fail] of failures.entries()) {
+      installBrowser();
+      fetchImpl = fail;
+      await renderQuotes([quote]);
+      await act(async () => {
+        sendButton(ISSUED_QUOTE).click();
+      });
+      await flush();
+      assert.equal(activePopup?.replacements[0], snapshotOnly, `failure ${index}`);
+      assert.equal(fetchCalls.length, 1, `failure ${index}`);
+      assert.equal(fetchCalls[0]?.method, "GET");
+      const failedBody = new URL(snapshotOnly).searchParams.get("body") ?? "";
+      assert.doesNotMatch(failedBody, /buy\.stripe\.com|pay\.getoblic\.com|\.pdf/);
+    }
+    restoreFetch?.();
+  });
+
+  it("keeps the Gmail URL within the cap without a partial payment URL", async () => {
+    installBrowser();
+    const links = [
+      { purpose: "one_time_full", url: FULL_URL },
+      { purpose: "one_time_deposit", url: DEPOSIT_URL },
+      { purpose: "one_time_balance", url: BALANCE_URL },
+      { purpose: "monthly", url: MONTHLY_URL },
+      { purpose: "quarterly", url: QUARTERLY_URL },
+      { purpose: "annually", url: ANNUAL_URL },
+    ];
+    const issued = toPublicClientQuote(issueQuote({ id: ISSUED_QUOTE }));
+    assert.ok(issued.issuedSnapshot);
+    const quote = {
+      ...issued,
+      issuedSnapshot: {
+        ...issued.issuedSnapshot,
+        projectTitle: "P".repeat(5000),
+      },
+    };
+    fetchImpl = async () => jsonResponse(paymentApiBody(links));
+    await renderQuotes([quote]);
+    await act(async () => {
+      sendButton(ISSUED_QUOTE).click();
+    });
+    await flush();
+    const expected = detailHandoff(quote, links);
+    const href = activePopup?.replacements[0] ?? "";
+    assert.equal(href, expected.href);
+    assert.ok(href.length <= GMAIL_COMPOSE_MAX_URL_LENGTH);
+    const body = new URL(href).searchParams.get("body") ?? "";
+    assert.equal(body.includes(ANNUAL_URL), false);
+    assertCompletePaymentUrls(
+      body,
+      links.map((link) => link.url).filter((url): url is string => Boolean(url)),
+    );
+    restoreFetch?.();
+  });
+
+  it("uses a clickable Gmail anchor when the popup is blocked", async () => {
+    installBrowser();
+    popupMode = "blocked";
+    const quote = toPublicClientQuote(issueQuote({ id: ISSUED_QUOTE, email: null }));
+    const links = [{ purpose: "one_time_full", url: FULL_URL }];
+    fetchImpl = async () => jsonResponse(paymentApiBody(links));
+    const french = getLicenseeLocalization("fr").messages;
+    await renderQuotes([quote], french);
+    assert.match(container.innerHTML, /Envoyer par e-mail/);
+    assert.match(container.innerHTML, /Joignez le PDF manuellement/);
+    assert.equal(fetchCalls.length, 0);
+    await act(async () => {
+      sendButton(ISSUED_QUOTE).click();
+    });
+    await flush();
+    assert.equal(openCalls.length, 1);
+    assert.deepEqual(openCalls[0], { url: "about:blank", target: "_blank" });
+    assert.equal(activePopup, null);
+    assert.equal(fetchCalls.length, 1);
+    assertPaymentGet(ISSUED_QUOTE);
+    const anchor = container.querySelector("a[data-client-document-send-email-link]");
+    assert.ok(anchor instanceof HTMLAnchorElement);
+    const expected = detailHandoff(quote, links);
+    assert.equal(anchor.getAttribute("href"), expected.href);
+    assert.equal(anchor.getAttribute("target"), "_blank");
+    assert.equal(anchor.getAttribute("rel"), "noopener noreferrer");
+    assert.match(anchor.textContent ?? "", /Envoyer par e-mail/);
+    assert.match(anchor.className, /rounded-full/);
+    assert.equal(container.querySelector("[data-client-document-send-email-button]"), null);
+    assert.match(container.innerHTML, /data-client-document-send-recipient-warning="true"/);
+    assert.match(container.innerHTML, /data-client-document-send-reminder="true"/);
+    const url = new URL(anchor.getAttribute("href") ?? "");
+    assert.equal(url.searchParams.has("to"), false);
+    assert.match(url.searchParams.get("body") ?? "", /Hello Ada North,/);
+    assert.equal((url.searchParams.get("body") ?? "").includes("Bonjour"), false);
+    assert.match(url.searchParams.get("su") ?? "", /^Quotation /);
+    anchor.click();
+    await flush();
+    assert.equal(openCalls.filter((call) => call.url === "about:blank").length, 1);
+    assert.equal(fetchCalls.length, 1);
+    assert.equal(fetchCalls.some((call) => call.method === "POST"), false);
+    restoreFetch?.();
+  });
+
+  it("leaves invoice library cards on the existing anchor", async () => {
+    installBrowser();
+    const quote = issueQuote({});
+    const issued = issuedInvoice(quote);
+    if (root) {
+      await act(async () => {
+        root?.unmount();
+      });
+      root = null;
+    }
+    container.replaceChildren();
+    const invoiceRoot = createRoot(container);
+    await act(async () => {
+      invoiceRoot.render(
+        createElement(ClientInvoiceLibraryView, {
+          phase: "ready",
+          invoices: [issued],
+          error: null,
+          locale: "en-US",
+          messages,
+          onRetry: () => undefined,
+        }),
+      );
+    });
+    assert.equal(fetchCalls.length, 0);
+    assert.equal(openCalls.length, 0);
+    assert.equal(container.querySelector("[data-client-document-send-email-button]"), null);
+    const href = gmailHrefs(container.innerHTML)[0];
+    assert.match(new URL(href).searchParams.get("body") ?? "", /invoice-i-2026-0001-2026-10-10\.pdf/);
+    assert.equal(new URL(href).searchParams.get("body")?.includes("IBAN-SENTINEL"), false);
+    await act(async () => {
+      invoiceRoot.unmount();
+    });
+    restoreFetch?.();
   });
 });

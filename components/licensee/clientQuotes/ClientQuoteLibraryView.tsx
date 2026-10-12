@@ -4,8 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { EstimateProspectSelect } from "@/components/licensee/estimate/EstimateProspectSelect";
-import { IssuedDocumentCardEmail } from "@/components/licensee/clientDocuments/ClientDocumentSendByEmailLink";
-import { buildClientDocumentGmailHandoff } from "@/lib/licensee/clientDocumentGmailHandoff";
+import { QuoteLibraryCardEmail } from "@/components/licensee/clientDocuments/ClientDocumentSendByEmailLink";
 import type { LicenseeMessages } from "@/lib/licensee/getLicenseeLocalization";
 import { clientQuoteBillingFrequencyLabel } from "@/lib/licensee/clientQuoteEditorMessages";
 import {
@@ -227,16 +226,8 @@ export function ClientQuoteLibraryView({
     issued: copy.statusIssued,
     invoiced: copy.statusInvoiced,
   };
-  const emailHandoffById = new Map(
-    quotes.map((quote) => [
-      quote.id,
-      quote.status === "issued" && quote.issuedSnapshot
-        ? buildClientDocumentGmailHandoff({
-            kind: "quote",
-            snapshot: quote.issuedSnapshot,
-          })
-        : null,
-    ]),
+  const issuedSnapshotById = new Map(
+    quotes.map((quote) => [quote.id, quote.issuedSnapshot] as const),
   );
   const rows = filterClientQuotesForLibrary(
     quotes,
@@ -547,10 +538,10 @@ export function ClientQuoteLibraryView({
                         </button>
                       ) : null}
                       {row.presentationStatus === "draft" ? null : (
-                        <IssuedDocumentCardEmail
-                          handoff={emailHandoffById.get(row.id) ?? null}
+                        <QuoteLibraryCardEmail
+                          quoteId={row.id}
+                          snapshot={issuedSnapshotById.get(row.id) ?? null}
                           messages={messages}
-                          documentKind="quote"
                         />
                       )}
                       <Link
