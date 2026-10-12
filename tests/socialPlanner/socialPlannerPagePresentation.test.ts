@@ -133,7 +133,7 @@ describe("/social-planner library presentation", () => {
     assert.doesNotMatch(defaultHeader, /MessagesSquare|cyan-200/);
   });
 
-  it("keeps TractionSiblingNav unchanged and Social Content current", () => {
+  it("keeps Social Content current and includes the Communities sibling", () => {
     const page = read("app/social-planner/page.tsx");
     const nav = read("components/traction/TractionSiblingNav.tsx");
     assert.match(page, /href: "\/personas"/);
@@ -142,7 +142,9 @@ describe("/social-planner library presentation", () => {
     assert.match(page, /current: true/);
     assert.doesNotMatch(page, /help:/);
     assert.match(nav, /MessagesSquare/);
-    assert.match(nav, /sm:grid-cols-3/);
+    assert.match(nav, /sm:grid-cols-2/);
+    assert.match(nav, /xl:grid-cols-4/);
+    assert.match(page, /href: "\/traction\/communities"/);
     assert.doesNotMatch(nav, /socialPlannerPagePresentation|SOCIAL_PAGE_HEADER/);
 
     const html = renderToStaticMarkup(

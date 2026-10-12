@@ -57,7 +57,7 @@ export const tenantNavDefs = [
   {
     key: "generateTraction",
     href: "/personas",
-    alsoActiveFor: ["/ads", "/social-planner"],
+    alsoActiveFor: ["/ads", "/social-planner", "/traction/communities"],
     section: "growth",
     subtitleKey: "generateTractionSubtitle",
     icon: "traction",

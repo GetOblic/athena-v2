@@ -411,7 +411,8 @@ describe("persona library presentation", () => {
     assert.match(social, /href: "\/social-planner"/);
     assert.doesNotMatch(social, /createCta|Create audience|UserPlus/);
     assert.doesNotMatch(social, /action=\{/);
-    assert.match(nav, /sm:grid-cols-3/);
+    assert.match(nav, /sm:grid-cols-2/);
+    assert.match(nav, /xl:grid-cols-4/);
     assert.match(nav, /Users/);
     assert.match(nav, /Megaphone/);
     assert.match(nav, /MessagesSquare/);

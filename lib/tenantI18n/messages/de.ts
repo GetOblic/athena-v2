@@ -5452,4 +5452,85 @@ export const de: TenantMessages = {
       validation: "Prüfen Sie die markierten Felder und versuchen Sie es erneut.",
     },
   },
+  communityIntelligence: {
+    eyebrow: "Generate Traction",
+    title: "Communities",
+    question: "Welche öffentlichen Facebook-Gruppen sollten Sie selbst öffnen?",
+    subtitle:
+      "Athena findet und qualifiziert öffentliche Facebook-Gruppen. Öffnen Sie eine Gruppe in einem neuen Tab und nutzen Sie Ihr eigenes Facebook-Konto. Athena verbindet sich nicht, tritt nicht bei, veröffentlicht nicht, sendet keine Nachrichten und überwacht nicht.",
+    navLabel: "Communities",
+    navHelp:
+      "Öffentliche Facebook-Gruppen finden und mit dem eigenen Konto öffnen.",
+    objectiveLabel: "Wen möchten Sie erreichen?",
+    objectivePlaceholder:
+      "Unabhängige Händler in Frankreich, die Haushaltswaren im Großhandel kaufen",
+    objectiveHelp: "Beschreiben Sie die Menschen oder das Thema in eigenen Worten.",
+    objectiveCount: "{count} / {max}",
+    findCommunities: "Communities finden",
+    searching: "Öffentliche Facebook-Gruppen werden gesucht…",
+    searchingHelp:
+      "Athena arbeitet auf dieser Seite. Die Suche endet oder stoppt nach etwa 30 Sekunden.",
+    emptyBeforeTitle: "Noch keine Suche.",
+    emptyBeforeBody:
+      "Beschreiben Sie, wen Sie erreichen möchten, und finden Sie dann öffentliche Facebook-Gruppen.",
+    emptyResultsTitle: "Keine öffentlichen Facebook-Gruppen gefunden.",
+    emptyResultsBody:
+      "Formulieren Sie das Ziel genauer. Athena listet nur öffentliche Facebook-Gruppen, die sie erkennen kann.",
+    resultsTitle: "Communities",
+    platformFacebook: "Facebook",
+    openGroup: "Gruppe öffnen",
+    relevance: "Warum sie relevant sein kann",
+    qualificationUnavailable: "Qualifizierung nicht verfügbar",
+    qualificationUnavailableHelp:
+      "Athena konnte diese Gruppe nicht qualifizieren. Eine Relevanzbegründung liegt nicht vor.",
+    listingText: "Öffentlicher Eintrag",
+    save: "Speichern",
+    saving: "Wird gespeichert…",
+    savedAction: "Gespeichert",
+    saved: "Für diese Organisation gespeichert.",
+    alreadySaved: "Für diese Organisation bereits gespeichert.",
+    savesLoading: "Gespeicherte Communities werden geladen…",
+    savedTitle: "Gespeicherte Communities",
+    savedHelp: "Diese Speicherungen bleiben privat für diese Organisation.",
+    savedEmptyTitle: "Noch keine gespeicherten Communities.",
+    savedEmptyBody:
+      "Speichern Sie eine Gruppe aus der Suche oder fügen Sie ihre öffentliche URL ein. Nur diese Organisation kann diese Speicherungen sehen.",
+    viewDiscover: "Suchen",
+    viewSaved: "Gespeichert",
+    savedAs: "Gespeichert als {qualification}",
+    qualificationRelevant: "relevant",
+    qualificationNotRelevant: "nicht relevant",
+    independenceNote: "Das Öffnen einer Gruppe nutzt Ihr eigenes Facebook-Konto.",
+    followUpLabel: "Späterer Schritt",
+    suggestedConversationFollowUp:
+      "Ein vorgeschlagener Beitrag ist optional. Sie entscheiden, ob Sie ihn verwenden, und veröffentlichen ihn selbst auf Facebook.",
+    manualUrlLabel: "URL einer öffentlichen Facebook-Gruppe",
+    manualUrlPlaceholder: "https://www.facebook.com/groups/beispiel",
+    manualUrlHelp:
+      "Fügen Sie einen öffentlichen Gruppenlink ein, um ihn ohne Suche zu speichern.",
+    saveManualUrl: "URL speichern",
+    suggestedContributionLabel: "Vorgeschlagener Beitrag",
+    suggestedContributionHelp:
+      "Bearbeiten Sie den Text, wenn Sie möchten. Kopieren Sie ihn nur, wenn Sie ihn verwenden wollen. Athena veröffentlicht ihn nicht.",
+    copySuggestion: "Kopieren",
+    copiedSuggestion: "Kopiert",
+    errors: {
+      invalidObjective:
+        "Geben Sie ein Ziel mit 3 bis 280 Zeichen ein, ohne Steuerzeichen.",
+      providerUnconfigured: "Die Community-Suche ist nicht konfiguriert.",
+      providerTimeout: "Die Community-Suche hat das Zeitlimit überschritten. Bitte erneut versuchen.",
+      providerUnavailable: "Die Community-Suche ist nicht verfügbar. Bitte erneut versuchen.",
+      discoveryFailed: "Die Community-Suche ist fehlgeschlagen. Bitte erneut versuchen.",
+      persistenceUnavailable:
+        "Die Community-Suche konnte den öffentlichen Katalog nicht verwenden.",
+      unauthorized: "Ihre Sitzung ist nicht mehr gültig. Bitte erneut anmelden.",
+      forbidden: "Sie haben keine Berechtigung für diese Aktion.",
+      unexpected: "Athena hat eine unerwartete Antwort erhalten.",
+      notInCatalog: "Diese öffentliche Community ist nicht im Katalog.",
+      communitySuppressed: "Diese öffentliche Community ist nicht verfügbar.",
+      invalidCommunityUrl: "Geben Sie die URL einer öffentlichen Facebook-Gruppe ein.",
+      saveFailed: "Diese Community konnte nicht gespeichert werden.",
+      savesFailed: "Gespeicherte Communities konnten nicht geladen werden.",
+    },
+  },
 };

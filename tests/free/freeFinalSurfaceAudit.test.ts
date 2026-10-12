@@ -80,6 +80,7 @@ const FREE_SHELL_PAGES = [
   "app/prospects/[id]/page.tsx",
   "app/social-planner/page.tsx",
   "app/social-planner/[id]/page.tsx",
+  "app/traction/communities/page.tsx",
   "components/socialPlanner/SocialPlannerHistoryRoutePage.tsx",
 ] as const;
 

@@ -1,8 +1,12 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { Megaphone, MessagesSquare, Users } from "lucide-react";
+import { Group, Megaphone, MessagesSquare, Users } from "lucide-react";
 
-export type TractionSiblingFamily = "audiences" | "advertising" | "social";
+export type TractionSiblingFamily =
+  | "audiences"
+  | "advertising"
+  | "social"
+  | "communities";
 
 export type TractionSiblingLink = {
   href: string;
@@ -20,12 +24,14 @@ const FAMILY_FROM_HREF: Record<string, TractionSiblingFamily> = {
   "/personas": "audiences",
   "/ads": "advertising",
   "/social-planner": "social",
+  "/traction/communities": "communities",
 };
 
 const FAMILY_ICON: Record<TractionSiblingFamily, LucideIcon> = {
   audiences: Users,
   advertising: Megaphone,
   social: MessagesSquare,
+  communities: Group,
 };
 
 const FAMILY_SURFACE: Record<
@@ -56,6 +62,14 @@ const FAMILY_SURFACE: Record<
     iconCurrent:
       "grid size-9 shrink-0 place-items-center rounded-xl border border-[rgba(56,189,248,0.42)] bg-[rgba(56,189,248,0.16)] text-cyan-200 shadow-[0_0_12px_rgba(56,189,248,0.16)]",
   },
+  communities: {
+    idle: "rounded-2xl border border-[rgba(52,211,153,0.22)] bg-[linear-gradient(180deg,rgba(52,211,153,0.07),transparent_72%)] px-4 py-3 transition hover:border-[rgba(52,211,153,0.40)] hover:bg-white/[0.04]",
+    current:
+      "rounded-2xl border border-[rgba(52,211,153,0.46)] bg-[linear-gradient(180deg,rgba(52,211,153,0.14),transparent_70%)] px-4 py-3 shadow-[0_0_18px_rgba(52,211,153,0.10)]",
+    icon: "grid size-9 shrink-0 place-items-center rounded-xl border border-[rgba(52,211,153,0.28)] bg-[rgba(52,211,153,0.10)] text-emerald-300",
+    iconCurrent:
+      "grid size-9 shrink-0 place-items-center rounded-xl border border-[rgba(52,211,153,0.42)] bg-[rgba(52,211,153,0.16)] text-emerald-200 shadow-[0_0_12px_rgba(52,211,153,0.16)]",
+  },
 };
 
 function resolveFamily(link: TractionSiblingLink): TractionSiblingFamily | null {
@@ -64,7 +78,7 @@ function resolveFamily(link: TractionSiblingLink): TractionSiblingFamily | null 
 
 export function TractionSiblingNav({ links }: TractionSiblingNavProps) {
   return (
-    <nav className="mt-6 grid gap-3 sm:grid-cols-3">
+    <nav className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {links.map((link) => {
         const family = resolveFamily(link);
         const Icon = family ? FAMILY_ICON[family] : null;

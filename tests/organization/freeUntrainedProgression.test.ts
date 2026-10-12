@@ -462,6 +462,7 @@ describe("FREE-4 direct growth-route protection", () => {
       "app/ads/layout.tsx",
       "app/personas/layout.tsx",
       "app/prospects/layout.tsx",
+      "app/traction/layout.tsx",
     ]) {
       const source = read(file);
       assert.match(source, /redirectIfFreeUntrainedGrowthRoute/);

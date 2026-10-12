@@ -88,7 +88,11 @@ describe("V2-UI-5C Generate Traction presentation", () => {
     const ads = items.find((item) => item.key === "ads");
     const social = items.find((item) => item.key === "socialPlanner");
     assert.ok(traction && ads && social);
-    assert.deepEqual(traction.alsoActiveFor, ["/ads", "/social-planner"]);
+    assert.deepEqual(traction.alsoActiveFor, [
+      "/ads",
+      "/social-planner",
+      "/traction/communities",
+    ]);
     for (const path of [
       "/personas",
       "/personas/import",
@@ -98,6 +102,7 @@ describe("V2-UI-5C Generate Traction presentation", () => {
       "/ads/abc",
       "/social-planner",
       "/social-planner/abc",
+      "/traction/communities",
     ]) {
       assert.equal(isTenantNavActive(path, traction), true, path);
     }

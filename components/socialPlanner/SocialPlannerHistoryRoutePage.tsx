@@ -105,6 +105,10 @@ export async function SocialPlannerHistoryRoutePage({
               label: copy.title,
               current: true,
             },
+            {
+              href: "/traction/communities",
+              label: messages.communityIntelligence.navLabel,
+            },
           ]}
         />
       </TractionPageHeader>

@@ -7,6 +7,7 @@ import {
   type ReasoningProfileType,
 } from "@/lib/reasoningProfiles";
 import {
+  getLLMModelRoles,
   logAthenaLlmRouting,
   resolveModelForStage,
   resolveOpenRouterFallbackModel,
@@ -269,4 +270,135 @@ export async function callOpenRouter(
   throw new Error(
     `OpenRouter token budget retries exhausted. ${lastErrorText}`,
   );
+}
+
+/** Hard cap for one-shot calls. Generation keeps its own token-budget retries. */
+export const OPENROUTER_BOUNDED_MAX_TOKENS = 1024;
+
+export type OpenRouterBoundedFailure = "unconfigured" | "timeout" | "unavailable";
+
+export class OpenRouterBoundedCallError extends Error {
+  readonly reason: OpenRouterBoundedFailure;
+
+  constructor(reason: OpenRouterBoundedFailure) {
+    super(`OpenRouter bounded call ${reason}`);
+    this.name = "OpenRouterBoundedCallError";
+    this.reason = reason;
+  }
+}
+
+export type OpenRouterBoundedMessage = {
+  role: "system" | "user";
+  content: string;
+};
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "AbortError" || error.name === "TimeoutError")
+  );
+}
+
+function boundedMaxTokens(maxTokens: number): number {
+  if (!Number.isFinite(maxTokens)) return 1;
+  return Math.min(
+    OPENROUTER_BOUNDED_MAX_TOKENS,
+    Math.max(1, Math.floor(maxTokens)),
+  );
+}
+
+/**
+ * One OpenRouter completion for a short, abortable task.
+ * Sends no reasoning payload and does not retry or switch models.
+ * Callers that omit `model` keep the analysis model. Community qualification
+ * passes its own model and does not fall back to analysis.
+ */
+export async function callOpenRouterBounded(input: {
+  messages: readonly OpenRouterBoundedMessage[];
+  maxTokens: number;
+  temperature?: number;
+  signal: AbortSignal;
+  model?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<string> {
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim() ?? "";
+  if (!apiKey || /[\r\n]/.test(apiKey)) {
+    throw new OpenRouterBoundedCallError("unconfigured");
+  }
+
+  const maxTokens = boundedMaxTokens(input.maxTokens);
+  const dedicatedModel = input.model?.trim() ?? "";
+  if (input.model !== undefined && (!dedicatedModel || /[\r\n]/.test(dedicatedModel))) {
+    throw new OpenRouterBoundedCallError("unconfigured");
+  }
+  const model = dedicatedModel || getLLMModelRoles().analysis.model;
+  const siteUrl = process.env.OPENROUTER_SITE_URL || "http://localhost:3000";
+  const appName = process.env.OPENROUTER_APP_NAME || "Athena";
+  const fetchImpl = input.fetchImpl ?? fetch;
+
+  console.log(
+    dedicatedModel
+      ? `[Athena LLM] stage=community_qualification role=qualification model=${model} reasoning=none max_tokens=${maxTokens}`
+      : `[Athena LLM] stage=bounded role=analysis model=${model} reasoning=none max_tokens=${maxTokens}`,
+  );
+
+  let response: Response;
+  try {
+    response = await fetchImpl("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      signal: input.signal,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": siteUrl,
+        "X-Title": appName,
+      },
+      body: JSON.stringify({
+        model,
+        messages: input.messages,
+        temperature: input.temperature ?? 0,
+        max_tokens: maxTokens,
+      }),
+    });
+  } catch (error) {
+    if (isAbortError(error) || input.signal.aborted) {
+      throw new OpenRouterBoundedCallError("timeout");
+    }
+    throw new OpenRouterBoundedCallError("unavailable");
+  }
+
+  if (!response.ok) {
+    throw new OpenRouterBoundedCallError("unavailable");
+  }
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    if (isAbortError(error) || input.signal.aborted) {
+      throw new OpenRouterBoundedCallError("timeout");
+    }
+    throw new OpenRouterBoundedCallError("unavailable");
+  }
+
+  const content =
+    payload &&
+    typeof payload === "object" &&
+    "choices" in payload &&
+    Array.isArray(payload.choices)
+      ? payload.choices[0] &&
+        typeof payload.choices[0] === "object" &&
+        "message" in payload.choices[0] &&
+        payload.choices[0].message &&
+        typeof payload.choices[0].message === "object" &&
+        "content" in payload.choices[0].message
+        ? payload.choices[0].message.content
+        : null
+      : null;
+
+  if (typeof content !== "string" || !content.trim()) {
+    throw new OpenRouterBoundedCallError("unavailable");
+  }
+
+  return content;
 }

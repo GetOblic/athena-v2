@@ -5451,4 +5451,85 @@ export const fr: TenantMessages = {
       validation: "Vérifiez les champs indiqués, puis réessayez.",
     },
   },
+  communityIntelligence: {
+    eyebrow: "Generate Traction",
+    title: "Communautés",
+    question: "Quels groupes Facebook publics méritent que vous les ouvriez vous-même ?",
+    subtitle:
+      "Athena trouve et qualifie des groupes Facebook publics. Ouvrez un groupe dans un nouvel onglet et utilisez votre propre compte Facebook. Athena ne se connecte pas, ne rejoint pas, ne publie pas, n’envoie pas de message et ne surveille pas.",
+    navLabel: "Communautés",
+    navHelp:
+      "Trouvez des groupes Facebook publics, puis ouvrez-les avec votre propre compte.",
+    objectiveLabel: "Qui voulez-vous atteindre ?",
+    objectivePlaceholder:
+      "Détaillants indépendants en France qui achètent des articles pour la maison en gros",
+    objectiveHelp: "Décrivez les personnes ou le sujet avec vos propres mots.",
+    objectiveCount: "{count} / {max}",
+    findCommunities: "Trouver des communautés",
+    searching: "Recherche de groupes Facebook publics…",
+    searchingHelp:
+      "Athena travaille sur cette page. La recherche se termine ou s’arrête en environ 30 secondes.",
+    emptyBeforeTitle: "Aucune recherche pour le moment.",
+    emptyBeforeBody:
+      "Décrivez qui vous voulez atteindre, puis trouvez des groupes Facebook publics.",
+    emptyResultsTitle: "Aucun groupe Facebook public ne correspond.",
+    emptyResultsBody:
+      "Essayez un objectif plus précis. Athena ne liste que les groupes Facebook publics qu’elle peut identifier.",
+    resultsTitle: "Communautés",
+    platformFacebook: "Facebook",
+    openGroup: "Ouvrir le groupe",
+    relevance: "Pourquoi ce groupe peut être pertinent",
+    qualificationUnavailable: "Qualification indisponible",
+    qualificationUnavailableHelp:
+      "Athena n’a pas pu qualifier ce groupe. Aucune explication de pertinence n’est disponible.",
+    listingText: "Fiche publique",
+    save: "Enregistrer",
+    saving: "Enregistrement…",
+    savedAction: "Enregistré",
+    saved: "Enregistré pour cette organisation.",
+    alreadySaved: "Déjà enregistré pour cette organisation.",
+    savesLoading: "Chargement des communautés enregistrées…",
+    savedTitle: "Communautés enregistrées",
+    savedHelp: "Ces enregistrements restent privés pour cette organisation.",
+    savedEmptyTitle: "Aucune communauté enregistrée pour le moment.",
+    savedEmptyBody:
+      "Enregistrez un groupe depuis la recherche, ou collez son URL publique. Seule cette organisation peut voir ces enregistrements.",
+    viewDiscover: "Rechercher",
+    viewSaved: "Enregistrées",
+    savedAs: "Enregistré comme {qualification}",
+    qualificationRelevant: "pertinent",
+    qualificationNotRelevant: "non pertinent",
+    independenceNote: "Ouvrir un groupe utilise votre propre compte Facebook.",
+    followUpLabel: "Suite",
+    suggestedConversationFollowUp:
+      "Une contribution suggérée est facultative. Vous décidez de l’utiliser, et vous la publiez vous-même sur Facebook.",
+    manualUrlLabel: "URL d’un groupe Facebook public",
+    manualUrlPlaceholder: "https://www.facebook.com/groups/exemple",
+    manualUrlHelp:
+      "Collez un lien de groupe public pour l’enregistrer sans lancer de recherche.",
+    saveManualUrl: "Enregistrer l’URL",
+    suggestedContributionLabel: "Contribution suggérée",
+    suggestedContributionHelp:
+      "Modifiez ce texte si vous le souhaitez. Copiez-le seulement si vous choisissez de l’utiliser. Athena ne le publie pas.",
+    copySuggestion: "Copier",
+    copiedSuggestion: "Copié",
+    errors: {
+      invalidObjective:
+        "Saisissez un objectif de 3 à 280 caractères, sans caractères de contrôle.",
+      providerUnconfigured: "La recherche de communautés n’est pas configurée.",
+      providerTimeout: "La recherche de communautés a expiré. Réessayez.",
+      providerUnavailable: "La recherche de communautés est indisponible. Réessayez.",
+      discoveryFailed: "La découverte de communautés a échoué. Réessayez.",
+      persistenceUnavailable:
+        "La découverte de communautés n’a pas pu utiliser le catalogue public.",
+      unauthorized: "Votre session n’est plus valide. Veuillez vous reconnecter.",
+      forbidden: "Vous n’avez pas l’autorisation d’effectuer cette action.",
+      unexpected: "Athena a reçu une réponse inattendue.",
+      notInCatalog: "Cette communauté publique n’est pas dans le catalogue.",
+      communitySuppressed: "Cette communauté publique n’est pas disponible.",
+      invalidCommunityUrl: "Saisissez l’URL d’un groupe Facebook public.",
+      saveFailed: "Cette communauté n’a pas pu être enregistrée.",
+      savesFailed: "Les communautés enregistrées n’ont pas pu être chargées.",
+    },
+  },
 };

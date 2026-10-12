@@ -84,6 +84,10 @@ export default async function AdsPage() {
               href: "/social-planner",
               label: copy.traction.socialContent,
             },
+            {
+              href: "/traction/communities",
+              label: messages.communityIntelligence.navLabel,
+            },
           ]}
         />
       </TractionPageHeader>

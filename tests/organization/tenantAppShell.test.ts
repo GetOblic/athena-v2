@@ -85,6 +85,7 @@ const SHELLED_PAGES = [
   "app/ads/[id]/page.tsx",
   "app/social-planner/page.tsx",
   "app/social-planner/[id]/page.tsx",
+  "app/traction/communities/page.tsx",
   "components/socialPlanner/SocialPlannerHistoryRoutePage.tsx",
   "app/inbox/page.tsx",
   "app/getting-started/page.tsx",
@@ -175,6 +176,7 @@ const ACTIVE_STATE_CASES: Array<{
   { path: "/ads/abc", expectedKey: "generateTraction" },
   { path: "/social-planner", expectedKey: "generateTraction" },
   { path: "/social-planner/abc", expectedKey: "generateTraction" },
+  { path: "/traction/communities", expectedKey: "generateTraction" },
   { path: "/intelligence-domains", expectedKey: "intelligenceDomains" },
   { path: "/communities", expectedKey: "intelligenceDomains" },
   { path: "/communities/abc", expectedKey: "intelligenceDomains" },
@@ -279,7 +281,17 @@ describe("V2-UI-1B tenant app shell — navigation contract", () => {
       (item) => item.key === "socialPlanner",
     );
     assert.ok(traction);
-    assert.deepEqual(traction.alsoActiveFor, ["/ads", "/social-planner"]);
+    assert.deepEqual(traction.alsoActiveFor, [
+      "/ads",
+      "/social-planner",
+      "/traction/communities",
+    ]);
+    assert.equal(isTenantNavActive("/traction/communities", traction), true);
+    const domains = localizeTenantNav(en).find(
+      (item) => item.key === "intelligenceDomains",
+    );
+    assert.equal(isTenantNavActive("/traction/communities", domains ?? {}), false);
+    assert.equal(isTenantNavActive("/communities", domains ?? {}), true);
     assert.equal(isTenantNavActive("/ads", traction), true);
     assert.equal(isTenantNavActive("/ads/new", traction), true);
     assert.equal(isTenantNavActive("/social-planner", traction), true);

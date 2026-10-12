@@ -1,0 +1,380 @@
+import {
+  COMMUNITY_DISCOVERY_EVIDENCE_SNIPPET_MAX_LENGTH,
+  COMMUNITY_DISCOVERY_EXPLANATION_MAX_LENGTH,
+  COMMUNITY_DISCOVERY_ROUTE_MAX_DURATION_SECONDS,
+  COMMUNITY_DISCOVERY_SUGGESTION_MAX_LENGTH,
+  COMMUNITY_DISCOVERY_SUGGESTION_MIN_LENGTH,
+  ORGANIZATION_COMMUNITY_NOTES_MAX_LENGTH,
+  PUBLIC_COMMUNITY_DISPLAY_NAME_MAX_LENGTH,
+} from "@/services/communityDiscovery/communityDiscoveryLimits";
+import { normalizeSocialCommunityUrl } from "@/services/communityDiscovery/socialCommunityRegistry";
+
+/**
+ * Client budget slightly above the accepted route maxDuration so a hung
+ * request cannot leave the workspace spinning.
+ */
+export const COMMUNITY_DISCOVERY_CLIENT_TIMEOUT_MS =
+  (COMMUNITY_DISCOVERY_ROUTE_MAX_DURATION_SECONDS + 5) * 1000;
+
+const CONTROL_CHARACTER = /[\u0000-\u001F\u007F]/;
+
+export const COMMUNITY_DISCOVERY_UI_ERRORS = [
+  "invalidObjective",
+  "providerUnconfigured",
+  "providerTimeout",
+  "providerUnavailable",
+  "discoveryFailed",
+  "persistenceUnavailable",
+  "unauthorized",
+  "forbidden",
+  "unexpected",
+  "notInCatalog",
+  "communitySuppressed",
+  "invalidCommunityUrl",
+  "saveFailed",
+  "savesFailed",
+] as const;
+
+export type CommunityDiscoveryUiError =
+  (typeof COMMUNITY_DISCOVERY_UI_ERRORS)[number];
+
+export type CommunityDiscoveryCard = {
+  canonicalUrl: string;
+  displayName: string;
+  explanation: string | null;
+  suggestedContribution: string | null;
+  qualificationUnavailable: boolean;
+  listingSnippet: string | null;
+};
+
+export type SavedCommunityCard = {
+  id: string;
+  canonicalUrl: string;
+  displayName: string;
+  qualification: "relevant" | "not_relevant";
+  notes: string | null;
+};
+
+export type CommunityDiscoveryView = {
+  cards: CommunityDiscoveryCard[];
+  qualificationUnavailable: boolean;
+};
+
+const DISCOVERY_ERROR_CODES: Record<string, CommunityDiscoveryUiError> = {
+  INVALID_OBJECTIVE: "invalidObjective",
+  PROVIDER_UNCONFIGURED: "providerUnconfigured",
+  PROVIDER_TIMEOUT: "providerTimeout",
+  PROVIDER_UNAVAILABLE: "providerUnavailable",
+  DISCOVERY_FAILED: "discoveryFailed",
+  PERSISTENCE_UNAVAILABLE: "persistenceUnavailable",
+  UNAUTHORIZED: "unauthorized",
+  FORBIDDEN: "forbidden",
+};
+
+const SAVE_ERROR_CODES: Record<string, CommunityDiscoveryUiError> = {
+  COMMUNITY_NOT_IN_CATALOG: "notInCatalog",
+  COMMUNITY_SUPPRESSED: "communitySuppressed",
+  SAVE_FAILED: "saveFailed",
+  SAVES_FAILED: "savesFailed",
+  INVALID_COMMUNITY_URL: "invalidCommunityUrl",
+  INVALID_QUALIFICATION: "saveFailed",
+  INVALID_NOTES: "saveFailed",
+  INVALID_SAVE: "saveFailed",
+  UNAUTHORIZED: "unauthorized",
+  FORBIDDEN: "forbidden",
+};
+
+function boundedPlainText(value: unknown, maxLength: number): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > maxLength || CONTROL_CHARACTER.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+function errorCode(
+  payload: unknown,
+  codes: Record<string, CommunityDiscoveryUiError>,
+): CommunityDiscoveryUiError {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return "unexpected";
+  }
+  const error = (payload as { error?: unknown }).error;
+  if (!error || typeof error !== "object" || Array.isArray(error)) {
+    return "unexpected";
+  }
+  const code = (error as { code?: unknown }).code;
+  if (typeof code !== "string") return "unexpected";
+  return codes[code] ?? "unexpected";
+}
+
+function boundedSuggestion(value: unknown): string | null {
+  const text = boundedPlainText(value, COMMUNITY_DISCOVERY_SUGGESTION_MAX_LENGTH);
+  if (!text || text.length < COMMUNITY_DISCOVERY_SUGGESTION_MIN_LENGTH) return null;
+  return text;
+}
+
+export function canonicalManualFacebookGroupUrl(input: string): string | null {
+  return canonicalFacebookGroup(input);
+}
+
+function canonicalFacebookGroup(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = normalizeSocialCommunityUrl(value);
+  if (!normalized.ok || normalized.community.platform !== "facebook_groups") {
+    return null;
+  }
+  return normalized.community.canonicalUrl;
+}
+
+function discoveryCard(value: unknown): CommunityDiscoveryCard | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (record.platform !== "facebook_groups") return null;
+  const canonicalUrl = canonicalFacebookGroup(record.canonicalUrl);
+  const displayName = boundedPlainText(
+    record.displayName,
+    PUBLIC_COMMUNITY_DISPLAY_NAME_MAX_LENGTH,
+  );
+  if (!canonicalUrl || !displayName) return null;
+
+  const qualification = record.qualification;
+  let explanation: string | null = null;
+  let suggestedContribution: string | null = null;
+  if (
+    qualification &&
+    typeof qualification === "object" &&
+    !Array.isArray(qualification) &&
+    (qualification as { status?: unknown }).status === "available"
+  ) {
+    explanation = boundedPlainText(
+      (qualification as { explanation?: unknown }).explanation,
+      COMMUNITY_DISCOVERY_EXPLANATION_MAX_LENGTH,
+    );
+    if (explanation) {
+      suggestedContribution = boundedSuggestion(
+        (qualification as { suggestedContribution?: unknown }).suggestedContribution,
+      );
+    }
+  }
+
+  let listingSnippet: string | null = null;
+  const evidence = record.evidence;
+  if (evidence && typeof evidence === "object" && !Array.isArray(evidence)) {
+    listingSnippet = boundedPlainText(
+      (evidence as { snippet?: unknown }).snippet,
+      COMMUNITY_DISCOVERY_EVIDENCE_SNIPPET_MAX_LENGTH,
+    );
+  }
+
+  return {
+    canonicalUrl,
+    displayName,
+    explanation,
+    suggestedContribution,
+    qualificationUnavailable: explanation === null,
+    listingSnippet,
+  };
+}
+
+export function parseCommunityDiscoveryPayload(
+  payload: unknown,
+):
+  | { ok: true; discovery: CommunityDiscoveryView }
+  | { ok: false; error: CommunityDiscoveryUiError } {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { ok: false, error: "unexpected" };
+  }
+  const record = payload as { ok?: unknown; discovery?: unknown };
+  if (record.ok !== true) {
+    return { ok: false, error: errorCode(payload, DISCOVERY_ERROR_CODES) };
+  }
+  if (
+    !record.discovery ||
+    typeof record.discovery !== "object" ||
+    Array.isArray(record.discovery)
+  ) {
+    return { ok: false, error: "unexpected" };
+  }
+  const discovery = record.discovery as {
+    qualification?: unknown;
+    results?: unknown;
+  };
+  if (!Array.isArray(discovery.results)) {
+    return { ok: false, error: "unexpected" };
+  }
+
+  const qualification = discovery.qualification;
+  const qualificationUnavailable =
+    !qualification ||
+    typeof qualification !== "object" ||
+    Array.isArray(qualification) ||
+    (qualification as { status?: unknown }).status !== "available";
+
+  return {
+    ok: true,
+    discovery: {
+      cards: discovery.results.flatMap((result) => {
+        const card = discoveryCard(result);
+        return card ? [card] : [];
+      }),
+      qualificationUnavailable:
+        qualificationUnavailable &&
+        !(
+          qualification &&
+          typeof qualification === "object" &&
+          !Array.isArray(qualification) &&
+          (qualification as { reason?: unknown }).reason === "not_needed"
+        ),
+    },
+  };
+}
+
+function savedCard(value: unknown): SavedCommunityCard | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (record.platform !== "facebook_groups") return null;
+  const id = boundedPlainText(record.id, 80);
+  const canonicalUrl = canonicalFacebookGroup(record.canonicalUrl);
+  const displayName = boundedPlainText(
+    record.displayName,
+    PUBLIC_COMMUNITY_DISPLAY_NAME_MAX_LENGTH,
+  );
+  if (!id || !canonicalUrl || !displayName) return null;
+  if (record.qualification !== "relevant" && record.qualification !== "not_relevant") {
+    return null;
+  }
+  let notes: string | null = null;
+  if (record.notes !== null && record.notes !== undefined) {
+    notes = boundedPlainText(record.notes, ORGANIZATION_COMMUNITY_NOTES_MAX_LENGTH);
+    if (!notes) return null;
+  }
+  return {
+    id,
+    canonicalUrl,
+    displayName,
+    qualification: record.qualification,
+    notes,
+  };
+}
+
+export function parseSavedCommunitiesPayload(
+  payload: unknown,
+):
+  | { ok: true; saves: SavedCommunityCard[] }
+  | { ok: false; error: CommunityDiscoveryUiError } {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { ok: false, error: "unexpected" };
+  }
+  const record = payload as { ok?: unknown; saves?: unknown };
+  if (record.ok !== true) {
+    return { ok: false, error: errorCode(payload, SAVE_ERROR_CODES) };
+  }
+  if (!Array.isArray(record.saves)) return { ok: false, error: "unexpected" };
+  return {
+    ok: true,
+    saves: record.saves.flatMap((save) => {
+      const card = savedCard(save);
+      return card ? [card] : [];
+    }),
+  };
+}
+
+export function parseSaveCommunityPayload(
+  payload: unknown,
+):
+  | { ok: true; save: SavedCommunityCard }
+  | { ok: false; error: CommunityDiscoveryUiError } {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { ok: false, error: "unexpected" };
+  }
+  const record = payload as { ok?: unknown; save?: unknown };
+  if (record.ok !== true) {
+    return { ok: false, error: errorCode(payload, SAVE_ERROR_CODES) };
+  }
+  const save = savedCard(record.save);
+  if (!save) return { ok: false, error: "unexpected" };
+  return { ok: true, save };
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function requestCommunityDiscovery(
+  objective: string,
+  signal: AbortSignal,
+): Promise<
+  | { ok: true; discovery: CommunityDiscoveryView }
+  | { ok: false; error: CommunityDiscoveryUiError }
+> {
+  try {
+    const response = await fetch("/api/community-discovery", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ objective }),
+      cache: "no-store",
+      signal,
+    });
+    return parseCommunityDiscoveryPayload(await readJson(response));
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return { ok: false, error: "providerTimeout" };
+    }
+    return { ok: false, error: "discoveryFailed" };
+  }
+}
+
+export async function requestSavedCommunities(
+  signal?: AbortSignal,
+): Promise<
+  | { ok: true; saves: SavedCommunityCard[] }
+  | { ok: false; error: CommunityDiscoveryUiError }
+> {
+  try {
+    const response = await fetch("/api/community-discovery/saves", {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal,
+    });
+    return parseSavedCommunitiesPayload(await readJson(response));
+  } catch {
+    return { ok: false, error: "savesFailed" };
+  }
+}
+
+export async function requestSaveCommunity(
+  canonicalUrl: string,
+  signal?: AbortSignal,
+): Promise<
+  | { ok: true; save: SavedCommunityCard }
+  | { ok: false; error: CommunityDiscoveryUiError }
+> {
+  try {
+    const response = await fetch("/api/community-discovery/saves", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        canonicalUrl,
+        qualification: "relevant",
+      }),
+      cache: "no-store",
+      signal,
+    });
+    return parseSaveCommunityPayload(await readJson(response));
+  } catch {
+    return { ok: false, error: "saveFailed" };
+  }
+}

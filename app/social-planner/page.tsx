@@ -89,6 +89,10 @@ export default async function SocialPlannerPage({
                 label: copy.title,
                 current: true,
               },
+              {
+                href: "/traction/communities",
+                label: messages.communityIntelligence.navLabel,
+              },
             ]}
           />
         </TractionPageHeader>
@@ -133,6 +137,10 @@ export default async function SocialPlannerPage({
               href: "/social-planner",
               label: copy.title,
               current: true,
+            },
+            {
+              href: "/traction/communities",
+              label: messages.communityIntelligence.navLabel,
             },
           ]}
         />

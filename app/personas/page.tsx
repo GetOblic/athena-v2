@@ -101,6 +101,11 @@ export default async function PersonasPage() {
               label: copy.traction.socialContent,
               help: copy.traction.socialHelp,
             },
+            {
+              href: "/traction/communities",
+              label: messages.communityIntelligence.navLabel,
+              help: messages.communityIntelligence.navHelp,
+            },
           ]}
         />
         {counts.total > 0 ? (
