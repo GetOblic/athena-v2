@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
+import { EstimateProspectSelect } from "@/components/licensee/estimate/EstimateProspectSelect";
 import { IssuedDocumentCardEmail } from "@/components/licensee/clientDocuments/ClientDocumentSendByEmailLink";
 import { buildClientDocumentGmailHandoff } from "@/lib/licensee/clientDocumentGmailHandoff";
 import type { LicenseeMessages } from "@/lib/licensee/getLicenseeLocalization";
@@ -29,6 +30,18 @@ import {
   LICENSEE_SUCCESS_CTA_CLASS,
 } from "@/lib/licensee/licenseeDashboardPresentation";
 import type { PublicClientQuote } from "@/services/clientQuote/clientQuotePublic";
+import {
+  resolveLicenseeSubAccountTitle,
+  type LicenseeSubAccountListItem,
+} from "@/services/licensee/licenseeSubAccountTypes";
+
+const LIBRARY_GHOST_CTA_CLASS =
+  "inline-flex rounded-full border border-white/15 px-4 py-2.5 text-sm font-medium text-white/80 hover:bg-white/5 hover:text-white";
+
+export type DirectClientQuoteSelection = {
+  organizationId: string;
+  prospectId: string | null;
+};
 
 export type ClientQuoteMaskRequestResult = {
   ok: boolean;
@@ -50,6 +63,10 @@ export type ClientQuoteLibraryViewProps = {
   onRetry: () => void;
   onMask?: (quoteId: string) => Promise<ClientQuoteMaskRequestResult>;
   onCreateInvoice?: (quoteId: string) => void;
+  subAccounts?: readonly LicenseeSubAccountListItem[];
+  createDirectPending?: boolean;
+  createDirectError?: string | null;
+  onCreateDirect?: (selection: DirectClientQuoteSelection) => void | Promise<void>;
 };
 
 function libraryStatusLabel(
@@ -186,9 +203,18 @@ export function ClientQuoteLibraryView({
   onRetry,
   onMask,
   onCreateInvoice,
+  subAccounts = [],
+  createDirectPending = false,
+  createDirectError = null,
+  onCreateDirect,
 }: ClientQuoteLibraryViewProps) {
   const copy = messages.clientQuotes;
   const [uncontrolledQuery, setUncontrolledQuery] = useState("");
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [organizationId, setOrganizationId] = useState("");
+  const [prospectId, setProspectId] = useState<string | null>(null);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
+  const directLock = useRef(false);
   const [uncontrolledStatus, setUncontrolledStatus] =
     useState<ClientQuoteLibraryStatusFilter>("all");
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -221,6 +247,25 @@ export function ClientQuoteLibraryView({
   ).map((quote) => clientQuoteLibraryRow(quote, locale, invoiceLinks));
   const pending = rows.find((row) => row.id === pendingId) ?? null;
   const searching = query.trim().length > 0;
+
+  async function submitDirectQuote() {
+    if (directLock.current || createDirectPending) return;
+    if (!organizationId.trim()) {
+      setSelectionError(copy.createDirectClientRequired);
+      return;
+    }
+    if (!onCreateDirect) return;
+    directLock.current = true;
+    setSelectionError(null);
+    try {
+      await onCreateDirect({
+        organizationId: organizationId.trim(),
+        prospectId,
+      });
+    } finally {
+      directLock.current = false;
+    }
+  }
 
   function setQuery(next: string) {
     if (searchQuery == null) setUncontrolledQuery(next);
@@ -258,11 +303,26 @@ export function ClientQuoteLibraryView({
       <p className="mt-3 max-w-2xl text-sm leading-6 text-white/50">
         {copy.libraryIntro}
       </p>
-      <div className="mt-6">
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          data-client-quote-create="true"
+          disabled={createDirectPending}
+          onClick={() => {
+            if (createDirectPending) return;
+            setPanelOpen(true);
+            setOrganizationId("");
+            setProspectId(null);
+            setSelectionError(null);
+          }}
+          className={`${LICENSEE_PRIMARY_CTA_CLASS} disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          {copy.createDirect}
+        </button>
         <Link
           href="/licensee/client-quotes/templates"
           data-client-quote-manage-templates="true"
-          className="inline-flex rounded-full border border-white/15 px-4 py-2.5 text-sm font-medium text-white/80 hover:bg-white/5 hover:text-white"
+          className={LIBRARY_GHOST_CTA_CLASS}
         >
           {messages.clientQuoteTemplates.manageAction}
         </Link>
@@ -299,7 +359,11 @@ export function ClientQuoteLibraryView({
           <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/50">
             {copy.emptyBody}
           </p>
-          <Link href="/licensee/estimate" className={`mt-6 ${LICENSEE_PRIMARY_CTA_CLASS}`}>
+          <Link
+            href="/licensee/estimate"
+            data-client-quote-open-estimate="true"
+            className={`mt-6 ${LIBRARY_GHOST_CTA_CLASS}`}
+          >
             {copy.openEstimates}
           </Link>
         </div>
@@ -503,6 +567,128 @@ export function ClientQuoteLibraryView({
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {panelOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-6 sm:items-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="client-quote-create-title"
+            data-client-quote-create-panel="true"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                if (createDirectPending) return;
+                setPanelOpen(false);
+                setSelectionError(null);
+              }
+            }}
+            className="w-full max-w-lg rounded-[28px] border border-[var(--athena-border)] bg-[var(--athena-card)] p-6 shadow-2xl shadow-black/40"
+          >
+            <h2
+              id="client-quote-create-title"
+              className="text-xl font-semibold text-white"
+            >
+              {copy.createDirectTitle}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-white/55">{copy.createDirectBody}</p>
+            <form
+              className="mt-6 space-y-5"
+              noValidate
+              onSubmit={(event) => {
+                event.preventDefault();
+                void submitDirectQuote();
+              }}
+            >
+              {subAccounts.length === 0 ? (
+                <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-5 py-4 text-sm text-amber-50">
+                  {messages.estimate.noSubAccounts}{" "}
+                  <Link
+                    href="/licensee/sub-accounts/new"
+                    className="font-medium text-[var(--athena-orange)] underline-offset-2 hover:underline"
+                  >
+                    {messages.estimate.createSubAccountLink}
+                  </Link>
+                </div>
+              ) : (
+                <div>
+                  <label
+                    htmlFor="client-quote-direct-organization"
+                    className="block text-sm font-medium text-white/80"
+                  >
+                    {messages.estimate.clientLabel}
+                  </label>
+                  <select
+                    id="client-quote-direct-organization"
+                    name="organizationId"
+                    required
+                    value={organizationId}
+                    disabled={createDirectPending}
+                    data-client-quote-create-client="true"
+                    aria-invalid={selectionError ? true : undefined}
+                    onChange={(event) => {
+                      setOrganizationId(event.target.value);
+                      setProspectId(null);
+                      setSelectionError(null);
+                    }}
+                    className="mt-2 w-full rounded-2xl border border-white/20 bg-[#161922] px-4 py-3 text-sm text-white outline-none focus:border-[var(--athena-orange)] focus:ring-2 focus:ring-[var(--athena-orange)]/30 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">{copy.createDirectChooseClient}</option>
+                    {subAccounts.map((item) => (
+                      <option key={item.organizationId} value={item.organizationId}>
+                        {resolveLicenseeSubAccountTitle(item)}
+                        {item.accountEmail ? ` · ${item.accountEmail}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {organizationId ? (
+                <EstimateProspectSelect
+                  key={organizationId}
+                  organizationId={organizationId}
+                  value={prospectId}
+                  onChange={setProspectId}
+                  disabled={createDirectPending}
+                  messages={messages}
+                />
+              ) : null}
+
+              {selectionError || createDirectError ? (
+                <p className="text-sm text-red-300" role="alert" data-client-quote-create-error="true">
+                  {selectionError || createDirectError}
+                </p>
+              ) : null}
+
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <button
+                  type="button"
+                  disabled={createDirectPending}
+                  data-client-quote-create-cancel="true"
+                  onClick={() => {
+                    if (createDirectPending) return;
+                    setPanelOpen(false);
+                    setSelectionError(null);
+                  }}
+                  className="rounded-xl border border-[var(--athena-border)] px-4 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/5 hover:text-white disabled:opacity-60"
+                >
+                  {messages.common.cancel}
+                </button>
+                <button
+                  type="submit"
+                  disabled={createDirectPending || subAccounts.length === 0}
+                  aria-busy={createDirectPending || undefined}
+                  data-client-quote-create-confirm="true"
+                  className={`${LICENSEE_PRIMARY_CTA_CLASS} disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  {createDirectPending ? copy.createDirectPending : copy.createDirectConfirm}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       ) : null}
 
       {pending ? (

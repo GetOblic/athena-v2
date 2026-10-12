@@ -19,11 +19,25 @@ export type ClientQuoteRecipientInput =
   | { kind: "removedProspect" }
   | { kind: "client" };
 
-export type ParsedCreateClientQuoteBody = {
+export type ParsedEstimateCreateClientQuoteBody = {
+  source: "estimate";
   estimateId: string;
   recipient: ClientQuoteRecipientInput;
   contentLanguage?: unknown;
 };
+
+export type ParsedDirectCreateClientQuoteBody = {
+  source: "direct";
+  organizationId: string;
+  recipient:
+    | { kind: "prospect"; prospectId: string }
+    | { kind: "client" };
+  contentLanguage?: unknown;
+};
+
+export type ParsedCreateClientQuoteBody =
+  | ParsedEstimateCreateClientQuoteBody
+  | ParsedDirectCreateClientQuoteBody;
 
 export type ParsedUpdateClientQuoteBody = {
   draft: unknown;
@@ -42,21 +56,87 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function fieldPresent(body: Record<string, unknown>, keys: readonly string[]): boolean {
+  return keys.some((key) => Object.hasOwn(body, key) && body[key] != null);
+}
+
+function readUuid(
+  value: unknown,
+  message: string,
+): string | ClientQuoteHttpFailure {
+  if (typeof value !== "string" || !UUID_PATTERN.test(value.trim())) {
+    return { status: 400, code: "INVALID_BODY", message };
+  }
+  return value.trim();
+}
+
 export function parseCreateClientQuoteBody(
   body: unknown,
 ): ParsedCreateClientQuoteBody | ClientQuoteHttpFailure {
   if (!isRecord(body)) {
     return { status: 400, code: "INVALID_BODY", message: "Request body must be an object." };
   }
-  const estimateId = body.estimateId ?? body.estimate_id;
-  if (typeof estimateId !== "string" || !UUID_PATTERN.test(estimateId.trim())) {
+  const hasEstimate = fieldPresent(body, ["estimateId", "estimate_id"]);
+  const hasOrganization = fieldPresent(body, ["organizationId", "organization_id"]);
+  if (hasEstimate && hasOrganization) {
     return {
       status: 400,
       code: "INVALID_BODY",
-      message: "estimateId must be a UUID.",
+      message: "Request must include either estimateId or organizationId, not both.",
     };
   }
+  if (!hasEstimate && !hasOrganization) {
+    return {
+      status: 400,
+      code: "INVALID_BODY",
+      message: "Request must include estimateId or organizationId.",
+    };
+  }
+
+  const contentLanguage = body.contentLanguage ?? body.content_language;
   const recipient = body.recipient;
+  if (hasOrganization) {
+    const organizationId = readUuid(
+      body.organizationId ?? body.organization_id,
+      "organizationId must be a UUID.",
+    );
+    if (typeof organizationId !== "string") return organizationId;
+    if (
+      !isRecord(recipient) ||
+      (recipient.kind !== "prospect" && recipient.kind !== "client")
+    ) {
+      return {
+        status: 400,
+        code: "INVALID_BODY",
+        message: "recipient.kind must be client or prospect.",
+      };
+    }
+    if (recipient.kind === "prospect") {
+      const prospectId = readUuid(
+        recipient.prospectId ?? recipient.prospect_id,
+        "recipient.prospectId must be a UUID.",
+      );
+      if (typeof prospectId !== "string") return prospectId;
+      return {
+        source: "direct",
+        organizationId,
+        recipient: { kind: "prospect", prospectId },
+        contentLanguage,
+      };
+    }
+    return {
+      source: "direct",
+      organizationId,
+      recipient: { kind: "client" },
+      contentLanguage,
+    };
+  }
+
+  const estimateId = readUuid(
+    body.estimateId ?? body.estimate_id,
+    "estimateId must be a UUID.",
+  );
+  if (typeof estimateId !== "string") return estimateId;
   if (
     !isRecord(recipient) ||
     (recipient.kind !== "prospect" &&
@@ -69,31 +149,30 @@ export function parseCreateClientQuoteBody(
       message: "recipient.kind must be prospect, removedProspect, or client.",
     };
   }
-  const contentLanguage = body.contentLanguage ?? body.content_language;
   if (recipient.kind === "prospect") {
-    const prospectId = recipient.prospectId ?? recipient.prospect_id;
-    if (typeof prospectId !== "string" || !UUID_PATTERN.test(prospectId.trim())) {
-      return {
-        status: 400,
-        code: "INVALID_BODY",
-        message: "recipient.prospectId must be a UUID.",
-      };
-    }
+    const prospectId = readUuid(
+      recipient.prospectId ?? recipient.prospect_id,
+      "recipient.prospectId must be a UUID.",
+    );
+    if (typeof prospectId !== "string") return prospectId;
     return {
-      estimateId: estimateId.trim(),
-      recipient: { kind: "prospect", prospectId: prospectId.trim() },
+      source: "estimate",
+      estimateId,
+      recipient: { kind: "prospect", prospectId },
       contentLanguage,
     };
   }
   if (recipient.kind === "removedProspect") {
     return {
-      estimateId: estimateId.trim(),
+      source: "estimate",
+      estimateId,
       recipient: { kind: "removedProspect" },
       contentLanguage,
     };
   }
   return {
-    estimateId: estimateId.trim(),
+    source: "estimate",
+    estimateId,
     recipient: { kind: "client" },
     contentLanguage,
   };

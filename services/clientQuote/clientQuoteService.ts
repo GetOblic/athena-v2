@@ -46,6 +46,7 @@ import {
   nextClientQuoteSequence,
   quoteNumberYear,
 } from "@/services/clientQuote/clientQuoteNumber";
+import { buildDirectClientQuoteDraft } from "@/services/clientQuote/clientQuoteDirectDraft";
 import { seedClientQuoteFromReadyEstimate } from "@/services/clientQuote/clientQuoteSeed";
 import {
   ClientQuoteLifecycleError,
@@ -345,6 +346,78 @@ export async function createClientQuoteDraftForMaster(input: {
       draft: seeded.draft,
       sourceEstimateId: estimate.id,
       sourceEstimateSnapshot: seeded.sourceEstimateSnapshot,
+      revisedFromQuoteId: null,
+      createdAt: input.deps.now(),
+    });
+  } catch (error) {
+    asOperationError(error);
+  }
+  return input.deps.insertQuote(draft);
+}
+
+/**
+ * Create an empty draft for an owned client, with an optional Prospect.
+ * Does not read an Estimate or call a model. The browser selection is not
+ * authorization: ownership and the printable customer are checked here.
+ */
+export async function createDirectClientQuoteDraftForMaster(input: {
+  masterUserId: string;
+  organizationId: string;
+  recipient:
+    | { kind: "prospect"; prospectId: string }
+    | { kind: "client" };
+  contentLanguage?: unknown;
+  deps: ClientQuoteDeps;
+}): Promise<AthenaClientQuote> {
+  const master = await input.deps.requireMaster(input.masterUserId);
+  const owned = await input.deps.assertOwnsOrganization({
+    masterUserId: master.masterUserId,
+    organizationId: input.organizationId,
+  });
+  if (owned.licenseeAccountId !== master.licenseeAccountId) {
+    throw clientQuoteNotFound("Client not found.");
+  }
+
+  const organization = await input.deps.getOrganization(input.organizationId);
+  if (!organization || organization.id !== input.organizationId) {
+    throw clientQuoteRecipientUnavailable();
+  }
+
+  let customer;
+  if (input.recipient.kind === "prospect") {
+    const prospect = await input.deps.getProspect(
+      input.recipient.prospectId,
+      input.organizationId,
+    );
+    if (!prospect || prospect.organization_id !== input.organizationId) {
+      throw clientQuoteRecipientUnavailable();
+    }
+    customer = mapProspectToCustomerSnapshot(prospect);
+  } else {
+    customer = mapOrganizationToCustomerSnapshot(organization);
+  }
+  if (!customer) throw clientQuoteRecipientUnavailable();
+
+  const issuer = await loadIssuer(master, input.deps);
+  const contentLanguage = resolveContentLanguage(
+    input.contentLanguage,
+    organization.language,
+    master.defaultLanguage,
+  );
+  const draftContent = buildDirectClientQuoteDraft({ issuer, customer });
+
+  let draft;
+  try {
+    draft = createDraftClientQuote({
+      id: input.deps.newId(),
+      licenseeAccountId: master.licenseeAccountId,
+      organizationId: input.organizationId,
+      requestedBy: master.masterUserId,
+      contentLanguage,
+      currencyCode: "USD",
+      draft: draftContent,
+      sourceEstimateId: null,
+      sourceEstimateSnapshot: null,
       revisedFromQuoteId: null,
       createdAt: input.deps.now(),
     });

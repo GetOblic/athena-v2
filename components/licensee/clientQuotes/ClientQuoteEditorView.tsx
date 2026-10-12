@@ -92,6 +92,8 @@ export type ClientQuoteEditorViewProps = {
   error: string | null;
   missingRequirements: readonly ClientQuoteIssueRequirement[];
   revisedFromQuoteId: string | null;
+  /** Null for a quotation created without an Estimate. */
+  sourceEstimateId?: string | null;
   downloadQuoteId?: string | null;
   /** Frozen issued snapshot. Draft quotations do not receive one. */
   issuedSnapshot?: ClientQuoteGmailSnapshot | null;
@@ -412,6 +414,7 @@ export function ClientQuoteEditorView({
   error,
   missingRequirements,
   revisedFromQuoteId,
+  sourceEstimateId,
   downloadQuoteId = null,
   issuedSnapshot = null,
   createInvoicePending = false,
@@ -423,6 +426,7 @@ export function ClientQuoteEditorView({
 }: ClientQuoteEditorViewProps) {
   const copy = messages.clientQuotes;
   const readOnly = mode === "issued";
+  const directQuote = sourceEstimateId === null;
   const emailHandoff =
     readOnly && issuedSnapshot
       ? buildClientDocumentGmailHandoff({ kind: "quote", snapshot: issuedSnapshot })
@@ -760,7 +764,12 @@ export function ClientQuoteEditorView({
             onChange={(scopeSummary) => onChange({ ...editor, scopeSummary })}
           />
           {readOnly ? null : (
-            <p className="text-sm leading-6 text-white/45">{copy.scopeHint}</p>
+            <p
+              className="text-sm leading-6 text-white/45"
+              data-client-quote-project-hint={directQuote ? "direct" : "estimate"}
+            >
+              {directQuote ? copy.directProjectHint : copy.scopeHint}
+            </p>
           )}
         </div>
       </section>
@@ -945,7 +954,7 @@ export function ClientQuoteEditorView({
                     <button
                       type="button"
                       data-client-quote-remove-line={line.id}
-                      disabled={busy || editor.lines.length <= 1}
+                      disabled={busy}
                       onClick={() => onChange(removeClientQuoteLineAt(editor, index))}
                       className="rounded-xl border border-red-400/30 px-3 py-1.5 text-xs font-medium text-red-100 hover:bg-red-500/10 disabled:opacity-40"
                     >
@@ -1245,7 +1254,12 @@ export function ClientQuoteEditorView({
           )
         ) : (
           <>
-            <p className="mt-2 text-sm leading-6 text-white/45">{copy.appendixHint}</p>
+            <p
+              className="mt-2 text-sm leading-6 text-white/45"
+              data-client-quote-appendix-hint={directQuote ? "direct" : "estimate"}
+            >
+              {directQuote ? copy.directAppendixHint : copy.appendixHint}
+            </p>
             <label className="mt-4 flex items-center gap-3 text-sm text-white">
               <input
                 type="checkbox"

@@ -48,6 +48,8 @@ export function isClientInvoiceLibraryStatusFilter(
 
 export type ClientInvoiceDraftBlocker =
   | Exclude<ClientQuoteDraftBlocker, "validity" | "appendix">
+  | "projectTitle"
+  | "scopeSummary"
   | "paymentDueDate"
   | "paymentDueDateBeforeIssue"
   | "paymentInstructions";
@@ -227,6 +229,9 @@ export function clientInvoiceSaveBlockers(
   currencyCode: string,
 ): ClientInvoiceDraftBlocker[] {
   const blockers = quoteBlockersForInvoice(editor.commercial, currencyCode);
+  if (!editor.commercial.projectTitle.trim()) blockers.push("projectTitle");
+  if (!editor.commercial.scopeSummary.trim()) blockers.push("scopeSummary");
+  if (editor.commercial.lines.length < 1) blockers.push("lineItem");
   const due = paymentDueDateValue(editor.paymentDueDate);
   if (due === "invalid") blockers.push("paymentDueDate");
   const instructions = editor.paymentInstructions;
@@ -265,7 +270,7 @@ export function missingClientInvoiceIssueRequirements(
   if (!editor.commercial.customer.name.trim()) missing.push("customerName");
   if (!editor.commercial.projectTitle.trim()) missing.push("projectTitle");
   if (!editor.commercial.scopeSummary.trim()) missing.push("scopeSummary");
-  if (!preview.ok) missing.push("lineItem");
+  if (!preview.ok || editor.commercial.lines.length < 1) missing.push("lineItem");
   if (!editor.commercial.paymentSummary.trim()) missing.push("paymentTerms");
   if (due == null || due === "invalid" || due < utcIssueDate) {
     missing.push("paymentDueDate");

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ClientQuoteLibraryView,
   type ClientQuoteMaskRequestResult,
+  type DirectClientQuoteSelection,
 } from "@/components/licensee/clientQuotes/ClientQuoteLibraryView";
 import {
   clientInvoiceDetailPath,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/licensee/clientQuoteEditorModel";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import type { PublicClientQuote } from "@/services/clientQuote/clientQuotePublic";
+import type { LicenseeSubAccountListItem } from "@/services/licensee/licenseeSubAccountTypes";
 
 type ListResponse = {
   ok?: boolean;
@@ -27,12 +29,20 @@ type ListResponse = {
   error?: { code?: string; message?: string };
 };
 
+type CreateResponse = {
+  ok?: boolean;
+  quote?: PublicClientQuote;
+  error?: { code?: string; message?: string };
+};
+
 export function LicenseeClientQuoteLibrary({
   messages,
   locale,
+  subAccounts,
 }: {
   messages: LicenseeMessages;
   locale: string;
+  subAccounts: readonly LicenseeSubAccountListItem[];
 }) {
   const [phase, setPhase] = useState<"loading" | "error" | "ready">("loading");
   const [quotes, setQuotes] = useState<PublicClientQuote[]>([]);
@@ -45,6 +55,9 @@ export function LicenseeClientQuoteLibrary({
   const [createError, setCreateError] = useState<string | null>(null);
   const maskLock = useRef(false);
   const createLock = useRef(false);
+  const directLock = useRef(false);
+  const [directPending, setDirectPending] = useState(false);
+  const [directError, setDirectError] = useState<string | null>(null);
   const router = useRouter();
 
   const load = useCallback(async (options?: { quiet?: boolean }) => {
@@ -103,6 +116,40 @@ export function LicenseeClientQuoteLibrary({
     }
   }
 
+  async function createDirectQuote(selection: DirectClientQuoteSelection) {
+    if (directLock.current) return;
+    directLock.current = true;
+    setDirectPending(true);
+    setDirectError(null);
+    let navigating = false;
+    try {
+      const response = await fetch("/api/licensee/client-quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: selection.organizationId,
+          recipient: selection.prospectId
+            ? { kind: "prospect", prospectId: selection.prospectId }
+            : { kind: "client" },
+        }),
+      });
+      const payload = await parseJsonResponse<CreateResponse>(response);
+      if (!response.ok || !payload.ok || !payload.quote?.id) {
+        setDirectError(clientQuoteErrorMessage(messages, payload.error?.code));
+        return;
+      }
+      navigating = true;
+      router.push(`/licensee/client-quotes/${payload.quote.id}`);
+    } catch {
+      setDirectError(messages.clientQuotes.errors.generic);
+    } finally {
+      if (!navigating) {
+        directLock.current = false;
+        setDirectPending(false);
+      }
+    }
+  }
+
   async function createInvoice(quoteId: string) {
     if (createLock.current) return;
     createLock.current = true;
@@ -143,6 +190,10 @@ export function LicenseeClientQuoteLibrary({
       onRetry={() => void load()}
       onMask={maskQuote}
       onCreateInvoice={(quoteId) => void createInvoice(quoteId)}
+      subAccounts={subAccounts}
+      createDirectPending={directPending}
+      createDirectError={directError}
+      onCreateDirect={createDirectQuote}
     />
   );
 }

@@ -41,6 +41,7 @@ import { toPublicClientQuote } from "../../services/clientQuote/clientQuotePubli
 import { loadIssuedClientQuoteSnapshotForPdf } from "../../services/clientQuote/pdf/clientQuotePdfAccess";
 import {
   createClientQuoteDraftForMaster,
+  createDirectClientQuoteDraftForMaster,
   getClientQuoteForMaster,
   issueClientQuoteForMaster,
   listClientQuotesForMaster,
@@ -64,8 +65,11 @@ const LICENSEE_B = "99999999-9999-4999-8999-999999999999";
 const ORG_CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const ORG_OWN = "abababab-abab-4aba-8aba-abababababab";
 const ORG_FOREIGN = "12121212-1212-4121-8121-121212121212";
+const ORG_UNNAMED = "45454545-4545-4454-8454-454545454545";
+const ORG_NOLANG = "56565656-5656-4565-8565-565656565656";
 const ESTIMATE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const PROSPECT = "34343434-3434-4343-8343-343434343434";
+const PROSPECT_OTHER = "67676767-6767-4676-8676-676767676767";
 const T0 = "2026-10-09T09:00:00.000Z";
 
 function read(relativePath: string): string {
@@ -161,6 +165,24 @@ function createHarness(): Harness {
   const organizations = new Map<string, ClientQuoteOrganizationRecord>([
     [ORG_OWN, ownCompany()],
     [ORG_CLIENT, clientOrg()],
+    [
+      ORG_UNNAMED,
+      clientOrg({
+        id: ORG_UNNAMED,
+        name: "   ",
+        legal_name: " ",
+        business_email: null,
+      }),
+    ],
+    [
+      ORG_NOLANG,
+      clientOrg({
+        id: ORG_NOLANG,
+        name: "Helios",
+        legal_name: "Helios Ltd",
+        language: null,
+      }),
+    ],
   ]);
   const prospects = new Map<string, ClientQuoteProspectRecord>([
     [
@@ -176,6 +198,16 @@ function createHarness(): Harness {
         address: "9 Market",
         city: "Paris",
         tax_identifier: "FR123",
+      },
+    ],
+    [
+      PROSPECT_OTHER,
+      {
+        id: PROSPECT_OTHER,
+        organization_id: ORG_FOREIGN,
+        business_name: "Other Clinic",
+        legal_name: "Other Clinic SAS",
+        email: "buyer@other.example",
       },
     ],
   ]);
@@ -198,7 +230,7 @@ function createHarness(): Harness {
     ],
   ]);
   const owned = new Map<string, Set<string>>([
-    [USER_A, new Set([ORG_CLIENT, ORG_OWN])],
+    [USER_A, new Set([ORG_CLIENT, ORG_OWN, ORG_UNNAMED, ORG_NOLANG])],
     [USER_B, new Set()],
   ]);
   const masters = new Map([
@@ -713,7 +745,6 @@ describe("quotation authorization and seeding", () => {
     const parsed = parseCreateClientQuoteBody({
       estimateId: ESTIMATE,
       licenseeAccountId: LICENSEE_B,
-      organizationId: ORG_FOREIGN,
       recipient: {
         kind: "removedProspect",
         prospectId: PROSPECT,
@@ -723,7 +754,7 @@ describe("quotation authorization and seeding", () => {
       },
     });
     assert.equal(isClientQuoteHttpFailure(parsed), false);
-    if (!isClientQuoteHttpFailure(parsed)) {
+    if (!isClientQuoteHttpFailure(parsed) && parsed.source === "estimate") {
       assert.deepEqual(parsed.recipient, { kind: "removedProspect" });
       assert.equal(JSON.stringify(parsed).includes("Spoofed Clinic"), false);
       assert.equal("licenseeAccountId" in parsed, false);
@@ -1391,12 +1422,190 @@ describe("client quotation masking", () => {
   });
 });
 
+describe("direct client quote creation", () => {
+  it("creates an empty draft for an owned client without reading an Estimate", async () => {
+    const harness = createHarness();
+    const readsBefore = harness.estimateReads.length;
+    const quote = await createDirectClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      organizationId: ORG_CLIENT,
+      recipient: { kind: "client" },
+      deps: harness.deps,
+    });
+    assert.equal(harness.estimateReads.length, readsBefore);
+    assert.equal(quote.status, "draft");
+    assert.equal(quote.quote_number, null);
+    assert.equal(quote.currency_code, "USD");
+    assert.equal(quote.content_language, "fr");
+    assert.equal(quote.organization_id, ORG_CLIENT);
+    assert.equal(quote.licensee_account_id, LICENSEE_A);
+    assert.equal(quote.source_estimate_id, null);
+    assert.equal(quote.source_estimate_snapshot, null);
+    assert.equal(quote.draft_json.projectTitle, "");
+    assert.equal(quote.draft_json.scopeSummary, "");
+    assert.equal(quote.draft_json.lineItems.length, 0);
+    assert.equal(quote.draft_json.customer.name, "Northwind Traders Ltd");
+    assert.equal(quote.draft_json.issuer.legalName, "Alpha Studio Ltd");
+    assert.equal(quote.draft_json.appendix.enabled, false);
+    assert.deepEqual(quote.draft_json.appendix.sections, []);
+    assert.equal(quote.draft_json.discount.kind, "none");
+    assert.equal(quote.draft_json.tax.kind, "none");
+    assert.equal(JSON.stringify(quote).includes("SECRET_CONTEXT"), false);
+    assert.equal(JSON.stringify(quote).includes("Rebuild the client portal"), false);
+    assert.equal(JSON.stringify(quote).includes("owner-login"), false);
+
+    const saved = await updateClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      quoteId: quote.id,
+      draft: quote.draft_json,
+      deps: harness.deps,
+    });
+    assert.equal(saved.draft_json.projectTitle, "");
+    assert.equal(saved.draft_json.lineItems.length, 0);
+    await expectCode(
+      () =>
+        issueClientQuoteForMaster({
+          masterUserId: USER_A,
+          quoteId: quote.id,
+          deps: harness.deps,
+        }),
+      "QUOTE_NOT_ISSUABLE",
+    );
+
+    const completed = await updateClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      quoteId: quote.id,
+      draft: {
+        ...quote.draft_json,
+        projectTitle: "Direct portal",
+        scopeSummary: "Build the booking flow by hand.",
+        lineItems: [
+          {
+            id: "line-1",
+            description: "Booking flow",
+            quantity: { coefficient: 1, scale: 0 },
+            unitPriceMinor: 2500,
+            lineTotalMinor: 1,
+            billingFrequency: "one_time",
+          },
+        ],
+        paymentTerms: { summary: "Due on receipt.", scheduleNote: null },
+        validity: { validForDays: 14, validUntil: null, note: null },
+      },
+      deps: harness.deps,
+    });
+    const issued = await issueClientQuoteForMaster({
+      masterUserId: USER_A,
+      quoteId: completed.id,
+      deps: harness.deps,
+    });
+    assert.equal(issued.status, "issued");
+    assert.match(issued.quote_number ?? "", /^Q-2026-\d{4}$/);
+    assert.equal(issued.source_estimate_id, null);
+    assert.equal(issued.issued_snapshot_json?.sourceEstimate, null);
+    assert.equal(issued.draft_json.projectTitle, "Direct portal");
+    assert.equal(issued.draft_json.lineItems.length, 1);
+  });
+
+  it("accepts an owned Prospect and rejects a cross-organization or unnamed recipient", async () => {
+    const harness = createHarness();
+    const prospectQuote = await createDirectClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      organizationId: ORG_CLIENT,
+      recipient: { kind: "prospect", prospectId: PROSPECT },
+      deps: harness.deps,
+    });
+    assert.equal(prospectQuote.draft_json.customer.name, "Fabrikam Inc");
+    assert.equal(prospectQuote.draft_json.customer.email, "buyer@fabrikam.example");
+    assert.equal(prospectQuote.source_estimate_id, null);
+    assert.equal(harness.estimateReads.length, 0);
+
+    await expectCode(
+      () =>
+        createDirectClientQuoteDraftForMaster({
+          masterUserId: USER_A,
+          organizationId: ORG_CLIENT,
+          recipient: { kind: "prospect", prospectId: PROSPECT_OTHER },
+          deps: harness.deps,
+        }),
+      "RECIPIENT_UNAVAILABLE",
+    );
+    await assert.rejects(
+      () =>
+        createDirectClientQuoteDraftForMaster({
+          masterUserId: USER_A,
+          organizationId: ORG_FOREIGN,
+          recipient: { kind: "client" },
+          deps: harness.deps,
+        }),
+      (error: unknown) => error instanceof Error && error.name === "LicenseeAccessError",
+    );
+    await expectCode(
+      () =>
+        createDirectClientQuoteDraftForMaster({
+          masterUserId: USER_A,
+          organizationId: ORG_UNNAMED,
+          recipient: { kind: "client" },
+          deps: harness.deps,
+        }),
+      "RECIPIENT_UNAVAILABLE",
+    );
+
+    const fallback = await createDirectClientQuoteDraftForMaster({
+      masterUserId: USER_A,
+      organizationId: ORG_NOLANG,
+      recipient: { kind: "client" },
+      deps: harness.deps,
+    });
+    assert.equal(fallback.content_language, "en");
+    assert.equal(fallback.draft_json.customer.name, "Helios Ltd");
+    assert.equal(harness.estimateReads.length, 0);
+
+    const both = parseCreateClientQuoteBody({
+      estimateId: ESTIMATE,
+      organizationId: ORG_CLIENT,
+      recipient: { kind: "client" },
+    });
+    assert.equal(isClientQuoteHttpFailure(both), true);
+    const neither = parseCreateClientQuoteBody({ recipient: { kind: "client" } });
+    assert.equal(isClientQuoteHttpFailure(neither), true);
+    const removed = parseCreateClientQuoteBody({
+      organizationId: ORG_CLIENT,
+      recipient: { kind: "removedProspect" },
+    });
+    assert.equal(isClientQuoteHttpFailure(removed), true);
+    if (isClientQuoteHttpFailure(removed)) {
+      assert.match(removed.message, /client or prospect/);
+    }
+    const direct = parseCreateClientQuoteBody({
+      organizationId: ORG_CLIENT,
+      recipient: { kind: "prospect", prospectId: PROSPECT },
+    });
+    assert.equal(isClientQuoteHttpFailure(direct), false);
+    if (!isClientQuoteHttpFailure(direct)) {
+      assert.equal(direct.source, "direct");
+    }
+
+    const service = read("services/clientQuote/clientQuoteService.ts");
+    const directService = service.slice(
+      service.indexOf("export async function createDirectClientQuoteDraftForMaster"),
+      service.indexOf("export async function updateClientQuoteDraftForMaster"),
+    );
+    assert.doesNotMatch(
+      directService,
+      /getEstimate|seedClientQuoteFromReadyEstimate|openrouter|generateReview|enqueue/,
+    );
+    assert.match(directService, /sourceEstimateId: null/);
+    assert.match(directService, /mapProspectToCustomerSnapshot/);
+    assert.match(directService, /mapOrganizationToCustomerSnapshot/);
+  });
+});
+
 describe("quotation API and storage contracts", () => {
   it("parses create and update bodies without tenant authority fields", () => {
     const created = parseCreateClientQuoteBody({
       estimateId: ESTIMATE,
       licenseeAccountId: LICENSEE_B,
-      organizationId: ORG_FOREIGN,
       recipient: {
         kind: "client",
         organizationId: ORG_FOREIGN,
@@ -1405,7 +1614,7 @@ describe("quotation API and storage contracts", () => {
       contentLanguage: "it",
     });
     assert.equal(isClientQuoteHttpFailure(created), false);
-    if (!isClientQuoteHttpFailure(created)) {
+    if (!isClientQuoteHttpFailure(created) && created.source === "estimate") {
       assert.equal(created.estimateId, ESTIMATE);
       assert.deepEqual(created.recipient, { kind: "client" });
       assert.equal("licenseeAccountId" in created, false);

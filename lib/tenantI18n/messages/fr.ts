@@ -4937,8 +4937,16 @@ export const fr: TenantMessages = {
       loading: "Chargement des devis…",
       emptyTitle: "Aucun devis client",
       emptyBody:
-        "Ouvrez un Estimate prêt et créez un devis client. Athena amorce le brouillon à partir de cet Estimate.",
+        "Créez un devis client directement, ou ouvrez un Estimate prêt pour amorcer un brouillon.",
       openEstimates: "Ouvrir Athena Estimate",
+      createDirect: "Créer un devis client",
+      createDirectTitle: "Créer un devis client",
+      createDirectBody:
+        "Choisissez un client et, si vous le souhaitez, un prospect. Le brouillon commence vide : vous ajoutez le projet, les prestations, les prix et les conditions.",
+      createDirectConfirm: "Créer le brouillon",
+      createDirectPending: "Création…",
+      createDirectClientRequired: "Choisissez un client avant de créer le brouillon.",
+      createDirectChooseClient: "Choisir un client",
       openAction: "Ouvrir",
       untitled: "Devis sans titre",
       numberPending: "Brouillon",
@@ -4994,6 +5002,8 @@ export const fr: TenantMessages = {
       scopeSummaryLabel: "Résumé du périmètre",
       scopeHint:
         "Gardez ce résumé concis pour le client. Le récit détaillé de l’Estimate reste dans l’annexe facultative.",
+      directProjectHint:
+        "Saisissez le titre du projet et un résumé du périmètre. Rien n’est repris d’un Estimate.",
       servicesTitle: "Prestations",
       description: "Description",
       quantity: "Quantité",
@@ -5050,6 +5060,8 @@ export const fr: TenantMessages = {
       appendixEnable: "Inclure l’annexe détaillée",
       appendixHint:
         "L’annexe est désactivée par défaut. Activez-la pour inclure le récit détaillé de l’Estimate.",
+      directAppendixHint:
+        "L’annexe commence vide. Activez-la pour rédiger vos propres sections. Aucun récit d’Estimate n’est inclus.",
       appendixOff: "Annexe non incluse",
       appendixHeading: "Titre de section",
       appendixBody: "Détail de section",
@@ -5070,7 +5082,7 @@ export const fr: TenantMessages = {
       requirementsTitle: "Requis avant émission",
       issueBlocked: "Complétez chaque exigence ci-dessous avant d’émettre.",
       draftIncomplete:
-        "Ajoutez le client, le titre du projet, le périmètre et au moins une ligne de prestation complète avant d’enregistrer.",
+        "Complétez chaque ligne de prestation et le nom du client avant d’enregistrer. Une ligne exige une description, une quantité et un prix.",
       calculationFailed:
         "Vérifiez la remise et la taxe. Une remise ne peut pas dépasser le sous-total.",
       contactInvalid: "Vérifiez les adresses e-mail et le site web.",

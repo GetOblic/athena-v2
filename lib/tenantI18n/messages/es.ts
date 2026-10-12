@@ -4945,8 +4945,16 @@ export const es: TenantMessages = {
       loading: "Cargando presupuestos…",
       emptyTitle: "Aún no hay presupuestos",
       emptyBody:
-        "Abre un Estimate listo y crea un presupuesto de cliente. Athena prepara el borrador a partir de ese Estimate.",
+        "Crea un presupuesto de cliente directamente, o abre un Estimate listo para iniciar un borrador.",
       openEstimates: "Abrir Athena Estimate",
+      createDirect: "Crear presupuesto de cliente",
+      createDirectTitle: "Crear un presupuesto de cliente",
+      createDirectBody:
+        "Elige un cliente y, si quieres, un prospecto. El borrador empieza vacío para que añadas el proyecto, los servicios, los precios y las condiciones.",
+      createDirectConfirm: "Crear borrador",
+      createDirectPending: "Creando…",
+      createDirectClientRequired: "Elige un cliente antes de crear el borrador.",
+      createDirectChooseClient: "Elegir un cliente",
       openAction: "Abrir",
       untitled: "Presupuesto sin título",
       numberPending: "Borrador",
@@ -5002,6 +5010,8 @@ export const es: TenantMessages = {
       scopeSummaryLabel: "Resumen del alcance",
       scopeHint:
         "Mantén este resumen breve para el cliente. El relato detallado del Estimate queda en el apéndice opcional.",
+      directProjectHint:
+        "Escribe el título del proyecto y un resumen del alcance. No se rellena nada desde un Estimate.",
       servicesTitle: "Servicios",
       description: "Descripción",
       quantity: "Cantidad",
@@ -5058,6 +5068,8 @@ export const es: TenantMessages = {
       appendixEnable: "Incluir apéndice detallado",
       appendixHint:
         "El apéndice está desactivado por defecto. Actívalo para incluir el relato detallado del Estimate.",
+      directAppendixHint:
+        "El apéndice empieza vacío. Actívalo para escribir tus propias secciones. No se incluye el relato del Estimate.",
       appendixOff: "Apéndice no incluido",
       appendixHeading: "Título de la sección",
       appendixBody: "Detalle de la sección",
@@ -5078,7 +5090,7 @@ export const es: TenantMessages = {
       requirementsTitle: "Requerido antes de emitir",
       issueBlocked: "Completa cada requisito de abajo antes de emitir.",
       draftIncomplete:
-        "Añade el cliente, el título del proyecto, el alcance y al menos una línea de servicio completa antes de guardar.",
+        "Completa cada línea de servicio y el nombre del cliente antes de guardar. Una línea necesita descripción, cantidad y precio.",
       calculationFailed:
         "Revisa el descuento y el impuesto. Un descuento no puede superar el subtotal.",
       contactInvalid: "Revisa los correos y el sitio web.",

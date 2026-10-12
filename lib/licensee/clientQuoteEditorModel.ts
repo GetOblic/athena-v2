@@ -1,7 +1,8 @@
 /**
  * Licensee client quotation editor model.
  * Presentation and payload assembly only.
- * Totals always come from calculateClientQuote. Callers cannot supply a total.
+ * Totals for present lines come from calculateClientQuote.
+ * A draft with no lines uses a zero total. Callers cannot supply a total.
  */
 
 import {
@@ -55,8 +56,6 @@ export type ClientQuoteIssueRequirement =
 
 export type ClientQuoteDraftBlocker =
   | "customerName"
-  | "projectTitle"
-  | "scopeSummary"
   | "lineItem"
   | "discount"
   | "tax"
@@ -580,7 +579,6 @@ export function removeClientQuoteLineAt(
   editor: ClientQuoteEditorDraft,
   index: number,
 ): ClientQuoteEditorDraft {
-  if (editor.lines.length <= 1) return editor;
   if (index < 0 || index >= editor.lines.length) return editor;
   return {
     ...editor,
@@ -988,10 +986,8 @@ export function clientQuoteDraftBlockers(
 ): ClientQuoteDraftBlocker[] {
   const blockers: ClientQuoteDraftBlocker[] = [];
   if (!editor.customer.name.trim()) blockers.push("customerName");
-  if (!editor.projectTitle.trim()) blockers.push("projectTitle");
-  if (!editor.scopeSummary.trim()) blockers.push("scopeSummary");
   const lines = editor.lines.map((line) => parseLine(line, currencyCode));
-  if (lines.length < 1 || lines.some((line) => line == null)) {
+  if (lines.some((line) => line == null)) {
     blockers.push("lineItem");
   }
   if (
@@ -1031,7 +1027,7 @@ export function previewClientQuoteMoney(
   | { ok: true; preview: ClientQuoteMoneyPreview }
   | { ok: false; reason: "incomplete" | "calculation" | "fixedDiscountMixed" } {
   const lines = editor.lines.map((line) => parseLine(line, currencyCode));
-  if (lines.length < 1 || lines.some((line) => line == null)) {
+  if (lines.some((line) => line == null)) {
     return { ok: false, reason: "incomplete" };
   }
   if (
@@ -1043,6 +1039,35 @@ export function previewClientQuoteMoney(
   const discount = parseDiscount(editor, currencyCode);
   const tax = parseTax(editor);
   if (!discount || !tax) return { ok: false, reason: "incomplete" };
+  if (lines.length < 1) {
+    if (discount.kind === "fixed" && discount.amountMinor > 0) {
+      return { ok: false, reason: "calculation" };
+    }
+    try {
+      const resolvedCurrency = normalizeCurrencyCode(currencyCode);
+      return {
+        ok: true,
+        preview: {
+          currencyCode: resolvedCurrency,
+          currencyScale: currencyMinorUnitScale(resolvedCurrency),
+          lineTotalsMinor: [],
+          totals: {
+            subtotalMinor: 0,
+            discountMinor: 0,
+            taxableMinor: 0,
+            taxMinor: 0,
+            totalMinor: 0,
+          },
+          frequencyTotals: [],
+        },
+      };
+    } catch (error) {
+      if (error instanceof ClientQuoteCalculationError) {
+        return { ok: false, reason: "calculation" };
+      }
+      throw error;
+    }
+  }
   try {
     const calculated = calculateClientQuote({
       currencyCode,

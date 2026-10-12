@@ -34,7 +34,10 @@ import {
   IssuedClientQuoteImmutableError,
   preservedSourceEstimateId,
 } from "../../services/clientQuote/clientQuoteTypes";
-import { normalizeClientQuoteDraft } from "../../services/clientQuote/clientQuoteValidation";
+import {
+  assertClientQuoteIssuable,
+  normalizeClientQuoteDraft,
+} from "../../services/clientQuote/clientQuoteValidation";
 import { BRAND_LOGO_ALLOWED_MIME_TYPES } from "../../services/identity/brandIdentity";
 import { ORGANIZATION_LANGUAGES } from "../../services/organizationLanguage";
 
@@ -385,6 +388,70 @@ describe("client quote financial calculator", () => {
     });
     assert.deepEqual(first, second);
     assert.equal(first.totals.totalMinor, 750);
+  });
+
+  it("allows an incomplete draft and still refuses to issue it", () => {
+    const incomplete = {
+      ...baseDraft(),
+      projectTitle: "",
+      scopeSummary: "   ",
+      lineItems: [],
+      paymentTerms: { summary: "", scheduleNote: null },
+      validity: { validForDays: null, validUntil: null, note: null },
+    };
+    expectValidation(() => normalizeClientQuoteDraft(incomplete, "USD"), /projectTitle|line item/i);
+    const draft = normalizeClientQuoteDraft(incomplete, "USD", { allowIncomplete: true });
+    assert.equal(draft.projectTitle, "");
+    assert.equal(draft.scopeSummary, "");
+    assert.equal(draft.lineItems.length, 0);
+    assert.equal(draft.totals.totalMinor, 0);
+    assert.deepEqual(draft.frequencyTotals, []);
+    expectValidation(() => assertClientQuoteIssuable(draft), /projectTitle/i);
+    const saved = createDraftClientQuote({
+      id: "11111111-1111-4111-8111-111111111111",
+      licenseeAccountId: "22222222-2222-4222-8222-222222222222",
+      organizationId: "33333333-3333-4333-8333-333333333333",
+      requestedBy: null,
+      contentLanguage: "en",
+      currencyCode: "USD",
+      draft,
+      sourceEstimateId: null,
+      sourceEstimateSnapshot: null,
+      revisedFromQuoteId: null,
+      createdAt: "2026-10-12T12:00:00.000Z",
+    });
+    assert.equal(saved.source_estimate_id, null);
+    assert.equal(saved.quote_number, null);
+    expectValidation(
+      () =>
+        issueClientQuote(saved, {
+          quoteNumber: "Q-2026-0001",
+          issuedAt: "2026-10-12T12:05:00.000Z",
+          updatedAt: "2026-10-12T12:05:00.000Z",
+        }),
+      /projectTitle/i,
+    );
+    expectValidation(
+      () =>
+        normalizeClientQuoteDraft(
+          {
+            ...incomplete,
+            projectTitle: "Named",
+            scopeSummary: "Scoped",
+            lineItems: [
+              {
+                id: "line-1",
+                description: "",
+                quantity: { coefficient: 1, scale: 0 },
+                unitPriceMinor: 100,
+              },
+            ],
+          },
+          "USD",
+          { allowIncomplete: true },
+        ),
+      /description/i,
+    );
   });
 
   it("discards client totals and line totals", () => {

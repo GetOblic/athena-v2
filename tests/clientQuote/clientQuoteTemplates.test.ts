@@ -857,8 +857,6 @@ describe("client quote template boundaries", () => {
         "app/licensee/quote",
         "components/quote/AthenaQuoteFormEmbed.tsx",
         "workers",
-        "app/licensee/client-quotes",
-        "app/api/licensee/client-quotes/route.ts",
         "app/api/licensee/client-quotes/[id]/issue",
         "app/api/licensee/client-quotes/[id]/revise",
         "app/api/licensee/client-quotes/[id]/pdf",
@@ -866,6 +864,12 @@ describe("client quote template boundaries", () => {
       { cwd: ROOT, encoding: "utf8" },
     );
     assert.equal(protectedDiff.trim(), "");
+    const quotesApp = execFileSync(
+      "git",
+      ["diff", "--name-only", "--", "app/licensee/client-quotes"],
+      { cwd: ROOT, encoding: "utf8" },
+    );
+    assert.equal(quotesApp.trim(), "app/licensee/client-quotes/page.tsx");
     const preserved = execFileSync(
       "git",
       [

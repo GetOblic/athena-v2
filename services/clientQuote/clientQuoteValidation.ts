@@ -389,12 +389,14 @@ function parseBillingFrequency(
 function parseLineItems(
   value: unknown,
   errors: string[],
+  allowEmpty: boolean,
 ): Array<Omit<ClientQuoteLineItem, "lineTotalMinor">> | null {
   if (!Array.isArray(value)) {
     errors.push("lineItems must be an array.");
     return null;
   }
   if (value.length < 1) {
+    if (allowEmpty) return [];
     errors.push("At least one line item is required.");
     return null;
   }
@@ -651,13 +653,33 @@ function parseAppendix(value: unknown, errors: string[]): ClientQuoteAppendix {
   };
 }
 
+export type NormalizeClientQuoteDraftOptions = {
+  /**
+   * Empty project title, empty scope summary, and zero line items are
+   * valid draft structure. Present lines, money, and identities stay checked.
+   * Issuance completeness is assertClientQuoteIssuable, not this flag.
+   */
+  allowIncomplete?: boolean;
+};
+
+const EMPTY_CLIENT_QUOTE_TOTALS = {
+  subtotalMinor: 0,
+  discountMinor: 0,
+  taxableMinor: 0,
+  taxMinor: 0,
+  totalMinor: 0,
+} as const;
+
 /**
  * Validate a draft and replace totals, line totals, and currency scale
  * with the domain calculation. Supplied totals are never read.
+ * The default stays strict so invoice conversion and Estimate seeding
+ * still require a title, a scope, and at least one line.
  */
 export function normalizeClientQuoteDraft(
   input: unknown,
   currencyCode: unknown,
+  options?: NormalizeClientQuoteDraftOptions,
 ): ClientQuoteDraftV1 {
   const errors: string[] = [];
   if (!isRecord(input)) {
@@ -690,6 +712,7 @@ export function normalizeClientQuoteDraft(
     errors.push("currencyScale does not match the currency's minor-unit scale.");
   }
 
+  const allowIncomplete = options?.allowIncomplete === true;
   const issuer = parseIssuer(input.issuer, errors);
   const customer = parseCustomer(input.customer, errors);
   const projectTitle = pushText(
@@ -697,16 +720,16 @@ export function normalizeClientQuoteDraft(
     input.projectTitle,
     "projectTitle",
     CLIENT_QUOTE_FIELD_LIMITS.projectTitle,
-    true,
+    !allowIncomplete,
   );
   const scopeSummary = pushText(
     errors,
     input.scopeSummary,
     "scopeSummary",
     CLIENT_QUOTE_FIELD_LIMITS.scopeSummary,
-    true,
+    !allowIncomplete,
   );
-  const lineItems = parseLineItems(input.lineItems, errors);
+  const lineItems = parseLineItems(input.lineItems, errors, allowIncomplete);
   const paymentTerms = parsePaymentTerms(input.paymentTerms, errors);
   const validity = parseValidity(input.validity, errors);
   const appendix = parseAppendix(input.appendix, errors);
@@ -716,11 +739,13 @@ export function normalizeClientQuoteDraft(
   if (errors.length > 0) {
     fail(errors);
   }
+  const resolvedProjectTitle = allowIncomplete ? (projectTitle ?? "") : projectTitle;
+  const resolvedScopeSummary = allowIncomplete ? (scopeSummary ?? "") : scopeSummary;
   if (
     !issuer ||
     !customer?.name ||
-    !projectTitle ||
-    !scopeSummary ||
+    resolvedProjectTitle == null ||
+    resolvedScopeSummary == null ||
     !lineItems ||
     !paymentTerms ||
     !validity ||
@@ -732,12 +757,24 @@ export function normalizeClientQuoteDraft(
 
   let calculated;
   try {
-    calculated = calculateClientQuote({
-      currencyCode: resolvedCurrency,
-      lineItems,
-      discount,
-      tax,
-    });
+    if (lineItems.length === 0) {
+      if (discount.kind === "fixed" && discount.amountMinor > 0) {
+        fail(["Fixed discount exceeds the subtotal."]);
+      }
+      calculated = {
+        currencyScale: expectedScale,
+        lineTotalsMinor: [] as number[],
+        totals: { ...EMPTY_CLIENT_QUOTE_TOTALS },
+        frequencyTotals: [],
+      };
+    } else {
+      calculated = calculateClientQuote({
+        currencyCode: resolvedCurrency,
+        lineItems,
+        discount,
+        tax,
+      });
+    }
   } catch (error) {
     if (error instanceof ClientQuoteCalculationError) {
       fail([error.message]);
@@ -750,8 +787,8 @@ export function normalizeClientQuoteDraft(
     currencyScale: calculated.currencyScale,
     issuer,
     customer,
-    projectTitle,
-    scopeSummary,
+    projectTitle: resolvedProjectTitle,
+    scopeSummary: resolvedScopeSummary,
     lineItems: lineItems.map((line, index) => ({
       ...line,
       lineTotalMinor: calculated.lineTotalsMinor[index] ?? 0,
@@ -768,7 +805,8 @@ export function normalizeClientQuoteDraft(
 
 /**
  * Commercial completeness required to freeze an issued snapshot.
- * Drafts may still omit payment terms and validity.
+ * This is independent of draft normalization. An incomplete draft can be
+ * saved, and this function still refuses to issue it.
  */
 export function assertClientQuoteIssuable(draft: ClientQuoteDraftV1): void {
   const errors: string[] = [];
@@ -784,8 +822,15 @@ export function assertClientQuoteIssuable(draft: ClientQuoteDraftV1): void {
   if (!draft.scopeSummary.trim()) {
     errors.push("scopeSummary is required to issue a quotation.");
   }
-  if (draft.lineItems.length < 1) {
-    errors.push("At least one line item is required to issue a quotation.");
+  const completeLines = draft.lineItems.filter(
+    (line) =>
+      line.description.trim().length > 0 &&
+      line.quantity.coefficient >= 1 &&
+      Number.isSafeInteger(line.unitPriceMinor) &&
+      line.unitPriceMinor >= 0,
+  );
+  if (completeLines.length < 1) {
+    errors.push("At least one complete service line is required to issue a quotation.");
   }
   if (!draft.paymentTerms.summary.trim()) {
     errors.push("paymentTerms.summary is required to issue a quotation.");

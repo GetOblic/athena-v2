@@ -11,6 +11,7 @@ import {
 import { toPublicClientQuote } from "@/services/clientQuote/clientQuotePublic";
 import {
   createClientQuoteDraftForMaster,
+  createDirectClientQuoteDraftForMaster,
   listClientQuotesForMaster,
 } from "@/services/clientQuote/clientQuoteService";
 
@@ -85,13 +86,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    const quote = await createClientQuoteDraftForMaster({
-      masterUserId: userId,
-      estimateId: parsed.estimateId,
-      recipient: parsed.recipient,
-      contentLanguage: parsed.contentLanguage,
-      deps: createDefaultClientQuoteDeps(),
-    });
+    const quote =
+      parsed.source === "direct"
+        ? await createDirectClientQuoteDraftForMaster({
+            masterUserId: userId,
+            organizationId: parsed.organizationId,
+            recipient: parsed.recipient,
+            contentLanguage: parsed.contentLanguage,
+            deps: createDefaultClientQuoteDeps(),
+          })
+        : await createClientQuoteDraftForMaster({
+            masterUserId: userId,
+            estimateId: parsed.estimateId,
+            recipient: parsed.recipient,
+            contentLanguage: parsed.contentLanguage,
+            deps: createDefaultClientQuoteDeps(),
+          });
     return json({ ok: true, quote: toPublicClientQuote(quote) }, 201);
   } catch (error) {
     return fail(error);

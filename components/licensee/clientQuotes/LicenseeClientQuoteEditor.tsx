@@ -422,6 +422,7 @@ export function LicenseeClientQuoteEditor({
         error={issued ? null : error}
         missingRequirements={missing}
         revisedFromQuoteId={quote.revisedFromQuoteId}
+        sourceEstimateId={quote.sourceEstimateId}
         downloadQuoteId={issued ? quote.id : null}
         issuedSnapshot={frozen}
         onChange={updateEditor}

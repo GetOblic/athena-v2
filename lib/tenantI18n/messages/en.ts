@@ -4845,8 +4845,16 @@ export const en = {
       loading: "Loading quotations…",
       emptyTitle: "No client quotations yet",
       emptyBody:
-        "Open a Ready Estimate and create a client quote. Athena seeds the draft from that Estimate.",
+        "Create a client quote directly, or open a Ready Estimate and seed a draft from it.",
       openEstimates: "Open Athena Estimate",
+      createDirect: "Create Client Quote",
+      createDirectTitle: "Create a client quote",
+      createDirectBody:
+        "Choose a client and, if you want, a prospect. The draft starts empty so you can add the project, services, prices, and terms.",
+      createDirectConfirm: "Create Draft",
+      createDirectPending: "Creating…",
+      createDirectClientRequired: "Choose a client before creating the draft.",
+      createDirectChooseClient: "Choose a client",
       openAction: "Open",
       untitled: "Untitled quotation",
       numberPending: "Draft",
@@ -4902,6 +4910,8 @@ export const en = {
       scopeSummaryLabel: "Scope summary",
       scopeHint:
         "Keep this summary concise for the client. Detailed Estimate narrative stays in the optional appendix.",
+      directProjectHint:
+        "Enter the project title and a short scope. Nothing is filled in from an Estimate.",
       servicesTitle: "Services",
       description: "Description",
       quantity: "Quantity",
@@ -4957,6 +4967,8 @@ export const en = {
       appendixEnable: "Include detailed appendix",
       appendixHint:
         "The appendix is off by default. Turn it on to include the detailed Estimate narrative.",
+      directAppendixHint:
+        "The appendix starts empty. Turn it on to write your own sections. No Estimate narrative is included.",
       appendixOff: "Appendix not included",
       appendixHeading: "Section heading",
       appendixBody: "Section detail",
@@ -4977,7 +4989,7 @@ export const en = {
       requirementsTitle: "Required before issue",
       issueBlocked: "Complete every requirement below before issuing.",
       draftIncomplete:
-        "Add the customer, project title, scope, and at least one complete service line before saving.",
+        "Complete each service line and the customer name before saving. A line needs a description, quantity, and price.",
       calculationFailed:
         "Check the discount and tax. A discount cannot be larger than the subtotal.",
       contactInvalid: "Check the email addresses and website.",

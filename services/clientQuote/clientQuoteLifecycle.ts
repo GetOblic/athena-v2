@@ -151,7 +151,9 @@ export function createDraftClientQuote(input: {
   );
   assertSourceLink(sourceEstimateId, sourceEstimateSnapshot);
   const createdAt = assertUtcTimestamp(input.createdAt, "createdAt");
-  const draft = normalizeClientQuoteDraft(input.draft, currencyCode);
+  const draft = normalizeClientQuoteDraft(input.draft, currencyCode, {
+    allowIncomplete: true,
+  });
   return clone({
     id,
     licensee_account_id: licenseeAccountId,
@@ -220,7 +222,9 @@ export function updateDraftClientQuote(
     quote.currency_code,
     meta.currencyCode,
   );
-  const nextDraft = normalizeClientQuoteDraft(draft, currencyCode);
+  const nextDraft = normalizeClientQuoteDraft(draft, currencyCode, {
+    allowIncomplete: true,
+  });
   const contentLanguage =
     meta.contentLanguage == null
       ? quote.content_language
@@ -252,7 +256,9 @@ export function issueClientQuote(
   if (quote.status !== "draft") {
     throw new ClientQuoteLifecycleError("Only a draft quotation can be issued.");
   }
-  const draft = normalizeClientQuoteDraft(quote.draft_json, quote.currency_code);
+  const draft = normalizeClientQuoteDraft(quote.draft_json, quote.currency_code, {
+    allowIncomplete: true,
+  });
   assertClientQuoteIssuable(draft);
   const quoteNumber = assertQuoteNumber(input.quoteNumber);
   const issuedAt = assertUtcTimestamp(input.issuedAt, "issuedAt");

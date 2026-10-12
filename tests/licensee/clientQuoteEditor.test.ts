@@ -265,6 +265,7 @@ function renderEditor(
       currencyCode: string;
       billingFrequency: ClientQuoteBillingFrequency;
     }>;
+    sourceEstimateId?: string | null;
   } = {},
 ) {
   const currencyCode = options.currencyCode ?? "USD";
@@ -301,6 +302,7 @@ function renderEditor(
       error: null,
       missingRequirements: missingClientQuoteIssueRequirements(editor, currencyCode),
       revisedFromQuoteId: null,
+      sourceEstimateId: options.sourceEstimateId,
       onChange: () => undefined,
       onSave: () => undefined,
       onIssue: () => undefined,
@@ -426,7 +428,9 @@ describe("client quotation editor behavior", () => {
     );
     const removed = removeClientQuoteLineAt(moved, 0);
     assert.equal(removed.lines.length, 1);
-    assert.equal(removeClientQuoteLineAt(removed, 0), removed);
+    const cleared = removeClientQuoteLineAt(removed, 0);
+    assert.equal(cleared.lines.length, 0);
+    assert.equal(removeClientQuoteLineAt(cleared, 0), cleared);
     assert.equal(parseClientQuoteQuantityText("1.25")?.coefficient, 125);
     assert.equal(parseClientQuoteQuantityText("1.25")?.scale, 2);
     assert.equal(parseClientQuoteQuantityText("0"), null);
@@ -445,6 +449,52 @@ describe("client quotation editor behavior", () => {
     const normalized = normalizeClientQuoteDraft(body.body.draft, "USD");
     assert.deepEqual(normalized.totals, body.body.draft.totals);
     assert.equal(body.body.contentLanguage, "fr");
+  });
+
+  it("saves an empty direct draft, keeps issue blocked, and accepts a template line", () => {
+    const editor = editorDraftFromQuote(quoteFixture());
+    const empty: ClientQuoteEditorDraft = {
+      ...editor,
+      projectTitle: "",
+      scopeSummary: "",
+      lines: [],
+      paymentSummary: "",
+      validForDaysText: "",
+      validUntil: "",
+      appendixEnabled: false,
+      appendixSections: [],
+    };
+    assert.deepEqual(clientQuoteDraftBlockers(empty, "USD"), []);
+    const saved = editorDraftToUpdateBody(empty, "USD");
+    assert.equal(saved.ok, true);
+    if (saved.ok) {
+      assert.equal(saved.body.draft.projectTitle, "");
+      assert.equal(saved.body.draft.lineItems.length, 0);
+      assert.equal(saved.body.draft.appendix.enabled, false);
+    }
+    assert.deepEqual(missingClientQuoteIssueRequirements(empty, "USD"), [
+      "projectTitle",
+      "scopeSummary",
+      "lineItem",
+      "paymentTerms",
+      "validity",
+    ]);
+    const withTemplate = insertClientQuoteTemplateLine(empty, hostingTemplate(), "USD");
+    assert.equal(withTemplate.lines.length, 1);
+    assert.equal(withTemplate.lines[0]?.description, "Monthly hosting and backups");
+    const directHtml = renderEditor(
+      { ...empty, appendixEnabled: true },
+      { sourceEstimateId: null },
+    );
+    assert.match(directHtml, /data-client-quote-project-hint="direct"/);
+    assert.match(directHtml, /data-client-quote-appendix-hint="direct"/);
+    assert.match(directHtml, /data-client-quote-add-line="true"/);
+    assert.match(directHtml, /data-client-quote-add-section="true"/);
+    const estimateHtml = renderEditor(editor, {
+      sourceEstimateId: "33333333-3333-4333-8333-333333333333",
+    });
+    assert.match(estimateHtml, /data-client-quote-project-hint="estimate"/);
+    assert.match(estimateHtml, /data-client-quote-appendix-hint="estimate"/);
   });
 
   it("blocks issue until commercial requirements are present, then saves a server-ready draft", () => {
@@ -537,6 +587,13 @@ describe("client quotation library", () => {
     );
     assert.match(empty, /data-client-quote-empty="true"/);
     assert.match(empty, /href="\/licensee\/estimate"/);
+    assert.match(empty, /data-client-quote-create="true"/);
+    assert.match(empty, /data-client-quote-open-estimate="true"/);
+    assert.match(empty, /data-client-quote-manage-templates="true"/);
+    const createAt = empty.indexOf('data-client-quote-create="true"');
+    assert.match(empty.slice(createAt, createAt + 700), /athena-orange/);
+    const estimateAt = empty.indexOf('data-client-quote-open-estimate="true"');
+    assert.doesNotMatch(empty.slice(estimateAt, estimateAt + 500), /athena-orange/);
 
     const failed = renderToStaticMarkup(
       createElement(ClientQuoteLibraryView, {
@@ -746,6 +803,14 @@ describe("client quotation catalogs", () => {
     const canonical = collectKeyPaths(en.licensee.clientQuotes);
     assert.ok(canonical.includes("errors.issuedImmutable"));
     assert.ok(canonical.includes("createFromEstimate"));
+    assert.ok(canonical.includes("createDirect"));
+    assert.ok(canonical.includes("createDirectTitle"));
+    assert.ok(canonical.includes("createDirectBody"));
+    assert.ok(canonical.includes("createDirectConfirm"));
+    assert.ok(canonical.includes("createDirectPending"));
+    assert.ok(canonical.includes("createDirectClientRequired"));
+    assert.ok(canonical.includes("directProjectHint"));
+    assert.ok(canonical.includes("directAppendixHint"));
     assert.ok(canonical.includes("languageNoTranslate"));
     assert.ok(canonical.includes("searchPlaceholder"));
     assert.ok(canonical.includes("searchEmptyTitle"));
@@ -1470,6 +1535,20 @@ describe("client quotation library frequency totals", () => {
     const projection = read("services/clientQuote/clientQuotePublic.ts");
     assert.match(service, /!quote\.deleted_at/);
     assert.match(library, /method: "DELETE"/);
+    assert.match(library, /if \(directLock\.current\) return/);
+    assert.match(
+      library,
+      /router\.push\(`\/licensee\/client-quotes\/\$\{payload\.quote\.id\}`\)/,
+    );
+    assert.match(view, /LICENSEE_PRIMARY_CTA_CLASS/);
+    assert.match(view, /data-client-quote-create="true"/);
+    assert.match(view, /EstimateProspectSelect/);
+    assert.match(view, /setProspectId\(null\)/);
+    assert.doesNotMatch(view, /removedProspect/);
+    assert.match(
+      read("app/licensee/client-quotes/page.tsx"),
+      /listLicenseeSubAccountsForMaster/,
+    );
     assert.match(projection, /draft: quote\.draft_json/);
     assert.match(projection, /issuedSnapshot: publicIssuedSnapshot/);
     assert.doesNotMatch(view, /calculateClientQuote|openrouter|workers\/|gohighlevel/i);

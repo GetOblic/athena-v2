@@ -14,6 +14,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LICENSEE_MASTER_MARKER_COOKIE } from "@/services/licensee/licenseeCookieNames";
 import { getLicenseeAccountByUserId } from "@/services/licensee/licenseeIdentity";
+import { listLicenseeSubAccountsForMaster } from "@/services/licensee/licenseeSubAccounts";
 import { isAccountAccessActive } from "@/services/superAdmin/accountAccessStatus";
 
 /**
@@ -51,6 +52,7 @@ export default async function LicenseeClientQuotesPage() {
   const { messages, locale } = getLicenseeLocalization(
     licenseeAccount.default_language,
   );
+  const subAccounts = await listLicenseeSubAccountsForMaster(user.id);
 
   return (
     <main className={LICENSEE_DASHBOARD_SHELL_CLASS}>
@@ -60,7 +62,11 @@ export default async function LicenseeClientQuotesPage() {
           {messages.common.backToMasterDashboard}
         </Link>
         <div className="mt-8">
-          <LicenseeClientQuoteLibrary messages={messages} locale={locale} />
+          <LicenseeClientQuoteLibrary
+            messages={messages}
+            locale={locale}
+            subAccounts={subAccounts}
+          />
         </div>
       </div>
     </main>

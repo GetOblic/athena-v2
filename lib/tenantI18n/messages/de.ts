@@ -4937,8 +4937,16 @@ export const de: TenantMessages = {
       loading: "Angebote werden geladen…",
       emptyTitle: "Noch keine Kundenangebote",
       emptyBody:
-        "Öffnen Sie einen fertigen Estimate und erstellen Sie ein Kundenangebot. Athena setzt den Entwurf aus diesem Estimate auf.",
+        "Erstellen Sie ein Kundenangebot direkt, oder öffnen Sie einen fertigen Estimate und legen Sie daraus einen Entwurf an.",
       openEstimates: "Athena Estimate öffnen",
+      createDirect: "Kundenangebot erstellen",
+      createDirectTitle: "Kundenangebot erstellen",
+      createDirectBody:
+        "Wählen Sie einen Kunden und optional einen Prospect. Der Entwurf beginnt leer. Projekt, Leistungen, Preise und Bedingungen tragen Sie selbst ein.",
+      createDirectConfirm: "Entwurf erstellen",
+      createDirectPending: "Wird erstellt…",
+      createDirectClientRequired: "Wählen Sie einen Kunden, bevor der Entwurf erstellt wird.",
+      createDirectChooseClient: "Kunden wählen",
       openAction: "Öffnen",
       untitled: "Angebot ohne Titel",
       numberPending: "Entwurf",
@@ -4994,6 +5002,8 @@ export const de: TenantMessages = {
       scopeSummaryLabel: "Leistungsumfang",
       scopeHint:
         "Halten Sie diese Zusammenfassung für den Kunden knapp. Die ausführliche Estimate-Darstellung bleibt im optionalen Anhang.",
+      directProjectHint:
+        "Geben Sie den Projekttitel und eine kurze Leistungsbeschreibung ein. Aus einem Estimate wird nichts übernommen.",
       servicesTitle: "Leistungen",
       description: "Beschreibung",
       quantity: "Menge",
@@ -5051,6 +5061,8 @@ export const de: TenantMessages = {
       appendixEnable: "Ausführlichen Anhang aufnehmen",
       appendixHint:
         "Der Anhang ist standardmäßig aus. Schalten Sie ihn ein, um die ausführliche Estimate-Darstellung aufzunehmen.",
+      directAppendixHint:
+        "Der Anhang beginnt leer. Schalten Sie ihn ein, um eigene Abschnitte zu schreiben. Es wird kein Estimate-Text übernommen.",
       appendixOff: "Anhang nicht enthalten",
       appendixHeading: "Abschnittsüberschrift",
       appendixBody: "Abschnittsdetail",
@@ -5071,7 +5083,7 @@ export const de: TenantMessages = {
       requirementsTitle: "Vor der Ausstellung erforderlich",
       issueBlocked: "Erfüllen Sie jede Anforderung unten, bevor Sie ausstellen.",
       draftIncomplete:
-        "Ergänzen Sie Kunde, Projekttitel, Umfang und mindestens eine vollständige Leistungszeile, bevor Sie speichern.",
+        "Vervollständigen Sie jede Leistungsposition und den Kundennamen, bevor Sie speichern. Eine Position braucht Beschreibung, Menge und Preis.",
       calculationFailed:
         "Prüfen Sie Rabatt und Steuer. Ein Rabatt darf die Zwischensumme nicht übersteigen.",
       contactInvalid: "Prüfen Sie die E-Mail-Adressen und die Website.",

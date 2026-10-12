@@ -4971,8 +4971,16 @@ export const pt: TenantMessages = {
       loading: "A carregar orçamentos…",
       emptyTitle: "Ainda não há orçamentos",
       emptyBody:
-        "Abra um Estimate pronto e crie um orçamento de cliente. A Athena prepara o rascunho a partir desse Estimate.",
+        "Crie um orçamento de cliente diretamente, ou abra um Estimate pronto para iniciar um rascunho.",
       openEstimates: "Abrir Athena Estimate",
+      createDirect: "Criar orçamento de cliente",
+      createDirectTitle: "Criar um orçamento de cliente",
+      createDirectBody:
+        "Escolha um cliente e, se quiser, um prospect. O rascunho começa vazio para acrescentar o projeto, os serviços, os preços e as condições.",
+      createDirectConfirm: "Criar rascunho",
+      createDirectPending: "A criar…",
+      createDirectClientRequired: "Escolha um cliente antes de criar o rascunho.",
+      createDirectChooseClient: "Escolher um cliente",
       openAction: "Abrir",
       untitled: "Orçamento sem título",
       numberPending: "Rascunho",
@@ -5028,6 +5036,8 @@ export const pt: TenantMessages = {
       scopeSummaryLabel: "Resumo do âmbito",
       scopeHint:
         "Mantenha este resumo conciso para o cliente. A narrativa detalhada do Estimate fica no anexo opcional.",
+      directProjectHint:
+        "Introduza o título do projeto e um resumo do âmbito. Nada é preenchido a partir de um Estimate.",
       servicesTitle: "Serviços",
       description: "Descrição",
       quantity: "Quantidade",
@@ -5084,6 +5094,8 @@ export const pt: TenantMessages = {
       appendixEnable: "Incluir anexo detalhado",
       appendixHint:
         "O anexo está desligado por predefinição. Ative-o para incluir a narrativa detalhada do Estimate.",
+      directAppendixHint:
+        "O anexo começa vazio. Ative-o para escrever as suas secções. Nenhum texto de Estimate é incluído.",
       appendixOff: "Anexo não incluído",
       appendixHeading: "Título da secção",
       appendixBody: "Detalhe da secção",
@@ -5104,7 +5116,7 @@ export const pt: TenantMessages = {
       requirementsTitle: "Obrigatório antes de emitir",
       issueBlocked: "Complete cada requisito abaixo antes de emitir.",
       draftIncomplete:
-        "Acrescente o cliente, o título do projeto, o âmbito e pelo menos uma linha de serviço completa antes de guardar.",
+        "Complete cada linha de serviço e o nome do cliente antes de guardar. Uma linha precisa de descrição, quantidade e preço.",
       calculationFailed:
         "Verifique o desconto e o imposto. Um desconto não pode exceder o subtotal.",
       contactInvalid: "Verifique os e-mails e o sítio web.",

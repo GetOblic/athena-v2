@@ -158,8 +158,10 @@ function makeQuote(
     draft?: Record<string, unknown>;
     status?: "draft" | "issued";
     quoteNumber?: string;
+    sourceEstimate?: boolean;
   } = {},
 ): AthenaClientQuote {
+  const withEstimate = options.sourceEstimate !== false;
   const draftQuote = createDraftClientQuote({
     id: options.id ?? QUOTE,
     licenseeAccountId: LICENSEE_A,
@@ -168,16 +170,18 @@ function makeQuote(
     contentLanguage: "fr",
     currencyCode: options.currencyCode ?? "EUR",
     draft: options.draft ?? quotationDraft(),
-    sourceEstimateId: ESTIMATE,
-    sourceEstimateSnapshot: {
-      schemaVersion: "client_quote_source_estimate_v1",
-      estimateId: ESTIMATE,
-      organizationId: ORG,
-      organizationNameSnapshot: "Northwind",
-      estimateSchemaVersion: "estimate_v1",
-      currencyCode: "USD",
-      recommendedClientPriceMinor: 5000,
-    },
+    sourceEstimateId: withEstimate ? ESTIMATE : null,
+    sourceEstimateSnapshot: withEstimate
+      ? {
+          schemaVersion: "client_quote_source_estimate_v1",
+          estimateId: ESTIMATE,
+          organizationId: ORG,
+          organizationNameSnapshot: "Northwind",
+          estimateSchemaVersion: "estimate_v1",
+          currencyCode: "USD",
+          recommendedClientPriceMinor: 5000,
+        }
+      : null,
     revisedFromQuoteId: null,
     createdAt: "2026-01-15T08:00:00.000Z",
   });
@@ -521,6 +525,26 @@ describe("client invoice authorization", () => {
 });
 
 describe("client invoice source eligibility and idempotent create", () => {
+  it("creates an invoice from an issued direct quote with no Estimate", async () => {
+    const harness = createHarness();
+    const quote = makeQuote({ sourceEstimate: false });
+    assert.equal(quote.source_estimate_id, null);
+    assert.equal(quote.source_estimate_snapshot, null);
+    assert.equal(quote.issued_snapshot_json?.sourceEstimate, null);
+    harness.rememberQuote(quote);
+    const created = await createClientInvoiceFromQuoteForMaster({
+      masterUserId: USER_A,
+      quoteId: quote.id,
+      deps: harness.deps,
+    });
+    assert.equal(created.created, true);
+    assert.equal(created.invoice.status, "draft");
+    assert.equal(created.invoice.draft.sourceQuote.sourceEstimateId, null);
+    assert.equal(created.invoice.draft.projectTitle, "Portal rebuild");
+    assert.equal(created.invoice.invoiceNumber, null);
+    harness.assertQuotesUnchanged();
+  });
+
   it("rejects a draft quotation and hides a masked or missing quotation", async () => {
     const harness = createHarness();
     harness.rememberQuote(makeQuote({ status: "draft" }));

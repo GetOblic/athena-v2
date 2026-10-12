@@ -51,8 +51,6 @@ export function clientQuoteBlockerMessage(
   const copy = messages.clientQuotes;
   switch (blocker) {
     case "customerName":
-    case "projectTitle":
-    case "scopeSummary":
     case "lineItem":
       return copy.draftIncomplete;
     case "discount":
