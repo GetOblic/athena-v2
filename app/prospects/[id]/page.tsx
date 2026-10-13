@@ -18,7 +18,10 @@ import { ProspectConvertToClientAction } from "@/components/prospects/ProspectCo
 import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectLifecycleStatusControl";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import { ProspectDeepScrapeWebsiteButton } from "@/components/prospects/ProspectDeepScrapeWebsiteButton";
-import { GetOblicFunnelControls } from "@/components/prospects/GetOblicFunnelControls";
+import {
+  ProspectFunnelShortLinkEnsure,
+  ProspectFunnelShortLinks,
+} from "@/components/prospects/ProspectFunnelShortLinks";
 import { GetOblicListingOutboundControls } from "@/components/prospects/GetOblicListingOutboundControls";
 import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicListingReleaseControl";
 import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
@@ -393,6 +396,9 @@ export default async function ProspectDetailsPage({
       messages={messages}
       {...freeProgression}
     >
+      {showGetOblicFunnel ? null : (
+        <ProspectFunnelShortLinkEnsure prospectId={prospect.id} />
+      )}
       <ProspectDetailHeader
         backHref="/prospects"
         backLabel={messages.nav.prospects}
@@ -511,7 +517,8 @@ export default async function ProspectDetailsPage({
         funnelGroupLabel={copy.detail.getoblicFunnel}
         funnelAction={
           showGetOblicFunnel ? (
-            <GetOblicFunnelControls
+            <ProspectFunnelShortLinks
+              prospectId={prospect.id}
               aiAgentsHref={getOblicFunnel?.aiAgentsHref ?? null}
               virtualPhoneHref={getOblicFunnel?.virtualPhoneHref ?? null}
               calendarHref={getOblicFunnel?.calendarHref ?? null}
