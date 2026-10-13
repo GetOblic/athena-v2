@@ -23,6 +23,88 @@ export function sanitizePublicCommunityDisplayName(input: string): string | null
   return bounded;
 }
 
+/** Trailing Brave/Facebook chrome. The separator stays required so a name containing Facebook is kept. */
+const FACEBOOK_GROUP_TITLE_SUFFIX =
+  /\s*[|\-–—·•]\s*facebook(?:\.com)?(?:\s+groups)?\s*$/i;
+
+const FACEBOOK_DIRECTORY_NAME_WORDS = new Set([
+  "facebook",
+  "facebook.com",
+  "group",
+  "groups",
+  "popular",
+]);
+
+/**
+ * Question-shaped titles and obvious individual post openers.
+ * "How to …" group names do not match these patterns.
+ */
+const FACEBOOK_POST_HEADLINE_PATTERNS = [
+  /^(?:has|have|does|do|did|is|are|can|could|would|should|will)\s+(?:anyone|anybody|someone|somebody)\b/i,
+  /^(?:anyone|anybody)\s+(?:else|know|have|has|tried|used|got|here|recommend)\b/i,
+  /^(?:looking for)\b/i,
+  /^(?:hey|hi|hello)\s+(?:everyone|all|guys|friends|there)\b/i,
+  /^(?:i(?:'m| am)|i(?:'ve| have)|i need|i want|i just|just wanted|just wondering)\b/i,
+  /^(?:what|why|how|when|where|who|which)\s+(?:do|does|did|can|could|should|would|is|are|was|were|will)\b/i,
+];
+
+function isGenericFacebookDirectoryName(name: string): boolean {
+  const words = name
+    .toLowerCase()
+    .split(/[^a-z0-9.]+/)
+    .filter((word) => word.length > 0 && word !== ".");
+  return (
+    words.length > 0 &&
+    words.every((word) => FACEBOOK_DIRECTORY_NAME_WORDS.has(word))
+  );
+}
+
+function isObviousFacebookPostHeadline(name: string): boolean {
+  if (name.includes("?") || name.includes("？")) return true;
+  return FACEBOOK_POST_HEADLINE_PATTERNS.some((pattern) => pattern.test(name));
+}
+
+/**
+ * Group name accepted for a new Facebook catalog row.
+ * Strips a standard Facebook suffix, then rejects directory chrome and post headlines.
+ * Returns null instead of inventing a name from the numeric id or vanity slug.
+ */
+export function facebookGroupDisplayNameFromTitle(
+  input: string,
+  canonicalIdentity: string,
+): string | null {
+  const sanitized = sanitizePublicCommunityDisplayName(input);
+  if (!sanitized || isGenericFacebookDirectoryName(sanitized)) return null;
+
+  let name = sanitized;
+  for (let pass = 0; pass < 3; pass += 1) {
+    const stripped = name.replace(FACEBOOK_GROUP_TITLE_SUFFIX, "").trim();
+    if (stripped === name) break;
+    const cleaned = sanitizePublicCommunityDisplayName(stripped);
+    if (!cleaned) return null;
+    name = cleaned;
+  }
+
+  if (!name || isGenericFacebookDirectoryName(name)) return null;
+  if (isObviousFacebookPostHeadline(name)) return null;
+  if (name.toLowerCase() === canonicalIdentity.toLowerCase()) return null;
+  return name;
+}
+
+/**
+ * Stored Facebook catalog name that a group-root title would accept unchanged.
+ * A post headline, directory label, or raw group id is not reliable.
+ */
+export function isReliableFacebookGroupCatalogName(
+  displayName: string,
+  canonicalIdentity: string,
+): boolean {
+  return (
+    facebookGroupDisplayNameFromTitle(displayName, canonicalIdentity) ===
+    displayName
+  );
+}
+
 export function boundCommunityEvidenceText(
   input: string,
   maxLength: number,
@@ -306,6 +388,28 @@ function hasSpecificListingEvidence(text: string, displayName: string): boolean 
   return words.some((word) => !DIRECTORY_CHROME_WORDS.has(word));
 }
 
+function facebookGroupListingSegments(
+  input: string,
+  displayName: string,
+  omitPostBodies: boolean,
+): string[] {
+  const decoded = decodeHtmlEntities(input);
+  const source = omitPostBodies ? decoded.replace(/[?？]+/g, ". ") : decoded;
+  const bounded = boundCommunityEvidenceSnippet(source);
+  if (!bounded) return [];
+  return listingSegments(bounded)
+    .map((segment) =>
+      tidySegment(
+        withoutDirectoryBoilerplate(stripDirectoryCategorySequence(segment)),
+      ),
+    )
+    .filter((segment) => !isDirectoryCategoryLabel(segment))
+    .filter((segment) => hasSpecificListingEvidence(segment, displayName))
+    .filter((segment) =>
+      omitPostBodies ? !isObviousFacebookPostHeadline(segment) : true,
+    );
+}
+
 /**
  * Keep listing text that describes this group.
  * Generic Facebook directory copy is removed before qualification and display.
@@ -314,13 +418,20 @@ export function specificFacebookGroupEvidenceSnippet(
   input: string,
   displayName: string,
 ): string {
-  const bounded = boundCommunityEvidenceSnippet(decodeHtmlEntities(input));
-  if (!bounded) return "";
-  const specific = listingSegments(bounded)
-    .map((segment) =>
-      tidySegment(withoutDirectoryBoilerplate(stripDirectoryCategorySequence(segment))),
-    )
-    .filter((segment) => !isDirectoryCategoryLabel(segment))
-    .filter((segment) => hasSpecificListingEvidence(segment, displayName));
-  return boundCommunityEvidenceSnippet(specific.join(". "));
+  return boundCommunityEvidenceSnippet(
+    facebookGroupListingSegments(input, displayName, false).join(". "),
+  );
+}
+
+/**
+ * Group-root listing text with directory chrome and individual post bodies removed.
+ * A question or post opener is not group-level evidence, even on the group URL.
+ */
+export function facebookGroupRootEvidenceSnippet(
+  input: string,
+  displayName: string,
+): string {
+  return boundCommunityEvidenceSnippet(
+    facebookGroupListingSegments(input, displayName, true).join(". "),
+  );
 }

@@ -3,6 +3,7 @@ import type {
   CommunityDiscoveryDb,
   CommunityDiscoveryQuery,
   CommunityDiscoveryQueryResult,
+  CommunityDiscoveryUpdate,
   CommunityDiscoveryWrite,
 } from "../../services/communityDiscovery/communityDiscoveryPersistence";
 
@@ -20,6 +21,11 @@ export type CommunityDiscoveryDbFake = CommunityDiscoveryDb & {
     values: unknown;
     options: { onConflict: string; ignoreDuplicates?: boolean };
   }>;
+  updates: Array<{
+    table: string;
+    values: Row;
+    filters: Filter[];
+  }>;
   queries: Array<{ table: string; filters: Filter[] }>;
   ignoreFilters: boolean;
   failWrites: boolean;
@@ -32,6 +38,7 @@ export function createCommunityDiscoveryDbFake(): CommunityDiscoveryDbFake {
   ]);
   const fake = {
     upserts: [],
+    updates: [],
     queries: [],
     ignoreFilters: false,
     failWrites: false,
@@ -47,6 +54,9 @@ export function createCommunityDiscoveryDbFake(): CommunityDiscoveryDbFake {
       return {
         select() {
           return createQuery(table);
+        },
+        update(values) {
+          return createUpdate(table, { ...values });
         },
         upsert(values, options) {
           fake.upserts.push({
@@ -109,6 +119,82 @@ export function createCommunityDiscoveryDbFake(): CommunityDiscoveryDbFake {
       };
     },
   } satisfies CommunityDiscoveryDbFake;
+
+  function rowMatches(row: Row, filters: readonly Filter[]): boolean {
+    return filters.every((filter) => {
+      if (filter.type === "eq") return row[filter.column] === filter.value;
+      return filter.values.includes(String(row[filter.column]));
+    });
+  }
+
+  function createUpdate(table: string, values: Row): CommunityDiscoveryUpdate {
+    const filters: Filter[] = [];
+    const update: CommunityDiscoveryUpdate = {
+      eq(column, value) {
+        filters.push({ type: "eq", column, value });
+        return update;
+      },
+      in(column, valuesIn) {
+        filters.push({ type: "in", column, values: valuesIn });
+        return update;
+      },
+      select() {
+        const query: CommunityDiscoveryQuery = {
+          eq() {
+            return query;
+          },
+          in() {
+            return query;
+          },
+          order() {
+            return query;
+          },
+          limit() {
+            return query;
+          },
+          maybeSingle() {
+            return query;
+          },
+          single() {
+            return query;
+          },
+          then(onFulfilled, onRejected) {
+            return Promise.resolve()
+              .then(() => applyUpdate(table, values, filters))
+              .then(onFulfilled, onRejected);
+          },
+        };
+        return query;
+      },
+    };
+    return update;
+  }
+
+  function applyUpdate(
+    table: string,
+    values: Row,
+    filters: readonly Filter[],
+  ): CommunityDiscoveryQueryResult {
+    fake.updates.push({
+      table,
+      values: { ...values },
+      filters: filters.map((filter) =>
+        filter.type === "in"
+          ? { type: "in", column: filter.column, values: [...filter.values] }
+          : { ...filter },
+      ),
+    });
+    if (fake.failWrites) {
+      return { data: null, error: { message: "write failed" } };
+    }
+    const bucket = tables.get(table);
+    if (!bucket) return { data: null, error: { message: "missing table" } };
+    const matched = fake.ignoreFilters
+      ? bucket
+      : bucket.filter((row) => rowMatches(row, filters));
+    for (const row of matched) Object.assign(row, values);
+    return { data: matched.map((row) => ({ ...row })), error: null };
+  }
 
   function createQuery(table: string): CommunityDiscoveryQuery {
     const filters: Filter[] = [];

@@ -9,6 +9,7 @@ import {
   FACEBOOK_GROUPS_RESERVED_KEYS,
   FACEBOOK_GROUPS_URL_HOSTS,
   facebookGroupsPlatformAdapter,
+  facebookGroupsListingKind,
   normalizeFacebookGroupsUrl,
 } from "../../services/communityDiscovery/facebookGroupsUrl";
 import {
@@ -165,6 +166,45 @@ describe("Facebook Groups URL identity", () => {
         host,
       );
     }
+  });
+
+  it("distinguishes a group root from post and permalink URLs", () => {
+    assert.equal(
+      facebookGroupsListingKind(`https://www.facebook.com/groups/${GROUP_ID}`),
+      "group_root",
+    );
+    assert.equal(
+      facebookGroupsListingKind(
+        `https://m.facebook.com/groups/${GROUP_SLUG}/?ref=share`,
+      ),
+      "group_root",
+    );
+    assert.equal(
+      facebookGroupsListingKind(
+        `HTTPS://WWW.FACEBOOK.COM/groups/${GROUP_ID}/posts/42/`,
+      ),
+      "post",
+    );
+    assert.equal(
+      facebookGroupsListingKind(
+        `https://www.fb.com/groups/${GROUP_ID}/permalink/999999`,
+      ),
+      "post",
+    );
+    assert.equal(
+      facebookGroupsListingKind(
+        `https://mbasic.facebook.com/groups/${GROUP_ID}/about`,
+      ),
+      "subpage",
+    );
+    assert.equal(facebookGroupsListingKind("https://www.reddit.com/r/retail"), null);
+
+    const postUrl = `https://www.facebook.com/groups/${GROUP_ID}/posts/42/?ref=share`;
+    assert.equal(facebookGroupsListingKind(postUrl), "post");
+    assert.deepEqual(
+      communityFrom(postUrl),
+      communityFrom(`https://www.facebook.com/groups/${GROUP_ID}`),
+    );
   });
 
   it("reserves Facebook listing keys", () => {

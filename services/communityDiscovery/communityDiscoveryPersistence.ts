@@ -1,5 +1,8 @@
 import { communityDiscoveryPersistenceFailure } from "@/services/communityDiscovery/communityDiscoveryErrors";
-import { sanitizePublicCommunityDisplayName } from "@/services/communityDiscovery/publicCommunityName";
+import {
+  isReliableFacebookGroupCatalogName,
+  sanitizePublicCommunityDisplayName,
+} from "@/services/communityDiscovery/publicCommunityName";
 import { normalizeSocialCommunityUrl } from "@/services/communityDiscovery/socialCommunityRegistry";
 import type { SocialCommunityPlatform } from "@/services/communityDiscovery/socialCommunityPlatform";
 
@@ -30,6 +33,15 @@ export type NewPublicCommunity = {
   canonicalUrl: string;
   displayName: string;
   sourcedAt: string;
+};
+
+/** Replace one invalid catalog name. The caller observed currentDisplayName. */
+export type PublicCommunityDisplayNameRepair = {
+  platform: SocialCommunityPlatform;
+  canonicalIdentity: string;
+  canonicalUrl: string;
+  currentDisplayName: string;
+  displayName: string;
 };
 
 export type SavedOrganizationCommunity = {
@@ -71,8 +83,15 @@ export interface CommunityDiscoveryWrite {
   select(columns: string): CommunityDiscoveryQuery;
 }
 
+export interface CommunityDiscoveryUpdate {
+  eq(column: string, value: string): CommunityDiscoveryUpdate;
+  in(column: string, values: readonly string[]): CommunityDiscoveryUpdate;
+  select(columns: string): CommunityDiscoveryQuery;
+}
+
 export interface CommunityDiscoveryTable {
   select(columns: string): CommunityDiscoveryQuery;
+  update(values: Record<string, unknown>): CommunityDiscoveryUpdate;
   upsert(
     values: Record<string, unknown> | readonly Record<string, unknown>[],
     options: { onConflict: string; ignoreDuplicates?: boolean },
@@ -90,6 +109,9 @@ export interface PublicCommunityCatalog {
   ): Promise<PublicCommunityRecord[]>;
   insertMissing(
     rows: readonly NewPublicCommunity[],
+  ): Promise<PublicCommunityRecord[]>;
+  repairInvalidDisplayNames(
+    repairs: readonly PublicCommunityDisplayNameRepair[],
   ): Promise<PublicCommunityRecord[]>;
 }
 
@@ -248,6 +270,87 @@ async function insertPublicCommunitiesIfAbsent(
   return rowsFromResult(data).map(mapPublicCommunityRow);
 }
 
+function acceptedDisplayNameRepair(
+  repair: PublicCommunityDisplayNameRepair,
+): boolean {
+  if (repair.platform !== "facebook_groups") return false;
+  if (repair.displayName === repair.currentDisplayName) return false;
+  if (
+    sanitizePublicCommunityDisplayName(repair.currentDisplayName) !==
+    repair.currentDisplayName
+  ) {
+    return false;
+  }
+  if (
+    isReliableFacebookGroupCatalogName(
+      repair.currentDisplayName,
+      repair.canonicalIdentity,
+    )
+  ) {
+    return false;
+  }
+  if (
+    !isReliableFacebookGroupCatalogName(
+      repair.displayName,
+      repair.canonicalIdentity,
+    )
+  ) {
+    return false;
+  }
+  const normalized = normalizeSocialCommunityUrl(repair.canonicalUrl);
+  return (
+    normalized.ok &&
+    normalized.community.platform === repair.platform &&
+    normalized.community.canonicalIdentity === repair.canonicalIdentity &&
+    normalized.community.canonicalUrl === repair.canonicalUrl
+  );
+}
+
+/**
+ * Set display_name only while the row still holds the invalid name that was read.
+ * A concurrent writer that already stored a reliable name does not match.
+ * Identity, URL, source, sourced_at, and suppression are not written.
+ */
+async function repairInvalidPublicCommunityDisplayNames(
+  db: CommunityDiscoveryDb,
+  repairs: readonly PublicCommunityDisplayNameRepair[],
+): Promise<PublicCommunityRecord[]> {
+  const accepted = repairs.filter(acceptedDisplayNameRepair);
+  if (accepted.length === 0) return [];
+
+  const groups = new Map<string, PublicCommunityDisplayNameRepair[]>();
+  for (const repair of accepted) {
+    const key = JSON.stringify([
+      repair.platform,
+      repair.currentDisplayName,
+      repair.displayName,
+    ]);
+    const group = groups.get(key) ?? [];
+    group.push(repair);
+    groups.set(key, group);
+  }
+
+  const updated = await Promise.all(
+    [...groups.values()].map(async (group) => {
+      const first = group[0];
+      if (!first) return [];
+      const identities = [
+        ...new Set(group.map((repair) => repair.canonicalIdentity)),
+      ];
+      const { data, error } = await db
+        .from("athena_public_communities")
+        .update({ display_name: first.displayName })
+        .eq("platform", first.platform)
+        .eq("display_name", first.currentDisplayName)
+        .in("canonical_identity", identities)
+        .select(PUBLIC_COMMUNITY_COLUMNS);
+      if (error) communityDiscoveryPersistenceFailure();
+      return rowsFromResult(data).map(mapPublicCommunityRow);
+    }),
+  );
+  return updated.flat();
+}
+
 async function findPublicCommunityByCanonicalUrl(
   db: CommunityDiscoveryDb,
   canonicalUrl: string,
@@ -398,6 +501,9 @@ export function createSupabasePublicCommunityCatalog(
     },
     insertMissing(rows) {
       return insertPublicCommunitiesIfAbsent(db, rows);
+    },
+    repairInvalidDisplayNames(repairs) {
+      return repairInvalidPublicCommunityDisplayNames(db, repairs);
     },
   };
 }

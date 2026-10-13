@@ -25,6 +25,7 @@ import {
 } from "@/services/communityDiscovery/communityDiscoveryQuery";
 import type {
   PublicCommunityCatalog,
+  PublicCommunityDisplayNameRepair,
   PublicCommunityRecord,
 } from "@/services/communityDiscovery/communityDiscoveryPersistence";
 import { PUBLIC_COMMUNITY_CATALOG_SOURCE } from "@/services/communityDiscovery/communityDiscoveryPersistence";
@@ -34,10 +35,13 @@ import {
   type CommunitySearchProvider,
   type CommunitySearchProviderId,
 } from "@/services/communityDiscovery/communitySearchProvider";
+import { facebookGroupsListingKind } from "@/services/communityDiscovery/facebookGroupsUrl";
 import {
   boundCommunityEvidenceSnippet,
+  facebookGroupDisplayNameFromTitle,
+  facebookGroupRootEvidenceSnippet,
+  isReliableFacebookGroupCatalogName,
   sanitizePublicCommunityDisplayName,
-  specificFacebookGroupEvidenceSnippet,
 } from "@/services/communityDiscovery/publicCommunityName";
 import type { SocialCommunityPlatform } from "@/services/communityDiscovery/socialCommunityPlatform";
 import { normalizeSocialCommunityUrl } from "@/services/communityDiscovery/socialCommunityRegistry";
@@ -157,33 +161,109 @@ function rethrowSearchError(error: unknown): never {
   throw error;
 }
 
-function candidatesFromHits(hits: readonly CommunitySearchHit[]): DiscoveryCandidate[] {
-  const seen = new Set<string>();
-  const candidates: DiscoveryCandidate[] = [];
+function candidateFromHit(
+  hit: CommunitySearchHit,
+): { key: string; candidate: DiscoveryCandidate; groupRoot: boolean } | null {
+  if (typeof hit?.title !== "string" || typeof hit.url !== "string") return null;
+  const listingKind = facebookGroupsListingKind(hit.url);
+  const normalized = normalizeSocialCommunityUrl(hit.url);
+  if (!normalized.ok) return null;
 
-  for (const hit of hits.slice(0, COMMUNITY_DISCOVERY_SEARCH_LIMIT)) {
-    const normalized = normalizeSocialCommunityUrl(hit.url);
-    if (!normalized.ok) continue;
-    const key = `${normalized.community.platform}:${normalized.community.canonicalIdentity}`;
-    if (seen.has(key)) continue;
-    if (typeof hit?.title !== "string" || typeof hit.url !== "string") continue;
-    const displayName = sanitizePublicCommunityDisplayName(hit.title);
-    if (!displayName) continue;
-    seen.add(key);
-    candidates.push({
+  const facebook = normalized.community.platform === "facebook_groups";
+  // A post, permalink, or other subpage never establishes a group name.
+  if (facebook && listingKind !== "group_root") return null;
+
+  const displayName = facebook
+    ? facebookGroupDisplayNameFromTitle(
+        hit.title,
+        normalized.community.canonicalIdentity,
+      )
+    : sanitizePublicCommunityDisplayName(hit.title);
+  if (!displayName) return null;
+
+  return {
+    key: `${normalized.community.platform}:${normalized.community.canonicalIdentity}`,
+    groupRoot: facebook,
+    candidate: {
       platform: normalized.community.platform,
       canonicalIdentity: normalized.community.canonicalIdentity,
       canonicalUrl: normalized.community.canonicalUrl,
       displayName,
       evidenceTitle: displayName,
-      evidenceSnippet:
-        normalized.community.platform === "facebook_groups"
-          ? specificFacebookGroupEvidenceSnippet(hit.snippet, displayName)
-          : boundCommunityEvidenceSnippet(hit.snippet),
-    });
+      evidenceSnippet: facebook
+        ? facebookGroupRootEvidenceSnippet(hit.snippet, displayName)
+        : boundCommunityEvidenceSnippet(hit.snippet),
+    },
+  };
+}
+
+function candidatesFromHits(hits: readonly CommunitySearchHit[]): DiscoveryCandidate[] {
+  const selected: DiscoveryCandidate[] = [];
+  const groupRootByKey = new Map<string, boolean>();
+  const indexByKey = new Map<string, number>();
+
+  for (const hit of hits.slice(0, COMMUNITY_DISCOVERY_SEARCH_LIMIT)) {
+    const next = candidateFromHit(hit);
+    if (!next) continue;
+    const existingIndex = indexByKey.get(next.key);
+    if (existingIndex === undefined) {
+      indexByKey.set(next.key, selected.length);
+      groupRootByKey.set(next.key, next.groupRoot);
+      selected.push(next.candidate);
+      continue;
+    }
+    if (next.groupRoot && groupRootByKey.get(next.key) !== true) {
+      groupRootByKey.set(next.key, true);
+      selected[existingIndex] = next.candidate;
+      continue;
+    }
+    const current = selected[existingIndex];
+    if (next.groupRoot && current && !current.evidenceSnippet && next.candidate.evidenceSnippet) {
+      selected[existingIndex] = {
+        ...current,
+        evidenceSnippet: next.candidate.evidenceSnippet,
+      };
+    }
   }
 
-  return candidates;
+  return selected;
+}
+
+function reliableCatalogDisplayName(record: PublicCommunityRecord): boolean {
+  if (record.platform === "facebook_groups") {
+    return isReliableFacebookGroupCatalogName(
+      record.displayName,
+      record.canonicalIdentity,
+    );
+  }
+  return sanitizePublicCommunityDisplayName(record.displayName) === record.displayName;
+}
+
+function displayNameRepairs(
+  group: readonly DiscoveryCandidate[],
+  existingByIdentity: ReadonlyMap<string, PublicCommunityRecord>,
+): PublicCommunityDisplayNameRepair[] {
+  const repairs: PublicCommunityDisplayNameRepair[] = [];
+  for (const candidate of group) {
+    const record = existingByIdentity.get(candidate.canonicalIdentity);
+    if (!record || record.platform !== "facebook_groups") continue;
+    if (
+      isReliableFacebookGroupCatalogName(
+        record.displayName,
+        record.canonicalIdentity,
+      )
+    ) {
+      continue;
+    }
+    repairs.push({
+      platform: record.platform,
+      canonicalIdentity: record.canonicalIdentity,
+      canonicalUrl: record.canonicalUrl,
+      currentDisplayName: record.displayName,
+      displayName: candidate.displayName,
+    });
+  }
+  return repairs;
 }
 
 function resultQualification(
@@ -319,9 +399,24 @@ export async function discoverSocialCommunities(input: {
         resolvedByIdentity.set(record.canonicalIdentity, record);
       }
     }
-    const unresolved = identities.filter(
-      (identity) => !resolvedByIdentity.has(identity),
+    const repairs = displayNameRepairs(group, existingByIdentity);
+    const repaired =
+      repairs.length > 0
+        ? await input.catalog.repairInvalidDisplayNames(repairs)
+        : [];
+    const repairedIds = new Set(
+      repaired.map((record) => record.canonicalIdentity),
     );
+    for (const record of repaired) {
+      resolvedByIdentity.set(record.canonicalIdentity, record);
+    }
+    const unresolved = identities.filter((identity) => {
+      if (!resolvedByIdentity.has(identity)) return true;
+      return repairs.some(
+        (repair) =>
+          repair.canonicalIdentity === identity && !repairedIds.has(identity),
+      );
+    });
     if (unresolved.length > 0) {
       const after = await input.catalog.findByIdentities(platform, unresolved);
       for (const record of after) {
@@ -333,6 +428,7 @@ export async function discoverSocialCommunities(input: {
       const record = resolvedByIdentity.get(candidate.canonicalIdentity);
       if (!record) communityDiscoveryPersistenceFailure();
       if (record.suppressionState !== "active") continue;
+      if (!reliableCatalogDisplayName(record)) continue;
       resolved.set(`${platform}:${candidate.canonicalIdentity}`, {
         record,
         catalog: existingByIdentity.has(candidate.canonicalIdentity)

@@ -24,7 +24,10 @@ import {
   type OrganizationIdentityTable,
 } from "../../services/communityDiscovery/communityDiscoveryBusinessContext";
 import { qualifyDiscoveredCommunities } from "../../services/communityDiscovery/communityDiscoveryQualification";
-import { specificFacebookGroupEvidenceSnippet } from "../../services/communityDiscovery/publicCommunityName";
+import {
+  facebookGroupRootEvidenceSnippet,
+  specificFacebookGroupEvidenceSnippet,
+} from "../../services/communityDiscovery/publicCommunityName";
 import type { CommunitySearchHit } from "../../services/communityDiscovery/communitySearchProvider";
 import { CommunitySearchError } from "../../services/communityDiscovery/communitySearchProvider";
 import type { CommunitySearchProvider } from "../../services/communityDiscovery/communitySearchProvider";
@@ -139,11 +142,20 @@ describe("Facebook Group discovery", () => {
       queries,
       hits: [
         hit(
+          `https://www.facebook.com/groups/${GROUP_ID}/posts/999`,
+          "Has anyone compared shop ideas?",
+          "Independent retailers compare shop ideas",
+        ),
+        hit(
           `https://m.facebook.com/groups/${GROUP_ID}/about?ref=share`,
+          "Duplicate listing",
+          "same group",
+        ),
+        hit(
+          GROUP_URL,
           "  Independent   Retailers \n",
           "Independent retailers compare shop ideas",
         ),
-        hit(GROUP_URL, "Duplicate listing", "same group"),
         hit("https://www.facebook.com/groups/search?q=retail", "Search", "listing"),
         hit("https://www.facebook.com/retailers", "A page", "not a group"),
         hit("https://www.reddit.com/r/retail", "Reddit", "not facebook"),
@@ -209,6 +221,392 @@ describe("Facebook Group discovery", () => {
     assert.equal(db.upserts.length, 1);
     assert.equal(db.upserts[0].options.ignoreDuplicates, true);
     assert.equal(db.upserts[0].options.onConflict, "platform,canonical_identity");
+  });
+
+  it("rejects a generic Facebook title", async () => {
+    const { db, discovery, qualifyCalls } = await discover({
+      hits: [hit(GROUP_URL, "Facebook")],
+    });
+
+    assert.equal(qualifyCalls, 0);
+    assert.deepEqual(discovery.results, []);
+    assert.equal(db.rows("athena_public_communities").length, 0);
+    assert.equal(db.upserts.length, 0);
+  });
+
+  it("rejects a Facebook directory title", async () => {
+    const { db, discovery } = await discover({
+      hits: [
+        hit(GROUP_URL, "Popular groups | Facebook"),
+        hit("https://www.facebook.com/groups/shop-owners", "Groups"),
+        hit(
+          "https://www.facebook.com/groups/kitchen-remodel-ideas",
+          "Facebook Groups",
+        ),
+        hit(
+          "https://www.facebook.com/groups/local-makers",
+          "Popular Groups - Facebook",
+        ),
+      ],
+    });
+
+    assert.deepEqual(discovery.results, []);
+    assert.equal(db.rows("athena_public_communities").length, 0);
+    assert.equal(db.upserts.length, 0);
+  });
+
+  it("rejects a post headline and a question-shaped title", async () => {
+    const { db, discovery } = await discover({
+      hits: [
+        hit(
+          `https://www.facebook.com/groups/${GROUP_ID}/posts/42`,
+          "Has anyone found a winter supplier?",
+        ),
+        hit(
+          "https://www.facebook.com/groups/shop-owners/permalink/7",
+          "Does anyone know a good POS?",
+        ),
+        hit(
+          "https://www.facebook.com/groups/kitchen-remodel-ideas",
+          "Where can I find a carpenter?",
+        ),
+        hit(
+          "https://www.facebook.com/groups/local-makers",
+          "Looking for a wholesale supplier",
+        ),
+      ],
+    });
+
+    assert.deepEqual(discovery.results, []);
+    assert.equal(db.rows("athena_public_communities").length, 0);
+  });
+
+  it("accepts a group-root title", async () => {
+    const { discovery } = await discover({
+      hits: [
+        hit(GROUP_URL, "Independent Retailers"),
+        hit(
+          "https://www.facebook.com/groups/how-to-start-a-shop",
+          "How to Start a Shop",
+        ),
+      ],
+    });
+
+    assert.equal(discovery.results.length, 2);
+    assert.equal(discovery.results[0]?.displayName, "Independent Retailers");
+    assert.equal(discovery.results[0]?.canonicalUrl, GROUP_URL);
+    assert.equal(discovery.results[0]?.evidence.title, "Independent Retailers");
+    assert.equal(discovery.results[1]?.displayName, "How to Start a Shop");
+    assert.equal(
+      discovery.results[1]?.canonicalUrl,
+      "https://www.facebook.com/groups/how-to-start-a-shop",
+    );
+  });
+
+  it("removes a valid Facebook suffix from a group name", async () => {
+    const { db, discovery } = await discover({
+      hits: [
+        hit(GROUP_URL, "Independent Retailers | Facebook"),
+        hit(
+          "https://www.facebook.com/groups/shop-owners",
+          "Shop Owners - Facebook Groups",
+        ),
+        hit(
+          "https://m.facebook.com/groups/kitchen-remodel-ideas/",
+          "Kitchen Remodel Ideas | Facebook.com",
+        ),
+      ],
+    });
+
+    assert.deepEqual(
+      discovery.results.map((result) => result.displayName),
+      ["Independent Retailers", "Shop Owners", "Kitchen Remodel Ideas"],
+    );
+    assert.deepEqual(
+      db.rows("athena_public_communities").map((row) => row.display_name),
+      ["Independent Retailers", "Shop Owners", "Kitchen Remodel Ideas"],
+    );
+  });
+
+  it("prefers the group-root hit over a post hit for the same group", async () => {
+    const { db, discovery } = await discover({
+      hits: [
+        hit(
+          `https://m.facebook.com/groups/${GROUP_ID}/permalink/555`,
+          "Winter Buying Tips",
+        ),
+        hit(
+          `https://www.facebook.com/groups/${GROUP_ID}/posts/42`,
+          "Has anyone found a supplier?",
+        ),
+        hit(GROUP_URL, "Independent Retailers | Facebook"),
+      ],
+    });
+
+    assert.equal(discovery.results.length, 1);
+    assert.equal(discovery.results[0]?.canonicalIdentity, GROUP_ID);
+    assert.equal(discovery.results[0]?.canonicalUrl, GROUP_URL);
+    assert.equal(discovery.results[0]?.displayName, "Independent Retailers");
+    assert.equal(discovery.results[0]?.evidence.title, "Independent Retailers");
+    assert.equal(db.rows("athena_public_communities").length, 1);
+    assert.equal(
+      db.rows("athena_public_communities")[0]?.display_name,
+      "Independent Retailers",
+    );
+  });
+
+  it("does not create a catalog row from a post, permalink, or subpage", async () => {
+    const { db, discovery, qualifyCalls } = await discover({
+      hits: [
+        hit(
+          `https://www.fb.com/groups/${GROUP_ID}/posts/42/?ref=share`,
+          "Independent Retailers | Facebook",
+          "Has anyone found a winter supplier for the shop?",
+        ),
+        hit(
+          "https://www.facebook.com/groups/shop-owners/permalink/7",
+          "Shop Owners",
+          "Does anyone know a good POS?",
+        ),
+        hit(
+          "https://m.facebook.com/groups/kitchen-remodel-ideas/about",
+          "Kitchen Remodel Ideas",
+          "Homeowners share kitchen remodel photos before hiring",
+        ),
+      ],
+    });
+
+    assert.equal(qualifyCalls, 0);
+    assert.deepEqual(discovery.results, []);
+    assert.equal(db.rows("athena_public_communities").length, 0);
+    assert.equal(db.upserts.length, 0);
+    assert.equal(db.updates.length, 0);
+  });
+
+  it("does not invent a group name from a numeric id or vanity slug", async () => {
+    const { db, discovery } = await discover({
+      hits: [
+        hit(GROUP_URL, GROUP_ID),
+        hit(GROUP_URL, `${GROUP_ID} | Facebook`),
+        hit("https://www.facebook.com/groups/shop-owners", "shop-owners"),
+        hit("https://www.facebook.com/groups/Shop-Owners", "Shop-Owners"),
+        hit(
+          "https://www.facebook.com/groups/real-retailers",
+          "Real Retailers | Facebook",
+        ),
+      ],
+    });
+
+    assert.equal(discovery.results.length, 1);
+    assert.equal(discovery.results[0]?.canonicalIdentity, "real-retailers");
+    assert.equal(discovery.results[0]?.displayName, "Real Retailers");
+    assert.equal(db.rows("athena_public_communities").length, 1);
+  });
+
+  it("does not display an invalid stored catalog name", async () => {
+    const invalidName = "Has anyone found a supplier?";
+    const { db, discovery, qualifyCalls } = await discover({
+      seed: {
+        id: "11111111-1111-4111-8111-111111111111",
+        platform: "facebook_groups",
+        canonical_identity: GROUP_ID,
+        canonical_url: GROUP_URL,
+        display_name: invalidName,
+        source: "public_url",
+        sourced_at: "2020-01-01T00:00:00.000Z",
+        suppression_state: "active",
+        suppressed_at: null,
+      },
+      hits: [
+        hit(GROUP_URL, "Where can I find a carpenter?"),
+        hit(
+          `https://www.facebook.com/groups/${GROUP_ID}/posts/42`,
+          "Winter Buying Tips",
+          "Has anyone found a winter supplier for the shop?",
+        ),
+      ],
+    });
+
+    assert.equal(qualifyCalls, 0);
+    assert.deepEqual(discovery.results, []);
+    assert.equal(JSON.stringify(discovery).includes(invalidName), false);
+    assert.equal(JSON.stringify(discovery).includes("Winter Buying Tips"), false);
+    assert.equal(db.rows("athena_public_communities")[0]?.display_name, invalidName);
+    assert.equal(db.upserts.length, 0);
+    assert.equal(db.updates.length, 0);
+  });
+
+  it("repairs an invalid stored name from a validated group-root title", async () => {
+    const invalidName = "Has anyone found a supplier?";
+    const sourcedAt = "2020-01-01T00:00:00.000Z";
+    const { db, discovery } = await discover({
+      seed: {
+        id: "11111111-1111-4111-8111-111111111111",
+        platform: "facebook_groups",
+        canonical_identity: GROUP_ID,
+        canonical_url: GROUP_URL,
+        display_name: invalidName,
+        source: "public_url",
+        sourced_at: sourcedAt,
+        suppression_state: "active",
+        suppressed_at: null,
+        created_at: sourcedAt,
+        updated_at: sourcedAt,
+      },
+      hits: [
+        hit(
+          `https://www.facebook.com/groups/${GROUP_ID}/posts/9`,
+          "Winter Buying Tips",
+          "Has anyone found a winter supplier for the shop?",
+        ),
+        hit(
+          GROUP_URL,
+          "Independent Retailers | Facebook",
+          "Shop owners compare notes",
+        ),
+      ],
+    });
+
+    assert.equal(discovery.results.length, 1);
+    assert.equal(discovery.results[0]?.catalog, "reused");
+    assert.equal(discovery.results[0]?.displayName, "Independent Retailers");
+    assert.equal(discovery.results[0]?.canonicalUrl, GROUP_URL);
+    assert.equal(discovery.results[0]?.canonicalIdentity, GROUP_ID);
+    assert.equal(discovery.results[0]?.sourcedAt, sourcedAt);
+    assert.equal(discovery.results[0]?.source, "public_url");
+    assert.equal(JSON.stringify(discovery.results).includes(invalidName), false);
+    assert.equal(JSON.stringify(discovery.results).includes("Winter Buying Tips"), false);
+    const row = db.rows("athena_public_communities")[0];
+    assert.equal(row?.display_name, "Independent Retailers");
+    assert.equal(row?.canonical_identity, GROUP_ID);
+    assert.equal(row?.canonical_url, GROUP_URL);
+    assert.equal(row?.source, "public_url");
+    assert.equal(row?.sourced_at, sourcedAt);
+    assert.equal(row?.suppression_state, "active");
+    assert.equal(row?.suppressed_at, null);
+    assert.equal(row?.id, "11111111-1111-4111-8111-111111111111");
+    assert.equal(db.upserts.length, 0);
+    assert.equal(db.updates.length, 1);
+    assert.deepEqual(db.updates[0]?.values, {
+      display_name: "Independent Retailers",
+    });
+    assert.equal(
+      db.updates[0]?.filters.some(
+        (filter) => filter.type === "eq" && filter.column === "display_name" && filter.value === invalidName,
+      ),
+      true,
+    );
+  });
+
+  it("preserves a valid stored catalog name", async () => {
+    const sourcedAt = "2020-01-01T00:00:00.000Z";
+    const { db, discovery } = await discover({
+      seed: {
+        id: "11111111-1111-4111-8111-111111111111",
+        platform: "facebook_groups",
+        canonical_identity: GROUP_ID,
+        canonical_url: GROUP_URL,
+        display_name: "Catalog Name",
+        source: "public_url",
+        sourced_at: sourcedAt,
+        suppression_state: "active",
+        suppressed_at: null,
+      },
+      hits: [
+        hit(
+          `https://www.facebook.com/groups/${GROUP_ID}/permalink/3`,
+          "Winter Buying Tips",
+        ),
+        hit(GROUP_URL, "Different Search Title"),
+      ],
+    });
+
+    assert.equal(discovery.results.length, 1);
+    assert.equal(discovery.results[0]?.catalog, "reused");
+    assert.equal(discovery.results[0]?.displayName, "Catalog Name");
+    assert.equal(discovery.results[0]?.evidence.title, "Different Search Title");
+    assert.equal(discovery.results[0]?.sourcedAt, sourcedAt);
+    assert.equal(
+      db.rows("athena_public_communities")[0]?.display_name,
+      "Catalog Name",
+    );
+    assert.equal(db.upserts.length, 0);
+    assert.equal(db.updates.length, 0);
+  });
+
+  it("keeps a suppressed row suppressed while repairing only its invalid name", async () => {
+    const suppressedAt = "2020-02-01T00:00:00.000Z";
+    const sourcedAt = "2020-01-01T00:00:00.000Z";
+    const { db, discovery, qualifyCalls } = await discover({
+      seed: {
+        id: "22222222-2222-4222-8222-222222222222",
+        platform: "facebook_groups",
+        canonical_identity: GROUP_ID,
+        canonical_url: GROUP_URL,
+        display_name: "Has anyone found a supplier?",
+        source: "public_url",
+        sourced_at: sourcedAt,
+        suppression_state: "suppressed",
+        suppressed_at: suppressedAt,
+      },
+      hits: [hit(GROUP_URL, "Independent Retailers")],
+    });
+
+    assert.equal(qualifyCalls, 0);
+    assert.deepEqual(discovery.results, []);
+    const row = db.rows("athena_public_communities")[0];
+    assert.equal(row?.display_name, "Independent Retailers");
+    assert.equal(row?.suppression_state, "suppressed");
+    assert.equal(row?.suppressed_at, suppressedAt);
+    assert.equal(row?.source, "public_url");
+    assert.equal(row?.sourced_at, sourcedAt);
+    assert.equal(row?.canonical_identity, GROUP_ID);
+    assert.equal(row?.canonical_url, GROUP_URL);
+    assert.equal(db.rows("athena_organization_communities").length, 0);
+    assert.equal(db.upserts.length, 0);
+    assert.deepEqual(db.updates[0]?.values, {
+      display_name: "Independent Retailers",
+    });
+  });
+
+  it("does not let a stale repair replace a valid catalog name", async () => {
+    const db = createCommunityDiscoveryDbFake();
+    db.seed("athena_public_communities", {
+      id: "11111111-1111-4111-8111-111111111111",
+      platform: "facebook_groups",
+      canonical_identity: GROUP_ID,
+      canonical_url: GROUP_URL,
+      display_name: "Catalog Name",
+      source: "public_url",
+      sourced_at: "2020-01-01T00:00:00.000Z",
+      suppression_state: "active",
+      suppressed_at: null,
+    });
+    const catalog = createSupabasePublicCommunityCatalog(db);
+    const stale = await catalog.repairInvalidDisplayNames([
+      {
+        platform: "facebook_groups",
+        canonicalIdentity: GROUP_ID,
+        canonicalUrl: GROUP_URL,
+        currentDisplayName: "Has anyone found a supplier?",
+        displayName: "Independent Retailers",
+      },
+    ]);
+    const reliable = await catalog.repairInvalidDisplayNames([
+      {
+        platform: "facebook_groups",
+        canonicalIdentity: GROUP_ID,
+        canonicalUrl: GROUP_URL,
+        currentDisplayName: "Catalog Name",
+        displayName: "Different Search Title",
+      },
+    ]);
+
+    assert.deepEqual(stale, []);
+    assert.deepEqual(reliable, []);
+    assert.equal(db.rows("athena_public_communities")[0]?.display_name, "Catalog Name");
+    assert.equal(db.updates.length, 1);
+    assert.equal(db.upserts.length, 0);
   });
 
   it("reuses an existing catalog identity and skips a suppressed one", async () => {
@@ -570,6 +968,93 @@ describe("Facebook Group discovery", () => {
     assert.equal(discovery.results[0]?.evidence.snippet, "Shop owners compare notes");
   });
 
+  it("excludes a post body from the public listing and qualification", async () => {
+    const postBody = "Has anyone found a winter supplier for the shop?";
+    let qualifiedSnippet = "unset";
+    const { discovery } = await discover({
+      hits: [
+        hit(
+          `https://www.facebook.com/groups/${GROUP_ID}/posts/42`,
+          "Winter Buying Tips",
+          postBody,
+        ),
+        hit(
+          GROUP_URL,
+          "Independent Retailers",
+          `${postBody} Independent retailers compare shop ideas. Log in to Facebook to start sharing and connecting with your friends, family and people you know.`,
+        ),
+      ],
+      qualify: async (request) => {
+        qualifiedSnippet = request.candidates[0]?.snippet ?? "";
+        assert.equal(request.candidates.length, 1);
+        return {
+          status: "available",
+          explanations: new Map([
+            [
+              GROUP_ID,
+              "The title and snippet mention independent retailers, which matches the objective.",
+            ],
+          ]),
+        };
+      },
+    });
+
+    assert.equal(qualifiedSnippet, "Independent retailers compare shop ideas");
+    assert.equal(
+      discovery.results[0]?.evidence.snippet,
+      "Independent retailers compare shop ideas",
+    );
+    assert.equal(JSON.stringify(discovery.results).includes(postBody), false);
+    assert.equal(JSON.stringify(discovery.results).includes("winter supplier"), false);
+    assert.equal(discovery.results[0]?.displayName, "Independent Retailers");
+  });
+
+  it("preserves a genuine group-root description after Facebook chrome filtering", async () => {
+    const description = "Shop owners compare notes on winter buying";
+    assert.equal(
+      facebookGroupRootEvidenceSnippet(
+        `${description}. Public group · 12,345 members. See posts, photos and more on Facebook.`,
+        "Independent Retailers",
+      ),
+      description,
+    );
+    assert.equal(
+      facebookGroupRootEvidenceSnippet(
+        "Has anyone found a winter supplier for the shop?",
+        "Independent Retailers",
+      ),
+      "",
+    );
+
+    let qualifiedSnippet = "unset";
+    const { discovery } = await discover({
+      hits: [
+        hit(
+          GROUP_URL,
+          "Independent Retailers | Facebook",
+          `${description}. Public group · 12,345 members. See posts, photos and more on Facebook.`,
+        ),
+      ],
+      qualify: async (request) => {
+        qualifiedSnippet = request.candidates[0]?.snippet ?? "";
+        return {
+          status: "available",
+          explanations: new Map([
+            [
+              GROUP_ID,
+              "The title and snippet mention independent retailers, which matches the objective.",
+            ],
+          ]),
+        };
+      },
+    });
+
+    assert.equal(qualifiedSnippet, description);
+    assert.equal(discovery.results[0]?.evidence.snippet, description);
+    assert.equal(discovery.results[0]?.displayName, "Independent Retailers");
+    assert.equal(JSON.stringify(discovery.results).includes("12,345"), false);
+  });
+
   it("rejects an invalid objective or a failed provider before writing the catalog", async () => {
     const queries: CommunitySearchQuery[] = [];
     const db = createCommunityDiscoveryDbFake();
@@ -744,6 +1229,9 @@ describe("Facebook Group discovery", () => {
       async insertMissing(rows) {
         inserts += 1;
         assert.equal(rows.length, 10);
+        return [];
+      },
+      async repairInvalidDisplayNames() {
         return [];
       },
     };

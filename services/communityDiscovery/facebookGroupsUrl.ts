@@ -71,6 +71,38 @@ function decodePathSegment(segment: string): string | null {
   }
 }
 
+export type FacebookGroupsListingKind = "group_root" | "post" | "subpage";
+
+/**
+ * Classify a raw Facebook Groups URL before canonical normalization.
+ * Group-root is only /groups/{identity}. Individual posts use /posts/ or /permalink/.
+ * Other subpages, such as /about, stay on the same group but are not the group root.
+ */
+export function facebookGroupsListingKind(
+  input: string,
+): FacebookGroupsListingKind | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const url = parseSocialCommunityHttpUrl(trimmed);
+  if (!url) return null;
+  if (!HOSTS.has(url.hostname.toLowerCase())) return null;
+
+  const segments: string[] = [];
+  for (const segment of url.pathname.split("/")) {
+    if (!segment) continue;
+    const decoded = decodePathSegment(segment);
+    if (decoded === null) return null;
+    segments.push(decoded);
+  }
+
+  if (segments.length < 2 || segments[0].toLowerCase() !== "groups") return null;
+  if (segments.length === 2) return "group_root";
+  const section = segments[2].toLowerCase();
+  if (section === "posts" || section === "permalink") return "post";
+  return "subpage";
+}
+
 /**
  * Collapse a Facebook Groups URL to its public group key.
  * Equivalent hosts, schemes, queries, fragments, and subpages share one key.

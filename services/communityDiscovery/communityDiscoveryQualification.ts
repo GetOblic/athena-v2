@@ -45,6 +45,7 @@ export const COMMUNITY_QUALIFICATION_DIAGNOSTIC_CODES = [
   "duplicate_identity",
   "explanation_rejected",
   "contribution_rejected",
+  "speaker_role_rejected",
 ] as const;
 
 export type CommunityQualificationDiagnosticCode =
@@ -199,6 +200,33 @@ const POSTER_ROLE_PATTERNS = [
   String.raw`\bas an?\s+(homeowner|home owner|customer|client|buyer|member|resident|business owner)\b`,
 ];
 
+const BUYER_POSTER_ROLES = [
+  "homeowner",
+  "home owner",
+  "customer",
+  "client",
+  "buyer",
+  "resident",
+] as const;
+
+/**
+ * Requests for a service, agency, or provider. Group discovery ("looking for
+ * groups") is not a request to hire. The noun must end the word, so
+ * "company-wide" is not "company".
+ */
+const SEEKER_SERVICE_OBJECT =
+  String.raw`(?:services?|agency|agencies|provider|providers|contractor|contractors|company|companies)(?=$|[^\w-])`;
+
+const SEEKER_STYLE_PATTERNS = [
+  String.raw`\b(?:i am|i'm|we are|we're)\s+looking\s+for\s+(?:a|an|some|any)?\s*(?:[a-z0-9-]+\s+){0,4}${SEEKER_SERVICE_OBJECT}`,
+  String.raw`\b(?:can|could|would)\s+(?:anyone|somebody|someone)\s+recommend\s+(?:me\s+)?(?:a|an)\s+(?:good\s+|reliable\s+)?(?:[a-z0-9-]+\s+){0,3}${SEEKER_SERVICE_OBJECT}`,
+  String.raw`\b(?:i|we)\s+need\s+help\s+finding\s+(?:a|an|some|any)?\s*(?:good\s+|reliable\s+)?(?:[a-z0-9-]+\s+){0,3}${SEEKER_SERVICE_OBJECT}`,
+  String.raw`\b(?:does|do)\s+anyone\s+know\s+(?:of\s+)?(?:a|an)\s+(?:good\s+|reliable\s+)?(?:[a-z0-9-]+\s+){0,3}${SEEKER_SERVICE_OBJECT}`,
+];
+
+const ORGANIZATION_ROLE_EXCLUDED_LABELS =
+  /^(?:primary audience|communication style|geographic reach):/i;
+
 const IMPERATIVE_GUIDANCE_PATTERNS = [
   String.raw`^(?:please\s+)?(?:post|publish|paste|draft)\b`,
   String.raw`\b(?:post|publish|paste|draft|write)\s+(?:a|an|the|your)\s+(?:request|question|message|comment|post|note|update)\b`,
@@ -226,7 +254,11 @@ export const COMMUNITY_QUALIFICATION_SYSTEM_PROMPT = [
   "Do not invent group activity, member counts, rules, descriptions, discussions, membership, or access.",
   "Do not claim the community was opened, joined, or verified.",
   "Do not invent credentials, quality claims, guarantees, or business attributes absent from the objective and business context.",
-  "Do not imply the user is a homeowner, customer, member, or business owner unless the objective says so.",
+  "The author of readyToPasteMessage is the organization represented by Athena Brain, contributing to the discovered community.",
+  "When business context contains a usable fact, write from that organization's verified services, expertise, or positioning.",
+  "Do not write or imply that the author is a buyer, homeowner, customer, member, or business owner unless the objective explicitly establishes that role and it is compatible with the business context.",
+  "When the organization provides a service, do not request that service or ask anyone to recommend an agency or provider.",
+  "A question may invite discussion or share expertise without presenting the organization as a customer.",
   "Primary audience is who the business serves, not the poster's role.",
   "If the title and snippet do not establish relevance, say that they do not show a clear connection to the objective.",
   "When audienceEvidence is present, it comes only from that result's title and snippet.",
@@ -676,16 +708,85 @@ function objectiveStatesPosterRole(objective: string, role: string): boolean {
   );
 }
 
-function posterRoleClaimsAreGrounded(text: string, objective: string): boolean {
+function organizationIdentityText(businessContext: string): string {
+  return businessContext
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !ORGANIZATION_ROLE_EXCLUDED_LABELS.test(line))
+    .join("\n");
+}
+
+/**
+ * Audience, style, and geography do not make the organization that role.
+ * Missing Brain context does not contradict a role the objective states.
+ */
+function posterRoleCompatibleWithOrganization(
+  role: string,
+  businessContext: string,
+): boolean {
+  if (!communityBusinessContextHasFacts(businessContext)) return true;
+  const identity = organizationIdentityText(businessContext);
+  if (!identity) return false;
+  return objectiveStatesPosterRole(identity, role);
+}
+
+function buyerRoleEstablishedAndCompatible(
+  objective: string,
+  businessContext: string,
+): boolean {
+  return BUYER_POSTER_ROLES.some(
+    (role) =>
+      objectiveStatesPosterRole(objective, role) &&
+      posterRoleCompatibleWithOrganization(role, businessContext),
+  );
+}
+
+function matchesSeekerStyle(text: string): boolean {
+  const normalized = normalizeForMatch(text);
+  return SEEKER_STYLE_PATTERNS.some((source) =>
+    new RegExp(source, "i").test(normalized),
+  );
+}
+
+/**
+ * Seeker wording asks the community for a service, agency, or provider.
+ * It remains valid only when the objective states a buyer role and the
+ * organization context agrees. Primary audience is not that agreement.
+ * Missing Brain context does not invent a contradicting organization.
+ */
+function seekerStyleDraftIsUnsupported(
+  text: string,
+  objective: string,
+  businessContext: string,
+): boolean {
+  if (!matchesSeekerStyle(text)) return false;
+  return !buyerRoleEstablishedAndCompatible(objective, businessContext);
+}
+
+function posterRoleClaimsAreGrounded(
+  text: string,
+  objective: string,
+  businessContext: string,
+): boolean {
   const normalized = normalizeForMatch(text);
   for (const source of POSTER_ROLE_PATTERNS) {
     const pattern = new RegExp(source, "gi");
     for (const match of normalized.matchAll(pattern)) {
       const role = match[1];
       if (!role || !objectiveStatesPosterRole(objective, role)) return false;
+      if (!posterRoleCompatibleWithOrganization(role, businessContext)) return false;
     }
   }
   return true;
+}
+
+function speakerRoleIsUnsupported(
+  text: string,
+  objective: string,
+  businessContext: string,
+): boolean {
+  if (!posterRoleClaimsAreGrounded(text, objective, businessContext)) return true;
+  return seekerStyleDraftIsUnsupported(text, objective, businessContext);
 }
 
 function contributionClaimsAreGrounded(
@@ -709,7 +810,7 @@ function contributionClaimsAreGrounded(
   if (!textStaysWithinEvidence(text, objective, POSTER_POSSESSION_PATTERNS)) {
     return false;
   }
-  return posterRoleClaimsAreGrounded(text, objective);
+  return !speakerRoleIsUnsupported(text, objective, businessContext);
 }
 
 export function isImperativeEngagementGuidance(text: string): boolean {
@@ -870,7 +971,19 @@ export function parseCommunityQualification(
     );
     const messageWasProvided = textWasProvided(messageInput);
     const guidanceWasProvided = textWasProvided(guidanceInput);
-    if (messageWasProvided && !message) diagnostics.push("contribution_rejected");
+    if (messageWasProvided && !message) {
+      diagnostics.push("contribution_rejected");
+      if (
+        typeof messageInput === "string" &&
+        speakerRoleIsUnsupported(
+          collapseQualificationText(messageInput),
+          objective,
+          groundedBusinessContext,
+        )
+      ) {
+        diagnostics.push("speaker_role_rejected");
+      }
+    }
     if (guidanceWasProvided && !guidance) diagnostics.push("contribution_rejected");
     if (!message && messageWasProvided && !guidance) {
       const relocated = engagementGuidanceFromQualification(

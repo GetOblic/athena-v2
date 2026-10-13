@@ -663,6 +663,227 @@ describe("community discovery qualification", () => {
     );
   });
 
+  it("speaks as the organization and rejects a buyer request for services", async () => {
+    const objective = "find local SEO groups";
+    const providerContext = [
+      "Business Overview: search studio for professional practices",
+      "Products and Services: local SEO and GEO",
+      "Positioning: practical search guidance for clinics",
+      "Primary Audience: dental practices",
+      "Value Proposition: clear reporting for owners",
+      "Communication Style: plain and specific",
+      "Geographic Reach: Austin, Texas",
+    ].join("\n");
+    const evidence = `${objective}\n${CANDIDATE.title}\n${CANDIDATE.snippet}\n${CANDIDATE.canonicalUrl}`;
+    const buyerRequest =
+      "We provide local SEO and GEO for clinics. I'm looking for SEO services. Can anyone recommend an agency?";
+    const providerHelp =
+      "We provide local SEO and GEO for clinics. I need help finding a provider.";
+    const expertise =
+      "We provide local SEO and GEO for clinics. Which questions should clinics discuss before a visibility review?";
+    const discussion =
+      "Our search studio gives clinics practical search guidance. What is worth clarifying before a local SEO discussion?";
+    const unsupportedGuarantee =
+      "We guarantee first-page rankings and we are award-winning for clinics.";
+    const unsupportedService =
+      "We offer solar installation for clinics in Austin.";
+    const groupDraft =
+      "Hello, I am looking for independent retailer groups where shop owners compare notes. What has helped you find useful ones?";
+    const homeownerObjective = "I am a homeowner looking for kitchen remodel groups";
+    const homeownerDraft =
+      "I'm a homeowner looking for design-build kitchen remodeling ideas. What should I ask before hiring someone?";
+    const providerAudience = [
+      "Products and Services: kitchen remodeling",
+      "Positioning: design-build remodeling",
+      "Primary Audience: homeowners",
+    ].join("\n");
+    let calls = 0;
+    const lines: string[] = [];
+    const previousInfo = console.info;
+    console.info = (...args: unknown[]) => {
+      lines.push(args.map((part) => String(part)).join(" "));
+    };
+    try {
+      const outcome = await qualifyDiscoveredCommunities({
+        objective,
+        businessContext: providerContext,
+        candidates: [CANDIDATE],
+        signal: SIGNAL,
+        complete: async (request) => {
+          calls += 1;
+          assert.equal(request.maxTokens, 1600);
+          assert.equal(request.messages.length, 2);
+          assert.match(
+            request.messages[0].content,
+            /organization represented by Athena Brain/,
+          );
+          assert.match(
+            request.messages[0].content,
+            /verified services, expertise, or positioning/,
+          );
+          assert.match(
+            request.messages[0].content,
+            /compatible with the business context/,
+          );
+          assert.match(request.messages[0].content, /concrete fact or positioning detail/);
+          return JSON.stringify({
+            results: [
+              {
+                canonicalIdentity: CANDIDATE.canonicalIdentity,
+                relevanceExplanation:
+                  "The title and snippet mention independent retailers, which matches the objective.",
+                readyToPasteMessage: buyerRequest,
+              },
+            ],
+          });
+        },
+      });
+
+      assert.equal(calls, 1);
+      assert.equal(outcome.status, "available");
+      if (outcome.status !== "available") return;
+      assert.match(
+        outcome.explanations.get(CANDIDATE.canonicalIdentity) ?? "",
+        /independent retailers/,
+      );
+      assert.equal(outcome.suggestions.has(CANDIDATE.canonicalIdentity), false);
+      assert.equal(
+        outcome.readyToPasteUnavailable?.has(CANDIDATE.canonicalIdentity),
+        true,
+      );
+      const line = lines.find((entry) =>
+        entry.startsWith("[ATHENA_COMMUNITY_QUALIFICATION]"),
+      );
+      assert.ok(line);
+      assert.match(line, /contribution_rejected=1/);
+      assert.match(line, /speaker_role_rejected=1/);
+      assert.doesNotMatch(line, /agency|clinics|Austin|facebook|SECRET|prompt/i);
+    } finally {
+      console.info = previousInfo;
+    }
+
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        buyerRequest,
+        evidence,
+        objective,
+        providerContext,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "I'm looking for SEO services.",
+        evidence,
+        objective,
+        providerContext,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "Can anyone recommend an agency?",
+        evidence,
+        objective,
+        providerContext,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        providerHelp,
+        evidence,
+        objective,
+        providerContext,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        expertise,
+        evidence,
+        objective,
+        providerContext,
+      ),
+      expertise,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        discussion,
+        evidence,
+        objective,
+        providerContext,
+      ),
+      discussion,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        unsupportedGuarantee,
+        evidence,
+        objective,
+        providerContext,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        unsupportedService,
+        evidence,
+        objective,
+        providerContext,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        homeownerDraft,
+        `${homeownerObjective}\nKitchen remodelers\nHomeowners compare kitchen notes`,
+        homeownerObjective,
+        providerAudience,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        groupDraft,
+        `${"find independent retailer groups"}\n${CANDIDATE.title}\n${CANDIDATE.snippet}`,
+        "find independent retailer groups",
+        COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK,
+      ),
+      groupDraft,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "I'm looking for SEO services. Can anyone recommend an agency?",
+        evidence,
+        objective,
+        COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK,
+      ),
+      null,
+    );
+    const customerObjective = "I am a customer looking for an SEO agency";
+    const customerDraft =
+      "I'm a customer looking for SEO services. Can anyone recommend an agency?";
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        customerDraft,
+        `${customerObjective}\n${CANDIDATE.title}\n${CANDIDATE.snippet}`,
+        customerObjective,
+        COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK,
+      ),
+      customerDraft,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        customerDraft,
+        `${customerObjective}\n${CANDIDATE.title}\n${CANDIDATE.snippet}`,
+        customerObjective,
+        providerContext,
+      ),
+      null,
+    );
+  });
+
   it("requires an affiliate SEO explanation to name the difference and still accepts a faithful one", () => {
     const objective = "Find local SEO and GEO groups";
     const title = "Affiliate SEO Strategies";
