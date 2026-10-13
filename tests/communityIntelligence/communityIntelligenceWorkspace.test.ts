@@ -770,6 +770,14 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.ok(canonical.includes("notesSaved"));
     assert.ok(canonical.includes("notesCleared"));
     assert.ok(canonical.includes("errors.invalidNotes"));
+    assert.ok(canonical.includes("savedSearchLabel"));
+    assert.ok(canonical.includes("savedSearchHelp"));
+    assert.ok(canonical.includes("savedSearchEmptyTitle"));
+    assert.ok(canonical.includes("savedSearchEmptyBody"));
+    assert.ok(canonical.includes("removeFromSaved"));
+    assert.ok(canonical.includes("removing"));
+    assert.ok(canonical.includes("removeHelp"));
+    assert.ok(canonical.includes("errors.removeFailed"));
     for (const [language, dictionary] of Object.entries(dictionaries)) {
       assert.deepEqual(
         collectKeyPaths(dictionary.communityIntelligence),
@@ -789,6 +797,21 @@ describe("Gate 3D community intelligence workspace", () => {
         assert.notEqual(
           copy.errors.invalidNotes,
           en.communityIntelligence.errors.invalidNotes,
+          language,
+        );
+        assert.notEqual(
+          copy.removeFromSaved,
+          en.communityIntelligence.removeFromSaved,
+          language,
+        );
+        assert.notEqual(
+          copy.savedSearchHelp,
+          en.communityIntelligence.savedSearchHelp,
+          language,
+        );
+        assert.notEqual(
+          copy.errors.removeFailed,
+          en.communityIntelligence.errors.removeFailed,
           language,
         );
       }

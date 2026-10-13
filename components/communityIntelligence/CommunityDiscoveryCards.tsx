@@ -11,6 +11,7 @@ import {
   COMMUNITY_SUGGESTION_CLASS,
 } from "@/lib/communityIntelligence/communityIntelligencePresentation";
 import {
+  savedCommunityMatchesSearch,
   savedCommunityNotesClientError,
   savedCommunityNotesRequestText,
   type CommunityDiscoveryCard,
@@ -208,6 +209,10 @@ export type SaveCommunityNotes = (input: {
   | { ok: false; error: CommunityDiscoveryUiError }
 >;
 
+export type RemoveSavedCommunity = (
+  saveId: string,
+) => Promise<{ ok: true } | { ok: false; error: CommunityDiscoveryUiError }>;
+
 type SavedNotesNotice =
   | { tone: "saving" | "saved" | "cleared" }
   | { tone: "error"; error: CommunityDiscoveryUiError };
@@ -384,15 +389,26 @@ export function SavedCommunityCards({
   saves,
   copy,
   onSaveNotes,
+  onRemove = async () => ({ ok: false, error: "removeFailed" }),
+  searchQuery = "",
 }: {
   saves: SavedCommunityCard[];
   copy: CommunityCopy;
   onSaveNotes: SaveCommunityNotes;
+  onRemove?: RemoveSavedCommunity;
+  searchQuery?: string;
 }) {
   return (
     <div className="space-y-4">
-      {saves.map((save) => (
-        <article key={save.id} className={COMMUNITY_CARD_CLASS} data-saved-community={save.id}>
+      {saves.map((save) => {
+        const matches = savedCommunityMatchesSearch(save, searchQuery);
+        return (
+        <article
+          key={save.id}
+          hidden={!matches}
+          className={COMMUNITY_CARD_CLASS}
+          data-saved-community={save.id}
+        >
           <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200/80">
             {copy.platformFacebook}
           </div>
@@ -411,11 +427,63 @@ export function SavedCommunityCards({
             })}
           </p>
           <SavedCommunityNotesEditor save={save} copy={copy} onSaveNotes={onSaveNotes} />
-          <div className="mt-5">
-            <FacebookGroupLink href={save.canonicalUrl} label={copy.openGroup} />
-          </div>
+          <SavedCommunityActions save={save} copy={copy} onRemove={onRemove} />
         </article>
-      ))}
+        );
+      })}
+    </div>
+  );
+}
+
+function SavedCommunityActions({
+  save,
+  copy,
+  onRemove,
+}: {
+  save: SavedCommunityCard;
+  copy: CommunityCopy;
+  onRemove: RemoveSavedCommunity;
+}) {
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<CommunityDiscoveryUiError | null>(null);
+
+  async function onRemoveClick() {
+    if (removing) return;
+    setRemoving(true);
+    setRemoveError(null);
+    try {
+      const result = await onRemove(save.id);
+      if (!result.ok) setRemoveError(result.error);
+    } catch {
+      setRemoveError("removeFailed");
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  return (
+    <div className="mt-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <FacebookGroupLink href={save.canonicalUrl} label={copy.openGroup} />
+        <button
+          type="button"
+          data-saved-remove={save.id}
+          className={COMMUNITY_SECONDARY_CLASS}
+          disabled={removing}
+          onClick={() => void onRemoveClick()}
+        >
+          {removing ? copy.removing : copy.removeFromSaved}
+        </button>
+      </div>
+      {removeError ? (
+        <p
+          data-saved-remove-status={save.id}
+          className="mt-3 text-sm leading-6 text-rose-100"
+          role="alert"
+        >
+          {copy.errors[removeError]}
+        </p>
+      ) : null}
     </div>
   );
 }

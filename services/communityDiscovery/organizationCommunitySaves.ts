@@ -118,6 +118,89 @@ function displayNameFromIdentity(canonicalIdentity: string): string {
   return displayName;
 }
 
+const SAVE_NOT_AVAILABLE = "Saved community is not available.";
+
+const ORGANIZATION_SAVE_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function saveNotFound(): never {
+  throw new CommunityDiscoveryRequestError(
+    "SAVE_NOT_FOUND",
+    SAVE_NOT_AVAILABLE,
+    404,
+  );
+}
+
+async function restoreRemovedSave(input: {
+  organizationId: string;
+  communityId: string;
+  repository: OrganizationCommunitySaveRepository;
+  now: string;
+}): Promise<SavedOrganizationCommunity> {
+  const restored = await input.repository.restoreSave({
+    organizationId: input.organizationId,
+    communityId: input.communityId,
+    now: input.now,
+  });
+  if (restored) {
+    if (restored.removedAt) communityDiscoveryPersistenceFailure();
+    return restored;
+  }
+  const fresh = await input.repository.findSave(
+    input.organizationId,
+    input.communityId,
+  );
+  if (fresh && !fresh.removedAt) return fresh;
+  if (fresh?.removedAt) {
+    const retried = await input.repository.restoreSave({
+      organizationId: input.organizationId,
+      communityId: input.communityId,
+      now: input.now,
+    });
+    if (retried && !retried.removedAt) return retried;
+  }
+  communityDiscoveryPersistenceFailure();
+}
+
+async function updateActiveSaveOrReject(input: {
+  organizationId: string;
+  communityId: string;
+  qualification: OrganizationCommunityQualification;
+  notes: string | null;
+  repository: OrganizationCommunitySaveRepository;
+  now: string;
+}): Promise<SavedOrganizationCommunity> {
+  const write = () =>
+    input.repository.updateActiveSave({
+      organizationId: input.organizationId,
+      communityId: input.communityId,
+      qualification: input.qualification,
+      notes: input.notes,
+      now: input.now,
+    });
+  const updated = await write();
+  if (updated) {
+    if (updated.removedAt) communityDiscoveryPersistenceFailure();
+    return updated;
+  }
+  const fresh = await input.repository.findSave(
+    input.organizationId,
+    input.communityId,
+  );
+  if (!fresh || fresh.removedAt) saveNotFound();
+  const retried = await write();
+  if (retried) {
+    if (retried.removedAt) communityDiscoveryPersistenceFailure();
+    return retried;
+  }
+  const again = await input.repository.findSave(
+    input.organizationId,
+    input.communityId,
+  );
+  if (!again || again.removedAt) saveNotFound();
+  communityDiscoveryPersistenceFailure();
+}
+
 async function publicCommunityForSave(input: {
   request: ReturnType<typeof parseOrganizationCommunitySave>;
   repository: OrganizationCommunitySaveRepository;
@@ -177,22 +260,76 @@ export async function saveOrganizationCommunity(input: {
   }
 
   const existing = await input.repository.findSave(organizationId, community.id);
+  // Restore a masked save before the unchanged-row return. A notes body must not clear it.
+  if (existing?.removedAt) {
+    if (request.notesProvided) saveNotFound();
+    return restoreRemovedSave({
+      organizationId,
+      communityId: community.id,
+      repository: input.repository,
+      now,
+    });
+  }
+
   const notes = request.notesProvided ? request.notes : (existing?.notes ?? null);
   if (
     existing &&
     existing.qualification === request.qualification &&
     existing.notes === notes
   ) {
-    return existing;
+    if (!request.notesProvided) return existing;
+    const fresh = await input.repository.findSave(organizationId, community.id);
+    if (!fresh || fresh.removedAt) saveNotFound();
+    if (
+      fresh.qualification === request.qualification &&
+      fresh.notes === notes
+    ) {
+      return fresh;
+    }
   }
 
-  return input.repository.writeSave({
+  if (!existing) {
+    const created = await input.repository.writeSave({
+      organizationId,
+      communityId: community.id,
+      qualification: request.qualification,
+      notes,
+      now,
+    });
+    if (created.removedAt) saveNotFound();
+    return created;
+  }
+
+  return updateActiveSaveOrReject({
     organizationId,
     communityId: community.id,
     qualification: request.qualification,
     notes,
+    repository: input.repository,
     now,
   });
+}
+
+export async function removeOrganizationCommunitySave(input: {
+  organizationId: string;
+  saveId: string;
+  repository: OrganizationCommunitySaveRepository;
+  now?: Date;
+}): Promise<void> {
+  const organizationId = assertOrganizationId(input.organizationId);
+  const saveId = typeof input.saveId === "string" ? input.saveId.trim() : "";
+  if (!ORGANIZATION_SAVE_ID.test(saveId)) saveNotFound();
+  const now = (input.now ?? new Date()).toISOString();
+
+  if (await input.repository.maskSave({ organizationId, saveId, now })) return;
+  const state = await input.repository.saveMaskState(organizationId, saveId);
+  if (state === "masked") return;
+  if (state === "missing") saveNotFound();
+  if (await input.repository.maskSave({ organizationId, saveId, now })) return;
+  const again = await input.repository.saveMaskState(organizationId, saveId);
+  if (again === "masked") return;
+  if (again === "missing") saveNotFound();
+  communityDiscoveryPersistenceFailure();
 }
 
 export async function listSavedOrganizationCommunities(input: {

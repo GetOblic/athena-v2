@@ -56,6 +56,7 @@ export const COMMUNITY_DISCOVERY_UI_ERRORS = [
   "saveFailed",
   "invalidNotes",
   "savesFailed",
+  "removeFailed",
   "continuationBusy",
   "continuationRejected",
 ] as const;
@@ -129,9 +130,22 @@ const SAVE_ERROR_CODES: Record<string, CommunityDiscoveryUiError> = {
   INVALID_QUALIFICATION: "saveFailed",
   INVALID_NOTES: "invalidNotes",
   INVALID_SAVE: "saveFailed",
+  SAVE_NOT_FOUND: "saveFailed",
   UNAUTHORIZED: "unauthorized",
   FORBIDDEN: "forbidden",
 };
+
+export function savedCommunityMatchesSearch(
+  save: Pick<SavedCommunityCard, "displayName" | "canonicalUrl">,
+  query: string,
+): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  return (
+    save.displayName.toLowerCase().includes(normalized) ||
+    save.canonicalUrl.toLowerCase().includes(normalized)
+  );
+}
 
 function boundedPlainText(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
@@ -580,4 +594,40 @@ export async function requestUpdateSavedCommunityNotes(
     },
     signal,
   );
+}
+
+export async function requestRemoveSavedCommunity(
+  saveId: string,
+  signal?: AbortSignal,
+): Promise<{ ok: true } | { ok: false; error: CommunityDiscoveryUiError }> {
+  try {
+    const response = await fetch(
+      `/api/community-discovery/saves/${encodeURIComponent(saveId)}`,
+      {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal,
+      },
+    );
+    const payload = await readJson(response);
+    if (
+      payload &&
+      typeof payload === "object" &&
+      !Array.isArray(payload) &&
+      (payload as { ok?: unknown }).ok === true
+    ) {
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      error: errorCode(payload, {
+        ...SAVE_ERROR_CODES,
+        SAVE_NOT_FOUND: "removeFailed",
+        REMOVE_FAILED: "removeFailed",
+      }),
+    };
+  } catch {
+    return { ok: false, error: "removeFailed" };
+  }
 }

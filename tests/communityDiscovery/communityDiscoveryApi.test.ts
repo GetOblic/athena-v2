@@ -94,6 +94,23 @@ describe("community discovery API contract", () => {
     assert.equal(ORGANIZATION_COMMUNITY_NOTES_MAX_LENGTH, 2000);
   });
 
+  it("authenticates removal with the session organization and does not delete rows", () => {
+    const route = read("app/api/community-discovery/saves/[id]/route.ts");
+    const saves = read("services/communityDiscovery/organizationCommunitySaves.ts");
+    const persistence = read(
+      "services/communityDiscovery/communityDiscoveryPersistence.ts",
+    );
+    assert.match(route, /export async function DELETE/);
+    assert.match(route, /requireCurrentOrganizationContext/);
+    assert.match(route, /removeOrganizationCommunitySave/);
+    assert.match(route, /organizationId/);
+    assert.match(route, /Cache-Control": "no-store"/);
+    assert.doesNotMatch(route, /request\.json|body\.organizationId|record\.organizationId/);
+    assert.doesNotMatch(`${route}\n${saves}\n${persistence}`, /\.delete\(/);
+    assert.match(persistence, /removed_at/);
+    assert.doesNotMatch(persistence, /from\("athena_public_communities"\)[\s\S]{0,200}removed_at/);
+  });
+
   it("adds a bounded OpenRouter call without the generation retry loop", () => {
     const generation = openRouter.slice(
       0,

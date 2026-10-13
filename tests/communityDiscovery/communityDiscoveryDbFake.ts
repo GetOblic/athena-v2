@@ -11,7 +11,25 @@ type Row = Record<string, unknown>;
 
 type Filter =
   | { type: "eq"; column: string; value: string }
-  | { type: "in"; column: string; values: readonly string[] };
+  | { type: "in"; column: string; values: readonly string[] }
+  | { type: "is"; column: string; value: null }
+  | { type: "not"; column: string; operator: "is"; value: null };
+
+function cloneFilter(filter: Filter): Filter {
+  if (filter.type === "in") {
+    return { type: "in", column: filter.column, values: [...filter.values] };
+  }
+  return { ...filter };
+}
+
+function matchesFilter(row: Row, filter: Filter): boolean {
+  if (filter.type === "eq") return row[filter.column] === filter.value;
+  if (filter.type === "in") {
+    return filter.values.includes(String(row[filter.column]));
+  }
+  const absent = row[filter.column] == null;
+  return filter.type === "is" ? absent : !absent;
+}
 
 export type CommunityDiscoveryDbFake = CommunityDiscoveryDb & {
   rows(table: string): Row[];
@@ -121,10 +139,7 @@ export function createCommunityDiscoveryDbFake(): CommunityDiscoveryDbFake {
   } satisfies CommunityDiscoveryDbFake;
 
   function rowMatches(row: Row, filters: readonly Filter[]): boolean {
-    return filters.every((filter) => {
-      if (filter.type === "eq") return row[filter.column] === filter.value;
-      return filter.values.includes(String(row[filter.column]));
-    });
+    return filters.every((filter) => matchesFilter(row, filter));
   }
 
   function createUpdate(table: string, values: Row): CommunityDiscoveryUpdate {
@@ -138,12 +153,23 @@ export function createCommunityDiscoveryDbFake(): CommunityDiscoveryDbFake {
         filters.push({ type: "in", column, values: valuesIn });
         return update;
       },
+      is(column, value) {
+        filters.push({ type: "is", column, value });
+        return update;
+      },
+      not(column, operator, value) {
+        filters.push({ type: "not", column, operator, value });
+        return update;
+      },
       select() {
         const query: CommunityDiscoveryQuery = {
           eq() {
             return query;
           },
           in() {
+            return query;
+          },
+          is() {
             return query;
           },
           order() {
@@ -178,11 +204,7 @@ export function createCommunityDiscoveryDbFake(): CommunityDiscoveryDbFake {
     fake.updates.push({
       table,
       values: { ...values },
-      filters: filters.map((filter) =>
-        filter.type === "in"
-          ? { type: "in", column: filter.column, values: [...filter.values] }
-          : { ...filter },
-      ),
+      filters: filters.map(cloneFilter),
     });
     if (fake.failWrites) {
       return { data: null, error: { message: "write failed" } };
@@ -209,6 +231,10 @@ export function createCommunityDiscoveryDbFake(): CommunityDiscoveryDbFake {
       },
       in(column, values) {
         filters.push({ type: "in", column, values });
+        return query;
+      },
+      is(column, value) {
+        filters.push({ type: "is", column, value });
         return query;
       },
       order(column, options) {
@@ -241,10 +267,7 @@ export function createCommunityDiscoveryDbFake(): CommunityDiscoveryDbFake {
     let matched = (tables.get(table) ?? []).map((row) => ({ ...row }));
     if (!fake.ignoreFilters) {
       for (const filter of filters) {
-        matched = matched.filter((row) => {
-          if (filter.type === "eq") return row[filter.column] === filter.value;
-          return filter.values.includes(String(row[filter.column]));
-        });
+        matched = matched.filter((row) => matchesFilter(row, filter));
       }
     }
     if (orderBy) {
@@ -281,6 +304,9 @@ export function createCommunityDiscoveryDbFake(): CommunityDiscoveryDbFake {
         return query;
       },
       in() {
+        return query;
+      },
+      is() {
         return query;
       },
       order() {

@@ -16,9 +16,11 @@ import {
   readCommunityDiscoverySessionToken,
   requestCommunityDiscovery,
   requestMoreCommunities,
+  requestRemoveSavedCommunity,
   requestSaveCommunity,
   requestSavedCommunities,
   requestUpdateSavedCommunityNotes,
+  savedCommunityMatchesSearch,
   restoreCommunityDiscovery,
   writeCommunityDiscoverySessionToken,
   type CommunityDiscoveryCard,
@@ -92,6 +94,7 @@ export function CommunityIntelligenceWorkspace({
   const [manualError, setManualError] = useState<CommunityDiscoveryUiError | null>(null);
   const [manualSaved, setManualSaved] = useState<SavedCommunityCard | null>(null);
   const [manualDuplicate, setManualDuplicate] = useState(false);
+  const [savedQuery, setSavedQuery] = useState("");
   const searchId = useRef(0);
   const findMoreLock = useRef(false);
 
@@ -347,13 +350,22 @@ export function CommunityIntelligenceWorkspace({
         const index = existing.findIndex(
           (item) => item.canonicalUrl === saved.save.canonicalUrl,
         );
-        if (index === -1) return mergeSaved(existing, saved.save);
+        // A notes response must not put a removed card back on the list.
+        if (index === -1) return existing;
         const next = existing.slice();
         next[index] = saved.save;
         return next;
       });
     }
     return saved;
+  }
+
+  async function onRemoveSaved(saveId: string) {
+    const result = await requestRemoveSavedCommunity(saveId);
+    if (result.ok) {
+      setSaves((existing) => existing.filter((item) => item.id !== saveId));
+    }
+    return result;
   }
 
   const objectiveCount = interpolateTenantMessage(copy.objectiveCount, {
@@ -580,6 +592,7 @@ export function CommunityIntelligenceWorkspace({
           <div>
             <h2 className="text-lg font-semibold text-white">{copy.savedTitle}</h2>
             <p className={`mt-2 ${COMMUNITY_FIELD_HELP_CLASS}`}>{copy.savedHelp}</p>
+            <p className={`mt-2 ${COMMUNITY_FIELD_HELP_CLASS}`}>{copy.removeHelp}</p>
           </div>
           {savesState === "loading" ? (
             <CommunityPanel className={COMMUNITY_STATUS_CLASS}>
@@ -609,7 +622,38 @@ export function CommunityIntelligenceWorkspace({
             </CommunityPanel>
           ) : null}
           {savesState === "ready" && saves.length > 0 ? (
-            <SavedCommunityCards saves={saves} copy={copy} onSaveNotes={onSaveNotes} />
+            <>
+              <div>
+                <label className={COMMUNITY_FIELD_LABEL_CLASS} htmlFor="saved-community-search">
+                  {copy.savedSearchLabel}
+                </label>
+                <input
+                  id="saved-community-search"
+                  type="search"
+                  value={savedQuery}
+                  placeholder={copy.savedSearchPlaceholder}
+                  autoComplete="off"
+                  className={`mt-2 ${COMMUNITY_INPUT_CLASS}`}
+                  aria-describedby="saved-community-search-help"
+                  onChange={(event) => setSavedQuery(event.target.value)}
+                />
+                <p id="saved-community-search-help" className={`mt-2 ${COMMUNITY_FIELD_HELP_CLASS}`}>
+                  {copy.savedSearchHelp}
+                </p>
+              </div>
+              {saves.every((save) => !savedCommunityMatchesSearch(save, savedQuery)) ? (
+                <CommunityPanel className={COMMUNITY_EMPTY_CLASS} title={copy.savedSearchEmptyTitle}>
+                  <p className="text-sm leading-6 text-white/55">{copy.savedSearchEmptyBody}</p>
+                </CommunityPanel>
+              ) : null}
+              <SavedCommunityCards
+                saves={saves}
+                copy={copy}
+                searchQuery={savedQuery}
+                onSaveNotes={onSaveNotes}
+                onRemove={onRemoveSaved}
+              />
+            </>
           ) : null}
         </section>
       )}

@@ -5535,6 +5535,17 @@ export const pt: TenantMessages = {
     savesLoading: "A carregar comunidades guardadas…",
     savedTitle: "Comunidades guardadas",
     savedHelp: "Estas gravações permanecem privadas desta organização.",
+    savedSearchLabel: "Pesquisar comunidades guardadas",
+    savedSearchPlaceholder: "Nome ou URL",
+    savedSearchHelp:
+      "Filtra esta lista por nome ou URL. Nada é enviado enquanto escreve.",
+    savedSearchEmptyTitle: "Nenhuma comunidade guardada corresponde.",
+    savedSearchEmptyBody:
+      "Tente outro nome ou URL. As comunidades que não correspondem permanecem nesta lista.",
+    removeFromSaved: "Remover das guardadas",
+    removing: "A remover…",
+    removeHelp:
+      "Oculta este grupo das Guardadas. Guardá-lo outra vez restaura as mesmas notas privadas.",
     savedEmptyTitle: "Ainda não há comunidades guardadas.",
     savedEmptyBody:
       "Guarde um grupo a partir da pesquisa ou cole o seu URL público. Só esta organização pode ver essas gravações.",
@@ -5582,6 +5593,7 @@ export const pt: TenantMessages = {
       invalidNotes:
         "As notas devem ser texto simples com no máximo 2000 caracteres, sem quebras de linha.",
       savesFailed: "Não foi possível carregar as comunidades guardadas.",
+      removeFailed: "Não foi possível remover esta comunidade das guardadas.",
       continuationBusy:
         "Já há uma pesquisa em curso para este objetivo. Espere que termine e tente novamente.",
       continuationRejected:

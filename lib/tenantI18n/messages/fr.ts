@@ -5501,6 +5501,17 @@ export const fr: TenantMessages = {
     savesLoading: "Chargement des communautés enregistrées…",
     savedTitle: "Communautés enregistrées",
     savedHelp: "Ces enregistrements restent privés pour cette organisation.",
+    savedSearchLabel: "Rechercher dans les communautés enregistrées",
+    savedSearchPlaceholder: "Nom ou URL",
+    savedSearchHelp:
+      "Filtre cette liste par nom ou URL. Rien n’est envoyé pendant la saisie.",
+    savedSearchEmptyTitle: "Aucune communauté enregistrée ne correspond.",
+    savedSearchEmptyBody:
+      "Essayez un autre nom ou une autre URL. Les communautés qui ne correspondent pas restent dans cette liste.",
+    removeFromSaved: "Retirer des enregistrées",
+    removing: "Retrait…",
+    removeHelp:
+      "Masque ce groupe dans Enregistrées. L’enregistrer de nouveau restaure les mêmes notes privées.",
     savedEmptyTitle: "Aucune communauté enregistrée pour le moment.",
     savedEmptyBody:
       "Enregistrez un groupe depuis la recherche, ou collez son URL publique. Seule cette organisation peut voir ces enregistrements.",
@@ -5549,6 +5560,7 @@ export const fr: TenantMessages = {
       invalidNotes:
         "Les notes doivent être du texte brut d’au plus 2000 caractères, sans sauts de ligne.",
       savesFailed: "Les communautés enregistrées n’ont pas pu être chargées.",
+      removeFailed: "Cette communauté n’a pas pu être retirée des enregistrées.",
       continuationBusy:
         "Une recherche pour cet objectif est déjà en cours. Attendez qu’elle se termine, puis réessayez.",
       continuationRejected:

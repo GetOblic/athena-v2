@@ -57,6 +57,7 @@ export type SavedOrganizationCommunity = {
   suppressionState: "active" | "suppressed";
   qualification: OrganizationCommunityQualification;
   notes: string | null;
+  removedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -70,6 +71,7 @@ export interface CommunityDiscoveryQuery
   extends PromiseLike<CommunityDiscoveryQueryResult> {
   eq(column: string, value: string): CommunityDiscoveryQuery;
   in(column: string, values: readonly string[]): CommunityDiscoveryQuery;
+  is(column: string, value: null): CommunityDiscoveryQuery;
   order(
     column: string,
     options: { ascending: boolean },
@@ -86,6 +88,8 @@ export interface CommunityDiscoveryWrite {
 export interface CommunityDiscoveryUpdate {
   eq(column: string, value: string): CommunityDiscoveryUpdate;
   in(column: string, values: readonly string[]): CommunityDiscoveryUpdate;
+  is(column: string, value: null): CommunityDiscoveryUpdate;
+  not(column: string, operator: "is", value: null): CommunityDiscoveryUpdate;
   select(columns: string): CommunityDiscoveryQuery;
 }
 
@@ -130,6 +134,27 @@ export interface OrganizationCommunitySaveRepository {
     notes: string | null;
     now: string;
   }): Promise<SavedOrganizationCommunity>;
+  updateActiveSave(input: {
+    organizationId: string;
+    communityId: string;
+    qualification: OrganizationCommunityQualification;
+    notes: string | null;
+    now: string;
+  }): Promise<SavedOrganizationCommunity | null>;
+  restoreSave(input: {
+    organizationId: string;
+    communityId: string;
+    now: string;
+  }): Promise<SavedOrganizationCommunity | null>;
+  maskSave(input: {
+    organizationId: string;
+    saveId: string;
+    now: string;
+  }): Promise<boolean>;
+  saveMaskState(
+    organizationId: string,
+    saveId: string,
+  ): Promise<"active" | "masked" | "missing">;
   list(
     organizationId: string,
     limit: number,
@@ -140,7 +165,7 @@ const PUBLIC_COMMUNITY_COLUMNS =
   "id, platform, canonical_identity, canonical_url, display_name, source, sourced_at, suppression_state";
 
 const ORGANIZATION_SAVE_COLUMNS =
-  "id, organization_id, community_id, qualification, notes, created_at, updated_at";
+  "id, organization_id, community_id, qualification, notes, created_at, updated_at, removed_at";
 
 function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
@@ -412,6 +437,10 @@ function composeSave(
         : undefined;
   const createdAt = text(row.created_at);
   const updatedAt = text(row.updated_at);
+  const removedAt =
+    row.removed_at == null
+      ? null
+      : text(row.removed_at);
 
   if (
     !id ||
@@ -420,7 +449,9 @@ function composeSave(
     !qualification ||
     notes === undefined ||
     !createdAt ||
-    !updatedAt
+    !updatedAt ||
+    (row.removed_at != null &&
+      (!removedAt || Number.isNaN(Date.parse(removedAt))))
   ) {
     communityDiscoveryPersistenceFailure();
   }
@@ -438,6 +469,7 @@ function composeSave(
     suppressionState: community.suppressionState,
     qualification,
     notes,
+    removedAt,
     createdAt,
     updatedAt,
   };
@@ -448,11 +480,14 @@ async function selectOrganizationSaves(
   organizationId: string,
   communityId?: string,
   limit?: number,
+  activeOnly = false,
 ): Promise<Record<string, unknown>[]> {
   let query = db
     .from("athena_organization_communities")
     .select(ORGANIZATION_SAVE_COLUMNS)
     .eq("organization_id", organizationId);
+
+  if (activeOnly) query = query.is("removed_at", null);
 
   if (communityId) {
     query = query.eq("community_id", communityId);
@@ -490,6 +525,20 @@ async function loadSave(
   const community = communities.get(communityId);
   if (!community) communityDiscoveryPersistenceFailure();
   return composeSave(row, organizationId, community);
+}
+
+async function updatedOrganizationSave(
+  db: CommunityDiscoveryDb,
+  organizationId: string,
+  data: unknown,
+): Promise<SavedOrganizationCommunity | null> {
+  const rows = rowsFromResult(data);
+  if (rows.length === 0) return null;
+  if (rows.length > 1) communityDiscoveryPersistenceFailure();
+  const row = rows[0];
+  if (!row) communityDiscoveryPersistenceFailure();
+  assertSaveOrganization(row, organizationId);
+  return loadSave(db, organizationId, row);
 }
 
 export function createSupabasePublicCommunityCatalog(
@@ -547,12 +596,94 @@ export function createSupabaseOrganizationCommunitySaves(
       assertSaveOrganization(row, input.organizationId);
       return loadSave(db, input.organizationId, row);
     },
+    async updateActiveSave(input) {
+      const { data, error } = await db
+        .from("athena_organization_communities")
+        .update({
+          qualification: input.qualification,
+          notes: input.notes,
+          updated_at: input.now,
+        })
+        .eq("organization_id", input.organizationId)
+        .eq("community_id", input.communityId)
+        .is("removed_at", null)
+        .select(ORGANIZATION_SAVE_COLUMNS);
+      if (error) communityDiscoveryPersistenceFailure();
+      const saved = await updatedOrganizationSave(
+        db,
+        input.organizationId,
+        data,
+      );
+      if (saved?.removedAt) communityDiscoveryPersistenceFailure();
+      return saved;
+    },
+    async restoreSave(input) {
+      const { data, error } = await db
+        .from("athena_organization_communities")
+        .update({
+          removed_at: null,
+          updated_at: input.now,
+        })
+        .eq("organization_id", input.organizationId)
+        .eq("community_id", input.communityId)
+        .not("removed_at", "is", null)
+        .select(ORGANIZATION_SAVE_COLUMNS);
+      if (error) communityDiscoveryPersistenceFailure();
+      const saved = await updatedOrganizationSave(
+        db,
+        input.organizationId,
+        data,
+      );
+      if (saved?.removedAt) communityDiscoveryPersistenceFailure();
+      return saved;
+    },
+    async maskSave(input) {
+      const { data, error } = await db
+        .from("athena_organization_communities")
+        .update({
+          removed_at: input.now,
+          updated_at: input.now,
+        })
+        .eq("organization_id", input.organizationId)
+        .eq("id", input.saveId)
+        .is("removed_at", null)
+        .select("id, organization_id");
+      if (error) communityDiscoveryPersistenceFailure();
+      const rows = rowsFromResult(data);
+      if (rows.length > 1) communityDiscoveryPersistenceFailure();
+      for (const row of rows) assertSaveOrganization(row, input.organizationId);
+      return rows.length === 1;
+    },
+    async saveMaskState(organizationId, saveId) {
+      const { data, error } = await db
+        .from("athena_organization_communities")
+        .select("id, organization_id, removed_at")
+        .eq("organization_id", organizationId)
+        .eq("id", saveId)
+        .maybeSingle();
+      if (error) communityDiscoveryPersistenceFailure();
+      if (!data) return "missing";
+      if (typeof data !== "object" || Array.isArray(data)) {
+        communityDiscoveryPersistenceFailure();
+      }
+      const row = data as Record<string, unknown>;
+      assertSaveOrganization(row, organizationId);
+      if (row.removed_at == null) return "active";
+      if (
+        typeof row.removed_at !== "string" ||
+        Number.isNaN(Date.parse(row.removed_at))
+      ) {
+        communityDiscoveryPersistenceFailure();
+      }
+      return "masked";
+    },
     async list(organizationId, limit) {
       const rows = await selectOrganizationSaves(
         db,
         organizationId,
         undefined,
         limit,
+        true,
       );
       if (rows.length === 0) return [];
       const ids = rows.map((row) => {

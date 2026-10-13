@@ -5404,6 +5404,17 @@ export const en = {
     savesLoading: "Loading saved communities…",
     savedTitle: "Saved Communities",
     savedHelp: "These saves stay private to this organization.",
+    savedSearchLabel: "Search saved communities",
+    savedSearchPlaceholder: "Name or URL",
+    savedSearchHelp:
+      "Filters this list by community name or URL. Nothing is sent as you type.",
+    savedSearchEmptyTitle: "No saved communities match.",
+    savedSearchEmptyBody:
+      "Try another name or URL. Communities that do not match stay in this list.",
+    removeFromSaved: "Remove from Saved",
+    removing: "Removing…",
+    removeHelp:
+      "Hides this group from Saved. Saving it again restores the same private notes.",
     savedEmptyTitle: "No saved communities yet.",
     savedEmptyBody:
       "Save a group from search, or paste its public URL. Only this organization can see those saves.",
@@ -5451,6 +5462,7 @@ export const en = {
       invalidNotes:
         "Notes must be plain text of at most 2000 characters, without line breaks.",
       savesFailed: "Saved communities could not be loaded.",
+      removeFailed: "This community could not be removed from Saved.",
       continuationBusy:
         "A search for this objective is already in progress. Wait for it to finish, then try again.",
       continuationRejected:

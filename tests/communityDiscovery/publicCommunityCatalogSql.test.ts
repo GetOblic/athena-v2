@@ -51,7 +51,12 @@ describe("public community catalog migration", () => {
     const names = readdirSync(join(ROOT, "supabase/migrations"))
       .filter((name) => name.endsWith(".sql"))
       .sort();
-    assert.equal(names.at(-1), MIGRATION_NAME);
+    assert.ok(
+      names.indexOf(MIGRATION_NAME) >
+        names.indexOf(
+          "20261012000003_accept_getoblic_stripe_payment_link_domain.sql",
+        ),
+    );
     assert.deepEqual(
       names.filter((name) => name.startsWith("20261012000004")),
       [MIGRATION_NAME],

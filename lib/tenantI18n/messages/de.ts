@@ -5502,6 +5502,17 @@ export const de: TenantMessages = {
     savesLoading: "Gespeicherte Communities werden geladen…",
     savedTitle: "Gespeicherte Communities",
     savedHelp: "Diese Speicherungen bleiben privat für diese Organisation.",
+    savedSearchLabel: "Gespeicherte Communities durchsuchen",
+    savedSearchPlaceholder: "Name oder URL",
+    savedSearchHelp:
+      "Filtert diese Liste nach Name oder URL. Beim Tippen wird nichts gesendet.",
+    savedSearchEmptyTitle: "Keine gespeicherte Community passt.",
+    savedSearchEmptyBody:
+      "Versuchen Sie einen anderen Namen oder eine andere URL. Communities ohne Treffer bleiben in dieser Liste.",
+    removeFromSaved: "Aus Gespeichert entfernen",
+    removing: "Wird entfernt…",
+    removeHelp:
+      "Blendet diese Gruppe in Gespeichert aus. Erneutes Speichern stellt dieselben privaten Notizen wieder her.",
     savedEmptyTitle: "Noch keine gespeicherten Communities.",
     savedEmptyBody:
       "Speichern Sie eine Gruppe aus der Suche oder fügen Sie ihre öffentliche URL ein. Nur diese Organisation kann diese Speicherungen sehen.",
@@ -5554,6 +5565,7 @@ export const de: TenantMessages = {
       continuationRejected:
         "Diese weitere Suche ist nicht mehr verfügbar. Die bisherigen Ergebnisse bleiben unverändert.",
       savesFailed: "Gespeicherte Communities konnten nicht geladen werden.",
+      removeFailed: "Diese Community konnte nicht aus Gespeichert entfernt werden.",
     },
   },
 };

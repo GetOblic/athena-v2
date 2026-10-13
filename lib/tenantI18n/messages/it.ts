@@ -5489,6 +5489,17 @@ export const it: TenantMessages = {
     savesLoading: "Caricamento delle comunità salvate…",
     savedTitle: "Comunità salvate",
     savedHelp: "Questi salvataggi restano privati di questa organizzazione.",
+    savedSearchLabel: "Cerca nelle comunità salvate",
+    savedSearchPlaceholder: "Nome o URL",
+    savedSearchHelp:
+      "Filtra questo elenco per nome o URL. Non viene inviato nulla mentre scrivi.",
+    savedSearchEmptyTitle: "Nessuna comunità salvata corrisponde.",
+    savedSearchEmptyBody:
+      "Prova un altro nome o URL. Le comunità che non corrispondono restano in questo elenco.",
+    removeFromSaved: "Rimuovi dalle salvate",
+    removing: "Rimozione…",
+    removeHelp:
+      "Nasconde questo gruppo dalle Salvate. Salvarlo di nuovo ripristina le stesse note private.",
     savedEmptyTitle: "Nessuna comunità salvata per ora.",
     savedEmptyBody:
       "Salva un gruppo dalla ricerca oppure incolla il suo URL pubblico. Solo questa organizzazione può vedere quei salvataggi.",
@@ -5536,6 +5547,7 @@ export const it: TenantMessages = {
       invalidNotes:
         "Le note devono essere testo semplice di al massimo 2000 caratteri, senza interruzioni di riga.",
       savesFailed: "Non è stato possibile caricare le comunità salvate.",
+      removeFailed: "Non è stato possibile rimuovere questa comunità dalle salvate.",
       continuationBusy:
         "Una ricerca per questo obiettivo è già in corso. Attendi che finisca, poi riprova.",
       continuationRejected:
