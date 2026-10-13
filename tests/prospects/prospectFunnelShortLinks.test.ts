@@ -1,5 +1,5 @@
 /**
- * FUNNEL-LINKS-1 — Prospect Funnel short links.
+ * FUNNEL-LINKS-2 — readable Prospect Funnel short links.
  * No live Worker calls and no database connection.
  */
 
@@ -21,9 +21,11 @@ import {
   ProspectFunnelShortLinkPersistenceError,
   ProspectFunnelWorkerError,
 } from "../../services/prospects/prospectFunnelShortLinkErrors";
+import { classifyProspectFunnelUniqueViolation } from "../../services/prospects/prospectFunnelShortLinkPersistence";
 import {
-  createProspectFunnelSlug,
   ensureProspectFunnelShortLinks,
+  ProspectFunnelSlugConflictError,
+  type ProspectFunnelShortLinkCta,
   type ProspectFunnelShortLinkKey,
   type ProspectFunnelShortLinkRow,
   type ProspectFunnelShortLinkState,
@@ -42,6 +44,18 @@ const AUTHOR = 123456789;
 const CONTACT = 9001;
 const LISTING = 946970;
 const BUSINESS = "North & West = Clinic";
+const AI = `ai-agents-${CONTACT}`;
+const PHONE = `virtual-phone-${CONTACT}`;
+const CAL = `calendar-${CONTACT}`;
+const CLAIM = `claim-ai-${LISTING}`;
+
+function short(slug: string): string {
+  return `https://link.getoblic.com/${slug}`;
+}
+
+function versioned(base: string): string[] {
+  return [base, ...Array.from({ length: 8 }, (_, index) => `${base}-${index + 2}`)];
+}
 
 function canonical(language: "fr" | "de") {
   const presentation = buildGetOblicFunnelPresentation({
@@ -80,12 +94,18 @@ function emptyDestinations() {
 function createMemoryStore(): ProspectFunnelShortLinkStore & {
   rows(): ProspectFunnelShortLinkRow[];
   failNextActivePromotes: number;
+  mappingConflicts: number;
+  seed(row: ProspectFunnelShortLinkRow): void;
 } {
   const rows = new Map<string, ProspectFunnelShortLinkRow>();
   const store = {
     failNextActivePromotes: 0,
+    mappingConflicts: 0,
     rows() {
       return [...rows.values()].map((row) => ({ ...row }));
+    },
+    seed(row: ProspectFunnelShortLinkRow) {
+      rows.set(storageKey(row), { ...row });
     },
     async get(key: ProspectFunnelShortLinkKey) {
       await Promise.resolve();
@@ -93,7 +113,16 @@ function createMemoryStore(): ProspectFunnelShortLinkStore & {
       return row ? { ...row } : null;
     },
     async insert(key: ProspectFunnelShortLinkKey, state: ProspectFunnelShortLinkState) {
-      if (rows.has(storageKey(key))) return { status: "conflict" as const };
+      if (store.mappingConflicts > 0) {
+        store.mappingConflicts -= 1;
+        return { status: "conflict" as const, conflict: "mapping" as const };
+      }
+      if (rows.has(storageKey(key))) {
+        return { status: "conflict" as const, conflict: "mapping" as const };
+      }
+      if (slugReserved(rows, state, null)) {
+        return { status: "conflict" as const, conflict: "slug" as const };
+      }
       const row: ProspectFunnelShortLinkRow = {
         ...state,
         id: randomUUID(),
@@ -112,6 +141,9 @@ function createMemoryStore(): ProspectFunnelShortLinkStore & {
     }) {
       const current = rows.get(storageKey(input.key));
       if (!current || current.generation !== input.expectedGeneration) return null;
+      if (slugReserved(rows, input.next, current.id)) {
+        throw new ProspectFunnelSlugConflictError();
+      }
       if (store.failNextActivePromotes > 0 && input.next.lifecycle === "active") {
         store.failNextActivePromotes -= 1;
         throw new ProspectFunnelShortLinkPersistenceError();
@@ -141,9 +173,25 @@ function storageKey(key: ProspectFunnelShortLinkKey): string {
   return `${key.organizationId}\n${key.prospectId}\n${key.ctaKey}`;
 }
 
+function slugReserved(
+  rows: Map<string, ProspectFunnelShortLinkRow>,
+  state: ProspectFunnelShortLinkState,
+  exceptId: string | null,
+): boolean {
+  for (const row of rows.values()) {
+    if (exceptId && row.id === exceptId) continue;
+    if (row.slug === state.slug) return true;
+    if (state.replacementSlug && row.replacementSlug === state.replacementSlug) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function createWorker() {
   const links = new Map<string, { url: string; disabled: boolean }>();
   const ops: Array<{ op: "create" | "get" | "disable" | "enable"; slug: string }> = [];
+  const attempted: string[] = [];
   const workerState = {
     failCreates: 0,
     failDisables: 0,
@@ -159,7 +207,7 @@ function createWorker() {
     return {
       slug,
       url: link.url,
-      shortUrl: `https://link.getoblic.com/${slug}`,
+      shortUrl: short(slug),
       disabled: link.disabled,
     };
   }
@@ -167,9 +215,11 @@ function createWorker() {
   return {
     links,
     ops,
+    attempted,
     workerState,
     worker: {
       async create(input: { url: string; slug: string }) {
+        attempted.push(input.slug);
         if (workerState.createError) {
           const error = workerState.createError;
           workerState.createError = null;
@@ -216,15 +266,48 @@ function createWorker() {
   };
 }
 
-function createSlugs() {
-  const issued: string[] = [];
+function activeSeed(input: {
+  organizationId?: string;
+  prospectId?: string;
+  ctaKey?: ProspectFunnelShortLinkCta;
+  destinationUrl: string;
+  slug: string;
+  generation?: number;
+}): ProspectFunnelShortLinkRow {
   return {
-    issued,
-    createSlug() {
-      const slug = `pf_test_${String(issued.length + 1).padStart(4, "0")}`;
-      issued.push(slug);
-      return slug;
-    },
+    id: randomUUID(),
+    organizationId: input.organizationId ?? "org-a",
+    prospectId: input.prospectId ?? "prospect-other",
+    ctaKey: input.ctaKey ?? "ai_agents",
+    destinationUrl: input.destinationUrl,
+    slug: input.slug,
+    shortUrl: short(input.slug),
+    lifecycle: "active",
+    replacementDestinationUrl: null,
+    replacementSlug: null,
+    replacementShortUrl: null,
+    replacementPhase: null,
+    generation: input.generation ?? 2,
+  };
+}
+
+function ensureInput(
+  store: ReturnType<typeof createMemoryStore>,
+  worker: ReturnType<typeof createWorker>,
+  destinations: {
+    ai_agents: string | null;
+    virtual_phone: string | null;
+    calendar: string | null;
+    claim_your_ai: string | null;
+  },
+  ids?: { organizationId?: string; prospectId?: string },
+) {
+  return {
+    organizationId: ids?.organizationId ?? "org-a",
+    prospectId: ids?.prospectId ?? "prospect-1",
+    destinations,
+    store,
+    worker: worker.worker,
   };
 }
 
@@ -349,190 +432,263 @@ describe("Prospect Funnel canonical destinations", () => {
 
     const store = createMemoryStore();
     const worker = createWorker();
-    const slugs = createSlugs();
     const links = await ensureProspectFunnelShortLinks({
       organizationId: "org-a",
       prospectId: "prospect-1",
       destinations: {
         ...emptyDestinations(),
         ai_agents: "tel:+33162045206,946970#",
+        virtual_phone: "tel:+18666658001,946970#",
+        calendar: canonical("fr").call,
+        claim_your_ai: "tel:+33162045206,946970#",
       },
       store,
       worker: worker.worker,
-      createSlug: slugs.createSlug,
     });
     assert.equal(links.ai_agents, null);
+    assert.equal(links.virtual_phone, null);
+    assert.equal(links.calendar, null);
+    assert.equal(links.claim_your_ai, null);
     assert.equal(worker.ops.length, 0);
+    assert.equal(worker.attempted.length, 0);
     assert.equal(store.rows().length, 0);
+    assert.equal("call_your_ai" in links, false);
   });
 });
 
 describe("Prospect Funnel short-link ensure", () => {
-  it("creates one short link per authorized CTA and reuses it on refresh", async () => {
+  it("creates one readable short link per authorized CTA and reuses it", async () => {
     const store = createMemoryStore();
     const worker = createWorker();
-    const slugs = createSlugs();
     const destinations = canonical("fr");
-    const input = {
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: {
-        ai_agents: destinations.ai_agents,
-        virtual_phone: destinations.virtual_phone,
-        calendar: destinations.calendar,
-        claim_your_ai: destinations.claim_your_ai,
-      },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    };
+    const input = ensureInput(store, worker, {
+      ai_agents: destinations.ai_agents,
+      virtual_phone: destinations.virtual_phone,
+      calendar: destinations.calendar,
+      claim_your_ai: destinations.claim_your_ai,
+    });
     const first = await ensureProspectFunnelShortLinks(input);
-    const creates = worker.ops.filter((op) => op.op === "create");
     const second = await ensureProspectFunnelShortLinks(input);
 
-    assert.equal(creates.length, 4);
+    assert.deepEqual(first, {
+      ai_agents: short(AI),
+      virtual_phone: short(PHONE),
+      calendar: short(CAL),
+      claim_your_ai: short(CLAIM),
+    });
     assert.deepEqual(second, first);
-    assert.equal(worker.ops.filter((op) => op.op === "create").length, 4);
-    assert.equal(store.rows().length, 4);
-    for (const href of Object.values(first)) {
-      assert.match(href ?? "", /^https:\/\/link\.getoblic\.com\/pf_test_/);
+    assert.deepEqual(
+      worker.ops.filter((op) => op.op === "create").map((op) => op.slug),
+      [AI, PHONE, CAL, CLAIM],
+    );
+    assert.equal(worker.attempted.some((slug) => slug.startsWith("pf_")), false);
+    for (const slug of worker.attempted) {
+      assert.match(slug, GETOBLIC_SLUG_PATTERN);
+      assert.match(slug, /^[a-z0-9-]+$/);
     }
+    assert.equal(store.rows().length, 4);
     const stored = store.rows().find((row) => row.ctaKey === "ai_agents");
     assert.equal(stored?.destinationUrl, destinations.ai_agents);
     assert.equal(stored?.lifecycle, "active");
+    assert.equal(stored?.slug, AI);
     assert.equal(stored?.organizationId, "org-a");
     assert.equal(stored?.prospectId, "prospect-1");
+    assert.equal(
+      new URL(String(stored?.destinationUrl)).searchParams.get("contact_id"),
+      String(CONTACT),
+    );
+    const claim = store.rows().find((row) => row.ctaKey === "claim_your_ai");
+    assert.equal(
+      new URL(String(claim?.destinationUrl)).searchParams.get("contact_id"),
+      String(LISTING),
+    );
   });
 
   it("does not create a second Worker link for concurrent ensure calls", async () => {
     const store = createMemoryStore();
     const worker = createWorker();
-    const slugs = createSlugs();
-    const destinations = {
+    const input = ensureInput(store, worker, {
       ...emptyDestinations(),
       ai_agents: canonical("de").ai_agents,
-    };
-    const input = {
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations,
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    };
+    });
     const [left, right] = await Promise.all([
       ensureProspectFunnelShortLinks(input),
       ensureProspectFunnelShortLinks(input),
     ]);
-    assert.equal(left.ai_agents, right.ai_agents);
-    assert.match(left.ai_agents ?? "", /^https:\/\/link\.getoblic\.com\/pf_test_/);
+    assert.equal(left.ai_agents, short(AI));
+    assert.equal(right.ai_agents, short(AI));
     assert.equal(worker.ops.filter((op) => op.op === "create").length, 1);
-    assert.equal(
-      store.rows().filter((row) => row.ctaKey === "ai_agents").length,
-      1,
-    );
+    assert.equal(store.rows().filter((row) => row.ctaKey === "ai_agents").length, 1);
   });
 
-  it("retires the previous Worker link before exposing a replacement slug", async () => {
+  it("retires the previous Worker link before exposing the next readable version", async () => {
     const store = createMemoryStore();
     const worker = createWorker();
-    const slugs = createSlugs();
     const french = canonical("fr");
     const german = canonical("de");
-    const first = await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: { ...emptyDestinations(), ai_agents: french.ai_agents },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
-    const oldSlug = slugs.issued[0];
-    assert.ok(oldSlug);
+    const first = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), ai_agents: french.ai_agents }),
+    );
+    assert.equal(first.ai_agents, short(AI));
     worker.workerState.failDisables = 1;
-    const blocked = await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: { ...emptyDestinations(), ai_agents: german.ai_agents },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
+    const blocked = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), ai_agents: german.ai_agents }),
+    );
     assert.equal(blocked.ai_agents, null);
-    assert.equal(worker.links.get(oldSlug)?.disabled, false);
+    assert.equal(worker.links.get(AI)?.disabled, false);
+    assert.equal(worker.links.get(`${AI}-2`)?.url, german.ai_agents);
     assert.equal(
       store.rows().find((row) => row.ctaKey === "ai_agents")?.lifecycle,
       "replacing",
     );
 
-    const replaced = await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: { ...emptyDestinations(), ai_agents: german.ai_agents },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
-    const replacementSlug = slugs.issued[1];
-    assert.ok(replacementSlug);
-    assert.equal(replaced.ai_agents, `https://link.getoblic.com/${replacementSlug}`);
-    assert.notEqual(replaced.ai_agents, first.ai_agents);
-    assert.equal(worker.links.get(oldSlug)?.disabled, true);
-    assert.equal(worker.links.get(replacementSlug)?.disabled, false);
-    assert.equal(worker.links.get(replacementSlug)?.url, german.ai_agents);
-    assert.equal(worker.ops.filter((op) => op.op === "create").length, 2);
-    const disableAt = worker.ops.findIndex(
-      (op) => op.op === "disable" && op.slug === oldSlug && worker.links.get(oldSlug)?.disabled,
+    const replaced = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), ai_agents: german.ai_agents }),
     );
-    assert.ok(disableAt >= 0);
+    assert.equal(replaced.ai_agents, short(`${AI}-2`));
+    assert.notEqual(replaced.ai_agents, first.ai_agents);
+    assert.equal(worker.links.get(AI)?.disabled, true);
+    assert.equal(worker.links.get(`${AI}-2`)?.disabled, false);
+    assert.equal(worker.links.get(`${AI}-2`)?.url, german.ai_agents);
+    const createAt = worker.ops.findIndex((op) => op.op === "create" && op.slug === `${AI}-2`);
+    const disableAt = worker.ops.findIndex((op) => op.op === "disable" && op.slug === AI);
+    assert.ok(createAt >= 0);
+    assert.ok(disableAt > createAt);
     const row = store.rows().find((entry) => entry.ctaKey === "ai_agents");
     assert.equal(row?.lifecycle, "active");
-    assert.equal(row?.slug, replacementSlug);
+    assert.equal(row?.slug, `${AI}-2`);
     assert.equal(row?.destinationUrl, german.ai_agents);
     assert.equal(row?.replacementSlug, null);
+
+    const next = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), ai_agents: french.ai_agents }),
+    );
+    assert.equal(next.ai_agents, short(`${AI}-3`));
+    assert.equal(worker.links.get(`${AI}-2`)?.disabled, true);
+    assert.equal(worker.attempted.includes(`${AI}-10`), false);
+  });
+
+  it("replaces an active legacy slug with the preferred readable slug", async () => {
+    const store = createMemoryStore();
+    const worker = createWorker();
+    const destination = canonical("de").ai_agents;
+    const legacy = "pf_legacy_token";
+    store.seed(
+      activeSeed({
+        prospectId: "prospect-1",
+        destinationUrl: destination,
+        slug: legacy,
+        generation: 4,
+      }),
+    );
+    worker.links.set(legacy, { url: destination, disabled: false });
+
+    const links = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), ai_agents: destination }),
+    );
+    assert.equal(links.ai_agents, short(AI));
+    assert.equal(worker.links.get(legacy)?.disabled, true);
+    assert.equal(worker.links.get(AI)?.url, destination);
+    const createAt = worker.ops.findIndex((op) => op.op === "create" && op.slug === AI);
+    const disableAt = worker.ops.findIndex((op) => op.op === "disable" && op.slug === legacy);
+    assert.ok(createAt >= 0);
+    assert.ok(disableAt > createAt);
+    const row = store.rows().find((entry) => entry.ctaKey === "ai_agents");
+    assert.equal(row?.lifecycle, "active");
+    assert.equal(row?.slug, AI);
+    assert.equal(row?.destinationUrl, destination);
+  });
+
+  it("uses the new listing id when contact_id changes and retires the old link", async () => {
+    const store = createMemoryStore();
+    const worker = createWorker();
+    const firstHref = buildGetOblicFunnelPresentation({
+      authorId: AUTHOR,
+      contactId: CONTACT,
+      businessName: BUSINESS,
+      licenseeDefaultLanguage: "de",
+    })?.aiAgentsHref;
+    const secondHref = buildGetOblicFunnelPresentation({
+      authorId: AUTHOR,
+      contactId: CONTACT + 1,
+      businessName: BUSINESS,
+      licenseeDefaultLanguage: "de",
+    })?.aiAgentsHref;
+    assert.ok(firstHref);
+    assert.ok(secondHref);
+    const first = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), ai_agents: firstHref }),
+    );
+    const second = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), ai_agents: secondHref }),
+    );
+    assert.equal(first.ai_agents, short(AI));
+    assert.equal(second.ai_agents, short(`ai-agents-${CONTACT + 1}`));
+    assert.notEqual(second.ai_agents, short(`${AI}-2`));
+    assert.equal(worker.links.get(AI)?.disabled, true);
+    assert.equal(worker.links.get(`ai-agents-${CONTACT + 1}`)?.url, secondHref);
+    const createAt = worker.ops.findIndex(
+      (op) => op.op === "create" && op.slug === `ai-agents-${CONTACT + 1}`,
+    );
+    const disableAt = worker.ops.findIndex((op) => op.op === "disable" && op.slug === AI);
+    assert.ok(disableAt > createAt);
+  });
+
+  it("keeps Claim your AI as the only shortened CTA when the others are absent", async () => {
+    const store = createMemoryStore();
+    const worker = createWorker();
+    const destination = canonical("fr").claim_your_ai;
+    assert.ok(destination);
+    const links = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), claim_your_ai: destination }),
+    );
+    assert.equal(links.claim_your_ai, short(CLAIM));
+    assert.equal(links.ai_agents, null);
+    assert.equal(links.virtual_phone, null);
+    assert.equal(links.calendar, null);
+    assert.deepEqual(
+      store.rows().map((row) => row.ctaKey),
+      ["claim_your_ai"],
+    );
+    assert.equal(store.rows()[0]?.slug, CLAIM);
+    assert.equal(
+      new URL(String(store.rows()[0]?.destinationUrl)).searchParams.get("contact_id"),
+      String(LISTING),
+    );
+    assert.equal(worker.attempted.length, 1);
   });
 
   it("disables an existing Worker link when the CTA is no longer authorized", async () => {
     const store = createMemoryStore();
     const worker = createWorker();
-    const slugs = createSlugs();
     const destination = canonical("fr").claim_your_ai;
     assert.ok(destination);
-    await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: { ...emptyDestinations(), claim_your_ai: destination },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
-    const slug = slugs.issued[0];
-    assert.ok(slug);
-    const revoked = await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: emptyDestinations(),
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
-    const repeated = await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: emptyDestinations(),
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
+    await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), claim_your_ai: destination }),
+    );
+    const revoked = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, emptyDestinations()),
+    );
+    const repeated = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, emptyDestinations()),
+    );
     assert.equal(revoked.claim_your_ai, null);
     assert.equal(repeated.claim_your_ai, null);
-    assert.equal(worker.links.get(slug)?.disabled, true);
+    assert.equal(worker.links.get(CLAIM)?.disabled, true);
     assert.equal(
       store.rows().find((row) => row.ctaKey === "claim_your_ai")?.lifecycle,
       "disabled",
     );
     assert.equal(worker.ops.filter((op) => op.op === "disable").length, 1);
     assert.equal(worker.ops.filter((op) => op.op === "create").length, 1);
+
+    const restored = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), claim_your_ai: destination }),
+    );
+    assert.equal(restored.claim_your_ai, short(CLAIM));
+    assert.equal(worker.links.get(CLAIM)?.disabled, false);
+    assert.equal(worker.ops.filter((op) => op.op === "create").length, 1);
+    assert.equal(worker.ops.filter((op) => op.op === "enable").length, 1);
   });
 
   it("keeps the long-URL fallback when the Worker times out or the key is missing", async () => {
@@ -544,42 +700,26 @@ describe("Prospect Funnel short-link ensure", () => {
     try {
       const store = createMemoryStore();
       const worker = createWorker();
-      const slugs = createSlugs();
       const destination = canonical("de").calendar;
       worker.workerState.createError = new ProspectFunnelWorkerError(
         "CONFIG_MISSING",
         "GetOblic Links is not configured.",
       );
-      const missingKey = await ensureProspectFunnelShortLinks({
-        organizationId: "org-a",
-        prospectId: "prospect-1",
-        destinations: { ...emptyDestinations(), calendar: destination },
-        store,
-        worker: worker.worker,
-        createSlug: slugs.createSlug,
-      });
+      const missingKey = await ensureProspectFunnelShortLinks(
+        ensureInput(store, worker, { ...emptyDestinations(), calendar: destination }),
+      );
       assert.equal(missingKey.calendar, null);
       assert.equal(worker.ops.filter((op) => op.op === "create").length, 0);
 
       worker.workerState.failCreates = 1;
-      const timedOut = await ensureProspectFunnelShortLinks({
-        organizationId: "org-a",
-        prospectId: "prospect-1",
-        destinations: { ...emptyDestinations(), calendar: destination },
-        store,
-        worker: worker.worker,
-        createSlug: slugs.createSlug,
-      });
+      const timedOut = await ensureProspectFunnelShortLinks(
+        ensureInput(store, worker, { ...emptyDestinations(), calendar: destination }),
+      );
       assert.equal(timedOut.calendar, null);
-      const recovered = await ensureProspectFunnelShortLinks({
-        organizationId: "org-a",
-        prospectId: "prospect-1",
-        destinations: { ...emptyDestinations(), calendar: destination },
-        store,
-        worker: worker.worker,
-        createSlug: slugs.createSlug,
-      });
-      assert.match(recovered.calendar ?? "", /^https:\/\/link\.getoblic\.com\/pf_test_/);
+      const recovered = await ensureProspectFunnelShortLinks(
+        ensureInput(store, worker, { ...emptyDestinations(), calendar: destination }),
+      );
+      assert.equal(recovered.calendar, short(CAL));
       assert.equal(worker.ops.filter((op) => op.op === "create").length, 1);
       const logged = JSON.stringify(errors);
       assert.match(logged, /CONFIG_MISSING/);
@@ -595,150 +735,262 @@ describe("Prospect Funnel short-link ensure", () => {
   it("retries a timed-out create without a second Worker link", async () => {
     const store = createMemoryStore();
     const worker = createWorker();
-    const slugs = createSlugs();
     const destination = canonical("fr").virtual_phone;
     worker.workerState.acceptThenTimeout = true;
-    const first = await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: { ...emptyDestinations(), virtual_phone: destination },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
-    assert.equal(first.virtual_phone, null);
-    const second = await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: { ...emptyDestinations(), virtual_phone: destination },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
-    assert.equal(
-      second.virtual_phone,
-      `https://link.getoblic.com/${slugs.issued[0]}`,
+    const first = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), virtual_phone: destination }),
     );
+    assert.equal(first.virtual_phone, null);
+    const second = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), virtual_phone: destination }),
+    );
+    assert.equal(second.virtual_phone, short(PHONE));
     assert.equal(worker.ops.filter((op) => op.op === "create").length, 1);
     assert.equal(worker.links.size, 1);
+    assert.equal(store.rows().find((row) => row.ctaKey === "virtual_phone")?.slug, PHONE);
   });
 
   it("retries after a failed promotion without creating another slug", async () => {
     const store = createMemoryStore();
     const worker = createWorker();
-    const slugs = createSlugs();
     const destination = canonical("de").ai_agents;
     store.failNextActivePromotes = 1;
-    const first = await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: { ...emptyDestinations(), ai_agents: destination },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
-    assert.equal(first.ai_agents, null);
-    assert.equal(
-      store.rows().find((row) => row.ctaKey === "ai_agents")?.lifecycle,
-      "pending",
+    const first = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), ai_agents: destination }),
     );
-    const second = await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: { ...emptyDestinations(), ai_agents: destination },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
-    assert.equal(second.ai_agents, `https://link.getoblic.com/${slugs.issued[0]}`);
+    assert.equal(first.ai_agents, null);
+    assert.equal(store.rows().find((row) => row.ctaKey === "ai_agents")?.lifecycle, "pending");
+    const second = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), ai_agents: destination }),
+    );
+    assert.equal(second.ai_agents, short(AI));
     assert.equal(worker.ops.filter((op) => op.op === "create").length, 1);
-    assert.equal(slugs.issued.length, 1);
+    assert.equal(worker.links.size, 1);
+    assert.equal(store.rows().find((row) => row.ctaKey === "ai_agents")?.slug, AI);
   });
 
-  it("picks a new slug when the reserved slug belongs to another destination", async () => {
+  it("does not adopt, disable, enable, or retarget a foreign slug", async () => {
     const store = createMemoryStore();
     const worker = createWorker();
-    worker.links.set("pf_taken_slug", {
-      url: "https://claim.getoblic.com/business-created-page?author_id=1&contact_id=2&business_name=Other",
-      disabled: false,
-    });
-    const issued = ["pf_taken_slug", "pf_fresh_slug"];
     const destination = canonical("de").calendar;
-    const links = await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: { ...emptyDestinations(), calendar: destination },
-      store,
-      worker: worker.worker,
-      createSlug: () => issued.shift() ?? "pf_unused_slug",
+    const other =
+      "https://claim.getoblic.com/business-created-page?author_id=1&contact_id=2&business_name=Other";
+    worker.links.set(CAL, { url: other, disabled: false });
+    const links = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), calendar: destination }),
+    );
+    assert.equal(links.calendar, short(`${CAL}-2`));
+    assert.equal(worker.links.get(CAL)?.disabled, false);
+    assert.equal(worker.links.get(CAL)?.url, other);
+    assert.equal(worker.links.get(`${CAL}-2`)?.url, destination);
+    assert.equal(worker.ops.some((op) => op.op === "disable"), false);
+    assert.equal(worker.ops.some((op) => op.op === "enable"), false);
+    assert.equal(worker.attempted.includes(`${CAL}-10`), false);
+  });
+
+  it("adopts a Worker 409 only when the slug and destination both match", async () => {
+    const store = createMemoryStore();
+    const worker = createWorker();
+    const destination = canonical("de").calendar;
+    worker.links.set(CAL, { url: destination, disabled: false });
+    const links = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), calendar: destination }),
+    );
+    assert.equal(links.calendar, short(CAL));
+    assert.equal(worker.links.size, 1);
+    assert.equal(worker.links.get(CAL)?.url, destination);
+    assert.equal(worker.links.get(CAL)?.disabled, false);
+    assert.equal(worker.ops.filter((op) => op.op === "create").length, 0);
+    assert.equal(worker.ops.some((op) => op.op === "disable" || op.op === "enable"), false);
+  });
+
+  it("does not enable a disabled foreign link that uses the preferred slug", async () => {
+    const store = createMemoryStore();
+    const worker = createWorker();
+    const destination = canonical("de").calendar;
+    worker.links.set(CAL, { url: destination, disabled: true });
+    const links = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), calendar: destination }),
+    );
+    assert.equal(links.calendar, short(`${CAL}-2`));
+    assert.equal(worker.links.get(CAL)?.disabled, true);
+    assert.equal(worker.ops.some((op) => op.op === "enable"), false);
+    assert.equal(worker.ops.some((op) => op.op === "disable" && op.slug === CAL), false);
+  });
+
+  it("rereads a mapping conflict and advances a slug conflict", async () => {
+    const store = createMemoryStore();
+    const worker = createWorker();
+    const destination = canonical("fr").ai_agents;
+    store.mappingConflicts = 1;
+    const reread = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), ai_agents: destination }),
+    );
+    assert.equal(reread.ai_agents, short(AI));
+    assert.equal(store.rows().length, 1);
+    assert.equal(worker.ops.filter((op) => op.op === "create").length, 1);
+
+    store.seed(
+      activeSeed({
+        organizationId: "org-b",
+        prospectId: "prospect-9",
+        destinationUrl: destination,
+        slug: AI,
+      }),
+    );
+    const advanced = await ensureProspectFunnelShortLinks(
+      ensureInput(
+        store,
+        worker,
+        { ...emptyDestinations(), ai_agents: destination },
+        { organizationId: "org-c", prospectId: "prospect-3" },
+      ),
+    );
+    assert.equal(advanced.ai_agents, short(`${AI}-2`));
+    assert.equal(
+      store.rows().find((row) => row.organizationId === "org-b")?.slug,
+      AI,
+    );
+    assert.equal(worker.links.get(AI)?.disabled ?? false, false);
+    assert.equal(worker.attempted.includes(AI), true);
+    assert.equal(
+      worker.attempted.filter((slug) => slug === AI).length,
+      1,
+    );
+  });
+
+  it("returns the long URL when readable versions are exhausted", async () => {
+    const store = createMemoryStore();
+    const worker = createWorker();
+    const destination = canonical("de").calendar;
+    const other =
+      "https://claim.getoblic.com/business-created-page?author_id=1&contact_id=2&business_name=Other";
+    for (const slug of versioned(CAL)) {
+      worker.links.set(slug, { url: other, disabled: false });
+    }
+    const links = await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), calendar: destination }),
+    );
+    assert.equal(links.calendar, null);
+    assert.deepEqual(worker.attempted, versioned(CAL));
+    assert.equal(worker.attempted.includes(`${CAL}-10`), false);
+    assert.equal(worker.ops.some((op) => op.op === "create"), false);
+    assert.equal(worker.ops.some((op) => op.op === "disable" || op.op === "enable"), false);
+    for (const slug of versioned(CAL)) {
+      assert.equal(worker.links.get(slug)?.disabled, false);
+      assert.equal(worker.links.get(slug)?.url, other);
+    }
+
+    const dbStore = createMemoryStore();
+    const dbWorker = createWorker();
+    versioned(CAL).forEach((slug, index) => {
+      dbStore.seed(
+        activeSeed({
+          prospectId: `prospect-held-${index}`,
+          ctaKey: "calendar",
+          destinationUrl: other,
+          slug,
+        }),
+      );
     });
-    assert.equal(links.calendar, "https://link.getoblic.com/pf_fresh_slug");
-    assert.equal(worker.links.get("pf_taken_slug")?.disabled, false);
-    assert.notEqual(worker.links.get("pf_taken_slug")?.url, destination);
-    assert.equal(worker.links.get("pf_fresh_slug")?.url, destination);
+    const blocked = await ensureProspectFunnelShortLinks(
+      ensureInput(dbStore, dbWorker, { ...emptyDestinations(), calendar: destination }),
+    );
+    assert.equal(blocked.calendar, null);
+    assert.equal(dbWorker.attempted.length, 0);
+    assert.equal(
+      dbStore.rows().some((row) => row.prospectId === "prospect-1"),
+      false,
+    );
+  });
+
+  it("classifies identity conflicts apart from slug and replacement conflicts", () => {
+    assert.equal(
+      classifyProspectFunnelUniqueViolation({
+        code: "23505",
+        message:
+          'duplicate key value violates unique constraint "athena_prospect_funnel_short_links_identity_key"',
+        details:
+          "Key (organization_id, prospect_id, cta_key)=(a, b, ai_agents) already exists.",
+      }),
+      "mapping",
+    );
+    assert.equal(
+      classifyProspectFunnelUniqueViolation({
+        code: "23505",
+        message:
+          'duplicate key value violates unique constraint "athena_prospect_funnel_short_links_slug_key"',
+        details: "Key (slug)=(ai-agents-9001) already exists.",
+      }),
+      "slug",
+    );
+    assert.equal(
+      classifyProspectFunnelUniqueViolation({
+        code: "23505",
+        message:
+          'duplicate key value violates unique constraint "athena_prospect_funnel_short_links_replacement_slug_uidx"',
+        details: "Key (replacement_slug)=(ai-agents-9001-2) already exists.",
+      }),
+      "slug",
+    );
+    assert.equal(
+      classifyProspectFunnelUniqueViolation({
+        code: "23505",
+        message: "duplicate key value violates unique constraint",
+      }),
+      null,
+    );
+    assert.equal(classifyProspectFunnelUniqueViolation(null), null);
   });
 
   it("isolates mappings by organization and Prospect", async () => {
     const store = createMemoryStore();
     const worker = createWorker();
-    const slugs = createSlugs();
     const destination = canonical("fr").ai_agents;
-    await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-1",
-      destinations: { ...emptyDestinations(), ai_agents: destination },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
-    await ensureProspectFunnelShortLinks({
-      organizationId: "org-b",
-      prospectId: "prospect-1",
-      destinations: { ...emptyDestinations(), ai_agents: destination },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
-    await ensureProspectFunnelShortLinks({
-      organizationId: "org-a",
-      prospectId: "prospect-2",
-      destinations: { ...emptyDestinations(), ai_agents: destination },
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
+    await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, { ...emptyDestinations(), ai_agents: destination }),
+    );
+    await ensureProspectFunnelShortLinks(
+      ensureInput(
+        store,
+        worker,
+        { ...emptyDestinations(), ai_agents: destination },
+        { organizationId: "org-b", prospectId: "prospect-1" },
+      ),
+    );
+    await ensureProspectFunnelShortLinks(
+      ensureInput(
+        store,
+        worker,
+        { ...emptyDestinations(), ai_agents: destination },
+        { organizationId: "org-a", prospectId: "prospect-2" },
+      ),
+    );
     const rows = store.rows().filter((row) => row.ctaKey === "ai_agents");
     assert.equal(rows.length, 3);
     assert.deepEqual(
-      rows.map((row) => `${row.organizationId}:${row.prospectId}`).sort(),
-      ["org-a:prospect-1", "org-a:prospect-2", "org-b:prospect-1"],
+      rows.map((row) => `${row.organizationId}:${row.prospectId}:${row.slug}`).sort(),
+      [
+        `org-a:prospect-1:${AI}`,
+        `org-a:prospect-2:${AI}-3`,
+        `org-b:prospect-1:${AI}-2`,
+      ],
     );
-    const orgA = rows.find((row) => row.organizationId === "org-a" && row.prospectId === "prospect-1");
-    await ensureProspectFunnelShortLinks({
-      organizationId: "org-b",
-      prospectId: "prospect-2",
-      destinations: emptyDestinations(),
-      store,
-      worker: worker.worker,
-      createSlug: slugs.createSlug,
-    });
+    const orgA = rows.find(
+      (row) => row.organizationId === "org-a" && row.prospectId === "prospect-1",
+    );
+    await ensureProspectFunnelShortLinks(
+      ensureInput(store, worker, emptyDestinations(), {
+        organizationId: "org-b",
+        prospectId: "prospect-2",
+      }),
+    );
     const orgAAfter = store
       .rows()
       .find((row) => row.organizationId === "org-a" && row.prospectId === "prospect-1");
     assert.equal(orgAAfter?.slug, orgA?.slug);
     assert.equal(orgAAfter?.lifecycle, "active");
     assert.equal(worker.links.get(orgA?.slug ?? "")?.disabled, false);
-  });
-
-  it("issues non-guessable slugs that match the Worker pattern", () => {
-    const slugs = new Set<string>();
-    for (let index = 0; index < 20; index += 1) {
-      const slug = createProspectFunnelSlug();
-      assert.match(slug, GETOBLIC_SLUG_PATTERN);
-      assert.match(slug, /^pf_[A-Za-z0-9_-]{20,}$/);
-      slugs.add(slug);
-    }
-    assert.equal(slugs.size, 20);
   });
 });
 
@@ -804,6 +1056,14 @@ describe("Prospect Funnel short-link boundaries", () => {
     assert.doesNotMatch(
       read("services/prospects/prospectFunnelShortLinkPersistence.ts"),
       /20261013000002/,
+    );
+    assert.doesNotMatch(
+      read("services/prospects/prospectFunnelShortLinks.ts"),
+      /randomBytes|writeGetOblicLinksHistory|localStorage|createGetOblicLink|pushState/,
+    );
+    assert.doesNotMatch(
+      read("services/prospects/prospectFunnelShortLinkPersistence.ts"),
+      /writeGetOblicLinksHistory|localStorage|createGetOblicLink|pushState/,
     );
 
     for (const file of [

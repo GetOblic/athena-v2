@@ -7,19 +7,25 @@ import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { ProspectFunnelShortLinkCta } from "@/lib/prospects/prospectFunnelShortLinkDisplay";
 import { ProspectFunnelShortLinkPersistenceError } from "@/services/prospects/prospectFunnelShortLinkErrors";
-import type {
-  ProspectFunnelReplacementPhase,
-  ProspectFunnelShortLinkKey,
-  ProspectFunnelShortLinkLifecycle,
-  ProspectFunnelShortLinkRow,
-  ProspectFunnelShortLinkState,
-  ProspectFunnelShortLinkStore,
+import {
+  ProspectFunnelSlugConflictError,
+  type ProspectFunnelReplacementPhase,
+  type ProspectFunnelShortLinkKey,
+  type ProspectFunnelShortLinkLifecycle,
+  type ProspectFunnelShortLinkRow,
+  type ProspectFunnelShortLinkState,
+  type ProspectFunnelShortLinkStore,
+  type ProspectFunnelUniqueConflict,
 } from "@/services/prospects/prospectFunnelShortLinks";
 
 export const PROSPECT_FUNNEL_SHORT_LINKS_TABLE =
   "athena_prospect_funnel_short_links";
 
-type DbError = { code?: string; message?: string } | null;
+type DbError = {
+  code?: string;
+  message?: string;
+  details?: string | null;
+} | null;
 
 function isUniqueViolation(error: DbError): boolean {
   if (!error) return false;
@@ -27,6 +33,28 @@ function isUniqueViolation(error: DbError): boolean {
     error.code === "23505" ||
     /duplicate key|unique constraint/i.test(error.message ?? "")
   );
+}
+
+/**
+ * Identity conflicts reread the organization/prospect/CTA row.
+ * Slug and replacement_slug conflicts advance the readable version.
+ * Replacement is classified before slug because the name contains "slug".
+ */
+export function classifyProspectFunnelUniqueViolation(
+  error: DbError,
+): ProspectFunnelUniqueConflict | null {
+  if (!isUniqueViolation(error)) return null;
+  const text = `${error?.message ?? ""}\n${error?.details ?? ""}`;
+  if (/athena_prospect_funnel_short_links_identity_key/i.test(text)) {
+    return "mapping";
+  }
+  if (/\borganization_id,\s*prospect_id,\s*cta_key\b/i.test(text)) {
+    return "mapping";
+  }
+  if (/replacement_slug/i.test(text)) return "slug";
+  if (/athena_prospect_funnel_short_links_slug_key/i.test(text)) return "slug";
+  if (/\(slug\)/i.test(text)) return "slug";
+  return null;
 }
 
 function requireString(value: unknown, label: string): string {
@@ -119,7 +147,8 @@ export function createSupabaseProspectFunnelShortLinkStore(): ProspectFunnelShor
         })
         .select("*")
         .maybeSingle();
-      if (isUniqueViolation(error)) return { status: "conflict" };
+      const conflict = classifyProspectFunnelUniqueViolation(error);
+      if (conflict) return { status: "conflict", conflict };
       if (error || !data || typeof data !== "object") {
         throw new ProspectFunnelShortLinkPersistenceError();
       }
@@ -139,6 +168,9 @@ export function createSupabaseProspectFunnelShortLinkStore(): ProspectFunnelShor
         .eq("generation", input.expectedGeneration)
         .select("*")
         .maybeSingle();
+      if (classifyProspectFunnelUniqueViolation(error) === "slug") {
+        throw new ProspectFunnelSlugConflictError();
+      }
       if (error) throw new ProspectFunnelShortLinkPersistenceError();
       if (!data || typeof data !== "object") return null;
       return mapRow(data as Record<string, unknown>);
