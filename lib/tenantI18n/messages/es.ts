@@ -5532,6 +5532,11 @@ export const es: TenantMessages = {
       "Este es un mensaje que puedes editar y copiar. Úsalo solo si lo eliges. Athena no lo publica.",
     copySuggestion: "Copiar",
     copiedSuggestion: "Copiado",
+    notesLabel: "Notas",
+    notesHelp: "Usa texto sin formato, sin saltos de línea.",
+    saveNotes: "Guardar notas",
+    notesSaved: "Guardado.",
+    notesCleared: "Borrado.",
     errors: {
       invalidObjective:
         "Escribe un objetivo de 3 a 280 caracteres, sin caracteres de control.",
@@ -5548,6 +5553,8 @@ export const es: TenantMessages = {
       communitySuppressed: "Esa comunidad pública no está disponible.",
       invalidCommunityUrl: "Escribe la URL de un grupo público de Facebook.",
       saveFailed: "No se pudo guardar esta comunidad.",
+      invalidNotes:
+        "Las notas deben ser texto sin formato de 2000 caracteres como máximo, sin saltos de línea.",
       savesFailed: "No se pudieron cargar las comunidades guardadas.",
       continuationBusy:
         "Ya hay una búsqueda en curso para este objetivo. Espera a que termine y vuelve a intentarlo.",

@@ -319,11 +319,26 @@ describe("Gate 3D community intelligence workspace", () => {
             notes: "Ask about winter buying.",
           },
         ],
+        onSaveNotes: () =>
+          Promise.resolve({
+            ok: true,
+            save: {
+              id: "save-1",
+              canonicalUrl: GROUP_URL,
+              displayName: "Independent Retailers",
+              qualification: "relevant",
+              notes: "Ask about winter buying.",
+            },
+          }),
       }),
     );
     assert.match(html, /Independent Retailers/);
     assert.match(html, /Saved as relevant/);
     assert.match(html, /Ask about winter buying/);
+    assert.match(html, /Save Notes/);
+    assert.match(html, /without line breaks/);
+    assert.ok(html.indexOf("Saved as relevant") < html.indexOf("<textarea"));
+    assert.ok(html.indexOf("<textarea") < html.indexOf(">Open Group<"));
     assert.match(html, /Open Group/);
     assert.match(html, new RegExp(`href="${GROUP_URL}"`));
   });
@@ -749,17 +764,34 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.ok(canonical.includes("searchRecoveryLost"));
     assert.ok(canonical.includes("errors.continuationBusy"));
     assert.ok(canonical.includes("errors.continuationRejected"));
+    assert.ok(canonical.includes("notesLabel"));
+    assert.ok(canonical.includes("notesHelp"));
+    assert.ok(canonical.includes("saveNotes"));
+    assert.ok(canonical.includes("notesSaved"));
+    assert.ok(canonical.includes("notesCleared"));
+    assert.ok(canonical.includes("errors.invalidNotes"));
     for (const [language, dictionary] of Object.entries(dictionaries)) {
       assert.deepEqual(
         collectKeyPaths(dictionary.communityIntelligence),
         canonical,
         language,
       );
-      assert.notEqual(
-        dictionary.communityIntelligence.findCommunities.trim(),
-        "",
-        language,
-      );
+      const copy = dictionary.communityIntelligence;
+      assert.notEqual(copy.findCommunities.trim(), "", language);
+      assert.notEqual(copy.notesHelp.trim(), "", language);
+      assert.notEqual(copy.saveNotes.trim(), "", language);
+      assert.notEqual(copy.notesSaved.trim(), "", language);
+      assert.notEqual(copy.notesCleared.trim(), "", language);
+      assert.notEqual(copy.errors.invalidNotes.trim(), "", language);
+      if (language !== "en") {
+        assert.notEqual(copy.notesHelp, en.communityIntelligence.notesHelp, language);
+        assert.notEqual(copy.saveNotes, en.communityIntelligence.saveNotes, language);
+        assert.notEqual(
+          copy.errors.invalidNotes,
+          en.communityIntelligence.errors.invalidNotes,
+          language,
+        );
+      }
     }
   });
 });

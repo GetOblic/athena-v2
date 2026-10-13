@@ -1,20 +1,21 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import {
   COMMUNITY_CARD_CLASS,
   COMMUNITY_FIELD_HELP_CLASS,
   COMMUNITY_FIELD_LABEL_CLASS,
-  COMMUNITY_NOTE_CLASS,
   COMMUNITY_SECONDARY_CLASS,
   COMMUNITY_SUGGESTION_CLASS,
 } from "@/lib/communityIntelligence/communityIntelligencePresentation";
-import type {
-  CommunityDiscoveryCard,
-  CommunityDiscoveryUiError,
-  SavedCommunityCard,
+import {
+  savedCommunityNotesClientError,
+  savedCommunityNotesRequestText,
+  type CommunityDiscoveryCard,
+  type CommunityDiscoveryUiError,
+  type SavedCommunityCard,
 } from "@/lib/communityIntelligence/communityDiscoveryClient";
 import { ORGANIZATION_COMMUNITY_NOTES_MAX_LENGTH } from "@/services/communityDiscovery/communityDiscoveryLimits";
 
@@ -198,17 +199,200 @@ export function CommunityDiscoveryCards({
   );
 }
 
+export type SaveCommunityNotes = (input: {
+  canonicalUrl: string;
+  qualification: SavedCommunityCard["qualification"];
+  notes: string;
+}) => Promise<
+  | { ok: true; save: SavedCommunityCard }
+  | { ok: false; error: CommunityDiscoveryUiError }
+>;
+
+type SavedNotesNotice =
+  | { tone: "saving" | "saved" | "cleared" }
+  | { tone: "error"; error: CommunityDiscoveryUiError };
+
+function notesNoticeCopy(
+  copy: CommunityCopy,
+  notice: SavedNotesNotice | null,
+): { text: string; alert: boolean } | null {
+  if (!notice) return null;
+  if (notice.tone === "error") return { text: copy.errors[notice.error], alert: true };
+  if (notice.tone === "saving") return { text: copy.saving, alert: false };
+  if (notice.tone === "saved") return { text: copy.notesSaved, alert: false };
+  return { text: copy.notesCleared, alert: false };
+}
+
+function SavedCommunityNotesEditor({
+  save,
+  copy,
+  onSaveNotes,
+}: {
+  save: SavedCommunityCard;
+  copy: CommunityCopy;
+  onSaveNotes: SaveCommunityNotes;
+}) {
+  const fieldId = useId();
+  const helpId = useId();
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const persisted = save.notes ?? "";
+  const [draft, setDraft] = useState(persisted);
+  const [accepted, setAccepted] = useState(persisted);
+  const [holdPersisted, setHoldPersisted] = useState<string | null>(null);
+  const [notice, setNotice] = useState<SavedNotesNotice | null>(null);
+  const savingRef = useRef(false);
+
+  // A successful save adopts the server note immediately. Hold the pre-save
+  // value so a stale render cannot put it back. A dirty draft is also left
+  // alone when a refresh changes the stored note.
+  if (holdPersisted !== null && persisted !== holdPersisted) {
+    setHoldPersisted(null);
+  }
+  const ignoringStalePersisted = holdPersisted !== null && persisted === holdPersisted;
+  if (!ignoringStalePersisted && persisted !== accepted) {
+    setAccepted(persisted);
+    if (draft === accepted) {
+      setDraft(persisted);
+      setNotice(null);
+    }
+  }
+
+  function onDraftChange(value: string, element: HTMLTextAreaElement) {
+    if (savedCommunityNotesClientError(value)) {
+      const tracker = (
+        element as HTMLTextAreaElement & {
+          _valueTracker?: { setValue: (next: string) => void };
+        }
+      )._valueTracker;
+      // React will not write an unchanged value prop back over a rejected paste.
+      tracker?.setValue(value);
+      element.value = draft;
+      setNotice({ tone: "error", error: "invalidNotes" });
+      return;
+    }
+    setDraft(value);
+    setNotice(null);
+  }
+
+  function blockLineBreak(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+    }
+  }
+
+  useEffect(() => {
+    const element = fieldRef.current;
+    if (!element) return;
+    function blockBeforeInput(event: Event) {
+      const inputType = (event as InputEvent).inputType;
+      if (inputType === "insertLineBreak" || inputType === "insertParagraph") {
+        event.preventDefault();
+      }
+    }
+    element.addEventListener("beforeinput", blockBeforeInput);
+    return () => element.removeEventListener("beforeinput", blockBeforeInput);
+  }, []);
+
+  async function onSave() {
+    if (savingRef.current) return;
+    if (savedCommunityNotesClientError(draft)) {
+      setNotice({ tone: "error", error: "invalidNotes" });
+      return;
+    }
+    savingRef.current = true;
+    setNotice({ tone: "saving" });
+    try {
+      const result = await onSaveNotes({
+        canonicalUrl: save.canonicalUrl,
+        qualification: save.qualification,
+        notes: savedCommunityNotesRequestText(draft),
+      });
+      if (!result.ok) {
+        setNotice({ tone: "error", error: result.error });
+        return;
+      }
+      const next = result.save.notes ?? "";
+      if (persisted !== next) setHoldPersisted(persisted);
+      setDraft(next);
+      setAccepted(next);
+      setNotice(next ? { tone: "saved" } : { tone: "cleared" });
+    } catch {
+      setNotice({ tone: "error", error: "saveFailed" });
+    } finally {
+      savingRef.current = false;
+    }
+  }
+
+  const saving = notice?.tone === "saving";
+  const feedback = notesNoticeCopy(copy, notice);
+
+  return (
+    <div className="mt-4">
+      <label className={COMMUNITY_FIELD_LABEL_CLASS} htmlFor={fieldId}>
+        {copy.notesLabel}
+      </label>
+      <textarea
+        id={fieldId}
+        ref={fieldRef}
+        data-saved-notes={save.id}
+        value={draft}
+        rows={3}
+        disabled={saving}
+        aria-invalid={notice?.tone === "error"}
+        aria-describedby={helpId}
+        className={`mt-2 ${COMMUNITY_SUGGESTION_CLASS}`}
+        onKeyDown={blockLineBreak}
+        onPaste={(event) => {
+          const pasted = event.clipboardData?.getData("text") ?? "";
+          const element = event.currentTarget;
+          const start = element.selectionStart ?? element.value.length;
+          const end = element.selectionEnd ?? element.value.length;
+          const next = `${element.value.slice(0, start)}${pasted}${element.value.slice(end)}`;
+          if (savedCommunityNotesClientError(next)) {
+            event.preventDefault();
+            setNotice({ tone: "error", error: "invalidNotes" });
+          }
+        }}
+        onChange={(event) => onDraftChange(event.target.value, event.target)}
+      />
+      <p id={helpId} className={`mt-2 ${COMMUNITY_FIELD_HELP_CLASS}`}>
+        {copy.notesHelp}
+      </p>
+      <button
+        type="button"
+        data-saved-notes-action={save.id}
+        className={`mt-3 ${COMMUNITY_SECONDARY_CLASS}`}
+        disabled={saving}
+        onClick={() => void onSave()}
+      >
+        {saving ? copy.saving : copy.saveNotes}
+      </button>
+      {feedback ? (
+        <p
+          data-saved-notes-status={save.id}
+          className={`mt-3 text-sm leading-6 ${feedback.alert ? "text-rose-100" : "text-white/60"}`}
+          role={feedback.alert ? "alert" : "status"}
+        >
+          {feedback.text}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function SavedCommunityCards({
   saves,
   copy,
+  onSaveNotes,
 }: {
   saves: SavedCommunityCard[];
   copy: CommunityCopy;
+  onSaveNotes: SaveCommunityNotes;
 }) {
   return (
     <div className="space-y-4">
       {saves.map((save) => (
-        <article key={save.id} className={COMMUNITY_CARD_CLASS}>
+        <article key={save.id} className={COMMUNITY_CARD_CLASS} data-saved-community={save.id}>
           <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200/80">
             {copy.platformFacebook}
           </div>
@@ -226,7 +410,7 @@ export function SavedCommunityCards({
                   : copy.qualificationNotRelevant,
             })}
           </p>
-          {save.notes ? <p className={`mt-3 ${COMMUNITY_NOTE_CLASS}`}>{save.notes}</p> : null}
+          <SavedCommunityNotesEditor save={save} copy={copy} onSaveNotes={onSaveNotes} />
           <div className="mt-5">
             <FacebookGroupLink href={save.canonicalUrl} label={copy.openGroup} />
           </div>

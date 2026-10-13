@@ -18,6 +18,7 @@ import {
   requestMoreCommunities,
   requestSaveCommunity,
   requestSavedCommunities,
+  requestUpdateSavedCommunityNotes,
   restoreCommunityDiscovery,
   writeCommunityDiscoverySessionToken,
   type CommunityDiscoveryCard,
@@ -335,6 +336,26 @@ export function CommunityIntelligenceWorkspace({
     }
   }
 
+  async function onSaveNotes(input: {
+    canonicalUrl: string;
+    qualification: SavedCommunityCard["qualification"];
+    notes: string;
+  }) {
+    const saved = await requestUpdateSavedCommunityNotes(input);
+    if (saved.ok) {
+      setSaves((existing) => {
+        const index = existing.findIndex(
+          (item) => item.canonicalUrl === saved.save.canonicalUrl,
+        );
+        if (index === -1) return mergeSaved(existing, saved.save);
+        const next = existing.slice();
+        next[index] = saved.save;
+        return next;
+      });
+    }
+    return saved;
+  }
+
   const objectiveCount = interpolateTenantMessage(copy.objectiveCount, {
     count: objective.length,
     max: COMMUNITY_DISCOVERY_OBJECTIVE_MAX_LENGTH,
@@ -588,7 +609,7 @@ export function CommunityIntelligenceWorkspace({
             </CommunityPanel>
           ) : null}
           {savesState === "ready" && saves.length > 0 ? (
-            <SavedCommunityCards saves={saves} copy={copy} />
+            <SavedCommunityCards saves={saves} copy={copy} onSaveNotes={onSaveNotes} />
           ) : null}
         </section>
       )}

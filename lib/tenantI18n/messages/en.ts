@@ -5427,6 +5427,11 @@ export const en = {
       "This is a message you can edit and copy. Use it only if you choose to. Athena does not post it.",
     copySuggestion: "Copy",
     copiedSuggestion: "Copied",
+    notesLabel: "Notes",
+    notesHelp: "Use plain text without line breaks.",
+    saveNotes: "Save Notes",
+    notesSaved: "Saved.",
+    notesCleared: "Cleared.",
     errors: {
       invalidObjective:
         "Enter an objective of 3 to 280 characters, without control characters.",
@@ -5443,6 +5448,8 @@ export const en = {
       communitySuppressed: "That public community is not available.",
       invalidCommunityUrl: "Enter a public Facebook Group URL.",
       saveFailed: "This community could not be saved.",
+      invalidNotes:
+        "Notes must be plain text of at most 2000 characters, without line breaks.",
       savesFailed: "Saved communities could not be loaded.",
       continuationBusy:
         "A search for this objective is already in progress. Wait for it to finish, then try again.",

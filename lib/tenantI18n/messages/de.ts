@@ -5526,6 +5526,11 @@ export const de: TenantMessages = {
       "Dies ist eine Nachricht, die Sie bearbeiten und kopieren können. Verwenden Sie sie nur, wenn Sie das möchten. Athena veröffentlicht sie nicht.",
     copySuggestion: "Kopieren",
     copiedSuggestion: "Kopiert",
+    notesLabel: "Notizen",
+    notesHelp: "Nur Klartext, ohne Zeilenumbrüche.",
+    saveNotes: "Notizen speichern",
+    notesSaved: "Gespeichert.",
+    notesCleared: "Geleert.",
     errors: {
       invalidObjective:
         "Geben Sie ein Ziel mit 3 bis 280 Zeichen ein, ohne Steuerzeichen.",
@@ -5542,6 +5547,8 @@ export const de: TenantMessages = {
       communitySuppressed: "Diese öffentliche Community ist nicht verfügbar.",
       invalidCommunityUrl: "Geben Sie die URL einer öffentlichen Facebook-Gruppe ein.",
       saveFailed: "Diese Community konnte nicht gespeichert werden.",
+      invalidNotes:
+        "Notizen müssen Klartext mit höchstens 2000 Zeichen sein, ohne Zeilenumbrüche.",
       continuationBusy:
         "Eine Suche für dieses Ziel läuft bereits. Warten Sie, bis sie endet, und versuchen Sie es erneut.",
       continuationRejected:

@@ -20,6 +20,26 @@ export const COMMUNITY_DISCOVERY_CLIENT_TIMEOUT_MS =
 
 const CONTROL_CHARACTER = /[\u0000-\u001F\u007F]/;
 
+/**
+ * Client check matches the save route: control characters are rejected on the
+ * raw text, and the 2000-character cap applies after trim. Whitespace-only
+ * notes are a clear, not an error. The server remains the final authority.
+ */
+export function savedCommunityNotesClientError(
+  value: string,
+): "invalidNotes" | null {
+  if (CONTROL_CHARACTER.test(value)) return "invalidNotes";
+  if (value.trim().length > ORGANIZATION_COMMUNITY_NOTES_MAX_LENGTH) {
+    return "invalidNotes";
+  }
+  return null;
+}
+
+/** Empty or whitespace-only drafts clear the saved note. Other text is sent unchanged. */
+export function savedCommunityNotesRequestText(draft: string): string {
+  return draft.trim() ? draft : "";
+}
+
 export const COMMUNITY_DISCOVERY_UI_ERRORS = [
   "invalidObjective",
   "providerUnconfigured",
@@ -34,6 +54,7 @@ export const COMMUNITY_DISCOVERY_UI_ERRORS = [
   "communitySuppressed",
   "invalidCommunityUrl",
   "saveFailed",
+  "invalidNotes",
   "savesFailed",
   "continuationBusy",
   "continuationRejected",
@@ -106,7 +127,7 @@ const SAVE_ERROR_CODES: Record<string, CommunityDiscoveryUiError> = {
   CONTINUATION_IN_FLIGHT: "continuationBusy",
   INVALID_CONTINUATION: "continuationRejected",
   INVALID_QUALIFICATION: "saveFailed",
-  INVALID_NOTES: "saveFailed",
+  INVALID_NOTES: "invalidNotes",
   INVALID_SAVE: "saveFailed",
   UNAUTHORIZED: "unauthorized",
   FORBIDDEN: "forbidden",
@@ -500,8 +521,8 @@ export async function requestSavedCommunities(
   }
 }
 
-export async function requestSaveCommunity(
-  canonicalUrl: string,
+async function postCommunitySave(
+  body: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<
   | { ok: true; save: SavedCommunityCard }
@@ -514,10 +535,7 @@ export async function requestSaveCommunity(
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        canonicalUrl,
-        qualification: "relevant",
-      }),
+      body: JSON.stringify(body),
       cache: "no-store",
       signal,
     });
@@ -525,4 +543,41 @@ export async function requestSaveCommunity(
   } catch {
     return { ok: false, error: "saveFailed" };
   }
+}
+
+export async function requestSaveCommunity(
+  canonicalUrl: string,
+  signal?: AbortSignal,
+): Promise<
+  | { ok: true; save: SavedCommunityCard }
+  | { ok: false; error: CommunityDiscoveryUiError }
+> {
+  return postCommunitySave(
+    {
+      canonicalUrl,
+      qualification: "relevant",
+    },
+    signal,
+  );
+}
+
+export async function requestUpdateSavedCommunityNotes(
+  input: {
+    canonicalUrl: string;
+    qualification: SavedCommunityCard["qualification"];
+    notes: string;
+  },
+  signal?: AbortSignal,
+): Promise<
+  | { ok: true; save: SavedCommunityCard }
+  | { ok: false; error: CommunityDiscoveryUiError }
+> {
+  return postCommunitySave(
+    {
+      canonicalUrl: input.canonicalUrl,
+      qualification: input.qualification,
+      notes: input.notes,
+    },
+    signal,
+  );
 }
