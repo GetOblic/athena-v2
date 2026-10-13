@@ -96,6 +96,60 @@ async function run(input: {
 }
 
 describe("community discovery continuation", () => {
+  it("keeps Find More paging and still drops non-group hits", async () => {
+    const ledger = createCommunityDiscoveryLedger();
+    const queries: CommunitySearchQuery[] = [];
+    const qualifyCalls = { count: 0 };
+    const db = createCommunityDiscoveryDbFake();
+    const first = await run({
+      hits: [
+        ...page(1, 8),
+        {
+          title: "A page",
+          url: "https://www.facebook.com/retailers",
+          snippet: "not a group",
+        },
+        {
+          title: "Reddit",
+          url: "https://www.reddit.com/r/retail",
+          snippet: "not facebook",
+        },
+      ],
+      ledger,
+      queries,
+      qualifyCalls,
+      db,
+    });
+
+    assert.equal(queries[0]?.offset, 0);
+    assert.equal(first.discovery.results.length, 8);
+    assert.equal(
+      first.discovery.results.every((result) =>
+        result.canonicalUrl.startsWith("https://www.facebook.com/groups/"),
+      ),
+      true,
+    );
+    assert.equal(first.discovery.continuation.moreAvailable, true);
+
+    const second = await run({
+      hits: page(21, 10),
+      ledger,
+      continuationToken: first.discovery.continuation.token,
+      queries,
+      qualifyCalls,
+      db,
+    });
+    assert.equal(queries[1]?.offset, 1);
+    assert.equal(second.discovery.results.length, 10);
+    assert.equal(
+      second.discovery.results.every((result) =>
+        result.canonicalUrl.startsWith("https://www.facebook.com/groups/"),
+      ),
+      true,
+    );
+    assert.equal(qualifyCalls.count, 2);
+  });
+
   it("requests Brave offsets 0, 1, and 2 and blocks a fourth call", async () => {
     const ledger = createCommunityDiscoveryLedger();
     const queries: CommunitySearchQuery[] = [];

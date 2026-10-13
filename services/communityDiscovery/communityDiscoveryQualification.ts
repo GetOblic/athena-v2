@@ -273,11 +273,10 @@ export const COMMUNITY_QUALIFICATION_SYSTEM_PROMPT = [
   "engagementGuidance is optional. Include it only when it adds useful advice. Write at most one short sentence, or an empty string. It is not the post.",
   "readyToPasteMessage is the exact text the user could paste into the community.",
   "Write readyToPasteMessage as a complete natural-language post of at most two sentences, grounded in the objective, the business context, and that result's title, snippet, and URL.",
-  "When business context contains a usable fact, readyToPasteMessage must include one concrete fact or positioning detail from that context.",
-  "Do not write a readyToPasteMessage that only repeats the objective when a usable fact is available.",
-  "Do not treat generic words such as business, local, or services as that fact.",
-  "A paraphrase may restate a fact already written in the business context. Do not invent credentials, services, or guarantees.",
-  "If a supported fact cannot be included, return an empty readyToPasteMessage.",
+  "Write from the organization's perspective. A faithful paraphrase of a business-context fact is acceptable.",
+  "A useful message does not need to copy a distinctive keyword from the business context.",
+  "Do not invent credentials, services, guarantees, or business attributes absent from the objective and business context.",
+  "Return an empty readyToPasteMessage only when a real message would require those inventions.",
   "When communication style is present, follow it. Do not invent a style.",
   "Do not write readyToPasteMessage as an instruction such as 'Post a request for recommendations'.",
   "Do not invent group rules, member activity, discussion content, or claims about the user's business.",
@@ -568,55 +567,6 @@ function factsMatch(left: string, right: string): boolean {
   return morphologicalVariant(a, b);
 }
 
-function distinctiveFactTokens(value: string): string[] {
-  const seen = new Set<string>();
-  const tokens: string[] = [];
-  for (const word of textTokens(value)) {
-    if (CLAIM_STOP_WORDS.has(word) || isGenericFactWord(word)) continue;
-    if (word.length < 4 && !SHORT_DISTINCTIVE_TOKENS.has(word)) continue;
-    const key = factLemma(word);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    tokens.push(word);
-  }
-  return tokens;
-}
-
-function tokenCovered(token: string, tokens: readonly string[]): boolean {
-  return tokens.some((candidate) => factsMatch(token, candidate));
-}
-
-function businessFactValues(context: string): string {
-  return context
-    .split("\n")
-    .map((line) => {
-      const separator = line.indexOf(": ");
-      return separator >= 0 ? line.slice(separator + 2) : "";
-    })
-    .filter((value) => value.trim().length > 0)
-    .join("\n");
-}
-
-/**
- * When Brain has a concrete fact that the objective does not already state, the paste
- * draft must use that fact or a recognized paraphrase. Generic words and field labels
- * are not facts. If nothing distinctive remains, the draft is unavailable.
- */
-function supportedBusinessFactGroundsDraft(
-  text: string,
-  objective: string,
-  businessContext: string,
-): boolean {
-  if (!communityBusinessContextHasFacts(businessContext)) return true;
-  const facts = distinctiveFactTokens(businessFactValues(businessContext));
-  if (facts.length === 0) return false;
-  const objectiveTokens = distinctiveFactTokens(objective);
-  const extras = facts.filter((token) => !tokenCovered(token, objectiveTokens));
-  const required = extras.length > 0 ? extras : facts;
-  const draftTokens = textTokens(text);
-  return required.some((token) => tokenCovered(token, draftTokens));
-}
-
 function claimTokens(value: string): string[] {
   return textTokens(value).filter((word) => {
     if (CLAIM_STOP_WORDS.has(word) || isGenericFactWord(word)) return false;
@@ -852,9 +802,6 @@ export function readyToPasteMessageFromQualification(
   if (!collapsed) return null;
   if (isImperativeEngagementGuidance(collapsed)) return null;
   if (!contributionClaimsAreGrounded(collapsed, evidence, objective, businessContext)) {
-    return null;
-  }
-  if (!supportedBusinessFactGroundsDraft(collapsed, objective, businessContext)) {
     return null;
   }
   return collapsed;

@@ -17,6 +17,7 @@ import {
 } from "../../services/communityDiscovery/communityQualificationModel";
 import {
   COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS,
+  COMMUNITY_DISCOVERY_QUALIFICATION_TIMEOUT_MS,
 } from "../../services/communityDiscovery/communityDiscoveryLimits";
 import { COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK } from "../../services/communityDiscovery/communityDiscoveryBusinessContext";
 import {
@@ -530,7 +531,7 @@ describe("community discovery qualification", () => {
     assert.deepEqual(outcome, { status: "unavailable", reason: "unconfigured" });
   });
 
-  it("rejects an objective-only draft when Brain facts are available and keeps one completion", async () => {
+  it("accepts a useful draft that does not copy a Brain keyword and keeps one completion", async () => {
     const objective = "find local SEO groups";
     const businessContext = [
       "Business Overview: Austin family dental practice focused on preventive care",
@@ -551,9 +552,10 @@ describe("community discovery qualification", () => {
       complete: async (request) => {
         calls += 1;
         assert.equal(request.maxTokens, 1600);
-        assert.match(
+        assert.match(request.messages[0].content, /faithful paraphrase/);
+        assert.doesNotMatch(
           request.messages[0].content,
-          /concrete fact or positioning detail/,
+          /If a supported fact cannot be included/,
         );
         assert.match(request.messages[1].content, /Austin family dental practice/);
         assert.equal(
@@ -580,14 +582,14 @@ describe("community discovery qualification", () => {
       outcome.explanations.get(CANDIDATE.canonicalIdentity) ?? "",
       /independent retailers/,
     );
-    assert.equal(outcome.suggestions.has(CANDIDATE.canonicalIdentity), false);
+    assert.equal(outcome.suggestions.get(CANDIDATE.canonicalIdentity), generic);
     assert.equal(
       outcome.readyToPasteUnavailable?.has(CANDIDATE.canonicalIdentity),
-      true,
+      false,
     );
     assert.equal(
       readyToPasteMessageFromQualification(generic, evidence, objective, businessContext),
-      null,
+      generic,
     );
     assert.equal(
       readyToPasteMessageFromQualification(
@@ -596,7 +598,7 @@ describe("community discovery qualification", () => {
         objective,
         businessContext,
       ),
-      null,
+      genericWords,
     );
     assert.equal(
       readyToPasteMessageFromQualification(
@@ -659,7 +661,7 @@ describe("community discovery qualification", () => {
         objective,
         "Business Overview: local business services",
       ),
-      null,
+      genericWords,
     );
   });
 
@@ -725,7 +727,7 @@ describe("community discovery qualification", () => {
             request.messages[0].content,
             /compatible with the business context/,
           );
-          assert.match(request.messages[0].content, /concrete fact or positioning detail/);
+          assert.match(request.messages[0].content, /faithful paraphrase/);
           return JSON.stringify({
             results: [
               {
@@ -881,6 +883,118 @@ describe("community discovery qualification", () => {
         providerContext,
       ),
       null,
+    );
+  });
+
+  it("recovers useful contributions and still rejects unsupported claims", async () => {
+    const objective = "find local SEO groups";
+    const businessContext = [
+      "Business Overview: Austin family dental practice focused on preventive care",
+      "Products and Services: pediatric dentistry",
+    ].join("\n");
+    const evidence = `${objective}\n${CANDIDATE.title}\n${CANDIDATE.snippet}\n${CANDIDATE.canonicalUrl}`;
+    const earlierStyle =
+      "Hello, I am looking for local SEO groups where shop owners compare notes. What has helped you find useful ones?";
+    const paraphrase =
+      "We help families look after children's teeth and focus on stopping problems early. What is worth knowing before a local SEO discussion?";
+    const discussion =
+      "Which questions should a clinic settle before talking about local search visibility?";
+    const credentials =
+      "We are licensed and insured pediatric dentists with 15 years of experience.";
+    const guarantee = "We guarantee award-winning preventive results for every family.";
+    const invented = "We offer solar installation in Dallas for these shop owners.";
+
+    assert.equal(COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS, 1600);
+    assert.equal(COMMUNITY_DISCOVERY_QUALIFICATION_TIMEOUT_MS, 12_000);
+    assert.match(COMMUNITY_QUALIFICATION_SYSTEM_PROMPT, /faithful paraphrase/);
+    assert.doesNotMatch(
+      COMMUNITY_QUALIFICATION_SYSTEM_PROMPT,
+      /must include one concrete fact/,
+    );
+
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        earlierStyle,
+        evidence,
+        objective,
+        businessContext,
+      ),
+      earlierStyle,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(paraphrase, evidence, objective, businessContext),
+      paraphrase,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(discussion, evidence, objective, businessContext),
+      discussion,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(credentials, evidence, objective, businessContext),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(guarantee, evidence, objective, businessContext),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(invented, evidence, objective, businessContext),
+      null,
+    );
+
+    const explained = await qualifyDiscoveredCommunities({
+      objective,
+      businessContext,
+      candidates: [CANDIDATE],
+      signal: SIGNAL,
+      complete: async () =>
+        JSON.stringify({
+          results: [
+            {
+              canonicalIdentity: CANDIDATE.canonicalIdentity,
+              relevanceExplanation: "This group is very active and posts daily.",
+              readyToPasteMessage: paraphrase,
+            },
+          ],
+        }),
+    });
+    assert.equal(explained.status, "available");
+    if (explained.status !== "available") return;
+    assert.equal(explained.explanations.has(CANDIDATE.canonicalIdentity), false);
+    assert.equal(explained.suggestions.get(CANDIDATE.canonicalIdentity), paraphrase);
+    assert.equal(
+      explained.readyToPasteUnavailable?.has(CANDIDATE.canonicalIdentity),
+      false,
+    );
+
+    const missing = await qualifyDiscoveredCommunities({
+      objective,
+      businessContext,
+      candidates: [CANDIDATE],
+      signal: SIGNAL,
+      complete: async () =>
+        JSON.stringify({
+          results: [
+            {
+              canonicalIdentity: CANDIDATE.canonicalIdentity,
+              relevanceExplanation:
+                "The title and snippet mention independent retailers, which matches the objective.",
+              engagementGuidance: "Ask how shop owners compare notes.",
+              readyToPasteMessage: "",
+            },
+          ],
+        }),
+    });
+    assert.equal(missing.status, "available");
+    if (missing.status !== "available") return;
+    assert.equal(missing.suggestions.has(CANDIDATE.canonicalIdentity), false);
+    assert.equal(
+      missing.readyToPasteUnavailable?.has(CANDIDATE.canonicalIdentity),
+      true,
+    );
+    assert.equal(
+      [...missing.suggestions.values()].some((value) => value.includes(paraphrase)),
+      false,
     );
   });
 
