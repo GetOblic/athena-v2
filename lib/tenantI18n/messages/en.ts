@@ -5411,9 +5411,11 @@ export const en = {
     manualUrlPlaceholder: "https://www.facebook.com/groups/example",
     manualUrlHelp: "Paste a public group link to save it without searching.",
     saveManualUrl: "Save URL",
+    engagementGuidanceLabel: "Engagement guidance",
+    readyToPasteUnavailable: "A usable draft is unavailable.",
     suggestedContributionLabel: "Suggested contribution",
     suggestedContributionHelp:
-      "Edit this if you want. Copy it only if you choose to use it. Athena does not post it.",
+      "This is a message you can edit and copy. Use it only if you choose to. Athena does not post it.",
     copySuggestion: "Copy",
     copiedSuggestion: "Copied",
     errors: {

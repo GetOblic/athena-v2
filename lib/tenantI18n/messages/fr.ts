@@ -5508,9 +5508,11 @@ export const fr: TenantMessages = {
     manualUrlHelp:
       "Collez un lien de groupe public pour l’enregistrer sans lancer de recherche.",
     saveManualUrl: "Enregistrer l’URL",
+    engagementGuidanceLabel: "Conseil d’engagement",
+    readyToPasteUnavailable: "Un brouillon utilisable n’est pas disponible.",
     suggestedContributionLabel: "Contribution suggérée",
     suggestedContributionHelp:
-      "Modifiez ce texte si vous le souhaitez. Copiez-le seulement si vous choisissez de l’utiliser. Athena ne le publie pas.",
+      "Ceci est un message que vous pouvez modifier et copier. Utilisez-le seulement si vous le choisissez. Athena ne le publie pas.",
     copySuggestion: "Copier",
     copiedSuggestion: "Copié",
     errors: {

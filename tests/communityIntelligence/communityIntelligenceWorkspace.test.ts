@@ -198,21 +198,36 @@ describe("Gate 3D community intelligence workspace", () => {
       canonicalUrl: GROUP_URL,
       displayName: "Independent Retailers",
       explanation: "The group discusses wholesale buying for independent shops.",
-      suggestedContribution: "Shop owners who compare notes may want to share how they buy wholesale.",
+      engagementGuidance: "Ask how shop owners compare notes.",
+      suggestedContribution:
+        "Hello, I am looking for how shop owners compare notes on wholesale buying. What should I look for?",
+      readyToPasteUnavailable: false,
       qualificationUnavailable: false,
       listingSnippet: "A public group for independent retailers.",
+    };
+    const draftUnavailable: CommunityDiscoveryCard = {
+      canonicalUrl: "https://www.facebook.com/groups/draft.missing",
+      displayName: "Draft Missing",
+      explanation: "The title matches independent retailers.",
+      engagementGuidance: "Post a request for recommendations.",
+      suggestedContribution: null,
+      readyToPasteUnavailable: true,
+      qualificationUnavailable: false,
+      listingSnippet: null,
     };
     const unavailable: CommunityDiscoveryCard = {
       canonicalUrl: "https://www.facebook.com/groups/home.retailers",
       displayName: "Home Retailers",
       explanation: null,
+      engagementGuidance: null,
       suggestedContribution: null,
+      readyToPasteUnavailable: false,
       qualificationUnavailable: true,
       listingSnippet: null,
     };
     const html = renderToStaticMarkup(
       createElement(CommunityDiscoveryCards, {
-        cards: [available, unavailable],
+        cards: [available, draftUnavailable, unavailable],
         copy: en.communityIntelligence,
         notices: {
           [GROUP_URL]: { tone: "duplicate" },
@@ -230,7 +245,14 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.match(html, /Why it may be relevant/);
     assert.match(html, /wholesale buying/);
     assert.match(html, /Suggested contribution/);
-    assert.match(html, /compare notes may want to share/);
+    assert.match(html, /Engagement guidance/);
+    assert.match(html, /Ask how shop owners compare notes/);
+    assert.match(html, /A usable draft is unavailable/);
+    const textarea = html.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/);
+    assert.ok(textarea);
+    assert.match(textarea[1], /Hello, I am looking for how shop owners compare notes/);
+    assert.doesNotMatch(textarea[1], /Post a request for recommendations/);
+    assert.doesNotMatch(textarea[1], /Ask how shop owners compare notes/);
     assert.match(html, /<textarea/);
     assert.match(html, /Copy/);
     assert.doesNotMatch(html, /readOnly|readonly/);
@@ -277,6 +299,8 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.equal(qualified.discovery.cards[0]?.canonicalUrl, GROUP_URL);
     assert.match(qualified.discovery.cards[0]?.explanation ?? "", /wholesale/);
     assert.equal(qualified.discovery.cards[0]?.suggestedContribution, null);
+    assert.equal(qualified.discovery.cards[0]?.engagementGuidance, null);
+    assert.equal(qualified.discovery.cards[0]?.readyToPasteUnavailable, false);
     assert.equal(
       "relevanceScore" in qualified.discovery.cards[0],
       false,
@@ -295,6 +319,8 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.equal(unavailable.discovery.qualificationUnavailable, true);
     assert.equal(unavailable.discovery.cards[0]?.explanation, null);
     assert.equal(unavailable.discovery.cards[0]?.suggestedContribution, null);
+    assert.equal(unavailable.discovery.cards[0]?.engagementGuidance, null);
+    assert.equal(unavailable.discovery.cards[0]?.readyToPasteUnavailable, false);
     assert.equal(unavailable.discovery.cards[0]?.qualificationUnavailable, true);
 
     const suggested = parseCommunityDiscoveryPayload(
@@ -303,8 +329,9 @@ describe("Gate 3D community intelligence workspace", () => {
           qualification: {
             status: "available",
             explanation: "The group discusses wholesale buying for independent shops.",
+            engagementGuidance: "Ask how shop owners compare notes.",
             suggestedContribution:
-              "Shop owners who compare notes may want to share how they buy wholesale.",
+              "Hello, I am looking for how shop owners compare notes on wholesale buying. What should I look for?",
           },
         }),
         { status: "available" },
@@ -313,9 +340,52 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.equal(suggested.ok, true);
     if (!suggested.ok) return;
     assert.equal(
-      suggested.discovery.cards[0]?.suggestedContribution,
-      "Shop owners who compare notes may want to share how they buy wholesale.",
+      suggested.discovery.cards[0]?.engagementGuidance,
+      "Ask how shop owners compare notes.",
     );
+    assert.equal(
+      suggested.discovery.cards[0]?.suggestedContribution,
+      "Hello, I am looking for how shop owners compare notes on wholesale buying. What should I look for?",
+    );
+    assert.equal(suggested.discovery.cards[0]?.readyToPasteUnavailable, false);
+
+    const guidanceOnly = parseCommunityDiscoveryPayload(
+      discoveryBody(
+        groupResult({
+          qualification: {
+            status: "available",
+            explanation: "The group discusses wholesale buying for independent shops.",
+            engagementGuidance: "Post a request for recommendations.",
+            readyToPasteUnavailable: true,
+          },
+        }),
+        { status: "available" },
+      ),
+    );
+    assert.equal(guidanceOnly.ok, true);
+    if (!guidanceOnly.ok) return;
+    assert.match(guidanceOnly.discovery.cards[0]?.explanation ?? "", /wholesale/);
+    assert.equal(guidanceOnly.discovery.cards[0]?.suggestedContribution, null);
+    assert.equal(
+      guidanceOnly.discovery.cards[0]?.engagementGuidance,
+      "Post a request for recommendations.",
+    );
+    assert.equal(guidanceOnly.discovery.cards[0]?.readyToPasteUnavailable, true);
+
+    const genericListing = parseCommunityDiscoveryPayload(
+      discoveryBody(
+        groupResult({
+          evidence: {
+            title: "Independent Retailers",
+            snippet: "See posts, photos and more on Facebook.",
+          },
+        }),
+        { status: "available" },
+      ),
+    );
+    assert.equal(genericListing.ok, true);
+    if (!genericListing.ok) return;
+    assert.equal(genericListing.discovery.cards[0]?.listingSnippet, null);
 
     const hiddenSuggestion = parseCommunityDiscoveryPayload(
       discoveryBody(
@@ -333,6 +403,7 @@ describe("Gate 3D community intelligence workspace", () => {
     if (!hiddenSuggestion.ok) return;
     assert.equal(hiddenSuggestion.discovery.cards[0]?.explanation, null);
     assert.equal(hiddenSuggestion.discovery.cards[0]?.suggestedContribution, null);
+    assert.equal(hiddenSuggestion.discovery.cards[0]?.readyToPasteUnavailable, false);
 
     const empty = parseCommunityDiscoveryPayload(
       discoveryBody(null, { status: "unavailable", reason: "not_needed" }),
@@ -497,6 +568,8 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.ok(canonical.includes("suggestedConversationFollowUp"));
     assert.ok(canonical.includes("manualUrlLabel"));
     assert.ok(canonical.includes("suggestedContributionLabel"));
+    assert.ok(canonical.includes("engagementGuidanceLabel"));
+    assert.ok(canonical.includes("readyToPasteUnavailable"));
     assert.ok(canonical.includes("copySuggestion"));
     for (const [language, dictionary] of Object.entries(dictionaries)) {
       assert.deepEqual(

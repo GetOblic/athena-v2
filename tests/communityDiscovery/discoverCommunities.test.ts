@@ -17,6 +17,7 @@ import {
   type CommunityDiscoveryResponse,
 } from "../../services/communityDiscovery/discoverCommunities";
 import { qualifyDiscoveredCommunities } from "../../services/communityDiscovery/communityDiscoveryQualification";
+import { specificFacebookGroupEvidenceSnippet } from "../../services/communityDiscovery/publicCommunityName";
 import type { CommunitySearchHit } from "../../services/communityDiscovery/communitySearchProvider";
 import { CommunitySearchError } from "../../services/communityDiscovery/communitySearchProvider";
 import type { CommunitySearchProvider } from "../../services/communityDiscovery/communitySearchProvider";
@@ -327,10 +328,11 @@ describe("Facebook Group discovery", () => {
               results: [
                 {
                   canonicalIdentity: GROUP_ID,
-                  explanation:
+                  relevanceExplanation:
                     "The title and snippet mention independent retailers, which matches the objective.",
-                  suggestedContribution:
-                    "Shop owners who compare notes may want to share how they find groups.",
+                  engagementGuidance: "Ask how shop owners compare notes.",
+                  readyToPasteMessage:
+                    "Hello, I am looking for independent retailer groups where shop owners compare notes. What has helped you find useful ones?",
                 },
               ],
             }),
@@ -351,8 +353,22 @@ describe("Facebook Group discovery", () => {
     assert.equal(grounded.discovery.results[0].qualification.status, "available");
     if (grounded.discovery.results[0].qualification.status === "available") {
       assert.equal(
+        grounded.discovery.results[0].qualification.explanation.includes(
+          "independent retailers",
+        ),
+        true,
+      );
+      assert.equal(
+        grounded.discovery.results[0].qualification.engagementGuidance,
+        "Ask how shop owners compare notes.",
+      );
+      assert.equal(
         grounded.discovery.results[0].qualification.suggestedContribution,
-        "Shop owners who compare notes may want to share how they find groups.",
+        "Hello, I am looking for independent retailer groups where shop owners compare notes. What has helped you find useful ones?",
+      );
+      assert.equal(
+        "readyToPasteUnavailable" in grounded.discovery.results[0].qualification,
+        false,
       );
     }
     assert.equal(
@@ -365,6 +381,109 @@ describe("Facebook Group discovery", () => {
       "suggestedContribution" in failed.discovery.results[0].qualification,
       false,
     );
+    assert.equal(
+      "engagementGuidance" in failed.discovery.results[0].qualification,
+      false,
+    );
+  });
+
+  it("keeps the explanation when the model returns guidance instead of a message", async () => {
+    const guided = await discover({
+      hits: [hit(GROUP_URL, "Independent Retailers", "Shop owners compare notes")],
+      qualify: (request) =>
+        qualifyDiscoveredCommunities({
+          ...request,
+          complete: async () =>
+            JSON.stringify({
+              results: [
+                {
+                  canonicalIdentity: GROUP_ID,
+                  relevanceExplanation:
+                    "The title and snippet mention independent retailers, which matches the objective.",
+                  engagementGuidance: "Post a request for recommendations.",
+                  readyToPasteMessage: "Post a request for recommendations.",
+                },
+              ],
+            }),
+        }),
+    });
+
+    assert.equal(guided.discovery.results[0].qualification.status, "available");
+    if (guided.discovery.results[0].qualification.status !== "available") return;
+    assert.match(
+      guided.discovery.results[0].qualification.explanation,
+      /independent retailers/,
+    );
+    assert.equal(
+      guided.discovery.results[0].qualification.engagementGuidance,
+      "Post a request for recommendations.",
+    );
+    assert.equal(
+      "suggestedContribution" in guided.discovery.results[0].qualification,
+      false,
+    );
+    assert.equal(
+      guided.discovery.results[0].qualification.readyToPasteUnavailable,
+      true,
+    );
+  });
+
+  it("suppresses generic Facebook directory snippets that do not describe the group", async () => {
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Log in to Facebook to start sharing and connecting with your friends, family and people you know.",
+        "Independent Retailers",
+      ),
+      "",
+    );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "See posts, photos and more on Facebook.",
+        "Independent Retailers",
+      ),
+      "",
+    );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Facebook Groups | Independent Retailers | Public group · 12,345 members",
+        "Independent Retailers",
+      ),
+      "",
+    );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Shop owners compare notes. See posts, photos and more on Facebook.",
+        "Independent Retailers",
+      ),
+      "Shop owners compare notes",
+    );
+
+    let qualifiedSnippet = "unset";
+    const { discovery } = await discover({
+      hits: [
+        hit(
+          GROUP_URL,
+          "Independent Retailers",
+          "Log in to Facebook to start sharing and connecting with your friends, family and people you know. Shop owners compare notes.",
+        ),
+      ],
+      qualify: async (request) => {
+        qualifiedSnippet = request.candidates[0]?.snippet ?? "";
+        return {
+          status: "available",
+          explanations: new Map([
+            [
+              request.candidates[0]?.canonicalIdentity ?? "",
+              "The title and snippet mention independent retailers, which matches the objective.",
+            ],
+          ]),
+          suggestions: new Map(),
+        };
+      },
+    });
+
+    assert.equal(qualifiedSnippet, "Shop owners compare notes");
+    assert.equal(discovery.results[0]?.evidence.snippet, "Shop owners compare notes");
   });
 
   it("rejects an invalid objective or a failed provider before writing the catalog", async () => {

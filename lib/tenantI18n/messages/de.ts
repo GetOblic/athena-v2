@@ -5509,9 +5509,11 @@ export const de: TenantMessages = {
     manualUrlHelp:
       "Fügen Sie einen öffentlichen Gruppenlink ein, um ihn ohne Suche zu speichern.",
     saveManualUrl: "URL speichern",
+    engagementGuidanceLabel: "Hinweis zur Beteiligung",
+    readyToPasteUnavailable: "Ein verwendbarer Entwurf ist nicht verfügbar.",
     suggestedContributionLabel: "Vorgeschlagener Beitrag",
     suggestedContributionHelp:
-      "Bearbeiten Sie den Text, wenn Sie möchten. Kopieren Sie ihn nur, wenn Sie ihn verwenden wollen. Athena veröffentlicht ihn nicht.",
+      "Dies ist eine Nachricht, die Sie bearbeiten und kopieren können. Verwenden Sie sie nur, wenn Sie das möchten. Athena veröffentlicht sie nicht.",
     copySuggestion: "Kopieren",
     copiedSuggestion: "Kopiert",
     errors: {

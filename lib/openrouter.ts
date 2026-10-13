@@ -272,8 +272,12 @@ export async function callOpenRouter(
   );
 }
 
-/** Hard cap for one-shot calls. Generation keeps its own token-budget retries. */
-export const OPENROUTER_BOUNDED_MAX_TOKENS = 1024;
+/**
+ * Hard cap for one-shot calls. Generation keeps its own token-budget retries.
+ * Community qualification is the production caller and needs room for one
+ * pasteable message on each of up to ten results.
+ */
+export const OPENROUTER_BOUNDED_MAX_TOKENS = 1600;
 
 export type OpenRouterBoundedFailure = "unconfigured" | "timeout" | "unavailable";
 

@@ -30,6 +30,7 @@ import {
 import {
   boundCommunityEvidenceSnippet,
   sanitizePublicCommunityDisplayName,
+  specificFacebookGroupEvidenceSnippet,
 } from "@/services/communityDiscovery/publicCommunityName";
 import type { SocialCommunityPlatform } from "@/services/communityDiscovery/socialCommunityPlatform";
 import { normalizeSocialCommunityUrl } from "@/services/communityDiscovery/socialCommunityRegistry";
@@ -37,8 +38,14 @@ import { normalizeSocialCommunityUrl } from "@/services/communityDiscovery/socia
 export type CommunityDiscoveryQualification =
   | {
       status: "available";
+      /** Relevance explanation from the qualification completion. */
       explanation: string;
+      /** Short engagement note. Not the post. */
+      engagementGuidance?: string;
+      /** Ready-to-paste message. Present only when the draft passed validation. */
       suggestedContribution?: string;
+      /** A draft or guidance was returned, but no usable message remains. */
+      readyToPasteUnavailable?: boolean;
     }
   | {
       status: "unavailable";
@@ -142,7 +149,10 @@ function candidatesFromHits(hits: readonly CommunitySearchHit[]): DiscoveryCandi
       canonicalUrl: normalized.community.canonicalUrl,
       displayName,
       evidenceTitle: displayName,
-      evidenceSnippet: boundCommunityEvidenceSnippet(hit.snippet),
+      evidenceSnippet:
+        normalized.community.platform === "facebook_groups"
+          ? specificFacebookGroupEvidenceSnippet(hit.snippet, displayName)
+          : boundCommunityEvidenceSnippet(hit.snippet),
     });
   }
 
@@ -161,8 +171,18 @@ function resultQualification(
     return { status: "unavailable", reason: "not_provided" };
   }
   const suggestedContribution = outcome.suggestions?.get(canonicalIdentity);
-  if (!suggestedContribution) return { status: "available", explanation };
-  return { status: "available", explanation, suggestedContribution };
+  const engagementGuidance = outcome.engagementGuidance?.get(canonicalIdentity);
+  const readyToPasteUnavailable =
+    outcome.readyToPasteUnavailable?.has(canonicalIdentity) === true;
+  return {
+    status: "available",
+    explanation,
+    ...(engagementGuidance ? { engagementGuidance } : {}),
+    ...(suggestedContribution ? { suggestedContribution } : {}),
+    ...(!suggestedContribution && readyToPasteUnavailable
+      ? { readyToPasteUnavailable: true as const }
+      : {}),
+  };
 }
 
 export async function discoverSocialCommunities(input: {

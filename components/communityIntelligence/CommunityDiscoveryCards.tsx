@@ -144,12 +144,26 @@ export function CommunityDiscoveryCards({
                 </p>
               </div>
             )}
+            {card.explanation && card.engagementGuidance ? (
+              <div className="mt-4">
+                <div className={COMMUNITY_FIELD_LABEL_CLASS}>
+                  {copy.engagementGuidanceLabel}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/70">
+                  {card.engagementGuidance}
+                </p>
+              </div>
+            ) : null}
             {card.explanation && card.suggestedContribution ? (
               <SuggestedContributionField
                 key={`${card.canonicalUrl}:${card.suggestedContribution}`}
                 suggestion={card.suggestedContribution}
                 copy={copy}
               />
+            ) : card.explanation && card.readyToPasteUnavailable ? (
+              <p className={`mt-4 ${COMMUNITY_FIELD_HELP_CLASS}`}>
+                {copy.readyToPasteUnavailable}
+              </p>
             ) : null}
             {card.listingSnippet ? (
               <div className="mt-4">

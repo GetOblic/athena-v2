@@ -20,9 +20,10 @@ import {
 } from "../../services/communityDiscovery/communityDiscoveryLimits";
 import {
   COMMUNITY_QUALIFICATION_SYSTEM_PROMPT,
+  engagementGuidanceFromQualification,
   explanationFromQualification,
   qualifyDiscoveredCommunities,
-  suggestionFromQualification,
+  readyToPasteMessageFromQualification,
 } from "../../services/communityDiscovery/communityDiscoveryQualification";
 
 const CANDIDATE = {
@@ -67,6 +68,8 @@ describe("community discovery qualification", () => {
         "The title and snippet mention independent retailers, which matches the objective.",
       );
       assert.equal(outcome.suggestions.size, 0);
+      assert.equal(outcome.engagementGuidance?.size, 0);
+      assert.equal(outcome.readyToPasteUnavailable?.size, 0);
     }
   });
 
@@ -85,26 +88,33 @@ describe("community discovery qualification", () => {
       complete: async (request) => {
         calls += 1;
         assert.equal(request.maxTokens, COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS);
-        assert.equal(request.maxTokens, 800);
-        assert.match(request.messages[0].content, /suggestedContribution/);
+        assert.equal(request.maxTokens, 1600);
+        assert.match(request.messages[0].content, /readyToPasteMessage/);
+        assert.match(request.messages[0].content, /engagementGuidance/);
+        assert.match(request.messages[0].content, /relevanceExplanation/);
         assert.match(
           request.messages[0].content,
           /Do not invent group rules, member activity, discussion content/,
+        );
+        assert.match(
+          request.messages[0].content,
+          /Do not write readyToPasteMessage as an instruction/,
         );
         return JSON.stringify({
           results: [
             {
               canonicalIdentity: CANDIDATE.canonicalIdentity,
-              explanation:
+              relevanceExplanation:
                 "The title and snippet mention independent retailers, which matches the objective.",
-              suggestedContribution:
-                "Shop owners who compare notes may want to share how they find groups.",
+              engagementGuidance: "Ask how shop owners compare notes.",
+              readyToPasteMessage:
+                "Hello, I am looking for independent retailer groups where shop owners compare notes. What has helped you find useful ones?",
             },
             {
               canonicalIdentity: second.canonicalIdentity,
-              explanation:
+              relevanceExplanation:
                 "The title and snippet mention shop owners, which matches the objective.",
-              suggestedContribution: "We sell candles to these shop owners.",
+              readyToPasteMessage: "We sell candles to these shop owners.",
             },
           ],
         });
@@ -116,10 +126,22 @@ describe("community discovery qualification", () => {
     if (outcome.status !== "available") return;
     assert.equal(
       outcome.suggestions.get(CANDIDATE.canonicalIdentity),
-      "Shop owners who compare notes may want to share how they find groups.",
+      "Hello, I am looking for independent retailer groups where shop owners compare notes. What has helped you find useful ones?",
+    );
+    assert.equal(
+      outcome.engagementGuidance?.get(CANDIDATE.canonicalIdentity),
+      "Ask how shop owners compare notes.",
+    );
+    assert.equal(
+      outcome.readyToPasteUnavailable?.has(CANDIDATE.canonicalIdentity),
+      false,
     );
     assert.equal(outcome.explanations.has(second.canonicalIdentity), true);
     assert.equal(outcome.suggestions.has(second.canonicalIdentity), false);
+    assert.equal(
+      outcome.readyToPasteUnavailable?.has(second.canonicalIdentity),
+      true,
+    );
   });
 
   it("drops explanations that add facts missing from the evidence", () => {
@@ -145,19 +167,146 @@ describe("community discovery qualification", () => {
       ),
       "The snippet mentions 5000 members.",
     );
+    const objective = "find independent retailer groups";
+    const groundedEvidence = `${objective}\n${evidence}`;
     assert.equal(
-      suggestionFromQualification(
+      readyToPasteMessageFromQualification(
         "Members were discussing rules in a recent post.",
-        evidence,
+        groundedEvidence,
+        objective,
       ),
       null,
     );
     assert.equal(
-      suggestionFromQualification(
-        "Shop owners who compare notes may want to share how they find groups.",
-        `${evidence}\nfind independent retailer groups`,
+      readyToPasteMessageFromQualification(
+        "Hello, I am looking for independent retailer groups where shop owners compare notes. What has helped you find useful ones?",
+        groundedEvidence,
+        objective,
       ),
-      "Shop owners who compare notes may want to share how they find groups.",
+      "Hello, I am looking for independent retailer groups where shop owners compare notes. What has helped you find useful ones?",
+    );
+  });
+
+  it("rejects imperative guidance, fabricated claims, and unsupported group assertions", () => {
+    const objective = "find independent retailer groups";
+    const evidence = `${objective}\n${CANDIDATE.title}\n${CANDIDATE.snippet}\n${CANDIDATE.canonicalUrl}`;
+    const guidance = "Post a request for recommendations.";
+    assert.equal(readyToPasteMessageFromQualification(guidance, evidence, objective), null);
+    assert.equal(
+      engagementGuidanceFromQualification(guidance, evidence, objective),
+      guidance,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "Shop owners who compare notes may want to share how they find groups.",
+        evidence,
+        objective,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "Our company has 15 years of experience and is award-winning.",
+        evidence,
+        objective,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "We sell candles to these shop owners.",
+        evidence,
+        objective,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "I saw a recent post where members were discussing the group rules.",
+        evidence,
+        objective,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "I joined this group and follow the community guidelines.",
+        evidence,
+        objective,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "I'm a homeowner looking for a contractor for my house.",
+        evidence,
+        objective,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "I'm a customer looking for independent retailer groups.",
+        evidence,
+        "homeowners and customers who buy wholesale",
+      ),
+      null,
+    );
+
+    const homeownerObjective = "I am a homeowner looking for kitchen remodel groups";
+    const homeownerMessage =
+      "I'm a homeowner looking for kitchen remodel ideas. What should I ask before hiring someone?";
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        homeownerMessage,
+        `${homeownerObjective}\nKitchen remodelers\nHomeowners compare kitchen notes`,
+        homeownerObjective,
+      ),
+      homeownerMessage,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        homeownerMessage,
+        `${"kitchen remodel groups for homeowners"}\nKitchen remodelers\nHomeowners compare kitchen notes`,
+        "kitchen remodel groups for homeowners",
+      ),
+      null,
+    );
+  });
+
+  it("keeps the relevance explanation when the draft is only guidance or invalid", async () => {
+    const outcome = await qualifyDiscoveredCommunities({
+      objective: "find independent retailer groups",
+      candidates: [CANDIDATE],
+      signal: SIGNAL,
+      complete: async () =>
+        JSON.stringify({
+          results: [
+            {
+              canonicalIdentity: CANDIDATE.canonicalIdentity,
+              relevanceExplanation:
+                "The title and snippet mention independent retailers, which matches the objective.",
+              engagementGuidance: "Post a request for recommendations.",
+              readyToPasteMessage: "",
+            },
+          ],
+        }),
+    });
+
+    assert.equal(outcome.status, "available");
+    if (outcome.status !== "available") return;
+    assert.match(
+      outcome.explanations.get(CANDIDATE.canonicalIdentity) ?? "",
+      /independent retailers/,
+    );
+    assert.equal(outcome.suggestions.has(CANDIDATE.canonicalIdentity), false);
+    assert.equal(
+      outcome.engagementGuidance?.get(CANDIDATE.canonicalIdentity),
+      "Post a request for recommendations.",
+    );
+    assert.equal(
+      outcome.readyToPasteUnavailable?.has(CANDIDATE.canonicalIdentity),
+      true,
     );
   });
 
@@ -365,8 +514,8 @@ describe("bounded OpenRouter completion", () => {
       assert.equal(bodies[0].temperature, 0);
       assert.equal(bodies[0].model, getLLMModelRoles().analysis.model);
       assert.equal("reasoning" in bodies[0], false);
-      assert.equal(COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS <= 800, true);
-      assert.equal(OPENROUTER_BOUNDED_MAX_TOKENS <= 1024, true);
+      assert.equal(COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS <= 1600, true);
+      assert.equal(OPENROUTER_BOUNDED_MAX_TOKENS <= 1600, true);
     } finally {
       if (previous === undefined) delete process.env.OPENROUTER_API_KEY;
       else process.env.OPENROUTER_API_KEY = previous;

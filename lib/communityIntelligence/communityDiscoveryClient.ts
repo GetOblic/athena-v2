@@ -1,12 +1,14 @@
 import {
-  COMMUNITY_DISCOVERY_EVIDENCE_SNIPPET_MAX_LENGTH,
   COMMUNITY_DISCOVERY_EXPLANATION_MAX_LENGTH,
+  COMMUNITY_DISCOVERY_GUIDANCE_MAX_LENGTH,
+  COMMUNITY_DISCOVERY_GUIDANCE_MIN_LENGTH,
   COMMUNITY_DISCOVERY_ROUTE_MAX_DURATION_SECONDS,
   COMMUNITY_DISCOVERY_SUGGESTION_MAX_LENGTH,
   COMMUNITY_DISCOVERY_SUGGESTION_MIN_LENGTH,
   ORGANIZATION_COMMUNITY_NOTES_MAX_LENGTH,
   PUBLIC_COMMUNITY_DISPLAY_NAME_MAX_LENGTH,
 } from "@/services/communityDiscovery/communityDiscoveryLimits";
+import { specificFacebookGroupEvidenceSnippet } from "@/services/communityDiscovery/publicCommunityName";
 import { normalizeSocialCommunityUrl } from "@/services/communityDiscovery/socialCommunityRegistry";
 
 /**
@@ -42,7 +44,9 @@ export type CommunityDiscoveryCard = {
   canonicalUrl: string;
   displayName: string;
   explanation: string | null;
+  engagementGuidance: string | null;
   suggestedContribution: string | null;
+  readyToPasteUnavailable: boolean;
   qualificationUnavailable: boolean;
   listingSnippet: string | null;
 };
@@ -115,6 +119,12 @@ function boundedSuggestion(value: unknown): string | null {
   return text;
 }
 
+function boundedGuidance(value: unknown): string | null {
+  const text = boundedPlainText(value, COMMUNITY_DISCOVERY_GUIDANCE_MAX_LENGTH);
+  if (!text || text.length < COMMUNITY_DISCOVERY_GUIDANCE_MIN_LENGTH) return null;
+  return text;
+}
+
 export function canonicalManualFacebookGroupUrl(input: string): string | null {
   return canonicalFacebookGroup(input);
 }
@@ -141,38 +151,51 @@ function discoveryCard(value: unknown): CommunityDiscoveryCard | null {
 
   const qualification = record.qualification;
   let explanation: string | null = null;
+  let engagementGuidance: string | null = null;
   let suggestedContribution: string | null = null;
+  let readyToPasteUnavailable = false;
   if (
     qualification &&
     typeof qualification === "object" &&
     !Array.isArray(qualification) &&
     (qualification as { status?: unknown }).status === "available"
   ) {
+    const available = qualification as {
+      explanation?: unknown;
+      engagementGuidance?: unknown;
+      suggestedContribution?: unknown;
+      readyToPasteUnavailable?: unknown;
+    };
     explanation = boundedPlainText(
-      (qualification as { explanation?: unknown }).explanation,
+      available.explanation,
       COMMUNITY_DISCOVERY_EXPLANATION_MAX_LENGTH,
     );
     if (explanation) {
-      suggestedContribution = boundedSuggestion(
-        (qualification as { suggestedContribution?: unknown }).suggestedContribution,
-      );
+      engagementGuidance = boundedGuidance(available.engagementGuidance);
+      suggestedContribution = boundedSuggestion(available.suggestedContribution);
+      readyToPasteUnavailable =
+        suggestedContribution === null && available.readyToPasteUnavailable === true;
     }
   }
 
   let listingSnippet: string | null = null;
   const evidence = record.evidence;
   if (evidence && typeof evidence === "object" && !Array.isArray(evidence)) {
-    listingSnippet = boundedPlainText(
-      (evidence as { snippet?: unknown }).snippet,
-      COMMUNITY_DISCOVERY_EVIDENCE_SNIPPET_MAX_LENGTH,
+    const snippet = (evidence as { snippet?: unknown }).snippet;
+    const specific = specificFacebookGroupEvidenceSnippet(
+      typeof snippet === "string" ? snippet : "",
+      displayName,
     );
+    listingSnippet = specific || null;
   }
 
   return {
     canonicalUrl,
     displayName,
     explanation,
+    engagementGuidance,
     suggestedContribution,
+    readyToPasteUnavailable,
     qualificationUnavailable: explanation === null,
     listingSnippet,
   };

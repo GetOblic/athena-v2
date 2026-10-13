@@ -5541,9 +5541,11 @@ export const pt: TenantMessages = {
     manualUrlPlaceholder: "https://www.facebook.com/groups/exemplo",
     manualUrlHelp: "Cole o URL de um grupo público para o guardar sem pesquisar.",
     saveManualUrl: "Guardar URL",
+    engagementGuidanceLabel: "Orientação de participação",
+    readyToPasteUnavailable: "Não há um rascunho utilizável.",
     suggestedContributionLabel: "Contribuição sugerida",
     suggestedContributionHelp:
-      "Edite este texto se quiser. Copie-o só se decidir utilizá-lo. A Athena não o publica.",
+      "Esta é uma mensagem que pode editar e copiar. Utilize-a só se o decidir. A Athena não a publica.",
     copySuggestion: "Copiar",
     copiedSuggestion: "Copiado",
     errors: {
