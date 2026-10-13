@@ -18,6 +18,7 @@ export const COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK =
   "No business identity is available. Use only the objective and each result. Do not invent the poster's business, credentials, audience, or location.";
 
 const BUSINESS_CONTEXT_FIELDS = [
+  "business_overview",
   "products_and_services",
   "positioning",
   "primary_audience",
@@ -78,7 +79,7 @@ function businessModelFromProfile(masterProfile: unknown): IdentityBusinessModel
 }
 
 /**
- * Services, positioning, audience, value, style, and geography only.
+ * Overview, services, positioning, audience, value, style, and geography only.
  * Other Brain fields stay out of the prompt.
  */
 export function formatCommunityDiscoveryBusinessContext(masterProfile: unknown): string {

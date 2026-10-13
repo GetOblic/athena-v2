@@ -205,6 +205,8 @@ export const COMMUNITY_QUALIFICATION_SYSTEM_PROMPT = [
   "If the title and snippet do not establish relevance, say that they do not show a clear connection to the objective.",
   "When audienceEvidence is present, it comes only from that result's title and snippet.",
   "If audienceEvidence conflicts with the objective or the primary audience, explain that mismatch honestly and still return the result.",
+  "When a result title names a distinct specialty, such as affiliate SEO when the objective is local SEO or GEO, relevanceExplanation must say that those specialties differ.",
+  "A shared word is not enough to treat those specialties as the same. Still return the result.",
   "If audienceEvidence is absent, do not assign an audience.",
   "Never invent a relevance score or a member count.",
   "Write relevanceExplanation in at most two short sentences.",
@@ -213,6 +215,11 @@ export const COMMUNITY_QUALIFICATION_SYSTEM_PROMPT = [
   "engagementGuidance is optional advice about how to engage. Write at most one short sentence, or an empty string. It is not the post.",
   "readyToPasteMessage is the exact text the user could paste into the community.",
   "Write readyToPasteMessage as a complete natural-language post of at most three short sentences, grounded in the objective, the business context, and that result's title, snippet, and URL.",
+  "When business context contains a usable fact, readyToPasteMessage must include one concrete fact or positioning detail from that context.",
+  "Do not write a readyToPasteMessage that only repeats the objective when a usable fact is available.",
+  "Do not treat generic words such as business, local, or services as that fact.",
+  "A paraphrase may restate a fact already written in the business context. Do not invent credentials, services, or guarantees.",
+  "If a supported fact cannot be included, return an empty readyToPasteMessage.",
   "When communication style is present, follow it. Do not invent a style.",
   "Do not write readyToPasteMessage as an instruction such as 'Post a request for recommendations'.",
   "Do not invent group rules, member activity, discussion content, or claims about the user's business.",
@@ -257,6 +264,7 @@ function extractJsonObject(content: string): unknown | null {
 export function explanationFromQualification(
   explanation: unknown,
   evidence: string,
+  source?: { objective: string; title: string },
 ): string | null {
   if (typeof explanation !== "string") return null;
   const collapsed = collapseQualificationText(explanation);
@@ -267,6 +275,16 @@ export function explanationFromQualification(
     return null;
   }
   if (!explanationStaysWithinEvidence(collapsed, evidence)) return null;
+  if (
+    source &&
+    !explanationAcknowledgesSpecialtyDistinction(
+      collapsed,
+      source.objective,
+      source.title,
+    )
+  ) {
+    return null;
+  }
   return collapsed;
 }
 
@@ -301,6 +319,67 @@ function explanationStaysWithinEvidence(
   );
 }
 
+type SeoSpecialty = "affiliate_seo" | "local_seo" | "geo";
+
+const SPECIALTY_DISTINCTION =
+  /\brather than\b|\binstead of\b|\bunlike\b|\bwhereas\b|\bdifferent\b|\bdistinct\b|\bnot the same\b|\bas opposed\b|\bdoes(?:n't| not) match\b|\bdo not match\b|\bmismatch(?:ed)?\b|\blimited connection\b|\bonly shares?\b|\bother than\b|\bplutôt que\b|\bau lieu\b|\bdifférent|\bdiferente\b|\bdistint[oa]\b|\bdivers[oa]\b|\banstatt\b|\banders als\b|\bunterschiedlich\b|\bnicht dasselbe\b|\binvece di\b|\bem vez de\b|\ben lugar de\b/i;
+
+function hasSeoTerm(text: string): boolean {
+  return /\bseo\b/i.test(text) || /\bsearch\s+engine\s+optimization\b/i.test(text);
+}
+
+function hasAffiliateTerm(text: string): boolean {
+  return /\baffili|\bafiliad/i.test(text);
+}
+
+function hasLocalSeoTerm(text: string): boolean {
+  return (
+    /\blocal[\s-]+seo\b/i.test(text) ||
+    /\bseo[\s-]+local\b/i.test(text) ||
+    /\blokales?\s+seo\b/i.test(text) ||
+    /\blocal\s+search\s+engine\s+optimization\b/i.test(text)
+  );
+}
+
+function hasGeoTerm(text: string): boolean {
+  if (/\bgenerative\s+engine\s+optimization\b/i.test(text)) return true;
+  return /(?:^|[^a-z0-9-])geo(?:[^a-z0-9-]|$)/i.test(text);
+}
+
+function seoSpecialties(text: string): SeoSpecialty[] {
+  const found: SeoSpecialty[] = [];
+  if (hasSeoTerm(text) && hasAffiliateTerm(text)) found.push("affiliate_seo");
+  if (hasLocalSeoTerm(text)) found.push("local_seo");
+  if (hasGeoTerm(text)) found.push("geo");
+  return found;
+}
+
+function explanationMentionsSpecialty(text: string, specialty: SeoSpecialty): boolean {
+  if (specialty === "affiliate_seo") return hasAffiliateTerm(text);
+  if (specialty === "local_seo") return hasLocalSeoTerm(text);
+  return hasGeoTerm(text);
+}
+
+/**
+ * Affiliate SEO, local SEO, and GEO share wording but are different specialties.
+ * A conflicting title stays discoverable; its explanation must name the difference.
+ */
+function explanationAcknowledgesSpecialtyDistinction(
+  explanation: string,
+  objective: string,
+  title: string,
+): boolean {
+  const objectiveSpecialties = new Set(seoSpecialties(objective));
+  const conflicts = seoSpecialties(title).filter(
+    (specialty) => !objectiveSpecialties.has(specialty),
+  );
+  if (conflicts.length === 0) return true;
+  if (!SPECIALTY_DISTINCTION.test(explanation)) return false;
+  return conflicts.every((specialty) =>
+    explanationMentionsSpecialty(explanation, specialty),
+  );
+}
+
 const HOMEOWNER_AUDIENCE_PATTERN =
   /\b(?:home\s*-?\s*owners?|customers?|residents?|diy)\b/i;
 const PROFESSIONAL_AUDIENCE_PATTERN =
@@ -325,11 +404,161 @@ export function communityAudienceEvidence(
   return null;
 }
 
-function contentWords(value: string): string[] {
-  return value
-    .toLowerCase()
-    .split(/[^0-9a-z\u00c0-\u024f]+/)
-    .filter((word) => word.length >= 4 && !CLAIM_STOP_WORDS.has(word));
+const GENERIC_BUSINESS_FACT_WORDS = new Set([
+  "business",
+  "businesses",
+  "local",
+  "locally",
+  "service",
+  "services",
+  "company",
+  "companies",
+  "product",
+  "products",
+  "offering",
+  "offerings",
+  "area",
+  "areas",
+  "care",
+  "focus",
+  "focused",
+  "focusing",
+  "group",
+  "groups",
+  "help",
+  "helping",
+  "helps",
+  "need",
+  "needs",
+  "note",
+  "notes",
+  "people",
+  "plain",
+  "practice",
+  "practices",
+  "share",
+  "sharing",
+  "specific",
+  "team",
+  "teams",
+  "work",
+  "working",
+  "works",
+]);
+
+const SHORT_DISTINCTIVE_TOKENS = new Set(["seo", "geo", "hvac", "cpa", "ppc", "sem"]);
+
+const FACT_LEMMA_GROUPS: readonly (readonly string[])[] = [
+  ["dental", "dentist", "dentists", "dentistry"],
+  ["aesthetic", "aesthetics", "esthetic", "esthetics"],
+  ["pediatric", "pediatrics", "paediatric", "paediatrics"],
+  ["orthodontic", "orthodontics", "orthodontist", "orthodontists"],
+  ["preventive", "prevention", "preventative"],
+];
+
+const MORPHOLOGY_SUFFIX =
+  /^(?:s|es|ed|ing|er|ers|or|ors|ion|tion|ation|ment|al|ly|ive|ist|ists|y)$/;
+
+function textTokens(value: string): string[] {
+  return value.toLowerCase().match(/[0-9a-z\u00c0-\u024f]+/g) ?? [];
+}
+
+function factLemma(word: string): string {
+  const folded = word.toLowerCase();
+  for (const group of FACT_LEMMA_GROUPS) {
+    if (group.includes(folded)) return group[0];
+  }
+  let singular = folded;
+  if (folded.endsWith("ies") && folded.length >= 6) {
+    singular = `${folded.slice(0, -3)}y`;
+  } else if (folded.endsWith("s") && folded.length >= 5) {
+    singular = folded.slice(0, -1);
+  }
+  if (singular !== folded) {
+    for (const group of FACT_LEMMA_GROUPS) {
+      if (group.includes(singular)) return group[0];
+    }
+    return singular;
+  }
+  return folded;
+}
+
+function isGenericFactWord(word: string): boolean {
+  return (
+    GENERIC_BUSINESS_FACT_WORDS.has(word) ||
+    GENERIC_BUSINESS_FACT_WORDS.has(factLemma(word))
+  );
+}
+
+function morphologicalVariant(left: string, right: string): boolean {
+  const [shorter, longer] =
+    left.length <= right.length ? [left, right] : [right, left];
+  if (shorter.length < 6 || !longer.startsWith(shorter)) return false;
+  return MORPHOLOGY_SUFFIX.test(longer.slice(shorter.length));
+}
+
+function factsMatch(left: string, right: string): boolean {
+  if (left === right) return true;
+  const a = factLemma(left);
+  const b = factLemma(right);
+  if (a === b) return true;
+  return morphologicalVariant(a, b);
+}
+
+function distinctiveFactTokens(value: string): string[] {
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+  for (const word of textTokens(value)) {
+    if (CLAIM_STOP_WORDS.has(word) || isGenericFactWord(word)) continue;
+    if (word.length < 4 && !SHORT_DISTINCTIVE_TOKENS.has(word)) continue;
+    const key = factLemma(word);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tokens.push(word);
+  }
+  return tokens;
+}
+
+function tokenCovered(token: string, tokens: readonly string[]): boolean {
+  return tokens.some((candidate) => factsMatch(token, candidate));
+}
+
+function businessFactValues(context: string): string {
+  return context
+    .split("\n")
+    .map((line) => {
+      const separator = line.indexOf(": ");
+      return separator >= 0 ? line.slice(separator + 2) : "";
+    })
+    .filter((value) => value.trim().length > 0)
+    .join("\n");
+}
+
+/**
+ * When Brain has a concrete fact that the objective does not already state, the paste
+ * draft must use that fact or a recognized paraphrase. Generic words and field labels
+ * are not facts. If nothing distinctive remains, the draft is unavailable.
+ */
+function supportedBusinessFactGroundsDraft(
+  text: string,
+  objective: string,
+  businessContext: string,
+): boolean {
+  if (!communityBusinessContextHasFacts(businessContext)) return true;
+  const facts = distinctiveFactTokens(businessFactValues(businessContext));
+  if (facts.length === 0) return false;
+  const objectiveTokens = distinctiveFactTokens(objective);
+  const extras = facts.filter((token) => !tokenCovered(token, objectiveTokens));
+  const required = extras.length > 0 ? extras : facts;
+  const draftTokens = textTokens(text);
+  return required.some((token) => tokenCovered(token, draftTokens));
+}
+
+function claimTokens(value: string): string[] {
+  return textTokens(value).filter((word) => {
+    if (CLAIM_STOP_WORDS.has(word) || isGenericFactWord(word)) return false;
+    return word.length >= 4 || SHORT_DISTINCTIVE_TOKENS.has(word);
+  });
 }
 
 function wordGrounded(word: string, haystack: string): boolean {
@@ -337,11 +566,11 @@ function wordGrounded(word: string, haystack: string): boolean {
   if (word.endsWith("s") && word.length >= 5 && haystack.includes(word.slice(0, -1))) {
     return true;
   }
-  return false;
+  return textTokens(haystack).some((token) => factsMatch(word, token));
 }
 
 function claimWordsAreGrounded(value: string, haystack: string): boolean {
-  const words = contentWords(value);
+  const words = claimTokens(value);
   if (words.length === 0) return false;
   return words.every((word) => wordGrounded(word, haystack));
 }
@@ -493,6 +722,9 @@ export function readyToPasteMessageFromQualification(
   if (!contributionClaimsAreGrounded(collapsed, evidence, objective, businessContext)) {
     return null;
   }
+  if (!supportedBusinessFactGroundsDraft(collapsed, objective, businessContext)) {
+    return null;
+  }
   return collapsed;
 }
 
@@ -571,6 +803,7 @@ export function parseCommunityQualification(
     const explanation = explanationFromQualification(
       firstProvidedText(record, ["relevanceExplanation", "explanation"]),
       evidence,
+      { objective, title: candidate.title },
     );
     if (explanation) explanations.set(candidate.canonicalIdentity, explanation);
 

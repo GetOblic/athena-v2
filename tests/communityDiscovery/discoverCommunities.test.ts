@@ -492,6 +492,27 @@ describe("Facebook Group discovery", () => {
       ),
       "Homeowners share kitchen remodel photos before hiring",
     );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Popular groups. Find communities for you. Over 1 billion people use Facebook Groups to connect with communities of people who share their interests.",
+        "Independent Retailers",
+      ),
+      "",
+    );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Shop owners compare notes on winter buying. Popular groups. Find communities for you. Over 1 billion people use Facebook to connect with communities of people who share their interests.",
+        "Independent Retailers",
+      ),
+      "Shop owners compare notes on winter buying",
+    );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Homeowners share kitchen remodel photos before hiring. Popular groups Find communities for you Over 2 billion people use Facebook Groups.",
+        "Kitchen Remodel Ideas",
+      ),
+      "Homeowners share kitchen remodel photos before hiring",
+    );
 
     let qualifiedSnippet = "unset";
     const { discovery } = await discover({
@@ -963,6 +984,48 @@ describe("Facebook Group discovery", () => {
     assert.equal(JSON.stringify(discovery).includes("members"), false);
   });
 
+  it("keeps an affiliate SEO group discoverable when the explanation ignores the specialty", async () => {
+    const queries: CommunitySearchQuery[] = [];
+    const affiliateUrl = "https://www.facebook.com/groups/affiliate-seo-strategies";
+    const { discovery, qualifyCalls } = await discover({
+      queries,
+      objective: "Find local SEO and GEO groups",
+      hits: [
+        hit(
+          affiliateUrl,
+          "Affiliate SEO Strategies",
+          "Campaign managers trade partner offers",
+        ),
+      ],
+      qualify: (request) =>
+        qualifyDiscoveredCommunities({
+          ...request,
+          complete: async () =>
+            JSON.stringify({
+              results: [
+                {
+                  canonicalIdentity: "affiliate-seo-strategies",
+                  relevanceExplanation:
+                    "This group is relevant because it discusses SEO, which matches the objective.",
+                },
+              ],
+            }),
+        }),
+    });
+
+    assert.equal(queries.length, 1);
+    assert.equal(qualifyCalls, 1);
+    assert.equal(discovery.results.length, 1);
+    assert.equal(discovery.results[0]?.canonicalUrl, affiliateUrl);
+    assert.equal(discovery.results[0]?.qualification.status, "unavailable");
+    assert.equal(
+      JSON.stringify(discovery.results[0]?.qualification).includes(
+        "discusses SEO",
+      ),
+      false,
+    );
+  });
+
   it("uses one organization identity row and ignores another tenant", async () => {
     const calls: Array<{ columns: string; limit: number; order: string }> = [];
     const secret = "org-b-private-brain-secret";
@@ -970,6 +1033,7 @@ describe("Facebook Group discovery", () => {
       executive_intelligence: {
         executive_summary: "Secret summary about a private client list",
         business_model: {
+          business_overview: "Austin family dental practice",
           products_and_services: "Kitchen remodeling",
           positioning: "Design-build remodeling",
           primary_audience: "Homeowners",
@@ -1017,6 +1081,7 @@ describe("Facebook Group discovery", () => {
     assert.equal(calls[0]?.columns, "organization_id, master_profile");
     assert.equal(calls[0]?.limit, 1);
     assert.equal(calls[0]?.order, "updated_at");
+    assert.match(context, /Business Overview: Austin family dental practice/);
     assert.match(context, /Products and Services: Kitchen remodeling/);
     assert.match(context, /Geographic Reach: Austin, Texas/);
     assert.match(context, /Communication Style: Plain and specific/);
@@ -1054,6 +1119,46 @@ describe("Facebook Group discovery", () => {
       },
     });
     assert.equal(partial, "Geographic Reach: Austin, Texas");
+    const overviewOnly = formatCommunityDiscoveryBusinessContext({
+      executive_intelligence: {
+        business_model: {
+          business_overview: "Austin family dental practice focused on preventive care",
+          trust_signals: "Do not leak trust signal essay",
+        },
+      },
+    });
+    assert.equal(
+      overviewOnly,
+      "Business Overview: Austin family dental practice focused on preventive care",
+    );
+    const normalizedOverview = formatCommunityDiscoveryBusinessContext({
+      executive_intelligence: {
+        executive_summary: "Usable summary",
+        business_model: {
+          business_overview: "Austin family dental practice focused on preventive care",
+          trust_signals: "Do not leak trust signal essay",
+        },
+      },
+    });
+    assert.equal(normalizedOverview, overviewOnly);
+    const boundedOverview = formatCommunityDiscoveryBusinessContext({
+      executive_intelligence: {
+        executive_summary: "Usable summary",
+        business_model: {
+          business_overview: "Austin ".repeat(80),
+          products_and_services: "Kitchen ".repeat(80),
+          positioning: "Design ".repeat(80),
+          primary_audience: "Homeowners ".repeat(40),
+          value_proposition: "One team ".repeat(40),
+          communication_style: "Plain ".repeat(40),
+          geographic_reach: "Austin Texas ".repeat(40),
+          trust_signals: "Do not leak trust signal essay",
+        },
+      },
+    });
+    assert.ok(boundedOverview.startsWith("Business Overview:"));
+    assert.ok(boundedOverview.length <= 900);
+    assert.doesNotMatch(boundedOverview, /trust signal/i);
 
     const timed = await readBusinessContextWithinBudget({
       organizationId: ORG_A,

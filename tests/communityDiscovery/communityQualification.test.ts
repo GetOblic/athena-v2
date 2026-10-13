@@ -523,6 +523,169 @@ describe("community discovery qualification", () => {
 
     assert.deepEqual(outcome, { status: "unavailable", reason: "unconfigured" });
   });
+
+  it("rejects an objective-only draft when Brain facts are available and keeps one completion", async () => {
+    const objective = "find local SEO groups";
+    const businessContext = [
+      "Business Overview: Austin family dental practice focused on preventive care",
+    ].join("\n");
+    const evidence = `${objective}\n${CANDIDATE.title}\n${CANDIDATE.snippet}\n${CANDIDATE.canonicalUrl}`;
+    const generic =
+      "Hello, I am looking for local SEO groups where shop owners compare notes. What has helped you find useful ones?";
+    const supported =
+      "We are an Austin family dentistry practice focused on prevention. What should we know before talking with shop owners?";
+    const genericWords =
+      "Our local business services can help this group find more customers.";
+    let calls = 0;
+    const outcome = await qualifyDiscoveredCommunities({
+      objective,
+      businessContext,
+      candidates: [CANDIDATE],
+      signal: SIGNAL,
+      complete: async (request) => {
+        calls += 1;
+        assert.equal(request.maxTokens, 1600);
+        assert.match(
+          request.messages[0].content,
+          /concrete fact or positioning detail/,
+        );
+        assert.match(request.messages[1].content, /Austin family dental practice/);
+        assert.equal(
+          request.messages[1].content.match(/Business context:/g)?.length,
+          1,
+        );
+        return JSON.stringify({
+          results: [
+            {
+              canonicalIdentity: CANDIDATE.canonicalIdentity,
+              relevanceExplanation:
+                "The title and snippet mention independent retailers, which matches the objective.",
+              readyToPasteMessage: generic,
+            },
+          ],
+        });
+      },
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(outcome.status, "available");
+    if (outcome.status !== "available") return;
+    assert.match(
+      outcome.explanations.get(CANDIDATE.canonicalIdentity) ?? "",
+      /independent retailers/,
+    );
+    assert.equal(outcome.suggestions.has(CANDIDATE.canonicalIdentity), false);
+    assert.equal(
+      outcome.readyToPasteUnavailable?.has(CANDIDATE.canonicalIdentity),
+      true,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(generic, evidence, objective, businessContext),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        genericWords,
+        evidence,
+        objective,
+        businessContext,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        supported,
+        evidence,
+        objective,
+        businessContext,
+      ),
+      supported,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "We offer dentistry in Austin.",
+        evidence,
+        objective,
+        businessContext,
+      ),
+      "We offer dentistry in Austin.",
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "We welcome families to our Austin dentistry office.",
+        evidence,
+        objective,
+        businessContext,
+      ),
+      "We welcome families to our Austin dentistry office.",
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "We are licensed and insured, and we guarantee award-winning dental results.",
+        evidence,
+        objective,
+        businessContext,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "We offer solar installation in Dallas for these shop owners.",
+        evidence,
+        objective,
+        businessContext,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        generic,
+        evidence,
+        objective,
+        COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK,
+      ),
+      generic,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        genericWords,
+        evidence,
+        objective,
+        "Business Overview: local business services",
+      ),
+      null,
+    );
+  });
+
+  it("requires an affiliate SEO explanation to name the difference and still accepts a faithful one", () => {
+    const objective = "Find local SEO and GEO groups";
+    const title = "Affiliate SEO Strategies";
+    const snippet = "Campaign managers trade partner offers";
+    const evidence = `${objective}\n${title}\n${snippet}\nhttps://www.facebook.com/groups/affiliate-seo-strategies`;
+    const source = { objective, title };
+    assert.equal(
+      explanationFromQualification(
+        "This group is relevant because it discusses SEO, which matches the objective.",
+        evidence,
+        source,
+      ),
+      null,
+    );
+    const acknowledged =
+      "The listing names affiliate work, a different specialty from local SEO and GEO.";
+    assert.equal(
+      explanationFromQualification(acknowledged, evidence, source),
+      acknowledged,
+    );
+    assert.equal(
+      explanationFromQualification(
+        "The title mentions local SEO, which matches the objective.",
+        "Find local SEO groups\nLocal SEO Austin\nOwners compare local rankings",
+        { objective: "Find local SEO groups", title: "Local SEO Austin" },
+      ),
+      "The title mentions local SEO, which matches the objective.",
+    );
+  });
 });
 
 describe("community qualification model", { concurrency: false }, () => {

@@ -67,6 +67,12 @@ const FACEBOOK_DIRECTORY_BOILERPLATE = [
   String.raw`\bsee\s+posts,?\s*photos\s+and\s+more(?:\s+on\s+facebook)?\b`,
   String.raw`\bjoin\s+facebook\b(?:\s+to\s+connect\b[^.|\n]*)?`,
   String.raw`\bdiscover\s+groups\b`,
+  String.raw`\bpopular\s+groups\b`,
+  String.raw`\bfind\s+communities\s+for\s+you\b`,
+  String.raw`\bover\s+(?:\d+(?:[.,]\d+)?|one|two|three)\s+billion\s+people\b[^.|\n]*`,
+  String.raw`\buse\s+facebook(?:\s+groups)?\s+to\s+(?:share|connect|find)\b[^.|\n]*`,
+  String.raw`\bcommunities\s+of\s+people\s+who\s+share\b[^.|\n]*`,
+  String.raw`\bpeople\s+who\s+share\s+(?:their|your)\s+interests\b[^.|\n]*`,
   String.raw`\bfacebook\s+groups?\s+are\s+(?:a\s+place|communities)\s+to\s+connect\b[^.|\n]*`,
   String.raw`\babout\s+this\s+group\b`,
   String.raw`\bview\s+(?:this\s+)?group\b`,
@@ -154,6 +160,14 @@ const DIRECTORY_CHROME_WORDS = new Set([
   "make",
   "makes",
   "life",
+  "popular",
+  "communities",
+  "community",
+  "billion",
+  "interests",
+  "interest",
+  "over",
+  "find",
 ]);
 
 function escapeRegExp(value: string): string {
