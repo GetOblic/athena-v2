@@ -10,10 +10,16 @@ import {
 } from "@/components/communityIntelligence/CommunityDiscoveryCards";
 import {
   COMMUNITY_DISCOVERY_CLIENT_TIMEOUT_MS,
+  appendCommunityDiscoveryCards,
   canonicalManualFacebookGroupUrl,
+  communityDiscoveryRefreshPlan,
+  readCommunityDiscoverySessionToken,
   requestCommunityDiscovery,
+  requestMoreCommunities,
   requestSaveCommunity,
   requestSavedCommunities,
+  restoreCommunityDiscovery,
+  writeCommunityDiscoverySessionToken,
   type CommunityDiscoveryCard,
   type CommunityDiscoveryUiError,
   type SavedCommunityCard,
@@ -66,6 +72,11 @@ export function CommunityIntelligenceWorkspace({
   const [hasSearched, setHasSearched] = useState(false);
   const [cards, setCards] = useState<CommunityDiscoveryCard[]>([]);
   const [qualificationUnavailable, setQualificationUnavailable] = useState(false);
+  const [moreAvailable, setMoreAvailable] = useState(false);
+  const [searchExhausted, setSearchExhausted] = useState(false);
+  const [continuationToken, setContinuationToken] = useState<string | null>(null);
+  const [findingMore, setFindingMore] = useState(false);
+  const [recovery, setRecovery] = useState<"active" | "lost" | null>(null);
   const [discoveryError, setDiscoveryError] = useState<CommunityDiscoveryUiError | null>(
     null,
   );
@@ -81,9 +92,19 @@ export function CommunityIntelligenceWorkspace({
   const [manualSaved, setManualSaved] = useState<SavedCommunityCard | null>(null);
   const [manualDuplicate, setManualDuplicate] = useState(false);
   const searchId = useRef(0);
+  const findMoreLock = useRef(false);
 
   useEffect(() => {
     let active = true;
+    if (communityDiscoveryRefreshPlan(readCommunityDiscoverySessionToken()) === "restore") {
+      const token = readCommunityDiscoverySessionToken();
+      if (token) {
+        void restoreCommunityDiscovery(token).then((result) => {
+          if (!active) return;
+          setRecovery(result.ok ? result.discovery.recovery ?? "lost" : "lost");
+        });
+      }
+    }
     void requestSavedCommunities().then((result) => {
       if (!active) return;
       if (!result.ok) {
@@ -133,9 +154,13 @@ export function CommunityIntelligenceWorkspace({
     return result;
   }
 
+  function rememberSession(sessionToken: string | null) {
+    if (sessionToken) writeCommunityDiscoverySessionToken(sessionToken);
+  }
+
   async function onFind(event: FormEvent) {
     event.preventDefault();
-    if (searching) return;
+    if (searching || findingMore || findMoreLock.current) return;
     const trimmed = objective.trim();
     if (
       trimmed.length < COMMUNITY_DISCOVERY_OBJECTIVE_MIN_LENGTH ||
@@ -164,14 +189,78 @@ export function CommunityIntelligenceWorkspace({
       if (!result.ok) {
         setCards([]);
         setQualificationUnavailable(false);
+        setMoreAvailable(false);
+        setSearchExhausted(false);
+        setContinuationToken(null);
+        setRecovery(null);
         setDiscoveryError(timedOut ? "providerTimeout" : result.error);
+        return;
+      }
+      if (result.discovery.recovery) {
+        setCards([]);
+        setQualificationUnavailable(false);
+        setMoreAvailable(false);
+        setSearchExhausted(false);
+        setContinuationToken(null);
+        setRecovery(result.discovery.recovery);
+        setDiscoveryError(null);
         return;
       }
       setCards(result.discovery.cards);
       setQualificationUnavailable(result.discovery.qualificationUnavailable);
+      setMoreAvailable(result.discovery.continuation.moreAvailable);
+      setSearchExhausted(result.discovery.continuation.exhausted);
+      setContinuationToken(result.discovery.continuation.token);
+      setRecovery(null);
+      rememberSession(result.discovery.continuation.sessionToken);
     } finally {
       clearTimeout(timer);
       if (generation === searchId.current) setSearching(false);
+    }
+  }
+
+  async function onFindMore() {
+    if (searching || findingMore || findMoreLock.current || !continuationToken) return;
+    const trimmed = objective.trim();
+    findMoreLock.current = true;
+    const generation = searchId.current + 1;
+    searchId.current = generation;
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, COMMUNITY_DISCOVERY_CLIENT_TIMEOUT_MS);
+    setFindingMore(true);
+    setDiscoveryError(null);
+    try {
+      const result = await requestMoreCommunities(
+        trimmed,
+        continuationToken,
+        controller.signal,
+      );
+      if (generation !== searchId.current) return;
+      if (!result.ok) {
+        setDiscoveryError(timedOut ? "providerTimeout" : result.error);
+        return;
+      }
+      if (result.discovery.recovery) {
+        setRecovery(result.discovery.recovery);
+        return;
+      }
+      setCards((current) =>
+        appendCommunityDiscoveryCards(current, result.discovery.cards),
+      );
+      setQualificationUnavailable(result.discovery.qualificationUnavailable);
+      setMoreAvailable(result.discovery.continuation.moreAvailable);
+      setSearchExhausted(result.discovery.continuation.exhausted);
+      setContinuationToken(result.discovery.continuation.token);
+      setRecovery(null);
+      rememberSession(result.discovery.continuation.sessionToken);
+    } finally {
+      clearTimeout(timer);
+      findMoreLock.current = false;
+      if (generation === searchId.current) setFindingMore(false);
     }
   }
 
@@ -252,6 +341,7 @@ export function CommunityIntelligenceWorkspace({
   });
   const canSearch =
     !searching &&
+    !findingMore &&
     objective.trim().length >= COMMUNITY_DISCOVERY_OBJECTIVE_MIN_LENGTH &&
     objective.trim().length <= COMMUNITY_DISCOVERY_OBJECTIVE_MAX_LENGTH;
   const canSaveManual = !manualSaving && manualUrl.trim().length > 0;
@@ -416,13 +506,21 @@ export function CommunityIntelligenceWorkspace({
             </CommunityPanel>
           ) : null}
 
-          {!searching && hasSearched && cards.length === 0 && !discoveryError ? (
+          {recovery && !searching ? (
+            <CommunityPanel className={COMMUNITY_STATUS_CLASS} title={copy.searchRecoveryTitle}>
+              <p>
+                {recovery === "active" ? copy.searchRecoveryActive : copy.searchRecoveryLost}
+              </p>
+            </CommunityPanel>
+          ) : null}
+
+          {!searching && hasSearched && cards.length === 0 && !discoveryError && !recovery ? (
             <CommunityPanel className={COMMUNITY_EMPTY_CLASS} title={copy.emptyResultsTitle}>
               <p className="text-sm leading-6 text-white/55">{copy.emptyResultsBody}</p>
             </CommunityPanel>
           ) : null}
 
-          {!hasSearched && !searching && !discoveryError ? (
+          {!hasSearched && !searching && !discoveryError && !recovery ? (
             <CommunityPanel className={COMMUNITY_EMPTY_CLASS} title={copy.emptyBeforeTitle}>
               <p className="text-sm leading-6 text-white/55">{copy.emptyBeforeBody}</p>
             </CommunityPanel>
@@ -437,6 +535,22 @@ export function CommunityIntelligenceWorkspace({
                 notices={notices}
                 onSave={onSave}
               />
+              {moreAvailable ? (
+                <button
+                  type="button"
+                  className={COMMUNITY_SECONDARY_CLASS}
+                  disabled={findingMore}
+                  onClick={() => void onFindMore()}
+                >
+                  {findingMore ? (
+                    <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+                  ) : null}
+                  {findingMore ? copy.findingMore : copy.findMoreCommunities}
+                </button>
+              ) : null}
+              {searchExhausted && !moreAvailable ? (
+                <p className={COMMUNITY_FIELD_HELP_CLASS}>{copy.findMoreExhausted}</p>
+              ) : null}
             </section>
           ) : null}
         </div>

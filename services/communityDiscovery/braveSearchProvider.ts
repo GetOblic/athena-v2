@@ -1,4 +1,5 @@
 import {
+  COMMUNITY_DISCOVERY_MAX_SEARCH_PAGES,
   COMMUNITY_DISCOVERY_SEARCH_LIMIT,
   COMMUNITY_SEARCH_QUERY_MAX_LENGTH,
 } from "@/services/communityDiscovery/communityDiscoveryLimits";
@@ -76,6 +77,15 @@ function clampSearchLimit(limit: number): number {
   );
 }
 
+/** Brave offset skips pages, not individual results. */
+function clampSearchOffset(offset: number | undefined): number {
+  if (!Number.isFinite(offset)) return 0;
+  return Math.min(
+    COMMUNITY_DISCOVERY_MAX_SEARCH_PAGES - 1,
+    Math.max(0, Math.floor(offset ?? 0)),
+  );
+}
+
 function isAbortError(error: unknown): boolean {
   return (
     error instanceof Error &&
@@ -133,7 +143,10 @@ export function createBraveCommunitySearchProvider(
       const endpoint = new URL(BRAVE_WEB_SEARCH_PATH, `${resolveBaseUrl(options)}/`);
       endpoint.searchParams.set("q", trimmedQuery);
       endpoint.searchParams.set("count", String(limit));
+      endpoint.searchParams.set("offset", String(clampSearchOffset(query.offset)));
       endpoint.searchParams.set("result_filter", "web");
+      endpoint.searchParams.set("spellcheck", "false");
+      endpoint.searchParams.set("text_decorations", "false");
 
       const fetchImpl = options.fetchImpl ?? fetch;
       let response: Response;

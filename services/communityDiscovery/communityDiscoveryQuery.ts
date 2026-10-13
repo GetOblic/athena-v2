@@ -41,3 +41,27 @@ export function assertDiscoveryObjective(objective: unknown): string {
 export function buildFacebookGroupsSearchQuery(objective: string): string {
   return `site:facebook.com/groups ${objective}`;
 }
+
+export type CommunityDiscoveryAction =
+  | { kind: "restore"; sessionToken: string }
+  | { kind: "discover"; objective: unknown; continuationToken: string | null };
+
+/** Reads the discovery body. A client-supplied Brave offset is ignored. */
+export function readCommunityDiscoveryAction(body: unknown): CommunityDiscoveryAction {
+  const record =
+    body && typeof body === "object" && !Array.isArray(body)
+      ? (body as Record<string, unknown>)
+      : {};
+  if (record.restore === true) {
+    return {
+      kind: "restore",
+      sessionToken: typeof record.sessionToken === "string" ? record.sessionToken : "",
+    };
+  }
+  return {
+    kind: "discover",
+    objective: record.objective,
+    continuationToken:
+      typeof record.continuationToken === "string" ? record.continuationToken : null,
+  };
+}

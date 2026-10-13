@@ -5386,6 +5386,15 @@ export const en = {
     qualificationUnavailable: "Qualification unavailable",
     qualificationUnavailableHelp:
       "Athena could not qualify this group. No relevance explanation is available.",
+    relevanceNoteUnavailable: "Relevance note unavailable",
+    findMoreCommunities: "Find more communities",
+    findingMore: "Finding more communities…",
+    findMoreExhausted: "No further public Facebook Groups were found for this objective.",
+    searchRecoveryTitle: "Previous results unavailable",
+    searchRecoveryActive:
+      "This search already ran in the current server session. Its results are not kept after a refresh, so Athena did not search again. Try the same objective again later.",
+    searchRecoveryLost:
+      "Results from a previous search cannot be restored after a refresh. Athena did not repeat that search. Use Find Communities to start a new one.",
     listingText: "Public listing",
     save: "Save",
     saving: "Saving…",
@@ -5435,6 +5444,10 @@ export const en = {
       invalidCommunityUrl: "Enter a public Facebook Group URL.",
       saveFailed: "This community could not be saved.",
       savesFailed: "Saved communities could not be loaded.",
+      continuationBusy:
+        "A search for this objective is already in progress. Wait for it to finish, then try again.",
+      continuationRejected:
+        "This additional search is no longer available. Earlier results are unchanged.",
     },
   },
 } as const;

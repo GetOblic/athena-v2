@@ -27,8 +27,11 @@ import {
   parseCommunityDiscoveryPayload,
   parseSaveCommunityPayload,
   parseSavedCommunitiesPayload,
+  appendCommunityDiscoveryCards,
   canonicalManualFacebookGroupUrl,
+  communityDiscoveryRefreshPlan,
   requestCommunityDiscovery,
+  requestMoreCommunities,
   requestSaveCommunity,
   type CommunityDiscoveryCard,
 } from "../../lib/communityIntelligence/communityDiscoveryClient";
@@ -203,6 +206,7 @@ describe("Gate 3D community intelligence workspace", () => {
         "Hello, I am looking for how shop owners compare notes on wholesale buying. What should I look for?",
       readyToPasteUnavailable: false,
       qualificationUnavailable: false,
+      relevanceNoteUnavailable: false,
       listingSnippet: "A public group for independent retailers.",
     };
     const draftUnavailable: CommunityDiscoveryCard = {
@@ -213,6 +217,7 @@ describe("Gate 3D community intelligence workspace", () => {
       suggestedContribution: null,
       readyToPasteUnavailable: true,
       qualificationUnavailable: false,
+      relevanceNoteUnavailable: false,
       listingSnippet: null,
     };
     const unavailable: CommunityDiscoveryCard = {
@@ -223,6 +228,7 @@ describe("Gate 3D community intelligence workspace", () => {
       suggestedContribution: null,
       readyToPasteUnavailable: false,
       qualificationUnavailable: true,
+      relevanceNoteUnavailable: false,
       listingSnippet: null,
     };
     const html = renderToStaticMarkup(
@@ -278,7 +284,8 @@ describe("Gate 3D community intelligence workspace", () => {
             suggestedContribution:
               "We offer kitchen remodeling in Austin. What should homeowners ask before the work starts?",
             readyToPasteUnavailable: false,
-            qualificationUnavailable: true,
+            qualificationUnavailable: false,
+            relevanceNoteUnavailable: true,
             listingSnippet: "Homeowners share kitchen remodel photos",
           },
         ],
@@ -287,8 +294,9 @@ describe("Gate 3D community intelligence workspace", () => {
         onSave: () => undefined,
       }),
     );
-    assert.match(html, /Qualification unavailable/);
-    assert.match(html, /No relevance explanation is available/);
+    assert.match(html, /Relevance note unavailable/);
+    assert.doesNotMatch(html, /Qualification unavailable/);
+    assert.doesNotMatch(html, /No relevance explanation is available/);
     assert.match(html, /Suggested contribution/);
     assert.match(html, /<textarea/);
     assert.match(html, /kitchen remodeling in Austin/);
@@ -455,6 +463,10 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.equal(messageWithoutExplanation.discovery.cards[0]?.explanation, null);
     assert.equal(
       messageWithoutExplanation.discovery.cards[0]?.qualificationUnavailable,
+      false,
+    );
+    assert.equal(
+      messageWithoutExplanation.discovery.cards[0]?.relevanceNoteUnavailable,
       true,
     );
     assert.match(
@@ -618,6 +630,103 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.equal(listed.saves[0]?.canonicalUrl, GROUP_URL);
   });
 
+  it("keeps a saved community marked Saved when another card is appended", () => {
+    const saved = {
+      canonicalUrl: GROUP_URL,
+      displayName: "Independent Retailers",
+      explanation: "The group discusses wholesale buying for independent shops.",
+      engagementGuidance: null,
+      suggestedContribution: null,
+      readyToPasteUnavailable: false,
+      qualificationUnavailable: false,
+      relevanceNoteUnavailable: false,
+      listingSnippet: null,
+    };
+    const added = {
+      ...saved,
+      canonicalUrl: "https://www.facebook.com/groups/shop-owners",
+      displayName: "Shop Owners",
+    };
+    const cards = appendCommunityDiscoveryCards([saved], [saved, added]);
+    assert.deepEqual(
+      cards.map((card) => card.canonicalUrl),
+      [GROUP_URL, "https://www.facebook.com/groups/shop-owners"],
+    );
+    const html = renderToStaticMarkup(
+      createElement(CommunityDiscoveryCards, {
+        cards,
+        copy: en.communityIntelligence,
+        notices: { [GROUP_URL]: { tone: "saved" } },
+        onSave: () => undefined,
+      }),
+    );
+    assert.match(html, /Saved/);
+    assert.match(html, /Shop Owners/);
+    assert.match(html, /Saved for this organization/);
+  });
+
+  it("does not search on refresh without a session receipt and does not let the client choose an offset", async () => {
+    assert.equal(communityDiscoveryRefreshPlan(null), "idle");
+    assert.equal(communityDiscoveryRefreshPlan("a".repeat(32)), "restore");
+    const workspace = read(
+      "components/communityIntelligence/CommunityIntelligenceWorkspace.tsx",
+    );
+    const effect = workspace.slice(
+      workspace.indexOf("useEffect(() => {"),
+      workspace.indexOf("async function refreshSaves"),
+    );
+    assert.match(effect, /communityDiscoveryRefreshPlan/);
+    assert.match(effect, /restoreCommunityDiscovery/);
+    assert.doesNotMatch(effect, /requestCommunityDiscovery\(/);
+    const more = workspace.slice(
+      workspace.indexOf("async function onFindMore"),
+      workspace.indexOf("async function onSave"),
+    );
+    assert.match(more, /findMoreLock/);
+    assert.match(more, /appendCommunityDiscoveryCards/);
+    assert.doesNotMatch(more, /setCards\(\[\]\)/);
+    assert.doesNotMatch(more, /setNotices/);
+
+    const original = globalThis.fetch;
+    const bodies: unknown[] = [];
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      bodies.push(typeof init?.body === "string" ? JSON.parse(init.body) : null);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          discovery: {
+            platform: "facebook_groups",
+            qualification: { status: "unavailable", reason: "not_needed" },
+            results: [],
+            recovery: "active",
+            continuation: {
+              moreAvailable: false,
+              exhausted: false,
+              token: null,
+              sessionToken: null,
+            },
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      const moreResult = await requestMoreCommunities(
+        "independent retailers",
+        "a".repeat(32),
+        new AbortController().signal,
+      );
+      assert.equal(moreResult.ok, true);
+      assert.deepEqual(Object.keys(bodies[0] as object).sort(), [
+        "continuationToken",
+        "objective",
+      ]);
+      assert.equal("offset" in (bodies[0] as object), false);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   it("keeps community intelligence copy aligned across six dictionaries", () => {
     const canonical = collectKeyPaths(en.communityIntelligence);
     assert.ok(canonical.includes("communityIntelligence") === false);
@@ -632,6 +741,14 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.ok(canonical.includes("engagementGuidanceLabel"));
     assert.ok(canonical.includes("readyToPasteUnavailable"));
     assert.ok(canonical.includes("copySuggestion"));
+    assert.ok(canonical.includes("relevanceNoteUnavailable"));
+    assert.ok(canonical.includes("findMoreCommunities"));
+    assert.ok(canonical.includes("findMoreExhausted"));
+    assert.ok(canonical.includes("searchRecoveryTitle"));
+    assert.ok(canonical.includes("searchRecoveryActive"));
+    assert.ok(canonical.includes("searchRecoveryLost"));
+    assert.ok(canonical.includes("errors.continuationBusy"));
+    assert.ok(canonical.includes("errors.continuationRejected"));
     for (const [language, dictionary] of Object.entries(dictionaries)) {
       assert.deepEqual(
         collectKeyPaths(dictionary.communityIntelligence),

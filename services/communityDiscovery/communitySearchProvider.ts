@@ -17,6 +17,8 @@ export type CommunitySearchHit = {
 export type CommunitySearchQuery = {
   query: string;
   limit: number;
+  /** Brave page index. 0 is the first page. Callers do not choose this from the client. */
+  offset?: number;
   signal: AbortSignal;
 };
 

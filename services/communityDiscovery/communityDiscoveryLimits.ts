@@ -8,6 +8,16 @@ export const COMMUNITY_DISCOVERY_OBJECTIVE_MAX_LENGTH = 280;
 
 /** Brave web results requested and accepted from one search. */
 export const COMMUNITY_DISCOVERY_SEARCH_LIMIT = 10;
+/**
+ * Brave `offset` is a page index. Three pages are the whole budget:
+ * the original search plus two continuations.
+ */
+export const COMMUNITY_DISCOVERY_MAX_SEARCH_PAGES = 3;
+/** Process-local continuation window. Not shared across processes or restarts. */
+export const COMMUNITY_DISCOVERY_LEDGER_TTL_MS = 30 * 60 * 1000;
+export const COMMUNITY_DISCOVERY_LEDGER_MAX_ENTRIES = 64;
+/** Matches the route budget so a dead request cannot hold a page slot longer. */
+export const COMMUNITY_DISCOVERY_LEDGER_IN_FLIGHT_MS = 35_000;
 export const COMMUNITY_DISCOVERY_SEARCH_TIMEOUT_MS = 8_000;
 export const COMMUNITY_SEARCH_QUERY_MAX_LENGTH = 400;
 
@@ -22,9 +32,9 @@ export const COMMUNITY_DISCOVERY_IDENTITY_READ_TIMEOUT_MS = 2_000;
 export const COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FIELD_MAX_LENGTH = 140;
 export const COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_MAX_LENGTH = 900;
 /**
- * One completion covers up to ten results. Each result may include a short
- * relevance explanation, optional engagement guidance, and a pasteable message.
- * 1600 keeps that JSON from being cut off. Still one call, with no reasoning.
+ * One completion covers up to ten results. Each result may include one
+ * relevance sentence, optional guidance, and a two-sentence pasteable message.
+ * 1600 stays until production evidence says otherwise. Still one call, no reasoning.
  */
 export const COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS = 1600;
 

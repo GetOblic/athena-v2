@@ -5483,6 +5483,16 @@ export const de: TenantMessages = {
     qualificationUnavailable: "Qualifizierung nicht verfügbar",
     qualificationUnavailableHelp:
       "Athena konnte diese Gruppe nicht qualifizieren. Eine Relevanzbegründung liegt nicht vor.",
+    relevanceNoteUnavailable: "Relevanzhinweis nicht verfügbar",
+    findMoreCommunities: "Weitere Communities finden",
+    findingMore: "Weitere Communities werden gesucht…",
+    findMoreExhausted:
+      "Für dieses Ziel wurden keine weiteren öffentlichen Facebook-Gruppen gefunden.",
+    searchRecoveryTitle: "Vorherige Ergebnisse nicht verfügbar",
+    searchRecoveryActive:
+      "Diese Suche lief bereits in der aktuellen Serversitzung. Die Ergebnisse werden nach dem Aktualisieren nicht aufbewahrt, daher hat Athena nicht erneut gesucht. Versuchen Sie dasselbe Ziel später erneut.",
+    searchRecoveryLost:
+      "Ergebnisse einer früheren Suche können nach dem Aktualisieren nicht wiederhergestellt werden. Athena hat diese Suche nicht wiederholt. Verwenden Sie Communities finden, um eine neue zu starten.",
     listingText: "Öffentlicher Eintrag",
     save: "Speichern",
     saving: "Wird gespeichert…",
@@ -5532,6 +5542,10 @@ export const de: TenantMessages = {
       communitySuppressed: "Diese öffentliche Community ist nicht verfügbar.",
       invalidCommunityUrl: "Geben Sie die URL einer öffentlichen Facebook-Gruppe ein.",
       saveFailed: "Diese Community konnte nicht gespeichert werden.",
+      continuationBusy:
+        "Eine Suche für dieses Ziel läuft bereits. Warten Sie, bis sie endet, und versuchen Sie es erneut.",
+      continuationRejected:
+        "Diese weitere Suche ist nicht mehr verfügbar. Die bisherigen Ergebnisse bleiben unverändert.",
       savesFailed: "Gespeicherte Communities konnten nicht geladen werden.",
     },
   },

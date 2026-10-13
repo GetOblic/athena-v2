@@ -5470,6 +5470,16 @@ export const it: TenantMessages = {
     qualificationUnavailable: "Qualificazione non disponibile",
     qualificationUnavailableHelp:
       "Athena non ha potuto qualificare questo gruppo. Non c’è una spiegazione di rilevanza.",
+    relevanceNoteUnavailable: "Nota di rilevanza non disponibile",
+    findMoreCommunities: "Trova altre comunità",
+    findingMore: "Ricerca di altre comunità…",
+    findMoreExhausted:
+      "Non sono stati trovati altri gruppi pubblici di Facebook per questo obiettivo.",
+    searchRecoveryTitle: "Risultati precedenti non disponibili",
+    searchRecoveryActive:
+      "Questa ricerca è già stata eseguita nella sessione attuale del server. I risultati non vengono conservati dopo un aggiornamento, quindi Athena non ha cercato di nuovo. Riprova lo stesso obiettivo più tardi.",
+    searchRecoveryLost:
+      "I risultati di una ricerca precedente non possono essere ripristinati dopo un aggiornamento. Athena non ha ripetuto quella ricerca. Usa Trova comunità per avviarne una nuova.",
     listingText: "Scheda pubblica",
     save: "Salva",
     saving: "Salvataggio…",
@@ -5519,6 +5529,10 @@ export const it: TenantMessages = {
       invalidCommunityUrl: "Inserisci l’URL di un gruppo pubblico di Facebook.",
       saveFailed: "Non è stato possibile salvare questa comunità.",
       savesFailed: "Non è stato possibile caricare le comunità salvate.",
+      continuationBusy:
+        "Una ricerca per questo obiettivo è già in corso. Attendi che finisca, poi riprova.",
+      continuationRejected:
+        "Questa ricerca aggiuntiva non è più disponibile. I risultati precedenti restano invariati.",
     },
   },
 };

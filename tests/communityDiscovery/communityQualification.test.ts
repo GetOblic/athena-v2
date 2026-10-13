@@ -20,10 +20,13 @@ import {
 } from "../../services/communityDiscovery/communityDiscoveryLimits";
 import { COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK } from "../../services/communityDiscovery/communityDiscoveryBusinessContext";
 import {
+  classifyCommunityQualificationContent,
+  COMMUNITY_QUALIFICATION_DIAGNOSTIC_CODES,
   COMMUNITY_QUALIFICATION_SYSTEM_PROMPT,
   communityAudienceEvidence,
   engagementGuidanceFromQualification,
   explanationFromQualification,
+  formatCommunityQualificationDiagnostic,
   qualifyDiscoveredCommunities,
   readyToPasteMessageFromQualification,
 } from "../../services/communityDiscovery/communityDiscoveryQualification";
@@ -59,6 +62,9 @@ describe("community discovery qualification", () => {
         );
         assert.doesNotMatch(request.messages[1].content, /org-secret/);
         assert.match(COMMUNITY_QUALIFICATION_SYSTEM_PROMPT, /Do not invent group activity/);
+        assert.match(COMMUNITY_QUALIFICATION_SYSTEM_PROMPT, /one concise sentence/);
+        assert.match(COMMUNITY_QUALIFICATION_SYSTEM_PROMPT, /at most two sentences/);
+        assert.doesNotMatch(COMMUNITY_QUALIFICATION_SYSTEM_PROMPT, /three short sentences/);
         return JSON.stringify({
           results: [
             {
@@ -865,14 +871,19 @@ describe("bounded OpenRouter completion", () => {
           bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
           return new Response(
             JSON.stringify({
-              choices: [{ message: { content: "{\"results\":[]}" } }],
+              choices: [
+                { message: { content: "{\"results\":[]}" }, finish_reason: "stop" },
+              ],
+              usage: { completion_tokens: 42 },
             }),
             { status: 200 },
           );
         },
       });
 
-      assert.equal(content, "{\"results\":[]}");
+      assert.equal(content.content, "{\"results\":[]}");
+      assert.equal(content.finishReason, "stop");
+      assert.equal(content.completionTokens, 42);
       assert.equal(bodies.length, 1);
       assert.equal(bodies[0].max_tokens, OPENROUTER_BOUNDED_MAX_TOKENS);
       assert.equal(bodies[0].temperature, 0);
@@ -920,12 +931,150 @@ describe("bounded OpenRouter completion", () => {
           }),
         (error: unknown) =>
           error instanceof OpenRouterBoundedCallError &&
-          error.reason === "unavailable",
+          error.reason === "transport",
       );
       assert.equal(calls, 1);
     } finally {
       if (previous === undefined) delete process.env.OPENROUTER_API_KEY;
       else process.env.OPENROUTER_API_KEY = previous;
     }
+  });
+});
+
+describe("qualification diagnostics", () => {
+  const SECRET = "SECRET_OBJECTIVE_DO_NOT_LOG";
+  const GENERATED = "SECRET_GENERATED_EXPLANATION_TEXT";
+  const PASTE =
+    "Hello, I am looking for independent retailer groups where shop owners compare notes. What has helped you find useful ones?";
+
+  async function qualifyWith(
+    content: string | { content: string; finishReason: string; completionTokens: number },
+    lines: string[],
+  ) {
+    const previous = console.info;
+    console.info = (...args: unknown[]) => {
+      lines.push(args.map((part) => String(part)).join(" "));
+    };
+    try {
+      return await qualifyDiscoveredCommunities({
+        objective: `find independent retailer groups ${SECRET}`,
+        candidates: [CANDIDATE],
+        signal: SIGNAL,
+        complete: async () => content,
+      });
+    } finally {
+      console.info = previous;
+    }
+  }
+
+  it("keeps a valid contribution when the explanation is rejected", async () => {
+    const lines: string[] = [];
+    const outcome = await qualifyWith(
+      JSON.stringify({
+        results: [
+          {
+            canonicalIdentity: CANDIDATE.canonicalIdentity,
+            canonicalUrl: CANDIDATE.canonicalUrl,
+            relevanceExplanation: `This group is very active and posts daily. ${GENERATED}`,
+            readyToPasteMessage: PASTE,
+          },
+        ],
+      }),
+      lines,
+    );
+
+    assert.equal(outcome.status, "available");
+    if (outcome.status !== "available") return;
+    assert.equal(outcome.explanations.has(CANDIDATE.canonicalIdentity), false);
+    assert.equal(outcome.suggestions.get(CANDIDATE.canonicalIdentity), PASTE);
+    assert.match(lines.join("\n"), /explanation_rejected=1/);
+    assert.doesNotMatch(lines.join("\n"), new RegExp(SECRET));
+    assert.doesNotMatch(lines.join("\n"), new RegExp(GENERATED));
+    assert.doesNotMatch(lines.join("\n"), /facebook\.com/);
+  });
+
+  it("logs only closed codes, finish_reason, and completion tokens", async () => {
+    const lines: string[] = [];
+    const outcome = await qualifyWith(
+      {
+        content: JSON.stringify({
+          results: [
+            {
+              canonicalIdentity: "not-the-candidate",
+              relevanceExplanation: "The title mentions retailers.",
+              readyToPasteMessage: "We sell candles to these shop owners.",
+            },
+            {
+              canonicalIdentity: CANDIDATE.canonicalIdentity,
+              canonicalUrl: "https://www.facebook.com/groups/someone-else",
+              relevanceExplanation:
+                "The title and snippet mention independent retailers, which matches the objective.",
+              readyToPasteMessage: PASTE,
+            },
+            {
+              canonicalIdentity: CANDIDATE.canonicalIdentity,
+              relevanceExplanation:
+                "The title and snippet mention independent retailers, which matches the objective.",
+              readyToPasteMessage: "We sell candles to these shop owners.",
+            },
+            {
+              canonicalIdentity: CANDIDATE.canonicalIdentity,
+              relevanceExplanation:
+                "The title and snippet mention independent retailers, which matches the objective.",
+              readyToPasteMessage: PASTE,
+            },
+          ],
+        }),
+        finishReason: "stop",
+        completionTokens: 80,
+      },
+      lines,
+    );
+
+    assert.equal(outcome.status, "available");
+    const line = lines.find((entry) => entry.startsWith("[ATHENA_COMMUNITY_QUALIFICATION]"));
+    assert.ok(line);
+    assert.match(line, /finish_reason=stop/);
+    assert.match(line, /completion_tokens=80/);
+    assert.match(line, /identity_mismatch=/);
+    assert.match(line, /duplicate_identity=1/);
+    assert.match(line, /contribution_rejected=1/);
+    assert.doesNotMatch(line, /objective|snippet|prompt|http|SECRET|candles/i);
+    for (const code of COMMUNITY_QUALIFICATION_DIAGNOSTIC_CODES) {
+      assert.equal(typeof code, "string");
+    }
+    const safe = formatCommunityQualificationDiagnostic({
+      codes: ["malformed_json", "not_a_code", SECRET],
+      finishReason: "length\nSECRET",
+      completionTokens: 12.8,
+    });
+    assert.match(safe, /malformed_json=1/);
+    assert.match(safe, /finish_reason=none/);
+    assert.match(safe, /completion_tokens=12/);
+    assert.doesNotMatch(safe, /SECRET|not_a_code/);
+  });
+
+  it("distinguishes a truncated payload from malformed JSON", () => {
+    assert.equal(
+      classifyCommunityQualificationContent('{"results":[', "length"),
+      "truncated_response",
+    );
+    assert.equal(
+      classifyCommunityQualificationContent("not json at all", "stop"),
+      "malformed_json",
+    );
+    assert.equal(
+      classifyCommunityQualificationContent('{"nope":true}', "stop"),
+      "schema_failure",
+    );
+    assert.equal(
+      classifyCommunityQualificationContent('{"nope":true}', "length"),
+      "truncated_response",
+    );
+    assert.equal(classifyCommunityQualificationContent("   ", "stop"), "empty_response");
+    assert.equal(
+      classifyCommunityQualificationContent('{"results":[]}', "stop"),
+      null,
+    );
   });
 });

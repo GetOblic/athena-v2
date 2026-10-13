@@ -8,10 +8,12 @@ import {
 } from "@/services/communityDiscovery/communityDiscoveryErrors";
 import {
   COMMUNITY_DISCOVERY_IDENTITY_READ_TIMEOUT_MS,
+  COMMUNITY_DISCOVERY_MAX_SEARCH_PAGES,
   COMMUNITY_DISCOVERY_QUALIFICATION_TIMEOUT_MS,
   COMMUNITY_DISCOVERY_SEARCH_LIMIT,
   COMMUNITY_DISCOVERY_SEARCH_TIMEOUT_MS,
 } from "@/services/communityDiscovery/communityDiscoveryLimits";
+import type { CommunityDiscoveryLedger } from "@/services/communityDiscovery/communityDiscoveryLedger";
 import {
   qualifyDiscoveredCommunities,
   type CommunityQualificationOutcome,
@@ -72,6 +74,17 @@ export type CommunityDiscoveryResult = {
   qualification: CommunityDiscoveryQualification;
 };
 
+export type CommunityDiscoveryContinuation = {
+  moreAvailable: boolean;
+  exhausted: boolean;
+  /** Opaque server token for the next page. The client cannot choose a Brave offset. */
+  token: string | null;
+  /** Opaque receipt so a refresh can ask whether results are still recoverable. */
+  sessionToken: string | null;
+};
+
+export type CommunityDiscoveryRecovery = "active" | "lost";
+
 export type CommunityDiscoveryResponse = {
   platform: "facebook_groups";
   objective: string;
@@ -83,6 +96,15 @@ export type CommunityDiscoveryResponse = {
         reason: CommunityQualificationReason | "not_needed";
       };
   results: CommunityDiscoveryResult[];
+  continuation: CommunityDiscoveryContinuation;
+  recovery: CommunityDiscoveryRecovery | null;
+};
+
+const IDLE_CONTINUATION: CommunityDiscoveryContinuation = {
+  moreAvailable: false,
+  exhausted: false,
+  token: null,
+  sessionToken: null,
 };
 
 type DiscoveryCandidate = {
@@ -195,6 +217,15 @@ function resultQualification(
   };
 }
 
+type DiscoveryBatch = {
+  objective: string;
+  searchProvider: CommunitySearchProviderId;
+  qualification: CommunityDiscoveryResponse["qualification"];
+  results: CommunityDiscoveryResult[];
+  searchHitCount: number;
+  pageIdentities: string[];
+};
+
 export async function discoverSocialCommunities(input: {
   organizationId: string;
   objective: string;
@@ -206,7 +237,9 @@ export async function discoverSocialCommunities(input: {
   identityReadTimeoutMs?: number;
   now?: Date;
   signal?: AbortSignal;
-}): Promise<Omit<CommunityDiscoveryResponse, "platform">> {
+  offset?: number;
+  seenIdentities?: ReadonlySet<string>;
+}): Promise<DiscoveryBatch> {
   const organizationId = assertOrganizationId(input.organizationId);
   const sourcedAt = (input.now ?? new Date()).toISOString();
   const searchSignal = withTimeout(
@@ -225,6 +258,7 @@ export async function discoverSocialCommunities(input: {
     hits = await input.provider.search({
       query: input.searchQuery,
       limit: COMMUNITY_DISCOVERY_SEARCH_LIMIT,
+      offset: input.offset ?? 0,
       signal: searchSignal,
     });
   } catch (error) {
@@ -240,7 +274,11 @@ export async function discoverSocialCommunities(input: {
     );
   }
 
-  const candidates = candidatesFromHits(hits);
+  const pageCandidates = candidatesFromHits(hits);
+  const seenIdentities = input.seenIdentities ?? new Set<string>();
+  const candidates = pageCandidates.filter(
+    (candidate) => !seenIdentities.has(candidate.canonicalIdentity),
+  );
   const byPlatform = new Map<SocialCommunityPlatform, DiscoveryCandidate[]>();
   for (const candidate of candidates) {
     const group = byPlatform.get(candidate.platform) ?? [];
@@ -344,6 +382,8 @@ export async function discoverSocialCommunities(input: {
     objective: input.objective,
     searchProvider: input.provider.providerId,
     qualification,
+    searchHitCount: hits.length,
+    pageIdentities: pageCandidates.map((candidate) => candidate.canonicalIdentity),
     results: visible.map((item) => ({
       platform: item.record.platform,
       canonicalIdentity: item.record.canonicalIdentity,
@@ -364,6 +404,36 @@ export async function discoverSocialCommunities(input: {
   };
 }
 
+function publicDiscovery(
+  batch: DiscoveryBatch,
+  continuation: CommunityDiscoveryContinuation,
+  recovery: CommunityDiscoveryRecovery | null,
+): CommunityDiscoveryResponse {
+  return {
+    platform: "facebook_groups",
+    objective: batch.objective,
+    searchProvider: batch.searchProvider,
+    qualification: batch.qualification,
+    results: batch.results,
+    continuation,
+    recovery,
+  };
+}
+
+export function communityDiscoveryRecoveryResponse(
+  recovery: CommunityDiscoveryRecovery,
+): CommunityDiscoveryResponse {
+  return {
+    platform: "facebook_groups",
+    objective: "",
+    searchProvider: "brave_search",
+    qualification: { status: "unavailable", reason: "not_needed" },
+    results: [],
+    continuation: IDLE_CONTINUATION,
+    recovery,
+  };
+}
+
 export async function discoverFacebookGroups(input: {
   organizationId: string;
   objective: unknown;
@@ -374,23 +444,103 @@ export async function discoverFacebookGroups(input: {
   identityReadTimeoutMs?: number;
   now?: Date;
   signal?: AbortSignal;
+  continuationToken?: string | null;
+  ledger?: CommunityDiscoveryLedger;
 }): Promise<CommunityDiscoveryResponse> {
   const objective = assertDiscoveryObjective(input.objective);
-  const discovery = await discoverSocialCommunities({
-    organizationId: input.organizationId,
-    objective,
-    searchQuery: buildFacebookGroupsSearchQuery(objective),
-    provider: input.provider,
-    catalog: input.catalog,
-    qualify: input.qualify,
-    readBusinessContext: input.readBusinessContext,
-    identityReadTimeoutMs: input.identityReadTimeoutMs,
-    now: input.now,
-    signal: input.signal,
-  });
+  const organizationId = input.organizationId.trim();
+  if (!organizationId) {
+    throw new CommunityDiscoveryRequestError(
+      "INVALID_REQUEST",
+      "Organization context is required.",
+      400,
+    );
+  }
 
-  return {
-    platform: "facebook_groups",
-    ...discovery,
-  };
+  const ledger = input.ledger;
+  const acquisition = ledger
+    ? ledger.acquire({
+        organizationId,
+        objective,
+        continuationToken: input.continuationToken?.trim() || null,
+      })
+    : null;
+
+  if (acquisition?.status === "recovery") {
+    return {
+      ...communityDiscoveryRecoveryResponse("active"),
+      objective,
+      searchProvider: input.provider.providerId,
+    };
+  }
+  if (acquisition?.status === "exhausted") {
+    return publicDiscovery(
+      {
+        objective,
+        searchProvider: input.provider.providerId,
+        qualification: { status: "unavailable", reason: "not_needed" },
+        results: [],
+        searchHitCount: 0,
+        pageIdentities: [],
+      },
+      { ...IDLE_CONTINUATION, exhausted: true },
+      null,
+    );
+  }
+  if (acquisition?.status === "in_flight") {
+    throw new CommunityDiscoveryRequestError(
+      "CONTINUATION_IN_FLIGHT",
+      "A search for this objective is already in progress.",
+      409,
+    );
+  }
+  if (acquisition?.status === "invalid_token") {
+    throw new CommunityDiscoveryRequestError(
+      "INVALID_CONTINUATION",
+      "This additional search is no longer available.",
+      400,
+    );
+  }
+
+  const hold = acquisition?.status === "acquired" ? acquisition.hold : null;
+  try {
+    const batch = await discoverSocialCommunities({
+      organizationId,
+      objective,
+      searchQuery: buildFacebookGroupsSearchQuery(objective),
+      provider: input.provider,
+      catalog: input.catalog,
+      qualify: input.qualify,
+      readBusinessContext: input.readBusinessContext,
+      identityReadTimeoutMs: input.identityReadTimeoutMs,
+      now: input.now,
+      signal: input.signal,
+      offset: hold?.page ?? 0,
+      seenIdentities: new Set(hold?.seenIdentities ?? []),
+    });
+    if (!ledger || !hold) {
+      return publicDiscovery(batch, IDLE_CONTINUATION, null);
+    }
+    const moreAvailable =
+      batch.searchHitCount >= COMMUNITY_DISCOVERY_SEARCH_LIMIT &&
+      hold.page < COMMUNITY_DISCOVERY_MAX_SEARCH_PAGES - 1;
+    const committed = ledger.commit({
+      holdId: hold.id,
+      identities: batch.pageIdentities,
+      moreAvailable,
+    });
+    return publicDiscovery(
+      batch,
+      {
+        moreAvailable: committed?.continuationToken ? moreAvailable : false,
+        exhausted: committed ? committed.exhausted : !moreAvailable,
+        token: committed?.continuationToken ?? null,
+        sessionToken: committed?.sessionToken ?? null,
+      },
+      null,
+    );
+  } catch (error) {
+    if (ledger && hold) ledger.release(hold.id);
+    throw error;
+  }
 }

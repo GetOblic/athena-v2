@@ -134,6 +134,12 @@ export function CommunityDiscoveryCards({
                 <div className={COMMUNITY_FIELD_LABEL_CLASS}>{copy.relevance}</div>
                 <p className="mt-2 text-sm leading-6 text-white/75">{card.explanation}</p>
               </div>
+            ) : card.relevanceNoteUnavailable ? (
+              <div className="mt-4">
+                <div className={COMMUNITY_FIELD_LABEL_CLASS}>
+                  {copy.relevanceNoteUnavailable}
+                </div>
+              </div>
             ) : (
               <div className="mt-4">
                 <div className={COMMUNITY_FIELD_LABEL_CLASS}>

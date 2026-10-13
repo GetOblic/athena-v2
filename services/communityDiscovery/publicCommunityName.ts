@@ -82,7 +82,99 @@ const FACEBOOK_DIRECTORY_BOILERPLATE = [
   String.raw`\b(?:public|private)\s+groups?\b`,
   String.raw`\b\d[\d,.]*(?:\s*[km])?\s+members?\b`,
   String.raw`\bon\s+facebook\b`,
+  String.raw`\bsee\s+all\b`,
+  String.raw`\bsuggested\s+for\s+you\b`,
+  String.raw`\byour\s+groups\b`,
+  String.raw`\bgroups\s+you(?:'ve|\s+have)\s+joined\b`,
 ];
+
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+/**
+ * Facebook directory category labels. A segment that is only one of these,
+ * or a run of three or more, is navigation rather than a group description.
+ */
+const FACEBOOK_DIRECTORY_CATEGORY_LABELS = [
+  "categories",
+  "science & tech",
+  "science and tech",
+  "sports & fitness",
+  "sports and fitness",
+  "buy & sell",
+  "buy and sell",
+  "food & drink",
+  "food and drink",
+  "health & wellness",
+  "health and wellness",
+  "hobbies & crafts",
+  "home & garden",
+  "learning & education",
+  "arts & culture",
+  "business & industry",
+  "family & relationships",
+  "humor & fun",
+  "vehicles & commutes",
+  "entertainment",
+  "travel",
+  "animals",
+  "parenting",
+  "education",
+] as const;
+
+const FACEBOOK_DIRECTORY_CATEGORY_SET = new Set<string>(FACEBOOK_DIRECTORY_CATEGORY_LABELS);
+
+function decodeHtmlEntities(value: string): string {
+  return value.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (entity, body: string) => {
+    const key = body.toLowerCase();
+    if (key.startsWith("#x")) {
+      const code = Number.parseInt(key.slice(2), 16);
+      return htmlCodePoint(code) ?? entity;
+    }
+    if (key.startsWith("#")) {
+      const code = Number.parseInt(key.slice(1), 10);
+      return htmlCodePoint(code) ?? entity;
+    }
+    return NAMED_HTML_ENTITIES[key] ?? entity;
+  });
+}
+
+function htmlCodePoint(code: number): string | null {
+  if (!Number.isInteger(code) || code < 32 || code === 127 || code > 0x10ffff) {
+    return " ";
+  }
+  return String.fromCodePoint(code);
+}
+
+function normalizeCategoryLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/^[\s.|·•,;:-]+|[\s.|·•,;:-]+$/g, "")
+    .trim();
+}
+
+function isDirectoryCategoryLabel(value: string): boolean {
+  return FACEBOOK_DIRECTORY_CATEGORY_SET.has(normalizeCategoryLabel(value));
+}
+
+function stripDirectoryCategorySequence(segment: string): string {
+  const labels = [...FACEBOOK_DIRECTORY_CATEGORY_LABELS].sort(
+    (left, right) => right.length - left.length,
+  );
+  const labelPattern = labels.map((label) => escapeRegExp(label)).join("|");
+  const sequence = new RegExp(
+    String.raw`(?:^|[\s.|·•,;:-])(?:${labelPattern})(?:[\s.|·•,;:-]+(?:${labelPattern})){2,}`,
+    "gi",
+  );
+  return segment.replace(sequence, " ");
+}
 
 const DIRECTORY_CHROME_WORDS = new Set([
   "a",
@@ -222,10 +314,13 @@ export function specificFacebookGroupEvidenceSnippet(
   input: string,
   displayName: string,
 ): string {
-  const bounded = boundCommunityEvidenceSnippet(input);
+  const bounded = boundCommunityEvidenceSnippet(decodeHtmlEntities(input));
   if (!bounded) return "";
   const specific = listingSegments(bounded)
-    .map((segment) => tidySegment(withoutDirectoryBoilerplate(segment)))
+    .map((segment) =>
+      tidySegment(withoutDirectoryBoilerplate(stripDirectoryCategorySequence(segment))),
+    )
+    .filter((segment) => !isDirectoryCategoryLabel(segment))
     .filter((segment) => hasSpecificListingEvidence(segment, displayName));
   return boundCommunityEvidenceSnippet(specific.join(". "));
 }

@@ -69,6 +69,9 @@ describe("Brave community search adapter", () => {
       String(COMMUNITY_DISCOVERY_SEARCH_LIMIT),
     );
     assert.equal(calls[0].url.searchParams.get("result_filter"), "web");
+    assert.equal(calls[0].url.searchParams.get("offset"), "0");
+    assert.equal(calls[0].url.searchParams.get("spellcheck"), "false");
+    assert.equal(calls[0].url.searchParams.get("text_decorations"), "false");
     assert.equal(calls[0].url.searchParams.has("server-side-token"), false);
     assert.doesNotMatch(calls[0].url.toString(), /server-side-token/);
     const headers = new Headers(calls[0].init.headers);
@@ -176,5 +179,31 @@ describe("Brave community search adapter", () => {
         error instanceof CommunitySearchError && error.code === "unavailable",
     );
     assert.equal(calls, 2);
+  });
+
+  it("sends Brave page indexes 0, 1, and 2 with count 10", async () => {
+    const offsets: string[] = [];
+    const provider = createBraveCommunitySearchProvider({
+      apiKey: "token",
+      fetchImpl: async (input) => {
+        const url = new URL(String(input));
+        offsets.push(url.searchParams.get("offset") ?? "");
+        assert.equal(url.searchParams.get("count"), "10");
+        assert.equal(url.searchParams.get("spellcheck"), "false");
+        assert.equal(url.searchParams.get("text_decorations"), "false");
+        return response({ web: { results: [] } });
+      },
+    });
+
+    for (const offset of [0, 1, 2, 9]) {
+      await provider.search({
+        query: "site:facebook.com/groups independent retailers",
+        limit: 10,
+        offset,
+        signal: SIGNAL,
+      });
+    }
+
+    assert.deepEqual(offsets, ["0", "1", "2", "2"]);
   });
 });

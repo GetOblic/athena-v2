@@ -513,6 +513,34 @@ describe("Facebook Group discovery", () => {
       ),
       "Homeowners share kitchen remodel photos before hiring",
     );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Categories. Science &amp; tech. Travel. Animals. Sports &amp; fitness. Entertainment",
+        "Independent Retailers",
+      ),
+      "",
+    );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Categories. Science &#38; tech. Travel. Animals. Sports &amp; fitness. Entertainment",
+        "Independent Retailers",
+      ),
+      "",
+    );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Shop owners compare notes on winter buying. Categories. Science &amp; tech. Travel. Animals. Sports &amp; fitness. Entertainment",
+        "Independent Retailers",
+      ),
+      "Shop owners compare notes on winter buying",
+    );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Homeowners share kitchen remodel photos before hiring a local carpenter.",
+        "Kitchen Remodel Ideas",
+      ),
+      "Homeowners share kitchen remodel photos before hiring a local carpenter",
+    );
 
     let qualifiedSnippet = "unset";
     const { discovery } = await discover({

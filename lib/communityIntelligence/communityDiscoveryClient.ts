@@ -35,6 +35,8 @@ export const COMMUNITY_DISCOVERY_UI_ERRORS = [
   "invalidCommunityUrl",
   "saveFailed",
   "savesFailed",
+  "continuationBusy",
+  "continuationRejected",
 ] as const;
 
 export type CommunityDiscoveryUiError =
@@ -48,7 +50,16 @@ export type CommunityDiscoveryCard = {
   suggestedContribution: string | null;
   readyToPasteUnavailable: boolean;
   qualificationUnavailable: boolean;
+  /** The batch succeeded and a contribution remains, but the explanation was rejected. */
+  relevanceNoteUnavailable: boolean;
   listingSnippet: string | null;
+};
+
+export type CommunityDiscoveryContinuation = {
+  moreAvailable: boolean;
+  exhausted: boolean;
+  token: string | null;
+  sessionToken: string | null;
 };
 
 export type SavedCommunityCard = {
@@ -62,6 +73,17 @@ export type SavedCommunityCard = {
 export type CommunityDiscoveryView = {
   cards: CommunityDiscoveryCard[];
   qualificationUnavailable: boolean;
+  continuation: CommunityDiscoveryContinuation;
+  recovery: "active" | "lost" | null;
+};
+
+const SESSION_STORAGE_KEY = "athena.communityDiscovery.session";
+
+const IDLE_CONTINUATION: CommunityDiscoveryContinuation = {
+  moreAvailable: false,
+  exhausted: false,
+  token: null,
+  sessionToken: null,
 };
 
 const DISCOVERY_ERROR_CODES: Record<string, CommunityDiscoveryUiError> = {
@@ -81,6 +103,8 @@ const SAVE_ERROR_CODES: Record<string, CommunityDiscoveryUiError> = {
   SAVE_FAILED: "saveFailed",
   SAVES_FAILED: "savesFailed",
   INVALID_COMMUNITY_URL: "invalidCommunityUrl",
+  CONTINUATION_IN_FLIGHT: "continuationBusy",
+  INVALID_CONTINUATION: "continuationRejected",
   INVALID_QUALIFICATION: "saveFailed",
   INVALID_NOTES: "saveFailed",
   INVALID_SAVE: "saveFailed",
@@ -176,6 +200,9 @@ function discoveryCard(value: unknown): CommunityDiscoveryCard | null {
       suggestedContribution === null && available.readyToPasteUnavailable === true;
   }
 
+  const relevanceNoteUnavailable =
+    explanation === null && suggestedContribution !== null;
+
   let listingSnippet: string | null = null;
   const evidence = record.evidence;
   if (evidence && typeof evidence === "object" && !Array.isArray(evidence)) {
@@ -194,9 +221,76 @@ function discoveryCard(value: unknown): CommunityDiscoveryCard | null {
     engagementGuidance,
     suggestedContribution,
     readyToPasteUnavailable,
-    qualificationUnavailable: explanation === null,
+    qualificationUnavailable: explanation === null && !relevanceNoteUnavailable,
+    relevanceNoteUnavailable,
     listingSnippet,
   };
+}
+
+function opaqueToken(value: unknown): string | null {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{20,128}$/.test(value)) return null;
+  return value;
+}
+
+function parseContinuation(discovery: object): CommunityDiscoveryContinuation {
+  const value = (discovery as { continuation?: unknown }).continuation;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return IDLE_CONTINUATION;
+  }
+  const record = value as Record<string, unknown>;
+  const token = opaqueToken(record.token);
+  return {
+    moreAvailable: record.moreAvailable === true && token !== null,
+    exhausted: record.exhausted === true,
+    token,
+    sessionToken: opaqueToken(record.sessionToken),
+  };
+}
+
+function parseRecovery(discovery: object): "active" | "lost" | null {
+  const value = (discovery as { recovery?: unknown }).recovery;
+  if (value === "active" || value === "lost") return value;
+  return null;
+}
+
+export function appendCommunityDiscoveryCards(
+  current: readonly CommunityDiscoveryCard[],
+  incoming: readonly CommunityDiscoveryCard[],
+): CommunityDiscoveryCard[] {
+  const seen = new Set(current.map((card) => card.canonicalUrl));
+  const next = [...current];
+  for (const card of incoming) {
+    if (seen.has(card.canonicalUrl)) continue;
+    seen.add(card.canonicalUrl);
+    next.push(card);
+  }
+  return next;
+}
+
+/** A refresh without a session receipt must not start a search. */
+export function communityDiscoveryRefreshPlan(
+  sessionToken: string | null,
+): "idle" | "restore" {
+  return sessionToken ? "restore" : "idle";
+}
+
+export function readCommunityDiscoverySessionToken(): string | null {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    return opaqueToken(sessionStorage.getItem(SESSION_STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+export function writeCommunityDiscoverySessionToken(token: string | null): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    if (!token) sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    else sessionStorage.setItem(SESSION_STORAGE_KEY, token);
+  } catch {
+    // A private browser may reject storage. The in-memory results still work.
+  }
 }
 
 export function parseCommunityDiscoveryPayload(
@@ -248,6 +342,8 @@ export function parseCommunityDiscoveryPayload(
           !Array.isArray(qualification) &&
           (qualification as { reason?: unknown }).reason === "not_needed"
         ),
+      continuation: parseContinuation(discovery),
+      recovery: parseRecovery(discovery),
     },
   };
 }
@@ -327,9 +423,9 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-export async function requestCommunityDiscovery(
-  objective: string,
-  signal: AbortSignal,
+async function postCommunityDiscovery(
+  body: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<
   | { ok: true; discovery: CommunityDiscoveryView }
   | { ok: false; error: CommunityDiscoveryUiError }
@@ -341,7 +437,7 @@ export async function requestCommunityDiscovery(
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ objective }),
+      body: JSON.stringify(body),
       cache: "no-store",
       signal,
     });
@@ -352,6 +448,37 @@ export async function requestCommunityDiscovery(
     }
     return { ok: false, error: "discoveryFailed" };
   }
+}
+
+export async function requestCommunityDiscovery(
+  objective: string,
+  signal: AbortSignal,
+): Promise<
+  | { ok: true; discovery: CommunityDiscoveryView }
+  | { ok: false; error: CommunityDiscoveryUiError }
+> {
+  return postCommunityDiscovery({ objective }, signal);
+}
+
+export async function requestMoreCommunities(
+  objective: string,
+  continuationToken: string,
+  signal: AbortSignal,
+): Promise<
+  | { ok: true; discovery: CommunityDiscoveryView }
+  | { ok: false; error: CommunityDiscoveryUiError }
+> {
+  return postCommunityDiscovery({ objective, continuationToken }, signal);
+}
+
+export async function restoreCommunityDiscovery(
+  sessionToken: string,
+  signal?: AbortSignal,
+): Promise<
+  | { ok: true; discovery: CommunityDiscoveryView }
+  | { ok: false; error: CommunityDiscoveryUiError }
+> {
+  return postCommunityDiscovery({ restore: true, sessionToken }, signal);
 }
 
 export async function requestSavedCommunities(

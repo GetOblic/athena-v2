@@ -32,6 +32,32 @@ export type CommunityQualificationReason =
   | "unconfigured"
   | "invalid_response";
 
+/** Closed diagnostic codes. Logs may include these names, counts, finish_reason, and token usage only. */
+export const COMMUNITY_QUALIFICATION_DIAGNOSTIC_CODES = [
+  "model_timeout",
+  "configuration",
+  "transport",
+  "empty_response",
+  "malformed_json",
+  "truncated_response",
+  "schema_failure",
+  "identity_mismatch",
+  "duplicate_identity",
+  "explanation_rejected",
+  "contribution_rejected",
+] as const;
+
+export type CommunityQualificationDiagnosticCode =
+  (typeof COMMUNITY_QUALIFICATION_DIAGNOSTIC_CODES)[number];
+
+const DIAGNOSTIC_CODE_SET = new Set<string>(COMMUNITY_QUALIFICATION_DIAGNOSTIC_CODES);
+
+export type CommunityQualificationCompletion = {
+  content: string;
+  finishReason?: string | null;
+  completionTokens?: number | null;
+};
+
 export type CommunityQualificationOutcome =
   | {
       status: "available";
@@ -50,7 +76,7 @@ export type CommunityQualificationComplete = (input: {
   messages: readonly OpenRouterBoundedMessage[];
   maxTokens: number;
   signal: AbortSignal;
-}) => Promise<string>;
+}) => Promise<string | CommunityQualificationCompletion>;
 
 const SENSITIVE_PATTERNS = [
   String.raw`\b\d[\d,.]*(?:\s*[km])?\s+members?\b`,
@@ -209,12 +235,12 @@ export const COMMUNITY_QUALIFICATION_SYSTEM_PROMPT = [
   "A shared word is not enough to treat those specialties as the same. Still return the result.",
   "If audienceEvidence is absent, do not assign an audience.",
   "Never invent a relevance score or a member count.",
-  "Write relevanceExplanation in at most two short sentences.",
+  "Write relevanceExplanation as one concise sentence.",
   "Write relevanceExplanation, engagementGuidance, and readyToPasteMessage in the same language as the objective.",
   "Do not claim the group is active, posts on a schedule, has rules, or grants access unless that result's title or snippet states it.",
-  "engagementGuidance is optional advice about how to engage. Write at most one short sentence, or an empty string. It is not the post.",
+  "engagementGuidance is optional. Include it only when it adds useful advice. Write at most one short sentence, or an empty string. It is not the post.",
   "readyToPasteMessage is the exact text the user could paste into the community.",
-  "Write readyToPasteMessage as a complete natural-language post of at most three short sentences, grounded in the objective, the business context, and that result's title, snippet, and URL.",
+  "Write readyToPasteMessage as a complete natural-language post of at most two sentences, grounded in the objective, the business context, and that result's title, snippet, and URL.",
   "When business context contains a usable fact, readyToPasteMessage must include one concrete fact or positioning detail from that context.",
   "Do not write a readyToPasteMessage that only repeats the objective when a usable fact is available.",
   "Do not treat generic words such as business, local, or services as that fact.",
@@ -227,20 +253,25 @@ export const COMMUNITY_QUALIFICATION_SYSTEM_PROMPT = [
   'Return JSON only: {"results":[{"canonicalIdentity":"string","canonicalUrl":"string","relevanceExplanation":"string","engagementGuidance":"string","readyToPasteMessage":"string"}]}',
 ].join("\n");
 
-function defaultComplete(
+async function defaultComplete(
   input: Parameters<CommunityQualificationComplete>[0],
-): Promise<string> {
+): Promise<CommunityQualificationCompletion> {
   const model = resolveCommunityQualificationModel();
   if (model.status !== "configured") {
     return Promise.reject(new OpenRouterBoundedCallError("unconfigured"));
   }
-  return callOpenRouterBounded({
+  const completion = await callOpenRouterBounded({
     messages: input.messages,
     maxTokens: input.maxTokens,
     temperature: 0,
     signal: input.signal,
     model: model.model,
   });
+  return {
+    content: completion.content,
+    finishReason: completion.finishReason,
+    completionTokens: completion.completionTokens,
+  };
 }
 
 function extractJsonObject(content: string): unknown | null {
@@ -773,6 +804,7 @@ export function parseCommunityQualification(
   suggestions: ReadonlyMap<string, string>;
   engagementGuidance: ReadonlyMap<string, string>;
   readyToPasteUnavailable: ReadonlySet<string>;
+  diagnostics: CommunityQualificationDiagnosticCode[];
 } | null {
   const payload = extractJsonObject(content);
   if (!payload || typeof payload !== "object" || !("results" in payload)) {
@@ -791,21 +823,33 @@ export function parseCommunityQualification(
   const engagementGuidance = new Map<string, string>();
   const readyToPasteUnavailable = new Set<string>();
   const seen = new Set<string>();
+  const diagnostics: CommunityQualificationDiagnosticCode[] = [];
   const groundedBusinessContext = boundCommunityDiscoveryBusinessContext(businessContext);
 
   for (const result of payload.results) {
     if (!result || typeof result !== "object") continue;
     const record = result as Record<string, unknown>;
     const candidate = matchedQualificationCandidate(record, byIdentity, byUrl);
-    if (!candidate || seen.has(candidate.canonicalIdentity)) continue;
+    if (!candidate) {
+      diagnostics.push("identity_mismatch");
+      continue;
+    }
+    if (seen.has(candidate.canonicalIdentity)) {
+      diagnostics.push("duplicate_identity");
+      continue;
+    }
     seen.add(candidate.canonicalIdentity);
     const evidence = `${objective}\n${candidate.title}\n${candidate.snippet}\n${candidate.canonicalUrl}`;
-    const explanation = explanationFromQualification(
-      firstProvidedText(record, ["relevanceExplanation", "explanation"]),
-      evidence,
-      { objective, title: candidate.title },
-    );
+    const explanationInput = firstProvidedText(record, [
+      "relevanceExplanation",
+      "explanation",
+    ]);
+    const explanation = explanationFromQualification(explanationInput, evidence, {
+      objective,
+      title: candidate.title,
+    });
     if (explanation) explanations.set(candidate.canonicalIdentity, explanation);
+    else if (textWasProvided(explanationInput)) diagnostics.push("explanation_rejected");
 
     const messageInput = firstProvidedText(record, [
       "readyToPasteMessage",
@@ -826,6 +870,8 @@ export function parseCommunityQualification(
     );
     const messageWasProvided = textWasProvided(messageInput);
     const guidanceWasProvided = textWasProvided(guidanceInput);
+    if (messageWasProvided && !message) diagnostics.push("contribution_rejected");
+    if (guidanceWasProvided && !guidance) diagnostics.push("contribution_rejected");
     if (!message && messageWasProvided && !guidance) {
       const relocated = engagementGuidanceFromQualification(
         messageInput,
@@ -856,7 +902,127 @@ export function parseCommunityQualification(
     suggestions,
     engagementGuidance,
     readyToPasteUnavailable,
+    diagnostics,
   };
+}
+
+function readQualificationCompletion(
+  value: string | CommunityQualificationCompletion,
+): { content: string; finishReason: string | null; completionTokens: number | null } {
+  if (typeof value === "string") {
+    return { content: value, finishReason: null, completionTokens: null };
+  }
+  return {
+    content: value.content,
+    finishReason: value.finishReason ?? null,
+    completionTokens:
+      typeof value.completionTokens === "number" ? value.completionTokens : null,
+  };
+}
+
+function jsonSyntaxParses(content: string): boolean {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const candidate = (fenced?.[1] ?? trimmed).trim();
+  try {
+    JSON.parse(candidate);
+    return true;
+  } catch {
+    const start = candidate.indexOf("{");
+    const end = candidate.lastIndexOf("}");
+    if (start < 0 || end <= start) return false;
+    try {
+      JSON.parse(candidate.slice(start, end + 1));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/** Closed classification of one qualification payload. Null when the schema can be read. */
+export function classifyCommunityQualificationContent(
+  content: string,
+  finishReason: string | null,
+): Extract<
+  CommunityQualificationDiagnosticCode,
+  "empty_response" | "malformed_json" | "truncated_response" | "schema_failure"
+> | null {
+  if (!content.trim()) return "empty_response";
+  const truncated = finishReason === "length";
+  const payload = extractJsonObject(content);
+  const schemaOk =
+    !!payload &&
+    typeof payload === "object" &&
+    "results" in payload &&
+    Array.isArray((payload as { results?: unknown }).results);
+  if (schemaOk) return null;
+  if (truncated) return "truncated_response";
+  if (!jsonSyntaxParses(content)) return "malformed_json";
+  return "schema_failure";
+}
+
+const DIAGNOSTIC_FINISH_REASONS = new Set([
+  "stop",
+  "length",
+  "content_filter",
+  "tool_calls",
+  "function_call",
+  "error",
+]);
+
+function closedFinishReason(finishReason: string | null): string {
+  if (!finishReason) return "none";
+  const normalized = finishReason.trim().toLowerCase();
+  if (DIAGNOSTIC_FINISH_REASONS.has(normalized)) return normalized;
+  if (/^[a-z0-9_]{1,32}$/.test(normalized)) return "other";
+  return "none";
+}
+
+function closedCompletionTokens(completionTokens: number | null): string {
+  if (completionTokens === null || !Number.isFinite(completionTokens)) return "none";
+  const tokens = Math.floor(completionTokens);
+  if (tokens < 0 || tokens > 100_000) return "none";
+  return String(tokens);
+}
+
+/** One privacy-safe log line. It never includes objectives, prompts, or generated text. */
+export function formatCommunityQualificationDiagnostic(input: {
+  codes: readonly string[];
+  finishReason: string | null;
+  completionTokens: number | null;
+}): string {
+  const counts = new Map<CommunityQualificationDiagnosticCode, number>();
+  for (const code of input.codes) {
+    if (!DIAGNOSTIC_CODE_SET.has(code)) continue;
+    const closed = code as CommunityQualificationDiagnosticCode;
+    counts.set(closed, (counts.get(closed) ?? 0) + 1);
+  }
+  const countText = COMMUNITY_QUALIFICATION_DIAGNOSTIC_CODES.filter((code) =>
+    counts.has(code),
+  )
+    .map((code) => `${code}=${counts.get(code)}`)
+    .join(",");
+  return [
+    "[ATHENA_COMMUNITY_QUALIFICATION]",
+    `codes=${countText || "none"}`,
+    `finish_reason=${closedFinishReason(input.finishReason)}`,
+    `completion_tokens=${closedCompletionTokens(input.completionTokens)}`,
+  ].join(" ");
+}
+
+function logCommunityQualificationDiagnostic(input: {
+  codes: readonly CommunityQualificationDiagnosticCode[];
+  finishReason: string | null;
+  completionTokens: number | null;
+}): void {
+  console.info(
+    formatCommunityQualificationDiagnostic({
+      codes: input.codes,
+      finishReason: input.finishReason,
+      completionTokens: input.completionTokens,
+    }),
+  );
 }
 
 function userPrompt(
@@ -902,32 +1068,74 @@ export async function qualifyDiscoveredCommunities(input: {
   }
 
   if (input.signal.aborted) {
+    logCommunityQualificationDiagnostic({
+      codes: ["model_timeout"],
+      finishReason: null,
+      completionTokens: null,
+    });
     return { status: "unavailable", reason: "timeout" };
   }
 
   const complete = input.complete ?? defaultComplete;
   const businessContext = boundCommunityDiscoveryBusinessContext(input.businessContext);
-  try {
-    const content = await complete({
-      maxTokens: COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS,
-      signal: input.signal,
-      messages: [
-        { role: "system", content: COMMUNITY_QUALIFICATION_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: userPrompt(input.objective, businessContext, input.candidates),
-        },
-      ],
+  const unavailable = (
+    reason: CommunityQualificationReason,
+    code: CommunityQualificationDiagnosticCode,
+    finishReason: string | null = null,
+    completionTokens: number | null = null,
+  ): CommunityQualificationOutcome => {
+    logCommunityQualificationDiagnostic({
+      codes: [code],
+      finishReason,
+      completionTokens,
     });
+    return { status: "unavailable", reason };
+  };
+  try {
+    const completion = readQualificationCompletion(
+      await complete({
+        maxTokens: COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS,
+        signal: input.signal,
+        messages: [
+          { role: "system", content: COMMUNITY_QUALIFICATION_SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: userPrompt(input.objective, businessContext, input.candidates),
+          },
+        ],
+      }),
+    );
+    const failure = classifyCommunityQualificationContent(
+      completion.content,
+      completion.finishReason,
+    );
+    if (failure) {
+      return unavailable(
+        "invalid_response",
+        failure,
+        completion.finishReason,
+        completion.completionTokens,
+      );
+    }
     const parsed = parseCommunityQualification(
-      content,
+      completion.content,
       input.objective,
       input.candidates,
       businessContext,
     );
     if (!parsed) {
-      return { status: "unavailable", reason: "invalid_response" };
+      return unavailable(
+        "invalid_response",
+        "schema_failure",
+        completion.finishReason,
+        completion.completionTokens,
+      );
     }
+    logCommunityQualificationDiagnostic({
+      codes: parsed.diagnostics,
+      finishReason: completion.finishReason,
+      completionTokens: completion.completionTokens,
+    });
     return {
       status: "available",
       explanations: parsed.explanations,
@@ -937,20 +1145,21 @@ export async function qualifyDiscoveredCommunities(input: {
     };
   } catch (error) {
     if (error instanceof OpenRouterBoundedCallError) {
-      if (error.reason === "timeout") {
-        return { status: "unavailable", reason: "timeout" };
-      }
+      if (error.reason === "timeout") return unavailable("timeout", "model_timeout");
       if (error.reason === "unconfigured") {
-        return { status: "unavailable", reason: "unconfigured" };
+        return unavailable("unconfigured", "configuration");
       }
-      return { status: "unavailable", reason: "error" };
+      if (error.reason === "empty_response") {
+        return unavailable("invalid_response", "empty_response");
+      }
+      return unavailable("error", "transport");
     }
     if (
       error instanceof Error &&
       (error.name === "AbortError" || error.name === "TimeoutError")
     ) {
-      return { status: "unavailable", reason: "timeout" };
+      return unavailable("timeout", "model_timeout");
     }
-    return { status: "unavailable", reason: "error" };
+    return unavailable("error", "transport");
   }
 }

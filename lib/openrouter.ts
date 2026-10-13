@@ -279,7 +279,17 @@ export async function callOpenRouter(
  */
 export const OPENROUTER_BOUNDED_MAX_TOKENS = 1600;
 
-export type OpenRouterBoundedFailure = "unconfigured" | "timeout" | "unavailable";
+export type OpenRouterBoundedFailure =
+  | "unconfigured"
+  | "timeout"
+  | "transport"
+  | "empty_response";
+
+export type OpenRouterBoundedCompletion = {
+  content: string;
+  finishReason: string | null;
+  completionTokens: number | null;
+};
 
 export class OpenRouterBoundedCallError extends Error {
   readonly reason: OpenRouterBoundedFailure;
@@ -324,7 +334,7 @@ export async function callOpenRouterBounded(input: {
   signal: AbortSignal;
   model?: string;
   fetchImpl?: typeof fetch;
-}): Promise<string> {
+}): Promise<OpenRouterBoundedCompletion> {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim() ?? "";
   if (!apiKey || /[\r\n]/.test(apiKey)) {
     throw new OpenRouterBoundedCallError("unconfigured");
@@ -368,11 +378,11 @@ export async function callOpenRouterBounded(input: {
     if (isAbortError(error) || input.signal.aborted) {
       throw new OpenRouterBoundedCallError("timeout");
     }
-    throw new OpenRouterBoundedCallError("unavailable");
+    throw new OpenRouterBoundedCallError("transport");
   }
 
   if (!response.ok) {
-    throw new OpenRouterBoundedCallError("unavailable");
+    throw new OpenRouterBoundedCallError("transport");
   }
 
   let payload: unknown;
@@ -382,27 +392,42 @@ export async function callOpenRouterBounded(input: {
     if (isAbortError(error) || input.signal.aborted) {
       throw new OpenRouterBoundedCallError("timeout");
     }
-    throw new OpenRouterBoundedCallError("unavailable");
+    throw new OpenRouterBoundedCallError("transport");
   }
 
-  const content =
-    payload &&
-    typeof payload === "object" &&
-    "choices" in payload &&
-    Array.isArray(payload.choices)
-      ? payload.choices[0] &&
-        typeof payload.choices[0] === "object" &&
-        "message" in payload.choices[0] &&
-        payload.choices[0].message &&
-        typeof payload.choices[0].message === "object" &&
-        "content" in payload.choices[0].message
-        ? payload.choices[0].message.content
-        : null
+  const completion = readBoundedCompletion(payload);
+  if (!completion.content.trim()) {
+    throw new OpenRouterBoundedCallError("empty_response");
+  }
+
+  return completion;
+}
+
+function readBoundedCompletion(payload: unknown): OpenRouterBoundedCompletion {
+  if (!payload || typeof payload !== "object") {
+    return { content: "", finishReason: null, completionTokens: null };
+  }
+  const record = payload as { choices?: unknown; usage?: unknown };
+  const choice = Array.isArray(record.choices) ? record.choices[0] : null;
+  const choiceRecord =
+    choice && typeof choice === "object"
+      ? (choice as { message?: unknown; finish_reason?: unknown })
       : null;
-
-  if (typeof content !== "string" || !content.trim()) {
-    throw new OpenRouterBoundedCallError("unavailable");
-  }
-
-  return content;
+  const message =
+    choiceRecord?.message && typeof choiceRecord.message === "object"
+      ? (choiceRecord.message as { content?: unknown })
+      : null;
+  const content = typeof message?.content === "string" ? message.content : "";
+  const finishReason =
+    typeof choiceRecord?.finish_reason === "string" ? choiceRecord.finish_reason : null;
+  const usage =
+    record.usage && typeof record.usage === "object"
+      ? (record.usage as { completion_tokens?: unknown }).completion_tokens
+      : null;
+  return {
+    content,
+    finishReason,
+    completionTokens:
+      typeof usage === "number" && Number.isFinite(usage) ? usage : null,
+  };
 }
