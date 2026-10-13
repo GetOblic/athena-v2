@@ -13,6 +13,15 @@ export const COMMUNITY_SEARCH_QUERY_MAX_LENGTH = 400;
 
 export const COMMUNITY_DISCOVERY_QUALIFICATION_TIMEOUT_MS = 12_000;
 /**
+ * One organization-scoped identity read, raced with search.
+ * A slow read falls back instead of consuming the route budget.
+ */
+export const COMMUNITY_DISCOVERY_IDENTITY_READ_TIMEOUT_MS = 2_000;
+
+/** Clipped private prompt context. Not stored on the catalog or a save. */
+export const COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FIELD_MAX_LENGTH = 140;
+export const COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_MAX_LENGTH = 900;
+/**
  * One completion covers up to ten results. Each result may include a short
  * relevance explanation, optional engagement guidance, and a pasteable message.
  * 1600 keeps that JSON from being cut off. Still one call, with no reasoning.

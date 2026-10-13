@@ -16,6 +16,13 @@ import {
   discoverFacebookGroups,
   type CommunityDiscoveryResponse,
 } from "../../services/communityDiscovery/discoverCommunities";
+import {
+  COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK,
+  formatCommunityDiscoveryBusinessContext,
+  readBusinessContextWithinBudget,
+  readCommunityDiscoveryBusinessContext,
+  type OrganizationIdentityTable,
+} from "../../services/communityDiscovery/communityDiscoveryBusinessContext";
 import { qualifyDiscoveredCommunities } from "../../services/communityDiscovery/communityDiscoveryQualification";
 import { specificFacebookGroupEvidenceSnippet } from "../../services/communityDiscovery/publicCommunityName";
 import type { CommunitySearchHit } from "../../services/communityDiscovery/communitySearchProvider";
@@ -76,11 +83,15 @@ function provider(
   };
 }
 
+const NO_IDENTITY = async () => COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK;
+
 async function discover(input: {
   hits?: CommunitySearchHit[];
   organizationId?: string;
   objective?: unknown;
   qualify?: typeof qualifyDiscoveredCommunities;
+  readBusinessContext?: (organizationId: string) => Promise<string>;
+  identityReadTimeoutMs?: number;
   failWrites?: boolean;
   seed?: Record<string, unknown>;
   queries?: CommunitySearchQuery[];
@@ -100,6 +111,8 @@ async function discover(input: {
     now: NOW,
     provider: provider(input.hits ?? [], queries),
     catalog: createSupabasePublicCommunityCatalog(db),
+    readBusinessContext: input.readBusinessContext ?? NO_IDENTITY,
+    identityReadTimeoutMs: input.identityReadTimeoutMs,
     qualify: async (request) => {
       qualifyCalls += 1;
       if (!input.qualify) {
@@ -236,6 +249,7 @@ describe("Facebook Group discovery", () => {
         now: NOW,
         provider: provider(hits, []),
         catalog,
+        readBusinessContext: NO_IDENTITY,
         qualify: async (request) => ({
           status: "available",
           explanations: new Map(
@@ -457,6 +471,27 @@ describe("Facebook Group discovery", () => {
       ),
       "Shop owners compare notes",
     );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Log in to Facebook to start sharing and connecting with your friends, family, and people you know.",
+        "Independent Retailers",
+      ),
+      "",
+    );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Log in or sign up for Facebook to connect with friends, family and people you know. Shop owners compare notes on winter buying.",
+        "Independent Retailers",
+      ),
+      "Shop owners compare notes on winter buying",
+    );
+    assert.equal(
+      specificFacebookGroupEvidenceSnippet(
+        "Homeowners share kitchen remodel photos before hiring. Public group · 12,345 members",
+        "Kitchen Remodel Ideas",
+      ),
+      "Homeowners share kitchen remodel photos before hiring",
+    );
 
     let qualifiedSnippet = "unset";
     const { discovery } = await discover({
@@ -499,6 +534,7 @@ describe("Facebook Group discovery", () => {
           objective: "ok\nretail",
           provider: search,
           catalog,
+          readBusinessContext: NO_IDENTITY,
         }),
       (error: unknown) =>
         error instanceof CommunityDiscoveryRequestError &&
@@ -512,6 +548,7 @@ describe("Facebook Group discovery", () => {
           objective: OBJECTIVE,
           provider: search,
           catalog,
+          readBusinessContext: NO_IDENTITY,
         }),
       (error: unknown) =>
         error instanceof CommunityDiscoveryRequestError &&
@@ -529,6 +566,7 @@ describe("Facebook Group discovery", () => {
             },
           },
           catalog,
+          readBusinessContext: NO_IDENTITY,
         }),
       (error: unknown) =>
         error instanceof CommunityDiscoveryRequestError &&
@@ -593,6 +631,7 @@ describe("Facebook Group discovery", () => {
         now: NOW,
         provider: provider(hits, []),
         catalog,
+        readBusinessContext: NO_IDENTITY,
         qualify: async (request) => {
           qualifyCalls += 1;
           assert.equal(request.candidates.length, 10);
@@ -666,6 +705,7 @@ describe("Facebook Group discovery", () => {
       now: NOW,
       provider: provider(tenHits(), []),
       catalog,
+      readBusinessContext: NO_IDENTITY,
       qualify: async () => ({ status: "unavailable", reason: "unconfigured" }),
     });
 
@@ -697,6 +737,7 @@ describe("Facebook Group discovery", () => {
         catalog: createSupabasePublicCommunityCatalog(
           createCommunityDiscoveryDbFake(),
         ),
+        readBusinessContext: NO_IDENTITY,
       });
 
     try {
@@ -774,6 +815,7 @@ describe("Facebook Group discovery", () => {
           },
         },
         catalog,
+        readBusinessContext: NO_IDENTITY,
         qualify: async (request) => {
           qualifyCalls += 1;
           return {
@@ -794,5 +836,230 @@ describe("Facebook Group discovery", () => {
     assert.equal(first.results.length, 10);
     assert.equal(second.results.length, 10);
     assert.equal(db.rows("athena_public_communities").length, 10);
+  });
+
+  it("reads identity once per search and keeps business context out of the catalog", async () => {
+    const secret = "quartz-countertop-studio";
+    let reads = 0;
+    let seenContext = "";
+    const { db, discovery, qualifyCalls } = await discover({
+      hits: tenHits(),
+      readBusinessContext: async (organizationId) => {
+        reads += 1;
+        assert.equal(organizationId, ORG_A);
+        return `Products and Services: ${secret}`;
+      },
+      qualify: async (request) => {
+        seenContext = request.businessContext ?? "";
+        assert.equal(request.candidates.length, 10);
+        return {
+          status: "available",
+          explanations: new Map(
+            request.candidates.map((candidate) => [
+              candidate.canonicalIdentity,
+              "The title and snippet mention independent retailers, which matches the objective.",
+            ]),
+          ),
+          suggestions: new Map(),
+        };
+      },
+    });
+
+    assert.equal(reads, 1);
+    assert.equal(qualifyCalls, 1);
+    assert.match(seenContext, new RegExp(secret));
+    assert.equal(JSON.stringify(discovery).includes(secret), false);
+    assert.equal(JSON.stringify(db.upserts).includes(secret), false);
+    assert.equal(
+      JSON.stringify(db.rows("athena_public_communities")).includes(secret),
+      false,
+    );
+    assert.equal(
+      db.queries.some((query) => query.table === "athena_identity"),
+      false,
+    );
+
+    let missedReads = 0;
+    await discover({
+      hits: [hit("https://www.reddit.com/r/retail", "Reddit")],
+      readBusinessContext: async () => {
+        missedReads += 1;
+        return COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK;
+      },
+    });
+    assert.equal(missedReads, 1);
+
+    let rejectedReads = 0;
+    await assert.rejects(
+      () =>
+        discoverFacebookGroups({
+          organizationId: ORG_A,
+          objective: "no",
+          provider: provider([], []),
+          catalog: createSupabasePublicCommunityCatalog(
+            createCommunityDiscoveryDbFake(),
+          ),
+          readBusinessContext: async () => {
+            rejectedReads += 1;
+            return secret;
+          },
+        }),
+      (error: unknown) =>
+        error instanceof CommunityDiscoveryRequestError &&
+        error.code === "INVALID_OBJECTIVE",
+    );
+    assert.equal(rejectedReads, 0);
+  });
+
+  it("keeps a contractor group when the audience does not match", async () => {
+    const contractorUrl = "https://www.facebook.com/groups/general-contractors";
+    const { discovery } = await discover({
+      objective: "reach homeowners who need a kitchen remodel",
+      hits: [
+        hit(
+          "https://www.facebook.com/groups/homeowners-kitchen",
+          "Homeowners Kitchen Ideas",
+          "Homeowners share remodel photos",
+        ),
+        hit(contractorUrl, "General Contractors Network", "Contractors compare bids"),
+      ],
+      qualify: (request) =>
+        qualifyDiscoveredCommunities({
+          ...request,
+          complete: async (prompt) => {
+            assert.match(prompt.messages[1].content, /audienceEvidence: homeowner_or_customer/);
+            assert.match(
+              prompt.messages[1].content,
+              /audienceEvidence: contractor_or_professional/,
+            );
+            assert.doesNotMatch(prompt.messages[1].content, /relevance score|member count/i);
+            return JSON.stringify({
+              results: [
+                {
+                  canonicalIdentity: "homeowners-kitchen",
+                  relevanceExplanation:
+                    "The title and snippet mention homeowners sharing remodel photos, which matches the objective.",
+                },
+                {
+                  canonicalIdentity: "general-contractors",
+                  relevanceExplanation:
+                    "The title and snippet describe contractors, while the objective is homeowners. This is a professional group rather than a customer community.",
+                },
+              ],
+            });
+          },
+        }),
+    });
+
+    assert.equal(discovery.results.length, 2);
+    const contractor = discovery.results.find(
+      (result) => result.canonicalUrl === contractorUrl,
+    );
+    assert.ok(contractor);
+    assert.equal(contractor?.qualification.status, "available");
+    if (contractor?.qualification.status !== "available") return;
+    assert.match(contractor.qualification.explanation ?? "", /contractors/);
+    assert.equal(JSON.stringify(contractor).includes("score"), false);
+    assert.equal(JSON.stringify(discovery).includes("members"), false);
+  });
+
+  it("uses one organization identity row and ignores another tenant", async () => {
+    const calls: Array<{ columns: string; limit: number; order: string }> = [];
+    const secret = "org-b-private-brain-secret";
+    const profile = {
+      executive_intelligence: {
+        executive_summary: "Secret summary about a private client list",
+        business_model: {
+          products_and_services: "Kitchen remodeling",
+          positioning: "Design-build remodeling",
+          primary_audience: "Homeowners",
+          value_proposition: "One team for design and construction",
+          communication_style: "Plain and specific",
+          geographic_reach: "Austin, Texas",
+          trust_signals: "Do not leak trust signal essay",
+        },
+        hidden_signals: [{ finding: secret, why_it_matters: secret }],
+      },
+      website_intelligence: { secret },
+    };
+    const opener = (organizationId: string): OrganizationIdentityTable => ({
+      select(columns) {
+        return {
+          order(column) {
+            return {
+              limit(count) {
+                calls.push({ columns, limit: count, order: column });
+                const row =
+                  organizationId === ORG_A
+                    ? { organization_id: ORG_A, master_profile: profile }
+                    : {
+                        organization_id: "org-b",
+                        master_profile: {
+                          executive_intelligence: {
+                            executive_summary: secret,
+                            business_model: { products_and_services: secret },
+                          },
+                        },
+                      };
+                return Promise.resolve({
+                  data: [row, { organization_id: "org-b", master_profile: { secret } }],
+                  error: null,
+                });
+              },
+            };
+          },
+        };
+      },
+    });
+
+    const context = await readCommunityDiscoveryBusinessContext(ORG_A, opener);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]?.columns, "organization_id, master_profile");
+    assert.equal(calls[0]?.limit, 1);
+    assert.equal(calls[0]?.order, "updated_at");
+    assert.match(context, /Products and Services: Kitchen remodeling/);
+    assert.match(context, /Geographic Reach: Austin, Texas/);
+    assert.match(context, /Communication Style: Plain and specific/);
+    assert.doesNotMatch(context, new RegExp(secret));
+    assert.doesNotMatch(context, /trust signal|Secret summary|website_intelligence/i);
+
+    const foreign = await readCommunityDiscoveryBusinessContext("org-a", () => ({
+      select() {
+        return {
+          order() {
+            return {
+              limit() {
+                return Promise.resolve({
+                  data: [
+                    {
+                      organization_id: "org-b",
+                      master_profile: profile,
+                    },
+                  ],
+                  error: null,
+                });
+              },
+            };
+          },
+        };
+      },
+    }));
+    assert.equal(foreign, COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK);
+
+    const missing = formatCommunityDiscoveryBusinessContext(null);
+    assert.equal(missing, COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK);
+    const partial = formatCommunityDiscoveryBusinessContext({
+      executive_intelligence: {
+        business_model: { geographic_reach: "Austin, Texas" },
+      },
+    });
+    assert.equal(partial, "Geographic Reach: Austin, Texas");
+
+    const timed = await readBusinessContextWithinBudget({
+      organizationId: ORG_A,
+      timeoutMs: 20,
+      read: () => new Promise(() => undefined),
+    });
+    assert.equal(timed, COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK);
   });
 });

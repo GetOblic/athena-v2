@@ -266,6 +266,38 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.doesNotMatch(html, /99|relevanceScore|Not relevant/);
   });
 
+  it("shows an editable contribution when the explanation is unavailable", () => {
+    const html = renderToStaticMarkup(
+      createElement(CommunityDiscoveryCards, {
+        cards: [
+          {
+            canonicalUrl: GROUP_URL,
+            displayName: "Homeowners Kitchen Ideas",
+            explanation: null,
+            engagementGuidance: null,
+            suggestedContribution:
+              "We offer kitchen remodeling in Austin. What should homeowners ask before the work starts?",
+            readyToPasteUnavailable: false,
+            qualificationUnavailable: true,
+            listingSnippet: "Homeowners share kitchen remodel photos",
+          },
+        ],
+        copy: en.communityIntelligence,
+        notices: {},
+        onSave: () => undefined,
+      }),
+    );
+    assert.match(html, /Qualification unavailable/);
+    assert.match(html, /No relevance explanation is available/);
+    assert.match(html, /Suggested contribution/);
+    assert.match(html, /<textarea/);
+    assert.match(html, /kitchen remodeling in Austin/);
+    assert.match(html, /Copy/);
+    assert.doesNotMatch(html, /readOnly|readonly/);
+    assert.match(html, /Open Group/);
+    assert.doesNotMatch(html, /relevanceScore|member count/i);
+  });
+
   it("renders organization-private saved communities from the saves payload", () => {
     const html = renderToStaticMarkup(
       createElement(SavedCommunityCards, {
@@ -404,6 +436,35 @@ describe("Gate 3D community intelligence workspace", () => {
     assert.equal(hiddenSuggestion.discovery.cards[0]?.explanation, null);
     assert.equal(hiddenSuggestion.discovery.cards[0]?.suggestedContribution, null);
     assert.equal(hiddenSuggestion.discovery.cards[0]?.readyToPasteUnavailable, false);
+
+    const messageWithoutExplanation = parseCommunityDiscoveryPayload(
+      discoveryBody(
+        groupResult({
+          qualification: {
+            status: "available",
+            suggestedContribution:
+              "We offer kitchen remodeling in Austin. What should homeowners ask before the work starts?",
+            readyToPasteUnavailable: false,
+          },
+        }),
+        { status: "available" },
+      ),
+    );
+    assert.equal(messageWithoutExplanation.ok, true);
+    if (!messageWithoutExplanation.ok) return;
+    assert.equal(messageWithoutExplanation.discovery.cards[0]?.explanation, null);
+    assert.equal(
+      messageWithoutExplanation.discovery.cards[0]?.qualificationUnavailable,
+      true,
+    );
+    assert.match(
+      messageWithoutExplanation.discovery.cards[0]?.suggestedContribution ?? "",
+      /kitchen remodeling/,
+    );
+    assert.equal(
+      messageWithoutExplanation.discovery.cards[0]?.readyToPasteUnavailable,
+      false,
+    );
 
     const empty = parseCommunityDiscoveryPayload(
       discoveryBody(null, { status: "unavailable", reason: "not_needed" }),

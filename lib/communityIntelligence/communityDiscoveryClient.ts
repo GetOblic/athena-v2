@@ -170,12 +170,10 @@ function discoveryCard(value: unknown): CommunityDiscoveryCard | null {
       available.explanation,
       COMMUNITY_DISCOVERY_EXPLANATION_MAX_LENGTH,
     );
-    if (explanation) {
-      engagementGuidance = boundedGuidance(available.engagementGuidance);
-      suggestedContribution = boundedSuggestion(available.suggestedContribution);
-      readyToPasteUnavailable =
-        suggestedContribution === null && available.readyToPasteUnavailable === true;
-    }
+    engagementGuidance = boundedGuidance(available.engagementGuidance);
+    suggestedContribution = boundedSuggestion(available.suggestedContribution);
+    readyToPasteUnavailable =
+      suggestedContribution === null && available.readyToPasteUnavailable === true;
   }
 
   let listingSnippet: string | null = null;

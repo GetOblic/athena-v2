@@ -144,7 +144,7 @@ export function CommunityDiscoveryCards({
                 </p>
               </div>
             )}
-            {card.explanation && card.engagementGuidance ? (
+            {card.engagementGuidance ? (
               <div className="mt-4">
                 <div className={COMMUNITY_FIELD_LABEL_CLASS}>
                   {copy.engagementGuidanceLabel}
@@ -154,13 +154,13 @@ export function CommunityDiscoveryCards({
                 </p>
               </div>
             ) : null}
-            {card.explanation && card.suggestedContribution ? (
+            {card.suggestedContribution ? (
               <SuggestedContributionField
                 key={`${card.canonicalUrl}:${card.suggestedContribution}`}
                 suggestion={card.suggestedContribution}
                 copy={copy}
               />
-            ) : card.explanation && card.readyToPasteUnavailable ? (
+            ) : card.readyToPasteUnavailable ? (
               <p className={`mt-4 ${COMMUNITY_FIELD_HELP_CLASS}`}>
                 {copy.readyToPasteUnavailable}
               </p>

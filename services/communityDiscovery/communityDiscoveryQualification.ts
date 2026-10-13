@@ -3,6 +3,11 @@ import {
   OpenRouterBoundedCallError,
   type OpenRouterBoundedMessage,
 } from "@/lib/openrouter";
+import {
+  boundCommunityDiscoveryBusinessContext,
+  communityBusinessContextHasFacts,
+  COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK,
+} from "@/services/communityDiscovery/communityDiscoveryBusinessContext";
 import { resolveCommunityQualificationModel } from "@/services/communityDiscovery/communityQualificationModel";
 import {
   COMMUNITY_DISCOVERY_EXPLANATION_MAX_LENGTH,
@@ -62,6 +67,32 @@ const SENSITIVE_PATTERNS = [
   String.raw`\bgraph api\b`,
 ];
 
+/**
+ * Factual claims about a group's activity, membership, access, or rules.
+ * Bare words such as "active", "rules", or "post regularly" are not enough.
+ */
+const EXPLANATION_UNSUPPORTED_ASSERTION_PATTERNS = [
+  String.raw`\b\d[\d,.]*(?:\s*[km])?\s+members?\b`,
+  String.raw`\bmember counts?\b`,
+  String.raw`\b(?:this|the|that)\s+(?:group|community)\s+(?:is\s+)?(?:very\s+|highly\s+|extremely\s+)?(?:active|inactive)\b`,
+  String.raw`\b(?:very|highly|extremely)\s+active\s+(?:group|community)\b`,
+  String.raw`\b(?:this|the|that)\s+(?:group|community)\s+posts?\s+(?:daily|weekly|hourly|often|regularly)\b`,
+  String.raw`\b(?:group|community|members)\s+post(?:s|ing)?\s+regularly\b`,
+  String.raw`\bposts?\s+(?:daily|weekly|hourly)\b`,
+  String.raw`\blast active\b`,
+  String.raw`\b(?:this|the|that)\s+group(?:'s)?\s+rules?\b`,
+  String.raw`\bgroup rules?\b`,
+  String.raw`\bcommunity guidelines\b`,
+  String.raw`\b(?:has|have|requires?|enforces?)\s+(?:strict\s+)?rules\b`,
+  String.raw`\bverified access\b`,
+  String.raw`\bjoined the group\b`,
+  String.raw`\bcan access\b`,
+  String.raw`\bprivate (?:posts|content)\b`,
+  String.raw`\bgraph api\b`,
+  String.raw`\brelevance\s+score\b`,
+  String.raw`\b\d+\s*(?:\/\s*10|out of\s+10)\b`,
+];
+
 const UNSUPPORTED_GROUP_ASSERTION_PATTERNS = [
   String.raw`\b(?:members|people|someone)\s+(?:discussed|were discussing|posted)\b`,
   String.raw`\b(?:recent|previous|latest)\s+(?:post|thread|discussion|comment)s?\b`,
@@ -72,12 +103,68 @@ const UNSUPPORTED_GROUP_ASSERTION_PATTERNS = [
   String.raw`\bcommunity guidelines\b`,
 ];
 
-const CREDENTIAL_PATTERNS = [
-  String.raw`\b(?:our|my)\s+(?:company|business|product|service|brand|team|credentials)\b`,
-  String.raw`\bwe\s+(?:sell|offer|provide|make|build|specialize)\b`,
-  String.raw`\b(?:certified|licensed|insured|award[- ]winning)\b`,
+const QUALITY_AND_GUARANTEE_PATTERNS = [
+  String.raw`\b(?:award[- ]winning|certified|licensed|insured)\b`,
   String.raw`\b\d+\+?\s+years?\s+(?:of\s+)?(?:experience|in\s+business)\b`,
+  String.raw`\b(?:guaranteed|guarantee|risk[- ]free|money[- ]back)\b`,
+  String.raw`\bproven\s+results\b`,
+  String.raw`\b(?:best[- ]in[- ]class|top[- ]rated|highest[- ]quality|five[- ]star|5[- ]star)\b`,
+  String.raw`\b(?:we are|we're|i am|i'm)\s+the\s+best\b`,
+  String.raw`\b(?:family|locally|woman|veteran)[- ]owned\b`,
 ];
+
+const SERVICE_CLAIM_PATTERN =
+  /\b(?:we|i)\s+(?:sell|offer|provide|build|specialize(?:\s+in)?|make)\s+(?!sure\b)([^.]{0,120})/gi;
+
+const POSSESSIVE_BUSINESS_PATTERN =
+  /\b(?:our|my)\s+(company|business|product|service|brand|team|credentials)\b/gi;
+
+const LOCATION_CLAIM_PATTERN =
+  /\b(?:based|located|serving)\s+in\s+([^.,;:]{2,48})/gi;
+
+const CLAIM_STOP_WORDS = new Set([
+  "this",
+  "that",
+  "these",
+  "those",
+  "with",
+  "from",
+  "your",
+  "their",
+  "them",
+  "they",
+  "have",
+  "been",
+  "into",
+  "onto",
+  "over",
+  "under",
+  "about",
+  "before",
+  "after",
+  "when",
+  "what",
+  "which",
+  "where",
+  "will",
+  "would",
+  "could",
+  "should",
+  "than",
+  "then",
+  "also",
+  "just",
+  "only",
+  "some",
+  "more",
+  "most",
+  "such",
+  "each",
+  "other",
+  "another",
+  "here",
+  "there",
+]);
 
 const POSTER_POSSESSION_PATTERNS = [String.raw`\bmy\s+(?:home|house)\b`];
 
@@ -108,22 +195,29 @@ const IMPERATIVE_GUIDANCE_PATTERNS = [
 
 export const COMMUNITY_QUALIFICATION_SYSTEM_PROMPT = [
   "You explain whether each public community search result is relevant to the user's objective.",
-  "Use only the objective, the result title, the result snippet, and the result URL.",
+  "Use only the objective, the business context, the result title, the result snippet, and the result URL.",
+  "Business context is private to this request. It is not a fact about any group.",
   "Do not invent group activity, member counts, rules, descriptions, discussions, membership, or access.",
   "Do not claim the community was opened, joined, or verified.",
-  "Do not invent the poster's identity, business, credentials, or role.",
+  "Do not invent credentials, quality claims, guarantees, or business attributes absent from the objective and business context.",
   "Do not imply the user is a homeowner, customer, member, or business owner unless the objective says so.",
+  "Primary audience is who the business serves, not the poster's role.",
   "If the title and snippet do not establish relevance, say that they do not show a clear connection to the objective.",
+  "When audienceEvidence is present, it comes only from that result's title and snippet.",
+  "If audienceEvidence conflicts with the objective or the primary audience, explain that mismatch honestly and still return the result.",
+  "If audienceEvidence is absent, do not assign an audience.",
+  "Never invent a relevance score or a member count.",
   "Write relevanceExplanation in at most two short sentences.",
   "Write relevanceExplanation, engagementGuidance, and readyToPasteMessage in the same language as the objective.",
-  "Do not mention member counts, activity, rules, or access unless those words appear in that result's title or snippet.",
+  "Do not claim the group is active, posts on a schedule, has rules, or grants access unless that result's title or snippet states it.",
   "engagementGuidance is optional advice about how to engage. Write at most one short sentence, or an empty string. It is not the post.",
   "readyToPasteMessage is the exact text the user could paste into the community.",
-  "Write readyToPasteMessage as a complete natural-language post of at most three short sentences, grounded only in the objective and that result's title, snippet, and URL.",
+  "Write readyToPasteMessage as a complete natural-language post of at most three short sentences, grounded in the objective, the business context, and that result's title, snippet, and URL.",
+  "When communication style is present, follow it. Do not invent a style.",
   "Do not write readyToPasteMessage as an instruction such as 'Post a request for recommendations'.",
   "Do not invent group rules, member activity, discussion content, or claims about the user's business.",
   "If you cannot ground a field, use an empty string.",
-  'Return JSON only: {"results":[{"canonicalIdentity":"string","relevanceExplanation":"string","engagementGuidance":"string","readyToPasteMessage":"string"}]}',
+  'Return JSON only: {"results":[{"canonicalIdentity":"string","canonicalUrl":"string","relevanceExplanation":"string","engagementGuidance":"string","readyToPasteMessage":"string"}]}',
 ].join("\n");
 
 function defaultComplete(
@@ -200,7 +294,94 @@ function explanationStaysWithinEvidence(
   explanation: string,
   evidence: string,
 ): boolean {
-  return textStaysWithinEvidence(explanation, evidence, SENSITIVE_PATTERNS);
+  return textStaysWithinEvidence(
+    explanation,
+    evidence,
+    EXPLANATION_UNSUPPORTED_ASSERTION_PATTERNS,
+  );
+}
+
+const HOMEOWNER_AUDIENCE_PATTERN =
+  /\b(?:home\s*-?\s*owners?|customers?|residents?|diy)\b/i;
+const PROFESSIONAL_AUDIENCE_PATTERN =
+  /\b(?:subcontractors?|contractors?|professionals?|tradespeople|tradesperson|plumbers?|electricians?|roofers?|builders?|hvac)\b/i;
+
+export type CommunityAudienceEvidence =
+  | "homeowner_or_customer"
+  | "contractor_or_professional"
+  | "mixed";
+
+/** Audience signal from title and snippet only. Null when the listing does not say. */
+export function communityAudienceEvidence(
+  title: string,
+  snippet: string,
+): CommunityAudienceEvidence | null {
+  const evidence = `${title}\n${snippet}`;
+  const homeowner = HOMEOWNER_AUDIENCE_PATTERN.test(evidence);
+  const professional = PROFESSIONAL_AUDIENCE_PATTERN.test(evidence);
+  if (homeowner && professional) return "mixed";
+  if (homeowner) return "homeowner_or_customer";
+  if (professional) return "contractor_or_professional";
+  return null;
+}
+
+function contentWords(value: string): string[] {
+  return value
+    .toLowerCase()
+    .split(/[^0-9a-z\u00c0-\u024f]+/)
+    .filter((word) => word.length >= 4 && !CLAIM_STOP_WORDS.has(word));
+}
+
+function wordGrounded(word: string, haystack: string): boolean {
+  if (haystack.includes(word)) return true;
+  if (word.endsWith("s") && word.length >= 5 && haystack.includes(word.slice(0, -1))) {
+    return true;
+  }
+  return false;
+}
+
+function claimWordsAreGrounded(value: string, haystack: string): boolean {
+  const words = contentWords(value);
+  if (words.length === 0) return false;
+  return words.every((word) => wordGrounded(word, haystack));
+}
+
+function claimGround(objective: string, businessContext: string): string {
+  if (!communityBusinessContextHasFacts(businessContext)) return objective;
+  return `${objective}\n${businessContext}`;
+}
+
+function serviceClaimsAreGrounded(text: string, ground: string): boolean {
+  const haystack = ground.toLowerCase();
+  for (const match of text.matchAll(SERVICE_CLAIM_PATTERN)) {
+    if (!claimWordsAreGrounded(match[1] ?? "", haystack)) return false;
+  }
+  return true;
+}
+
+function possessiveBusinessClaimsAreGrounded(
+  text: string,
+  ground: string,
+  hasFacts: boolean,
+): boolean {
+  const haystack = ground.toLowerCase();
+  for (const match of text.matchAll(POSSESSIVE_BUSINESS_PATTERN)) {
+    const noun = (match[1] ?? "").toLowerCase();
+    if (noun === "company" || noun === "business") {
+      if (!hasFacts && !haystack.includes(noun)) return false;
+      continue;
+    }
+    if (!haystack.includes(noun)) return false;
+  }
+  return true;
+}
+
+function locationClaimsAreGrounded(text: string, ground: string): boolean {
+  const haystack = ground.toLowerCase();
+  for (const match of text.matchAll(LOCATION_CLAIM_PATTERN)) {
+    if (!claimWordsAreGrounded(match[1] ?? "", haystack)) return false;
+  }
+  return true;
 }
 
 function collapseQualificationText(value: string): string {
@@ -251,12 +432,20 @@ function contributionClaimsAreGrounded(
   text: string,
   evidence: string,
   objective: string,
+  businessContext: string,
 ): boolean {
   if (!textStaysWithinEvidence(text, evidence, SENSITIVE_PATTERNS)) return false;
   if (!textStaysWithinEvidence(text, evidence, UNSUPPORTED_GROUP_ASSERTION_PATTERNS)) {
     return false;
   }
-  if (!textStaysWithinEvidence(text, objective, CREDENTIAL_PATTERNS)) return false;
+  const ground = claimGround(objective, businessContext);
+  const hasFacts = communityBusinessContextHasFacts(businessContext);
+  if (!textStaysWithinEvidence(text, ground, QUALITY_AND_GUARANTEE_PATTERNS)) {
+    return false;
+  }
+  if (!serviceClaimsAreGrounded(text, ground)) return false;
+  if (!possessiveBusinessClaimsAreGrounded(text, ground, hasFacts)) return false;
+  if (!locationClaimsAreGrounded(text, ground)) return false;
   if (!textStaysWithinEvidence(text, objective, POSTER_POSSESSION_PATTERNS)) {
     return false;
   }
@@ -274,6 +463,7 @@ export function engagementGuidanceFromQualification(
   guidance: unknown,
   evidence: string,
   objective: string,
+  businessContext = "",
 ): string | null {
   const collapsed = boundedQualificationText(
     guidance,
@@ -281,7 +471,9 @@ export function engagementGuidanceFromQualification(
     COMMUNITY_DISCOVERY_GUIDANCE_MAX_LENGTH,
   );
   if (!collapsed) return null;
-  if (!contributionClaimsAreGrounded(collapsed, evidence, objective)) return null;
+  if (!contributionClaimsAreGrounded(collapsed, evidence, objective, businessContext)) {
+    return null;
+  }
   return collapsed;
 }
 
@@ -289,6 +481,7 @@ export function readyToPasteMessageFromQualification(
   message: unknown,
   evidence: string,
   objective: string,
+  businessContext = "",
 ): string | null {
   const collapsed = boundedQualificationText(
     message,
@@ -297,7 +490,9 @@ export function readyToPasteMessageFromQualification(
   );
   if (!collapsed) return null;
   if (isImperativeEngagementGuidance(collapsed)) return null;
-  if (!contributionClaimsAreGrounded(collapsed, evidence, objective)) return null;
+  if (!contributionClaimsAreGrounded(collapsed, evidence, objective, businessContext)) {
+    return null;
+  }
   return collapsed;
 }
 
@@ -318,10 +513,29 @@ function textWasProvided(value: unknown): boolean {
   return typeof value === "string" && collapseQualificationText(value).length > 0;
 }
 
+function matchedQualificationCandidate(
+  result: Record<string, unknown>,
+  byIdentity: ReadonlyMap<string, CommunityQualificationCandidate>,
+  byUrl: ReadonlyMap<string, CommunityQualificationCandidate>,
+): CommunityQualificationCandidate | null {
+  const identity =
+    typeof result.canonicalIdentity === "string" ? result.canonicalIdentity : "";
+  const url = typeof result.canonicalUrl === "string" ? result.canonicalUrl : "";
+  if (identity) {
+    const candidate = byIdentity.get(identity);
+    if (!candidate) return null;
+    if (url && url !== candidate.canonicalUrl) return null;
+    return candidate;
+  }
+  if (!url) return null;
+  return byUrl.get(url) ?? null;
+}
+
 export function parseCommunityQualification(
   content: string,
   objective: string,
   candidates: readonly CommunityQualificationCandidate[],
+  businessContext = COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK,
 ): {
   explanations: ReadonlyMap<string, string>;
   suggestions: ReadonlyMap<string, string>;
@@ -334,43 +548,48 @@ export function parseCommunityQualification(
   }
   if (!Array.isArray(payload.results)) return null;
 
-  const allowed = new Map(
+  const byIdentity = new Map(
     candidates.map((candidate) => [candidate.canonicalIdentity, candidate]),
+  );
+  const byUrl = new Map(
+    candidates.map((candidate) => [candidate.canonicalUrl, candidate]),
   );
   const explanations = new Map<string, string>();
   const suggestions = new Map<string, string>();
   const engagementGuidance = new Map<string, string>();
   const readyToPasteUnavailable = new Set<string>();
+  const seen = new Set<string>();
+  const groundedBusinessContext = boundCommunityDiscoveryBusinessContext(businessContext);
 
   for (const result of payload.results) {
     if (!result || typeof result !== "object") continue;
-    if (!("canonicalIdentity" in result)) continue;
-    if (!("explanation" in result) && !("relevanceExplanation" in result)) continue;
-    if (typeof result.canonicalIdentity !== "string") continue;
-    const candidate = allowed.get(result.canonicalIdentity);
-    if (!candidate || explanations.has(candidate.canonicalIdentity)) continue;
+    const record = result as Record<string, unknown>;
+    const candidate = matchedQualificationCandidate(record, byIdentity, byUrl);
+    if (!candidate || seen.has(candidate.canonicalIdentity)) continue;
+    seen.add(candidate.canonicalIdentity);
     const evidence = `${objective}\n${candidate.title}\n${candidate.snippet}\n${candidate.canonicalUrl}`;
     const explanation = explanationFromQualification(
-      firstProvidedText(result, ["relevanceExplanation", "explanation"]),
+      firstProvidedText(record, ["relevanceExplanation", "explanation"]),
       evidence,
     );
-    if (!explanation) continue;
-    explanations.set(candidate.canonicalIdentity, explanation);
+    if (explanation) explanations.set(candidate.canonicalIdentity, explanation);
 
-    const messageInput = firstProvidedText(result, [
+    const messageInput = firstProvidedText(record, [
       "readyToPasteMessage",
       "suggestedContribution",
     ]);
-    const guidanceInput = firstProvidedText(result, ["engagementGuidance"]);
+    const guidanceInput = firstProvidedText(record, ["engagementGuidance"]);
     const message = readyToPasteMessageFromQualification(
       messageInput,
       evidence,
       objective,
+      groundedBusinessContext,
     );
     let guidance = engagementGuidanceFromQualification(
       guidanceInput,
       evidence,
       objective,
+      groundedBusinessContext,
     );
     const messageWasProvided = textWasProvided(messageInput);
     const guidanceWasProvided = textWasProvided(guidanceInput);
@@ -379,6 +598,7 @@ export function parseCommunityQualification(
         messageInput,
         evidence,
         objective,
+        groundedBusinessContext,
       );
       if (
         relocated &&
@@ -408,21 +628,32 @@ export function parseCommunityQualification(
 
 function userPrompt(
   objective: string,
+  businessContext: string,
   candidates: readonly CommunityQualificationCandidate[],
 ): string {
-  const blocks = candidates.map((candidate, index) =>
-    [
+  const blocks = candidates.map((candidate, index) => {
+    const audience = communityAudienceEvidence(candidate.title, candidate.snippet);
+    return [
       `${index + 1}. canonicalIdentity: ${candidate.canonicalIdentity}`,
       `url: ${candidate.canonicalUrl}`,
       `title: ${candidate.title}`,
       `snippet: ${candidate.snippet || "(none)"}`,
-    ].join("\n"),
-  );
-  return [`Objective: ${objective}`, "", ...blocks].join("\n");
+      ...(audience ? [`audienceEvidence: ${audience}`] : []),
+    ].join("\n");
+  });
+  return [
+    `Objective: ${objective}`,
+    "",
+    "Business context:",
+    businessContext,
+    "",
+    ...blocks,
+  ].join("\n");
 }
 
 export async function qualifyDiscoveredCommunities(input: {
   objective: string;
+  businessContext?: string;
   candidates: readonly CommunityQualificationCandidate[];
   signal: AbortSignal;
   complete?: CommunityQualificationComplete;
@@ -442,6 +673,7 @@ export async function qualifyDiscoveredCommunities(input: {
   }
 
   const complete = input.complete ?? defaultComplete;
+  const businessContext = boundCommunityDiscoveryBusinessContext(input.businessContext);
   try {
     const content = await complete({
       maxTokens: COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS,
@@ -450,7 +682,7 @@ export async function qualifyDiscoveredCommunities(input: {
         { role: "system", content: COMMUNITY_QUALIFICATION_SYSTEM_PROMPT },
         {
           role: "user",
-          content: userPrompt(input.objective, input.candidates),
+          content: userPrompt(input.objective, businessContext, input.candidates),
         },
       ],
     });
@@ -458,6 +690,7 @@ export async function qualifyDiscoveredCommunities(input: {
       content,
       input.objective,
       input.candidates,
+      businessContext,
     );
     if (!parsed) {
       return { status: "unavailable", reason: "invalid_response" };

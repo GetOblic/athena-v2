@@ -10,6 +10,7 @@ import { describe, it } from "node:test";
 import {
   COMMUNITY_DISCOVERY_OBJECTIVE_MAX_LENGTH,
   COMMUNITY_DISCOVERY_OBJECTIVE_MIN_LENGTH,
+  COMMUNITY_DISCOVERY_IDENTITY_READ_TIMEOUT_MS,
   COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS,
   COMMUNITY_DISCOVERY_QUALIFICATION_TIMEOUT_MS,
   COMMUNITY_DISCOVERY_ROUTE_MAX_DURATION_SECONDS,
@@ -123,5 +124,30 @@ describe("community discovery API contract", () => {
     assert.doesNotMatch(routing, /gpt-4\.1-nano|OPENROUTER_COMMUNITY_QUALIFICATION_MODEL/);
     assert.match(discovery, /qualifyDiscoveredCommunities/);
     assert.match(discovery, /status: "unavailable"/);
+    assert.doesNotMatch(
+      serviceFiles,
+      /buildExecutiveBrainContext|buildBrainContextForOrganization/,
+    );
+    const businessContext = read(
+      "services/communityDiscovery/communityDiscoveryBusinessContext.ts",
+    );
+    assert.match(businessContext, /createTenantScope\(organizationId\)/);
+    assert.match(businessContext, /from\(\s*"athena_identity"/);
+    assert.match(businessContext, /organization_id, master_profile/);
+    assert.match(businessContext, /readIdentityExecutiveIntelligence/);
+    assert.match(businessContext, /BUSINESS_MODEL_FIELD_LABELS/);
+    assert.match(businessContext, /\.limit\(1\)/);
+    assert.doesNotMatch(businessContext, /select\("\*"\)/);
+    assert.doesNotMatch(persistence, /master_profile|businessContext/);
+    assert.equal(COMMUNITY_DISCOVERY_IDENTITY_READ_TIMEOUT_MS, 2_000);
+    assert.equal(
+      COMMUNITY_DISCOVERY_SEARCH_TIMEOUT_MS +
+        COMMUNITY_DISCOVERY_QUALIFICATION_TIMEOUT_MS +
+        COMMUNITY_DISCOVERY_IDENTITY_READ_TIMEOUT_MS <=
+        COMMUNITY_DISCOVERY_ROUTE_MAX_DURATION_SECONDS * 1000,
+      true,
+    );
+    const tenant = read("lib/tenantDatabase.ts");
+    assert.match(tenant, /\.eq\("organization_id", organizationId\)/);
   });
 });

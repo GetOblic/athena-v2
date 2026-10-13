@@ -49,27 +49,112 @@ export function boundCommunityEvidenceSnippet(input: string): string {
 
 /**
  * Facebook directory chrome that does not describe the discovered group.
- * A segment is dropped only when nothing specific remains after these phrases.
+ * Phrases are removed even when they share a sentence with specific text.
  */
 const FACEBOOK_DIRECTORY_BOILERPLATE = [
-  String.raw`\blog\s*in(?:to)?(?:\s+or\s+sign\s+up)?(?:\s+(?:to|for)\s+facebook)?(?:\s+to\s+start\s+sharing(?:\s+and\s+connecting)?)?`,
-  String.raw`\bsign\s+up\s+for\s+facebook\b`,
-  String.raw`\bconnect\s+with\s+(?:your\s+)?friends,\s*family\s+and\s+people\s+you\s+know\b`,
-  String.raw`\bfriends,\s*family\s+and\s+people\s+you\s+know\b`,
-  String.raw`\bfacebook\s+is\s+a\s+social\s+networking\b(?:\s+\w+){0,14}`,
-  String.raw`\bsee\s+posts,\s*photos\s+and\s+more(?:\s+on\s+facebook)?\b`,
-  String.raw`\bcreate\s+(?:a\s+)?new\s+account\b`,
-  String.raw`\bforgot(?:\s+your)?\s+account\b`,
-  String.raw`\bjoin\s+facebook\s+to\s+connect\b(?:\s+\w+){0,12}`,
+  String.raw`\blog\s*in(?:\s+to|\s+into|to)?(?:\s+or\s+sign\s+up)?(?:\s+(?:to|for)\s+facebook)?(?:\s+to\s+(?:start\s+)?shar(?:e|ing)(?:\s+and\s+connecting)?)?`,
+  String.raw`\bsign\s+up(?:\s+for\s+facebook)?\b`,
+  String.raw`\bcreate\s+(?:a\s+)?(?:new\s+)?account\b`,
+  String.raw`\bit(?:'s| is)\s+quick\s+and\s+easy\b`,
+  String.raw`\bit(?:'s| is)\s+free\s+and\s+always\s+will\s+be\b`,
+  String.raw`\bforgot(?:\s+your)?\s+(?:account|password)\b`,
+  String.raw`\bemail\s+or\s+phone\b`,
+  String.raw`\bconnect\s+with\s+(?:your\s+)?friends\b`,
+  String.raw`\bfriends,?\s*family,?\s+and\s+people\s+you\s+know\b`,
+  String.raw`\bpeople\s+you\s+know\b`,
+  String.raw`\bfacebook\s+helps\s+you\s+connect\b[^.|\n]*`,
+  String.raw`\bfacebook\s+is\s+a\s+social\s+networking\b[^.|\n]*`,
+  String.raw`\bsee\s+posts,?\s*photos\s+and\s+more(?:\s+on\s+facebook)?\b`,
+  String.raw`\bjoin\s+facebook\b(?:\s+to\s+connect\b[^.|\n]*)?`,
   String.raw`\bdiscover\s+groups\b`,
-  String.raw`\bfacebook\s+groups\s+are\s+(?:a\s+place|communities)\s+to\s+connect\b(?:\s+\w+){0,16}`,
+  String.raw`\bfacebook\s+groups?\s+are\s+(?:a\s+place|communities)\s+to\s+connect\b[^.|\n]*`,
+  String.raw`\babout\s+this\s+group\b`,
+  String.raw`\bview\s+(?:this\s+)?group\b`,
+  String.raw`\bjoin\s+this\s+group\s+to\s+see\b[^.|\n]*`,
+  String.raw`\bjoin\s+or\s+create\s+(?:a\s+)?group\b`,
   String.raw`\bfacebook\s+groups?\b`,
-  String.raw`\bjoin\s+or\s+create\s+a\s+group\b`,
-  String.raw`\bjoin\s+this\s+group\s+to\s+see\b(?:\s+\w+){0,10}`,
-  String.raw`\bpublic\s+group\b`,
-  String.raw`\bprivate\s+group\b`,
+  String.raw`\b(?:public|private)\s+groups?\b`,
   String.raw`\b\d[\d,.]*(?:\s*[km])?\s+members?\b`,
+  String.raw`\bon\s+facebook\b`,
 ];
+
+const DIRECTORY_CHROME_WORDS = new Set([
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "to",
+  "for",
+  "of",
+  "on",
+  "in",
+  "with",
+  "your",
+  "you",
+  "it",
+  "its",
+  "is",
+  "are",
+  "be",
+  "will",
+  "always",
+  "facebook",
+  "log",
+  "login",
+  "sign",
+  "signup",
+  "up",
+  "into",
+  "account",
+  "accounts",
+  "password",
+  "email",
+  "phone",
+  "friends",
+  "friend",
+  "family",
+  "people",
+  "know",
+  "connect",
+  "connecting",
+  "share",
+  "sharing",
+  "start",
+  "posts",
+  "post",
+  "photos",
+  "photo",
+  "more",
+  "see",
+  "view",
+  "join",
+  "create",
+  "new",
+  "free",
+  "quick",
+  "easy",
+  "public",
+  "private",
+  "group",
+  "groups",
+  "member",
+  "members",
+  "about",
+  "this",
+  "page",
+  "help",
+  "helps",
+  "social",
+  "networking",
+  "website",
+  "service",
+  "forgot",
+  "welcome",
+  "make",
+  "makes",
+  "life",
+]);
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -84,10 +169,22 @@ function listingSegments(snippet: string): string[] {
 
 function withoutDirectoryBoilerplate(segment: string): string {
   let text = segment;
-  for (const source of FACEBOOK_DIRECTORY_BOILERPLATE) {
-    text = text.replace(new RegExp(source, "gi"), " ");
+  for (let pass = 0; pass < 3; pass += 1) {
+    const before = text;
+    for (const source of FACEBOOK_DIRECTORY_BOILERPLATE) {
+      text = text.replace(new RegExp(source, "gi"), " ");
+    }
+    text = text.replace(/\s+/g, " ").trim();
+    if (text === before) break;
   }
-  return text.replace(/\s+/g, " ").trim();
+  return text;
+}
+
+function tidySegment(value: string): string {
+  return value
+    .replace(/^[\s|,:;.\-–—]+|[\s|,:;.\-–—]+$/g, "")
+    .replace(/^(?:with|and|or|to|for|on|the|a|an)\b\s*/i, "")
+    .trim();
 }
 
 function hasSpecificListingEvidence(text: string, displayName: string): boolean {
@@ -96,9 +193,11 @@ function hasSpecificListingEvidence(text: string, displayName: string): boolean 
   if (name.length >= 3) {
     remainder = remainder.replace(new RegExp(escapeRegExp(name), "gi"), " ");
   }
-  remainder = remainder.replace(/\bfacebook\b/gi, " ");
-  const letters = remainder.replace(/[^0-9A-Za-z\u00C0-\u024F]+/g, "");
-  return letters.length >= 12;
+  const words = remainder
+    .toLowerCase()
+    .split(/[^0-9a-z\u00c0-\u024f]+/)
+    .filter((word) => word.length >= 4);
+  return words.some((word) => !DIRECTORY_CHROME_WORDS.has(word));
 }
 
 /**
@@ -111,8 +210,8 @@ export function specificFacebookGroupEvidenceSnippet(
 ): string {
   const bounded = boundCommunityEvidenceSnippet(input);
   if (!bounded) return "";
-  const specific = listingSegments(bounded).filter((segment) =>
-    hasSpecificListingEvidence(withoutDirectoryBoilerplate(segment), displayName),
-  );
+  const specific = listingSegments(bounded)
+    .map((segment) => tidySegment(withoutDirectoryBoilerplate(segment)))
+    .filter((segment) => hasSpecificListingEvidence(segment, displayName));
   return boundCommunityEvidenceSnippet(specific.join(". "));
 }

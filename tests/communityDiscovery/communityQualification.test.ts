@@ -18,8 +18,10 @@ import {
 import {
   COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS,
 } from "../../services/communityDiscovery/communityDiscoveryLimits";
+import { COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK } from "../../services/communityDiscovery/communityDiscoveryBusinessContext";
 import {
   COMMUNITY_QUALIFICATION_SYSTEM_PROMPT,
+  communityAudienceEvidence,
   engagementGuidanceFromQualification,
   explanationFromQualification,
   qualifyDiscoveredCommunities,
@@ -46,6 +48,15 @@ describe("community discovery qualification", () => {
         assert.equal(request.maxTokens, COMMUNITY_DISCOVERY_QUALIFICATION_MAX_TOKENS);
         assert.equal(request.messages[0].content, COMMUNITY_QUALIFICATION_SYSTEM_PROMPT);
         assert.match(request.messages[1].content, /Shop owners compare notes/);
+        assert.match(request.messages[1].content, /Business context:/);
+        assert.match(
+          request.messages[1].content,
+          /No business identity is available/,
+        );
+        assert.equal(
+          request.messages[1].content.match(/Business context:/g)?.length,
+          1,
+        );
         assert.doesNotMatch(request.messages[1].content, /org-secret/);
         assert.match(COMMUNITY_QUALIFICATION_SYSTEM_PROMPT, /Do not invent group activity/);
         return JSON.stringify({
@@ -167,6 +178,28 @@ describe("community discovery qualification", () => {
       ),
       "The snippet mentions 5000 members.",
     );
+    assert.equal(
+      explanationFromQualification(
+        "Active homeowners who post regularly can use the rules of thumb in the title.",
+        evidence,
+      ),
+      "Active homeowners who post regularly can use the rules of thumb in the title.",
+    );
+    assert.equal(
+      explanationFromQualification("This group is very active.", evidence),
+      null,
+    );
+    assert.equal(
+      explanationFromQualification("The group posts regularly.", evidence),
+      null,
+    );
+    assert.equal(
+      explanationFromQualification(
+        "This group has rules against promotion.",
+        evidence,
+      ),
+      null,
+    );
     const objective = "find independent retailer groups";
     const groundedEvidence = `${objective}\n${evidence}`;
     assert.equal(
@@ -272,6 +305,53 @@ describe("community discovery qualification", () => {
       ),
       null,
     );
+
+    const businessContext = [
+      "Products and Services: kitchen remodeling",
+      "Positioning: design-build remodeling",
+      "Primary Audience: homeowners",
+      "Value Proposition: one team for design and construction",
+      "Communication Style: plain and specific",
+      "Geographic Reach: Austin, Texas",
+    ].join("\n");
+    const groundedMessage =
+      "We offer kitchen remodeling in Austin. What should homeowners ask before the work starts?";
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        groundedMessage,
+        `${"reach homeowners"}\nHomeowners Kitchen Ideas\nHomeowners share remodel photos`,
+        "reach homeowners who need a kitchen remodel",
+        businessContext,
+      ),
+      groundedMessage,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "We are licensed and insured, and we guarantee award-winning results.",
+        `${"reach homeowners"}\nHomeowners Kitchen Ideas\nHomeowners share remodel photos`,
+        "reach homeowners who need a kitchen remodel",
+        businessContext,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "We offer solar installation in Dallas for these homeowners.",
+        `${"reach homeowners"}\nHomeowners Kitchen Ideas\nHomeowners share remodel photos`,
+        "reach homeowners who need a kitchen remodel",
+        businessContext,
+      ),
+      null,
+    );
+    assert.equal(
+      readyToPasteMessageFromQualification(
+        "Our company is family-owned and based in Dallas.",
+        `${"reach homeowners"}\nHomeowners Kitchen Ideas\nHomeowners share remodel photos`,
+        "reach homeowners who need a kitchen remodel",
+        businessContext,
+      ),
+      null,
+    );
   });
 
   it("keeps the relevance explanation when the draft is only guidance or invalid", async () => {
@@ -308,6 +388,127 @@ describe("community discovery qualification", () => {
       outcome.readyToPasteUnavailable?.has(CANDIDATE.canonicalIdentity),
       true,
     );
+  });
+
+  it("keeps a valid field when the other field in the same batch is invalid", async () => {
+    const byUrl = {
+      canonicalIdentity: "url-only-group",
+      canonicalUrl: "https://www.facebook.com/groups/url-only-group",
+      title: "Homeowners Kitchen Ideas",
+      snippet: "Homeowners share remodel photos",
+    };
+    const invented = {
+      canonicalIdentity: "invented-claims",
+      canonicalUrl: "https://www.facebook.com/groups/invented-claims",
+      title: "Shop Owners",
+      snippet: "Shop owners compare notes",
+    };
+    const businessContext = "Products and Services: kitchen remodeling";
+    let calls = 0;
+    const outcome = await qualifyDiscoveredCommunities({
+      objective: "reach homeowners who need a kitchen remodel",
+      businessContext,
+      candidates: [CANDIDATE, byUrl, invented],
+      signal: SIGNAL,
+      complete: async (request) => {
+        calls += 1;
+        assert.equal(request.maxTokens, 1600);
+        assert.match(request.messages[1].content, /kitchen remodeling/);
+        assert.equal(
+          request.messages[1].content.match(/Business context:/g)?.length,
+          1,
+        );
+        assert.match(
+          request.messages[1].content,
+          /audienceEvidence: homeowner_or_customer/,
+        );
+        assert.doesNotMatch(request.messages[1].content, /audienceEvidence: contractor/);
+        return JSON.stringify({
+          results: [
+            {
+              canonicalUrl: byUrl.canonicalUrl,
+              relevanceExplanation:
+                "This group is very active and posts daily, so it must be relevant.",
+              readyToPasteMessage:
+                "We offer kitchen remodeling. What should homeowners ask before the work starts?",
+            },
+            {
+              canonicalIdentity: CANDIDATE.canonicalIdentity,
+              relevanceExplanation:
+                "The title and snippet mention independent retailers, which matches the objective.",
+              readyToPasteMessage:
+                "We guarantee award-winning results and have 15 years of experience.",
+            },
+            {
+              canonicalIdentity: "not-a-discovered-group",
+              canonicalUrl: byUrl.canonicalUrl,
+              relevanceExplanation:
+                "An unknown identity must not be accepted from the URL alone.",
+              readyToPasteMessage:
+                "We offer kitchen remodeling. This unknown identity should stay unused.",
+            },
+            {
+              canonicalIdentity: invented.canonicalIdentity,
+              canonicalUrl: "https://www.facebook.com/groups/someone-else",
+              relevanceExplanation:
+                "A conflicting URL must not attach this explanation to the group.",
+            },
+          ],
+        });
+      },
+    });
+
+    assert.equal(calls, 1);
+    assert.equal(outcome.status, "available");
+    if (outcome.status !== "available") return;
+    assert.equal(outcome.explanations.has(byUrl.canonicalIdentity), false);
+    assert.match(
+      outcome.suggestions.get(byUrl.canonicalIdentity) ?? "",
+      /kitchen remodeling/,
+    );
+    assert.equal(
+      outcome.explanations.get(CANDIDATE.canonicalIdentity)?.includes(
+        "independent retailers",
+      ),
+      true,
+    );
+    assert.equal(outcome.suggestions.has(CANDIDATE.canonicalIdentity), false);
+    assert.equal(
+      outcome.readyToPasteUnavailable?.has(CANDIDATE.canonicalIdentity),
+      true,
+    );
+    assert.equal(outcome.explanations.has(invented.canonicalIdentity), false);
+    assert.equal(outcome.suggestions.has(invented.canonicalIdentity), false);
+    assert.equal(outcome.explanations.has("not-a-discovered-group"), false);
+  });
+
+  it("names a contractor mismatch from the title and snippet without a score", () => {
+    assert.equal(
+      communityAudienceEvidence(
+        "Homeowners Kitchen Ideas",
+        "Homeowners share remodel photos",
+      ),
+      "homeowner_or_customer",
+    );
+    assert.equal(
+      communityAudienceEvidence(
+        "General Contractors Network",
+        "Contractors compare bids",
+      ),
+      "contractor_or_professional",
+    );
+    assert.equal(
+      communityAudienceEvidence("Shop Owners", "Shop owners compare notes"),
+      null,
+    );
+    assert.equal(
+      communityAudienceEvidence(
+        "Homeowners and Contractors",
+        "Homeowners hire contractors",
+      ),
+      "mixed",
+    );
+    assert.equal(COMMUNITY_DISCOVERY_BUSINESS_CONTEXT_FALLBACK.includes("score"), false);
   });
 
   it("returns qualification unavailable when the bounded model call fails", async () => {

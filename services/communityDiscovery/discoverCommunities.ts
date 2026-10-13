@@ -1,8 +1,13 @@
 import {
+  readBusinessContextWithinBudget,
+  readCommunityDiscoveryBusinessContext,
+} from "@/services/communityDiscovery/communityDiscoveryBusinessContext";
+import {
   CommunityDiscoveryRequestError,
   communityDiscoveryPersistenceFailure,
 } from "@/services/communityDiscovery/communityDiscoveryErrors";
 import {
+  COMMUNITY_DISCOVERY_IDENTITY_READ_TIMEOUT_MS,
   COMMUNITY_DISCOVERY_QUALIFICATION_TIMEOUT_MS,
   COMMUNITY_DISCOVERY_SEARCH_LIMIT,
   COMMUNITY_DISCOVERY_SEARCH_TIMEOUT_MS,
@@ -39,7 +44,7 @@ export type CommunityDiscoveryQualification =
   | {
       status: "available";
       /** Relevance explanation from the qualification completion. */
-      explanation: string;
+      explanation?: string;
       /** Short engagement note. Not the post. */
       engagementGuidance?: string;
       /** Ready-to-paste message. Present only when the draft passed validation. */
@@ -167,16 +172,21 @@ function resultQualification(
     return { status: "unavailable", reason: outcome.reason };
   }
   const explanation = outcome.explanations.get(canonicalIdentity);
-  if (!explanation) {
-    return { status: "unavailable", reason: "not_provided" };
-  }
   const suggestedContribution = outcome.suggestions?.get(canonicalIdentity);
   const engagementGuidance = outcome.engagementGuidance?.get(canonicalIdentity);
   const readyToPasteUnavailable =
     outcome.readyToPasteUnavailable?.has(canonicalIdentity) === true;
+  if (
+    !explanation &&
+    !suggestedContribution &&
+    !engagementGuidance &&
+    !readyToPasteUnavailable
+  ) {
+    return { status: "unavailable", reason: "not_provided" };
+  }
   return {
     status: "available",
-    explanation,
+    ...(explanation ? { explanation } : {}),
     ...(engagementGuidance ? { engagementGuidance } : {}),
     ...(suggestedContribution ? { suggestedContribution } : {}),
     ...(!suggestedContribution && readyToPasteUnavailable
@@ -192,15 +202,23 @@ export async function discoverSocialCommunities(input: {
   provider: CommunitySearchProvider;
   catalog: PublicCommunityCatalog;
   qualify?: typeof qualifyDiscoveredCommunities;
+  readBusinessContext?: (organizationId: string) => Promise<string>;
+  identityReadTimeoutMs?: number;
   now?: Date;
   signal?: AbortSignal;
 }): Promise<Omit<CommunityDiscoveryResponse, "platform">> {
-  assertOrganizationId(input.organizationId);
+  const organizationId = assertOrganizationId(input.organizationId);
   const sourcedAt = (input.now ?? new Date()).toISOString();
   const searchSignal = withTimeout(
     input.signal,
     COMMUNITY_DISCOVERY_SEARCH_TIMEOUT_MS,
   );
+  const businessContextPromise = readBusinessContextWithinBudget({
+    organizationId,
+    read: input.readBusinessContext ?? readCommunityDiscoveryBusinessContext,
+    timeoutMs:
+      input.identityReadTimeoutMs ?? COMMUNITY_DISCOVERY_IDENTITY_READ_TIMEOUT_MS,
+  });
 
   let hits: CommunitySearchHit[];
   try {
@@ -210,8 +228,10 @@ export async function discoverSocialCommunities(input: {
       signal: searchSignal,
     });
   } catch (error) {
+    await businessContextPromise;
     rethrowSearchError(error);
   }
+  const businessContext = await businessContextPromise;
   if (!Array.isArray(hits)) {
     throw new CommunityDiscoveryRequestError(
       "PROVIDER_UNAVAILABLE",
@@ -296,6 +316,7 @@ export async function discoverSocialCommunities(input: {
     try {
       outcome = await (input.qualify ?? qualifyDiscoveredCommunities)({
         objective: input.objective,
+        businessContext,
         signal: withTimeout(
           input.signal,
           COMMUNITY_DISCOVERY_QUALIFICATION_TIMEOUT_MS,
@@ -349,6 +370,8 @@ export async function discoverFacebookGroups(input: {
   provider: CommunitySearchProvider;
   catalog: PublicCommunityCatalog;
   qualify?: typeof qualifyDiscoveredCommunities;
+  readBusinessContext?: (organizationId: string) => Promise<string>;
+  identityReadTimeoutMs?: number;
   now?: Date;
   signal?: AbortSignal;
 }): Promise<CommunityDiscoveryResponse> {
@@ -360,6 +383,8 @@ export async function discoverFacebookGroups(input: {
     provider: input.provider,
     catalog: input.catalog,
     qualify: input.qualify,
+    readBusinessContext: input.readBusinessContext,
+    identityReadTimeoutMs: input.identityReadTimeoutMs,
     now: input.now,
     signal: input.signal,
   });
