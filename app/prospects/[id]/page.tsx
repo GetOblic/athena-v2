@@ -23,6 +23,7 @@ import {
   ProspectFunnelShortLinks,
 } from "@/components/prospects/ProspectFunnelShortLinks";
 import { GetOblicListingOutboundControls } from "@/components/prospects/GetOblicListingOutboundControls";
+import { GetOblicListingPermalinkAction } from "@/components/prospects/GetOblicListingPermalinkAction";
 import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicListingReleaseControl";
 import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
 import { ProspectCreateAudienceButton } from "@/components/prospects/ProspectCreateAudienceButton";
@@ -517,19 +518,25 @@ export default async function ProspectDetailsPage({
         funnelGroupLabel={copy.detail.getoblicFunnel}
         funnelAction={
           showGetOblicFunnel ? (
-            <ProspectFunnelShortLinks
-              prospectId={prospect.id}
-              aiAgentsHref={getOblicFunnel?.aiAgentsHref ?? null}
-              virtualPhoneHref={getOblicFunnel?.virtualPhoneHref ?? null}
-              calendarHref={getOblicFunnel?.calendarHref ?? null}
-              callHref={callYourAiHref}
-              claimHref={claimYourAiHref}
-              aiAgentsLabel={copy.detail.getoblicFunnelAiAgents}
-              virtualPhoneLabel={copy.detail.getoblicFunnelVirtualPhone}
-              calendarLabel={copy.detail.getoblicFunnelCalendar}
-              callLabel={copy.detail.getoblicFunnelCallYourAi}
-              claimLabel={copy.detail.getoblicFunnelClaimYourAi}
-            />
+            <>
+              <ProspectFunnelShortLinks
+                prospectId={prospect.id}
+                aiAgentsHref={getOblicFunnel?.aiAgentsHref ?? null}
+                virtualPhoneHref={getOblicFunnel?.virtualPhoneHref ?? null}
+                calendarHref={getOblicFunnel?.calendarHref ?? null}
+                callHref={callYourAiHref}
+                claimHref={claimYourAiHref}
+                aiAgentsLabel={copy.detail.getoblicFunnelAiAgents}
+                virtualPhoneLabel={copy.detail.getoblicFunnelVirtualPhone}
+                calendarLabel={copy.detail.getoblicFunnelCalendar}
+                callLabel={copy.detail.getoblicFunnelCallYourAi}
+                claimLabel={copy.detail.getoblicFunnelClaimYourAi}
+              />
+              <GetOblicListingPermalinkAction
+                prospectId={prospect.id}
+                label={copy.detail.getoblicFunnelViewListing}
+              />
+            </>
           ) : null
         }
       />

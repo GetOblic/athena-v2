@@ -69,6 +69,7 @@ const FUNNEL_LABELS = {
     getoblicFunnelCalendar: "Calendar",
     getoblicFunnelCallYourAi: "Call your AI",
     getoblicFunnelClaimYourAi: "Claim your AI",
+    getoblicFunnelViewListing: "View GetOblic Listing",
   },
   fr: {
     getoblicFunnel: "Tunnel GetOblic",
@@ -77,6 +78,7 @@ const FUNNEL_LABELS = {
     getoblicFunnelCalendar: "Calendrier",
     getoblicFunnelCallYourAi: "Appelez votre IA",
     getoblicFunnelClaimYourAi: "Activez votre IA",
+    getoblicFunnelViewListing: "Voir le listing GetOblic",
   },
   es: {
     getoblicFunnel: "Embudo GetOblic",
@@ -85,6 +87,7 @@ const FUNNEL_LABELS = {
     getoblicFunnelCalendar: "Calendario",
     getoblicFunnelCallYourAi: "Llama a tu IA",
     getoblicFunnelClaimYourAi: "Activa tu IA",
+    getoblicFunnelViewListing: "Ver el listing GetOblic",
   },
   it: {
     getoblicFunnel: "Imbuto GetOblic",
@@ -93,6 +96,7 @@ const FUNNEL_LABELS = {
     getoblicFunnelCalendar: "Calendario",
     getoblicFunnelCallYourAi: "Chiama la tua IA",
     getoblicFunnelClaimYourAi: "Attiva la tua IA",
+    getoblicFunnelViewListing: "Vedi il listing GetOblic",
   },
   de: {
     getoblicFunnel: "GetOblic-Trichter",
@@ -101,6 +105,7 @@ const FUNNEL_LABELS = {
     getoblicFunnelCalendar: "Kalender",
     getoblicFunnelCallYourAi: "Ruf deine KI an",
     getoblicFunnelClaimYourAi: "Aktiviere deine KI",
+    getoblicFunnelViewListing: "GetOblic-Listing ansehen",
   },
   pt: {
     getoblicFunnel: "Funil GetOblic",
@@ -109,6 +114,7 @@ const FUNNEL_LABELS = {
     getoblicFunnelCalendar: "Calendário",
     getoblicFunnelCallYourAi: "Ligue para sua IA",
     getoblicFunnelClaimYourAi: "Ative sua IA",
+    getoblicFunnelViewListing: "Ver o listing GetOblic",
   },
 } as const;
 
@@ -925,6 +931,10 @@ describe("GetOblic Funnel Prospect Detail wiring", () => {
       assert.equal(detail.getoblicFunnelCalendar, expected.getoblicFunnelCalendar);
       assert.equal(detail.getoblicFunnelCallYourAi, expected.getoblicFunnelCallYourAi);
       assert.equal(detail.getoblicFunnelClaimYourAi, expected.getoblicFunnelClaimYourAi);
+      assert.equal(
+        detail.getoblicFunnelViewListing,
+        expected.getoblicFunnelViewListing,
+      );
       assert.match(detail.getoblicFunnel, /GetOblic/);
     }
   });

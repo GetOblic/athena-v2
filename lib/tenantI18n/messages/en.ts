@@ -2851,6 +2851,7 @@ export const en = {
       getoblicFunnelCalendar: "Calendar",
       getoblicFunnelCallYourAi: "Call your AI",
       getoblicFunnelClaimYourAi: "Claim your AI",
+      getoblicFunnelViewListing: "View GetOblic Listing",
       releaseGetOblicListing: "Release GetOblic listing",
       releaseGetOblicConfirm:
         "This GetOblic listing will be returned to the shared GetOblic inventory. It will no longer count against this account’s listing capacity. The Prospect and Athena research and intelligence will remain.",
