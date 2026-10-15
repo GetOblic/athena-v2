@@ -35,6 +35,7 @@ import { upsertOpportunityFromAnalysis } from "@/services/opportunityService";
 import { upsertReviewFromGeneration } from "@/services/reviewService";
 import { computeCompositeOpportunityScoreFromAnalysis } from "@/services/brain/executiveIntelligenceHelpers";
 import { runSimplifiedQualityGateLoop } from "@/services/brain/reasoningPipeline/simplifiedQualityGate";
+import { isStrategicBlueprintOperationTimeoutMessage } from "@/services/assetBlueprints/strategicBlueprintOperationDeadline";
 import {
   generateDeploymentAssets,
   persistDeploymentAssets,
@@ -167,6 +168,18 @@ function workflowSuccess(input: {
   explicitRegeneration?: boolean;
   requireCompleteBlueprint?: boolean;
 }): DiscussionEndToEndResult {
+  if (
+    isStrategicBlueprintOperationTimeoutMessage(
+      input.blueprintOutcome.blueprintError,
+    )
+  ) {
+    return workflowFailure(
+      input.discussionId,
+      input.blueprintOutcome.blueprintError ??
+        "Strategic Blueprint operation timed out",
+    );
+  }
+
   if (
     input.explicitRegeneration &&
     (input.blueprintOutcome.preservedPrevious ||

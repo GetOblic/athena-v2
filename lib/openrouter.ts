@@ -27,6 +27,11 @@ type OpenRouterMessage = {
   content: string;
 };
 
+export type OpenRouterFetch = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Response>;
+
 export type OpenRouterCallOptions = {
   temperature?: number;
   reasoningProfile?: ReasoningProfileType;
@@ -38,7 +43,39 @@ export type OpenRouterCallOptions = {
   discussionId?: string;
   /** Pipeline sub-stage label for diagnostics (e.g. discussion_analysis.quality_gate). */
   stage?: string;
+  /**
+   * Aborts the in-flight completion and blocks a later token-budget or
+   * reasoning retry. Callers that omit it keep the existing unbounded fetch.
+   */
+  signal?: AbortSignal;
+  /** Test seam. Production calls use global fetch. */
+  fetchImpl?: OpenRouterFetch;
 };
+
+export class OpenRouterRequestTimeoutError extends Error {
+  constructor() {
+    super("OpenRouter request timed out");
+    this.name = "OpenRouterRequestTimeoutError";
+  }
+}
+
+function isOpenRouterAbort(error: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) {
+    return true;
+  }
+
+  return (
+    error instanceof OpenRouterRequestTimeoutError ||
+    (error instanceof Error &&
+      (error.name === "AbortError" || error.name === "TimeoutError"))
+  );
+}
+
+function throwIfOpenRouterAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new OpenRouterRequestTimeoutError();
+  }
+}
 
 function resolveCallModel(options?: OpenRouterCallOptions): {
   model: string;
@@ -77,12 +114,49 @@ function logReasoningDev(data: Record<string, unknown>): void {
 async function postChatCompletion(
   headers: Record<string, string>,
   body: Record<string, unknown>,
+  transport?: { signal?: AbortSignal; fetchImpl?: OpenRouterFetch },
 ): Promise<Response> {
-  return fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const fetchImpl = transport?.fetchImpl ?? fetch;
+  const init: RequestInit = {
     method: "POST",
     headers,
     body: JSON.stringify(body),
-  });
+  };
+  if (transport?.signal) {
+    init.signal = transport.signal;
+  }
+
+  return fetchImpl("https://openrouter.ai/api/v1/chat/completions", init);
+}
+
+async function readResponseText(
+  response: Response,
+  signal?: AbortSignal,
+): Promise<string> {
+  try {
+    throwIfOpenRouterAborted(signal);
+    return await response.text();
+  } catch (error) {
+    if (isOpenRouterAbort(error, signal)) {
+      throw new OpenRouterRequestTimeoutError();
+    }
+    throw error;
+  }
+}
+
+async function readResponseJson(
+  response: Response,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  try {
+    throwIfOpenRouterAborted(signal);
+    return await response.json();
+  } catch (error) {
+    if (isOpenRouterAbort(error, signal)) {
+      throw new OpenRouterRequestTimeoutError();
+    }
+    throw error;
+  }
 }
 
 type ChatCompletionResult =
@@ -95,13 +169,28 @@ async function requestChatCompletion(input: {
   options?: OpenRouterCallOptions;
   profile: ReasoningProfileType;
   model: string;
+  signal?: AbortSignal;
+  fetchImpl?: OpenRouterFetch;
 }): Promise<ChatCompletionResult> {
+  const signal = input.signal;
+  const transport = { signal, fetchImpl: input.fetchImpl };
+  throwIfOpenRouterAborted(signal);
+
   let body = { ...input.body };
-  let response = await postChatCompletion(input.headers, body);
+  let response: Response;
+  try {
+    response = await postChatCompletion(input.headers, body, transport);
+  } catch (error) {
+    if (isOpenRouterAbort(error, signal)) {
+      throw new OpenRouterRequestTimeoutError();
+    }
+    throw error;
+  }
 
   if (!response.ok && body.reasoning) {
-    const errorText = await response.text();
+    const errorText = await readResponseText(response, signal);
     if (isReasoningUnsupportedError(response.status, errorText)) {
+      throwIfOpenRouterAborted(signal);
       const { reasoning: _removed, ...bodyWithoutReasoning } = body;
       logReasoningDev({
         generationKind: input.options?.generationKind ?? null,
@@ -111,18 +200,30 @@ async function requestChatCompletion(input: {
         fallback: "retry_without_reasoning",
       });
       body = bodyWithoutReasoning;
-      response = await postChatCompletion(input.headers, body);
+      try {
+        response = await postChatCompletion(input.headers, body, transport);
+      } catch (error) {
+        if (isOpenRouterAbort(error, signal)) {
+          throw new OpenRouterRequestTimeoutError();
+        }
+        throw error;
+      }
     } else {
+      throwIfOpenRouterAborted(signal);
       return { ok: false, status: response.status, errorText };
     }
   }
 
   if (!response.ok) {
-    const errorText = await response.text();
+    const errorText = await readResponseText(response, signal);
+    throwIfOpenRouterAborted(signal);
     return { ok: false, status: response.status, errorText };
   }
 
-  const data = await response.json();
+  const data = (await readResponseJson(response, signal)) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  throwIfOpenRouterAborted(signal);
   const content = data.choices?.[0]?.message?.content ?? "";
   return { ok: true, content };
 }
@@ -210,13 +311,25 @@ export async function callOpenRouter(
         : null,
     });
 
-    const result = await requestChatCompletion({
-      headers,
-      body,
-      options,
-      profile,
-      model,
-    });
+    throwIfOpenRouterAborted(options?.signal);
+
+    let result: ChatCompletionResult;
+    try {
+      result = await requestChatCompletion({
+        headers,
+        body,
+        options,
+        profile,
+        model,
+        signal: options?.signal,
+        fetchImpl: options?.fetchImpl,
+      });
+    } catch (error) {
+      if (isOpenRouterAbort(error, options?.signal)) {
+        throw new OpenRouterRequestTimeoutError();
+      }
+      throw error;
+    }
 
     if (result.ok) {
       logOpenRouterTokenBudget(`Succeeded on attempt ${attemptNumber}`, {

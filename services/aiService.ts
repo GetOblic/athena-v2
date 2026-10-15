@@ -23,6 +23,8 @@ export type GenerateReviewOptions = LlmCallMeta & {
   athenaStage?: AthenaExtendedLLMStage;
   reasoningProfile?: ReasoningProfileType;
   systemPrompt?: string;
+  /** Forwards to the OpenRouter fetch. Omitted calls stay unbounded. */
+  signal?: AbortSignal;
 };
 
 const DEFAULT_SYSTEM_PROMPTS: Partial<Record<AthenaGenerationKind, string>> = {
@@ -139,6 +141,7 @@ export async function generateReview(
       regenerationRunId: resolveRunId(meta),
       discussionId: meta?.discussionId,
       stage: meta?.stage,
+      signal: meta?.signal,
     },
   );
 

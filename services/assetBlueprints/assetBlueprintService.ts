@@ -54,6 +54,15 @@ import {
   type ActiveStrategicBlueprintInstruction,
   type TrendSocialPromptConfigProvenance,
 } from "@/services/superAdmin/strategicBlueprintInstructions";
+import {
+  executeStrategicBlueprintAttempts,
+  isStrategicBlueprintOperationTimeoutError,
+  normalizeStrategicBlueprintDeadlineError,
+  resolveStrategicBlueprintOperationTimeoutMs,
+  runStrategicBlueprintModelPhase,
+  strategicBlueprintTimeoutFailure,
+  StrategicBlueprintOperationTimeoutError,
+} from "@/services/assetBlueprints/strategicBlueprintOperationDeadline";
 
 export type { StrategicBlueprintArtifact } from "@/services/assetBlueprints/strategicBlueprintArtifactContract";
 
@@ -670,7 +679,13 @@ async function generateBlueprintReview(input: {
   regenerationRunId?: string;
   discussionId?: string;
   explicitRegeneration?: boolean;
+  signal: AbortSignal;
+  timeoutMs: number;
 }): Promise<string> {
+  if (input.signal.aborted) {
+    throw new StrategicBlueprintOperationTimeoutError(input.timeoutMs);
+  }
+
   logRegenerationDiagnostic("BLUEPRINT_LLM_CALL_START", {
     stage: input.stage,
     promptSource:
@@ -692,16 +707,30 @@ async function generateBlueprintReview(input: {
     });
   }
 
-  const content = await generateReview(input.userPrompt, {
-    stage: input.stage,
-    promptSource:
-      "services/brain/generationContracts/generationPromptAssembly.ts::assembleStrategicBlueprintPrompt → services/assetBlueprints/prompts/assetBlueprintPrompt.ts",
-    generationKind: "strategic_blueprint",
-    athenaStage: "strategic_blueprint",
-    regenerationRunId: input.regenerationRunId,
-    discussionId: input.discussionId,
-    explicitRegeneration: input.explicitRegeneration,
-  });
+  let content: string;
+  try {
+    content = await generateReview(input.userPrompt, {
+      stage: input.stage,
+      promptSource:
+        "services/brain/generationContracts/generationPromptAssembly.ts::assembleStrategicBlueprintPrompt → services/assetBlueprints/prompts/assetBlueprintPrompt.ts",
+      generationKind: "strategic_blueprint",
+      athenaStage: "strategic_blueprint",
+      regenerationRunId: input.regenerationRunId,
+      discussionId: input.discussionId,
+      explicitRegeneration: input.explicitRegeneration,
+      signal: input.signal,
+    });
+  } catch (error) {
+    throw normalizeStrategicBlueprintDeadlineError(
+      error,
+      input.signal,
+      input.timeoutMs,
+    );
+  }
+
+  if (input.signal.aborted) {
+    throw new StrategicBlueprintOperationTimeoutError(input.timeoutMs);
+  }
 
   logRegenerationDiagnostic("BLUEPRINT_LLM_CALL_COMPLETED", {
     stage: input.stage,
@@ -718,6 +747,8 @@ async function generateBlueprintWithQualityGate(input: {
   regenerationRunId?: string;
   discussionId?: string;
   explicitRegeneration?: boolean;
+  signal: AbortSignal;
+  timeoutMs: number;
 }): Promise<
   | { ok: true; parsed: ParsedAssetBlueprint; rawBlueprint: string }
   | { ok: false; error: string; rawBlueprint?: string }
@@ -727,6 +758,9 @@ async function generateBlueprintWithQualityGate(input: {
   try {
     const gated = await runSimplifiedQualityGateLoop({
       generate: async (refinementSuffix) => {
+        if (input.signal.aborted) {
+          throw new StrategicBlueprintOperationTimeoutError(input.timeoutMs);
+        }
         attempt += 1;
         const prompt = input.buildPrompt(refinementSuffix);
         return generateBlueprintReview({
@@ -736,6 +770,8 @@ async function generateBlueprintWithQualityGate(input: {
           regenerationRunId: input.regenerationRunId,
           discussionId: input.discussionId,
           explicitRegeneration: input.explicitRegeneration,
+          signal: input.signal,
+          timeoutMs: input.timeoutMs,
         });
       },
       parse: parseJsonResponseForQualityGate,
@@ -760,6 +796,12 @@ async function generateBlueprintWithQualityGate(input: {
       rawBlueprint: gated.raw,
     };
   } catch (error) {
+    if (
+      isStrategicBlueprintOperationTimeoutError(error) ||
+      input.signal.aborted
+    ) {
+      throw new StrategicBlueprintOperationTimeoutError(input.timeoutMs);
+    }
     return {
       ok: false,
       error:
@@ -778,6 +820,8 @@ async function runBlueprintFallbackGeneration(input: {
   buildPrompt: () => string;
   regenerationRunId?: string;
   explicitRegeneration?: boolean;
+  signal: AbortSignal;
+  timeoutMs: number;
 }): Promise<
   | { ok: true; parsed: ParsedAssetBlueprint; rawBlueprint: string }
   | { ok: false; error: string; rawBlueprint?: string }
@@ -797,6 +841,8 @@ async function runBlueprintFallbackGeneration(input: {
       regenerationRunId: input.regenerationRunId,
       discussionId: input.discussionId,
       explicitRegeneration: input.explicitRegeneration,
+      signal: input.signal,
+      timeoutMs: input.timeoutMs,
     });
     const parsedResult = tryParseJsonResponse(rawBlueprint);
 
@@ -826,6 +872,12 @@ async function runBlueprintFallbackGeneration(input: {
 
     return { ok: true, parsed, rawBlueprint };
   } catch (error) {
+    if (
+      isStrategicBlueprintOperationTimeoutError(error) ||
+      input.signal.aborted
+    ) {
+      throw new StrategicBlueprintOperationTimeoutError(input.timeoutMs);
+    }
     const message =
       error instanceof Error ? error.message : "Blueprint fallback generation failed";
     logRegenerationDiagnostic("BLUEPRINT_LLM_FALLBACK_FAILED", {
@@ -1036,116 +1088,147 @@ export async function createAssetBlueprintForBriefing(input: {
       explicitRegeneration: input.explicitRegeneration,
     });
 
-    let parsed: ParsedAssetBlueprint | null = null;
-    let rawBlueprint: string | null = null;
-    let parseFailed = false;
-    let blueprintError: string | undefined;
+    const operationTimeoutMs = resolveStrategicBlueprintOperationTimeoutMs();
+    const modelPhase = await runStrategicBlueprintModelPhase({
+      timeoutMs: operationTimeoutMs,
+      operation: async (signal) => {
+        let parsed: ParsedAssetBlueprint | null = null;
+        let rawBlueprint: string | null = null;
+        let parseFailed = false;
+        let blueprintError: string | undefined;
 
-    if (effectiveBundle) {
-      const gated = await generateBlueprintWithQualityGate({
-        stagePrefix: "strategic_blueprint.briefing",
-        effectiveBundle,
-        regenerationRunId: input.regenerationRunId,
-        discussionId: input.discussion.id,
-        explicitRegeneration: input.explicitRegeneration,
-        buildPrompt: (refinementSuffix) =>
-          withTrendSocialPromptInstruction(
-            applyBlueprintGenerationMode(
-              assembleStrategicBlueprintPrompt({
-                bundle: effectiveBundle,
-                discussion: input.discussion as unknown as Record<string, unknown>,
-                opportunity: input.opportunity as unknown as Record<string, unknown>,
-                briefing: input.briefing as unknown as Record<string, unknown>,
-                qualityRefinementSuffix: refinementSuffix,
+        if (effectiveBundle) {
+          const attempt = await executeStrategicBlueprintAttempts({
+            signal,
+            timeoutMs: operationTimeoutMs,
+            runQualityGate: async () => {
+              const gated = await generateBlueprintWithQualityGate({
+                stagePrefix: "strategic_blueprint.briefing",
+                effectiveBundle,
                 regenerationRunId: input.regenerationRunId,
-              }),
-              generationMode,
-            ),
-            trendContext.instruction,
-          ),
-      });
+                discussionId: input.discussion.id,
+                explicitRegeneration: input.explicitRegeneration,
+                signal,
+                timeoutMs: operationTimeoutMs,
+                buildPrompt: (refinementSuffix) =>
+                  withTrendSocialPromptInstruction(
+                    applyBlueprintGenerationMode(
+                      assembleStrategicBlueprintPrompt({
+                        bundle: effectiveBundle,
+                        discussion: input.discussion as unknown as Record<string, unknown>,
+                        opportunity: input.opportunity as unknown as Record<string, unknown>,
+                        briefing: input.briefing as unknown as Record<string, unknown>,
+                        qualityRefinementSuffix: refinementSuffix,
+                        regenerationRunId: input.regenerationRunId,
+                      }),
+                      generationMode,
+                    ),
+                    trendContext.instruction,
+                  ),
+              });
+              return gated.ok
+                ? { ok: true as const, value: gated }
+                : { ok: false as const, error: gated.error };
+            },
+            runFallback: async () => {
+              const recovered = await runBlueprintFallbackGeneration({
+                stage: "strategic_blueprint.briefing.fallback_single_generation",
+                discussionId: input.discussion.id,
+                path: "briefing",
+                effectiveBundle,
+                regenerationRunId: input.regenerationRunId,
+                explicitRegeneration: input.explicitRegeneration,
+                signal,
+                timeoutMs: operationTimeoutMs,
+                buildPrompt: () =>
+                  withTrendSocialPromptInstruction(
+                    applyBlueprintGenerationMode(
+                      assembleStrategicBlueprintPrompt({
+                        bundle: effectiveBundle,
+                        discussion: input.discussion as unknown as Record<string, unknown>,
+                        opportunity: input.opportunity as unknown as Record<string, unknown>,
+                        briefing: input.briefing as unknown as Record<string, unknown>,
+                        regenerationRunId: input.regenerationRunId,
+                      }),
+                      generationMode,
+                    ),
+                    trendContext.instruction,
+                  ),
+              });
+              return recovered.ok
+                ? { ok: true as const, value: recovered }
+                : {
+                    ok: false as const,
+                    error: recovered.error,
+                    rawBlueprint: recovered.rawBlueprint,
+                  };
+            },
+          });
 
-      if (gated.ok) {
-        parsed = finalizeParsedBlueprintWithTrendGuard(
-          gated.parsed,
-          trendContext.instruction,
-        );
-        rawBlueprint = gated.rawBlueprint;
-      } else {
-        const recovered = await runBlueprintFallbackGeneration({
-          stage: "strategic_blueprint.briefing.fallback_single_generation",
-          discussionId: input.discussion.id,
-          path: "briefing",
-          effectiveBundle,
-          regenerationRunId: input.regenerationRunId,
-          explicitRegeneration: input.explicitRegeneration,
-          buildPrompt: () =>
-            withTrendSocialPromptInstruction(
+          if (!attempt.ok) {
+            parseFailed = true;
+            blueprintError = attempt.error;
+            rawBlueprint = attempt.rawBlueprint ?? null;
+          } else {
+            parsed = finalizeParsedBlueprintWithTrendGuard(
+              attempt.value.parsed,
+              trendContext.instruction,
+            );
+            rawBlueprint = attempt.value.rawBlueprint;
+          }
+        } else {
+          try {
+            const prompt = withTrendSocialPromptInstruction(
               applyBlueprintGenerationMode(
-                assembleStrategicBlueprintPrompt({
-                  bundle: effectiveBundle,
+                buildAssetBlueprintPrompt({
+                  executiveContextPrompt: input.brainContextPrompt ?? "",
+                  productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
                   discussion: input.discussion as unknown as Record<string, unknown>,
                   opportunity: input.opportunity as unknown as Record<string, unknown>,
                   briefing: input.briefing as unknown as Record<string, unknown>,
-                  regenerationRunId: input.regenerationRunId,
                 }),
                 generationMode,
               ),
               trendContext.instruction,
-            ),
-        });
-        if (!recovered.ok) {
-          parseFailed = true;
-          blueprintError = recovered.error;
-          rawBlueprint = recovered.rawBlueprint ?? null;
-        } else {
-          parsed = finalizeParsedBlueprintWithTrendGuard(
-            recovered.parsed,
-            trendContext.instruction,
-          );
-          rawBlueprint = recovered.rawBlueprint;
+            );
+            rawBlueprint = await generateBlueprintReview({
+              stage: "strategic_blueprint.briefing.legacy",
+              userPrompt: prompt,
+              regenerationRunId: input.regenerationRunId,
+              discussionId: input.discussion.id,
+              explicitRegeneration: input.explicitRegeneration,
+              signal,
+              timeoutMs: operationTimeoutMs,
+            });
+            const parsedResult = tryParseJsonResponse(rawBlueprint);
+            if (!parsedResult.ok) {
+              parseFailed = true;
+              blueprintError = parsedResult.error;
+            } else {
+              parsed = finalizeParsedBlueprintWithTrendGuard(
+                parsedResult.parsed,
+                trendContext.instruction,
+              );
+            }
+          } catch (error) {
+            if (
+              isStrategicBlueprintOperationTimeoutError(error) ||
+              signal.aborted
+            ) {
+              throw new StrategicBlueprintOperationTimeoutError(operationTimeoutMs);
+            }
+            parseFailed = true;
+            blueprintError =
+              error instanceof Error
+                ? error.message
+                : "Legacy strategic blueprint generation failed";
+          }
         }
-      }
-    } else {
-      try {
-        const prompt = withTrendSocialPromptInstruction(
-          applyBlueprintGenerationMode(
-            buildAssetBlueprintPrompt({
-              executiveContextPrompt: input.brainContextPrompt ?? "",
-              productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-              discussion: input.discussion as unknown as Record<string, unknown>,
-              opportunity: input.opportunity as unknown as Record<string, unknown>,
-              briefing: input.briefing as unknown as Record<string, unknown>,
-            }),
-            generationMode,
-          ),
-          trendContext.instruction,
-        );
-        rawBlueprint = await generateBlueprintReview({
-          stage: "strategic_blueprint.briefing.legacy",
-          userPrompt: prompt,
-          regenerationRunId: input.regenerationRunId,
-          discussionId: input.discussion.id,
-          explicitRegeneration: input.explicitRegeneration,
-        });
-        const parsedResult = tryParseJsonResponse(rawBlueprint);
-        if (!parsedResult.ok) {
-          parseFailed = true;
-          blueprintError = parsedResult.error;
-        } else {
-          parsed = finalizeParsedBlueprintWithTrendGuard(
-            parsedResult.parsed,
-            trendContext.instruction,
-          );
-        }
-      } catch (error) {
-        parseFailed = true;
-        blueprintError =
-          error instanceof Error
-            ? error.message
-            : "Legacy strategic blueprint generation failed";
-      }
-    }
+
+        return { parsed, rawBlueprint, parseFailed, blueprintError };
+      },
+    });
+    const { parsed, rawBlueprint, parseFailed, blueprintError } = modelPhase;
 
     return persistBlueprintOrPreserve({
       organizationId,
@@ -1167,6 +1250,9 @@ export async function createAssetBlueprintForBriefing(input: {
       forceInsert: generationMode === "think_differently",
     });
   } catch (error) {
+    if (isStrategicBlueprintOperationTimeoutError(error)) {
+      return strategicBlueprintTimeoutFailure(error.timeoutMs);
+    }
     console.error("createAssetBlueprintForBriefing failed:", error);
     if (input.explicitRegeneration) {
       return {
@@ -1221,113 +1307,144 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
       explicitRegeneration: input.explicitRegeneration,
     });
 
-    let parsed: ParsedAssetBlueprint | null = null;
-    let rawBlueprint: string | null = null;
-    let parseFailed = false;
-    let blueprintError: string | undefined;
+    const operationTimeoutMs = resolveStrategicBlueprintOperationTimeoutMs();
+    const modelPhase = await runStrategicBlueprintModelPhase({
+      timeoutMs: operationTimeoutMs,
+      operation: async (signal) => {
+        let parsed: ParsedAssetBlueprint | null = null;
+        let rawBlueprint: string | null = null;
+        let parseFailed = false;
+        let blueprintError: string | undefined;
 
-    if (effectiveBundle) {
-      const gated = await generateBlueprintWithQualityGate({
-        stagePrefix: "strategic_blueprint.analysis",
-        effectiveBundle,
-        regenerationRunId: input.regenerationRunId,
-        discussionId: input.discussion.id,
-        explicitRegeneration: input.explicitRegeneration,
-        buildPrompt: (refinementSuffix) =>
-          withTrendSocialPromptInstruction(
-            applyBlueprintGenerationMode(
-              assembleStrategicBlueprintPrompt({
-                bundle: effectiveBundle,
-                discussion: input.discussion as unknown as Record<string, unknown>,
-                analysis: input.analysis as unknown as Record<string, unknown>,
-                qualityRefinementSuffix: refinementSuffix,
+        if (effectiveBundle) {
+          const attempt = await executeStrategicBlueprintAttempts({
+            signal,
+            timeoutMs: operationTimeoutMs,
+            runQualityGate: async () => {
+              const gated = await generateBlueprintWithQualityGate({
+                stagePrefix: "strategic_blueprint.analysis",
+                effectiveBundle,
                 regenerationRunId: input.regenerationRunId,
-              }),
-              generationMode,
-            ),
-            trendContext.instruction,
-          ),
-      });
+                discussionId: input.discussion.id,
+                explicitRegeneration: input.explicitRegeneration,
+                signal,
+                timeoutMs: operationTimeoutMs,
+                buildPrompt: (refinementSuffix) =>
+                  withTrendSocialPromptInstruction(
+                    applyBlueprintGenerationMode(
+                      assembleStrategicBlueprintPrompt({
+                        bundle: effectiveBundle,
+                        discussion: input.discussion as unknown as Record<string, unknown>,
+                        analysis: input.analysis as unknown as Record<string, unknown>,
+                        qualityRefinementSuffix: refinementSuffix,
+                        regenerationRunId: input.regenerationRunId,
+                      }),
+                      generationMode,
+                    ),
+                    trendContext.instruction,
+                  ),
+              });
+              return gated.ok
+                ? { ok: true as const, value: gated }
+                : { ok: false as const, error: gated.error };
+            },
+            runFallback: async () => {
+              const recovered = await runBlueprintFallbackGeneration({
+                stage: "strategic_blueprint.analysis.fallback_single_generation",
+                discussionId: input.discussion.id,
+                path: "analysis",
+                effectiveBundle,
+                regenerationRunId: input.regenerationRunId,
+                explicitRegeneration: input.explicitRegeneration,
+                signal,
+                timeoutMs: operationTimeoutMs,
+                buildPrompt: () =>
+                  withTrendSocialPromptInstruction(
+                    applyBlueprintGenerationMode(
+                      assembleStrategicBlueprintPrompt({
+                        bundle: effectiveBundle,
+                        discussion: input.discussion as unknown as Record<string, unknown>,
+                        analysis: input.analysis as unknown as Record<string, unknown>,
+                        regenerationRunId: input.regenerationRunId,
+                      }),
+                      generationMode,
+                    ),
+                    trendContext.instruction,
+                  ),
+              });
+              return recovered.ok
+                ? { ok: true as const, value: recovered }
+                : {
+                    ok: false as const,
+                    error: recovered.error,
+                    rawBlueprint: recovered.rawBlueprint,
+                  };
+            },
+          });
 
-      if (gated.ok) {
-        parsed = finalizeParsedBlueprintWithTrendGuard(
-          gated.parsed,
-          trendContext.instruction,
-        );
-        rawBlueprint = gated.rawBlueprint;
-      } else {
-        const recovered = await runBlueprintFallbackGeneration({
-          stage: "strategic_blueprint.analysis.fallback_single_generation",
-          discussionId: input.discussion.id,
-          path: "analysis",
-          effectiveBundle,
-          regenerationRunId: input.regenerationRunId,
-          explicitRegeneration: input.explicitRegeneration,
-          buildPrompt: () =>
-            withTrendSocialPromptInstruction(
+          if (!attempt.ok) {
+            parseFailed = true;
+            blueprintError = attempt.error;
+            rawBlueprint = attempt.rawBlueprint ?? null;
+          } else {
+            parsed = finalizeParsedBlueprintWithTrendGuard(
+              attempt.value.parsed,
+              trendContext.instruction,
+            );
+            rawBlueprint = attempt.value.rawBlueprint;
+          }
+        } else {
+          try {
+            const prompt = withTrendSocialPromptInstruction(
               applyBlueprintGenerationMode(
-                assembleStrategicBlueprintPrompt({
-                  bundle: effectiveBundle,
+                buildAssetBlueprintFromAnalysisPrompt({
+                  executiveContextPrompt: input.brainContextPrompt ?? "",
+                  productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
                   discussion: input.discussion as unknown as Record<string, unknown>,
                   analysis: input.analysis as unknown as Record<string, unknown>,
-                  regenerationRunId: input.regenerationRunId,
                 }),
                 generationMode,
               ),
               trendContext.instruction,
-            ),
-        });
-        if (!recovered.ok) {
-          parseFailed = true;
-          blueprintError = recovered.error;
-          rawBlueprint = recovered.rawBlueprint ?? null;
-        } else {
-          parsed = finalizeParsedBlueprintWithTrendGuard(
-            recovered.parsed,
-            trendContext.instruction,
-          );
-          rawBlueprint = recovered.rawBlueprint;
+            );
+            rawBlueprint = await generateBlueprintReview({
+              stage: "strategic_blueprint.analysis.legacy",
+              userPrompt: prompt,
+              regenerationRunId: input.regenerationRunId,
+              discussionId: input.discussion.id,
+              explicitRegeneration: input.explicitRegeneration,
+              signal,
+              timeoutMs: operationTimeoutMs,
+            });
+            const parsedResult = tryParseJsonResponse(rawBlueprint);
+            if (!parsedResult.ok) {
+              parseFailed = true;
+              blueprintError = parsedResult.error;
+            } else {
+              parsed = finalizeParsedBlueprintWithTrendGuard(
+                parsedResult.parsed,
+                trendContext.instruction,
+              );
+            }
+          } catch (error) {
+            if (
+              isStrategicBlueprintOperationTimeoutError(error) ||
+              signal.aborted
+            ) {
+              throw new StrategicBlueprintOperationTimeoutError(operationTimeoutMs);
+            }
+            parseFailed = true;
+            blueprintError =
+              error instanceof Error
+                ? error.message
+                : "Legacy strategic blueprint generation failed";
+          }
         }
-      }
-    } else {
-      try {
-        const prompt = withTrendSocialPromptInstruction(
-          applyBlueprintGenerationMode(
-            buildAssetBlueprintFromAnalysisPrompt({
-              executiveContextPrompt: input.brainContextPrompt ?? "",
-              productionSpecsPrompt: LEGACY_PRODUCTION_SPECS_PROMPT,
-              discussion: input.discussion as unknown as Record<string, unknown>,
-              analysis: input.analysis as unknown as Record<string, unknown>,
-            }),
-            generationMode,
-          ),
-          trendContext.instruction,
-        );
-        rawBlueprint = await generateBlueprintReview({
-          stage: "strategic_blueprint.analysis.legacy",
-          userPrompt: prompt,
-          regenerationRunId: input.regenerationRunId,
-          discussionId: input.discussion.id,
-          explicitRegeneration: input.explicitRegeneration,
-        });
-        const parsedResult = tryParseJsonResponse(rawBlueprint);
-        if (!parsedResult.ok) {
-          parseFailed = true;
-          blueprintError = parsedResult.error;
-        } else {
-          parsed = finalizeParsedBlueprintWithTrendGuard(
-            parsedResult.parsed,
-            trendContext.instruction,
-          );
-        }
-      } catch (error) {
-        parseFailed = true;
-        blueprintError =
-          error instanceof Error
-            ? error.message
-            : "Legacy strategic blueprint generation failed";
-      }
-    }
+
+        return { parsed, rawBlueprint, parseFailed, blueprintError };
+      },
+    });
+    const { parsed, rawBlueprint, parseFailed, blueprintError } = modelPhase;
 
     return persistBlueprintOrPreserve({
       organizationId,
@@ -1347,6 +1464,9 @@ export async function createAssetBlueprintForDiscussionAnalysis(input: {
       forceInsert: generationMode === "think_differently",
     });
   } catch (error) {
+    if (isStrategicBlueprintOperationTimeoutError(error)) {
+      return strategicBlueprintTimeoutFailure(error.timeoutMs);
+    }
     console.error("createAssetBlueprintForDiscussionAnalysis failed:", error);
     if (input.explicitRegeneration) {
       return {

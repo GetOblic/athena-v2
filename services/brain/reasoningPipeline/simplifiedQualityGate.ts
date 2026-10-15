@@ -62,6 +62,12 @@ export async function runSimplifiedQualityGateLoop<T>(input: {
     try {
       raw = await input.generate(refinementSuffix);
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.name === "StrategicBlueprintOperationTimeoutError"
+      ) {
+        throw error;
+      }
       console.error(`Simplified quality gate generation failed (pass ${pass}):`, error);
       refinementSuffix =
         "CRITICAL: Respond with valid JSON only. Previous generation failed.";
