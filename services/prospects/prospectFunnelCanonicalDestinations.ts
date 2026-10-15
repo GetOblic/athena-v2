@@ -9,11 +9,9 @@ import {
   buildGetOblicFunnelClaimHref,
   buildGetOblicFunnelPresentation,
   readAuthorizedGetOblicFunnelListingId,
-  readLinkedGetOblicFunnelContactId,
 } from "@/lib/prospects/getOblicFunnelPresentation";
 import type { ProspectFunnelShortLinkMap } from "@/lib/prospects/prospectFunnelShortLinkDisplay";
 import { resolveGetOblicOutboundContentTarget } from "@/services/getoblicDirectory/getoblicOutboundContentAuthorization";
-import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { resolveLicenseeOwnCompanyGetOblicAuthorId } from "@/services/prospects/getOblicFunnelAuthor";
 import { getProspectById } from "@/services/prospects/prospectService";
 import type { OrganizationLanguage } from "@/services/organizationLanguage";
@@ -28,11 +26,6 @@ type AuthorIdentity = {
   licenseeDefaultLanguage: OrganizationLanguage;
 };
 
-type LinkedIdentity = {
-  relationship_status?: string | null;
-  wordpress_listing_id?: unknown;
-} | null;
-
 export type ProspectFunnelEnsureContext = {
   organizationId: string;
   prospectId: string;
@@ -46,10 +39,6 @@ type ProspectFunnelLoaders = {
     organizationId: string,
   ) => Promise<ProspectIdentity | null>;
   loadAuthor: (organizationId: string) => Promise<AuthorIdentity | null>;
-  loadActiveLink: (
-    organizationId: string,
-    prospectId: string,
-  ) => Promise<LinkedIdentity>;
   loadListingId: (input: {
     organizationId: string;
     prospectId: string;
@@ -59,7 +48,6 @@ type ProspectFunnelLoaders = {
 const defaultLoaders: ProspectFunnelLoaders = {
   loadProspect: getProspectById,
   loadAuthor: resolveLicenseeOwnCompanyGetOblicAuthorId,
-  loadActiveLink: getActiveGetOblicLinkForProspect,
   async loadListingId(input) {
     try {
       return readAuthorizedGetOblicFunnelListingId(
@@ -87,9 +75,8 @@ export async function resolveProspectFunnelEnsureContext(input: {
   const prospect = await loaders.loadProspect(prospectId, organizationId);
   if (!prospect?.id || prospect.id !== prospectId) return null;
 
-  const [author, activeLink, listingId] = await Promise.all([
+  const [author, listingId] = await Promise.all([
     loaders.loadAuthor(organizationId),
-    loaders.loadActiveLink(organizationId, prospect.id),
     loaders.loadListingId({
       organizationId,
       prospectId: prospect.id,
@@ -99,7 +86,7 @@ export async function resolveProspectFunnelEnsureContext(input: {
   const presentation = author
     ? buildGetOblicFunnelPresentation({
         authorId: author.authorId,
-        contactId: readLinkedGetOblicFunnelContactId(activeLink),
+        contactId: listingId,
         businessName: prospect.business_name.trim(),
         licenseeDefaultLanguage: author.licenseeDefaultLanguage,
       })

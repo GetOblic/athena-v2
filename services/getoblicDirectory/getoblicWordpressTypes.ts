@@ -118,6 +118,11 @@ export type GetOblicWordpressDescriptionUpdate = {
   changed: boolean;
 };
 
+export type GetOblicWordpressListingPermalink = {
+  wordpress_listing_id: number;
+  permalink: string;
+};
+
 export type GetOblicWordpressSearchRequest = {
   keywords: string;
   listing_type: string;

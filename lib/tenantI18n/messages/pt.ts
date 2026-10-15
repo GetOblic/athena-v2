@@ -2938,6 +2938,7 @@ export const pt: TenantMessages = {
       getoblicFunnelCalendar: "Calendário",
       getoblicFunnelCallYourAi: "Ligue para sua IA",
       getoblicFunnelClaimYourAi: "Ative sua IA",
+      getoblicFunnelViewListing: "Ver o listing GetOblic",
       releaseGetOblicListing: "Libertar listing GetOblic",
       releaseGetOblicConfirm:
         "Este listing GetOblic será devolvido ao inventário GetOblic partilhado. Deixará de contar para a capacidade de listings desta conta. O Prospect e a investigação e inteligência Athena permanecerão.",

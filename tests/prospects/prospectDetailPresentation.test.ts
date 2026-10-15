@@ -63,6 +63,7 @@ const FUNNEL_LABEL_KEYS = [
   "getoblicFunnelAiAgents",
   "getoblicFunnelVirtualPhone",
   "getoblicFunnelCalendar",
+  "getoblicFunnelViewListing",
 ] as const;
 
 const CREATE_AUDIENCE_KEYS = [

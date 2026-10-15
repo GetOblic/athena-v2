@@ -327,13 +327,6 @@ describe("Prospect Funnel canonical destinations", () => {
             authorId: AUTHOR,
             licenseeDefaultLanguage: language,
           }),
-          loadActiveLink: async (organizationId, prospectId) => {
-            calls.push(`link:${organizationId}:${prospectId}`);
-            return {
-              relationship_status: "linked",
-              wordpress_listing_id: CONTACT,
-            };
-          },
           loadListingId: async (input) => {
             calls.push(`listing:${input.organizationId}:${input.prospectId}`);
             return LISTING;
@@ -343,13 +336,19 @@ describe("Prospect Funnel canonical destinations", () => {
       assert.ok(context);
       assert.deepEqual(calls, [
         "org-a:prospect-1",
-        "link:org-a:prospect-1",
         "listing:org-a:prospect-1",
       ]);
+      const portfolio = buildGetOblicFunnelPresentation({
+        authorId: AUTHOR,
+        contactId: LISTING,
+        businessName: BUSINESS,
+        licenseeDefaultLanguage: language,
+      });
+      assert.ok(portfolio);
       const expected = canonical(language);
-      assert.equal(context.destinations.ai_agents, expected.ai_agents);
-      assert.equal(context.destinations.virtual_phone, expected.virtual_phone);
-      assert.equal(context.destinations.calendar, expected.calendar);
+      assert.equal(context.destinations.ai_agents, portfolio.aiAgentsHref);
+      assert.equal(context.destinations.virtual_phone, portfolio.virtualPhoneHref);
+      assert.equal(context.destinations.calendar, portfolio.calendarHref);
       assert.equal(context.destinations.claim_your_ai, expected.claim_your_ai);
       assert.equal(context.callHref, expected.call);
       assert.match(context.callHref ?? "", /^tel:\+/);
@@ -358,26 +357,26 @@ describe("Prospect Funnel canonical destinations", () => {
         const url = new URL(String(href));
         assert.equal(url.origin, "https://claim.getoblic.com");
         assert.equal(url.searchParams.get("author_id"), String(AUTHOR));
+        assert.equal(url.searchParams.get("contact_id"), String(LISTING));
         assert.equal(url.searchParams.get("business_name"), BUSINESS);
         assert.match(String(href), /%26/);
         assert.match(String(href), /%3D/);
         assert.doesNotMatch(String(href), /^tel:/);
       }
-      assert.equal(
-        new URL(String(context.destinations.ai_agents)).searchParams.get("contact_id"),
-        String(CONTACT),
-      );
-      assert.equal(
-        new URL(String(context.destinations.claim_your_ai)).searchParams.get(
-          "contact_id",
-        ),
-        String(LISTING),
-      );
-      assert.notEqual(
-        new URL(String(context.destinations.ai_agents)).searchParams.get("contact_id"),
-        String(LISTING),
-      );
     }
+
+    const destinationsSource = read(
+      "services/prospects/prospectFunnelCanonicalDestinations.ts",
+    );
+    assert.match(destinationsSource, /contactId: listingId/);
+    assert.match(
+      destinationsSource,
+      /readAuthorizedGetOblicFunnelListingId\(/,
+    );
+    assert.doesNotMatch(
+      destinationsSource,
+      /readLinkedGetOblicFunnelContactId|loadActiveLink/,
+    );
 
     const french = canonical("fr");
     const german = canonical("de");
@@ -415,6 +414,36 @@ describe("Prospect Funnel canonical destinations", () => {
       "/business-created-page",
     );
     assert.equal(german.call, "tel:+18666658001,946970#");
+  });
+
+  it("omits portfolio, claim, and call destinations when listing authorization is denied", async () => {
+    const context = await resolveProspectFunnelEnsureContext({
+      organizationId: "org-a",
+      prospectId: "prospect-1",
+      loaders: {
+        loadProspect: async (prospectId, organizationId) => {
+          assert.equal(organizationId, "org-a");
+          return { id: prospectId, business_name: BUSINESS };
+        },
+        loadAuthor: async (organizationId) => {
+          assert.equal(organizationId, "org-a");
+          return { authorId: AUTHOR, licenseeDefaultLanguage: "fr" };
+        },
+        loadListingId: async (input) => {
+          assert.equal(input.organizationId, "org-a");
+          assert.equal(input.prospectId, "prospect-1");
+          return null;
+        },
+      },
+    });
+    assert.ok(context);
+    assert.equal(context.organizationId, "org-a");
+    assert.equal(context.prospectId, "prospect-1");
+    assert.equal(context.destinations.ai_agents, null);
+    assert.equal(context.destinations.virtual_phone, null);
+    assert.equal(context.destinations.calendar, null);
+    assert.equal(context.destinations.claim_your_ai, null);
+    assert.equal(context.callHref, null);
   });
 
   it("returns not found for another organization and does not shorten tel links", async () => {

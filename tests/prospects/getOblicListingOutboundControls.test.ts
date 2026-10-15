@@ -77,7 +77,7 @@ describe("GetOblic outbound controls placement", () => {
       page,
       /showGetOblicRelease &&\s*\(activeGetOblicLink\?\.relationship_status === "linked" \|\|\s*activeGetOblicLink\?\.relationship_status === "claiming"\)/,
     );
-    assert.match(page, /readLinkedGetOblicFunnelContactId\(activeGetOblicLink\)/);
+    assert.match(page, /contactId: authorizedGetOblicListingId/);
     assert.match(page, /hasActiveGetOblicOwnership = activeGetOblicLink != null/);
     assert.doesNotMatch(page, /showUnclaimedGetOblicOutbound &&/);
     assert.doesNotMatch(controls, /unclaimed|wordpress_listing_id|relationship_status/);

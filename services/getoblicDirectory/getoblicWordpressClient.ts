@@ -4,6 +4,7 @@
  * components. The API key must never be logged, returned, or embedded in errors.
  */
 
+import { readPublicHttpsListingPermalink } from "@/lib/prospects/getOblicListingPermalinkDisplay";
 import {
   GETOBLIC_WORDPRESS_DEFAULT_BASE_URL,
   GETOBLIC_WORDPRESS_DEFAULT_TIMEOUT_MS,
@@ -14,6 +15,7 @@ import {
   type GetOblicWordpressErrorCode,
   type GetOblicWordpressKnowledgeBaseUpdate,
   type GetOblicWordpressListing,
+  type GetOblicWordpressListingPermalink,
   type GetOblicWordpressSearchCategory,
   type GetOblicWordpressSearchHit,
   type GetOblicWordpressSearchRequest,
@@ -751,6 +753,53 @@ function parseDescriptionUpdate(
   };
 }
 
+function readExactPositiveListingId(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : null;
+  }
+  if (typeof value !== "string" || !/^[1-9][0-9]*$/.test(value)) return null;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || String(parsed) !== value) return null;
+  return parsed;
+}
+
+function parseListingPermalink(
+  payload: unknown,
+  requestedListingId: number,
+): GetOblicWordpressListingPermalink {
+  const root = asRecord(payload);
+  if (!root || root.success !== true) {
+    throw new GetOblicWordpressError(
+      "INVALID_RESPONSE",
+      "WordPress returned an invalid listing permalink.",
+      502,
+    );
+  }
+
+  const wordpressListingId = readExactPositiveListingId(root.wordpress_listing_id);
+  if (wordpressListingId == null || wordpressListingId !== requestedListingId) {
+    throw new GetOblicWordpressError(
+      "INVALID_RESPONSE",
+      "WordPress listing permalink id did not match.",
+      502,
+    );
+  }
+
+  const permalink = readPublicHttpsListingPermalink(root.permalink);
+  if (!permalink) {
+    throw new GetOblicWordpressError(
+      "INVALID_RESPONSE",
+      "WordPress listing permalink is not a public HTTPS URL.",
+      502,
+    );
+  }
+
+  return {
+    wordpress_listing_id: wordpressListingId,
+    permalink,
+  };
+}
+
 function parseKnowledgeBaseUpdate(
   payload: unknown,
   fallbackListingId: number,
@@ -1007,6 +1056,16 @@ export async function putWordpressListingKnowledgeBase(
     body: { knowledge_base: knowledgeBase },
   });
   return parseKnowledgeBaseUpdate(payload, id);
+}
+
+export async function getWordpressListingPermalink(
+  wordpressListingId: number,
+): Promise<GetOblicWordpressListingPermalink> {
+  const id = parseGetOblicWordpressListingId(wordpressListingId);
+  const { payload } = await wordpressFetch(`/listings/${id}/permalink`, {
+    method: "GET",
+  });
+  return parseListingPermalink(payload, id);
 }
 
 export async function searchWordpressListings(
