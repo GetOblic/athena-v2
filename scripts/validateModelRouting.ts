@@ -68,7 +68,9 @@ for (const stage of CORE_STAGES) {
 }
 
 const analysisModel = resolveModelForStage("discussion_analysis").model;
-const premiumModel = resolveModelForStage("strategic_blueprint").model;
+const premiumModel = resolveModelForStage("ad_campaign_strategy").model;
+const blueprintOverride =
+  process.env.OPENROUTER_STRATEGIC_BLUEPRINT_MODEL?.trim() || "";
 
 if (analysisModel === DEFAULT_ANALYSIS_MODEL) {
   pass(`Analysis default is ${DEFAULT_ANALYSIS_MODEL}`);
@@ -110,8 +112,25 @@ for (const stage of [...CORE_STAGES, ...ANALYSIS_EXTENDED_STAGES]) {
 
 {
   const route = resolveModelForStage("strategic_blueprint");
-  if (route.role !== "premiumStrategicOutput" || !isClaudeModel(route.model)) {
-    fail("strategic_blueprint premium role must default to Claude");
+  if (route.role !== "premiumStrategicOutput") {
+    fail("strategic_blueprint must keep the premiumStrategicOutput role");
+  } else if (blueprintOverride) {
+    if (route.model !== blueprintOverride) {
+      fail(
+        `strategic_blueprint override expected ${blueprintOverride}, got ${route.model}`,
+      );
+    } else if (
+      blueprintOverride !== premiumModel &&
+      resolveModelForStage("ad_campaign_strategy").model === blueprintOverride
+    ) {
+      fail("strategic_blueprint override leaked into ad_campaign_strategy");
+    } else {
+      pass(
+        `strategic_blueprint uses OPENROUTER_STRATEGIC_BLUEPRINT_MODEL (${route.model})`,
+      );
+    }
+  } else if (route.model !== premiumModel || !isClaudeModel(route.model)) {
+    fail("strategic_blueprint premium role must default to the shared Claude premium model");
   } else {
     pass("strategic_blueprint premium role defaults to Claude");
   }

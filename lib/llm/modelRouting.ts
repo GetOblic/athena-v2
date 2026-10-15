@@ -177,11 +177,17 @@ export function resolveModelForStage(
 ): ResolvedModelRoute {
   const role = resolveRoleForStage(stage);
   const config = getLLMModelRoles()[role];
+  // Stage-local model only. Blank or absent keeps premium routing.
+  // Role, reasoning effort, and every other premium consumer stay unchanged.
+  const strategicBlueprintModel =
+    stage === "strategic_blueprint"
+      ? process.env.OPENROUTER_STRATEGIC_BLUEPRINT_MODEL?.trim() || ""
+      : "";
 
   return {
     stage,
     role,
-    model: config.model,
+    model: strategicBlueprintModel || config.model,
     reasoningEffort: config.reasoningEffort,
   };
 }
