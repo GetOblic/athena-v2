@@ -25,6 +25,7 @@ import {
   PROSPECT_STATUS_CHIP_SAVED,
 } from "../../lib/prospects/prospectDetailPresentation";
 import { shouldShowGetOblicListingReleaseAction } from "../../lib/prospects/getOblicListingReleasePresentation";
+import { shouldShowProspectConvertToClient } from "../../lib/prospects/freeConvertPresentation";
 import { ProspectDetailHeader } from "../../components/prospects/ProspectDetailHeader";
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import { isLicenseeOwnCompanyOrganization } from "../../services/licensee/licenseeIdentity";
@@ -53,10 +54,7 @@ const stubRouter = {
 function renderConvertAction(
   conversionStatus: "none" | "active" | "reversed",
   canConvertProspectToClient = true,
-  getoblic?: {
-    isGetOblicDerivedProspect?: boolean;
-    hasActiveGetOblicOwnership?: boolean;
-  },
+  getOblicConversionEligible?: boolean,
 ) {
   return renderToStaticMarkup(
     createElement(
@@ -67,8 +65,7 @@ function renderConvertAction(
         businessName: "Acme Clinic",
         conversionStatus,
         canConvertProspectToClient,
-        isGetOblicDerivedProspect: getoblic?.isGetOblicDerivedProspect,
-        hasActiveGetOblicOwnership: getoblic?.hasActiveGetOblicOwnership,
+        getOblicConversionEligible,
       }),
     ),
   );
@@ -141,8 +138,8 @@ describe("Prospect Convert to Client Own Company eligibility", () => {
     );
     assert.match(page, /isLicenseeOwnCompanyOrganization\(organizationId\)/);
     assert.match(page, /canConvertProspectToClient=\{canConvertProspectToClient\}/);
-    assert.match(page, /isGetOblicDerivedProspect=\{getoblicDerived\}/);
-    assert.match(page, /hasActiveGetOblicOwnership=\{hasActiveGetOblicOwnership\}/);
+    assert.match(page, /resolveGetOblicProspectConversionEligibility/);
+    assert.match(page, /getOblicConversionEligible=\{getOblicConversionEligible\}/);
     assert.doesNotMatch(page, /licenseeMasterMarker|licenseeOriginCookie/);
     assert.doesNotMatch(page, /document\.cookie|cookies\(\)/);
     assert.doesNotMatch(page, /href=["']\/licensee["']/);
@@ -247,17 +244,37 @@ describe("Prospect Convert to Client presentation", () => {
       shouldShowConvertToClientCta({
         canConvertProspectToClient: true,
         conversionStatus: "none",
-        isGetOblicDerivedProspect: true,
-        hasActiveGetOblicOwnership: true,
+        getOblicConversionEligible: true,
       }),
       true,
     );
-    const html = renderConvertAction("reversed", true, {
-      isGetOblicDerivedProspect: true,
-      hasActiveGetOblicOwnership: true,
-    });
+    const html = renderConvertAction("reversed", true, true);
     assert.match(html, /data-prospect-header-action="convert-to-client"/);
     assert.doesNotMatch(html, /disabled=""/);
+  });
+
+  it("shows Convert to Client for an eligible authorized-unclaimed Prospect", () => {
+    assert.equal(
+      shouldShowConvertToClientCta({
+        canConvertProspectToClient: true,
+        conversionStatus: "none",
+        getOblicConversionEligible: true,
+      }),
+      true,
+    );
+    const html = renderConvertAction("none", true, true);
+    assert.match(html, /data-prospect-header-action="convert-to-client"/);
+    assert.match(html, />Convert to Client</);
+    assert.ok(html.includes(CONVERT_TO_CLIENT_PRIMARY_ACTION));
+    assert.doesNotMatch(html, /disabled=""/);
+    const page = read("app/prospects/[id]/page.tsx");
+    const action = read(
+      "components/prospects/ProspectConvertToClientAction.tsx",
+    );
+    assert.match(page, /clientConversionAction=/);
+    assert.match(page, /resolveGetOblicProspectConversionEligibility/);
+    assert.doesNotMatch(action, /licensee_own_company_unclaimed_getoblic_authorized/);
+    assert.doesNotMatch(action, /getActiveGetOblicClaimByWordPressListingId/);
   });
 
   it("omits Convert to Client for a released-only GetOblic Prospect", () => {
@@ -265,15 +282,11 @@ describe("Prospect Convert to Client presentation", () => {
       shouldShowConvertToClientCta({
         canConvertProspectToClient: true,
         conversionStatus: "none",
-        isGetOblicDerivedProspect: true,
-        hasActiveGetOblicOwnership: false,
+        getOblicConversionEligible: false,
       }),
       false,
     );
-    const html = renderConvertAction("reversed", true, {
-      isGetOblicDerivedProspect: true,
-      hasActiveGetOblicOwnership: false,
-    });
+    const html = renderConvertAction("reversed", true, false);
     assert.equal(html, "");
     assert.doesNotMatch(html, /Convert to Client/);
     assert.doesNotMatch(html, /disabled/);
@@ -284,23 +297,32 @@ describe("Prospect Convert to Client presentation", () => {
       shouldShowConvertToClientCta({
         canConvertProspectToClient: true,
         conversionStatus: "none",
-        isGetOblicDerivedProspect: false,
-        hasActiveGetOblicOwnership: false,
+        getOblicConversionEligible: true,
       }),
       true,
     );
-    const html = renderConvertAction("none", true, {
-      isGetOblicDerivedProspect: false,
-      hasActiveGetOblicOwnership: false,
-    });
+    const html = renderConvertAction("none", true, true);
     assert.match(html, /Convert to Client/);
   });
 
+  it("keeps Full Athena Convert visible and Free presentations hidden", () => {
+    assert.equal(shouldShowProspectConvertToClient("full"), true);
+    for (const presentation of [
+      "untrained",
+      "available",
+      "bound",
+      "processing",
+      "failed",
+      "consumed",
+    ] as const) {
+      assert.equal(shouldShowProspectConvertToClient(presentation), false);
+    }
+    const page = read("app/prospects/[id]/page.tsx");
+    assert.match(page, /shouldShowProspectConvertToClient\(presentation\)/);
+  });
+
   it("keeps Converted to Client when conversion is active", () => {
-    const html = renderConvertAction("active", true, {
-      isGetOblicDerivedProspect: true,
-      hasActiveGetOblicOwnership: true,
-    });
+    const html = renderConvertAction("active", true, false);
     assert.match(html, /Converted to Client/);
     assert.doesNotMatch(
       html,
@@ -423,7 +445,7 @@ describe("Prospect Convert to Client request boundary", () => {
     assert.match(page, /conversionStatus=\{conversionState\.status\}/);
     assert.match(page, /getProspectClientConversionState\(prospect\.id\)/);
     assert.match(page, /isLicenseeOwnCompanyOrganization\(organizationId\)/);
-    assert.match(page, /isGetOblicDerivedProspect\(prospect\)/);
+    assert.match(page, /resolveGetOblicProspectConversionEligibility\(\{/);
     assert.match(page, /shouldShowGetOblicListingReleaseAction/);
     assert.match(page, /conversionStatus: conversionState\.status/);
     assert.doesNotMatch(page, /licensee_prospect_client_conversions/);

@@ -162,7 +162,7 @@ function deps(
       available: 4,
     }),
     hasAlreadyConsumedListing: async () => false,
-    getActiveListingClaim: async () => ({ found: false }),
+    getActiveListingClaim: async () => ({ outcome: "none" }),
     getListingById: async (id) => ({
       wordpress_listing_id: id,
       status: "publish",
@@ -311,7 +311,7 @@ describe("GetOblic directory convert orchestration", () => {
     const existing = prospect({ id: PROSPECT_B, status: "Saved" });
     const port = deps({
       getActiveListingClaim: async () => ({
-        found: true,
+        outcome: "found" as const,
         organization_id: ORG_A,
         prospect_id: PROSPECT_B,
         relationship_status: "linked",
@@ -330,7 +330,7 @@ describe("GetOblic directory convert orchestration", () => {
     const existing = prospect({ id: PROSPECT_B, status: "Saved" });
     const port = deps({
       getActiveListingClaim: async () => ({
-        found: true,
+        outcome: "found" as const,
         organization_id: ORG_A,
         prospect_id: PROSPECT_B,
         relationship_status: "claiming",
@@ -354,7 +354,7 @@ describe("GetOblic directory convert orchestration", () => {
     const existing = prospect({ id: PROSPECT_B, status: "Saved" });
     const port = deps({
       getActiveListingClaim: async () => ({
-        found: true,
+        outcome: "found" as const,
         organization_id: ORG_A,
         prospect_id: PROSPECT_B,
         relationship_status: "claiming",
@@ -379,7 +379,7 @@ describe("GetOblic directory convert orchestration", () => {
   it("blocks other-org listings without leaking their identity", async () => {
     const port = deps({
       getActiveListingClaim: async () => ({
-        found: true,
+        outcome: "found" as const,
         organization_id: ORG_B,
         prospect_id: PROSPECT_B,
         relationship_status: "linked",
@@ -481,7 +481,7 @@ describe("GetOblic directory convert orchestration", () => {
   it("keeps an active other-org claim unavailable even with same-org released history", async () => {
     const port = deps({
       getActiveListingClaim: async () => ({
-        found: true,
+        outcome: "found" as const,
         organization_id: ORG_B,
         prospect_id: PROSPECT_B,
         relationship_status: "linked",
@@ -544,10 +544,10 @@ describe("GetOblic directory convert orchestration", () => {
       getActiveListingClaim: async () => {
         lookups += 1;
         if (lookups === 1) {
-          return { found: false };
+          return { outcome: "none" };
         }
         return {
-          found: true,
+          outcome: "found" as const,
           organization_id: ORG_A,
           prospect_id: PROSPECT_B,
           relationship_status: "linked",
@@ -578,10 +578,10 @@ describe("GetOblic directory convert orchestration", () => {
       getActiveListingClaim: async () => {
         lookups += 1;
         if (lookups === 1) {
-          return { found: false };
+          return { outcome: "none" };
         }
         return {
-          found: true,
+          outcome: "found" as const,
           organization_id: ORG_A,
           prospect_id: PROSPECT_B,
           relationship_status: "linked",
@@ -891,7 +891,7 @@ describe("GetOblic directory convert orchestration", () => {
     let listingReads = 0;
     const port = deps({
       getActiveListingClaim: async () => ({
-        found: true,
+        outcome: "found" as const,
         organization_id: ORG_A,
         prospect_id: PROSPECT_B,
         relationship_status: "linked",
@@ -1123,9 +1123,9 @@ describe("GetOblic concurrent conversion persistence", () => {
               row.relationship_status === "linked" ||
               row.relationship_status === "remote_missing"),
         );
-        if (!active) return { found: false as const };
+        if (!active) return { outcome: "none" as const };
         return {
-          found: true as const,
+          outcome: "found" as const,
           organization_id: active.organization_id,
           prospect_id: active.prospect_id,
           relationship_status: active.relationship_status,
@@ -1457,10 +1457,10 @@ describe("GetOblic conversion loser cleanup integrity", () => {
       getActiveListingClaim: async () => {
         lookups += 1;
         if (lookups === 1) {
-          return { found: false };
+          return { outcome: "none" };
         }
         return {
-          found: true as const,
+          outcome: "found" as const,
           organization_id: ORG_A,
           prospect_id: PROSPECT_B,
           relationship_status: "linked" as const,
@@ -1524,10 +1524,10 @@ describe("GetOblic conversion loser cleanup integrity", () => {
       getActiveListingClaim: async () => {
         lookups += 1;
         if (lookups === 1) {
-          return { found: false };
+          return { outcome: "none" };
         }
         return {
-          found: true as const,
+          outcome: "found" as const,
           organization_id: ORG_A,
           prospect_id: PROSPECT_A,
           relationship_status: "linked" as const,
@@ -1625,7 +1625,7 @@ describe("GetOblic conversion loser cleanup integrity", () => {
     assert.ok(leftoverId);
 
     port.getActiveListingClaim = async () => ({
-      found: true as const,
+      outcome: "found" as const,
       organization_id: ORG_A,
       prospect_id: PROSPECT_B,
       relationship_status: "linked" as const,
@@ -2172,7 +2172,7 @@ describe("GetOblic cross-org reusable website intelligence", () => {
     const reuseCalls: unknown[] = [];
     const port = deps({
       getActiveListingClaim: async () => ({
-        found: true,
+        outcome: "found" as const,
         organization_id: ORG_B,
         prospect_id: PROSPECT_B,
         relationship_status: "linked",
@@ -2341,5 +2341,108 @@ describe("GetOblic directory convert source contract", () => {
     assert.match(service, /findOriginProspectByListingId/);
     assert.match(page, /loadProspectsForLibrary/);
     assert.doesNotMatch(page, /getProspects\(/);
+  });
+});
+
+describe("GetOblic active-claim lookup fail-closed conversion", () => {
+  it("does not create, claim, delete, or queue when the lookup fails", async () => {
+    const port = deps({
+      getActiveListingClaim: async () => ({ outcome: "error" }),
+    });
+
+    await assert.rejects(
+      () => convertGetOblicDirectoryListing(convertInput(), port),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_CONCURRENCY_CONFLICT");
+        assert.equal(error.status, 503);
+        return true;
+      },
+    );
+    assert.equal(port.created.length, 0);
+    assert.equal(port.claimed.length, 0);
+    assert.equal(port.deleted.length, 0);
+    assert.equal(port.queued.length, 0);
+  });
+
+  it("does not claim after a create race when the lookup fails", async () => {
+    let lookups = 0;
+    const port = deps({
+      getActiveListingClaim: async () => {
+        lookups += 1;
+        if (lookups === 1) return { outcome: "none" as const };
+        return { outcome: "error" as const };
+      },
+      createProspect: async () => {
+        throw new Error("duplicate key value violates unique constraint");
+      },
+    });
+
+    await assert.rejects(
+      () => convertGetOblicDirectoryListing(convertInput(), port),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_CONCURRENCY_CONFLICT");
+        return true;
+      },
+    );
+    assert.equal(port.claimed.length, 0);
+    assert.equal(port.deleted.length, 0);
+    assert.equal(port.queued.length, 0);
+    assert.equal(port.created.length, 0);
+  });
+
+  it("does not delete a created loser when a later claim lookup fails", async () => {
+    let lookups = 0;
+    const claimAttempts: unknown[] = [];
+    const port = deps({
+      claimKnownExistingListing: async (input) => {
+        claimAttempts.push(input);
+        throw new GetOblicDirectoryError(
+          "GETOBLIC_LISTING_CLAIMED_OTHER_ORG",
+          "claimed",
+        );
+      },
+      getActiveListingClaim: async () => {
+        lookups += 1;
+        if (lookups === 1) return { outcome: "none" as const };
+        return { outcome: "error" as const };
+      },
+    });
+
+    await assert.rejects(
+      () => convertGetOblicDirectoryListing(convertInput(), port),
+      (error: unknown) => {
+        assert.ok(error instanceof GetOblicDirectoryError);
+        assert.equal(error.code, "GETOBLIC_CONCURRENCY_CONFLICT");
+        return true;
+      },
+    );
+    assert.equal(lookups > 1, true);
+    assert.equal(claimAttempts.length, 1);
+    assert.equal(port.deleted.length, 0);
+    assert.equal(port.queued.length, 0);
+    assert.equal(port.created.length, 1);
+  });
+
+  it("still resumes a valid same-org linked claim without a new claim", async () => {
+    const existing = prospect({ id: PROSPECT_B, status: "Ready" });
+    const port = deps({
+      getActiveListingClaim: async () => ({
+        outcome: "found" as const,
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_B,
+        relationship_status: "linked" as const,
+      }),
+      getProspectById: async () => existing,
+    });
+
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "already_owned");
+    assert.equal(result.prospect_id, PROSPECT_B);
+    assert.equal(port.created.length, 0);
+    assert.equal(port.claimed.length, 0);
+    assert.equal(port.deleted.length, 0);
+    assert.equal(port.queued.length, 0);
   });
 });

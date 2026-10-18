@@ -21,6 +21,7 @@ import {
   type OrganizationProspectCapacity,
 } from "@/services/prospects/prospectCapacity";
 import { enqueueDiscussionGenerationJob } from "@/services/generationJobs/generationJobRunner";
+import { readActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
 import {
   findExistingProspectDuplicate,
   prepareProspectImportRows,
@@ -56,6 +57,20 @@ import {
   releaseFreeConvertIfReserved,
 } from "@/services/organization/freeConvertAuthority";
 import type { AthenaGenerationTriggerType } from "@/services/generationJobs/generationJobTypes";
+import { getCurrentExecutiveVersion } from "@/services/executiveVersions/executiveVersionService";
+import {
+  buildInitialResearchFallbackGenerationProgress,
+  buildInitialResearchProgress,
+  concurrentProspectInitialResearch,
+  decideProspectInitialResearch,
+  INITIAL_RESEARCH_FOLLOW_ON_TRIGGER,
+  isFailedInitialResearchForWebsite,
+} from "@/services/websiteLearning/deepScrape/initialResearchPolicy";
+import {
+  enqueueProspectDeepScrapeJob,
+  getActiveDeepScrapeJobForProspect,
+  getLatestDeepScrapeJobForProspect,
+} from "@/services/websiteLearning/deepScrape/deepScrapeJobService";
 import {
   logWebsiteLearning,
   toProspectWebsiteLearningLogReason,
@@ -169,6 +184,11 @@ export async function ensureProspectGenerationQueued(
       | "prospect_deep_scrape";
     /** Optional job progress intent (e.g. Think Differently). */
     progress?: Record<string, unknown> | null;
+    /**
+     * Evidence-free fallback after a failed initial Deep Scrape.
+     * Must not schedule another crawl.
+     */
+    skipInitialResearch?: boolean;
   },
 ): Promise<{ prospect: Prospect; queued: boolean; jobId?: string }> {
   let current = prospect;
@@ -214,6 +234,135 @@ export async function ensureProspectGenerationQueued(
     });
   }
 
+  const researchDecision = decideProspectInitialResearch({
+    triggerType: options?.triggerType ?? "discussion_import",
+    website: current.website,
+    websiteIntelligence:
+      (current.website_intelligence as Record<string, unknown> | null) ?? null,
+    hasCurrentExecutiveVersion: false,
+    progress: options?.progress,
+    skipInitialResearch: options?.skipInitialResearch,
+  });
+  let scheduleInitialResearch = researchDecision.schedule;
+  if (scheduleInitialResearch && discussionId) {
+    const currentVersion = await getCurrentExecutiveVersion(
+      discussionId,
+      current.organization_id,
+    );
+    if (currentVersion) {
+      scheduleInitialResearch = false;
+    }
+  }
+
+  if (scheduleInitialResearch) {
+    const latestResearch = await getLatestDeepScrapeJobForProspect({
+      prospectId: current.id,
+      organizationId: current.organization_id,
+    });
+    if (isFailedInitialResearchForWebsite(latestResearch, current.website)) {
+      scheduleInitialResearch = false;
+      options = {
+        ...options,
+        triggerType: INITIAL_RESEARCH_FOLLOW_ON_TRIGGER,
+        progress: buildInitialResearchFallbackGenerationProgress(),
+        skipInitialResearch: true,
+      };
+    }
+  }
+
+  const activeGenerationLookup =
+    scheduleInitialResearch && discussionId
+      ? await readActiveGenerationJobForDiscussion(
+          discussionId,
+          current.organization_id,
+        )
+      : null;
+  const activeGeneration =
+    activeGenerationLookup?.outcome === "found"
+      ? activeGenerationLookup.job
+      : null;
+  const activeDeepScrape =
+    scheduleInitialResearch &&
+    activeGenerationLookup?.outcome !== "error" &&
+    !activeGeneration
+      ? await getActiveDeepScrapeJobForProspect({
+          prospectId: current.id,
+          organizationId: current.organization_id,
+        })
+      : null;
+  const initialResearchAction = concurrentProspectInitialResearch({
+    schedule: scheduleInitialResearch,
+    activeDeepScrape: Boolean(activeDeepScrape),
+    activeGeneration: Boolean(activeGeneration),
+    activeGenerationRead: activeGenerationLookup?.outcome,
+  });
+
+  if (initialResearchAction === "defer_active_generation_lookup") {
+    return {
+      prospect: current,
+      queued: false,
+    };
+  }
+
+  if (initialResearchAction === "reuse_active_generation" && activeGeneration) {
+    current =
+      (await updateProspect(current.id, current.organization_id, {
+        status: "Queued",
+        last_activity: new Date().toISOString(),
+      })) ?? current;
+    return {
+      prospect: current,
+      queued: true,
+      jobId: activeGeneration.id,
+    };
+  }
+
+  if (initialResearchAction === "reuse_active_deep_scrape" && activeDeepScrape) {
+    current =
+      (await updateProspect(current.id, current.organization_id, {
+        status: "Queued",
+        last_activity: new Date().toISOString(),
+      })) ?? current;
+    return {
+      prospect: current,
+      queued: true,
+      jobId: activeDeepScrape.id,
+    };
+  }
+
+  if (initialResearchAction === "enqueue_deep_scrape") {
+    let deepScrapeJobId: string | null = null;
+    try {
+      const enqueued = await enqueueProspectDeepScrapeJob({
+        organizationId: current.organization_id,
+        prospectId: current.id,
+        discussionId,
+        websiteUrl: current.website ?? "",
+        requestedBy: options?.requestedBy ?? current.user_id,
+        progress: buildInitialResearchProgress(),
+      });
+      deepScrapeJobId = enqueued.job.id;
+    } catch (error) {
+      const raced = await getActiveDeepScrapeJobForProspect({
+        prospectId: current.id,
+        organizationId: current.organization_id,
+      });
+      if (!raced) throw error;
+      deepScrapeJobId = raced.id;
+    }
+
+    current =
+      (await updateProspect(current.id, current.organization_id, {
+        status: "Queued",
+        last_activity: new Date().toISOString(),
+      })) ?? current;
+    return {
+      prospect: current,
+      queued: true,
+      jobId: deepScrapeJobId ?? undefined,
+    };
+  }
+
   const enqueue = await enqueueDiscussionGenerationJob({
     organizationId: current.organization_id,
     discussionId,
@@ -252,6 +401,7 @@ export async function prepareProspectBridgeBeforeGeneration(
   organizationId: string,
   options?: {
     triggerType?: AthenaGenerationTriggerType | string | null;
+    suppressLiveCrawl?: boolean;
   },
 ): Promise<void> {
   const prospect = await getProspectByLinkedDiscussionId(
@@ -263,11 +413,13 @@ export async function prepareProspectBridgeBeforeGeneration(
   let current = prospect;
   const storedIntelligence =
     (current.website_intelligence as Record<string, unknown> | null) ?? null;
-  const decision = resolveProspectWebsiteLearningDecision({
-    triggerType: options?.triggerType,
-    hasWebsite: Boolean(current.website),
-    websiteIntelligence: storedIntelligence,
-  });
+  const decision = options?.suppressLiveCrawl
+    ? { shouldCrawl: false as const, reason: "intelligence_refresh" as const }
+    : resolveProspectWebsiteLearningDecision({
+        triggerType: options?.triggerType,
+        hasWebsite: Boolean(current.website),
+        websiteIntelligence: storedIntelligence,
+      });
   const hasStoredIntelligence =
     websiteIntelligenceHasUsableContent(storedIntelligence);
 

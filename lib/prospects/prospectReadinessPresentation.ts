@@ -13,6 +13,7 @@ const PROCESSING_STATUSES = new Set([
   "Queued",
   "Processing",
   "Learning from Website",
+  "Researching Website",
   "Generating Executive Intelligence",
 ]);
 

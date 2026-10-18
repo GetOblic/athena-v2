@@ -3,19 +3,26 @@
  *
  * Linked owners keep the organization-scoped Prospect lookup and the active
  * linked row. Authorized unclaimed GetOblic Prospects are allowed only when
- * no active or released link exists, and only after:
+ * no active or released link exists for this Prospect, and only after:
  *   licensee_own_company_unclaimed_getoblic_authorized(uuid)
  *   prospect_canonical_wordpress_listing_id(jsonb)
+ *   getActiveGetOblicClaimByWordPressListingId → outcome none
  *
- * Listing identity and permission come from those SQL functions.
+ * Only outcome none permits an unclaimed send. Outcome found, including a
+ * foreign organization, and outcome error deny the send. Listing identity
+ * and permission come from those SQL functions and the Gate 2H-C lookup.
  * This module does not claim, release, reserve capacity, or write listing links.
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { GetOblicDirectoryError } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
-import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
+import {
+  getActiveGetOblicClaimByWordPressListingId,
+  getActiveGetOblicLinkForProspect,
+} from "@/services/getoblicDirectory/getoblicDirectoryService";
 import {
   GETOBLIC_LISTING_LINKS_TABLE,
+  type GetOblicActiveListingClaimLookup,
   type GetOblicListingLink,
 } from "@/services/getoblicDirectory/getoblicDirectoryTypes";
 import {
@@ -85,12 +92,59 @@ export async function resolveGetOblicOutboundContentTarget(
   const wordpressListingId = await resolveCanonicalWordpressListingId(
     prospect.raw_json,
   );
+  await assertUnclaimedListingClaimPermitsOutbound({
+    organizationId: input.organizationId,
+    prospectId: input.prospectId,
+    wordpressListingId,
+  });
 
   return {
     mode: "unclaimed_authorized",
     prospect,
     wordpressListingId,
   };
+}
+
+export function sameGetOblicOutboundContentTarget(
+  left: GetOblicOutboundContentTarget,
+  right: GetOblicOutboundContentTarget,
+): boolean {
+  if (left.mode !== right.mode) return false;
+  if (left.wordpressListingId !== right.wordpressListingId) return false;
+  if (left.mode === "linked_owner" && right.mode === "linked_owner") {
+    return (
+      left.link.id === right.link.id &&
+      left.link.organization_id === right.link.organization_id &&
+      left.link.prospect_id === right.link.prospect_id &&
+      left.link.relationship_status === "linked" &&
+      right.link.relationship_status === "linked"
+    );
+  }
+  return left.mode === "unclaimed_authorized" && right.mode === "unclaimed_authorized";
+}
+
+/**
+ * Second authorization read immediately before a remote write.
+ * A release, reversal of unclaimed permission, or listing-id change denies
+ * the send. This does not lock the remote WordPress PUT that follows.
+ */
+export async function recheckGetOblicOutboundContentTarget(input: {
+  organizationId: string;
+  prospectId: string;
+  expected: GetOblicOutboundContentTarget;
+}): Promise<GetOblicOutboundContentTarget> {
+  const current = await resolveGetOblicOutboundContentTarget({
+    organizationId: input.organizationId,
+    prospectId: input.prospectId,
+  });
+  if (!sameGetOblicOutboundContentTarget(input.expected, current)) {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_CONCURRENCY_CONFLICT",
+      "GetOblic listing authorization changed before the content could be sent.",
+      409,
+    );
+  }
+  return current;
 }
 
 /**
@@ -140,6 +194,49 @@ function isUnclaimedGetOblicProspectIdentity(
   return (
     (rawJson as Record<string, unknown>).origin ===
     UNCLAIMED_GETOBLIC_PROSPECT_ORIGIN
+  );
+}
+
+async function assertUnclaimedListingClaimPermitsOutbound(input: {
+  organizationId: string;
+  prospectId: string;
+  wordpressListingId: number;
+}): Promise<void> {
+  const activeClaim = await getActiveGetOblicClaimByWordPressListingId(
+    input.wordpressListingId,
+  );
+  if (activeClaim.outcome === "none") return;
+  if (activeClaim.outcome === "error") {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_CONCURRENCY_CONFLICT",
+      "GetOblic listing claim state could not be verified.",
+      409,
+    );
+  }
+  denyFoundUnclaimedListingClaim(input.organizationId, input.prospectId, activeClaim);
+}
+
+function denyFoundUnclaimedListingClaim(
+  organizationId: string,
+  prospectId: string,
+  activeClaim: Extract<GetOblicActiveListingClaimLookup, { outcome: "found" }>,
+): never {
+  if (activeClaim.organization_id !== organizationId) {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_LISTING_CLAIMED_OTHER_ORG",
+      "This listing is already claimed.",
+    );
+  }
+  if (activeClaim.prospect_id !== prospectId) {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_LISTING_CLAIMED_SAME_ORG",
+      "This listing is already claimed by another Prospect in this organization.",
+    );
+  }
+  throw new GetOblicDirectoryError(
+    "GETOBLIC_CONCURRENCY_CONFLICT",
+    "GetOblic listing claim state could not be verified.",
+    409,
   );
 }
 

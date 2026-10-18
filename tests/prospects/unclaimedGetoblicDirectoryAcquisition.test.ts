@@ -526,7 +526,7 @@ describe("permission off preserves ordinary add and never claims an unclaimed ro
       hasAlreadyConsumedListing: async () => {
         throw new Error("consumed");
       },
-      getActiveListingClaim: async () => ({ found: false }),
+      getActiveListingClaim: async () => ({ outcome: "none" }),
       getListingById: async () => {
         throw new Error("wordpress");
       },
@@ -635,7 +635,7 @@ describe("permission off preserves ordinary add and never claims an unclaimed ro
       deps({
         findOriginProspectByListingId: async () => foreign,
         getActiveListingClaim: async () => ({
-          found: true,
+          outcome: "found" as const,
           organization_id: OTHER_ORG,
           prospect_id: OTHER_PROSPECT,
           relationship_status: "linked",

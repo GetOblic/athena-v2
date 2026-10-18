@@ -107,6 +107,10 @@ function installFixture(store: {
   settings?: SettingsRow[];
   links?: LinkRow[];
   events?: EventRow[];
+  listingLinksResult?: {
+    data: unknown;
+    error: { message: string } | null;
+  };
 }): { calls: QueryCall[] } {
   const calls: QueryCall[] = [];
 
@@ -165,12 +169,36 @@ function installFixture(store: {
         return builder;
       },
       maybeSingle: async () => {
+        if (
+          table === "athena_getoblic_listing_links" &&
+          store.listingLinksResult
+        ) {
+          const payload = store.listingLinksResult;
+          return {
+            data: Array.isArray(payload.data) ? payload.data[0] ?? null : payload.data,
+            error: payload.error,
+          };
+        }
         const matched = matchingRows();
         return { data: matched[0] ?? null, error: null };
       },
       then(
-        resolve: (value: { data: unknown; count: number; error: null }) => void,
+        resolve: (value: {
+          data: unknown;
+          count: number | null;
+          error: { message: string } | null;
+        }) => void,
       ) {
+        if (
+          table === "athena_getoblic_listing_links" &&
+          store.listingLinksResult
+        ) {
+          return Promise.resolve({
+            data: store.listingLinksResult.data,
+            count: null,
+            error: store.listingLinksResult.error,
+          }).then(resolve);
+        }
         return Promise.resolve(result()).then(resolve);
       },
     };
@@ -410,9 +438,11 @@ describe("GetOblic claim lookup and availability (service)", () => {
     });
 
     const claim = await getActiveGetOblicClaimByWordPressListingId(123);
-    assert.equal(claim.found, true);
-    if (claim.found) {
+    assert.equal(claim.outcome, "found");
+    if (claim.outcome === "found") {
       assert.equal(claim.organization_id, ORG_B);
+      assert.equal(claim.prospect_id, PROSPECT_B);
+      assert.equal(claim.relationship_status, "claiming");
     }
     const lookup = calls.find(
       (call) => call.table === "athena_getoblic_listing_links",
@@ -436,7 +466,7 @@ describe("GetOblic claim lookup and availability (service)", () => {
     });
 
     const claim = await getActiveGetOblicClaimByWordPressListingId(123);
-    assert.deepEqual(claim, { found: false });
+    assert.deepEqual(claim, { outcome: "none" });
     const availability = await determineGetOblicListingClaimAvailability(
       ORG_A,
       PROSPECT_A,
@@ -466,6 +496,137 @@ describe("GetOblic claim lookup and availability (service)", () => {
     assert.deepEqual(Object.keys(result), ["availability"]);
     assert.doesNotMatch(JSON.stringify(result), new RegExp(ORG_B));
     assert.doesNotMatch(JSON.stringify(result), new RegExp(PROSPECT_B));
+  });
+
+  it("returns found for claiming, linked, and remote_missing active rows", async () => {
+    for (const relationship_status of [
+      "claiming",
+      "linked",
+      "remote_missing",
+    ] as const) {
+      installFixture({
+        links: [
+          completeLink({
+            organization_id: ORG_A,
+            prospect_id: PROSPECT_A,
+            wordpress_listing_id: 880,
+            relationship_status,
+          }),
+        ],
+      });
+      const claim = await getActiveGetOblicClaimByWordPressListingId(880);
+      assert.deepEqual(claim, {
+        outcome: "found",
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_A,
+        relationship_status,
+      });
+      const availability = await determineGetOblicListingClaimAvailability(
+        ORG_A,
+        PROSPECT_A,
+        880,
+      );
+      assert.deepEqual(availability, {
+        availability: "already_claimed_by_same_prospect",
+      });
+    }
+  });
+
+  it("returns none when the active-claim query succeeds with no row", async () => {
+    installFixture({ links: [] });
+    const claim = await getActiveGetOblicClaimByWordPressListingId(404);
+    assert.deepEqual(claim, { outcome: "none" });
+    const availability = await determineGetOblicListingClaimAvailability(
+      ORG_A,
+      PROSPECT_A,
+      404,
+    );
+    assert.deepEqual(availability, { availability: "available" });
+  });
+
+  it("returns error when the active-claim query fails and does not classify it as available", async () => {
+    installFixture({
+      listingLinksResult: {
+        data: null,
+        error: { message: "connection refused" },
+      },
+    });
+    const claim = await getActiveGetOblicClaimByWordPressListingId(123);
+    assert.deepEqual(claim, { outcome: "error" });
+    const availability = await determineGetOblicListingClaimAvailability(
+      ORG_A,
+      PROSPECT_A,
+      123,
+    );
+    assert.deepEqual(availability, { outcome: "error" });
+    assert.equal("availability" in availability, false);
+  });
+
+  it("returns error when more than one active claim row matches", async () => {
+    installFixture({
+      links: [
+        completeLink({
+          id: "link-a",
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 123,
+          relationship_status: "linked",
+        }),
+        completeLink({
+          id: "link-b",
+          organization_id: ORG_B,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 123,
+          relationship_status: "claiming",
+        }),
+      ],
+    });
+    const claim = await getActiveGetOblicClaimByWordPressListingId(123);
+    assert.deepEqual(claim, { outcome: "error" });
+    const availability = await determineGetOblicListingClaimAvailability(
+      ORG_A,
+      PROSPECT_A,
+      123,
+    );
+    assert.deepEqual(availability, { outcome: "error" });
+    assert.doesNotMatch(JSON.stringify(availability), /available/);
+    assert.doesNotMatch(JSON.stringify(claim), new RegExp(ORG_B));
+  });
+
+  it("returns error for a malformed active claim row", async () => {
+    installFixture({
+      links: [
+        completeLink({
+          organization_id: ORG_A,
+          prospect_id: "",
+          wordpress_listing_id: 123,
+          relationship_status: "linked",
+        }),
+      ],
+    });
+    const claim = await getActiveGetOblicClaimByWordPressListingId(123);
+    assert.deepEqual(claim, { outcome: "error" });
+    const availability = await determineGetOblicListingClaimAvailability(
+      ORG_A,
+      PROSPECT_A,
+      123,
+    );
+    assert.deepEqual(availability, { outcome: "error" });
+  });
+
+  it("returns error when the active-claim payload is not a row list", async () => {
+    installFixture({
+      listingLinksResult: {
+        data: {
+          organization_id: ORG_A,
+          prospect_id: PROSPECT_A,
+          relationship_status: "linked",
+        },
+        error: null,
+      },
+    });
+    const claim = await getActiveGetOblicClaimByWordPressListingId(123);
+    assert.deepEqual(claim, { outcome: "error" });
   });
 
   it("batches active claim organization IDs without scoping to the caller org", async () => {

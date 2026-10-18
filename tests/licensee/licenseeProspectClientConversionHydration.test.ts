@@ -7,6 +7,27 @@ import { describe, it } from "node:test";
 
 const ROOT = process.cwd();
 
+/**
+ * Session-scoped Client routes that may read or write the source Prospect's
+ * saved GetOblic content. Identity comes only from the authenticated
+ * organization and one active conversion. Caller-supplied Prospect, source
+ * organization, and Licensee ids stay rejected.
+ */
+const AUTHORIZED_ACTIVE_CONVERSION_API_ROUTES = [
+  "app/api/client-prospect-intelligence/availability/route.ts",
+  "app/api/client-prospect-intelligence/getoblic-content/route.ts",
+  "app/api/client-prospect-intelligence/getoblic-content-draft/description/route.ts",
+  "app/api/client-prospect-intelligence/getoblic-content-draft/knowledge-base/route.ts",
+  "app/api/client-prospect-intelligence/getoblic-publication/description/route.ts",
+  "app/api/client-prospect-intelligence/getoblic-publication/knowledge-base/route.ts",
+] as const;
+
+function isAuthorizedActiveConversionRoute(routePath: string): boolean {
+  return (AUTHORIZED_ACTIVE_CONVERSION_API_ROUTES as readonly string[]).includes(
+    routePath,
+  );
+}
+
 function read(relativePath: string): string {
   return readFileSync(join(ROOT, relativePath), "utf8");
 }
@@ -91,14 +112,39 @@ describe("BIC-1 conversion orchestration contract", () => {
     assert.doesNotMatch(route, /hydrateLicenseeProspectClientIntelligence/);
   });
 
-  it("does not add a client→Prospect read API", () => {
+  it("does not add an unauthorized client→Prospect read API", () => {
     const routes = listApiRoutes("app/api");
+    for (const routePath of AUTHORIZED_ACTIVE_CONVERSION_API_ROUTES) {
+      assert.ok(routes.includes(routePath), routePath);
+    }
+
     for (const routePath of routes) {
       const source = read(routePath);
-      assert.doesNotMatch(
-        source,
-        /inheritedProspect|clientProspectIntelligence|readProspectForClient/,
-      );
+      assert.doesNotMatch(source, /inheritedProspect|readProspectForClient/);
+      assert.doesNotMatch(source, /hydrateLicenseeProspectClientIntelligence/);
+
+      if (routePath.startsWith("app/api/client-prospect-intelligence/")) {
+        assert.equal(isAuthorizedActiveConversionRoute(routePath), true, routePath);
+      }
+
+      if (isAuthorizedActiveConversionRoute(routePath)) {
+        assert.match(source, /requireCurrentOrganizationContext\(\)/);
+        assert.match(
+          source,
+          /resolveClientProspectIntelligenceAuthority\(organizationId\)|clientOrganizationId:\s*organizationId/,
+        );
+        assert.doesNotMatch(
+          source,
+          /from\("prospects"\)|from\("athena_identity"\)|client_organization/,
+        );
+        assert.doesNotMatch(
+          source,
+          /prospectId|sourceOrganizationId|source_organization_id|prospect_id|licenseeAccountId|licensee_account_id/,
+        );
+        continue;
+      }
+
+      assert.doesNotMatch(source, /clientProspectIntelligence/);
       if (routePath.includes("convert-to-client")) {
         continue;
       }
@@ -106,7 +152,10 @@ describe("BIC-1 conversion orchestration contract", () => {
         routePath.includes("prospects") &&
         source.includes("from(\"prospects\")")
       ) {
-        assert.doesNotMatch(source, /requireCurrentOrganizationContext[\s\S]*client_organization/);
+        assert.doesNotMatch(
+          source,
+          /requireCurrentOrganizationContext[\s\S]*client_organization/,
+        );
       }
     }
     assert.ok(

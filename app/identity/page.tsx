@@ -15,6 +15,7 @@ import { IdentityConversationPanel } from "@/components/identity/IdentityConvers
 import { identityAskUpgradeContent } from "@/lib/upgrade/freeAskUpgradePresentation";
 import { IdentityOtherTools } from "@/components/identity/IdentityOtherTools";
 import { IdentityKnowledgeScore } from "@/components/identity/IdentityKnowledgeScore";
+import { IdentityInitialResearchStatus } from "@/components/identity/IdentityInitialResearchStatus";
 import { IdentityPageHeader } from "@/components/identity/IdentityPageHeader";
 import { IdentityTeachAthenaSection } from "@/components/identity/IdentityTeachAthenaSection";
 import { IdentityWebsiteKnowledge } from "@/components/identity/IdentityWebsiteKnowledge";
@@ -26,7 +27,7 @@ import {
   IDENTITY_SUCCESS_SECTION_CONTOUR_CLASS,
 } from "@/components/identity/identityPagePresentation";
 import { AthenaCollapsibleSection } from "@/components/ui/AthenaCollapsibleSection";
-import { getLocalizedBrainStatus } from "@/lib/tenantI18n/brainStatus";
+import { serializeInitialResearchStatus } from "@/lib/websiteLearning/initialResearchProgress";
 import { tenantConversationWrapperChrome } from "@/lib/tenantI18n/conversationChrome";
 import { formatTenantDateTime } from "@/lib/tenantI18n/format";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
@@ -69,6 +70,10 @@ import {
   updateOrganizationCommercialIdentity,
 } from "@/services/organization/organizationCommercialIdentity";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
+import {
+  getActiveDeepScrapeJobForBrain,
+  getLatestDeepScrapeJobForBrain,
+} from "@/services/websiteLearning/deepScrape/deepScrapeJobService";
 import {
   emptyFreeIdentityAskState,
   resolveFreeIdentityAskPresentation,
@@ -288,6 +293,21 @@ export default async function IdentityPage({
   const copy = messages.identity;
   const conversationChrome = tenantConversationWrapperChrome(messages);
   const identity = await getAthenaIdentityByUserId(userId, organizationId);
+  const activeInitialResearch = identity
+    ? await getActiveDeepScrapeJobForBrain({
+        identityId: identity.id,
+        organizationId,
+      })
+    : null;
+  const latestInitialResearch = activeInitialResearch
+    ? activeInitialResearch
+    : identity
+      ? await getLatestDeepScrapeJobForBrain({
+          identityId: identity.id,
+          organizationId,
+        })
+      : null;
+  const initialResearch = serializeInitialResearchStatus(latestInitialResearch);
   const organizationBrand =
     await getOrganizationBrandIdentity(organizationId);
   const organizationCommercial =
@@ -551,7 +571,20 @@ export default async function IdentityPage({
         title={copy.title}
         subtitle={copy.subtitle}
         statusLabel={copy.status}
-        statusValue={getLocalizedBrainStatus(messages, identity?.brain_status)}
+        statusValue={
+          <IdentityInitialResearchStatus
+            initial={{
+              brainStatus: identity?.brain_status ?? "pending",
+              research: initialResearch,
+            }}
+            labels={{
+              ready: messages.identity.brainStatusValues.ready,
+              pending: messages.identity.brainStatusValues.pending,
+              processing: messages.identity.brainStatusValues.processing,
+            }}
+            copy={copy.initialResearch}
+          />
+        }
         lastTrainedLabel={copy.lastTrained}
         lastTrainedValue={
           identity?.brain_last_updated

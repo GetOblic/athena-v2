@@ -20,6 +20,7 @@ import {
   promoteLicenseeProspectToClient,
   reverseLicenseeProspectClientConversion,
 } from "../../services/licensee/licenseeProspectClientConversion";
+import { resolveGetOblicProspectConversionEligibility } from "../../services/prospects/prospectGetOblicConversionEligibility";
 import {
   buildProvisionalClientAccountEmailCandidates,
   collisionLocalPartFallback,
@@ -211,6 +212,9 @@ type Fixture = {
   accessStatusByUserId: Record<string, "active" | "deactivated" | undefined>;
   superAdminsByUserId: Record<string, { id: string; user_id: string }>;
   authUsersByEmail: Record<string, { id: string; email: string }>;
+  unclaimedAuthorization?: boolean | "error";
+  canonicalListingId?: number | string | null | "error";
+  activeClaimLookupError?: boolean;
   conversionInsertFailures: Array<{ code: string; message: string }>;
   intentDeleteFailures: Array<{ code?: string; message: string }>;
   identities: IdentityRow[];
@@ -226,9 +230,11 @@ type CallLog = {
     filters: Record<string, string>;
   }>;
   deletes: Array<{ table: string; filters: Record<string, string> }>;
+  rpcs: Array<{ fn: string; args: Record<string, unknown> }>;
 };
 
 const originalFrom = supabaseAdmin.from.bind(supabaseAdmin);
+const originalRpc = supabaseAdmin.rpc.bind(supabaseAdmin);
 const originalCreateUser = supabaseAdmin.auth.admin.createUser.bind(
   supabaseAdmin.auth.admin,
 );
@@ -292,7 +298,13 @@ function reverseInput(prospectId = PROSPECT_A) {
 }
 
 function installFixture(fixture: Fixture): CallLog {
-  const calls: CallLog = { tables: [], inserts: [], updates: [], deletes: [] };
+  const calls: CallLog = {
+    tables: [],
+    inserts: [],
+    updates: [],
+    deletes: [],
+    rpcs: [],
+  };
   let orgSeq = 0;
   let relSeq = 0;
   let conversionSeq = 0;
@@ -372,6 +384,7 @@ function installFixture(fixture: Fixture): CallLog {
     let pendingDelete = false;
     let countHead = false;
     let insertError: { code: string; message: string } | null = null;
+    let selectedColumns = "*";
 
     const matchingRows = () =>
       rowsFor(table).filter((row) => matches(row, filters, nullFilters));
@@ -598,8 +611,12 @@ function installFixture(fixture: Fixture): CallLog {
     };
 
     const builder = {
-      select(_columns?: string, options?: { count?: string; head?: boolean }) {
+      select(columns?: string, options?: { count?: string; head?: boolean }) {
+        if (typeof columns === "string") selectedColumns = columns;
         countHead = Boolean(options?.head && options.count === "exact");
+        return builder;
+      },
+      limit() {
         return builder;
       },
       eq(column: string, value: string) {
@@ -716,11 +733,45 @@ function installFixture(fixture: Fixture): CallLog {
             error: null,
           }).then(onFulfilled, onRejected);
         }
+        if (
+          table === "athena_getoblic_listing_links" &&
+          fixture.activeClaimLookupError &&
+          selectedColumns === "organization_id, prospect_id, relationship_status"
+        ) {
+          return Promise.resolve({
+            data: null,
+            error: { message: "active claim lookup failed" },
+          }).then(onFulfilled, onRejected);
+        }
         return Promise.resolve(finishRead()).then(onFulfilled, onRejected);
       },
     };
 
     return builder;
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (supabaseAdmin as any).rpc = async (
+    fn: string,
+    args: Record<string, unknown> = {},
+  ) => {
+    calls.rpcs.push({ fn, args });
+    if (fn === "licensee_own_company_unclaimed_getoblic_authorized") {
+      if (fixture.unclaimedAuthorization === "error") {
+        return { data: null, error: { message: "authorization lookup failed" } };
+      }
+      return { data: fixture.unclaimedAuthorization === true, error: null };
+    }
+    if (fn === "prospect_canonical_wordpress_listing_id") {
+      if (fixture.canonicalListingId === "error") {
+        return { data: null, error: { message: "canonical lookup failed" } };
+      }
+      if (fixture.canonicalListingId !== undefined) {
+        return { data: fixture.canonicalListingId, error: null };
+      }
+      return { data: canonicalListingIdFromRaw(args.p_raw), error: null };
+    }
+    return { data: null, error: { message: `unexpected rpc ${fn}` } };
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -760,8 +811,35 @@ function restoreMocks() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (supabaseAdmin as any).from = originalFrom;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (supabaseAdmin as any).rpc = originalRpc;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (supabaseAdmin.auth.admin as any).createUser = originalCreateUser;
   globalThis.fetch = originalFetch;
+}
+
+function canonicalListingIdFromRaw(raw: unknown): number | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const record = raw as Record<string, unknown>;
+  const direct = positiveListingId(record.wordpress_listing_id);
+  if (direct != null) return direct;
+  const observed = record.observed;
+  if (!observed || typeof observed !== "object" || Array.isArray(observed)) {
+    return null;
+  }
+  return positiveListingId(
+    (observed as Record<string, unknown>).wordpress_listing_id,
+  );
+}
+
+function positiveListingId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string" || !/^[1-9][0-9]*$/.test(value.trim())) {
+    return null;
+  }
+  const parsed = Number(value.trim());
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 function makeGetOblicProvenance(wordpressListingId = 1000): Record<string, unknown> {
@@ -834,6 +912,8 @@ function ownCompanyFixture(overrides: Partial<Fixture> = {}): Fixture {
     identityInsertFailures: [],
     getoblicLinks: [],
     directorySettings: [],
+    unclaimedAuthorization: false,
+    activeClaimLookupError: false,
     prospects: [
       makeProspect({
         id: PROSPECT_A,
@@ -2360,6 +2440,347 @@ describe("GetOblic ownership conversion guard", () => {
   });
 });
 
+describe("Gate 2H-D authorized unclaimed GetOblic conversion", () => {
+  function usableHomepageWi(): Record<string, unknown> {
+    return {
+      provider: "homepage_only",
+      url: "https://joesplumbing.example",
+      scraped_at: "2026-08-02T00:00:00.000Z",
+      about: "Family plumbing",
+      services: "Repairs",
+    };
+  }
+
+  function unclaimedFixture(
+    overrides: Partial<Fixture> = {},
+  ): Fixture {
+    return ownCompanyFixture({
+      unclaimedAuthorization: true,
+      prospects: [
+        makeProspect({
+          id: PROSPECT_A,
+          business_name: "Joe's Plumbing",
+          source: "getoblic",
+          website: "joesplumbing.example",
+          website_intelligence: usableHomepageWi(),
+          raw_json: makeGetOblicProvenance(1000),
+        }),
+      ],
+      ...overrides,
+    });
+  }
+
+  function assertNoListingLinkMutation(calls: CallLog, fixture: Fixture) {
+    assert.equal(
+      calls.inserts.filter((row) => row.table === "athena_getoblic_listing_links")
+        .length,
+      0,
+    );
+    assert.equal(
+      calls.updates.filter((row) => row.table === "athena_getoblic_listing_links")
+        .length,
+      0,
+    );
+    assert.equal(
+      calls.deletes.filter((row) => row.table === "athena_getoblic_listing_links")
+        .length,
+      0,
+    );
+    assert.equal(
+      calls.rpcs.some((row) =>
+        /claimKnown|releaseGetOblic|consume_getoblic|reserve_getoblic/.test(row.fn),
+      ),
+      false,
+    );
+    void fixture;
+  }
+
+  async function assertOwnershipDenied(run: () => Promise<unknown>) {
+    await assert.rejects(run, (error: unknown) => {
+      assert.ok(error instanceof LicenseeProspectClientConversionError);
+      assert.equal(error.code, "GETOBLIC_OWNERSHIP_REQUIRED");
+      return true;
+    });
+  }
+
+  it("converts an authorized-unclaimed Prospect without claiming or mutating listing links", async () => {
+    const fixture = unclaimedFixture();
+    const calls = installFixture(fixture);
+
+    const result = await promoteLicenseeProspectToClient(promoteInput());
+
+    assert.equal(result.conversion.status, "active");
+    assert.equal(result.alreadyActive, false);
+    assert.equal(result.continuityInitialized, true);
+    assert.equal(result.continuityState, "initialized");
+    assert.equal(result.clientAccountEmail, "joesplumbing@getoblic.com");
+    assert.equal(fixture.conversions.length, 1);
+    assert.equal(fixture.getoblicLinks.length, 0);
+    assert.equal(fixture.identities.length, 1);
+    assert.equal(fixture.identities[0]?.organization_id, result.clientOrganizationId);
+    assert.equal(fixture.identities[0]?.website_intelligence?.about, "Family plumbing");
+    assertNoListingLinkMutation(calls, fixture);
+    assert.deepEqual(
+      calls.rpcs.map((row) => row.fn),
+      [
+        "prospect_canonical_wordpress_listing_id",
+        "licensee_own_company_unclaimed_getoblic_authorized",
+      ],
+    );
+  });
+
+  it("reversal and reconversion keep the same client identity and do not claim", async () => {
+    const fixture = unclaimedFixture();
+    const calls = installFixture(fixture);
+    const first = await promoteLicenseeProspectToClient(promoteInput());
+    const orgInserts = calls.inserts.filter((row) => row.table === "organizations")
+      .length;
+
+    await reverseLicenseeProspectClientConversion(reverseInput());
+    const again = await promoteLicenseeProspectToClient(promoteInput());
+
+    assert.equal(first.continuityInitialized, true);
+    assert.equal(again.reattached, true);
+    assert.equal(again.clientOrganizationId, first.clientOrganizationId);
+    assert.equal(again.clientAccountEmail, first.clientAccountEmail);
+    assert.equal(again.continuityState, "noop");
+    assert.equal(fixture.conversions.length, 1);
+    assert.equal(fixture.identities.length, 1);
+    assert.equal(fixture.identities[0]?.organization_id, first.clientOrganizationId);
+    assert.equal(fixture.getoblicLinks.length, 0);
+    assert.equal(
+      calls.inserts.filter((row) => row.table === "organizations").length,
+      orgInserts,
+    );
+    assertNoListingLinkMutation(calls, fixture);
+  });
+
+  it("keeps an own claiming, linked, or remote_missing Prospect convertible without a new claim", async () => {
+    for (const relationship_status of ["claiming", "linked", "remote_missing"] as const) {
+      const fixture = unclaimedFixture({
+        unclaimedAuthorization: false,
+        getoblicLinks: [
+          makeGetOblicLink({
+            organization_id: OWN_COMPANY_ORG_ID,
+            prospect_id: PROSPECT_A,
+            wordpress_listing_id: 1000,
+            relationship_status,
+          }),
+        ],
+      });
+      const calls = installFixture(fixture);
+      const result = await promoteLicenseeProspectToClient(promoteInput());
+      assert.equal(result.conversion.status, "active", relationship_status);
+      assert.equal(fixture.getoblicLinks.length, 1);
+      assert.equal(
+        fixture.getoblicLinks[0]?.relationship_status,
+        relationship_status,
+      );
+      assert.equal(calls.rpcs.length, 0, relationship_status);
+      assertNoListingLinkMutation(calls, fixture);
+      restoreMocks();
+    }
+  });
+
+  it("denies foreign claiming, linked, and remote_missing without provisioning", async () => {
+    for (const relationship_status of ["claiming", "linked", "remote_missing"] as const) {
+      const link = makeGetOblicLink({
+        id: `foreign-${relationship_status}`,
+        organization_id: PLAIN_ORG,
+        prospect_id: PROSPECT_B,
+        wordpress_listing_id: 1000,
+        relationship_status,
+      });
+      const before = JSON.stringify(link);
+      const fixture = unclaimedFixture({ getoblicLinks: [link] });
+      const calls = installFixture(fixture);
+      const eligibility = await resolveGetOblicProspectConversionEligibility({
+        organizationId: OWN_COMPANY_ORG_ID,
+        prospectId: PROSPECT_A,
+        source: "getoblic",
+        rawJson: makeGetOblicProvenance(1000),
+      });
+      assert.deepEqual(eligibility, {
+        decision: "deny",
+        reason: "foreign_active_claim",
+      });
+      await assertOwnershipDenied(() =>
+        promoteLicenseeProspectToClient(promoteInput()),
+      );
+      assert.equal(fixture.conversions.length, 0);
+      assert.equal(fixture.intents.length, 0);
+      assert.equal(JSON.stringify(fixture.getoblicLinks[0]), before);
+      assertNoListingLinkMutation(calls, fixture);
+      restoreMocks();
+    }
+  });
+
+  it("denies a same-organization claim held by another Prospect", async () => {
+    const fixture = unclaimedFixture({
+      prospects: [
+        makeProspect({
+          id: PROSPECT_A,
+          business_name: "Joe's Plumbing",
+          source: "getoblic",
+          raw_json: makeGetOblicProvenance(1000),
+        }),
+        makeProspect({
+          id: PROSPECT_B,
+          business_name: "Other Plumbing",
+          source: "getoblic",
+          raw_json: makeGetOblicProvenance(1000),
+        }),
+      ],
+      getoblicLinks: [
+        makeGetOblicLink({
+          organization_id: OWN_COMPANY_ORG_ID,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 1000,
+          relationship_status: "linked",
+        }),
+      ],
+    });
+    installFixture(fixture);
+    const eligibility = await resolveGetOblicProspectConversionEligibility({
+      organizationId: OWN_COMPANY_ORG_ID,
+      prospectId: PROSPECT_A,
+      source: "getoblic",
+      rawJson: makeGetOblicProvenance(1000),
+    });
+    assert.deepEqual(eligibility, {
+      decision: "deny",
+      reason: "same_org_other_prospect",
+    });
+    await assertOwnershipDenied(() => promoteLicenseeProspectToClient(promoteInput()));
+    assert.equal(fixture.conversions.length, 0);
+    assert.equal(fixture.getoblicLinks[0]?.prospect_id, PROSPECT_B);
+  });
+
+  it("denies an active-claim lookup error and an ambiguous active result", async () => {
+    const errored = unclaimedFixture({ activeClaimLookupError: true });
+    installFixture(errored);
+    assert.deepEqual(
+      await resolveGetOblicProspectConversionEligibility({
+        organizationId: OWN_COMPANY_ORG_ID,
+        prospectId: PROSPECT_A,
+        source: "getoblic",
+        rawJson: makeGetOblicProvenance(1000),
+      }),
+      { decision: "deny", reason: "lookup_error" },
+    );
+    await assertOwnershipDenied(() => promoteLicenseeProspectToClient(promoteInput()));
+    assert.equal(errored.conversions.length, 0);
+    restoreMocks();
+
+    const ambiguous = unclaimedFixture({
+      getoblicLinks: [
+        makeGetOblicLink({
+          id: "ambiguous-1",
+          organization_id: PLAIN_ORG,
+          prospect_id: PROSPECT_B,
+          wordpress_listing_id: 1000,
+          relationship_status: "linked",
+        }),
+        makeGetOblicLink({
+          id: "ambiguous-2",
+          organization_id: UNRELATED_ORG,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 1000,
+          relationship_status: "claiming",
+        }),
+      ],
+    });
+    installFixture(ambiguous);
+    assert.deepEqual(
+      await resolveGetOblicProspectConversionEligibility({
+        organizationId: OWN_COMPANY_ORG_ID,
+        prospectId: PROSPECT_A,
+        source: "getoblic",
+        rawJson: makeGetOblicProvenance(1000),
+      }),
+      { decision: "deny", reason: "lookup_error" },
+    );
+    await assertOwnershipDenied(() => promoteLicenseeProspectToClient(promoteInput()));
+    assert.equal(ambiguous.conversions.length, 0);
+  });
+
+  it("denies a malformed listing id and a released source Prospect", async () => {
+    const malformed = unclaimedFixture({ canonicalListingId: "12.5" });
+    installFixture(malformed);
+    assert.deepEqual(
+      await resolveGetOblicProspectConversionEligibility({
+        organizationId: OWN_COMPANY_ORG_ID,
+        prospectId: PROSPECT_A,
+        source: "getoblic",
+        rawJson: makeGetOblicProvenance(1000),
+      }),
+      { decision: "deny", reason: "malformed_listing_identity" },
+    );
+    await assertOwnershipDenied(() => promoteLicenseeProspectToClient(promoteInput()));
+    assert.equal(malformed.conversions.length, 0);
+    restoreMocks();
+
+    const released = unclaimedFixture({
+      getoblicLinks: [
+        makeGetOblicLink({
+          organization_id: OWN_COMPANY_ORG_ID,
+          prospect_id: PROSPECT_A,
+          wordpress_listing_id: 1000,
+          relationship_status: "released",
+          released_at: NOW,
+        }),
+      ],
+    });
+    installFixture(released);
+    assert.deepEqual(
+      await resolveGetOblicProspectConversionEligibility({
+        organizationId: OWN_COMPANY_ORG_ID,
+        prospectId: PROSPECT_A,
+        source: "getoblic",
+        rawJson: makeGetOblicProvenance(1000),
+      }),
+      { decision: "deny", reason: "released_source" },
+    );
+    await assertOwnershipDenied(() => promoteLicenseeProspectToClient(promoteInput()));
+    assert.equal(released.conversions.length, 0);
+    assert.equal(released.getoblicLinks[0]?.relationship_status, "released");
+  });
+
+  it("denies an Own Company without unclaimed prospecting permission", async () => {
+    const fixture = unclaimedFixture({ unclaimedAuthorization: false });
+    installFixture(fixture);
+    assert.deepEqual(
+      await resolveGetOblicProspectConversionEligibility({
+        organizationId: OWN_COMPANY_ORG_ID,
+        prospectId: PROSPECT_A,
+        source: "getoblic",
+        rawJson: makeGetOblicProvenance(1000),
+      }),
+      { decision: "deny", reason: "unclaimed_permission_unavailable" },
+    );
+    await assertOwnershipDenied(() => promoteLicenseeProspectToClient(promoteInput()));
+    assert.equal(fixture.conversions.length, 0);
+    assert.equal(fixture.intents.length, 0);
+    assert.equal(fixture.getoblicLinks.length, 0);
+  });
+
+  it("leaves a manual Prospect on the existing conversion path", async () => {
+    const fixture = ownCompanyFixture();
+    const calls = installFixture(fixture);
+    const eligibility = await resolveGetOblicProspectConversionEligibility({
+      organizationId: OWN_COMPANY_ORG_ID,
+      prospectId: PROSPECT_A,
+      source: "manual",
+      rawJson: null,
+    });
+    assert.deepEqual(eligibility, { decision: "allow", basis: "not_getoblic" });
+    const result = await promoteLicenseeProspectToClient(promoteInput());
+    assert.equal(result.conversion.status, "active");
+    assert.equal(calls.rpcs.length, 0);
+    assert.equal(fixture.getoblicLinks.length, 0);
+  });
+});
+
 describe("Prospect → Client language inheritance", () => {
   it("first conversion uses the Licensee Master default language", async () => {
     const fixture = ownCompanyFixture();
@@ -2471,9 +2892,24 @@ describe("source contracts", () => {
     assert.doesNotMatch(service, /getoblicDirectory/);
     assert.doesNotMatch(service, /consume_getoblic|reserve_getoblic|released_at/);
     assert.match(service, /requireGetOblicOwnershipForConversion/);
-    assert.match(service, /isGetOblicDerivedProspect/);
-    assert.match(service, /organizationOwnsActiveGetOblicClaimForProspect/);
+    assert.match(service, /resolveGetOblicProspectConversionEligibility/);
     assert.match(service, /GETOBLIC_OWNERSHIP_REQUIRED/);
+    assert.doesNotMatch(service, /claimKnownExistingListing|releaseGetOblicListing/);
+    const eligibility = read(
+      "services/prospects/prospectGetOblicConversionEligibility.ts",
+    );
+    assert.match(eligibility, /isGetOblicDerivedProspect/);
+    assert.match(eligibility, /organizationOwnsActiveGetOblicClaimForProspect/);
+    assert.match(eligibility, /getActiveGetOblicClaimByWordPressListingId/);
+    assert.match(
+      eligibility,
+      /licensee_own_company_unclaimed_getoblic_authorized/,
+    );
+    assert.match(eligibility, /prospect_canonical_wordpress_listing_id/);
+    assert.doesNotMatch(
+      eligibility,
+      /claimKnownExistingListing|releaseGetOblicListing|putWordpress/,
+    );
     assert.match(migration, /client_account_email text not null/);
     assert.match(migration, /licensee_prospect_client_conversions_one_active_per_prospect/);
     assert.match(migration, /on delete restrict/);

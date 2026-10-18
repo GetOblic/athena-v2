@@ -190,7 +190,7 @@ function convertDeps(
       available: 4,
     }),
     hasAlreadyConsumedListing: async () => false,
-    getActiveListingClaim: async () => ({ found: false }),
+    getActiveListingClaim: async () => ({ outcome: "none" }),
     getListingById: async (id) => ({
       wordpress_listing_id: id,
       status: "publish",

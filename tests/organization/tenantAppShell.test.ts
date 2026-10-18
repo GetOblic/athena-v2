@@ -73,6 +73,7 @@ const SHELLED_PAGES = [
   "app/prospects/page.tsx",
   "app/prospects/import/page.tsx",
   "app/prospects/find/page.tsx",
+  "app/prospect-intelligence/page.tsx",
   "app/prospects/[id]/page.tsx",
   "app/seo/page.tsx",
   "app/seo/new/page.tsx",

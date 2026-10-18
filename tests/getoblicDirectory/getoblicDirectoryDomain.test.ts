@@ -41,7 +41,7 @@ describe("GetOblic active relationship status", () => {
 describe("GetOblic listing claim availability", () => {
   it("returns available when no active mapping exists", () => {
     const result = classifyGetOblicListingClaimAvailability(ORG_A, PROSPECT_A, {
-      found: false,
+      outcome: "none",
     });
     assert.deepEqual(result, { availability: "available" });
     assert.deepEqual(availabilityKeys(result), ["availability"]);
@@ -49,7 +49,7 @@ describe("GetOblic listing claim availability", () => {
 
   it("returns already_claimed_by_same_prospect for same org + same Prospect", () => {
     const result = classifyGetOblicListingClaimAvailability(ORG_A, PROSPECT_A, {
-      found: true,
+      outcome: "found",
       organization_id: ORG_A,
       prospect_id: PROSPECT_A,
       relationship_status: "linked",
@@ -62,7 +62,7 @@ describe("GetOblic listing claim availability", () => {
 
   it("returns claimed_by_other_prospect_same_org for same org + different Prospect", () => {
     const result = classifyGetOblicListingClaimAvailability(ORG_A, PROSPECT_A, {
-      found: true,
+      outcome: "found",
       organization_id: ORG_A,
       prospect_id: PROSPECT_B,
       relationship_status: "linked",
@@ -75,7 +75,7 @@ describe("GetOblic listing claim availability", () => {
 
   it("returns claimed_by_other_org without leaking other-tenant identifiers", () => {
     const otherClaim: GetOblicActiveListingClaimLookup = {
-      found: true,
+      outcome: "found",
       organization_id: ORG_B,
       prospect_id: PROSPECT_B,
       relationship_status: "linked",
@@ -97,7 +97,7 @@ describe("GetOblic listing claim availability", () => {
 
   it("treats remote_missing in another organization as claimed_by_other_org", () => {
     const result = classifyGetOblicListingClaimAvailability(ORG_A, PROSPECT_A, {
-      found: true,
+      outcome: "found",
       organization_id: ORG_B,
       prospect_id: PROSPECT_B,
       relationship_status: "remote_missing",
@@ -107,7 +107,7 @@ describe("GetOblic listing claim availability", () => {
 
   it("treats claiming in another organization as claimed_by_other_org", () => {
     const result = classifyGetOblicListingClaimAvailability(ORG_A, PROSPECT_A, {
-      found: true,
+      outcome: "found",
       organization_id: ORG_B,
       prospect_id: PROSPECT_B,
       relationship_status: "claiming",
@@ -117,9 +117,39 @@ describe("GetOblic listing claim availability", () => {
 
   it("treats a released-only historical row as no active conflict", () => {
     const result = classifyGetOblicListingClaimAvailability(ORG_A, PROSPECT_A, {
-      found: false,
+      outcome: "none",
     });
     assert.deepEqual(result, { availability: "available" });
+  });
+
+  it("keeps claiming, linked, and remote_missing same-prospect claims", () => {
+    for (const relationship_status of [
+      "claiming",
+      "linked",
+      "remote_missing",
+    ] as const) {
+      const result = classifyGetOblicListingClaimAvailability(ORG_A, PROSPECT_A, {
+        outcome: "found",
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_A,
+        relationship_status,
+      });
+      assert.deepEqual(result, {
+        availability: "already_claimed_by_same_prospect",
+      });
+    }
+  });
+
+  it("does not treat a lookup error as available", () => {
+    const result = classifyGetOblicListingClaimAvailability(ORG_A, PROSPECT_A, {
+      outcome: "error",
+    });
+    assert.deepEqual(result, { outcome: "error" });
+    assert.equal("availability" in result, false);
+    assert.notEqual(
+      "availability" in result ? result.availability : null,
+      "available",
+    );
   });
 });
 

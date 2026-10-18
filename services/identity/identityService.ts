@@ -22,6 +22,17 @@ import {
   formatDeepIntelligenceForBrainPrompt,
   isDeepWebsiteIntelligence,
 } from "@/services/websiteLearning/deepScrape/deepWebsiteIntelligence";
+import {
+  enqueueBrainDeepScrapeJob,
+  getActiveDeepScrapeJobForBrain,
+  getLatestDeepScrapeJobForBrain,
+} from "@/services/websiteLearning/deepScrape/deepScrapeJobService";
+import {
+  buildInitialResearchProgress,
+  decideIdentityInitialTrain,
+  isFailedInitialResearchForWebsite,
+  isInitialResearchProgress,
+} from "@/services/websiteLearning/deepScrape/initialResearchPolicy";
 
 export {
   hasUsableStoredHomepageLearning,
@@ -168,11 +179,13 @@ export async function getAthenaIdentityById(
 export async function compileMasterIdentityProfile(
   identity: AthenaIdentity,
   organizationId: string,
+  options?: { skipLiveWebsiteFetch?: boolean },
 ) {
   if (!assertTenantRecord(identity, organizationId)) {
     return identity;
   }
 
+  const skipLiveWebsiteFetch = options?.skipLiveWebsiteFetch === true;
   const deepIntelligence = isDeepWebsiteIntelligence(identity.website_intelligence)
     ? identity.website_intelligence
     : null;
@@ -184,16 +197,17 @@ export async function compileMasterIdentityProfile(
   logWebsiteLearning({
     source: "identity",
     organizationId,
-    decision: hasDeepIntelligence
-      ? "reuse"
-      : hasStoredHomepageLearning
+    decision:
+      hasDeepIntelligence || hasStoredHomepageLearning || skipLiveWebsiteFetch
         ? "reuse"
         : "scrape",
     reason: hasDeepIntelligence
       ? "stored_deep_website_intelligence_present"
       : hasStoredHomepageLearning
         ? "stored_homepage_learning_present"
-        : "missing_homepage_learning",
+        : skipLiveWebsiteFetch
+          ? "initial_research_fallback_without_website_evidence"
+          : "missing_homepage_learning",
     hasStoredHomepageLearning,
   });
 
@@ -205,6 +219,9 @@ export async function compileMasterIdentityProfile(
 
   if (hasDeepIntelligence && deepIntelligence) {
     websiteHomepageText = formatDeepIntelligenceForBrainPrompt(deepIntelligence);
+  } else if (skipLiveWebsiteFetch) {
+    websiteHomepageText = storedHomepageLearning;
+    scraped = false;
   } else {
     const resolvedHomepage = await resolveIdentityWebsiteHomepageText({
       masterProfile: identity.master_profile,
@@ -288,6 +305,34 @@ export async function compileMasterIdentityProfile(
   return data;
 }
 
+/**
+ * Leave processing after initial research gives up without a ready brain.
+ * Matches only a processing row. Does not write profile, intelligence, or
+ * manual identity fields.
+ */
+export async function releaseIdentityBrainProcessing(input: {
+  identityId: string;
+  organizationId: string;
+}): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("athena_identity")
+    .update({
+      brain_status: "pending",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.identityId)
+    .eq("organization_id", input.organizationId)
+    .eq("brain_status", "processing");
+
+  if (error) {
+    console.error("[ATHENA_IDENTITY] release_processing_failed", {
+      identityId: input.identityId,
+      error: error.message,
+    });
+    throw error;
+  }
+}
+
 export async function upsertAthenaIdentity(
   input: UpsertAthenaIdentityInput,
 ): Promise<AthenaIdentity | null> {
@@ -321,6 +366,64 @@ export async function upsertAthenaIdentity(
   if (error) {
     console.error("Error saving Athena identity:", error);
     return null;
+  }
+
+  const activeResearch = await getActiveDeepScrapeJobForBrain({
+    identityId: data.id,
+    organizationId: input.organizationId,
+  });
+  const latestResearch = activeResearch
+    ? null
+    : await getLatestDeepScrapeJobForBrain({
+        identityId: data.id,
+        organizationId: input.organizationId,
+      });
+  const trainDecision = decideIdentityInitialTrain({
+    brainObtained: isIdentityBrainObtained(existing),
+    website: data.website,
+    websiteIntelligence: data.website_intelligence,
+    masterProfile: data.master_profile,
+    activeInitialResearch: Boolean(
+      activeResearch && isInitialResearchProgress(activeResearch.progress),
+    ),
+    failedInitialResearchForWebsite: isFailedInitialResearchForWebsite(
+      latestResearch,
+      data.website,
+    ),
+  });
+
+  if (trainDecision === "wait_for_active_research") {
+    return data;
+  }
+  if (trainDecision === "compile_without_website_fetch") {
+    return compileMasterIdentityProfile(data, input.organizationId, {
+      skipLiveWebsiteFetch: true,
+    });
+  }
+  if (trainDecision === "enqueue_initial_research") {
+    try {
+      await enqueueBrainDeepScrapeJob({
+        organizationId: input.organizationId,
+        identityId: data.id,
+        websiteUrl: data.website ?? "",
+        requestedBy: input.userId,
+        progress: buildInitialResearchProgress(),
+      });
+      return data;
+    } catch (error) {
+      const raced = await getActiveDeepScrapeJobForBrain({
+        identityId: data.id,
+        organizationId: input.organizationId,
+      });
+      if (raced) return data;
+      console.error("[ATHENA_DEEP_SCRAPE] initial_research_enqueue_failed", {
+        identityId: data.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return compileMasterIdentityProfile(data, input.organizationId, {
+        skipLiveWebsiteFetch: true,
+      });
+    }
   }
 
   return compileMasterIdentityProfile(data, input.organizationId);

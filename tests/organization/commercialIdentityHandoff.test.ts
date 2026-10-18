@@ -316,6 +316,6 @@ describe("commercial identity handoff", () => {
     assert.match(conversion, /COMMERCIAL_IDENTITY_HYDRATION_FAILED/);
     assert.doesNotMatch(conversion, /accountEmail:\s*prospect\.email/);
     assert.match(conversion, /requireGetOblicOwnershipForConversion/);
-    assert.match(conversion, /organizationOwnsActiveGetOblicClaimForProspect/);
+    assert.match(conversion, /resolveGetOblicProspectConversionEligibility/);
   });
 });

@@ -31,6 +31,7 @@ import { googleBusinessIdsEqual } from "@/services/getoblicDirectory/getoblicGoo
 import {
   isGetOblicInventoryPoolAuthor,
   type ActiveGetOblicRelationshipStatus,
+  type GetOblicActiveListingClaimLookup,
   type GetOblicListingLink,
 } from "@/services/getoblicDirectory/getoblicDirectoryTypes";
 import {
@@ -554,14 +555,20 @@ export async function convertGetOblicDirectoryListing(
     });
   }
 
-  const activeClaim = await dependencies.getActiveListingClaim(
-    wordpressListingId,
+  const activeClaim = requireResolvedActiveClaimLookup(
+    await dependencies.getActiveListingClaim(wordpressListingId),
   );
-  if (activeClaim.found && activeClaim.organization_id !== organizationId) {
+  if (
+    activeClaim.outcome === "found" &&
+    activeClaim.organization_id !== organizationId
+  ) {
     return emptyResult("unavailable");
   }
 
-  if (activeClaim.found && activeClaim.organization_id === organizationId) {
+  if (
+    activeClaim.outcome === "found" &&
+    activeClaim.organization_id === organizationId
+  ) {
     return resumeOwnedListing({
       organizationId,
       wordpressListingId,
@@ -835,10 +842,14 @@ async function resolveCreateRace(args: {
       : Promise.resolve(null),
     args.dependencies.getActiveListingClaim(args.wordpressListingId),
   ]);
+  const resolvedClaim = requireResolvedActiveClaimLookup(activeClaim);
 
-  if (activeClaim.found && activeClaim.organization_id === args.organizationId) {
+  if (
+    resolvedClaim.outcome === "found" &&
+    resolvedClaim.organization_id === args.organizationId
+  ) {
     const winner = await args.dependencies.getProspectById(
-      activeClaim.prospect_id,
+      resolvedClaim.prospect_id,
       args.organizationId,
     );
     if (winner) {
@@ -1253,13 +1264,43 @@ async function persistDeferredSaved(
   return updated ?? prospect;
 }
 
+function requireResolvedActiveClaimLookup(
+  lookup: GetOblicActiveListingClaimLookup,
+): Exclude<GetOblicActiveListingClaimLookup, { outcome: "error" }> {
+  if (lookup.outcome === "found" || lookup.outcome === "none") {
+    return lookup;
+  }
+  throw new GetOblicDirectoryError(
+    "GETOBLIC_CONCURRENCY_CONFLICT",
+    "GetOblic Directory could not complete this claim safely.",
+    503,
+  );
+}
+
+/**
+ * `unknown` means the lookup failed. The caller must not delete or mutate.
+ * `true` means this Prospect holds the active claim.
+ */
+function activeClaimProtectsProspect(
+  lookup: GetOblicActiveListingClaimLookup,
+  prospectId: string,
+): boolean | "unknown" {
+  if (lookup.outcome === "found") {
+    return lookup.prospect_id === prospectId;
+  }
+  if (lookup.outcome === "none") {
+    return false;
+  }
+  return "unknown";
+}
+
 async function resolveSameOrgCanonicalProspect(
   organizationId: string,
   wordpressListingId: number,
   dependencies: GetOblicConvertDependencies,
 ): Promise<Prospect | null> {
   const claim = await dependencies.getActiveListingClaim(wordpressListingId);
-  if (!claim.found || claim.organization_id !== organizationId) {
+  if (claim.outcome !== "found" || claim.organization_id !== organizationId) {
     return null;
   }
   return dependencies.getProspectById(claim.prospect_id, organizationId);
@@ -1343,18 +1384,23 @@ async function discardLosingConversionProspect(args: {
     const listingClaim = await args.dependencies.getActiveListingClaim(
       args.wordpressListingId,
     );
-    const hasActiveGetOblicClaim =
-      listingClaim.found && listingClaim.prospect_id === fresh.id;
+    const claimProtection = activeClaimProtectsProspect(
+      listingClaim,
+      fresh.id,
+    );
+    if (claimProtection === "unknown") {
+      return "not_disposable";
+    }
     if (
       !isDisposableLosingConversionProspect({
         createdByThisRequest: true,
         loser: fresh,
         winnerId: args.winnerId,
         wordpressListingId: args.wordpressListingId,
-        hasActiveGetOblicClaim,
+        hasActiveGetOblicClaim: claimProtection,
       })
     ) {
-      return hasActiveGetOblicClaim ? "protected_claim" : "not_disposable";
+      return claimProtection ? "protected_claim" : "not_disposable";
     }
   }
 
@@ -1405,18 +1451,23 @@ async function attemptDiscardDelete(
   const listingClaim = await args.dependencies.getActiveListingClaim(
     args.wordpressListingId,
   );
-  const hasActiveGetOblicClaim =
-    listingClaim.found && listingClaim.prospect_id === remaining.id;
+  const claimProtection = activeClaimProtectsProspect(
+    listingClaim,
+    remaining.id,
+  );
+  if (claimProtection === "unknown") {
+    return "not_disposable";
+  }
   if (
     !isDisposableLosingConversionProspect({
       createdByThisRequest: true,
       loser: remaining,
       winnerId: args.winnerId,
       wordpressListingId: args.wordpressListingId,
-      hasActiveGetOblicClaim,
+      hasActiveGetOblicClaim: claimProtection,
     })
   ) {
-    return hasActiveGetOblicClaim ? "protected_claim" : "not_disposable";
+    return claimProtection ? "protected_claim" : "not_disposable";
   }
 
   if (allowRetry) {

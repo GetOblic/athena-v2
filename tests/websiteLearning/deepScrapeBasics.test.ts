@@ -217,7 +217,7 @@ describe("Deep scrape status labels", () => {
 });
 
 describe("Deep scrape wiring contracts", () => {
-  it("keeps deep scrape independent from Train Athena / import / refresh", () => {
+  it("keeps the crawler out of Train Athena, import, and refresh", () => {
     const identityService = readFileSync(
       path.join(root, "services/identity/identityService.ts"),
       "utf8",
@@ -236,8 +236,11 @@ describe("Deep scrape wiring contracts", () => {
       "utf8",
     );
 
-    assert.doesNotMatch(identityService, /enqueueBrainDeepScrapeJob|runDeepWebsiteCrawl/);
-    assert.doesNotMatch(importer, /runDeepWebsiteCrawl|enqueueProspectDeepScrapeJob/);
+    assert.doesNotMatch(identityService, /runDeepWebsiteCrawl/);
+    assert.doesNotMatch(importer, /runDeepWebsiteCrawl/);
+    assert.match(identityService, /enqueueBrainDeepScrapeJob/);
+    assert.match(importer, /enqueueProspectDeepScrapeJob/);
+    assert.doesNotMatch(refreshRoute, /enqueueProspectDeepScrapeJob|runDeepWebsiteCrawl/);
     assert.doesNotMatch(refreshRoute, /deep-scrape|prospect_deep_scrape/);
     assert.match(worker, /claimAndExecuteNextDeepScrapeJob/);
     assert.match(worker, /reconcileAwaitingFollowOnJobs/);

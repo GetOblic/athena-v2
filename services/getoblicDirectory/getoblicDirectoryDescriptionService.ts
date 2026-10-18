@@ -1,23 +1,31 @@
 /**
- * Athena V2 GetOblic Directory listing description push.
+ * Athena GetOblic Directory listing description push.
  *
  * Tenant-authenticated path: org context → shared outbound authorization →
- * persisted generated_listing_description.description → existing WordPress
- * PUT primitive.
+ * saved prospect_directory_artifacts description → existing WordPress PUT.
  *
  * Linked owners keep the linked-row WordPress id. Authorized unclaimed
  * Prospects use the resolver's canonical id and do not write a listing link.
  *
  * This service does not accept browser-supplied WordPress IDs, organization
- * IDs, or description content. Observed listing copy is never the outbound source.
+ * IDs, or description content. Observed listing copy, unsaved editor text,
+ * and the legacy generated listing column are never the outbound source.
+ *
+ * Remaining race: beforeOutbound and resolveGetOblicOutboundContentTarget run
+ * again immediately before the PUT. A release or conversion reversal that
+ * commits during the remote PUT can still reach WordPress. There is no
+ * distributed transaction around that gap.
  */
 
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { GetOblicDirectoryError } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
-import { resolveGetOblicOutboundContentTarget } from "@/services/getoblicDirectory/getoblicOutboundContentAuthorization";
+import {
+  recheckGetOblicOutboundContentTarget,
+  resolveGetOblicOutboundContentTarget,
+  type GetOblicOutboundContentTarget,
+} from "@/services/getoblicDirectory/getoblicOutboundContentAuthorization";
+import { loadPublishableSavedDirectoryArtifact } from "@/services/getoblicDirectory/getoblicSavedArtifactOutbound";
 import { putWordpressListingDescription } from "@/services/getoblicDirectory/getoblicWordpressClient";
 import { GetOblicWordpressError } from "@/services/getoblicDirectory/getoblicWordpressTypes";
-import { GETOBLIC_DESCRIPTION_MAX_CHARS } from "@/services/prospects/prospectGeneratedListingDescription";
 
 const REMOTE_ERROR_MAX_LENGTH = 500;
 
@@ -32,6 +40,7 @@ export type DescriptionSyncResult = {
 export type SyncGetOblicListingDescriptionInput = {
   organizationId: string;
   prospectId: string;
+  beforeOutbound?: () => Promise<void>;
 };
 
 export type DescriptionWordpressPort = {
@@ -54,61 +63,37 @@ export function toPublicGetOblicDescriptionSync(
   };
 }
 
-export function resolveOutboundGeneratedDescription(value: unknown): string {
-  if (value == null) {
-    throw generatedDescriptionMissingError();
-  }
-  if (typeof value !== "object" || Array.isArray(value)) {
-    throw generatedDescriptionInvalidError();
-  }
-
-  const description = (value as { description?: unknown }).description;
-  if (typeof description !== "string") {
-    throw generatedDescriptionInvalidError();
-  }
-
-  const trimmed = description.trim();
-  if (!trimmed) {
-    throw generatedDescriptionInvalidError();
-  }
-  if (trimmed.length > GETOBLIC_DESCRIPTION_MAX_CHARS) {
-    throw generatedDescriptionInvalidError();
-  }
-
-  return trimmed;
-}
-
 export async function syncGetOblicListingDescription(
   input: SyncGetOblicListingDescriptionInput,
   wordpress: DescriptionWordpressPort = defaultWordpressPort,
 ): Promise<DescriptionSyncResult> {
-  const target = await resolveGetOblicOutboundContentTarget({
+  const initial = await resolveGetOblicOutboundContentTarget({
     organizationId: input.organizationId,
     prospectId: input.prospectId,
   });
-  if (
-    target.mode === "linked_owner" &&
-    (!Number.isInteger(target.link.wordpress_listing_id) ||
-      target.link.wordpress_listing_id <= 0)
-  ) {
-    throw new GetOblicDirectoryError(
-      "GETOBLIC_INVALID_WORDPRESS_LISTING_ID",
-      "This GetOblic listing is missing a WordPress listing id.",
-      409,
-    );
-  }
+  assertLinkedWordpressId(initial);
 
-  const rawGenerated = await loadRawGeneratedListingDescription(
-    input.prospectId,
-    input.organizationId,
-  );
-  const description = resolveOutboundGeneratedDescription(rawGenerated);
+  const artifact = await loadPublishableSavedDirectoryArtifact({
+    prospectId: input.prospectId,
+    sourceOrganizationId: input.organizationId,
+    artifactType: "description",
+  });
+
+  if (input.beforeOutbound) {
+    await input.beforeOutbound();
+  }
+  const target = await recheckGetOblicOutboundContentTarget({
+    organizationId: input.organizationId,
+    prospectId: input.prospectId,
+    expected: initial,
+  });
+  assertLinkedWordpressId(target);
 
   let remote: { wordpress_listing_id: number; changed: boolean };
   try {
     remote = await wordpress.putDescription(
       target.wordpressListingId,
-      description,
+      artifact.content,
     );
   } catch (error) {
     throw mapWordpressWriteError(error);
@@ -123,26 +108,18 @@ export async function syncGetOblicListingDescription(
   };
 }
 
-async function loadRawGeneratedListingDescription(
-  prospectId: string,
-  organizationId: string,
-): Promise<unknown> {
-  const { data, error } = await supabaseAdmin
-    .from("prospects")
-    .select("generated_listing_description")
-    .eq("id", prospectId)
-    .eq("organization_id", organizationId)
-    .maybeSingle();
-
-  if (error) {
-    console.error("Error loading generated listing description:", error);
-    throw generatedDescriptionMissingError();
+function assertLinkedWordpressId(target: GetOblicOutboundContentTarget): void {
+  if (
+    target.mode === "linked_owner" &&
+    (!Number.isInteger(target.link.wordpress_listing_id) ||
+      target.link.wordpress_listing_id <= 0)
+  ) {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_INVALID_WORDPRESS_LISTING_ID",
+      "This GetOblic listing is missing a WordPress listing id.",
+      409,
+    );
   }
-
-  return data
-    ? (data as { generated_listing_description?: unknown })
-        .generated_listing_description
-    : null;
 }
 
 function mapWordpressWriteError(error: unknown): GetOblicDirectoryError {
@@ -173,22 +150,6 @@ function mapWordpressWriteError(error: unknown): GetOblicDirectoryError {
     sanitizeRemoteErrorText(message) ||
       "GetOblic Directory description write failed.",
     502,
-  );
-}
-
-function generatedDescriptionMissingError(): GetOblicDirectoryError {
-  return new GetOblicDirectoryError(
-    "GETOBLIC_GENERATED_DESCRIPTION_MISSING",
-    "This Prospect has no generated GetOblic description.",
-    409,
-  );
-}
-
-function generatedDescriptionInvalidError(): GetOblicDirectoryError {
-  return new GetOblicDirectoryError(
-    "GETOBLIC_GENERATED_DESCRIPTION_INVALID",
-    "The generated GetOblic description is empty or invalid.",
-    409,
   );
 }
 

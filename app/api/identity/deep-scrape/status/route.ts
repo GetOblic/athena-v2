@@ -12,6 +12,7 @@ import {
   formatDeepScrapeErrorMessage,
   formatDeepScrapeStatusLabel,
 } from "@/services/websiteLearning/deepScrape/deepScrapeJobTypes";
+import { serializeInitialResearchStatus } from "@/lib/websiteLearning/initialResearchProgress";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,6 +63,8 @@ export async function GET() {
       ok: true,
       available:
         identity.brain_status === "ready" && Boolean(identity.website?.trim()),
+      brainStatus: identity.brain_status,
+      initialResearch: serializeInitialResearchStatus(latest),
       isActive,
       job: latest
         ? {

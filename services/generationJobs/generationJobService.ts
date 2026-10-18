@@ -7,6 +7,7 @@ import {
   type AthenaGenerationTriggerType,
 } from "@/services/generationJobs/generationJobTypes";
 import { getAthenaWorkerConfig } from "@/services/generationJobs/generationJobWorkerConfig";
+import { INITIAL_RESEARCH_FALLBACK_GENERATION_KEY } from "@/services/websiteLearning/deepScrape/initialResearchPolicy";
 
 export function mapGenerationJobRow(
   row: Record<string, unknown>,
@@ -61,15 +62,30 @@ export class ActiveGenerationJobConflictError extends Error {
   }
 }
 
-export async function getActiveGenerationJobForDiscussion(
+/**
+ * Active queued, processing, or retryable generation for one organization
+ * and discussion. `none` is a successful read with no matching row.
+ * `error` means the read failed and is not proof that nothing is active.
+ * Other organizations and discussions are not read.
+ */
+export type ActiveGenerationJobLookup =
+  | { outcome: "found"; job: AthenaGenerationJob }
+  | { outcome: "none" }
+  | { outcome: "error" };
+
+export async function readActiveGenerationJobForDiscussion(
   discussionId: string,
   organizationId: string,
-): Promise<AthenaGenerationJob | null> {
+): Promise<ActiveGenerationJobLookup> {
+  const discussion = discussionId.trim();
+  const organization = organizationId.trim();
+  if (!discussion || !organization) return { outcome: "none" };
+
   const { data, error } = await supabaseAdmin
     .from("athena_generation_jobs")
     .select("*")
-    .eq("discussion_id", discussionId)
-    .eq("organization_id", organizationId)
+    .eq("discussion_id", discussion)
+    .eq("organization_id", organization)
     .in("status", ["queued", "processing", "retryable"])
     .order("created_at", { ascending: false })
     .limit(1)
@@ -77,14 +93,34 @@ export async function getActiveGenerationJobForDiscussion(
 
   if (error) {
     console.error("[ATHENA_JOB] Failed to load active job:", {
-      discussionId,
-      organizationId,
+      discussionId: discussion,
+      organizationId: organization,
       error: error.message,
     });
-    return null;
+    return { outcome: "error" };
   }
 
-  return data ? mapGenerationJobRow(data) : null;
+  return data
+    ? { outcome: "found", job: mapGenerationJobRow(data) }
+    : { outcome: "none" };
+}
+
+/**
+ * Best-effort active job. A database error stays null so observability and
+ * coalescing callers keep their current behavior. Initial Deep Scrape
+ * scheduling and evidence-free settlement must use
+ * readActiveGenerationJobForDiscussion instead.
+ */
+export async function getActiveGenerationJobForDiscussion(
+  discussionId: string,
+  organizationId: string,
+): Promise<AthenaGenerationJob | null> {
+  const lookup = await readActiveGenerationJobForDiscussion(
+    discussionId,
+    organizationId,
+  );
+  if (lookup.outcome !== "found") return null;
+  return lookup.job;
 }
 
 /** Latest job for a discussion regardless of status (read-only observability). */
@@ -111,6 +147,52 @@ export async function getLatestGenerationJobForDiscussion(
   }
 
   return data ? mapGenerationJobRow(data) : null;
+}
+
+/**
+ * Earliest fallback-marked generation for one organization and discussion.
+ * `none` is a successful lookup with no matching row. `error` means the
+ * read failed and must not be treated as proof that no follow-on exists.
+ * A newer job without the marker does not hide the earliest marked row.
+ * Other organizations and discussions are not read.
+ */
+export type InitialResearchFallbackGenerationLookup =
+  | { outcome: "found"; job: AthenaGenerationJob }
+  | { outcome: "none" }
+  | { outcome: "error" };
+
+export async function findInitialResearchFallbackGenerationJob(
+  discussionId: string,
+  organizationId: string,
+): Promise<InitialResearchFallbackGenerationLookup> {
+  const discussion = discussionId.trim();
+  const organization = organizationId.trim();
+  if (!discussion || !organization) return { outcome: "none" };
+
+  const { data, error } = await supabaseAdmin
+    .from("athena_generation_jobs")
+    .select("*")
+    .eq("organization_id", organization)
+    .eq("discussion_id", discussion)
+    .contains("progress", {
+      [INITIAL_RESEARCH_FALLBACK_GENERATION_KEY]: true,
+    })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[ATHENA_JOB] Failed to load fallback generation:", {
+      discussionId: discussion,
+      organizationId: organization,
+      error: error.message,
+    });
+    return { outcome: "error" };
+  }
+
+  return data
+    ? { outcome: "found", job: mapGenerationJobRow(data) }
+    : { outcome: "none" };
 }
 
 const HOME_JOB_STATE_COLUMNS =

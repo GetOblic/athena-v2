@@ -18,8 +18,7 @@ export type ProspectClientConversionStatus =
 export function shouldShowConvertToClientCta(input: {
   canConvertProspectToClient: boolean;
   conversionStatus: ProspectClientConversionStatus;
-  isGetOblicDerivedProspect?: boolean;
-  hasActiveGetOblicOwnership?: boolean;
+  getOblicConversionEligible?: boolean;
 }): boolean {
   if (
     !input.canConvertProspectToClient ||
@@ -27,7 +26,7 @@ export function shouldShowConvertToClientCta(input: {
   ) {
     return false;
   }
-  if (input.isGetOblicDerivedProspect && !input.hasActiveGetOblicOwnership) {
+  if (input.getOblicConversionEligible === false) {
     return false;
   }
   return true;
@@ -55,8 +54,7 @@ type ProspectConvertToClientActionProps = {
   businessName: string;
   conversionStatus: ProspectClientConversionStatus;
   canConvertProspectToClient: boolean;
-  isGetOblicDerivedProspect?: boolean;
-  hasActiveGetOblicOwnership?: boolean;
+  getOblicConversionEligible?: boolean;
 };
 
 export function ProspectConvertToClientAction({
@@ -64,8 +62,7 @@ export function ProspectConvertToClientAction({
   businessName,
   conversionStatus,
   canConvertProspectToClient,
-  isGetOblicDerivedProspect = false,
-  hasActiveGetOblicOwnership = false,
+  getOblicConversionEligible = true,
 }: ProspectConvertToClientActionProps) {
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -98,8 +95,7 @@ export function ProspectConvertToClientAction({
     !shouldShowConvertToClientCta({
       canConvertProspectToClient,
       conversionStatus,
-      isGetOblicDerivedProspect,
-      hasActiveGetOblicOwnership,
+      getOblicConversionEligible,
     })
   ) {
     return null;

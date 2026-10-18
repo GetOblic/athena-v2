@@ -78,9 +78,14 @@ export const GETOBLIC_LISTING_CLAIM_AVAILABILITIES = [
 export type GetOblicListingClaimAvailability =
   (typeof GETOBLIC_LISTING_CLAIM_AVAILABILITIES)[number];
 
-export type GetOblicListingClaimAvailabilityResult = {
-  availability: GetOblicListingClaimAvailability;
-};
+/**
+ * A classified availability has no tenant identifiers.
+ * `{ outcome: "error" }` means the active-claim lookup failed closed.
+ * It is not availability and must not be treated as unclaimed.
+ */
+export type GetOblicListingClaimAvailabilityResult =
+  | { availability: GetOblicListingClaimAvailability }
+  | { outcome: "error" };
 
 export const GETOBLIC_DIRECTORY_ERROR_CODES = [
   "GETOBLIC_DIRECTORY_NOT_CONFIGURED",
@@ -117,6 +122,11 @@ export const GETOBLIC_DIRECTORY_ERROR_CODES = [
   "GETOBLIC_KB_SYNC_PERSISTENCE_FAILED",
   "GETOBLIC_GENERATED_DESCRIPTION_MISSING",
   "GETOBLIC_GENERATED_DESCRIPTION_INVALID",
+  "GETOBLIC_SAVED_DESCRIPTION_MISSING",
+  "GETOBLIC_SAVED_DESCRIPTION_INVALID",
+  "GETOBLIC_SAVED_KNOWLEDGE_BASE_MISSING",
+  "GETOBLIC_SAVED_KNOWLEDGE_BASE_INVALID",
+  "GETOBLIC_SAVED_ARTIFACT_UNAVAILABLE",
   "GETOBLIC_WORDPRESS_DESCRIPTION_WRITE_FAILED",
   "GETOBLIC_SEARCH_INVALID_REQUEST",
 ] as const;
@@ -169,17 +179,21 @@ export type GetOblicListingLink = {
 
 /**
  * Internal conflict snapshot for global listing exclusivity.
+ * `none` is a successful read with no active claim.
+ * `error` is a Supabase failure, an ambiguous active result, or a
+ * malformed active row. It is not proof that the listing is unclaimed.
  * Ordinary / client-facing callers must use claim availability instead.
  * Do not serialize this object to browser-facing APIs.
  */
 export type GetOblicActiveListingClaimLookup =
-  | { found: false }
   | {
-      found: true;
+      outcome: "found";
       organization_id: string;
       prospect_id: string;
       relationship_status: ActiveGetOblicRelationshipStatus;
-    };
+    }
+  | { outcome: "none" }
+  | { outcome: "error" };
 
 /**
  * Product-facing concurrent listing capacity.
@@ -281,8 +295,11 @@ export function classifyGetOblicListingClaimAvailability(
   prospectId: string,
   activeClaim: GetOblicActiveListingClaimLookup,
 ): GetOblicListingClaimAvailabilityResult {
-  if (!activeClaim.found) {
+  if (activeClaim.outcome === "none") {
     return { availability: "available" };
+  }
+  if (activeClaim.outcome !== "found") {
+    return { outcome: "error" };
   }
 
   if (activeClaim.organization_id === organizationId) {

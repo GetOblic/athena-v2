@@ -105,7 +105,44 @@ type VersionRow = {
   created_at: string;
 };
 
+type ArtifactRow = {
+  prospect_id: string;
+  organization_id: string;
+  artifact_type: "knowledge_base";
+  revision: number;
+  content: string;
+  content_sha256: string;
+  origin: "generated" | "edited";
+  source_executive_version_id: string | null;
+  saved_at: string;
+  saved_by_organization_id: string;
+};
+
 type Op = { op: string; table?: string; values?: Record<string, unknown> };
+
+function knowledgeArtifact(
+  content = KB_BODY,
+  overrides: Partial<ArtifactRow> = {},
+): ArtifactRow {
+  const body = overrides.content ?? content;
+  return {
+    prospect_id: PROSPECT_A,
+    organization_id: ORG_A,
+    artifact_type: "knowledge_base",
+    revision: 2,
+    content: body,
+    content_sha256: createHash("sha256").update(body, "utf8").digest("hex"),
+    origin: "edited",
+    source_executive_version_id: VERSION_CURRENT,
+    saved_at: "2026-09-10T12:00:00.000Z",
+    saved_by_organization_id: ORG_A,
+    ...overrides,
+    content: body,
+    content_sha256:
+      overrides.content_sha256 ??
+      createHash("sha256").update(body, "utf8").digest("hex"),
+  };
+}
 
 function read(relativePath: string): string {
   return readFileSync(join(ROOT, relativePath), "utf8");
@@ -218,9 +255,11 @@ function installStore(store: {
   prospects?: ProspectRow[];
   links?: LinkRow[];
   versions?: VersionRow[];
+  artifacts?: ArtifactRow[];
   failNextLinkUpdate?: boolean;
   authorization?: boolean | "error" | "true-string";
   canonicalListingId?: number | string | null | "error";
+  activeClaimLookupError?: boolean;
 }): { ops: Op[] } {
   const ops: Op[] = [];
 
@@ -239,6 +278,9 @@ function installStore(store: {
       }
       if (table === "athena_executive_intelligence_versions") {
         return (store.versions ?? []) as unknown as Record<string, unknown>[];
+      }
+      if (table === "prospect_directory_artifacts") {
+        return (store.artifacts ?? []) as unknown as Record<string, unknown>[];
       }
       return [];
     };
@@ -299,6 +341,24 @@ function installStore(store: {
       insert() {
         ops.push({ op: "insert", table });
         return builder;
+      },
+      then(
+        onFulfilled?: (value: {
+          data: Record<string, unknown>[] | null;
+          error: { message: string } | null;
+        }) => unknown,
+        onRejected?: (reason: unknown) => unknown,
+      ) {
+        if (table === "athena_getoblic_listing_links" && store.activeClaimLookupError) {
+          return Promise.resolve({
+            data: null,
+            error: { message: "active claim lookup failed" },
+          }).then(onFulfilled, onRejected);
+        }
+        return Promise.resolve({ data: matchingRows(), error: null as null }).then(
+          onFulfilled,
+          onRejected,
+        );
       },
       async maybeSingle() {
         if (pendingUpdate) return applyUpdate();
@@ -370,12 +430,14 @@ function readyStore(overrides: {
   prospects?: ProspectRow[];
   links?: LinkRow[];
   versions?: VersionRow[];
+  artifacts?: ArtifactRow[];
   failNextLinkUpdate?: boolean;
 } = {}) {
   return {
     prospects: overrides.prospects ?? [defaultProspect()],
     links: overrides.links ?? [defaultLinkedRow()],
     versions: overrides.versions ?? [defaultVersion()],
+    artifacts: overrides.artifacts ?? [knowledgeArtifact()],
     failNextLinkUpdate: overrides.failNextLinkUpdate,
   };
 }
@@ -515,22 +577,22 @@ describe("GetOblic Knowledge Base orchestration", () => {
     assert.equal(store.links[0]?.relationship_status, "claiming");
   });
 
-  it("resolves the Current Executive Version server-side and ignores historical versions", async () => {
+  it("sends the saved artifact and ignores historical Executive Intelligence", async () => {
     const historicalBody = "Historical knowledge base that must not be pushed.";
     const store = readyStore({
       versions: [
         defaultVersion({
           id: VERSION_HISTORICAL,
           version_number: 1,
-          is_current: false,
+          is_current: true,
           intelligence: {
             analysis: {
               suggested_cta: `KNOWLEDGE_BASE_ENHANCEMENT:\n${historicalBody}`,
             },
           },
         }),
-        defaultVersion(),
       ],
+      prospects: [defaultProspect({ linked_discussion_id: null })],
     });
     const wordpress = successWordpress();
     installStore(store);
@@ -538,16 +600,16 @@ describe("GetOblic Knowledge Base orchestration", () => {
     assert.equal(result.executive_version_id, VERSION_CURRENT);
     assert.equal(wordpress.calls[0]?.knowledgeBase, KB_BODY);
     assert.notEqual(wordpress.calls[0]?.knowledgeBase, historicalBody);
+    assert.equal(
+      store.links[0]?.kb_last_pushed_executive_version_id,
+      VERSION_CURRENT,
+    );
   });
 
-  it("rejects a missing current Executive Version before any remote write", async () => {
+  it("does not call WordPress when the saved Knowledge Base artifact is missing", async () => {
     const store = readyStore({
-      versions: [
-        defaultVersion({
-          id: VERSION_HISTORICAL,
-          is_current: false,
-        }),
-      ],
+      artifacts: [],
+      versions: [defaultVersion()],
     });
     const wordpress = successWordpress();
     installStore(store);
@@ -555,7 +617,8 @@ describe("GetOblic Knowledge Base orchestration", () => {
       () => sync(store, wordpress),
       (error: unknown) => {
         assert.ok(error instanceof GetOblicDirectoryError);
-        assert.equal(error.code, "GETOBLIC_CURRENT_EXECUTIVE_VERSION_MISSING");
+        assert.equal(error.code, "GETOBLIC_SAVED_KNOWLEDGE_BASE_MISSING");
+        assert.equal(error.status, 409);
         return true;
       },
     );
@@ -563,9 +626,9 @@ describe("GetOblic Knowledge Base orchestration", () => {
     assert.equal(store.links[0]?.kb_push_status, "never");
   });
 
-  it("rejects a Prospect with no linked discussion as a missing current version", async () => {
+  it("rejects a saved Knowledge Base above the 20000 character product limit", async () => {
     const store = readyStore({
-      prospects: [defaultProspect({ linked_discussion_id: null })],
+      artifacts: [knowledgeArtifact("K".repeat(20_001))],
     });
     const wordpress = successWordpress();
     installStore(store);
@@ -573,55 +636,8 @@ describe("GetOblic Knowledge Base orchestration", () => {
       () => sync(store, wordpress),
       (error: unknown) => {
         assert.ok(error instanceof GetOblicDirectoryError);
-        assert.equal(error.code, "GETOBLIC_CURRENT_EXECUTIVE_VERSION_MISSING");
-        return true;
-      },
-    );
-    assert.equal(wordpress.calls.length, 0);
-  });
-
-  it("rejects a missing knowledge_base_enhancement asset", async () => {
-    const store = readyStore({
-      versions: [
-        defaultVersion({
-          intelligence: { analysis: { suggested_cta: "HIDDEN_GEMS:\nGems only." } },
-        }),
-      ],
-    });
-    const wordpress = successWordpress();
-    installStore(store);
-    await assert.rejects(
-      () => sync(store, wordpress),
-      (error: unknown) => {
-        assert.ok(error instanceof GetOblicDirectoryError);
-        assert.equal(error.code, "GETOBLIC_KNOWLEDGE_BASE_ASSET_MISSING");
-        return true;
-      },
-    );
-    assert.equal(wordpress.calls.length, 0);
-    assert.equal(store.links[0]?.kb_push_status, "never");
-  });
-
-  it("rejects an empty knowledge_base_enhancement asset", async () => {
-    const store = readyStore({
-      versions: [
-        defaultVersion({
-          intelligence: {
-            analysis: {
-              suggested_cta:
-                "HIDDEN_GEMS:\nGems.\n\nKNOWLEDGE_BASE_ENHANCEMENT:\n   \n",
-            },
-          },
-        }),
-      ],
-    });
-    const wordpress = successWordpress();
-    installStore(store);
-    await assert.rejects(
-      () => sync(store, wordpress),
-      (error: unknown) => {
-        assert.ok(error instanceof GetOblicDirectoryError);
-        assert.equal(error.code, "GETOBLIC_KNOWLEDGE_BASE_ASSET_MISSING");
+        assert.equal(error.code, "GETOBLIC_SAVED_KNOWLEDGE_BASE_INVALID");
+        assert.equal(error.status, 409);
         return true;
       },
     );
@@ -651,8 +667,7 @@ describe("GetOblic Knowledge Base orchestration", () => {
     assert.equal(store.links[0]?.kb_last_pushed_at, PRIOR_PUSHED_AT);
   });
 
-  it("calls WordPress when the Executive Version changed", async () => {
-    const nextVersion = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+  it("does not call WordPress when the saved hash matches a different executive version id", async () => {
     const store = readyStore({
       links: [
         defaultLinkedRow({
@@ -662,30 +677,38 @@ describe("GetOblic Knowledge Base orchestration", () => {
           kb_last_pushed_at: PRIOR_PUSHED_AT,
         }),
       ],
-      versions: [defaultVersion({ id: nextVersion })],
+      artifacts: [
+        knowledgeArtifact(KB_BODY, {
+          source_executive_version_id: VERSION_CURRENT,
+        }),
+      ],
     });
     const wordpress = successWordpress();
     installStore(store);
     const result = await sync(store, wordpress);
-    assert.equal(result.outcome, "pushed");
-    assert.equal(result.executive_version_id, nextVersion);
-    assert.equal(wordpress.calls.length, 1);
-    assert.equal(store.links[0]?.kb_last_pushed_executive_version_id, nextVersion);
+    assert.equal(result.outcome, "already_current");
+    assert.equal(result.executive_version_id, VERSION_HISTORICAL);
+    assert.equal(wordpress.calls.length, 0);
+    assert.equal(
+      store.links[0]?.kb_last_pushed_executive_version_id,
+      VERSION_HISTORICAL,
+    );
+    assert.equal(store.links[0]?.kb_last_pushed_at, PRIOR_PUSHED_AT);
   });
 
-  it("calls WordPress when the SHA changed for the same Executive Version", async () => {
+  it("calls WordPress when the saved artifact hash changed", async () => {
     const store = readyStore({
       links: [
         defaultLinkedRow({
           kb_push_status: "success",
-          kb_last_pushed_executive_version_id: VERSION_CURRENT,
+          kb_last_pushed_executive_version_id: VERSION_HISTORICAL,
           kb_last_content_sha256: EXPECTED_SHA,
           kb_last_pushed_at: PRIOR_PUSHED_AT,
         }),
       ],
-      versions: [
-        defaultVersion({
-          intelligence: { analysis: { suggested_cta: KB_LABELED_CHANGED } },
+      artifacts: [
+        knowledgeArtifact(KB_BODY_CHANGED, {
+          source_executive_version_id: null,
         }),
       ],
     });
@@ -700,6 +723,11 @@ describe("GetOblic Knowledge Base orchestration", () => {
       hashKnowledgeBaseContent(KB_BODY_CHANGED),
     );
     assert.notEqual(result.content_sha256, EXPECTED_SHA);
+    assert.equal(result.executive_version_id, VERSION_HISTORICAL);
+    assert.equal(
+      store.links[0]?.kb_last_pushed_executive_version_id,
+      VERSION_HISTORICAL,
+    );
   });
 
   it("records a WordPress failure without writing success metadata", async () => {
@@ -748,11 +776,7 @@ describe("GetOblic Knowledge Base orchestration", () => {
           kb_last_pushed_at: PRIOR_PUSHED_AT,
         }),
       ],
-      versions: [
-        defaultVersion({
-          intelligence: { analysis: { suggested_cta: KB_LABELED_CHANGED } },
-        }),
-      ],
+      artifacts: [knowledgeArtifact(KB_BODY_CHANGED)],
     });
     const wordpress = successWordpress({
       putKnowledgeBase: async () => {
@@ -888,19 +912,22 @@ describe("GetOblic Knowledge Base route contract", () => {
     assert.doesNotMatch(route, /consumeGetOblicListingAllocation/);
   });
 
-  it("reuses the existing parser, current-version primitive, and WordPress PUT helper", () => {
+  it("publishes the saved artifact through authorization and the WordPress PUT helper", () => {
     const service = read(
       "services/getoblicDirectory/getoblicDirectoryKnowledgeBaseService.ts",
     );
-    assert.match(service, /parseLabeledDeploymentAssets/);
-    assert.match(service, /knowledge_base_enhancement/);
-    assert.match(service, /getCurrentExecutiveVersion/);
-    assert.match(service, /is_current/);
+    assert.match(service, /loadPublishableSavedDirectoryArtifact/);
+    assert.match(service, /artifactType: "knowledge_base"/);
+    assert.match(service, /kb_last_content_sha256 === contentSha256/);
+    assert.doesNotMatch(service, /kb_last_pushed_executive_version_id ===/);
+    assert.doesNotMatch(service, /getCurrentExecutiveVersion/);
+    assert.doesNotMatch(service, /generated_listing_description/);
     assert.match(service, /hasCurrentKnowledgeBaseAsset/);
     assert.match(service, /putWordpressListingKnowledgeBase/);
     assert.match(service, /createHash\("sha256"\)/);
     assert.match(service, /already_current/);
     assert.match(service, /resolveGetOblicOutboundContentTarget/);
+    assert.match(service, /recheckGetOblicOutboundContentTarget/);
     assert.match(service, /target\.mode === "linked_owner"/);
     assert.match(service, /listing_link_id: null/);
     assert.doesNotMatch(service, /getoblic\/v1\/update-knowledge-base/);
@@ -935,19 +962,23 @@ function unclaimedStore(
     prospects?: ProspectRow[];
     links?: LinkRow[];
     versions?: VersionRow[];
+    artifacts?: ArtifactRow[];
     authorization?: boolean | "error" | "true-string";
     canonicalListingId?: number | string | null | "error";
     failNextLinkUpdate?: boolean;
+    activeClaimLookupError?: boolean;
   } = {},
 ) {
   return {
     prospects: extra.prospects ?? [unclaimedProspect()],
     links: extra.links ?? [],
     versions: extra.versions ?? [defaultVersion()],
+    artifacts: extra.artifacts ?? [knowledgeArtifact()],
     authorization: extra.authorization ?? true,
     canonicalListingId:
       "canonicalListingId" in extra ? extra.canonicalListingId : CANONICAL_LISTING_ID,
     failNextLinkUpdate: extra.failNextLinkUpdate,
+    activeClaimLookupError: extra.activeClaimLookupError,
   };
 }
 
@@ -1018,7 +1049,7 @@ describe("GetOblic unclaimed Knowledge Base outbound", () => {
     assert.equal(wordpress.calls[0]?.knowledgeBase, KB_BODY);
     assert.deepEqual(
       calls.map((call) => call.table),
-      [AUTHORIZATION_RPC, CANONICAL_ID_RPC],
+      [AUTHORIZATION_RPC, CANONICAL_ID_RPC, AUTHORIZATION_RPC, CANONICAL_ID_RPC],
     );
     assert.deepEqual(calls[0]?.values, { p_organization_id: ORG_A });
     assert.deepEqual(calls[1]?.values, { p_raw: prospect.raw_json });
@@ -1032,42 +1063,49 @@ describe("GetOblic unclaimed Knowledge Base outbound", () => {
     assert.equal(mutationOps(ops).length, 0);
   });
 
-  it("puts a listing claimed by another organization and does not use that row's hash", async () => {
-    const foreign = defaultLinkedRow({
-      id: "other-org-link",
-      organization_id: ORG_B,
-      prospect_id: PROSPECT_OTHER,
-      wordpress_listing_id: CANONICAL_LISTING_ID,
-      relationship_status: "linked",
-      kb_push_status: "success",
-      kb_last_pushed_executive_version_id: VERSION_CURRENT,
-      kb_last_content_sha256: EXPECTED_SHA,
-      kb_last_pushed_at: PRIOR_PUSHED_AT,
-    });
-    const before = JSON.stringify(foreign);
-    const store = unclaimedStore({ links: [foreign] });
+  it("denies a listing claimed by another organization and does not use that row", async () => {
+    const wordpress = successWordpress();
+    for (const relationship_status of ["claiming", "linked", "remote_missing"] as const) {
+      wordpress.calls.length = 0;
+      const foreign = defaultLinkedRow({
+        id: `other-org-${relationship_status}`,
+        organization_id: ORG_B,
+        prospect_id: PROSPECT_OTHER,
+        wordpress_listing_id: CANONICAL_LISTING_ID,
+        relationship_status,
+        kb_push_status: "success",
+        kb_last_pushed_executive_version_id: VERSION_CURRENT,
+        kb_last_content_sha256: EXPECTED_SHA,
+        kb_last_pushed_at: PRIOR_PUSHED_AT,
+      });
+      const before = JSON.stringify(foreign);
+      const store = unclaimedStore({ links: [foreign] });
+      const { ops } = installStore(store);
+      await expectSyncError(
+        () => sync(store, wordpress),
+        "GETOBLIC_LISTING_CLAIMED_OTHER_ORG",
+      );
+      assert.equal(wordpress.calls.length, 0, relationship_status);
+      assert.equal(JSON.stringify(store.links[0]), before, relationship_status);
+      assert.equal(mutationOps(ops).length, 0, relationship_status);
+    }
+  });
+
+  it("denies an unclaimed send when the active-claim lookup errors", async () => {
+    const store = unclaimedStore({ activeClaimLookupError: true });
     const wordpress = successWordpress();
     const { ops } = installStore(store);
-    const result = await sync(store, wordpress);
-
-    assert.equal(result.outcome, "pushed");
-    assert.equal(result.listing_link_id, null);
-    assert.equal(wordpress.calls.length, 1);
-    assert.equal(wordpress.calls[0]?.listingId, CANONICAL_LISTING_ID);
-    assert.equal(wordpress.calls[0]?.knowledgeBase, KB_BODY);
-    assert.equal(JSON.stringify(store.links[0]), before);
+    await expectSyncError(
+      () => sync(store, wordpress),
+      "GETOBLIC_CONCURRENCY_CONFLICT",
+    );
+    assert.equal(wordpress.calls.length, 0);
     assert.equal(mutationOps(ops).length, 0);
+    assert.equal(store.links.length, 0);
   });
 
   it("does not persist failure metadata for an unclaimed remote error", async () => {
-    const foreign = defaultLinkedRow({
-      id: "other-org-link",
-      organization_id: ORG_B,
-      prospect_id: PROSPECT_OTHER,
-      wordpress_listing_id: CANONICAL_LISTING_ID,
-    });
-    const before = JSON.stringify(foreign);
-    const store = unclaimedStore({ links: [foreign] });
+    const store = unclaimedStore({ links: [] });
     const wordpress = successWordpress({
       putKnowledgeBase: async () => {
         throw new GetOblicWordpressError("REMOTE_ERROR", "KB write failed", 502);
@@ -1078,7 +1116,7 @@ describe("GetOblic unclaimed Knowledge Base outbound", () => {
       () => sync(store, wordpress),
       "GETOBLIC_WORDPRESS_KB_WRITE_FAILED",
     );
-    assert.equal(JSON.stringify(store.links[0]), before);
+    assert.equal(store.links.length, 0);
     assert.equal(mutationOps(ops).length, 0);
   });
 

@@ -739,6 +739,7 @@ describe("permalink active-link fail-closed check", () => {
         logs.push(args);
       };
 
+      const listingClaimDeniesFirst = item.outcome !== "malformed";
       await assert.rejects(
         () =>
           resolveProspectGetOblicListingPermalink(
@@ -747,13 +748,18 @@ describe("permalink active-link fail-closed check", () => {
           ),
         (error: unknown) => {
           assert.ok(error instanceof GetOblicDirectoryError);
-          assert.equal(error.code, "GETOBLIC_LISTING_PERMALINK_UNAVAILABLE");
-          assert.equal(error.status, 503);
           assert.equal(error.link, null);
-          assert.equal(
-            error.message,
-            "This GetOblic listing permalink is unavailable.",
-          );
+          if (listingClaimDeniesFirst) {
+            assert.equal(error.code, "GETOBLIC_CONCURRENCY_CONFLICT");
+            assert.equal(error.status, 409);
+          } else {
+            assert.equal(error.code, "GETOBLIC_LISTING_PERMALINK_UNAVAILABLE");
+            assert.equal(error.status, 503);
+            assert.equal(
+              error.message,
+              "This GetOblic listing permalink is unavailable.",
+            );
+          }
           assert.doesNotMatch(
             `${error.message} ${JSON.stringify(error.link)}`,
             /directory-secret|946970|api-key|11111111|aaaaaaaa-aaaa/,
@@ -768,17 +774,21 @@ describe("permalink active-link fail-closed check", () => {
         (entry) =>
           entry[0] === "[GETOBLIC_LISTING_PERMALINK] active_link_check_failed",
       );
-      assert.deepEqual(strictLogs, [
-        [
-          "[GETOBLIC_LISTING_PERMALINK] active_link_check_failed",
-          { code: item.outcome },
-        ],
-      ]);
+      if (listingClaimDeniesFirst) {
+        assert.deepEqual(strictLogs, []);
+      } else {
+        assert.deepEqual(strictLogs, [
+          [
+            "[GETOBLIC_LISTING_PERMALINK] active_link_check_failed",
+            { code: item.outcome },
+          ],
+        ]);
+        assertStrictActiveRead(ops);
+      }
       assert.doesNotMatch(
         JSON.stringify(strictLogs),
         /directory-secret|946970|api-key|11111111|aaaaaaaa-aaaa/,
       );
-      assertStrictActiveRead(ops);
       assert.equal(ops.some((op) => op.op === "update" || op.op === "insert"), false);
     });
   }
@@ -947,7 +957,8 @@ describe("View GetOblic Listing CTA", () => {
     assert.match(page, /calendarHref=\{getOblicFunnel\?\.calendarHref/);
     assert.match(page, /callHref=\{callYourAiHref\}/);
     assert.match(page, /claimHref=\{claimYourAiHref\}/);
-    assert.match(page, /GetOblicListingOutboundControls/);
+    assert.doesNotMatch(page, /GetOblicListingOutboundControls/);
+    assert.match(page, /GetoblicContentEditor/);
     assert.match(page, /GetOblicListingReleaseControl/);
     assert.doesNotMatch(
       page,
@@ -1324,8 +1335,10 @@ function strictActiveReads(ops: Op[]): Op[] {
 
 function assertStrictActiveRead(ops: Op[]) {
   const reads = strictActiveReads(ops);
-  assert.equal(reads.length, 1);
-  const read = reads[0];
+  const read = reads.find(
+    (item) =>
+      item.columns === "id, organization_id, prospect_id, relationship_status",
+  );
   assert.ok(read);
   assert.equal(
     read.columns,

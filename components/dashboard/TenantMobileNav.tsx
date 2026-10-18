@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
+import { ClientProspectIntelligenceNavGate } from "@/components/dashboard/ClientProspectIntelligenceNavGate";
 import {
   TenantAthenaWordmark,
   TenantChromeAfterNav,
@@ -29,6 +30,7 @@ export type TenantMobileNavProps = {
   poweredByGetOblic: string;
   athenaPlan?: AthenaPlan;
   fullAthenaInvite?: UpgradeSidebarContent | null;
+  prospectIntelligenceLabel?: string;
 };
 
 export function TenantMobileNav({
@@ -44,6 +46,7 @@ export function TenantMobileNav({
   poweredByGetOblic,
   athenaPlan,
   fullAthenaInvite,
+  prospectIntelligenceLabel,
 }: TenantMobileNavProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -141,6 +144,14 @@ export function TenantMobileNav({
               yourGrowthLabel={yourGrowthLabel}
               utilitiesLabel={utilitiesLabel}
               moreToolsLabel={moreToolsLabel}
+              trailingGrowth={
+                prospectIntelligenceLabel ? (
+                  <ClientProspectIntelligenceNavGate
+                    label={prospectIntelligenceLabel}
+                    currentPath={currentPath}
+                  />
+                ) : null
+              }
             />
 
             <TenantChromeAfterNav

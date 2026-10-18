@@ -9,6 +9,7 @@ import {
 import { ExecutiveIntelligenceWorkspace } from "@/components/discussions/ExecutiveIntelligenceWorkspace";
 import { TenantAppShell } from "@/components/dashboard/TenantAppShell";
 import { AppendProspectInformationForm } from "@/components/prospects/AppendProspectInformationForm";
+import { GetoblicContentEditor } from "@/components/prospects/GetoblicContentEditor";
 import { ProspectDetailHeader } from "@/components/prospects/ProspectDetailHeader";
 import { ProspectGetoblicDescriptionCard } from "@/components/prospects/ProspectGetoblicDescriptionCard";
 import { ProspectHomepageIntelligence } from "@/components/prospects/ProspectHomepageIntelligence";
@@ -18,11 +19,11 @@ import { ProspectConvertToClientAction } from "@/components/prospects/ProspectCo
 import { ProspectLifecycleStatusControl } from "@/components/prospects/ProspectLifecycleStatusControl";
 import { ProspectMetadataEditor } from "@/components/prospects/ProspectMetadataEditor";
 import { ProspectDeepScrapeWebsiteButton } from "@/components/prospects/ProspectDeepScrapeWebsiteButton";
+import { ProspectInitialResearchStatus } from "@/components/prospects/ProspectInitialResearchStatus";
 import {
   ProspectFunnelShortLinkEnsure,
   ProspectFunnelShortLinks,
 } from "@/components/prospects/ProspectFunnelShortLinks";
-import { GetOblicListingOutboundControls } from "@/components/prospects/GetOblicListingOutboundControls";
 import { GetOblicListingPermalinkAction } from "@/components/prospects/GetOblicListingPermalinkAction";
 import { GetOblicListingReleaseControl } from "@/components/prospects/GetOblicListingReleaseControl";
 import { GetOblicWebsiteCompletionCard } from "@/components/prospects/GetOblicWebsiteCompletionCard";
@@ -46,6 +47,11 @@ import {
   shouldShowProspectSyncAi,
 } from "@/lib/prospects/freeConvertPresentation";
 import { PROSPECT_BACK_LINK_CLASS } from "@/lib/prospects/prospectDetailPresentation";
+import { toGetoblicContentEditorSaved } from "@/lib/prospects/getoblicContentEditorState";
+import {
+  knowledgeBaseSuggestionForEditor,
+  readHistoricalKnowledgeBaseSuggestion,
+} from "@/lib/prospects/historicalKnowledgeBaseSuggestion";
 import {
   resolveProspectDisplayStatus,
   resolveProspectOpportunityScore,
@@ -55,6 +61,11 @@ import {
   hasActiveGetOblicListingLink,
 } from "@/services/prospects/prospectIntelligenceCompleteness";
 import { getActiveGenerationJobForDiscussion } from "@/services/generationJobs/generationJobService";
+import { isInitialResearchFallbackGenerationProgress } from "@/services/websiteLearning/deepScrape/initialResearchPolicy";
+import {
+  getActiveDeepScrapeJobForProspect,
+  getLatestDeepScrapeJobForProspect,
+} from "@/services/websiteLearning/deepScrape/deepScrapeJobService";
 import { formatTenantDate } from "@/lib/tenantI18n/format";
 import { getTenantLocalization } from "@/lib/tenantI18n/getTenantLocalization";
 import { getSharedAssetChrome } from "@/lib/tenantI18n/opportunityPresentation";
@@ -68,6 +79,11 @@ import {
   isProspectIntelligenceProcessing,
   shouldOfferProspectFullIntelligenceAction,
 } from "@/lib/prospects/prospectReadinessPresentation";
+import {
+  describeProspectInitialResearch,
+  prospectIntelligenceStatusForProgress,
+  serializeInitialResearchStatus,
+} from "@/lib/websiteLearning/initialResearchProgress";
 import { getDisplayAssetBlueprintByDiscussionId } from "@/services/assetBlueprints/assetBlueprintService";
 import { getLatestDiscussionAnalysis } from "@/services/discussionAnalysisService";
 import { getDiscussionById } from "@/services/discussionService";
@@ -82,17 +98,14 @@ import { toBlueprintBrandDirectionInput } from "@/services/identity/blueprintBra
 import { isLicenseeOwnCompanyOrganization } from "@/services/licensee/licenseeIdentity";
 import { getProspectClientConversionState } from "@/services/licensee/licenseeProspectClientConversionReads";
 import { requireCurrentOrganizationContext } from "@/services/organizationService";
-import { hasCurrentKnowledgeBaseAsset } from "@/services/getoblicDirectory/getoblicDirectoryKnowledgeBaseService";
-import {
-  isAuthorizedUnclaimedGetOblicOutboundTarget,
-  resolveGetOblicOutboundContentTarget,
-} from "@/services/getoblicDirectory/getoblicOutboundContentAuthorization";
+import { resolveGetOblicOutboundContentTarget } from "@/services/getoblicDirectory/getoblicOutboundContentAuthorization";
 import { getActiveGetOblicLinkForProspect } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { resolveLicenseeOwnCompanyGetOblicAuthorId } from "@/services/prospects/getOblicFunnelAuthor";
 import { readObservedListingDescription } from "@/services/prospects/prospectGetoblicDescription";
-import { isGetOblicDerivedProspect } from "@/services/prospects/prospectGetOblicOwnership";
+import { resolveGetOblicProspectConversionEligibility } from "@/services/prospects/prospectGetOblicConversionEligibility";
 import { loadFreeAudiencePageState } from "@/services/personas/freeAudiencePageState";
 import { loadFreeConvertPageState } from "@/services/prospects/freeConvertPageState";
+import { readSavedProspectDirectoryArtifacts } from "@/services/prospects/prospectDirectoryArtifacts";
 import { getProspectById } from "@/services/prospects/prospectService";
 import { normalizeWebsiteUrl } from "@/services/prospects/prospectUtils";
 import { resolveProspectCreateQuoteAccess } from "@/services/licensee/prospectCreateQuoteAccess";
@@ -153,6 +166,10 @@ export default async function ProspectDetailsPage({
   const discussion = discussionId
     ? await getDiscussionById(discussionId, organizationId)
     : null;
+  const directoryArtifactRead = await readSavedProspectDirectoryArtifacts({
+    prospectId: prospect.id,
+    sourceOrganizationId: prospect.organization_id,
+  });
 
   const [
     latestAnalysis,
@@ -202,6 +219,16 @@ export default async function ProspectDetailsPage({
   const activeJob = discussion
     ? await getActiveGenerationJobForDiscussion(discussion.id, organizationId)
     : null;
+  const activeDeepScrape = await getActiveDeepScrapeJobForProspect({
+    prospectId: prospect.id,
+    organizationId,
+  });
+  const latestDeepScrape = activeDeepScrape
+    ? activeDeepScrape
+    : await getLatestDeepScrapeJobForProspect({
+        prospectId: prospect.id,
+        organizationId,
+      });
   const hasCurrentVersion = Boolean(versionState.current);
   const intelligenceReadiness = resolveProspectDisplayStatus({
     prospectStatus: prospect.status,
@@ -209,6 +236,38 @@ export default async function ProspectDetailsPage({
     jobStage: activeJob?.current_stage ?? null,
     hasCurrentVersion,
   });
+  const initialResearch = serializeInitialResearchStatus(latestDeepScrape);
+  const generationObservation = activeJob
+    ? {
+        status: activeJob.status,
+        inFlight:
+          activeJob.status === "queued" ||
+          activeJob.status === "processing" ||
+          activeJob.status === "retryable",
+        evidenceFree: isInitialResearchFallbackGenerationProgress(
+          activeJob.progress,
+        ),
+      }
+    : null;
+  const initialResearchPresentation = describeProspectInitialResearch({
+    displayStatus: intelligenceReadiness,
+    hasCurrentVersion,
+    research: initialResearch,
+    generation: generationObservation,
+    existingLabel: getProspectIntelligenceStatusLabel(
+      messages,
+      intelligenceReadiness,
+    ),
+    failedLabel: getProspectIntelligenceStatusLabel(
+      messages,
+      "Processing Failed",
+    ),
+    copy: copy.initialResearch,
+  });
+  const intelligenceStatus = prospectIntelligenceStatusForProgress(
+    initialResearchPresentation.view,
+    intelligenceReadiness,
+  );
   const currentVersionScore = resolveProspectOpportunityScore({
     canonicalScore:
       versionState.current?.intelligence.opportunity?.score ??
@@ -271,24 +330,20 @@ export default async function ProspectDetailsPage({
   const showGetOblicFunnel = Boolean(
     getOblicFunnel || callYourAiHref || claimYourAiHref,
   );
-  const getoblicDerived = isGetOblicDerivedProspect(prospect);
-  const hasActiveGetOblicOwnership = activeGetOblicLink != null;
-  const showLinkedOwnerGetOblicOutbound =
-    activeGetOblicLink?.relationship_status === "linked";
+  const getOblicConversionEligible = showConvertToClient
+    ? (
+        await resolveGetOblicProspectConversionEligibility({
+          organizationId,
+          prospectId: prospect.id,
+          source: prospect.source,
+          rawJson: prospect.raw_json,
+        })
+      ).decision === "allow"
+    : false;
   const showGetOblicRelease = shouldShowGetOblicListingReleaseAction({
     relationshipStatus: activeGetOblicLink?.relationship_status ?? null,
     conversionStatus: conversionState.status,
   });
-  const showUnclaimedGetOblicOutbound =
-    await isAuthorizedUnclaimedGetOblicOutboundTarget({
-      organizationId,
-      prospectId: prospect.id,
-      source: prospect.source,
-      rawJson: prospect.raw_json,
-      hasActiveLink: activeGetOblicLink != null,
-    });
-  const showGetOblicOutbound =
-    showLinkedOwnerGetOblicOutbound || showUnclaimedGetOblicOutbound;
   const offerFullIntelligence = shouldOfferProspectFullIntelligenceAction({
     source: prospect.source,
     website: prospect.website,
@@ -306,11 +361,11 @@ export default async function ProspectDetailsPage({
     prospect.decision_maker?.trim() || "",
   ].filter(Boolean);
   const intelligenceProcessing =
-    isProspectIntelligenceProcessing(intelligenceReadiness);
-  const intelligenceFailed = isProspectIntelligenceFailed(intelligenceReadiness);
+    isProspectIntelligenceProcessing(intelligenceStatus);
+  const intelligenceFailed = isProspectIntelligenceFailed(intelligenceStatus);
   const createdLabel = formatTenantDate(prospect.created_at, language);
   const updatedLabel = formatTenantDate(prospect.updated_at, language);
-  const ready = intelligenceReadiness === "Ready";
+  const ready = intelligenceStatus === "Ready";
   const completeness = computeProspectIntelligenceCompleteness({
     prospect,
     hasCurrentExecutiveVersion: hasCurrentVersion,
@@ -342,13 +397,50 @@ export default async function ProspectDetailsPage({
     />
   );
 
+  const directoryArtifactsAvailable = directoryArtifactRead.ok;
+  const savedDescription = directoryArtifactRead.ok
+    ? directoryArtifactRead.description
+    : null;
+  const savedKnowledgeBase = directoryArtifactRead.ok
+    ? directoryArtifactRead.knowledgeBase
+    : null;
+  const getoblicContentEditors = (
+    <div data-getoblic-content-editors="prospect" className="space-y-8">
+      <GetoblicContentEditor
+        surface="prospect"
+        prospectId={prospect.id}
+        artifact="description"
+        saved={toGetoblicContentEditorSaved(savedDescription)}
+        savedReadFailed={!directoryArtifactsAvailable}
+        showGenerate={showSyncAi}
+        copy={messages.clientProspectIntelligence.editor}
+      />
+      <GetoblicContentEditor
+        surface="prospect"
+        prospectId={prospect.id}
+        artifact="knowledge_base"
+        saved={toGetoblicContentEditorSaved(savedKnowledgeBase)}
+        historicalSuggestion={knowledgeBaseSuggestionForEditor({
+          directoryArtifactsAvailable,
+          savedKnowledgeBase,
+          currentKnowledgeBase: readHistoricalKnowledgeBaseSuggestion(
+            versionState.current?.intelligence,
+          ),
+        })}
+        savedReadFailed={!directoryArtifactsAvailable}
+        showGenerate={showSyncAi}
+        copy={messages.clientProspectIntelligence.editor}
+      />
+    </div>
+  );
+
   const getoblicDescription = (
     <ProspectGetoblicDescriptionCard
       prospectId={prospect.id}
       currentListingCopy={readObservedListingDescription(prospect.raw_json)}
       generatedListingDescription={prospect.generated_listing_description}
       messages={copy.getoblicDescription}
-      showGenerate={showSyncAi}
+      showGenerate={false}
     />
   );
 
@@ -374,6 +466,8 @@ export default async function ProspectDetailsPage({
       intelligenceStatus={intelligenceReadiness}
       showGenerate={showGenerate}
       showThinkDifferently={showRegenerate}
+      initialResearchKind={initialResearchPresentation.view.kind}
+      initialResearchCopy={copy.initialResearch}
     />
   ) : showGenerate && isBoundProspect && !offerFullIntelligence ? (
     <p className="text-sm leading-6 text-white/55">
@@ -408,11 +502,31 @@ export default async function ProspectDetailsPage({
         subtitle={subtitleParts.length > 0 ? subtitleParts.join(" · ") : undefined}
         websiteHref={websiteHref}
         websiteLabel={prospect.website}
-        intelligenceLabel={getProspectIntelligenceStatusLabel(
-          messages,
-          intelligenceReadiness,
-        )}
-        intelligenceStatus={intelligenceReadiness}
+        intelligenceLabel={initialResearchPresentation.label}
+        intelligenceStatus={intelligenceStatus}
+        intelligenceStatusContent={
+          initialResearch.applies ? (
+            <ProspectInitialResearchStatus
+              prospectId={prospect.id}
+              discussionId={discussion?.id ?? null}
+              displayStatus={intelligenceReadiness}
+              hasCurrentVersion={hasCurrentVersion}
+              existingLabel={getProspectIntelligenceStatusLabel(
+                messages,
+                intelligenceReadiness,
+              )}
+              failedLabel={getProspectIntelligenceStatusLabel(
+                messages,
+                "Processing Failed",
+              )}
+              initial={{
+                research: initialResearch,
+                generation: generationObservation,
+              }}
+              copy={copy.initialResearch}
+            />
+          ) : null
+        }
         ready={ready}
         hasDiscussion={Boolean(discussion)}
         askAthenaLabel={copy.detail.askAthena}
@@ -475,8 +589,7 @@ export default async function ProspectDetailsPage({
             businessName={prospect.business_name}
             conversionStatus={conversionState.status}
             canConvertProspectToClient={canConvertProspectToClient}
-            isGetOblicDerivedProspect={getoblicDerived}
-            hasActiveGetOblicOwnership={hasActiveGetOblicOwnership}
+            getOblicConversionEligible={getOblicConversionEligible}
           />
           ) : null
         }
@@ -488,30 +601,14 @@ export default async function ProspectDetailsPage({
           />
         }
         directoryAction={
-          showGetOblicOutbound || showGetOblicRelease ? (
-            <>
-              {showGetOblicOutbound ? (
-                <GetOblicListingOutboundControls
-                  prospectId={prospect.id}
-                  hasGeneratedDescription={Boolean(
-                    prospect.generated_listing_description?.description.trim(),
-                  )}
-                  hasCurrentKnowledgeBase={hasCurrentKnowledgeBaseAsset(
-                    versionState.current?.intelligence,
-                  )}
-                  messages={messages}
-                />
-              ) : null}
-              {showGetOblicRelease &&
-              (activeGetOblicLink?.relationship_status === "linked" ||
-                activeGetOblicLink?.relationship_status === "claiming") ? (
-                <GetOblicListingReleaseControl
-                  prospectId={prospect.id}
-                  relationshipStatus={activeGetOblicLink.relationship_status}
-                  messages={messages}
-                />
-              ) : null}
-            </>
+          showGetOblicRelease &&
+          (activeGetOblicLink?.relationship_status === "linked" ||
+            activeGetOblicLink?.relationship_status === "claiming") ? (
+            <GetOblicListingReleaseControl
+              prospectId={prospect.id}
+              relationshipStatus={activeGetOblicLink.relationship_status}
+              messages={messages}
+            />
           ) : null
         }
         funnelGroupLabel={copy.detail.getoblicFunnel}
@@ -602,6 +699,7 @@ export default async function ProspectDetailsPage({
                   {identityGlance}
                   {websiteResearch}
                   {getoblicDescription}
+                  {getoblicContentEditors}
                 </div>
               ) : null
             }
@@ -610,6 +708,7 @@ export default async function ProspectDetailsPage({
                 {!hasCurrentVersion ? identityGlance : null}
                 {!hasCurrentVersion ? websiteResearch : null}
                 {!hasCurrentVersion ? getoblicDescription : null}
+                {!hasCurrentVersion ? getoblicContentEditors : null}
                 {profileEditor}
                 {addInformation}
               </div>
@@ -646,6 +745,7 @@ export default async function ProspectDetailsPage({
           {identityGlance}
           {websiteResearch}
           {getoblicDescription}
+          {getoblicContentEditors}
           {profileEditor}
         </div>
       )}

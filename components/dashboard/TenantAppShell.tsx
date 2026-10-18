@@ -67,6 +67,7 @@ export function TenantAppShell({
             poweredByGetOblic={messages.chrome.poweredByGetOblic}
             athenaPlan={athenaPlan}
             fullAthenaInvite={fullAthenaInvite}
+            prospectIntelligenceLabel={messages.nav.prospectIntelligence}
           />
 
           <Link

@@ -42,6 +42,15 @@ import {
   isPersistedDeepScrapeStage,
 } from "@/services/websiteLearning/deepScrape/deepScrapeStages";
 import { logDeepScrapeEvent } from "@/services/websiteLearning/deepScrape/observability";
+import { settleEvidenceFreeInitialResearch } from "@/services/websiteLearning/deepScrape/initialResearchSettlement";
+import {
+  decideAwaitingFollowOnTerminalFailure,
+  deepScrapeFailureIsTerminal,
+  isInitialResearchProgress,
+  mergePreservedInitialResearchProgress,
+  readInitialResearchOrchestration,
+  selectProspectFollowOnTrigger,
+} from "@/services/websiteLearning/deepScrape/initialResearchPolicy";
 
 type RenewLease = (
   stage?: string | null,
@@ -225,7 +234,14 @@ export async function executeClaimedDeepScrapeJob(
   });
 
   const renewLease: RenewLease = async (stage, progress) => {
-    await heartbeat.renew(stage, progress);
+    const nextProgress =
+      progress == null
+        ? progress
+        : mergePreservedInitialResearchProgress(job.progress, progress);
+    if (nextProgress) {
+      job.progress = nextProgress;
+    }
+    await heartbeat.renew(stage, nextProgress ?? null);
   };
 
   const isClaimLost = () =>
@@ -255,6 +271,24 @@ export async function executeClaimedDeepScrapeJob(
         },
       },
     });
+
+    const initialResearch = isInitialResearchProgress(job.progress);
+    const initialFallback = readInitialResearchOrchestration(job.progress);
+    if (
+      initialResearch &&
+      !job.promoted_at &&
+      initialFallback &&
+      initialFallback.fallback !== "idle"
+    ) {
+      return await settleEvidenceFreeInitialResearch({
+        job,
+        claimToken,
+        errorCode: initialFallback.failureCode ?? "DEEP_SCRAPE_FAILED",
+        errorMessage:
+          initialFallback.failureMessage ??
+          "Initial website research failed before follow-on generation.",
+      });
+    }
 
     // Resume Phase B when intelligence was already promoted.
     if (job.promoted_at && job.source_type === "brain") {
@@ -485,6 +519,17 @@ export async function executeClaimedDeepScrapeJob(
     );
   } catch (error) {
     const classified = classifyDeepScrapeError(error);
+    const initialResearch = isInitialResearchProgress(job.progress);
+    const phaseBRetryable =
+      classified.code === "DEEP_SCRAPE_STATE_TRANSITION_INVALID"
+        ? false
+        : Boolean(job.promoted_at) || classified.retryable;
+    const terminal = deepScrapeFailureIsTerminal({
+      retryable: phaseBRetryable,
+      attemptCount: job.attempt_count,
+      maxAttempts: job.max_attempts,
+    });
+
     logDeepScrapeEvent("deep_scrape_failed", {
       organizationId: job.organization_id,
       jobId: job.id,
@@ -507,6 +552,62 @@ export async function executeClaimedDeepScrapeJob(
         attemptCount: job.attempt_count,
       },
     });
+
+    if (initialResearch && terminal && job.promoted_at) {
+      try {
+        if (job.source_type === "brain") {
+          const result = await runBrainPhaseB(
+            job,
+            claimToken,
+            renewLease,
+            isClaimLost,
+          );
+          if (result === "completed") {
+            terminalWritten = true;
+            logDeepScrapeEvent("deep_scrape_job_completed", {
+              organizationId: job.organization_id,
+              jobId: job.id,
+              sourceType: "brain",
+              identityId: job.identity_id,
+              domain: job.normalized_domain,
+              pagesAnalyzed: job.pages_analyzed,
+            });
+          }
+          return result;
+        }
+        if (job.source_type === "prospect") {
+          return await parkProspectPhaseB(
+            job,
+            claimToken,
+            renewLease,
+            isClaimLost,
+            () => heartbeat.stop(),
+          );
+        }
+      } catch (phaseBError) {
+        console.error("[ATHENA_DEEP_SCRAPE] initial_research_phase_b_retry_failed", {
+          jobId: job.id,
+          error:
+            phaseBError instanceof Error
+              ? phaseBError.message
+              : String(phaseBError),
+        });
+      }
+    }
+
+    if (initialResearch && terminal && !job.promoted_at) {
+      const settled = await settleEvidenceFreeInitialResearch({
+        job,
+        claimToken,
+        errorCode: classified.code,
+        errorMessage: formatDeepScrapeErrorMessage(
+          classified.code,
+          classified.message,
+        ),
+      });
+      terminalWritten = true;
+      return settled;
+    }
 
     // Keep promoted deep intelligence; Phase B failures are always retryable
     // unless the failure is a non-retryable lifecycle/schema error.
@@ -692,7 +793,7 @@ async function parkProspectPhaseB(
   if (!followOnJobId) {
     const queued = await ensureProspectGenerationQueued(prospect, {
       requestedBy: job.requested_by,
-      triggerType: "prospect_deep_scrape",
+      triggerType: selectProspectFollowOnTrigger(job.progress),
     });
     followOnJobId = queued.jobId ?? null;
     if (!followOnJobId) {
@@ -967,6 +1068,30 @@ async function reconcileOneAwaitingFollowOnJob(
     sourceType === "persona"
       ? "Persona generation failed after deep scrape promotion."
       : "Prospect generation failed after deep scrape promotion.";
+  const progress = job.progress;
+  const failureDisposition = decideAwaitingFollowOnTerminalFailure({
+    isInitialResearch: isInitialResearchProgress(
+      progress && typeof progress === "object" && !Array.isArray(progress)
+        ? (progress as Record<string, unknown>)
+        : null,
+    ),
+  });
+
+  if (failureDisposition === "terminal_initial_research") {
+    await updateDeepScrapeJobFields({
+      jobId,
+      organizationId,
+      patch: {
+        status: "failed",
+        current_stage: "failed",
+        error_code: generationJob.error_code ?? generationFailedCode,
+        error_message: generationJob.error_message ?? generationFailedMessage,
+        next_attempt_at: null,
+        completed_at: new Date().toISOString(),
+      },
+    });
+    return true;
+  }
 
   await updateDeepScrapeJobFields({
     jobId,

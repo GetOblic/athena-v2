@@ -134,8 +134,10 @@ describe("Prospect detail presentation", () => {
     assert.match(page, /GetOblicListingReleaseControl/);
     assert.equal(
       (page.match(/<GetOblicListingOutboundControls/g) ?? []).length,
-      1,
+      0,
     );
+    assert.equal((page.match(/<GetoblicContentEditor/g) ?? []).length, 2);
+    assert.doesNotMatch(page, /showGetOblicOutbound/);
     assert.equal(
       (page.match(/<GetOblicListingReleaseControl/g) ?? []).length,
       1,

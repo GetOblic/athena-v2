@@ -12,6 +12,7 @@ import {
   OrganizationAccessError,
   requireCurrentOrganizationContext,
 } from "@/services/organizationService";
+import { isInitialResearchFallbackGenerationProgress } from "@/services/websiteLearning/deepScrape/initialResearchPolicy";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,9 @@ export async function GET(_request: Request, context: RouteContext) {
       status: discussion.status,
       jobId: observedJob?.id ?? null,
       jobStatus: observedJob?.status ?? null,
+      initialResearchFallback: isInitialResearchFallbackGenerationProgress(
+        observedJob?.progress,
+      ),
       jobTriggerType: observedJob?.trigger_type ?? null,
       jobStage: observedJob?.current_stage ?? null,
       jobAttemptCount: observedJob?.attempt_count ?? null,

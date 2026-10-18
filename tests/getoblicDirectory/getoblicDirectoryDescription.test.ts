@@ -1,6 +1,7 @@
 import "./getoblicDirectoryTestEnv";
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -10,7 +11,6 @@ import {
   GetOblicDirectoryError,
 } from "../../services/getoblicDirectory/getoblicDirectoryErrors";
 import {
-  resolveOutboundGeneratedDescription,
   syncGetOblicListingDescription,
   toPublicGetOblicDescriptionSync,
   type DescriptionWordpressPort,
@@ -28,6 +28,7 @@ const ORG_B = "22222222-2222-2222-2222-222222222222";
 const PROSPECT_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const GENERATED_DESCRIPTION =
   "Athena-generated directory copy for the linked GetOblic listing.";
+const LEGACY_DESCRIPTION = "Legacy generated listing description that must not be sent.";
 const OBSERVED_DESCRIPTION = "Observed listing copy that must never be sent.";
 const CANONICAL_LISTING_ID = 88021;
 const PROSPECT_OTHER = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
@@ -74,7 +75,44 @@ type ProspectRow = {
   updated_at: string;
 };
 
+type ArtifactRow = {
+  prospect_id: string;
+  organization_id: string;
+  artifact_type: "description" | "knowledge_base";
+  revision: number;
+  content: string;
+  content_sha256: string;
+  origin: "generated" | "edited";
+  source_executive_version_id: string | null;
+  saved_at: string;
+  saved_by_organization_id: string;
+};
+
 type Op = { op: string; table?: string; values?: Record<string, unknown> };
+
+function descriptionArtifact(
+  content = GENERATED_DESCRIPTION,
+  overrides: Partial<ArtifactRow> = {},
+): ArtifactRow {
+  const body = overrides.content ?? content;
+  return {
+    prospect_id: PROSPECT_A,
+    organization_id: ORG_A,
+    artifact_type: "description",
+    revision: 1,
+    content: body,
+    content_sha256: createHash("sha256").update(body, "utf8").digest("hex"),
+    origin: "edited",
+    source_executive_version_id: null,
+    saved_at: "2026-09-10T12:00:00.000Z",
+    saved_by_organization_id: ORG_A,
+    ...overrides,
+    content: body,
+    content_sha256:
+      overrides.content_sha256 ??
+      createHash("sha256").update(body, "utf8").digest("hex"),
+  };
+}
 
 function read(relativePath: string): string {
   return readFileSync(join(ROOT, relativePath), "utf8");
@@ -166,8 +204,10 @@ function successWordpress(
 function installStore(store: {
   prospects?: ProspectRow[];
   links?: LinkRow[];
+  artifacts?: ArtifactRow[];
   authorization?: boolean | "error" | "true-string";
   canonicalListingId?: number | string | null | "error";
+  activeClaimLookupError?: boolean;
 }): { ops: Op[] } {
   const ops: Op[] = [];
 
@@ -182,6 +222,9 @@ function installStore(store: {
       }
       if (table === "athena_getoblic_listing_links") {
         return (store.links ?? []) as unknown as Record<string, unknown>[];
+      }
+      if (table === "prospect_directory_artifacts") {
+        return (store.artifacts ?? []) as unknown as Record<string, unknown>[];
       }
       return [];
     };
@@ -219,6 +262,24 @@ function installStore(store: {
       insert(values: Record<string, unknown>) {
         ops.push({ op: "insert", table, values });
         return builder;
+      },
+      then(
+        onFulfilled?: (value: {
+          data: Record<string, unknown>[] | null;
+          error: { message: string } | null;
+        }) => unknown,
+        onRejected?: (reason: unknown) => unknown,
+      ) {
+        if (table === "athena_getoblic_listing_links" && store.activeClaimLookupError) {
+          return Promise.resolve({
+            data: null,
+            error: { message: "active claim lookup failed" },
+          }).then(onFulfilled, onRejected);
+        }
+        return Promise.resolve({ data: matchingRows(), error: null as null }).then(
+          onFulfilled,
+          onRejected,
+        );
       },
       async maybeSingle() {
         const matched = matchingRows();
@@ -284,10 +345,12 @@ async function sync(
 function readyStore(overrides: {
   prospects?: ProspectRow[];
   links?: LinkRow[];
+  artifacts?: ArtifactRow[];
 } = {}) {
   return {
     prospects: overrides.prospects ?? [defaultProspect()],
     links: overrides.links ?? [defaultLinkedRow()],
+    artifacts: overrides.artifacts ?? [descriptionArtifact()],
   };
 }
 
@@ -300,8 +363,17 @@ afterEach(() => {
 });
 
 describe("GetOblic description outbound orchestration", () => {
-  it("pushes generated_listing_description.description and never observed copy", async () => {
-    const store = readyStore();
+  it("pushes the saved description artifact and never observed or legacy copy", async () => {
+    const store = readyStore({
+      prospects: [
+        defaultProspect({
+          generated_listing_description: {
+            description: LEGACY_DESCRIPTION,
+            generatedAt: "2026-09-10T12:00:00.000Z",
+          },
+        }),
+      ],
+    });
     const wordpress = successWordpress();
     installStore(store);
 
@@ -317,6 +389,7 @@ describe("GetOblic description outbound orchestration", () => {
     assert.equal(wordpress.calls.length, 1);
     assert.equal(wordpress.calls[0]?.listingId, 36440);
     assert.equal(wordpress.calls[0]?.description, GENERATED_DESCRIPTION);
+    assert.notEqual(wordpress.calls[0]?.description, LEGACY_DESCRIPTION);
     assert.notEqual(wordpress.calls[0]?.description, OBSERVED_DESCRIPTION);
   });
 
@@ -397,45 +470,37 @@ describe("GetOblic description outbound orchestration", () => {
     }
   });
 
-  it("fails if generated_listing_description is missing", async () => {
+  it("does not call WordPress when no valid saved description exists", async () => {
     const wordpress = successWordpress();
-    installStore(
-      readyStore({
-        prospects: [defaultProspect({ generated_listing_description: null })],
-      }),
-    );
-    await assert.rejects(
-      () => sync({}, wordpress),
-      (error: unknown) => {
-        assert.ok(error instanceof GetOblicDirectoryError);
-        assert.equal(error.code, "GETOBLIC_GENERATED_DESCRIPTION_MISSING");
-        return true;
-      },
-    );
-    assert.equal(wordpress.calls.length, 0);
-  });
-
-  it("fails if the generated description is empty or invalid", async () => {
-    const wordpress = successWordpress();
-    const invalids = [
-      { description: "   ", generatedAt: "2026-09-10T12:00:00.000Z" },
-      { description: "", generatedAt: "2026-09-10T12:00:00.000Z" },
-      { description: "x".repeat(GETOBLIC_DESCRIPTION_MAX_CHARS + 1) },
-      { notDescription: GENERATED_DESCRIPTION },
-      "plain string",
+    const blocked = [
+      [],
+      [descriptionArtifact(`  ${GENERATED_DESCRIPTION}  `)],
+      [
+        descriptionArtifact("x".repeat(GETOBLIC_DESCRIPTION_MAX_CHARS + 1), {
+          content_sha256: "not-a-matching-hash",
+        }),
+      ],
     ];
-    for (const generated_listing_description of invalids) {
+    for (const artifacts of blocked) {
       wordpress.calls.length = 0;
       installStore(
         readyStore({
-          prospects: [defaultProspect({ generated_listing_description })],
+          artifacts,
+          prospects: [
+            defaultProspect({
+              generated_listing_description: {
+                description: LEGACY_DESCRIPTION,
+              },
+            }),
+          ],
         }),
       );
       await assert.rejects(
         () => sync({}, wordpress),
         (error: unknown) => {
           assert.ok(error instanceof GetOblicDirectoryError);
-          assert.equal(error.code, "GETOBLIC_GENERATED_DESCRIPTION_INVALID");
+          assert.equal(error.code, "GETOBLIC_SAVED_DESCRIPTION_MISSING");
+          assert.equal(error.status, 409);
           return true;
         },
       );
@@ -503,32 +568,26 @@ describe("GetOblic description outbound orchestration", () => {
 });
 
 describe("GetOblic description outbound validation", () => {
-  it("trims a valid persisted generated description", () => {
-    assert.equal(
-      resolveOutboundGeneratedDescription({
-        description: `  ${GENERATED_DESCRIPTION}  `,
-        generatedAt: "2026-09-10T12:00:00.000Z",
-      }),
-      GENERATED_DESCRIPTION,
+  it("sends the saved artifact exactly and ignores request content", async () => {
+    const edited = "Edited saved description for the listing.";
+    const store = readyStore({
+      artifacts: [
+        descriptionArtifact(edited, { revision: 4, origin: "edited" }),
+      ],
+    });
+    const wordpress = successWordpress();
+    installStore(store);
+    await syncGetOblicListingDescription(
+      {
+        organizationId: ORG_A,
+        prospectId: PROSPECT_A,
+        content: "Unsaved draft that must not be sent.",
+        description: "Browser description that must not be sent.",
+      } as SyncGetOblicListingDescriptionInput,
+      wordpress,
     );
-  });
-
-  it("does not read observed description keys", () => {
-    const resolver = resolveOutboundGeneratedDescription.toString();
-    assert.doesNotMatch(resolver, /raw_json/);
-    assert.doesNotMatch(resolver, /observed/);
-    assert.match(resolver, /description/);
-    assert.throws(
-      () =>
-        resolveOutboundGeneratedDescription({
-          observed: { description: OBSERVED_DESCRIPTION },
-        }),
-      (error: unknown) => {
-        assert.ok(error instanceof GetOblicDirectoryError);
-        assert.equal(error.code, "GETOBLIC_GENERATED_DESCRIPTION_INVALID");
-        return true;
-      },
-    );
+    assert.equal(wordpress.calls[0]?.description, edited);
+    assert.equal(wordpress.calls.length, 1);
   });
 });
 
@@ -562,9 +621,12 @@ describe("GetOblic description route contract", () => {
     const authorization = read(
       "services/getoblicDirectory/getoblicOutboundContentAuthorization.ts",
     );
-    assert.match(service, /generated_listing_description/);
-    assert.match(service, /resolveOutboundGeneratedDescription/);
+    assert.match(service, /loadPublishableSavedDirectoryArtifact/);
+    assert.match(service, /prospect_directory_artifacts|artifactType: "description"/);
+    assert.doesNotMatch(service, /generated_listing_description/);
+    assert.doesNotMatch(service, /resolveOutboundGeneratedDescription/);
     assert.match(service, /putWordpressListingDescription/);
+    assert.match(service, /recheckGetOblicOutboundContentTarget/);
     assert.match(service, /resolveGetOblicOutboundContentTarget/);
     assert.match(authorization, /relationship_status === "linked"/);
     assert.doesNotMatch(service, /raw_json\?\.observed|observed\.description/);
@@ -600,16 +662,20 @@ function unclaimedStore(
   extra: {
     prospects?: ProspectRow[];
     links?: LinkRow[];
+    artifacts?: ArtifactRow[];
     authorization?: boolean | "error" | "true-string";
     canonicalListingId?: number | string | null | "error";
+    activeClaimLookupError?: boolean;
   } = {},
 ) {
   return {
     prospects: extra.prospects ?? [unclaimedProspect()],
     links: extra.links ?? [],
+    artifacts: extra.artifacts ?? [descriptionArtifact()],
     authorization: extra.authorization ?? true,
     canonicalListingId:
       "canonicalListingId" in extra ? extra.canonicalListingId : CANONICAL_LISTING_ID,
+    activeClaimLookupError: extra.activeClaimLookupError,
   };
 }
 
@@ -678,7 +744,7 @@ describe("GetOblic unclaimed description outbound", () => {
     assert.notEqual(wordpress.calls[0]?.listingId, 22222);
     assert.deepEqual(
       calls.map((call) => call.table),
-      [AUTHORIZATION_RPC, CANONICAL_ID_RPC],
+      [AUTHORIZATION_RPC, CANONICAL_ID_RPC, AUTHORIZATION_RPC, CANONICAL_ID_RPC],
     );
     assert.deepEqual(calls[0]?.values, { p_organization_id: ORG_A });
     assert.deepEqual(calls[1]?.values, { p_raw: prospect.raw_json });
@@ -705,26 +771,44 @@ describe("GetOblic unclaimed description outbound", () => {
     assert.equal(wordpress.calls[0]?.listingId, CANONICAL_LISTING_ID);
   });
 
-  it("puts a listing claimed by another organization without mutating that link", async () => {
-    const foreign = defaultLinkedRow({
-      id: "other-org-link",
-      organization_id: ORG_B,
-      prospect_id: PROSPECT_OTHER,
-      wordpress_listing_id: CANONICAL_LISTING_ID,
-      relationship_status: "linked",
-    });
-    const before = JSON.stringify(foreign);
-    const store = unclaimedStore({ links: [foreign] });
+  it("denies a listing claimed by another organization without mutating that link", async () => {
+    const wordpress = successWordpress();
+    for (const relationship_status of ["claiming", "linked", "remote_missing"] as const) {
+      wordpress.calls.length = 0;
+      const foreign = defaultLinkedRow({
+        id: `other-org-${relationship_status}`,
+        organization_id: ORG_B,
+        prospect_id: PROSPECT_OTHER,
+        wordpress_listing_id: CANONICAL_LISTING_ID,
+        relationship_status,
+      });
+      const before = JSON.stringify(foreign);
+      const store = unclaimedStore({ links: [foreign] });
+      const { ops } = installStore(store);
+      await expectSyncError(
+        () => sync(store, wordpress),
+        "GETOBLIC_LISTING_CLAIMED_OTHER_ORG",
+        409,
+      );
+      assert.equal(wordpress.calls.length, 0, relationship_status);
+      assert.equal(JSON.stringify(store.links[0]), before, relationship_status);
+      assert.equal(mutationOps(ops).length, 0, relationship_status);
+      assert.equal(store.links.length, 1, relationship_status);
+    }
+  });
+
+  it("denies an unclaimed send when the active-claim lookup errors", async () => {
+    const store = unclaimedStore({ activeClaimLookupError: true });
     const wordpress = successWordpress();
     const { ops } = installStore(store);
-    const result = await sync(store, wordpress);
-
-    assert.equal(result.listing_link_id, null);
-    assert.equal(result.wordpress_listing_id, CANONICAL_LISTING_ID);
-    assert.equal(wordpress.calls[0]?.listingId, CANONICAL_LISTING_ID);
-    assert.equal(JSON.stringify(store.links[0]), before);
+    await expectSyncError(
+      () => sync(store, wordpress),
+      "GETOBLIC_CONCURRENCY_CONFLICT",
+      409,
+    );
+    assert.equal(wordpress.calls.length, 0);
     assert.equal(mutationOps(ops).length, 0);
-    assert.equal(store.links.length, 1);
+    assert.equal(store.links.length, 0);
   });
 
   it("blocks a remote PUT when unclaimed authorization is false", async () => {

@@ -38,6 +38,7 @@ import {
   markPersonaGenerationReady,
   preparePersonaBridgeBeforeGeneration,
 } from "@/services/personas/personaImporter";
+import { shouldSuppressProspectHomepageScrape } from "@/services/websiteLearning/deepScrape/initialResearchPolicy";
 import { isThinkDifferentlyJobProgress } from "@/services/brain/generationContracts/executiveGenerationMode";
 import { PROSPECT_INTELLIGENCE_PLATFORM } from "@/services/prospects/prospectService";
 import { processDiscussionEndToEnd } from "@/services/workflows/discussionWorkflow";
@@ -222,7 +223,10 @@ export async function executeClaimedGenerationJob(
       await prepareProspectBridgeBeforeGeneration(
         job.discussion_id,
         job.organization_id,
-        { triggerType: job.trigger_type },
+        {
+          triggerType: job.trigger_type,
+          suppressLiveCrawl: shouldSuppressProspectHomepageScrape(job.progress),
+        },
       );
       await renewLease("discussion_analysis");
       if (claimLost) {

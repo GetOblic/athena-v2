@@ -658,6 +658,60 @@ export function validateGeneratedListingDescription(raw: unknown): string {
     : sanitized;
 }
 
+function isProviderAbort(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("name" in error)) return false;
+  const name = (error as { name?: unknown }).name;
+  return name === "AbortError" || name === "TimeoutError";
+}
+
+/**
+ * Prompt, provider call, sanitization, and validation only.
+ * Persistence stays in generateProspectGetoblicDescription.
+ */
+export async function generateGetoblicDescriptionText(
+  context: GetoblicDescriptionTrustedContext,
+  deps: {
+    generateReview?: typeof generateReview;
+    signal?: AbortSignal;
+    /** Draft regeneration may append bounded facts. The public route omits this. */
+    userPrompt?: string;
+  } = {},
+): Promise<string> {
+  if (!hasUsableWebsiteIntelligence(context.websiteIntelligence)) {
+    throw new ProspectGetoblicDescriptionError(
+      "WEBSITE_INTELLIGENCE_REQUIRED",
+      "Athena needs stored Website Intelligence before generating a GetOblic description.",
+      422,
+    );
+  }
+
+  const generate = deps.generateReview ?? generateReview;
+  const userPrompt = deps.userPrompt ?? formatGetoblicDescriptionUserPrompt(context);
+  const signal = deps.signal;
+
+  let rawOutput: string;
+  try {
+    rawOutput = await generate(userPrompt, {
+      systemPrompt: GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
+      generationKind: "generic_review",
+      athenaStage: "generic_review",
+      stage: "prospect.getoblic_description",
+      promptSource: "services/prospects/prospectGetoblicDescription.ts",
+      ...(signal ? { signal } : {}),
+    });
+  } catch (error) {
+    if (error instanceof ProspectGetoblicDescriptionError) throw error;
+    if (signal && isProviderAbort(error)) throw error;
+    throw new ProspectGetoblicDescriptionError(
+      "GENERATION_FAILED",
+      "Athena could not generate this GetOblic description.",
+      502,
+    );
+  }
+
+  return validateGeneratedListingDescription(rawOutput);
+}
+
 async function defaultGetProspect(
   id: string,
   organizationId: string,
@@ -724,35 +778,9 @@ export async function generateProspectGetoblicDescription(
   }
 
   const context = buildGetoblicDescriptionContext(prospect);
-  if (!hasUsableWebsiteIntelligence(context.websiteIntelligence)) {
-    throw new ProspectGetoblicDescriptionError(
-      "WEBSITE_INTELLIGENCE_REQUIRED",
-      "Athena needs stored Website Intelligence before generating a GetOblic description.",
-      422,
-    );
-  }
-
-  const userPrompt = formatGetoblicDescriptionUserPrompt(context);
-
-  let rawOutput: string;
-  try {
-    rawOutput = await generate(userPrompt, {
-      systemPrompt: GETOBLIC_DESCRIPTION_SYSTEM_PROMPT,
-      generationKind: "generic_review",
-      athenaStage: "generic_review",
-      stage: "prospect.getoblic_description",
-      promptSource: "services/prospects/prospectGetoblicDescription.ts",
-    });
-  } catch (error) {
-    if (error instanceof ProspectGetoblicDescriptionError) throw error;
-    throw new ProspectGetoblicDescriptionError(
-      "GENERATION_FAILED",
-      "Athena could not generate this GetOblic description.",
-      502,
-    );
-  }
-
-  const description = validateGeneratedListingDescription(rawOutput);
+  const description = await generateGetoblicDescriptionText(context, {
+    generateReview: generate,
+  });
   const generated: ProspectGeneratedListingDescription = {
     description,
     generatedAt: now(),

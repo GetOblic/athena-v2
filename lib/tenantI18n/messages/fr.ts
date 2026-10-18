@@ -105,6 +105,7 @@ export const fr: TenantMessages = {
     moreTools: "Plus d'outils",
     needHelp: "Besoin d'aide ?",
     chatWithAthena: "Discuter avec Athena",
+    prospectIntelligence: "Intelligence du prospect",
   },
   status: {
     new: "Nouveau",
@@ -1164,6 +1165,17 @@ export const fr: TenantMessages = {
       ready: "Prêt",
       pending: "En attente",
       processing: "En cours",
+    },
+    initialResearch: {
+      researching: "Recherche de votre site",
+      training: "Formation d’Athena",
+      researchFailedReady:
+        "La recherche du site n’a pas pu être terminée. Athena a utilisé les informations que vous avez fournies.",
+      researchContinuing:
+        "La recherche du site n’a pas pu être terminée. Athena s’entraîne à partir des informations que vous avez fournies.",
+      compilationFailed: "Athena n’a pas pu terminer l’entraînement.",
+      terminalFailed: "La recherche du site n’a pas pu être terminée.",
+      retry: "Entraîner à nouveau",
     },
     lastTrained: "Dernier entraînement :",
     notYetTrained: "Pas encore entraîné",
@@ -2757,6 +2769,12 @@ export const fr: TenantMessages = {
       identityLocation: "Localisation",
       identityPresence: "Présence",
       commercialReasoning: "Raisonnement commercial détaillé",
+    },
+    initialResearch: {
+      researching: "Recherche du site",
+      generating: "Génération de l’intelligence",
+      usingAvailableInformation:
+        "Athena utilise les informations déjà disponibles sur cette entreprise.",
     },
     import: {
       createTitle: "Ajouter un prospect",
@@ -5566,6 +5584,112 @@ export const fr: TenantMessages = {
         "Une recherche pour cet objectif est déjà en cours. Attendez qu’elle se termine, puis réessayez.",
       continuationRejected:
         "Cette recherche supplémentaire n’est plus disponible. Les résultats précédents restent affichés.",
+    },
+  },
+  clientProspectIntelligence: {
+    eyebrow: "Intelligence du prospect",
+    title: "Intelligence du prospect",
+    intro:
+      "Intelligence conservée du prospect d'origine, en lecture seule. Athena ne la copie pas dans cet espace client.",
+    unavailableTitle: "L'intelligence du prospect n'est pas disponible",
+    unavailableBody:
+      "Cet espace client n'a pas de conversion de prospect active.",
+    businessTitle: "Entreprise",
+    discussionTitle: "Discussion du prospect",
+    discussionEmpty: "Aucune discussion de prospect n'est enregistrée.",
+    websiteTitle: "Recherche de site",
+    websiteEmpty: "Aucune recherche de site n'est enregistrée.",
+    deepScrapeTitle: "Preuves Deep Scrape",
+    deepScrapeEmpty: "Aucune preuve Deep Scrape n'est enregistrée.",
+    deepScrapePages: "{count} pages analysées",
+    deepScrapeProvider: "Fournisseur",
+    deepScrapeScrapedAt: "Recherche effectuée",
+    deepScrapeJobStatus: "Dernier statut de recherche",
+    descriptionTitle: "Description générée",
+    descriptionEmpty: "Aucune description générée n'est enregistrée.",
+    savedDescriptionTitle: "Description enregistrée",
+    savedDescriptionEmpty: "Aucune description enregistrée n'est stockée pour ce prospect.",
+    savedKnowledgeBaseTitle: "Knowledge Base enregistrée",
+    savedKnowledgeBaseEmpty: "Aucune Knowledge Base enregistrée n'est stockée pour ce prospect.",
+    currentTitle: "Executive Intelligence actuelle",
+    currentEmpty: "Aucune version actuelle d'Executive Intelligence n'est enregistrée.",
+    historyTitle: "Versions historiques",
+    historyEmpty: "Aucune version historique d'Executive Intelligence n'est enregistrée.",
+    versionLabel: "Version {number}",
+    currentBadge: "Actuelle",
+    briefingTitle: "Executive Briefing",
+    briefingEmpty: "Aucun executive briefing n'est enregistré pour cette version.",
+    blueprintTitle: "Strategic Blueprint",
+    blueprintEmpty: "Aucun strategic blueprint n'est enregistré pour cette version.",
+    assetsTitle: "Deployment Assets",
+    assetsEmpty: "Aucun deployment asset n'est enregistré pour cette version.",
+    knowledgeBaseTitle: "Knowledge Base",
+    knowledgeBaseEmpty: "Aucun contenu de Knowledge Base n'est enregistré pour cette version.",
+    goal: "Objectif",
+    audience: "Public cible",
+    priority: "Priorité",
+    notes: "Notes",
+    recommendedResponse: "Réponse recommandée",
+    cta: "Appel à l'action",
+    opportunityTitle: "Opportunité",
+    opportunityEmpty: "Aucune opportunité n'est enregistrée pour cette version.",
+    readOnlyNotice:
+      "L'historique d'intelligence du prospect reste inchangé. La description et la base de connaissances peuvent être générées, modifiées, enregistrées et envoyées à GetOblic ici. L'envoi publie uniquement la dernière révision enregistrée. Cela n'entraîne pas Athena.",
+    editor: {
+      descriptionTitle: "Description",
+      knowledgeBaseTitle: "Base de connaissances",
+      descriptionHelp:
+        "Générez un brouillon, modifiez-le et enregistrez la description GetOblic approuvée pour ce prospect.",
+      knowledgeBaseHelp:
+        "Générez un brouillon, modifiez-le et enregistrez la base de connaissances GetOblic approuvée pour ce prospect.",
+      savedRevision: "Révision enregistrée {revision}",
+      unsavedDraft: "Brouillon non enregistré",
+      notSaved: "Pas encore enregistré",
+      historicalSuggestion:
+        "Suggestion initiale issue de la Knowledge Base executive actuelle. Elle n'est pas enregistrée tant que vous ne choisissez pas Enregistrer.",
+      emptyDescription:
+        "Aucune description enregistrée. Générez un brouillon ou rédigez-en un, puis enregistrez-le.",
+      emptyKnowledgeBase:
+        "Aucune base de connaissances enregistrée. Générez un brouillon ou rédigez-en une, puis enregistrez-la.",
+      generate: "Générer",
+      regenerate: "Régénérer",
+      generating: "Génération…",
+      save: "Enregistrer",
+      saving: "Enregistrement…",
+      saved: "Enregistré",
+      reloadSaved: "Recharger le contenu enregistré",
+      conflict:
+        "Une version enregistrée plus récente existe. Votre brouillon non enregistré est conservé.",
+      replaceDirtyConfirm:
+        "Régénérer remplacera votre brouillon non enregistré. Continuer ?",
+      reloadDirtyConfirm:
+        "Recharger remplacera votre brouillon non enregistré par le contenu enregistré. Continuer ?",
+      error: "Athena n'a pas pu terminer cette demande.",
+      invalidContent: "Saisissez du texte avant d'enregistrer.",
+      descriptionTooLong: "La description doit contenir au plus 4000 caractères.",
+      knowledgeBaseTooLong:
+        "La base de connaissances doit contenir au plus 20000 caractères.",
+      characterCount: "{count} / {max}",
+      savedContentLabel: "Contenu enregistré",
+      draftContentLabel: "Brouillon non enregistré",
+      sendDescription: "Envoyer la description à GetOblic",
+      sendKnowledgeBase: "Envoyer la base de connaissances à GetOblic",
+      sending: "Envoi…",
+      sent: "Envoyé",
+      sendFailed: "Athena n'a pas pu envoyer le contenu enregistré à GetOblic.",
+      sendRequiresSaved: "Enregistrez ce contenu avant de l'envoyer à GetOblic.",
+      sendPublishesSaved:
+        "L'envoi publie la dernière révision enregistrée, et non le texte non enregistré de l'éditeur.",
+      savedUnavailable:
+        "Le contenu enregistré n'a pas pu être chargé. Rechargez-le avant de modifier.",
+    },
+    jobStatus: {
+      queued: "En file",
+      processing: "Recherche en cours",
+      awaiting_follow_on: "Finalisation",
+      completed: "Terminée",
+      failed: "Échec",
+      retryable: "Nouvelle tentative en attente",
     },
   },
 };

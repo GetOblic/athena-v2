@@ -14,6 +14,7 @@ import {
   DeepScrapeStateTransitionError,
   isPersistedDeepScrapeStage,
 } from "@/services/websiteLearning/deepScrape/deepScrapeStages";
+import { mergePreservedInitialResearchProgress } from "@/services/websiteLearning/deepScrape/initialResearchPolicy";
 import { normalizeRootWebsiteUrl } from "@/services/websiteLearning/deepScrape/urlSafety";
 
 export type HeartbeatDeepScrapeResult =
@@ -199,6 +200,7 @@ export async function enqueueBrainDeepScrapeJob(input: {
   identityId: string;
   websiteUrl: string;
   requestedBy?: string | null;
+  progress?: Record<string, unknown> | null;
 }): Promise<{
   job: AthenaWebsiteDeepScrapeJob;
   created: boolean;
@@ -230,7 +232,7 @@ export async function enqueueBrainDeepScrapeJob(input: {
       normalized_domain: root.registrableDomain,
       status: "queued",
       current_stage: "queued",
-      progress: {},
+      progress: input.progress ?? {},
       max_attempts: getAthenaWorkerConfig().maxAttempts,
       requested_by: input.requestedBy ?? null,
       created_at: now,
@@ -267,6 +269,7 @@ export async function enqueueProspectDeepScrapeJob(input: {
   discussionId?: string | null;
   websiteUrl: string;
   requestedBy?: string | null;
+  progress?: Record<string, unknown> | null;
 }): Promise<{
   job: AthenaWebsiteDeepScrapeJob;
   created: boolean;
@@ -298,7 +301,7 @@ export async function enqueueProspectDeepScrapeJob(input: {
       normalized_domain: root.registrableDomain,
       status: "queued",
       current_stage: "queued",
-      progress: {},
+      progress: input.progress ?? {},
       max_attempts: getAthenaWorkerConfig().maxAttempts,
       requested_by: input.requestedBy ?? null,
       created_at: now,
@@ -506,8 +509,9 @@ export async function updateDeepScrapeJobFields(input: {
   organizationId: string;
   patch: Record<string, unknown>;
 }): Promise<AthenaWebsiteDeepScrapeJob | null> {
-  if ("current_stage" in input.patch) {
-    const stage = input.patch.current_stage;
+  let patch = input.patch;
+  if ("current_stage" in patch) {
+    const stage = patch.current_stage;
     if (stage != null && !isPersistedDeepScrapeStage(stage)) {
       throw new DeepScrapeStateTransitionError(
         `updateDeepScrapeJobFields refused invalid current_stage "${String(stage)}"`,
@@ -517,10 +521,29 @@ export async function updateDeepScrapeJobFields(input: {
     }
   }
 
+  const nextProgress = patch.progress;
+  if (
+    nextProgress &&
+    typeof nextProgress === "object" &&
+    !Array.isArray(nextProgress)
+  ) {
+    const current = await getDeepScrapeJobById({
+      jobId: input.jobId,
+      organizationId: input.organizationId,
+    });
+    patch = {
+      ...patch,
+      progress: mergePreservedInitialResearchProgress(
+        current?.progress,
+        nextProgress as Record<string, unknown>,
+      ),
+    };
+  }
+
   const { data, error } = await supabaseAdmin
     .from("athena_website_deep_scrape_jobs")
     .update({
-      ...input.patch,
+      ...patch,
       updated_at: touch(),
     })
     .eq("id", input.jobId)
@@ -633,4 +656,45 @@ export async function failDeepScrapeJobWithClaim(input: {
     }
   }
   return null;
+}
+
+/**
+ * Return the current processing claim to retryable without
+ * fail_athena_website_deep_scrape_job. That RPC stores failed when
+ * attempt_count >= max_attempts, and failed is not claimable. retryable is.
+ * The update matches the current claim only, so a lost claim is left alone.
+ * attempt_count, progress, crawl checkpoints, and follow-on id are unchanged.
+ */
+export async function releaseProcessingDeepScrapeForRetry(input: {
+  jobId: string;
+  claimToken: string;
+  organizationId: string;
+  errorCode: string;
+  errorMessage: string;
+  errorMetadata?: Record<string, unknown> | null;
+  nextAttemptAt: string;
+}): Promise<AthenaWebsiteDeepScrapeJob | null> {
+  const { data, error } = await supabaseAdmin
+    .from("athena_website_deep_scrape_jobs")
+    .update({
+      status: "retryable",
+      error_code: input.errorCode.slice(0, 120),
+      error_message: input.errorMessage.slice(0, 1000),
+      error_metadata: input.errorMetadata ?? null,
+      next_attempt_at: input.nextAttemptAt,
+      claim_expires_at: null,
+      claim_token: null,
+      claimed_by: null,
+      completed_at: null,
+      updated_at: touch(),
+    })
+    .eq("id", input.jobId)
+    .eq("organization_id", input.organizationId)
+    .eq("claim_token", input.claimToken)
+    .eq("status", "processing")
+    .select("*")
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapDeepScrapeJobRow(data as Record<string, unknown>);
 }

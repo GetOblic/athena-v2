@@ -38,6 +38,7 @@ type ProspectDetailHeaderProps = {
   websiteLabel?: string | null;
   intelligenceLabel: string;
   intelligenceStatus: string;
+  intelligenceStatusContent?: ReactNode;
   ready: boolean;
   hasDiscussion: boolean;
   askAthenaLabel: string;
@@ -98,6 +99,7 @@ export function ProspectDetailHeader({
   websiteLabel,
   intelligenceLabel,
   intelligenceStatus,
+  intelligenceStatusContent = null,
   ready,
   hasDiscussion,
   askAthenaLabel,
@@ -209,9 +211,11 @@ export function ProspectDetailHeader({
             <div className="text-xs font-semibold uppercase tracking-[0.35em] text-sky-200/85">
               {eyebrow}
             </div>
-            <span className={prospectIntelligenceChipClass(intelligenceStatus)}>
-              {intelligenceLabel}
-            </span>
+            {intelligenceStatusContent ?? (
+              <span className={prospectIntelligenceChipClass(intelligenceStatus)}>
+                {intelligenceLabel}
+              </span>
+            )}
           </div>
 
           <h1 className="mt-4 break-words text-3xl font-semibold tracking-tight text-white sm:text-5xl">

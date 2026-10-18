@@ -38,10 +38,7 @@ import {
 } from "@/services/licensee/licenseeProspectClientIntelligenceHydration";
 import { hydrateLicenseeProspectClientCommercialIdentity } from "@/services/licensee/licenseeProspectClientCommercialHydration";
 import { getProspectById } from "@/services/prospects/prospectService";
-import {
-  isGetOblicDerivedProspect,
-  organizationOwnsActiveGetOblicClaimForProspect,
-} from "@/services/prospects/prospectGetOblicOwnership";
+import { resolveGetOblicProspectConversionEligibility } from "@/services/prospects/prospectGetOblicConversionEligibility";
 
 export {
   buildProvisionalClientAccountEmailCandidates,
@@ -1348,24 +1345,26 @@ async function finishFirstConversion(input: {
 }
 
 async function requireGetOblicOwnershipForConversion(
-  prospect: { id: string; raw_json?: Record<string, unknown> | null },
+  prospect: {
+    id: string;
+    source?: string | null;
+    raw_json?: Record<string, unknown> | null;
+  },
   organizationId: string,
 ): Promise<void> {
-  if (!isGetOblicDerivedProspect(prospect)) {
-    return;
-  }
-
-  const owned = await organizationOwnsActiveGetOblicClaimForProspect(
+  const eligibility = await resolveGetOblicProspectConversionEligibility({
     organizationId,
-    prospect.id,
-  );
-  if (owned) {
+    prospectId: prospect.id,
+    source: prospect.source ?? "",
+    rawJson: prospect.raw_json ?? null,
+  });
+  if (eligibility.decision === "allow") {
     return;
   }
 
   throw new LicenseeProspectClientConversionError(
     "GETOBLIC_OWNERSHIP_REQUIRED",
-    "This GetOblic Prospect cannot be converted because this organization no longer owns an active GetOblic listing claim.",
+    "This GetOblic Prospect cannot be converted for this organization.",
   );
 }
 

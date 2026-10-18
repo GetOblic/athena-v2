@@ -23,6 +23,7 @@ export function directoryErrorStatus(code: GetOblicDirectoryErrorCode): number {
       return 409;
     case "GETOBLIC_REMOTE_AUTH_FAILED":
     case "GETOBLIC_LISTING_PERMALINK_UNAVAILABLE":
+    case "GETOBLIC_SAVED_ARTIFACT_UNAVAILABLE":
       return 503;
     case "GETOBLIC_REMOTE_TRANSIENT":
     case "GETOBLIC_WORDPRESS_AUTHOR_FAILED":

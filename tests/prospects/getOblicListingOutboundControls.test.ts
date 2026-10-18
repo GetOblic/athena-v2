@@ -53,22 +53,30 @@ const I18N_KEYS = [
 ] as const;
 
 describe("GetOblic outbound controls placement", () => {
-  it("clusters the two outbound actions beside Release for linked owners and authorized unclaimed Prospects", () => {
+  it("keeps legacy outbound actions off Prospect Detail while Release and the shared editors remain", () => {
     const page = read("app/prospects/[id]/page.tsx");
     const card = read("components/prospects/ProspectGetoblicDescriptionCard.tsx");
     const controls = read(
       "components/prospects/GetOblicListingOutboundControls.tsx",
     );
-    assert.match(page, /GetOblicListingOutboundControls/);
-    assert.match(page, /GetOblicListingReleaseControl/);
-    assert.match(page, /showLinkedOwnerGetOblicOutbound/);
-    assert.match(page, /activeGetOblicLink\?\.relationship_status === "linked"/);
-    assert.match(page, /isAuthorizedUnclaimedGetOblicOutboundTarget/);
-    assert.match(page, /hasActiveLink: activeGetOblicLink != null/);
-    assert.match(
-      page,
-      /showGetOblicOutbound =\s*showLinkedOwnerGetOblicOutbound \|\| showUnclaimedGetOblicOutbound/,
+    const descriptionRoute = read(
+      "app/api/prospects/[id]/getoblic-directory/description/route.ts",
     );
+    const knowledgeRoute = read(
+      "app/api/prospects/[id]/getoblic-directory/knowledge-base/route.ts",
+    );
+    assert.match(controls, /export function GetOblicListingOutboundControls/);
+    assert.match(descriptionRoute, /export async function POST/);
+    assert.match(knowledgeRoute, /export async function POST/);
+    assert.doesNotMatch(page, /GetOblicListingOutboundControls/);
+    assert.doesNotMatch(page, /showGetOblicOutbound|showLinkedOwnerGetOblicOutbound|showUnclaimedGetOblicOutbound/);
+    assert.doesNotMatch(page, /isAuthorizedUnclaimedGetOblicOutboundTarget/);
+    assert.doesNotMatch(page, /hasCurrentKnowledgeBaseAsset|hasCurrentKnowledgeBase/);
+    assert.match(page, /GetoblicContentEditor/);
+    assert.equal((page.match(/<GetoblicContentEditor/g) ?? []).length, 2);
+    assert.match(page, /data-getoblic-content-editors="prospect"/);
+    assert.match(page, /GetOblicListingReleaseControl/);
+    assert.match(page, /activeGetOblicLink\?\.relationship_status === "linked"/);
     assert.match(
       page,
       /shouldShowGetOblicListingReleaseAction\(\{[\s\S]*?relationshipStatus: activeGetOblicLink\?\.relationship_status/,
@@ -78,29 +86,21 @@ describe("GetOblic outbound controls placement", () => {
       /showGetOblicRelease &&\s*\(activeGetOblicLink\?\.relationship_status === "linked" \|\|\s*activeGetOblicLink\?\.relationship_status === "claiming"\)/,
     );
     assert.match(page, /contactId: authorizedGetOblicListingId/);
-    assert.match(page, /hasActiveGetOblicOwnership = activeGetOblicLink != null/);
-    assert.doesNotMatch(page, /showUnclaimedGetOblicOutbound &&/);
+    assert.match(page, /resolveGetOblicProspectConversionEligibility/);
     assert.doesNotMatch(controls, /unclaimed|wordpress_listing_id|relationship_status/);
     assert.match(page, /relationship_status === "linked"/);
-    assert.match(page, /hasGeneratedDescription/);
-    assert.match(page, /hasCurrentKnowledgeBase/);
-    assert.match(page, /hasCurrentKnowledgeBaseAsset/);
-    assert.match(page, /generated_listing_description\?\.description/);
     assert.doesNotMatch(page, /Sync All|syncAll|sync-all/);
     assert.doesNotMatch(page, /wordpress_listing_id=\{/);
-    assert.ok(
-      page.indexOf("GetOblicListingOutboundControls") <
-        page.indexOf("GetOblicListingReleaseControl"),
-    );
     assert.equal(
       (page.match(/<GetOblicListingOutboundControls/g) ?? []).length,
-      1,
+      0,
     );
     assert.equal(
       (page.match(/<GetOblicListingReleaseControl/g) ?? []).length,
       1,
     );
     assert.match(page, /directoryAction=/);
+    assert.doesNotMatch(page, /showGetOblicOutbound \|\| showGetOblicRelease/);
     assert.doesNotMatch(page, /destructiveAction/);
     assert.doesNotMatch(page, /ProspectHeaderDeleteButton/);
     assert.doesNotMatch(card, /getoblic-directory\/description/);

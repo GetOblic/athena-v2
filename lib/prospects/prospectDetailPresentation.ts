@@ -190,6 +190,7 @@ export function prospectIntelligenceChipClass(status: string): string {
     status === "Queued" ||
     status === "Processing" ||
     status === "Learning from Website" ||
+    status === "Researching Website" ||
     status === "Generating Executive Intelligence"
   ) {
     return PROSPECT_STATUS_CHIP_PROGRESS;

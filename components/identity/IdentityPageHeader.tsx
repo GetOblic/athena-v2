@@ -5,7 +5,7 @@ type IdentityPageHeaderProps = {
   title: string;
   subtitle: string;
   statusLabel: string;
-  statusValue: string;
+  statusValue: ReactNode;
   lastTrainedLabel: string;
   lastTrainedValue: string;
   knowledgeScore: ReactNode;
@@ -39,7 +39,11 @@ export function IdentityPageHeader({
         <div className="mt-6 flex flex-wrap gap-x-8 gap-y-2 text-sm">
           <div>
             <span className="text-white/40">{statusLabel}</span>{" "}
-            <span className="font-medium text-white/70">{statusValue}</span>
+            {typeof statusValue === "string" ? (
+              <span className="font-medium text-white/70">{statusValue}</span>
+            ) : (
+              statusValue
+            )}
           </div>
           <div>
             <span className="text-white/40">{lastTrainedLabel}</span>{" "}

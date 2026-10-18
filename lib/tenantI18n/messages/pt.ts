@@ -107,6 +107,7 @@ export const pt: TenantMessages = {
     moreTools: "Mais ferramentas",
     needHelp: "Precisa de ajuda?",
     chatWithAthena: "Fale com Athena",
+    prospectIntelligence: "Inteligência do prospecto",
   },
   status: {
     new: "Novo",
@@ -1205,6 +1206,17 @@ export const pt: TenantMessages = {
       ready: "Pronto",
       pending: "Pendente",
       processing: "A processar",
+    },
+    initialResearch: {
+      researching: "A pesquisar o seu site",
+      training: "A treinar a Athena",
+      researchFailedReady:
+        "A pesquisa do site não foi concluída. A Athena usou as informações de negócio que forneceu.",
+      researchContinuing:
+        "A pesquisa do site não foi concluída. A Athena está a treinar-se com as informações de negócio que forneceu.",
+      compilationFailed: "A Athena não conseguiu concluir o treino.",
+      terminalFailed: "A pesquisa do site não foi concluída.",
+      retry: "Treinar novamente",
     },
     lastTrained: "Último treino:",
     notYetTrained: "Ainda não treinado",
@@ -2794,6 +2806,12 @@ export const pt: TenantMessages = {
       identityLocation: "Localização",
       identityPresence: "Presença",
       commercialReasoning: "Raciocínio comercial detalhado",
+    },
+    initialResearch: {
+      researching: "A pesquisar o site",
+      generating: "A gerar inteligência",
+      usingAvailableInformation:
+        "A Athena está a usar as informações de negócio disponíveis.",
     },
     import: {
       createTitle: "Adicionar um prospect",
@@ -5599,6 +5617,112 @@ export const pt: TenantMessages = {
         "Já há uma pesquisa em curso para este objetivo. Espere que termine e tente novamente.",
       continuationRejected:
         "Esta pesquisa adicional já não está disponível. Os resultados anteriores mantêm-se.",
+    },
+  },
+  clientProspectIntelligence: {
+    eyebrow: "Inteligência do prospecto",
+    title: "Inteligência do prospecto",
+    intro:
+      "Inteligência retida do prospecto original, apenas leitura. A Athena não a copia para este espaço de cliente.",
+    unavailableTitle: "A inteligência do prospecto não está disponível",
+    unavailableBody:
+      "Este espaço de cliente não tem uma conversão de prospecto ativa.",
+    businessTitle: "Negócio",
+    discussionTitle: "Discussão do prospecto",
+    discussionEmpty: "Não há uma discussão de prospecto guardada.",
+    websiteTitle: "Pesquisa do site",
+    websiteEmpty: "Não há pesquisa do site guardada.",
+    deepScrapeTitle: "Evidência de Deep Scrape",
+    deepScrapeEmpty: "Não há evidência de Deep Scrape guardada.",
+    deepScrapePages: "{count} páginas analisadas",
+    deepScrapeProvider: "Fornecedor",
+    deepScrapeScrapedAt: "Pesquisa feita",
+    deepScrapeJobStatus: "Último estado da pesquisa",
+    descriptionTitle: "Descrição gerada",
+    descriptionEmpty: "Não há uma descrição gerada guardada.",
+    savedDescriptionTitle: "Descrição guardada",
+    savedDescriptionEmpty: "Não há uma descrição guardada para este prospecto.",
+    savedKnowledgeBaseTitle: "Knowledge Base guardada",
+    savedKnowledgeBaseEmpty: "Não há uma Knowledge Base guardada para este prospecto.",
+    currentTitle: "Executive Intelligence atual",
+    currentEmpty: "Não há uma versão atual de Executive Intelligence guardada.",
+    historyTitle: "Versões históricas",
+    historyEmpty: "Não há versões históricas de Executive Intelligence guardadas.",
+    versionLabel: "Versão {number}",
+    currentBadge: "Atual",
+    briefingTitle: "Executive Briefing",
+    briefingEmpty: "Não há um executive briefing guardado para esta versão.",
+    blueprintTitle: "Strategic Blueprint",
+    blueprintEmpty: "Não há um strategic blueprint guardado para esta versão.",
+    assetsTitle: "Deployment Assets",
+    assetsEmpty: "Não há deployment assets guardados para esta versão.",
+    knowledgeBaseTitle: "Knowledge Base",
+    knowledgeBaseEmpty: "Não há conteúdo de Knowledge Base guardado para esta versão.",
+    goal: "Objetivo",
+    audience: "Público-alvo",
+    priority: "Prioridade",
+    notes: "Notas",
+    recommendedResponse: "Resposta recomendada",
+    cta: "Chamada para ação",
+    opportunityTitle: "Oportunidade",
+    opportunityEmpty: "Não há uma oportunidade guardada para esta versão.",
+    readOnlyNotice:
+      "O histórico de inteligência do prospecto permanece inalterado. A descrição e a base de conhecimento podem ser geradas, editadas, guardadas e enviadas para a GetOblic aqui. Enviar publica apenas a última revisão guardada. Isto não treina a Athena.",
+    editor: {
+      descriptionTitle: "Descrição",
+      knowledgeBaseTitle: "Base de conhecimento",
+      descriptionHelp:
+        "Gere um rascunho, edite-o e guarde a descrição GetOblic aprovada para este prospecto.",
+      knowledgeBaseHelp:
+        "Gere um rascunho, edite-o e guarde a base de conhecimento GetOblic aprovada para este prospecto.",
+      savedRevision: "Revisão guardada {revision}",
+      unsavedDraft: "Rascunho não guardado",
+      notSaved: "Ainda não guardado",
+      historicalSuggestion:
+        "Sugestão inicial da Knowledge Base executiva atual. Não fica guardada até escolher Guardar.",
+      emptyDescription:
+        "Ainda não há uma descrição guardada. Gere um rascunho ou escreva um e depois guarde-o.",
+      emptyKnowledgeBase:
+        "Ainda não há uma base de conhecimento guardada. Gere um rascunho ou escreva uma e depois guarde-a.",
+      generate: "Gerar",
+      regenerate: "Regenerar",
+      generating: "A gerar…",
+      save: "Guardar",
+      saving: "A guardar…",
+      saved: "Guardado",
+      reloadSaved: "Recarregar o conteúdo guardado",
+      conflict:
+        "Existe uma versão guardada mais recente. O seu rascunho não guardado continua aqui.",
+      replaceDirtyConfirm:
+        "Regenerar substitui o seu rascunho não guardado. Continuar?",
+      reloadDirtyConfirm:
+        "Recarregar substitui o seu rascunho não guardado pelo conteúdo guardado. Continuar?",
+      error: "A Athena não conseguiu concluir esse pedido.",
+      invalidContent: "Introduza texto antes de guardar.",
+      descriptionTooLong: "A descrição deve ter no máximo 4000 caracteres.",
+      knowledgeBaseTooLong:
+        "A base de conhecimento deve ter no máximo 20000 caracteres.",
+      characterCount: "{count} / {max}",
+      savedContentLabel: "Conteúdo guardado",
+      draftContentLabel: "Rascunho não guardado",
+      sendDescription: "Enviar descrição para a GetOblic",
+      sendKnowledgeBase: "Enviar a base de conhecimento para a GetOblic",
+      sending: "A enviar…",
+      sent: "Enviado com sucesso",
+      sendFailed: "A Athena não conseguiu enviar o conteúdo guardado para a GetOblic.",
+      sendRequiresSaved: "Guarde este conteúdo antes de o enviar para a GetOblic.",
+      sendPublishesSaved:
+        "Enviar publica a última revisão guardada, não o texto não guardado neste editor.",
+      savedUnavailable:
+        "Não foi possível carregar o conteúdo guardado. Recarregue-o antes de editar.",
+    },
+    jobStatus: {
+      queued: "Em fila",
+      processing: "A pesquisar",
+      awaiting_follow_on: "A concluir",
+      completed: "Concluída",
+      failed: "Falhou",
+      retryable: "À espera de nova tentativa",
     },
   },
 };

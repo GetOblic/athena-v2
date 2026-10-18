@@ -15,6 +15,11 @@ import {
   PROSPECT_UTILITY_ACTION,
 } from "@/lib/prospects/prospectDetailPresentation";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
+import {
+  describeProspectGenerateHold,
+  type ProspectInitialResearchCopy,
+  type ProspectProgressKind,
+} from "@/lib/websiteLearning/initialResearchProgress";
 
 type ProspectRefreshChrome = {
   generateIntelligence: string;
@@ -38,6 +43,11 @@ type ProspectRefreshIntelligenceButtonProps = {
   intelligenceStatus?: string | null;
   showGenerate?: boolean;
   showThinkDifferently?: boolean;
+  initialResearchKind?: ProspectProgressKind | null;
+  initialResearchCopy?: Pick<
+    ProspectInitialResearchCopy,
+    "researching" | "generating"
+  > | null;
 };
 
 function ButtonSpinner() {
@@ -62,6 +72,8 @@ export function ProspectRefreshIntelligenceButton({
   intelligenceStatus = null,
   showGenerate = true,
   showThinkDifferently = true,
+  initialResearchKind = null,
+  initialResearchCopy = null,
 }: ProspectRefreshIntelligenceButtonProps) {
   const router = useRouter();
   const {
@@ -72,9 +84,14 @@ export function ProspectRefreshIntelligenceButton({
   const [queueingKind, setQueueingKind] = useState<QueueKind | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const generateHold = describeProspectGenerateHold({
+    kind: initialResearchKind,
+    copy: initialResearchCopy,
+  });
 
   async function queueAction(kind: QueueKind) {
     if (queueingKind || isGenerating) return;
+    if (kind === "generate_intelligence" && generateHold.held) return;
 
     // Unlock audio during the initiating click, before any await.
     // Completion chime is owned by DiscussionRegenerationProvider.
@@ -146,6 +163,7 @@ export function ProspectRefreshIntelligenceButton({
   }
 
   const busy = Boolean(queueingKind) || isGenerating;
+  const generateDisabled = busy || generateHold.held;
   const generatingIntelligence =
     busy &&
     (queueingKind === "generate_intelligence" ||
@@ -158,7 +176,9 @@ export function ProspectRefreshIntelligenceButton({
 
   const failed = String(intelligenceStatus ?? "").trim() === "Processing Failed";
   const ready = String(intelligenceStatus ?? "").trim() === "Ready";
-  const primaryLabel = generatingIntelligence
+  const primaryLabel = generateHold.held
+    ? generateHold.label
+    : generatingIntelligence
     ? ready
       ? (chrome?.refreshingIntelligence ??
         chrome?.generatingIntelligence ??
@@ -201,15 +221,17 @@ export function ProspectRefreshIntelligenceButton({
         <button
           type="button"
           data-prospect-header-action={ready || hasCurrentVersion ? "refresh" : "generate"}
+          data-initial-research-hold={generateHold.held ? generateHold.kind ?? "" : undefined}
           onClick={() => void queueAction("generate_intelligence")}
-          disabled={busy}
+          disabled={generateDisabled}
+          aria-busy={generateHold.held ? true : undefined}
           className={
             ready || hasCurrentVersion
               ? PROSPECT_UTILITY_ACTION
               : PROSPECT_PRIMARY_ACTION
           }
         >
-          {generatingIntelligence ? (
+          {generateHold.held || generatingIntelligence ? (
             <ButtonSpinner />
           ) : ready || hasCurrentVersion ? (
             <RefreshCw className="size-4" />

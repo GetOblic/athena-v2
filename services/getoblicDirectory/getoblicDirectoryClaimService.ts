@@ -605,12 +605,19 @@ function resolveExistingActiveClaim(
     input.organizationId,
     input.prospectId,
     {
-      found: true,
+      outcome: "found",
       organization_id: existing.organization_id,
       prospect_id: existing.prospect_id,
       relationship_status: existing.relationship_status,
     },
   );
+
+  if (!("availability" in availability)) {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_CONCURRENCY_CONFLICT",
+      "This listing could not be reserved safely. Try again.",
+    );
+  }
 
   if (availability.availability === "already_claimed_by_same_prospect") {
     if (existing.wordpress_listing_id !== input.wordpressListingId) {

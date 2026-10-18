@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
+import { ClientProspectIntelligenceNavGate } from "@/components/dashboard/ClientProspectIntelligenceNavGate";
 import {
   Brain,
   House,
@@ -59,6 +61,7 @@ type TenantNavListProps = {
   utilitiesLabel: string;
   moreToolsLabel: string;
   showLockedGuidance?: boolean;
+  trailingGrowth?: ReactNode;
 };
 
 function IconMark({
@@ -221,6 +224,7 @@ export function TenantNavList({
   items,
   yourGrowthLabel,
   showLockedGuidance = false,
+  trailingGrowth = null,
 }: TenantNavListProps) {
   const grouped = groupTenantNav(items);
 
@@ -248,6 +252,7 @@ export function TenantNavList({
               showLockedGuidance={showLockedGuidance}
             />
           ))}
+          {trailingGrowth}
         </div>
       </div>
     </nav>
@@ -402,6 +407,12 @@ export function TenantSidebar({
         utilitiesLabel={messages.nav.utilities}
         moreToolsLabel={messages.nav.moreTools}
         showLockedGuidance
+        trailingGrowth={
+          <ClientProspectIntelligenceNavGate
+            label={messages.nav.prospectIntelligence}
+            currentPath={currentPath}
+          />
+        }
       />
 
       <TenantChromeAfterNav

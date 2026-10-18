@@ -133,6 +133,9 @@ export async function getActiveGetOblicListingLinkByWordPressListingId(
  * Internal global active-claim lookup.
  * Intentionally not organization-scoped: exclusivity is global.
  * Returns only the columns required for conflict classification.
+ * `none` is a successful read with no active row.
+ * A query failure, more than one active row, or a malformed active row
+ * is `error` and is not proof that the listing is unclaimed.
  * Do not return this object from browser-facing APIs.
  */
 export async function getActiveGetOblicClaimByWordPressListingId(
@@ -142,18 +145,42 @@ export async function getActiveGetOblicClaimByWordPressListingId(
     .from(GETOBLIC_LISTING_LINKS_TABLE)
     .select(LINK_CONFLICT_COLUMNS)
     .eq("wordpress_listing_id", wordpressListingId)
-    .in("relationship_status", ACTIVE_STATUS_LIST)
-    .maybeSingle();
+    .in("relationship_status", ACTIVE_STATUS_LIST);
 
   if (error) {
     console.error("Error looking up active GetOblic listing claim:", error);
-    return { found: false };
+    return { outcome: "error" };
   }
 
-  if (!data) {
-    return { found: false };
+  if (!Array.isArray(data)) {
+    console.error("Malformed active GetOblic listing claim lookup result.");
+    return { outcome: "error" };
   }
 
+  if (data.length === 0) {
+    return { outcome: "none" };
+  }
+
+  if (data.length !== 1) {
+    console.error("Ambiguous active GetOblic listing claim lookup.");
+    return { outcome: "error" };
+  }
+
+  const claim = mapActiveGetOblicClaimRow(data[0]);
+  if (!claim) {
+    console.error("Malformed active GetOblic listing claim.");
+    return { outcome: "error" };
+  }
+
+  return claim;
+}
+
+function mapActiveGetOblicClaimRow(
+  data: unknown,
+): Extract<GetOblicActiveListingClaimLookup, { outcome: "found" }> | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return null;
+  }
   const row = data as Record<string, unknown>;
   const organizationId = readString(row.organization_id);
   const prospectId = readString(row.prospect_id);
@@ -164,11 +191,11 @@ export async function getActiveGetOblicClaimByWordPressListingId(
     !status ||
     !isActiveGetOblicRelationshipStatus(status)
   ) {
-    return { found: false };
+    return null;
   }
 
   return {
-    found: true,
+    outcome: "found",
     organization_id: organizationId,
     prospect_id: prospectId,
     relationship_status: status,
