@@ -1,9 +1,10 @@
 /**
- * Length-only normalization for two Evergreen strategy narrative strings.
- * Does not rewrite structured fields, and does not replace strict validation.
+ * Optional length-only shortening for two Evergreen strategy narrative strings.
+ * Evergreen generation no longer calls this helper. Validation keeps the
+ * original trimmed narrative. These caps remain prompt guidance only.
  */
 
-/** Established Evergreen strategy caps. Validation still rejects anything longer. */
+/** Prompt-guidance caps. Evergreen validation does not reject longer text. */
 export const EVERGREEN_STRATEGY_WEEKLY_OBJECTIVE_MAX_CHARS = 280;
 export const EVERGREEN_STRATEGY_CREATIVE_DIRECTION_MAX_CHARS = 400;
 

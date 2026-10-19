@@ -56,10 +56,6 @@ import {
   type SocialPlannerEvergreenFormat,
 } from "@/services/socialPlanner/socialPlannerDailyChannels";
 import {
-  EVERGREEN_STRATEGY_CREATIVE_DIRECTION_MAX_CHARS,
-  EVERGREEN_STRATEGY_WEEKLY_OBJECTIVE_MAX_CHARS,
-} from "@/services/socialPlanner/generation/normalizeEvergreenStrategyNarratives";
-import {
   SOCIAL_PLANNER_WEEKLY_STRATEGY_SCHEMA_VERSION,
 } from "@/services/socialPlanner/generation/socialPlannerWeeklyStrategyTypes";
 
@@ -150,15 +146,34 @@ function boundedString(
   return trimmed;
 }
 
-function jsonChars(value: unknown): number {
-  return JSON.stringify(value).length;
+/**
+ * Required or optional creative narrative. Trims surrounding whitespace and
+ * keeps the original wording. Does not apply an editorial character cap.
+ */
+function narrativeString(
+  value: unknown,
+  field: string,
+  failures: string[],
+  required = true,
+): string | null {
+  if (value == null || value === "") {
+    if (required) failures.push(`${field} is required.`);
+    return null;
+  }
+  if (typeof value !== "string") {
+    failures.push(`${field} must be a string.`);
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    if (required) failures.push(`${field} must not be empty.`);
+    return null;
+  }
+  return trimmed;
 }
 
-function countSentences(text: string): number {
-  return text
-    .split(/(?<=[.!?])\s+/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0).length;
+function jsonChars(value: unknown): number {
+  return JSON.stringify(value).length;
 }
 
 function isObjective(value: unknown): value is SocialPlannerObjective {
@@ -268,12 +283,7 @@ function parseSelectedAnchor(
   if (!(SOCIAL_CALENDAR_OPPORTUNITY_SCOPES as readonly string[]).includes(scope)) {
     failures.push(`${field}.scope is unsupported.`);
   }
-  const reason = boundedString(
-    raw.reason,
-    `${field}.reason`,
-    LIMITS.calendarReasonMaxChars,
-    failures,
-  );
+  const reason = narrativeString(raw.reason, `${field}.reason`, failures);
   return {
     sourceCandidateId,
     date: candidate.date,
@@ -434,45 +444,22 @@ function parseDay(
     );
   }
 
-  const title = boundedString(raw.title, `${field}.title`, LIMITS.titleMaxChars, failures);
-  const concept = boundedString(
-    raw.concept,
-    `${field}.concept`,
-    LIMITS.conceptMaxChars,
-    failures,
-  );
-  const draft = boundedString(
-    raw.draft,
-    `${field}.draft`,
-    LIMITS.draftMaxChars,
-    failures,
-  );
-  const topic = boundedString(raw.topic, `${field}.topic`, LIMITS.topicMaxChars, failures);
-  const angle = boundedString(raw.angle, `${field}.angle`, LIMITS.angleMaxChars, failures);
-  const audience = boundedString(
-    raw.audience,
-    `${field}.audience`,
-    LIMITS.audienceMaxChars,
-    failures,
-  );
-  const cta = boundedString(
-    raw.cta,
-    `${field}.cta`,
-    LIMITS.ctaMaxChars,
-    failures,
-    false,
-  );
-  const publishingGuidance = boundedString(
+  const title = narrativeString(raw.title, `${field}.title`, failures);
+  const concept = narrativeString(raw.concept, `${field}.concept`, failures);
+  const draft = narrativeString(raw.draft, `${field}.draft`, failures);
+  const topic = narrativeString(raw.topic, `${field}.topic`, failures);
+  const angle = narrativeString(raw.angle, `${field}.angle`, failures);
+  const audience = narrativeString(raw.audience, `${field}.audience`, failures);
+  const cta = narrativeString(raw.cta, `${field}.cta`, failures, false);
+  const publishingGuidance = narrativeString(
     raw.publishingGuidance,
     `${field}.publishingGuidance`,
-    LIMITS.publishingGuidanceMaxChars,
     failures,
     false,
   );
-  const calendarReason = boundedString(
+  const calendarReason = narrativeString(
     raw.calendarReason,
     `${field}.calendarReason`,
-    LIMITS.calendarReasonMaxChars,
     failures,
     false,
   );
@@ -698,17 +685,15 @@ export function validateSocialPlannerEvergreenWeeklyStrategy(
     },
   );
 
-  const weeklyObjective = boundedString(
+  const weeklyObjective = narrativeString(
     raw.weeklyObjective,
     "weeklyObjective",
-    EVERGREEN_STRATEGY_WEEKLY_OBJECTIVE_MAX_CHARS,
     failures,
   );
-  const narrativeArc = boundedString(raw.narrativeArc, "narrativeArc", 600, failures);
-  const creativeDirection = boundedString(
+  const narrativeArc = narrativeString(raw.narrativeArc, "narrativeArc", failures);
+  const creativeDirection = narrativeString(
     raw.creativeDirection,
     "creativeDirection",
-    EVERGREEN_STRATEGY_CREATIVE_DIRECTION_MAX_CHARS,
     failures,
   );
 
@@ -795,34 +780,16 @@ export function validateAndNormalizeSocialCalendarEvergreenPackage(input: {
     structural.push("Package must contain exactly seven Evergreen days.");
   }
 
-  const strategySummary = boundedString(
+  const strategySummary = narrativeString(
     raw.strategySummary,
     "strategySummary",
-    LIMITS.strategySummaryMaxChars,
     structural,
   );
-  const whyThisWeekWorks = boundedString(
+  const whyThisWeekWorks = narrativeString(
     raw.whyThisWeekWorks,
     "whyThisWeekWorks",
-    LIMITS.whyThisWeekWorksMaxChars,
     structural,
   );
-  if (whyThisWeekWorks) {
-    if (whyThisWeekWorks.length < LIMITS.whyThisWeekWorksMinChars) {
-      structural.push(
-        `whyThisWeekWorks must be at least ${LIMITS.whyThisWeekWorksMinChars} characters.`,
-      );
-    }
-    const sentences = countSentences(whyThisWeekWorks);
-    if (
-      sentences < LIMITS.whyThisWeekWorksMinSentences ||
-      sentences > LIMITS.whyThisWeekWorksMaxSentences
-    ) {
-      structural.push(
-        `whyThisWeekWorks must be ${LIMITS.whyThisWeekWorksMinSentences}-${LIMITS.whyThisWeekWorksMaxSentences} concise sentences.`,
-      );
-    }
-  }
 
   const days: SocialCalendarEvergreenDayV1[] = [];
   if (daysRaw) {

@@ -49,7 +49,6 @@ import {
   planEvergreenWeekFormats,
   type SocialPlannerEvergreenFormatAssignment,
 } from "@/services/socialPlanner/generation/socialPlannerEvergreenRotation";
-import { normalizeEvergreenStrategyNarrativeFields } from "@/services/socialPlanner/generation/normalizeEvergreenStrategyNarratives";
 import {
   validateAndNormalizeSocialCalendarEvergreenPackage,
   validateSocialPlannerEvergreenWeeklyStrategy,
@@ -269,7 +268,7 @@ export async function generateEvergreenSocialCalendarPackage(input: {
   let strategy;
   try {
     strategy = validateSocialPlannerEvergreenWeeklyStrategy(
-      normalizeEvergreenStrategyNarrativeFields(strategyRaw),
+      strategyRaw,
       context,
       assignedFormats,
     );

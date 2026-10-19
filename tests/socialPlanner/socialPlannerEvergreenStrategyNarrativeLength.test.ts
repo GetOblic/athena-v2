@@ -265,10 +265,13 @@ describe("Evergreen strategy narrative length", () => {
     assert.equal(strategy.weeklyObjective, shortened);
     assert.equal(strategy.creativeDirection, creativeDirection);
 
-    const direct = failuresFrom(() =>
-      validateSocialPlannerEvergreenWeeklyStrategy(raw, context, assigned),
+    const accepted = validateSocialPlannerEvergreenWeeklyStrategy(
+      raw,
+      context,
+      assigned,
     );
-    assert.deepEqual(direct, ["weeklyObjective exceeds 280 characters."]);
+    assert.equal(accepted.weeklyObjective, weeklyObjective);
+    assert.equal(accepted.creativeDirection, creativeDirection);
   });
 
   it("shortens an overlong creativeDirection at a word boundary when no substantial sentence fits", () => {
@@ -295,10 +298,13 @@ describe("Evergreen strategy narrative length", () => {
     );
     assert.equal(strategy.creativeDirection, shortened);
 
-    const direct = failuresFrom(() =>
-      validateSocialPlannerEvergreenWeeklyStrategy(raw, context, assigned),
+    const accepted = validateSocialPlannerEvergreenWeeklyStrategy(
+      raw,
+      context,
+      assigned,
     );
-    assert.deepEqual(direct, ["creativeDirection exceeds 400 characters."]);
+    assert.equal(accepted.weeklyObjective, weeklyObjective);
+    assert.equal(accepted.creativeDirection, creativeDirection);
   });
 
   it("shortens both narrative strings and does not rewrite the rest of the strategy", () => {
@@ -439,7 +445,10 @@ describe("Evergreen strategy narrative length", () => {
       false,
     );
     assert.ok(reported.includes("Evergreen strategy schemaVersion is unsupported."));
-    assert.ok(reported.includes("narrativeArc exceeds 600 characters."));
+    assert.equal(
+      reported.some((failure) => failure.includes("narrativeArc exceeds")),
+      false,
+    );
     assert.ok(
       reported.includes(
         `formatPlan[0].date must be ${context.calendarContext.period.dates[0]}.`,
@@ -512,24 +521,26 @@ describe("Evergreen strategy narrative length", () => {
     const normalized = normalizeEvergreenStrategyNarrativeFields(raw);
     assert.equal(normalized, raw);
     assert.equal(normalized.weeklyObjective, punctuationOnly);
-    assert.deepEqual(
-      failuresFrom(() =>
-        validateSocialPlannerEvergreenWeeklyStrategy(normalized, context, assigned),
-      ),
-      ["weeklyObjective exceeds 280 characters."],
+    const accepted = validateSocialPlannerEvergreenWeeklyStrategy(
+      normalized,
+      context,
+      assigned,
     );
+    assert.equal(accepted.weeklyObjective, punctuationOnly);
   });
 
-  it("leaves a spaceless overlong string unchanged so strict validation still rejects it", () => {
+  it("keeps a spaceless overlong weeklyObjective in full", () => {
     const weeklyObjective = "A".repeat(281);
     const raw = evergreenStrategyRaw(context, { weeklyObjective });
     const normalized = normalizeEvergreenStrategyNarrativeFields(raw);
     assert.equal(normalized, raw);
     assert.equal(normalized.weeklyObjective, weeklyObjective);
-    const reported = failuresFrom(() =>
-      validateSocialPlannerEvergreenWeeklyStrategy(normalized, context, assigned),
+    const accepted = validateSocialPlannerEvergreenWeeklyStrategy(
+      normalized,
+      context,
+      assigned,
     );
-    assert.deepEqual(reported, ["weeklyObjective exceeds 280 characters."]);
+    assert.equal(accepted.weeklyObjective, weeklyObjective);
   });
 
   it("accepts an otherwise valid overlong strategy through the Evergreen generator", async () => {
@@ -557,11 +568,11 @@ describe("Evergreen strategy narrative length", () => {
     });
     assert.equal(calls, 2);
     assert.equal(generated.package.plannerKind, "evergreen");
-    assert.equal(assetPrompt.includes("UNIQUE_WEEKLY_TAIL"), false);
-    assert.equal(assetPrompt.includes("UNIQUE_CREATIVE_TAIL"), false);
-    const normalized = normalizeEvergreenStrategyNarrativeFields(strategyRaw);
-    assert.equal(assetPrompt.includes(String(normalized.weeklyObjective)), true);
-    assert.equal(assetPrompt.includes(String(normalized.creativeDirection)), true);
+    assert.equal(generated.package.generationMetadata.repairUsed, false);
+    assert.equal(assetPrompt.includes(weeklyObjective), true);
+    assert.equal(assetPrompt.includes(creativeDirection), true);
+    assert.equal(assetPrompt.includes("UNIQUE_WEEKLY_TAIL"), true);
+    assert.equal(assetPrompt.includes("UNIQUE_CREATIVE_TAIL"), true);
   });
 
   it("still fails strategy generation when a narrative field is missing", async () => {
