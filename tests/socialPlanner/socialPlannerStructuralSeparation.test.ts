@@ -282,7 +282,7 @@ describe("Social Planner SP-4 structural separation", () => {
     assert.match(evergreenPrompts, /SOCIAL_PLANNER_EVERGREEN_STRATEGY_PROMPT_VERSION/);
     assert.equal(
       SOCIAL_PLANNER_EVERGREEN_STRATEGY_PROMPT_VERSION,
-      "social_planner_evergreen_strategy_v1",
+      "social_planner_evergreen_strategy_v2",
     );
     assert.match(
       evergreenPrompts,

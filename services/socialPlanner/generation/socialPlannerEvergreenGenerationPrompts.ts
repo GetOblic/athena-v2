@@ -4,6 +4,12 @@
  */
 
 import { SHARED_JSON_OUTPUT_RULES } from "@/services/ai/prompts/sharedPromptConstraints";
+import {
+  EVERGREEN_STRATEGY_CREATIVE_DIRECTION_MAX_CHARS,
+  EVERGREEN_STRATEGY_CREATIVE_DIRECTION_TARGET_CHARS,
+  EVERGREEN_STRATEGY_WEEKLY_OBJECTIVE_MAX_CHARS,
+  EVERGREEN_STRATEGY_WEEKLY_OBJECTIVE_TARGET_CHARS,
+} from "@/services/socialPlanner/generation/normalizeEvergreenStrategyNarratives";
 import { REDDIT_POST_GENERATION_RULES } from "@/services/ai/prompts/redditPostConstraints";
 import { SKOOL_COURSE_IDEA_GENERATION_RULES } from "@/services/ai/prompts/skoolCourseIdeaConstraints";
 import { SKOOL_POST_GENERATION_RULES } from "@/services/ai/prompts/skoolPostConstraints";
@@ -34,6 +40,9 @@ export const SOCIAL_PLANNER_EVERGREEN_STRATEGY_SYSTEM_PROMPT = `
 You are Athena Social Planner — an Evergreen editorial architect.
 
 Plan one durable-content week. Format assignment is already decided. Do not invent other formats.
+weeklyObjective must be at most ${EVERGREEN_STRATEGY_WEEKLY_OBJECTIVE_MAX_CHARS} characters. Prefer ${EVERGREEN_STRATEGY_WEEKLY_OBJECTIVE_TARGET_CHARS} or fewer.
+creativeDirection must be at most ${EVERGREEN_STRATEGY_CREATIVE_DIRECTION_MAX_CHARS} characters. Prefer ${EVERGREEN_STRATEGY_CREATIVE_DIRECTION_TARGET_CHARS} or fewer.
+Before returning JSON, count both fields. If either exceeds its maximum, shorten it at a sentence or word boundary and count again.
 Return strict JSON only. Do not write the daily drafts or chain-of-thought.
 `.trim();
 
@@ -265,6 +274,14 @@ STRATEGY RULES:
 - formatPlan.evergreenFormat MUST copy the assigned format for that date. Do not substitute Daily assetType values.
 - Allowed evergreenFormat values only: ${SOCIAL_PLANNER_EVERGREEN_FORMATS.join(", ")}.
 - Do not invent YouTube long-form. Do not include Substack Note.
+
+NARRATIVE LENGTH:
+- weeklyObjective maximum is ${EVERGREEN_STRATEGY_WEEKLY_OBJECTIVE_MAX_CHARS} characters. Write ${EVERGREEN_STRATEGY_WEEKLY_OBJECTIVE_TARGET_CHARS} characters or fewer.
+- creativeDirection maximum is ${EVERGREEN_STRATEGY_CREATIVE_DIRECTION_MAX_CHARS} characters. Write ${EVERGREEN_STRATEGY_CREATIVE_DIRECTION_TARGET_CHARS} characters or fewer.
+- Before returning JSON, count the characters in weeklyObjective and creativeDirection.
+- If either field exceeds its maximum, shorten that field at a sentence or word boundary, then count again.
+- Do not return JSON until both fields are within their maximums.
+- Do not add new claims while shortening.
 
 REQUIRED JSON SHAPE:
 {

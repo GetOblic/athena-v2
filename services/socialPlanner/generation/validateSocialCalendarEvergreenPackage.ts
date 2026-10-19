@@ -56,6 +56,10 @@ import {
   type SocialPlannerEvergreenFormat,
 } from "@/services/socialPlanner/socialPlannerDailyChannels";
 import {
+  EVERGREEN_STRATEGY_CREATIVE_DIRECTION_MAX_CHARS,
+  EVERGREEN_STRATEGY_WEEKLY_OBJECTIVE_MAX_CHARS,
+} from "@/services/socialPlanner/generation/normalizeEvergreenStrategyNarratives";
+import {
   SOCIAL_PLANNER_WEEKLY_STRATEGY_SCHEMA_VERSION,
 } from "@/services/socialPlanner/generation/socialPlannerWeeklyStrategyTypes";
 
@@ -697,14 +701,14 @@ export function validateSocialPlannerEvergreenWeeklyStrategy(
   const weeklyObjective = boundedString(
     raw.weeklyObjective,
     "weeklyObjective",
-    280,
+    EVERGREEN_STRATEGY_WEEKLY_OBJECTIVE_MAX_CHARS,
     failures,
   );
   const narrativeArc = boundedString(raw.narrativeArc, "narrativeArc", 600, failures);
   const creativeDirection = boundedString(
     raw.creativeDirection,
     "creativeDirection",
-    400,
+    EVERGREEN_STRATEGY_CREATIVE_DIRECTION_MAX_CHARS,
     failures,
   );
 

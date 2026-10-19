@@ -28,7 +28,7 @@ export const SOCIAL_PLANNER_EVERGREEN_REPAIR_PROMPT_VERSION =
   "social_planner_evergreen_repair_v1" as const;
 
 export const SOCIAL_PLANNER_EVERGREEN_STRATEGY_PROMPT_VERSION =
-  "social_planner_evergreen_strategy_v1" as const;
+  "social_planner_evergreen_strategy_v2" as const;
 
 export type SocialPlannerEvergreenFingerprint = {
   evergreenFormat: SocialPlannerEvergreenFormat;
