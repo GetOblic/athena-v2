@@ -329,13 +329,24 @@ export function mockEvergreenGenerationResponse(input: {
 }): string {
   if (input.stage.includes("strategy")) return JSON.stringify(input.strategy);
   const date = /ASSIGNED_DATE:\s*(\d{4}-\d{2}-\d{2})/.exec(input.prompt)?.[1];
-  const day = input.days.find((entry) => entry.date === date);
-  if (!day) {
-    throw new Error(
-      `Evergreen mock has no day for ${date ?? "missing ASSIGNED_DATE"}.`,
-    );
+  if (date) {
+    const day = input.days.find((entry) => entry.date === date);
+    if (!day) {
+      throw new Error(`Evergreen mock has no day for ${date}.`);
+    }
+    return JSON.stringify(day);
   }
-  return JSON.stringify(day);
+  const strategy =
+    input.strategy && typeof input.strategy === "object"
+      ? (input.strategy as { strategySummary?: unknown; whyThisWeekWorks?: unknown })
+      : {};
+  return JSON.stringify({
+    schemaVersion: "social_calendar_evergreen_package_v1",
+    plannerKind: "evergreen",
+    strategySummary: strategy.strategySummary,
+    whyThisWeekWorks: strategy.whyThisWeekWorks,
+    days: input.days,
+  });
 }
 
 export function testMetadata(

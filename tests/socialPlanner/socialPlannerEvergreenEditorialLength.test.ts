@@ -436,7 +436,7 @@ describe("Evergreen editorial length", () => {
     });
     assert.deepEqual(stages, [
       "socialPlanner.evergreen.strategy",
-      ...Array.from({ length: 7 }, () => "socialPlanner.evergreen.day"),
+      "socialPlanner.evergreen.assets",
     ]);
     assert.equal(generated.package.generationMetadata.repairUsed, false);
     assert.equal(
@@ -481,9 +481,8 @@ describe("Evergreen editorial length", () => {
     });
     assert.deepEqual(stages, [
       "socialPlanner.evergreen.strategy",
-      "socialPlanner.evergreen.day",
-      "socialPlanner.evergreen.day_repair",
-      ...Array.from({ length: 6 }, () => "socialPlanner.evergreen.day"),
+      "socialPlanner.evergreen.assets",
+      "socialPlanner.evergreen.repair",
     ]);
     assert.equal(generated.package.generationMetadata.repairUsed, true);
     assert.equal(generated.package.days[0].draft, repaired.days[0].draft);
@@ -722,7 +721,7 @@ describe("Evergreen editorial length", () => {
       });
       assert.deepEqual(stages, [
         "socialPlanner.evergreen.strategy",
-        ...Array.from({ length: 7 }, () => "socialPlanner.evergreen.day"),
+        "socialPlanner.evergreen.assets",
       ]);
       assert.equal(generated.package.generationMetadata.generationMode, generationMode);
       assert.equal(generated.package.generationMetadata.repairUsed, false);
@@ -864,6 +863,6 @@ describe("Evergreen editorial length", () => {
       assert.equal(error.stage, "repair_validation");
       assert.ok(error.failures.includes("days[0].title is required."));
     }
-    assert.equal(calls, 9);
+    assert.equal(calls, 3);
   });
 });

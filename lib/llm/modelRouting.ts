@@ -28,6 +28,9 @@ export type AthenaExtendedLLMStage =
   | "social_calendar_strategy"
   | "social_calendar_assets"
   | "social_calendar_repair"
+  | "social_calendar_evergreen_strategy"
+  | "social_calendar_evergreen_assets"
+  | "social_calendar_evergreen_repair"
   | "social_calendar_diversity_repair"
   | "social_calendar_think_differently_repair"
   | "social_calendar_conversation"
@@ -49,6 +52,24 @@ export type ResolvedModelRoute = {
 
 const DEFAULT_ANALYSIS_MODEL = "google/gemini-2.5-flash";
 const DEFAULT_PREMIUM_MODEL = "google/gemini-2.5-flash";
+
+/**
+ * Evergreen Social Planner only. OpenRouter id verified against the public
+ * model catalog. Daily Social Planner stays on the shared premium route.
+ * This model accepts response_format and structured_outputs. It does not
+ * accept temperature. Completion cap is 128000 tokens.
+ */
+export const EVERGREEN_SOCIAL_PLANNER_MODEL = "anthropic/claude-sonnet-5.5";
+
+const EVERGREEN_SOCIAL_PLANNER_STAGES = new Set<AthenaExtendedLLMStage>([
+  "social_calendar_evergreen_strategy",
+  "social_calendar_evergreen_assets",
+  "social_calendar_evergreen_repair",
+]);
+
+export function openRouterModelAcceptsTemperature(model: string): boolean {
+  return model.trim() !== EVERGREEN_SOCIAL_PLANNER_MODEL;
+}
 
 /** Fallback for calls without an explicit Athena stage (legacy / unspecified). */
 export function resolveOpenRouterFallbackModel(): string {
@@ -123,6 +144,10 @@ const EXTENDED_STAGE_ROLE: Record<
   social_calendar_strategy: "premiumStrategicOutput",
   social_calendar_assets: "premiumStrategicOutput",
   social_calendar_repair: "analysis",
+  // Evergreen-only. Daily strategy, assets, and repair stay on the mappings above.
+  social_calendar_evergreen_strategy: "premiumStrategicOutput",
+  social_calendar_evergreen_assets: "premiumStrategicOutput",
+  social_calendar_evergreen_repair: "premiumStrategicOutput",
   // Organization-level Social Planner (V29 L5) — additive; does not alter existing stage mappings.
   social_calendar_diversity_repair: "analysis",
   // Organization-level Social Planner (V29 L8) — additive; does not alter existing stage mappings.
@@ -186,11 +211,14 @@ export function resolveModelForStage(
     stage === "strategic_blueprint"
       ? process.env.OPENROUTER_STRATEGIC_BLUEPRINT_MODEL?.trim() || ""
       : "";
+  const evergreenModel = EVERGREEN_SOCIAL_PLANNER_STAGES.has(stage)
+    ? EVERGREEN_SOCIAL_PLANNER_MODEL
+    : "";
 
   return {
     stage,
     role,
-    model: strategicBlueprintModel || config.model,
+    model: evergreenModel || strategicBlueprintModel || config.model,
     reasoningEffort: config.reasoningEffort,
   };
 }

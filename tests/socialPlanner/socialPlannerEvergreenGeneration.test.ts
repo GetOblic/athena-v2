@@ -199,7 +199,7 @@ describe("Social Planner Evergreen generation dispatch", () => {
     assert.equal(result.package.schemaVersion, SOCIAL_CALENDAR_EVERGREEN_PACKAGE_SCHEMA_VERSION);
     assert.equal("days" in result.package, true);
     assert.equal("assets" in result.package, false);
-    assert.equal(dailyCalls, 8);
+    assert.equal(dailyCalls, 2);
   });
 
   it("direct Evergreen generator produces assigned formats and rejects Daily leakage in source", async () => {
@@ -338,16 +338,14 @@ describe("Social Planner Evergreen generation dispatch", () => {
       context,
       userGuidance: null,
       strategy,
-      assignment: assigned[0],
-      dayIndex: 0,
+      assignedFormats: assigned,
     });
     const repairPrompt = buildEvergreenRepairPrompt({
       context,
       userGuidance: null,
       strategy,
-      assignment: assigned[0],
-      dayIndex: 0,
-      invalidDay: evergreenPackageWith36e3ecbeSourceSignals(context).days[0],
+      assignedFormats: assigned,
+      invalidPackage: evergreenPackageWith36e3ecbeSourceSignals(context),
       failures: [...CALENDAR_36E3ECBE_SOURCE_SIGNAL_FAILURES],
     });
     assert.match(draftPrompt, /sourceSignals\.type:/);

@@ -24,6 +24,10 @@ import {
   buildEvergreenDraftPrompt,
   buildEvergreenStrategyPrompt,
 } from "../../services/socialPlanner/generation/socialPlannerEvergreenGenerationPrompts";
+import {
+  EVERGREEN_SOCIAL_PLANNER_MODEL,
+  resolveModelForStage,
+} from "../../lib/llm/modelRouting";
 import { planEvergreenWeekFormats } from "../../services/socialPlanner/generation/socialPlannerEvergreenRotation";
 import {
   SOCIAL_PLANNER_EVERGREEN_WEEKLY_STRATEGY_SCHEMA_VERSION,
@@ -184,8 +188,8 @@ function oneDateRevision(
   };
 }
 
-describe("Evergreen per-day generation", () => {
-  it("uses one strategy call and seven day calls, then assembles the persisted package", async () => {
+describe("Evergreen weekly generation", () => {
+  it("uses one strategy call and one weekly asset call, then persists seven drafts", async () => {
     const context = buildGenerationContext();
     const assigned = planEvergreenWeekFormats(context.calendarContext.period.dates);
     const packageRaw = evergreenPackageRaw(context);
@@ -219,7 +223,7 @@ describe("Evergreen per-day generation", () => {
 
     assert.deepEqual(stages, [
       "socialPlanner.evergreen.strategy",
-      ...Array.from({ length: 7 }, () => "socialPlanner.evergreen.day"),
+      "socialPlanner.evergreen.assets",
     ]);
     assert.equal(generated.package.generationMetadata.repairUsed, false);
     assert.equal(
@@ -230,16 +234,18 @@ describe("Evergreen per-day generation", () => {
     assert.equal(
       generated.package.generationMetadata.stages.filter((stage) => stage.pass === "assets")
         .length,
-      7,
+      1,
     );
     assert.equal(
       generated.package.generationMetadata.stages[0]?.athenaStage,
-      "social_calendar_strategy",
+      "social_calendar_evergreen_strategy",
     );
     assert.equal(
       generated.package.generationMetadata.stages[1]?.athenaStage,
-      "social_calendar_assets",
+      "social_calendar_evergreen_assets",
     );
+    assert.equal(generated.package.generationMetadata.stages[0]?.model, EVERGREEN_SOCIAL_PLANNER_MODEL);
+    assert.equal(generated.package.generationMetadata.stages[1]?.model, EVERGREEN_SOCIAL_PLANNER_MODEL);
     assert.equal(generated.package.generationMetadata.stages[1]?.role, "premiumStrategicOutput");
     assert.equal(generated.package.days.length, 7);
     assert.deepEqual(
@@ -287,7 +293,7 @@ describe("Evergreen per-day generation", () => {
     assert.doesNotMatch(prompt, /"evergreenFormat": string/);
   });
 
-  it("injects only the selected format as JSON field requirements", () => {
+  it("writes every assigned format into one JSON package without plain-text asset headings", () => {
     const context = buildGenerationContext();
     const assigned = planEvergreenWeekFormats(context.calendarContext.period.dates);
     const strategy = validateSocialPlannerEvergreenWeeklyStrategy(
@@ -295,39 +301,36 @@ describe("Evergreen per-day generation", () => {
       context,
       assigned,
     );
-    const reddit = assigned.find((entry) => entry.evergreenFormat === "reddit_post");
-    const course = assigned.find((entry) => entry.evergreenFormat === "skool_course_idea");
-    assert.ok(reddit);
-    assert.ok(course);
-    const redditPrompt = buildEvergreenDraftPrompt({
+    const prompt = buildEvergreenDraftPrompt({
       context,
       userGuidance: null,
       strategy,
-      assignment: reddit,
-      dayIndex: assigned.indexOf(reddit),
+      assignedFormats: assigned,
     });
-    const coursePrompt = buildEvergreenDraftPrompt({
-      context,
-      userGuidance: null,
-      strategy,
-      assignment: course,
-      dayIndex: assigned.indexOf(course),
-    });
-    assert.match(redditPrompt, /Reddit-native/);
-    assert.doesNotMatch(redditPrompt, /learner outcome/);
-    assert.match(coursePrompt, /learner outcome/);
-    assert.doesNotMatch(coursePrompt, /Reddit-native/);
-    assert.match(redditPrompt, /"draft": string/);
-    assert.doesNotMatch(redditPrompt, /REDDIT_POST:/);
-    assert.doesNotMatch(redditPrompt, /SUBSTACK_POST:/);
-    assert.doesNotMatch(redditPrompt, /Return ONLY plain text/);
-    assert.doesNotMatch(coursePrompt, /SKOOL_COURSE_IDEA:/);
-    assert.doesNotMatch(redditPrompt, /Hidden Dental Group LLC/);
-    assert.doesNotMatch(redditPrompt, /prospect-secret/);
-    assert.match(redditPrompt, /Harbor Clinic/);
+    assert.match(prompt, /social_calendar_evergreen_package_v1/);
+    assert.match(prompt, /exactly seven Evergreen drafts/);
+    assert.match(prompt, /Reddit-native/);
+    assert.match(prompt, /learner outcome/);
+    assert.match(prompt, /"draft": string/);
+    assert.match(prompt, /Return ONLY valid JSON/);
+    for (const assignment of assigned) {
+      assert.match(prompt, new RegExp(`"date": "${assignment.date}"`));
+      assert.match(
+        prompt,
+        new RegExp(`"evergreenFormat": "${assignment.evergreenFormat}"`),
+      );
+    }
+    assert.doesNotMatch(prompt, /REDDIT_POST:/);
+    assert.doesNotMatch(prompt, /SUBSTACK_POST:/);
+    assert.doesNotMatch(prompt, /SKOOL_COURSE_IDEA:/);
+    assert.doesNotMatch(prompt, /Return ONLY plain text/);
+    assert.doesNotMatch(prompt, /Return one JSON object for that day/);
+    assert.doesNotMatch(prompt, /Hidden Dental Group LLC/);
+    assert.doesNotMatch(prompt, /prospect-secret/);
+    assert.match(prompt, /Harbor Clinic/);
   });
 
-  it("repairs one structurally invalid day and leaves the other drafts out of that call", async () => {
+  it("repairs one structurally invalid weekly package and preserves the other drafts", async () => {
     const context = buildGenerationContext();
     const valid = evergreenPackageRaw(context);
     const invalid = evergreenPackageRaw(context);
@@ -355,11 +358,15 @@ describe("Evergreen per-day generation", () => {
         },
       },
     });
-    assert.equal(stages.filter((stage) => stage.includes("day_repair")).length, 1);
-    assert.equal(stages.includes("socialPlanner.evergreen.repair"), false);
-    assert.match(repairPrompt, new RegExp(`ASSIGNED_DATE: ${context.calendarContext.period.dates[0]}`));
-    assert.doesNotMatch(repairPrompt, /UNIQUE_OTHER_DAY_TITLE/);
-    assert.doesNotMatch(repairPrompt, /UNIQUE_OTHER_DAY_DRAFT/);
+    assert.deepEqual(stages, [
+      "socialPlanner.evergreen.strategy",
+      "socialPlanner.evergreen.assets",
+      "socialPlanner.evergreen.repair",
+    ]);
+    assert.match(repairPrompt, /social_calendar_evergreen_package_v1/);
+    assert.match(repairPrompt, /days\[0\]\.draft is required/);
+    assert.doesNotMatch(repairPrompt, /ASSIGNED_DATE:/);
+    assert.doesNotMatch(repairPrompt, /Return ONLY plain text/);
     assert.equal(generated.package.generationMetadata.repairUsed, true);
     assert.equal(generated.package.days[0].draft, valid.days[0].draft);
     assert.equal(generated.package.days[6].title, "UNIQUE_OTHER_DAY_TITLE");
@@ -369,10 +376,12 @@ describe("Evergreen per-day generation", () => {
         .length,
       1,
     );
-    assert.equal(
-      generated.package.generationMetadata.stages.find((stage) => stage.pass === "repair")?.role,
-      "analysis",
+    const repairStage = generated.package.generationMetadata.stages.find(
+      (stage) => stage.pass === "repair",
     );
+    assert.equal(repairStage?.role, "premiumStrategicOutput");
+    assert.equal(repairStage?.model, EVERGREEN_SOCIAL_PLANNER_MODEL);
+    assert.equal(repairStage?.athenaStage, "social_calendar_evergreen_repair");
   });
 
   it("does not repair an editorially long day", async () => {
@@ -403,7 +412,10 @@ describe("Evergreen per-day generation", () => {
         },
       },
     });
-    assert.equal(stages.some((stage) => stage.includes("repair")), false);
+    assert.deepEqual(stages, [
+      "socialPlanner.evergreen.strategy",
+      "socialPlanner.evergreen.assets",
+    ]);
     assert.equal(generated.package.generationMetadata.repairUsed, false);
     assert.equal(generated.package.days[6].title, longTitle.trim());
     assert.equal(generated.package.days[6].draft, longDraft.trim());
@@ -411,6 +423,44 @@ describe("Evergreen per-day generation", () => {
       generated.package.days[6].calendarReason,
       String(packageRaw.days[6].calendarReason).trim(),
     );
+  });
+
+  it("does not spend a repair call on a JSON size budget failure", async () => {
+    const context = buildGenerationContext();
+    const packageRaw = evergreenPackageRaw(context);
+    packageRaw.days[3].draft = `${proseDraft("Budget")} ${"Parents keep the written reminder. ".repeat(800)}`;
+    assert.ok(JSON.stringify(packageRaw.days[3]).length > 16_000);
+    const stages: string[] = [];
+    try {
+      await generateEvergreenSocialCalendarPackage({
+        context,
+        generationMode: "standard",
+        deps: {
+          generateReview: async (prompt, options) => {
+            const stage = String(options?.stage ?? "");
+            stages.push(stage);
+            return mockEvergreenGenerationResponse({
+              prompt,
+              stage,
+              strategy: evergreenStrategyRaw(context),
+              days: packageRaw.days,
+            });
+          },
+        },
+      });
+      assert.fail("expected PACKAGE_VALIDATION_FAILED");
+    } catch (error) {
+      assert.ok(error instanceof SocialPlannerGenerationError);
+      assert.equal(error.code, "PACKAGE_VALIDATION_FAILED");
+      assert.equal(error.stage, "validation");
+      assert.ok(
+        error.failures.some((failure) => /exceeds the 16000 character budget/.test(failure)),
+      );
+    }
+    assert.deepEqual(stages, [
+      "socialPlanner.evergreen.strategy",
+      "socialPlanner.evergreen.assets",
+    ]);
   });
 
   it("rejects a bad anchor, a foreign geography, and a Prospect name", () => {
@@ -501,7 +551,7 @@ describe("Evergreen per-day generation", () => {
     );
   });
 
-  it("repairs a Prospect leak on one day only", async () => {
+  it("repairs a Prospect leak in one weekly repair and keeps the other drafts", async () => {
     const context = buildGenerationContext();
     const valid = evergreenPackageRaw(context);
     const invalid = evergreenPackageRaw(context);
@@ -525,8 +575,8 @@ describe("Evergreen per-day generation", () => {
         },
       },
     });
-    assert.match(repairPrompt, /ASSIGNED_DATE: /);
-    assert.doesNotMatch(repairPrompt, /UNIQUE_CLEAN_DAY/);
+    assert.match(repairPrompt, /social_calendar_evergreen_package_v1/);
+    assert.match(repairPrompt, /Hidden Dental Group LLC/);
     assert.equal(generated.package.generationMetadata.repairUsed, true);
     assert.equal(
       generated.package.generationMetadata.stages.filter((stage) => stage.pass === "repair")
@@ -550,6 +600,7 @@ describe("Evergreen per-day generation", () => {
           ? courseDraft(`Different ${index + 1}`)
           : proseDraft(`Different ${index + 1}`),
     }));
+    const stages: string[] = [];
     let sawAddendum = false;
     const generated = await generateEvergreenSocialCalendarPackage({
       context,
@@ -558,9 +609,13 @@ describe("Evergreen per-day generation", () => {
       deps: {
         generateReview: async (prompt, options) => {
           const stage = String(options?.stage ?? "");
-          if (prompt.startsWith(`ASSIGNED_DATE: ${revised.days[0].date}`)) {
+          stages.push(stage);
+          if (stage === "socialPlanner.evergreen.assets") {
             sawAddendum = prompt.includes("THINK DIFFERENTLY");
-            assert.match(prompt, new RegExp(`ASSIGNED_FORMAT: ${revised.days[0].evergreenFormat}`));
+            assert.match(
+              prompt,
+              new RegExp(`"evergreenFormat": "${revised.days[0].evergreenFormat}"`),
+            );
           }
           return mockEvergreenGenerationResponse({
             prompt,
@@ -571,6 +626,10 @@ describe("Evergreen per-day generation", () => {
         },
       },
     });
+    assert.deepEqual(stages, [
+      "socialPlanner.evergreen.strategy",
+      "socialPlanner.evergreen.assets",
+    ]);
     assert.equal(sawAddendum, true);
     assert.deepEqual(
       generated.package.days.map((day) => day.evergreenFormat),
@@ -623,6 +682,14 @@ describe("Evergreen per-day generation", () => {
       },
     });
     assert.deepEqual(stages, ["socialPlanner.evergreen.day"]);
+    assert.equal(
+      generated.package.generationMetadata.stages[0]?.model,
+      EVERGREEN_SOCIAL_PLANNER_MODEL,
+    );
+    assert.equal(
+      generated.package.generationMetadata.stages[0]?.athenaStage,
+      "social_calendar_evergreen_assets",
+    );
     assert.equal(generated.package.days[3].title, "Revised Thursday title");
     assert.ok(generated.package.days[3].draft.includes("UNIQUE_REVISED_DAY"));
     for (const [index, day] of generated.package.days.entries()) {
@@ -666,5 +733,29 @@ describe("Evergreen per-day generation", () => {
     assert.equal(result.package.schemaVersion, SOCIAL_CALENDAR_PACKAGE_SCHEMA_VERSION);
     assert.equal(result.package.assets.length, 7);
     assert.equal("days" in result.package, false);
+    assert.equal(
+      result.package.generationMetadata.stages[0]?.athenaStage,
+      "social_calendar_strategy",
+    );
+    assert.equal(
+      result.package.generationMetadata.stages[1]?.athenaStage,
+      "social_calendar_assets",
+    );
+    assert.equal(
+      result.package.generationMetadata.stages[0]?.model,
+      resolveModelForStage("social_calendar_strategy").model,
+    );
+    assert.equal(
+      result.package.generationMetadata.stages[1]?.model,
+      resolveModelForStage("social_calendar_assets").model,
+    );
+    assert.match(daily, /const STRATEGY_STAGE = "social_calendar_strategy"/);
+    assert.match(daily, /const ASSET_STAGE = "social_calendar_assets"/);
+    assert.match(daily, /const REPAIR_STAGE = "social_calendar_repair"/);
+    assert.doesNotMatch(daily, /social_calendar_evergreen_/);
+    assert.equal(
+      resolveModelForStage("social_calendar_evergreen_assets").model,
+      EVERGREEN_SOCIAL_PLANNER_MODEL,
+    );
   });
 });

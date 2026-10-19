@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  EVERGREEN_SOCIAL_PLANNER_MODEL,
   getLLMModelRoles,
   resolveAthenaStageFromGenerationKind,
   resolveModelForStage,
@@ -47,6 +48,12 @@ const PREMIUM_STAGES = [
   "social_calendar_strategy",
   "social_calendar_assets",
   "social_calendar_conversation_revision",
+] as const;
+
+const EVERGREEN_STAGES = [
+  "social_calendar_evergreen_strategy",
+  "social_calendar_evergreen_assets",
+  "social_calendar_evergreen_repair",
 ] as const;
 
 const ROUTING_OVERRIDE_KEYS = [
@@ -174,6 +181,39 @@ withoutRoutingOverrides(() => {
     } else {
       pass(`${stage} defaults to ${route.model}`);
     }
+  }
+
+  for (const stage of EVERGREEN_STAGES) {
+    const route = resolveModelForStage(stage);
+    if (route.role !== "premiumStrategicOutput") {
+      fail(`${stage} must use premiumStrategicOutput role`);
+    } else if (route.model !== EVERGREEN_SOCIAL_PLANNER_MODEL) {
+      fail(
+        `${stage} must use ${EVERGREEN_SOCIAL_PLANNER_MODEL}, got ${route.model}`,
+      );
+    } else {
+      pass(`${stage} uses ${route.model}`);
+    }
+  }
+
+  process.env.OPENROUTER_PREMIUM_MODEL = DEFAULT_PREMIUM_MODEL;
+  process.env.OPENROUTER_MODEL = DEFAULT_PREMIUM_MODEL;
+  for (const stage of EVERGREEN_STAGES) {
+    const route = resolveModelForStage(stage);
+    if (route.model !== EVERGREEN_SOCIAL_PLANNER_MODEL) {
+      fail(`${stage} followed Gemini instead of ${EVERGREEN_SOCIAL_PLANNER_MODEL}`);
+    }
+  }
+  if (
+    resolveModelForStage("social_calendar_strategy").model ===
+      DEFAULT_PREMIUM_MODEL &&
+    resolveModelForStage("social_calendar_assets").model ===
+      DEFAULT_PREMIUM_MODEL &&
+    resolveModelForStage("discussion_analysis").model === DEFAULT_ANALYSIS_MODEL
+  ) {
+    pass("Evergreen Sonnet routing does not replace Daily or analysis models");
+  } else {
+    fail("Evergreen routing changed Daily Social Planner or analysis models");
   }
 });
 

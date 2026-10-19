@@ -1,6 +1,6 @@
 /**
  * Evergreen Social Planner prompt contracts.
- * Format assignment is injected. The model writes the draft for that format.
+ * Format assignment is injected. The weekly asset call writes all seven drafts.
  * Output instructions are JSON fields. Plain-text asset contracts stay out.
  */
 
@@ -19,19 +19,18 @@ import {
   SOCIAL_PLANNER_SOURCE_SIGNAL_TYPES,
 } from "@/services/socialPlanner/generation/socialCalendarPackageTypes";
 import {
+  SOCIAL_CALENDAR_EVERGREEN_PACKAGE_SCHEMA_VERSION,
   SOCIAL_PLANNER_EVERGREEN_DRAFT_MIN_CHARS,
   SOCIAL_PLANNER_EVERGREEN_PROMPT_VERSION,
   SOCIAL_PLANNER_EVERGREEN_REPAIR_PROMPT_VERSION,
   SOCIAL_PLANNER_EVERGREEN_STRATEGY_PROMPT_VERSION,
+  type SocialCalendarEvergreenDayV1,
+  type SocialCalendarEvergreenPackageV1,
 } from "@/services/socialPlanner/generation/socialCalendarEvergreenPackageTypes";
 import { SOCIAL_PLANNER_EVERGREEN_WEEKLY_STRATEGY_SCHEMA_VERSION } from "@/services/socialPlanner/generation/validateSocialCalendarEvergreenPackage";
 import type { SocialPlannerEvergreenWeeklyStrategyV1 } from "@/services/socialPlanner/generation/validateSocialCalendarEvergreenPackage";
 import type { SocialPlannerEvergreenFormat } from "@/services/socialPlanner/socialPlannerDailyChannels";
 import type { SocialPlannerEvergreenFormatAssignment } from "@/services/socialPlanner/generation/socialPlannerEvergreenRotation";
-import type {
-  SocialCalendarEvergreenDayV1,
-  SocialCalendarEvergreenPackageV1,
-} from "@/services/socialPlanner/generation/socialCalendarEvergreenPackageTypes";
 
 export const SOCIAL_PLANNER_EVERGREEN_STRATEGY_SYSTEM_PROMPT = `
 You are Athena Social Planner — an Evergreen editorial architect.
@@ -47,12 +46,31 @@ Return strict JSON only.
 export const SOCIAL_PLANNER_EVERGREEN_DRAFT_SYSTEM_PROMPT = `
 You are Athena Social Planner — an Evergreen draft producer.
 
+Write one usable native draft for every supplied calendar date and assigned format.
+Return one JSON package containing all seven days.
+Do not invent calendar events, prices, statistics, or credentials.
+Return strict JSON only.
+`.trim();
+
+export const SOCIAL_PLANNER_EVERGREEN_REPAIR_SYSTEM_PROMPT = `
+You are Athena Social Planner — a bounded Evergreen repair editor.
+
+Return the complete corrected weekly JSON package.
+Preserve the assigned evergreenFormat for every date.
+Fixing one field must not break another validator requirement.
+Preserve meaningful draft text that is not itself the validation failure.
+Return strict JSON only.
+`.trim();
+
+export const SOCIAL_PLANNER_EVERGREEN_DAY_DRAFT_SYSTEM_PROMPT = `
+You are Athena Social Planner — an Evergreen draft producer.
+
 Write one usable native draft for the supplied calendar date and assigned format.
 Return one JSON object for that day. Do not return the other days of the week.
 Do not invent calendar events, prices, statistics, or credentials.
 `.trim();
 
-export const SOCIAL_PLANNER_EVERGREEN_REPAIR_SYSTEM_PROMPT = `
+export const SOCIAL_PLANNER_EVERGREEN_DAY_REPAIR_SYSTEM_PROMPT = `
 You are Athena Social Planner — a bounded Evergreen repair editor.
 
 Return one corrected JSON object for this single day.
@@ -278,8 +296,13 @@ ${context.primaryTargetAudience ? "- Keep the selected primary Audience as the t
 `.trim();
 }
 
-function formatFieldRequirements(format: SocialPlannerEvergreenFormat): string {
+function formatFieldRequirements(
+  format: SocialPlannerEvergreenFormat,
+  scope: "day" | "week" = "day",
+): string {
   const minimum = SOCIAL_PLANNER_EVERGREEN_DRAFT_MIN_CHARS[format];
+  const anchorDate =
+    scope === "week" ? "that day's date" : "this day";
   const shared = `
 JSON FIELD REQUIREMENTS FOR ${format}:
 - evergreenFormat must be "${format}". This value is assigned. Do not choose another format.
@@ -287,9 +310,10 @@ JSON FIELD REQUIREMENTS FOR ${format}:
 - draft is the usable content for this format. Not socialCopy. Not recommendedPlatforms.
 - draft must be the working draft itself, not an outline or a list of suggestions.
 - draft must be a usable ${format} draft of at least ${minimum} characters.
+- Keep the full draft text. Do not stop early to satisfy an arbitrary character cap.
 - cta and publishingGuidance are strings or null.
 - personaIds lists authorized Audience ids only.
-- calendarAnchors lists only supplied opportunities whose date is this day, or [].
+- calendarAnchors lists only supplied opportunities whose date is ${anchorDate}, or [].
 - calendarReason is a string or null.
 - sourceSignals is an array. Use [] when none apply.
 `.trim();
@@ -446,7 +470,187 @@ ${SHARED_JSON_OUTPUT_RULES}
 `.trim();
 }
 
+function seenFormats(
+  assignments: readonly SocialPlannerEvergreenFormatAssignment[],
+): SocialPlannerEvergreenFormat[] {
+  const seen: SocialPlannerEvergreenFormat[] = [];
+  for (const assignment of assignments) {
+    if (!seen.includes(assignment.evergreenFormat)) {
+      seen.push(assignment.evergreenFormat);
+    }
+  }
+  return seen;
+}
+
+function weeklyFormatRequirements(
+  assignments: readonly SocialPlannerEvergreenFormatAssignment[],
+): string {
+  return seenFormats(assignments)
+    .map((format) => formatFieldRequirements(format, "week"))
+    .join("\n\n");
+}
+
+function weeklyPackageJsonShape(
+  assignments: readonly SocialPlannerEvergreenFormatAssignment[],
+): string {
+  const days = assignments
+    .map(
+      (assignment) => `    {
+      "date": "${assignment.date}",
+      "evergreenFormat": "${assignment.evergreenFormat}",
+      "title": string,
+      "concept": string,
+      "draft": string,
+      "cta": string|null,
+      "publishingGuidance": string|null,
+      "audience": string,
+      "personaIds": string[],
+      "topic": string,
+      "angle": string,
+      "contentArchetype": string,
+      "primaryObjective": string,
+      "calendarAnchors": [],
+      "calendarReason": string|null,
+      "sourceSignals": [{"type": string, "id": string|null}]
+    }`,
+    )
+    .join(",\n");
+  return `
+REQUIRED JSON OBJECT:
+{
+  "schemaVersion": "${SOCIAL_CALENDAR_EVERGREEN_PACKAGE_SCHEMA_VERSION}",
+  "plannerKind": "evergreen",
+  "strategySummary": string,
+  "whyThisWeekWorks": string,
+  "days": [
+${days}
+  ]
+}
+
+Allowed contentArchetype values: ${SOCIAL_PLANNER_CONTENT_ARCHETYPES.join(", ")}
+Allowed primaryObjective values: ${SOCIAL_PLANNER_OBJECTIVES.join(", ")}
+`.trim();
+}
+
 export function buildEvergreenDraftPrompt(input: {
+  context: SocialPlannerGenerationContextV1;
+  userGuidance: string | null;
+  strategy: SocialPlannerEvergreenWeeklyStrategyV1;
+  assignedFormats: readonly SocialPlannerEvergreenFormatAssignment[];
+  socialMemoryText?: string | null;
+  thinkDifferentlyText?: string | null;
+}): string {
+  const dates = input.context.calendarContext.period.dates;
+  const extras = [
+    input.thinkDifferentlyText?.trim(),
+    input.socialMemoryText?.trim(),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  return `
+OBJECTIVE:
+Generate exactly seven Evergreen drafts as one weekly JSON package. Formats are already assigned.
+
+PROMPT VERSION:
+${SOCIAL_PLANNER_EVERGREEN_PROMPT_VERSION}
+
+${trustedContextBlock(input.context)}
+
+=== CALENDAR FACTS (AUTHORITATIVE DATES AND CANDIDATES) ===
+${calendarFactsBlock(input.context)}
+
+=== ALREADY ASSIGNED FORMATS (AUTHORITATIVE; DO NOT REPLACE) ===
+${JSON.stringify(input.assignedFormats, null, 2)}
+
+=== WEEKLY STRATEGY (CONTEXT) ===
+${JSON.stringify(input.strategy, null, 2)}
+
+${trendSocialBlock(input.context)}
+${userGuidanceBlock(input.userGuidance)}
+${extras ? `\n${extras}\n` : ""}
+${integrityRules(input.context)}
+
+${weeklyFormatRequirements(input.assignedFormats)}
+
+PACKAGE RULES:
+- Return one JSON object. days contains exactly seven objects, in this order: ${dates.join(", ")}.
+- Each day's date and evergreenFormat must match the assigned format for that date.
+- Reconstruct each weekday from Calendar Facts. Do not invent dates.
+- strategySummary and whyThisWeekWorks describe the week. They are not substitutes for the drafts.
+- days[].draft is the usable content. Not socialCopy. Not recommendedPlatforms. Not Daily productionSpec.
+- Keep the full draft text. Do not stop early to satisfy an arbitrary character cap.
+- Do not rewrite a title or draft into a shorter substitute.
+
+${weeklyPackageJsonShape(input.assignedFormats)}
+
+${sourceSignalContract()}
+
+${SHARED_JSON_OUTPUT_RULES}
+`.trim();
+}
+
+export function buildEvergreenRepairPrompt(input: {
+  context: SocialPlannerGenerationContextV1;
+  userGuidance: string | null;
+  strategy: SocialPlannerEvergreenWeeklyStrategyV1;
+  assignedFormats: readonly SocialPlannerEvergreenFormatAssignment[];
+  invalidPackage: Record<string, unknown>;
+  failures: string[];
+  socialMemoryText?: string | null;
+  thinkDifferentlyText?: string | null;
+}): string {
+  const extras = [
+    input.thinkDifferentlyText?.trim(),
+    input.socialMemoryText?.trim(),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  return `
+OBJECTIVE:
+Repair the Evergreen weekly JSON package. Keep every assigned format. Return all seven days.
+
+PROMPT VERSION:
+${SOCIAL_PLANNER_EVERGREEN_REPAIR_PROMPT_VERSION}
+
+${trustedContextBlock(input.context)}
+
+=== CALENDAR FACTS (AUTHORITATIVE DATES AND CANDIDATES) ===
+${calendarFactsBlock(input.context)}
+
+=== ALREADY ASSIGNED FORMATS ===
+${JSON.stringify(input.assignedFormats, null, 2)}
+
+${userGuidanceBlock(input.userGuidance)}
+${extras ? `\n${extras}\n` : ""}
+
+=== VALIDATION FAILURES ===
+${JSON.stringify(input.failures, null, 2)}
+
+=== INVALID PACKAGE ===
+${JSON.stringify(input.invalidPackage)}
+
+=== WEEKLY STRATEGY ===
+${JSON.stringify(input.strategy)}
+
+${weeklyFormatRequirements(input.assignedFormats)}
+${integrityRules(input.context)}
+
+REPAIR RULES:
+- Return the complete package. schemaVersion is ${SOCIAL_CALENDAR_EVERGREEN_PACKAGE_SCHEMA_VERSION}. Use days[], not assets[].
+- Fix the listed structural failures. Preserve meaningful title, concept, and draft text that is not the failure.
+- Do not shorten copy to satisfy a character preference.
+- If a required field is missing or invalid, write that field from the supplied context. Do not leave a required draft empty and do not drop the other days.
+- evergreenFormat for each date must remain the assigned format.
+
+${weeklyPackageJsonShape(input.assignedFormats)}
+
+${sourceSignalContract()}
+
+${SHARED_JSON_OUTPUT_RULES}
+`.trim();
+}
+
+export function buildEvergreenDayDraftPrompt(input: {
   context: SocialPlannerGenerationContextV1;
   userGuidance: string | null;
   strategy: SocialPlannerEvergreenWeeklyStrategyV1;
@@ -506,7 +710,7 @@ ${SHARED_JSON_OUTPUT_RULES}
 `.trim();
 }
 
-export function buildEvergreenRepairPrompt(input: {
+export function buildEvergreenDayRepairPrompt(input: {
   context: SocialPlannerGenerationContextV1;
   userGuidance: string | null;
   strategy: SocialPlannerEvergreenWeeklyStrategyV1;

@@ -1,7 +1,8 @@
 /**
  * Evergreen Social Planner generation pipeline.
- * One weekly strategy call, then one draft call per day.
- * A structural day failure gets at most one day-only repair.
+ * One weekly strategy call, then one weekly asset call for all seven days.
+ * A structural package failure gets at most one weekly repair.
+ * A safe one-date conversation revision still regenerates only that date.
  * Isolated from Daily generation and from the Deployment Asset batch workflow.
  */
 
@@ -39,11 +40,15 @@ import {
   type SocialPlannerGenerationDeps,
 } from "@/services/socialPlanner/generation/socialPlannerGenerationService";
 import {
+  SOCIAL_PLANNER_EVERGREEN_DAY_DRAFT_SYSTEM_PROMPT,
+  SOCIAL_PLANNER_EVERGREEN_DAY_REPAIR_SYSTEM_PROMPT,
   SOCIAL_PLANNER_EVERGREEN_DRAFT_SYSTEM_PROMPT,
   SOCIAL_PLANNER_EVERGREEN_REPAIR_SYSTEM_PROMPT,
   SOCIAL_PLANNER_EVERGREEN_REVISION_ADDENDUM,
   SOCIAL_PLANNER_EVERGREEN_STRATEGY_SYSTEM_PROMPT,
   SOCIAL_PLANNER_EVERGREEN_THINK_DIFFERENTLY_ADDENDUM,
+  buildEvergreenDayDraftPrompt,
+  buildEvergreenDayRepairPrompt,
   buildEvergreenDraftPrompt,
   buildEvergreenRepairPrompt,
   buildEvergreenStrategyPrompt,
@@ -56,6 +61,7 @@ import {
 } from "@/services/socialPlanner/generation/socialPlannerEvergreenRotation";
 import {
   finalizeSocialCalendarEvergreenPackage,
+  validateAndNormalizeSocialCalendarEvergreenPackage,
   validateEvergreenGeneratedDay,
   validateSocialPlannerEvergreenWeeklyStrategy,
   SOCIAL_PLANNER_EVERGREEN_WEEKLY_STRATEGY_SCHEMA_VERSION,
@@ -64,9 +70,9 @@ import {
 import type { SocialPlannerConversationRevisionContextV1 } from "@/services/socialPlanner/conversationRevision/socialPlannerConversationRevisionTypes";
 import { isSocialCalendarEvergreenPackage } from "@/services/socialPlanner/generation/socialCalendarPackageUnion";
 
-const STRATEGY_STAGE = "social_calendar_strategy" as const;
-const ASSET_STAGE = "social_calendar_assets" as const;
-const REPAIR_STAGE = "social_calendar_repair" as const;
+const STRATEGY_STAGE = "social_calendar_evergreen_strategy" as const;
+const ASSET_STAGE = "social_calendar_evergreen_assets" as const;
+const REPAIR_STAGE = "social_calendar_evergreen_repair" as const;
 
 function stageRoute(
   pass: SocialPlannerGenerationStageRoute["pass"],
@@ -119,7 +125,7 @@ async function invokeJsonPass(input: {
   prompt: string;
   systemPrompt: string;
   athenaStage: typeof STRATEGY_STAGE | typeof ASSET_STAGE | typeof REPAIR_STAGE;
-  callStage: "strategy" | "day" | "day_repair";
+  callStage: "strategy" | "assets" | "repair" | "day" | "day_repair";
   parsePass: "strategy" | "assets" | "repair";
   reasoningProfile: "EXECUTIVE" | "BALANCED";
 }): Promise<Record<string, unknown>> {
@@ -420,10 +426,108 @@ export async function generateEvergreenSocialCalendarPackage(input: {
 
   const datesToGenerate = partialDates
     ? dates.filter((date) => partialDates.has(date))
-    : [...dates];
+    : [];
   const unresolved: string[] = [];
   let repairUsed = false;
   let repairFailed = false;
+
+  if (!partialDates) {
+    stages.push(stageRoute("assets", ASSET_STAGE, "EXECUTIVE"));
+    const draftRaw = await invokeJsonPass({
+      generate,
+      prompt: buildEvergreenDraftPrompt({
+        context,
+        userGuidance,
+        strategy,
+        assignedFormats,
+        socialMemoryText: input.socialMemoryText,
+        thinkDifferentlyText: strategyDerivative,
+      }),
+      systemPrompt: `${SOCIAL_PLANNER_EVERGREEN_DRAFT_SYSTEM_PROMPT}${systemAddendum}`,
+      athenaStage: ASSET_STAGE,
+      callStage: "assets",
+      parsePass: "assets",
+      reasoningProfile: "EXECUTIVE",
+    });
+
+    const acceptWeekly = (raw: Record<string, unknown>, usedRepair: boolean) =>
+      validateAndNormalizeSocialCalendarEvergreenPackage({
+        raw,
+        context,
+        metadata: buildEvergreenMetadata({
+          context,
+          repairUsed: usedRepair,
+          stages,
+          generationMode,
+        }),
+        assignedFormats,
+      });
+
+    try {
+      const socialPackage = acceptWeekly(draftRaw, false);
+      return {
+        package: socialPackage,
+        generationProvenance: socialPackage.generationMetadata,
+      };
+    } catch (error) {
+      if (!(error instanceof SocialCalendarPackageValidationError)) {
+        throw error;
+      }
+      if (error.kind === "budget") {
+        throw new SocialPlannerGenerationError({
+          code: "PACKAGE_VALIDATION_FAILED",
+          message: error.message,
+          stage: "validation",
+          retryable: false,
+          failures: error.failures,
+        });
+      }
+
+      repairUsed = true;
+      stages.push(stageRoute("repair", REPAIR_STAGE, "BALANCED"));
+      const repairRaw = await invokeJsonPass({
+        generate,
+        prompt: buildEvergreenRepairPrompt({
+          context,
+          userGuidance,
+          strategy,
+          assignedFormats,
+          invalidPackage: draftRaw,
+          failures: error.failures,
+          socialMemoryText: input.socialMemoryText,
+          thinkDifferentlyText: strategyDerivative,
+        }),
+        systemPrompt: `${SOCIAL_PLANNER_EVERGREEN_REPAIR_SYSTEM_PROMPT}${systemAddendum}`,
+        athenaStage: REPAIR_STAGE,
+        callStage: "repair",
+        parsePass: "repair",
+        reasoningProfile: "BALANCED",
+      });
+
+      try {
+        const repaired = acceptWeekly(repairRaw, true);
+        return {
+          package: repaired,
+          generationProvenance: repaired.generationMetadata,
+        };
+      } catch (repairError) {
+        if (repairError instanceof SocialCalendarPackageValidationError) {
+          throw new SocialPlannerGenerationError({
+            code:
+              repairError.kind === "budget"
+                ? "PACKAGE_VALIDATION_FAILED"
+                : "REPAIR_VALIDATION_FAILED",
+            message: repairError.message,
+            stage:
+              repairError.kind === "budget" ? "validation" : "repair_validation",
+            retryable: false,
+            failures: repairError.failures,
+          });
+        }
+        throw repairError;
+      }
+    }
+  }
 
   for (const date of datesToGenerate) {
     const dayIndex = dates.indexOf(date);
@@ -470,7 +574,7 @@ export async function generateEvergreenSocialCalendarPackage(input: {
     stages.push(stageRoute("assets", ASSET_STAGE, "EXECUTIVE"));
     const draftRaw = await invokeJsonPass({
       generate,
-      prompt: buildEvergreenDraftPrompt({
+      prompt: buildEvergreenDayDraftPrompt({
         context,
         userGuidance,
         strategy,
@@ -479,7 +583,7 @@ export async function generateEvergreenSocialCalendarPackage(input: {
         socialMemoryText: input.socialMemoryText,
         thinkDifferentlyText: dayDerivative,
       }),
-      systemPrompt: `${SOCIAL_PLANNER_EVERGREEN_DRAFT_SYSTEM_PROMPT}${systemAddendum}`,
+      systemPrompt: `${SOCIAL_PLANNER_EVERGREEN_DAY_DRAFT_SYSTEM_PROMPT}${systemAddendum}`,
       athenaStage: ASSET_STAGE,
       callStage: "day",
       parsePass: "assets",
@@ -505,7 +609,7 @@ export async function generateEvergreenSocialCalendarPackage(input: {
     stages.push(stageRoute("repair", REPAIR_STAGE, "BALANCED"));
     const repairRaw = await invokeJsonPass({
       generate,
-      prompt: buildEvergreenRepairPrompt({
+      prompt: buildEvergreenDayRepairPrompt({
         context,
         userGuidance,
         strategy,
@@ -516,7 +620,7 @@ export async function generateEvergreenSocialCalendarPackage(input: {
         socialMemoryText: input.socialMemoryText,
         thinkDifferentlyText: dayDerivative,
       }),
-      systemPrompt: `${SOCIAL_PLANNER_EVERGREEN_REPAIR_SYSTEM_PROMPT}${systemAddendum}`,
+      systemPrompt: `${SOCIAL_PLANNER_EVERGREEN_DAY_REPAIR_SYSTEM_PROMPT}${systemAddendum}`,
       athenaStage: REPAIR_STAGE,
       callStage: "day_repair",
       parsePass: "repair",

@@ -576,7 +576,7 @@ describe("Evergreen strategy narrative length", () => {
         },
       },
     });
-    assert.equal(calls, 8);
+    assert.equal(calls, 2);
     assert.equal(generated.package.plannerKind, "evergreen");
     assert.equal(generated.package.generationMetadata.repairUsed, false);
     assert.equal(assetPrompt.includes(weeklyObjective), true);

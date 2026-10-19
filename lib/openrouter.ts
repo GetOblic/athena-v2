@@ -9,6 +9,7 @@ import {
 import {
   getLLMModelRoles,
   logAthenaLlmRouting,
+  openRouterModelAcceptsTemperature,
   resolveModelForStage,
   resolveOpenRouterFallbackModel,
   type AthenaExtendedLLMStage,
@@ -289,9 +290,11 @@ export async function callOpenRouter(
     const body: Record<string, unknown> = {
       model,
       messages,
-      temperature: options?.temperature ?? 0.2,
       max_tokens: maxTokens,
     };
+    if (openRouterModelAcceptsTemperature(model)) {
+      body.temperature = options?.temperature ?? 0.2;
+    }
 
     if (attachment.attach) {
       Object.assign(body, getReasoningProfile(profile));

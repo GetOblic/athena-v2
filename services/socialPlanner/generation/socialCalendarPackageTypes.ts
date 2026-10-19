@@ -403,7 +403,10 @@ export type SocialPlannerGenerationStageRoute = {
   athenaStage:
     | "social_calendar_strategy"
     | "social_calendar_assets"
-    | "social_calendar_repair";
+    | "social_calendar_repair"
+    | "social_calendar_evergreen_strategy"
+    | "social_calendar_evergreen_assets"
+    | "social_calendar_evergreen_repair";
   role: "analysis" | "premiumStrategicOutput";
   model: string;
   reasoningProfile: "EXECUTIVE" | "BALANCED";
