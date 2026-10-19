@@ -18,6 +18,7 @@ import {
   ScanSearch,
   Wrench,
 } from "lucide-react";
+import { SeoAccompanyingEmailCard } from "@/components/seo/SeoAccompanyingEmailCard";
 import { SeoCoverageMeter } from "@/components/seo/SeoCoverageMeter";
 import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import { SeoProspectPdfDownloadButton } from "@/components/seo/SeoProspectPdfDownloadButton";
@@ -371,6 +372,14 @@ export function SeoTechnicalReportDetailView({
         messages={dictionary}
         allowRegenerate={allowRegenerate}
         allowRetrySame={allowRetrySame}
+        accompanyingEmailVisible={report.accompanyingEmail != null}
+        reportUpdatedAt={report.updatedAt}
+      />
+
+      <SeoAccompanyingEmailCard
+        status={report.status}
+        email={report.accompanyingEmail}
+        messages={dictionary}
       />
 
       {pkg ? (

@@ -3989,6 +3989,17 @@ export const es: TenantMessages = {
       commercialOpportunitiesV2: "Oportunidades comerciales",
       trustAndAuthorityV2: "Confianza y autoridad",
     },
+    accompanyingEmail: {
+      title: "Correo de acompañamiento",
+      intro:
+        "Una nota para enviar con este informe. El asunto y el mensaje se muestran tal como se generaron.",
+      subjectLabel: "Asunto",
+      bodyLabel: "Mensaje",
+      copySubject: "Copiar asunto",
+      copyBody: "Copiar mensaje",
+      copyFull: "Copiar el correo completo",
+      continueAria: "Continuar en Gmail",
+    },
     technical: {
       eyebrow: "Technical SEO",
       technicalCoverage: "Cobertura técnica",

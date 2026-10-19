@@ -29,9 +29,15 @@ export type PublicSeoReportSummary = {
   errorMessage: string | null;
 };
 
+export type PublicSeoAccompanyingEmail = {
+  subject: string;
+  body: string;
+};
+
 export type PublicSeoReportDetail = PublicSeoReportSummary & {
   brief: SeoReportBrief;
   package: SeoReportPackage | null;
+  accompanyingEmail: PublicSeoAccompanyingEmail | null;
 };
 
 function packageSummary(pkg: SeoReportPackage | null): string | null {
@@ -69,10 +75,18 @@ export function toPublicSeoReportDetail(report: SeoReport): PublicSeoReportDetai
   const summary = toPublicSeoReportSummary(report);
   const isReady = report.status === "Ready";
 
+  const email =
+    isReady && report.accompanying_email
+      ? report.accompanying_email.generated
+      : null;
+
   return {
     ...summary,
     brief: report.brief_json ?? { generationType: "intelligence" },
     package: isReady ? report.package_json : null,
+    accompanyingEmail: email
+      ? { subject: email.subject, body: email.body }
+      : null,
   };
 }
 

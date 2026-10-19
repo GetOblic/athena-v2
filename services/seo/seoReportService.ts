@@ -4,6 +4,10 @@
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  readStoredSeoAccompanyingEmail,
+  type SeoAccompanyingEmailRecord,
+} from "@/services/seo/seoAccompanyingEmail";
 import { defaultReportNameFromBrief } from "@/services/seo/seoReportBrief";
 import { mapSeoReportRow } from "@/services/seo/seoReportMappers";
 import type {
@@ -170,6 +174,63 @@ export async function updateSeoReportStage(input: {
     })
     .eq("id", input.reportId)
     .eq("organization_id", input.organizationId);
+}
+
+export type SeoAccompanyingEmailPersistResult =
+  | "skipped"
+  | "persisted"
+  | "persist_failed";
+
+/**
+ * Store a structurally valid accompanying email after the report is Ready.
+ * Writes only accompanying_email_json, and only while that column is null.
+ * Scoped to report id and organization_id. Does not change status or package_json.
+ * A null or invalid email is a no-op. Persistence errors are logged and swallowed.
+ */
+export async function persistSeoAccompanyingEmailIfAbsent(
+  input: {
+    reportId: string;
+    organizationId: string;
+    email: SeoAccompanyingEmailRecord | null;
+  },
+  deps?: {
+    db?: Pick<typeof supabaseAdmin, "from">;
+  },
+): Promise<SeoAccompanyingEmailPersistResult> {
+  const email = input.email
+    ? readStoredSeoAccompanyingEmail(input.email)
+    : null;
+  if (!email) return "skipped";
+
+  const db = deps?.db ?? supabaseAdmin;
+  try {
+    const { error } = await db
+      .from("seo_reports")
+      .update({
+        accompanying_email_json: email,
+      })
+      .eq("id", input.reportId)
+      .eq("organization_id", input.organizationId)
+      .eq("status", "Ready")
+      .is("accompanying_email_json", null);
+
+    if (error) {
+      console.error("[ATHENA_SEO] accompanying_email_persist_failed", {
+        reportId: input.reportId,
+        organizationId: input.organizationId,
+        error: error.message,
+      });
+      return "persist_failed";
+    }
+    return "persisted";
+  } catch (error) {
+    console.error("[ATHENA_SEO] accompanying_email_persist_failed", {
+      reportId: input.reportId,
+      organizationId: input.organizationId,
+      error: error instanceof Error ? error.name : "persist_failed",
+    });
+    return "persist_failed";
+  }
 }
 
 export async function deleteSeoReport(

@@ -32,6 +32,7 @@ const ANALYSIS_EXTENDED_STAGES = [
   "generic_review",
   "ad_platform_assets",
   "ad_keyword_themes",
+  "seo_accompanying_email",
 ] as const;
 
 const ADS_PREMIUM_EXTENDED_STAGES = ["ad_campaign_strategy"] as const;
@@ -246,6 +247,24 @@ for (const stage of ADS_PREMIUM_EXTENDED_STAGES) {
     pass("Ads platform/keyword stages use analysis role");
   } else {
     fail("Ads platform/keyword stages must use analysis role");
+  }
+}
+
+{
+  const route = resolveModelForStage("seo_accompanying_email");
+  const analysisRoute = resolveModelForStage("seo_section_analysis");
+  if (route.role !== "analysis") {
+    fail("seo_accompanying_email must use the analysis role");
+  } else if (route.model !== analysisRoute.model) {
+    fail(
+      `seo_accompanying_email must follow the analysis model (${analysisRoute.model}), got ${route.model}`,
+    );
+  } else if (route.reasoningEffort !== analysisRoute.reasoningEffort) {
+    fail("seo_accompanying_email must keep analysis reasoning effort");
+  } else {
+    pass(
+      `seo_accompanying_email uses analysis role (${route.model}, reasoning ${route.reasoningEffort})`,
+    );
   }
 }
 

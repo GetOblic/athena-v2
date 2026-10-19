@@ -3,7 +3,11 @@
  * Independent of Discussion generation, Ads, and Deep Scrape executors.
  */
 
-import { getSeoReportById } from "@/services/seo/seoReportService";
+import { generateSeoAccompanyingEmail } from "@/services/seo/seoAccompanyingEmailGeneration";
+import {
+  getSeoReportById,
+  persistSeoAccompanyingEmailIfAbsent,
+} from "@/services/seo/seoReportService";
 import {
   claimNextSeoGenerationJob,
   completeSeoGenerationJobWithClaim,
@@ -184,6 +188,41 @@ export async function executeClaimedSeoGenerationJob(
       return claimLost ? "claim_lost" : "retryable";
     }
 
+    // One email call after the package is valid. Failure stays null and
+    // must not block Ready. Already-Ready rows take the early return above.
+    let accompanyingEmail: Awaited<
+      ReturnType<typeof generateSeoAccompanyingEmail>
+    > = { record: null, reason: "model_failed" };
+    try {
+      accompanyingEmail = await generateSeoAccompanyingEmail({
+        organizationId: job.organization_id,
+        reportPackage: result.package,
+        context: result.context,
+      });
+    } catch (emailError) {
+      console.error("[ATHENA_SEO_JOBS] accompanying_email_failed", {
+        jobId: job.id,
+        reportId: job.report_id,
+        organizationId: job.organization_id,
+        error: emailError instanceof Error ? emailError.name : "email_failed",
+      });
+    }
+
+    if (claimLost || options?.shouldStop?.()) {
+      stopHeartbeat();
+      await failSeoGenerationJobWithClaim({
+        jobId: job.id,
+        claimToken,
+        errorCode: claimLost ? "CLAIM_LOST" : "WORKER_STOPPING",
+        errorMessage: claimLost
+          ? "SEO generation claim was lost."
+          : "Worker shutting down before SEO completion.",
+        retryable: true,
+        failedStage: currentStage,
+      });
+      return claimLost ? "claim_lost" : "retryable";
+    }
+
     stopHeartbeat();
     const completed = await completeSeoGenerationJobWithClaim({
       jobId: job.id,
@@ -197,6 +236,29 @@ export async function executeClaimedSeoGenerationJob(
         reportId: job.report_id,
       });
       return "claim_lost";
+    }
+
+    try {
+      const emailPersist = await persistSeoAccompanyingEmailIfAbsent({
+        reportId: job.report_id,
+        organizationId: job.organization_id,
+        email: accompanyingEmail.record,
+      });
+      if (emailPersist === "persist_failed") {
+        console.error("[ATHENA_SEO_JOBS] accompanying_email_persist_failed", {
+          jobId: job.id,
+          reportId: job.report_id,
+          organizationId: job.organization_id,
+        });
+      }
+    } catch (persistError) {
+      console.error("[ATHENA_SEO_JOBS] accompanying_email_persist_failed", {
+        jobId: job.id,
+        reportId: job.report_id,
+        organizationId: job.organization_id,
+        error:
+          persistError instanceof Error ? persistError.name : "persist_failed",
+      });
     }
 
     console.log("[ATHENA_SEO_JOBS] execute_completed", {

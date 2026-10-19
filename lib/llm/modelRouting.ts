@@ -23,6 +23,7 @@ export type AthenaExtendedLLMStage =
   | "seo_executive_assessment"
   | "seo_section_analysis"
   | "seo_roadmap"
+  | "seo_accompanying_email"
   | "estimate_package"
   | "social_calendar_strategy"
   | "social_calendar_assets"
@@ -114,6 +115,8 @@ const EXTENDED_STAGE_ROLE: Record<
   seo_executive_assessment: "premiumStrategicOutput",
   seo_section_analysis: "analysis",
   seo_roadmap: "premiumStrategicOutput",
+  // Accompanying email for a Ready SEO report. Analysis role only.
+  seo_accompanying_email: "analysis",
   // Licensee Athena Estimate package (V26) — additive; does not alter existing stage mappings.
   estimate_package: "premiumStrategicOutput",
   // Organization-level Social Planner (V29 L4) — additive; does not alter existing stage mappings.

@@ -17,6 +17,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { SeoAccompanyingEmailCard } from "@/components/seo/SeoAccompanyingEmailCard";
 import { SeoRecommendationCard } from "@/components/seo/SeoRecommendationCard";
 import { unlockCompletionSound } from "@/lib/completionSound/playCompletionSound";
 import { SeoProspectPdfDownloadButton } from "@/components/seo/SeoProspectPdfDownloadButton";
@@ -302,6 +303,14 @@ function SeoIntelligenceReportDetailView({
         messages={dictionary}
         allowRegenerate={allowRegenerate}
         allowRetrySame={allowRetrySame}
+        accompanyingEmailVisible={report.accompanyingEmail != null}
+        reportUpdatedAt={report.updatedAt}
+      />
+
+      <SeoAccompanyingEmailCard
+        status={report.status}
+        email={report.accompanyingEmail}
+        messages={dictionary}
       />
 
       {pkg && presentation ? (

@@ -2,6 +2,7 @@
  * Pure SEO report row/package mappers (no Supabase imports).
  */
 
+import { readStoredSeoAccompanyingEmail } from "@/services/seo/seoAccompanyingEmail";
 import { normalizeSeoReportBrief } from "@/services/seo/seoReportBrief";
 import { resolveSeoGenerationType } from "@/services/seo/seoGenerationType";
 import { validateSeoIntelligencePackage } from "@/services/seo/seoReportValidation";
@@ -73,6 +74,10 @@ export function mapSeoReportRow(row: Record<string, unknown>): SeoReport {
     status,
     generation_stage,
     package_json: mapPackage(row.package_json, status, brief_json),
+    accompanying_email:
+      status === "Ready"
+        ? readStoredSeoAccompanyingEmail(row.accompanying_email_json)
+        : null,
     error_code: (row.error_code as string | null) ?? null,
     error_message: (row.error_message as string | null) ?? null,
     created_at: String(row.created_at ?? ""),

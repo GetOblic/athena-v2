@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createReadyEmailRefreshController } from "@/lib/seo/seoReadyEmailRefresh";
 import { useBackgroundActionCompletionSound } from "@/lib/completionSound/useBackgroundActionCompletionSound";
 import { parseJsonResponse } from "@/lib/safeJsonResponse";
 import { interpolateTenantMessage } from "@/lib/tenantI18n/interpolate";
@@ -51,6 +52,8 @@ type SeoReportStatusPanelProps = {
   messages?: TenantMessages;
   allowRegenerate?: boolean;
   allowRetrySame?: boolean;
+  accompanyingEmailVisible?: boolean;
+  reportUpdatedAt?: string | null;
 };
 
 export function SeoReportStatusPanel({
@@ -62,6 +65,8 @@ export function SeoReportStatusPanel({
   messages,
   allowRegenerate = true,
   allowRetrySame = true,
+  accompanyingEmailVisible = false,
+  reportUpdatedAt = null,
 }: SeoReportStatusPanelProps) {
   const copy = messages?.seo.statusPanel ?? en.seo.statusPanel;
   const visibility = messages?.seo.visibility ?? en.seo.visibility;
@@ -125,6 +130,31 @@ export function SeoReportStatusPanel({
       window.clearInterval(timer);
     };
   }, [completionSound, inFlight, reportId, router]);
+
+  const refreshPageRef = useRef(() => {
+    router.refresh();
+  });
+  refreshPageRef.current = () => {
+    router.refresh();
+  };
+  const readyEmailRefreshRef = useRef<ReturnType<
+    typeof createReadyEmailRefreshController
+  > | null>(null);
+  if (readyEmailRefreshRef.current == null) {
+    readyEmailRefreshRef.current = createReadyEmailRefreshController({
+      refresh: () => refreshPageRef.current(),
+    });
+  }
+
+  useEffect(() => {
+    const controller = readyEmailRefreshRef.current;
+    controller?.sync({
+      status,
+      accompanyingEmailVisible,
+      reportUpdatedAt,
+    });
+    return () => controller?.stop();
+  }, [accompanyingEmailVisible, reportUpdatedAt, status]);
 
   async function handleRegenerate() {
     if (regenerating) return;

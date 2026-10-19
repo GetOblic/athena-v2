@@ -4,6 +4,7 @@
  * Consumes existing Athena intelligence only; does not modify Deep Scrape policy.
  */
 
+import type { SeoAccompanyingEmailRecord } from "@/services/seo/seoAccompanyingEmail";
 import type { SeoGenerationType } from "@/services/seo/seoGenerationType";
 import type { SeoTechnicalDeterministicEvidence } from "@/services/seo/seoTechnicalAnalyzer";
 
@@ -320,6 +321,8 @@ export type SeoReport = {
   status: SeoReportStatus;
   generation_stage: SeoReportGenerationStage | null;
   package_json: SeoReportPackage | null;
+  /** Structurally valid accompanying email for a Ready report. Null when absent or not a valid record. */
+  accompanying_email: SeoAccompanyingEmailRecord | null;
   error_code: string | null;
   error_message: string | null;
   created_at: string;

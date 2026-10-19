@@ -3905,6 +3905,17 @@ export const en = {
       commercialOpportunitiesV2: "Commercial Opportunities",
       trustAndAuthorityV2: "Trust and Authority",
     },
+    accompanyingEmail: {
+      title: "Accompanying email",
+      intro:
+        "A note you can send with this report. The subject and message stay as generated.",
+      subjectLabel: "Subject",
+      bodyLabel: "Message",
+      copySubject: "Copy Subject",
+      copyBody: "Copy Body",
+      copyFull: "Copy Full Email",
+      continueAria: "Continue in Gmail",
+    },
     technical: {
       eyebrow: "Technical SEO",
       technicalCoverage: "Technical Coverage",

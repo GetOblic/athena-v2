@@ -342,6 +342,7 @@ function fakeSeoReport(input: {
     status: input.status,
     generation_stage: input.status === "Ready" ? "completed" : null,
     package_json,
+    accompanying_email: null,
     error_code: null,
     error_message: null,
     created_at: input.createdAt,

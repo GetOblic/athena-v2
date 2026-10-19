@@ -3978,6 +3978,17 @@ export const de: TenantMessages = {
       commercialOpportunitiesV2: "Kommerzielle Chancen",
       trustAndAuthorityV2: "Vertrauen und Autorität",
     },
+    accompanyingEmail: {
+      title: "Begleitemail",
+      intro:
+        "Eine Notiz zum Versand mit diesem Bericht. Betreff und Nachricht bleiben im erzeugten Wortlaut.",
+      subjectLabel: "Betreff",
+      bodyLabel: "Nachricht",
+      copySubject: "Betreff kopieren",
+      copyBody: "Nachricht kopieren",
+      copyFull: "Gesamte E-Mail kopieren",
+      continueAria: "In Gmail fortsetzen",
+    },
     technical: {
       eyebrow: "Technical SEO",
       technicalCoverage: "Technische Abdeckung",
