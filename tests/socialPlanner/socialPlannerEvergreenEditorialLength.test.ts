@@ -32,6 +32,7 @@ import {
   buildValidPackageRaw,
   buildValidStrategyRaw,
   ensureUsHolidayCandidate,
+  mockEvergreenGenerationResponse,
   testMetadata,
 } from "./socialPlannerGenerationFixtures";
 
@@ -110,6 +111,10 @@ function evergreenStrategyRaw(
     creativeDirection: "Plain, local, useful.",
     avoidances: ["Daily social copy"],
     userGuidanceInterpretation: null,
+    strategySummary:
+      "A durable Harbor Clinic week that rotates Blog, Newsletter, Substack, Reddit, and Skool.",
+    whyThisWeekWorks:
+      "This week teaches one preventive-care idea through six durable formats. Each day is a working draft a manager can edit.",
     ...overrides,
   };
 }
@@ -417,17 +422,21 @@ describe("Evergreen editorial length", () => {
       context,
       generationMode: "standard",
       deps: {
-        generateReview: async (_prompt, options) => {
+        generateReview: async (prompt, options) => {
           const stage = String(options?.stage ?? "");
           stages.push(stage);
-          if (stage.includes("strategy")) return JSON.stringify(strategyRaw);
-          return JSON.stringify(packageRaw);
+          return mockEvergreenGenerationResponse({
+            prompt,
+            stage,
+            strategy: strategyRaw,
+            days: packageRaw.days,
+          });
         },
       },
     });
     assert.deepEqual(stages, [
       "socialPlanner.evergreen.strategy",
-      "socialPlanner.evergreen.assets",
+      ...Array.from({ length: 7 }, () => "socialPlanner.evergreen.day"),
     ]);
     assert.equal(generated.package.generationMetadata.repairUsed, false);
     assert.equal(
@@ -458,19 +467,23 @@ describe("Evergreen editorial length", () => {
       context,
       generationMode: "standard",
       deps: {
-        generateReview: async (_prompt, options) => {
+        generateReview: async (prompt, options) => {
           const stage = String(options?.stage ?? "");
           stages.push(stage);
-          if (stage.includes("strategy")) return JSON.stringify(evergreenStrategyRaw(context));
-          if (stage.includes("repair")) return JSON.stringify(repaired);
-          return JSON.stringify(invalid);
+          return mockEvergreenGenerationResponse({
+            prompt,
+            stage,
+            strategy: evergreenStrategyRaw(context),
+            days: stage.includes("repair") ? repaired.days : invalid.days,
+          });
         },
       },
     });
     assert.deepEqual(stages, [
       "socialPlanner.evergreen.strategy",
-      "socialPlanner.evergreen.assets",
-      "socialPlanner.evergreen.repair",
+      "socialPlanner.evergreen.day",
+      "socialPlanner.evergreen.day_repair",
+      ...Array.from({ length: 6 }, () => "socialPlanner.evergreen.day"),
     ]);
     assert.equal(generated.package.generationMetadata.repairUsed, true);
     assert.equal(generated.package.days[0].draft, repaired.days[0].draft);
@@ -684,6 +697,7 @@ describe("Evergreen editorial length", () => {
       360,
     );
     packageRaw.whyThisWeekWorks = "One sentence explains the revised week.";
+    strategyRaw.whyThisWeekWorks = packageRaw.whyThisWeekWorks;
 
     for (const generationMode of ["think_differently", "conversation_revision"] as const) {
       const stages: string[] = [];
@@ -694,17 +708,21 @@ describe("Evergreen editorial length", () => {
         revisionContext:
           generationMode === "conversation_revision" ? revisionContext(context) : null,
         deps: {
-          generateReview: async (_prompt, options) => {
+          generateReview: async (prompt, options) => {
             const stage = String(options?.stage ?? "");
             stages.push(stage);
-            if (stage.includes("strategy")) return JSON.stringify(strategyRaw);
-            return JSON.stringify(packageRaw);
+            return mockEvergreenGenerationResponse({
+              prompt,
+              stage,
+              strategy: strategyRaw,
+              days: packageRaw.days,
+            });
           },
         },
       });
       assert.deepEqual(stages, [
         "socialPlanner.evergreen.strategy",
-        "socialPlanner.evergreen.assets",
+        ...Array.from({ length: 7 }, () => "socialPlanner.evergreen.day"),
       ]);
       assert.equal(generated.package.generationMetadata.generationMode, generationMode);
       assert.equal(generated.package.generationMetadata.repairUsed, false);
@@ -827,13 +845,15 @@ describe("Evergreen editorial length", () => {
         context,
         generationMode: "standard",
         deps: {
-          generateReview: async (_prompt, options) => {
+          generateReview: async (prompt, options) => {
             calls += 1;
             const stage = String(options?.stage ?? "");
-            if (stage.includes("strategy")) {
-              return JSON.stringify(evergreenStrategyRaw(context));
-            }
-            return JSON.stringify(invalid);
+            return mockEvergreenGenerationResponse({
+              prompt,
+              stage,
+              strategy: evergreenStrategyRaw(context),
+              days: invalid.days,
+            });
           },
         },
       });
@@ -844,6 +864,6 @@ describe("Evergreen editorial length", () => {
       assert.equal(error.stage, "repair_validation");
       assert.ok(error.failures.includes("days[0].title is required."));
     }
-    assert.equal(calls, 3);
+    assert.equal(calls, 9);
   });
 });

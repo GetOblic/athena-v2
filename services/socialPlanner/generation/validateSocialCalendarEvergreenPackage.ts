@@ -99,6 +99,8 @@ export type SocialPlannerEvergreenWeeklyStrategyV1 = {
   };
   narrativeArc: string;
   creativeDirection: string;
+  strategySummary: string;
+  whyThisWeekWorks: string;
   avoidances: string[];
   userGuidanceInterpretation: string | null;
 };
@@ -651,12 +653,10 @@ export function validateSocialPlannerEvergreenWeeklyStrategy(
       if (entryDate && entryDate !== date) {
         failures.push(`formatPlan[${index}].date must be ${date}.`);
       }
-      if (
-        isSocialPlannerEvergreenFormat(entry.evergreenFormat) &&
-        entry.evergreenFormat !== assigned.get(date)
-      ) {
+      const stampedFormat = assigned.get(date);
+      if (!stampedFormat) {
         failures.push(
-          `formatPlan[${index}].evergreenFormat must remain ${assigned.get(date)}.`,
+          `formatPlan[${index}] is missing a deterministic evergreen format.`,
         );
       }
       if (asString(entry.assetType)) {
@@ -678,7 +678,7 @@ export function validateSocialPlannerEvergreenWeeklyStrategy(
       }
       return {
         date,
-        evergreenFormat: assigned.get(date) ?? SOCIAL_PLANNER_EVERGREEN_FORMATS[0],
+        evergreenFormat: stampedFormat ?? SOCIAL_PLANNER_EVERGREEN_FORMATS[0],
         contentArchetype: archetype,
         primaryObjective: objective,
       };
@@ -696,6 +696,32 @@ export function validateSocialPlannerEvergreenWeeklyStrategy(
     "creativeDirection",
     failures,
   );
+  const strategySummary = narrativeString(
+    raw.strategySummary,
+    "strategySummary",
+    failures,
+  );
+  const whyThisWeekWorks = narrativeString(
+    raw.whyThisWeekWorks,
+    "whyThisWeekWorks",
+    failures,
+  );
+  const privacyText = [
+    strategySummary,
+    whyThisWeekWorks,
+    weeklyObjective,
+    narrativeArc,
+    creativeDirection,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join("\n");
+  if (privacyText) {
+    validateProspectPrivacy(
+      { strategySummary: privacyText, whyThisWeekWorks: "", days: [] },
+      context,
+      failures,
+    );
+  }
 
   if (failures.length > 0) {
     throw new SocialPlannerStrategyValidationError(failures);
@@ -737,6 +763,8 @@ export function validateSocialPlannerEvergreenWeeklyStrategy(
     },
     narrativeArc: narrativeArc ?? "",
     creativeDirection: creativeDirection ?? "",
+    strategySummary: strategySummary ?? "",
+    whyThisWeekWorks: whyThisWeekWorks ?? "",
     avoidances: Array.isArray(raw.avoidances)
       ? raw.avoidances.filter((entry): entry is string => typeof entry === "string")
       : [],
@@ -874,5 +902,149 @@ export function validateAndNormalizeSocialCalendarEvergreenPackage(input: {
     throw new SocialCalendarPackageValidationError("budget", budget);
   }
 
+  return draft;
+}
+
+/**
+ * One Evergreen day. Structural and privacy failures are repairable.
+ * JSON size budget is not.
+ */
+export function validateEvergreenGeneratedDay(input: {
+  raw: unknown;
+  dayIndex: number;
+  expectedDate: string;
+  assignedFormat: SocialPlannerEvergreenFormat;
+  context: SocialPlannerGenerationContextV1;
+}): SocialCalendarEvergreenDayV1 {
+  const failures: string[] = [];
+  const day = parseDay(
+    input.raw,
+    input.dayIndex,
+    input.expectedDate,
+    input.assignedFormat,
+    input.context,
+    failures,
+  );
+  if (day) {
+    const privacy: string[] = [];
+    validateProspectPrivacy(
+      { strategySummary: "", whyThisWeekWorks: "", days: [day] },
+      input.context,
+      privacy,
+    );
+    failures.push(...privacy);
+  }
+  if (failures.length > 0 || !day) {
+    throw new SocialCalendarPackageValidationError(
+      "structural",
+      failures.length > 0 ? failures : ["Evergreen day is missing."],
+    );
+  }
+  if (jsonChars(day) > LIMITS.dayMaxChars) {
+    throw new SocialCalendarPackageValidationError("budget", [
+      `Evergreen day ${input.expectedDate} exceeds the ${LIMITS.dayMaxChars} character budget.`,
+    ]);
+  }
+  return day;
+}
+
+/**
+ * Deterministic package assembly from already accepted days.
+ * Does not rewrite day text.
+ */
+export function finalizeSocialCalendarEvergreenPackage(input: {
+  days: SocialCalendarEvergreenDayV1[];
+  strategySummary: string;
+  whyThisWeekWorks: string;
+  context: SocialPlannerGenerationContextV1;
+  metadata: SocialPlannerEvergreenGenerationMetadata;
+  assignedFormats: readonly SocialPlannerEvergreenFormatAssignment[];
+}): SocialCalendarEvergreenPackageV1 {
+  const structural: string[] = [];
+  const dates = input.context.calendarContext.period.dates;
+  if (dates.length !== SOCIAL_CALENDAR_PERIOD_DAYS) {
+    structural.push("Calendar Context must contain exactly seven dates.");
+  }
+  if (input.days.length !== SOCIAL_CALENDAR_PERIOD_DAYS) {
+    structural.push("Package must contain exactly seven Evergreen days.");
+  }
+  const assigned = evergreenFormatAssignmentMap(input.assignedFormats);
+  const seen = new Set<string>();
+  input.days.forEach((day, index) => {
+    const expectedDate = dates[index];
+    if (!expectedDate || day.date !== expectedDate) {
+      structural.push(
+        `days[${index}].date must be ${expectedDate ?? "a planned date"}.`,
+      );
+    }
+    if (seen.has(day.date)) {
+      structural.push("Package dates must be unique.");
+    }
+    seen.add(day.date);
+    const assignedFormat = assigned.get(day.date);
+    if (!assignedFormat || day.evergreenFormat !== assignedFormat) {
+      structural.push(
+        `days[${index}].evergreenFormat must be ${assignedFormat ?? "assigned"} for ${day.date}.`,
+      );
+    }
+  });
+  if (!input.strategySummary.trim()) {
+    structural.push("strategySummary is required.");
+  }
+  if (!input.whyThisWeekWorks.trim()) {
+    structural.push("whyThisWeekWorks is required.");
+  }
+  if (structural.length > 0) {
+    throw new SocialCalendarPackageValidationError("structural", structural);
+  }
+
+  const portfolio: string[] = [];
+  validateEvergreenCoverage(input.days, portfolio);
+  validateProspectPrivacy(
+    {
+      strategySummary: input.strategySummary,
+      whyThisWeekWorks: input.whyThisWeekWorks,
+      days: input.days,
+    },
+    input.context,
+    portfolio,
+  );
+  if (portfolio.length > 0) {
+    throw new SocialCalendarPackageValidationError("portfolio", portfolio);
+  }
+
+  const draft: SocialCalendarEvergreenPackageV1 = {
+    schemaVersion: SOCIAL_CALENDAR_EVERGREEN_PACKAGE_SCHEMA_VERSION,
+    plannerKind: "evergreen",
+    period: {
+      periodStart: input.context.calendarContext.period.periodStart,
+      periodEnd: input.context.calendarContext.period.periodEnd,
+      dates: [...dates],
+    },
+    strategySummary: input.strategySummary.trim(),
+    whyThisWeekWorks: input.whyThisWeekWorks.trim(),
+    days: input.days,
+    weekFingerprint: buildEvergreenWeekFingerprint(input.days),
+    generationMetadata: input.metadata,
+  };
+
+  const budget: string[] = [];
+  for (const day of input.days) {
+    const size = jsonChars(day);
+    if (size > LIMITS.dayMaxChars) {
+      budget.push(
+        `Evergreen day ${day.date} exceeds the ${LIMITS.dayMaxChars} character budget.`,
+      );
+    }
+  }
+  const packageSize = jsonChars(draft);
+  if (packageSize > LIMITS.packageMaxChars) {
+    budget.push(
+      `Package exceeds the ${LIMITS.packageMaxChars} character hard budget (${packageSize}).`,
+    );
+  }
+  if (budget.length > 0) {
+    throw new SocialCalendarPackageValidationError("budget", budget);
+  }
   return draft;
 }

@@ -125,7 +125,8 @@ export type SocialPlannerConversationRevisionProvenance =
     revisedDateCount: number;
     /**
      * Present on Daily conversation revisions.
-     * Evergreen revisions omit these fields and stay on the full-week path.
+     * Evergreen revisions omit these fields. Affected Evergreen dates are
+     * regenerated inside the Evergreen generator.
      */
     singleDayRevision?: boolean;
     generatedDates?: string[];

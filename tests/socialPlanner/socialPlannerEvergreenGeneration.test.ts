@@ -20,6 +20,7 @@ import {
 } from "../../services/socialPlanner/generation/validateSocialCalendarEvergreenPackage";
 import {
   buildGenerationContext,
+  mockEvergreenGenerationResponse,
   testMetadata,
 } from "./socialPlannerGenerationFixtures";
 
@@ -79,6 +80,10 @@ function evergreenStrategyRaw(context = buildGenerationContext()) {
     creativeDirection: "Plain, local, useful.",
     avoidances: ["Daily social copy"],
     userGuidanceInterpretation: null,
+    strategySummary:
+      "A durable Harbor Clinic week that rotates Blog, Newsletter, Substack, Reddit, and Skool.",
+    whyThisWeekWorks:
+      "This week teaches one preventive-care idea through six durable formats. Each day is a working draft a manager can edit.",
   };
 }
 
@@ -179,17 +184,22 @@ describe("Social Planner Evergreen generation dispatch", () => {
       context,
       generationMode: "standard",
       deps: {
-        generateReview: async () => {
+        generateReview: async (prompt, options) => {
           dailyCalls += 1;
-          if (dailyCalls === 1) return JSON.stringify(evergreenStrategyRaw(context));
-          return JSON.stringify(evergreenPackageRaw(context));
+          const stage = String(options?.stage ?? "");
+          return mockEvergreenGenerationResponse({
+            prompt,
+            stage,
+            strategy: evergreenStrategyRaw(context),
+            days: evergreenPackageRaw(context).days,
+          });
         },
       },
     });
     assert.equal(result.package.schemaVersion, SOCIAL_CALENDAR_EVERGREEN_PACKAGE_SCHEMA_VERSION);
     assert.equal("days" in result.package, true);
     assert.equal("assets" in result.package, false);
-    assert.equal(dailyCalls, 2);
+    assert.equal(dailyCalls, 8);
   });
 
   it("direct Evergreen generator produces assigned formats and rejects Daily leakage in source", async () => {
@@ -198,12 +208,15 @@ describe("Social Planner Evergreen generation dispatch", () => {
       context,
       generationMode: "standard",
       deps: {
-        generateReview: async (_prompt, options) => {
-          assert.match(String(options?.stage ?? ""), /evergreen/);
-          if (String(options?.stage ?? "").includes("strategy")) {
-            return JSON.stringify(evergreenStrategyRaw(context));
-          }
-          return JSON.stringify(evergreenPackageRaw(context));
+        generateReview: async (prompt, options) => {
+          const stage = String(options?.stage ?? "");
+          assert.match(stage, /evergreen/);
+          return mockEvergreenGenerationResponse({
+            prompt,
+            stage,
+            strategy: evergreenStrategyRaw(context),
+            days: evergreenPackageRaw(context).days,
+          });
         },
       },
     });
@@ -221,21 +234,21 @@ describe("Social Planner Evergreen generation dispatch", () => {
     // error_message=Social Planner assets generation produced malformed JSON.
     // generation_stage=assets, error_metadata=null, attempt_count=3
     const context = buildGenerationContext();
-    const malformedAssetsJson = JSON.stringify(
-      evergreenPackageRaw(context),
-      null,
-      2,
-    ).replace(/\\n/g, "\n");
 
     const generated = await generateEvergreenSocialCalendarPackage({
       context,
       generationMode: "standard",
       deps: {
-        generateReview: async (_prompt, options) => {
-          if (String(options?.stage ?? "").includes("strategy")) {
-            return JSON.stringify(evergreenStrategyRaw(context));
-          }
-          return malformedAssetsJson;
+        generateReview: async (prompt, options) => {
+          const stage = String(options?.stage ?? "");
+          const body = mockEvergreenGenerationResponse({
+            prompt,
+            stage,
+            strategy: evergreenStrategyRaw(context),
+            days: evergreenPackageRaw(context).days,
+          });
+          if (stage.includes("strategy")) return body;
+          return body.replace(/\\n/g, "\n");
         },
       },
     });
@@ -284,15 +297,14 @@ describe("Social Planner Evergreen generation dispatch", () => {
         deps: {
           generateReview: async (prompt, options) => {
             const stage = String(options?.stage ?? "");
-            if (stage.includes("strategy")) {
-              return JSON.stringify(evergreenStrategyRaw(context));
-            }
-            if (stage.includes("repair")) {
-              repairPrompt = prompt;
-              return JSON.stringify(failingPackage);
-            }
-            draftPrompt = prompt;
-            return JSON.stringify(failingPackage);
+            if (stage.includes("repair")) repairPrompt = prompt;
+            else if (!stage.includes("strategy")) draftPrompt = prompt;
+            return mockEvergreenGenerationResponse({
+              prompt,
+              stage,
+              strategy: evergreenStrategyRaw(context),
+              days: failingPackage.days,
+            });
           },
         },
       });
@@ -326,14 +338,16 @@ describe("Social Planner Evergreen generation dispatch", () => {
       context,
       userGuidance: null,
       strategy,
-      assignedFormats: assigned,
+      assignment: assigned[0],
+      dayIndex: 0,
     });
     const repairPrompt = buildEvergreenRepairPrompt({
       context,
       userGuidance: null,
       strategy,
-      assignedFormats: assigned,
-      invalidPackage: evergreenPackageWith36e3ecbeSourceSignals(context),
+      assignment: assigned[0],
+      dayIndex: 0,
+      invalidDay: evergreenPackageWith36e3ecbeSourceSignals(context).days[0],
       failures: [...CALENDAR_36E3ECBE_SOURCE_SIGNAL_FAILURES],
     });
     assert.match(draftPrompt, /sourceSignals\.type:/);

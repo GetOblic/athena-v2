@@ -1,6 +1,7 @@
 /**
  * Evergreen Social Planner generation pipeline.
- * Strategy → assigned-format drafts → validate → optional repair.
+ * One weekly strategy call, then one draft call per day.
+ * A structural day failure gets at most one day-only repair.
  * Isolated from Daily generation and from the Deployment Asset batch workflow.
  */
 
@@ -22,9 +23,12 @@ import {
   SOCIAL_PLANNER_EVERGREEN_PROMPT_VERSION,
   SOCIAL_PLANNER_EVERGREEN_REPAIR_PROMPT_VERSION,
   SOCIAL_PLANNER_EVERGREEN_STRATEGY_PROMPT_VERSION,
+  type SocialCalendarEvergreenDayV1,
   type SocialCalendarEvergreenGenerationResult,
+  type SocialCalendarEvergreenPackageV1,
   type SocialPlannerEvergreenGenerationMetadata,
 } from "@/services/socialPlanner/generation/socialCalendarEvergreenPackageTypes";
+import { planEvergreenRevisionDates } from "@/services/socialPlanner/generation/evergreenAffectedRevision";
 import {
   SocialCalendarPackageValidationError,
   SocialPlannerGenerationError,
@@ -43,6 +47,7 @@ import {
   buildEvergreenDraftPrompt,
   buildEvergreenRepairPrompt,
   buildEvergreenStrategyPrompt,
+  compactEvergreenSourceDay,
   compactEvergreenSourceWeek,
 } from "@/services/socialPlanner/generation/socialPlannerEvergreenGenerationPrompts";
 import {
@@ -50,11 +55,13 @@ import {
   type SocialPlannerEvergreenFormatAssignment,
 } from "@/services/socialPlanner/generation/socialPlannerEvergreenRotation";
 import {
-  validateAndNormalizeSocialCalendarEvergreenPackage,
+  finalizeSocialCalendarEvergreenPackage,
+  validateEvergreenGeneratedDay,
   validateSocialPlannerEvergreenWeeklyStrategy,
+  SOCIAL_PLANNER_EVERGREEN_WEEKLY_STRATEGY_SCHEMA_VERSION,
+  type SocialPlannerEvergreenWeeklyStrategyV1,
 } from "@/services/socialPlanner/generation/validateSocialCalendarEvergreenPackage";
 import type { SocialPlannerConversationRevisionContextV1 } from "@/services/socialPlanner/conversationRevision/socialPlannerConversationRevisionTypes";
-import type { SocialCalendarEvergreenPackageV1 } from "@/services/socialPlanner/generation/socialCalendarEvergreenPackageTypes";
 import { isSocialCalendarEvergreenPackage } from "@/services/socialPlanner/generation/socialCalendarPackageUnion";
 
 const STRATEGY_STAGE = "social_calendar_strategy" as const;
@@ -112,13 +119,14 @@ async function invokeJsonPass(input: {
   prompt: string;
   systemPrompt: string;
   athenaStage: typeof STRATEGY_STAGE | typeof ASSET_STAGE | typeof REPAIR_STAGE;
-  pass: "strategy" | "assets" | "repair";
+  callStage: "strategy" | "day" | "day_repair";
+  parsePass: "strategy" | "assets" | "repair";
   reasoningProfile: "EXECUTIVE" | "BALANCED";
 }): Promise<Record<string, unknown>> {
   let raw: string;
   try {
     raw = await input.generate(input.prompt, {
-      stage: `socialPlanner.evergreen.${input.pass}`,
+      stage: `socialPlanner.evergreen.${input.callStage}`,
       promptSource:
         "services/socialPlanner/generation/generateEvergreenSocialCalendarPackage.ts",
       athenaStage: input.athenaStage,
@@ -132,13 +140,13 @@ async function invokeJsonPass(input: {
       message:
         error instanceof Error
           ? error.message
-          : `Evergreen Social Planner ${input.pass} provider call failed.`,
-      stage: input.pass,
+          : `Evergreen Social Planner ${input.parsePass} provider call failed.`,
+      stage: input.parsePass,
       retryable: true,
     });
   }
 
-  return parseSocialPlannerStructuredOutput(raw, input.pass);
+  return parseSocialPlannerStructuredOutput(raw, input.parsePass);
 }
 
 function assignedFormatsFromSource(
@@ -148,6 +156,88 @@ function assignedFormatsFromSource(
     date: day.date,
     evergreenFormat: day.evergreenFormat,
   }));
+}
+
+function assertSourceDatesMatch(
+  sourcePackage: SocialCalendarEvergreenPackageV1,
+  dates: readonly string[],
+): void {
+  const same =
+    sourcePackage.period.dates.length === dates.length &&
+    sourcePackage.period.dates.every((date, index) => date === dates[index]);
+  if (!same || sourcePackage.days.length !== dates.length) {
+    throw new SocialPlannerGenerationError({
+      code: "INVALID_INPUT_CONTEXT",
+      message: "Evergreen source package dates do not match the calendar period.",
+      stage: "input",
+      retryable: false,
+    });
+  }
+}
+
+function strategyContextFromPackage(
+  sourcePackage: SocialCalendarEvergreenPackageV1,
+): SocialPlannerEvergreenWeeklyStrategyV1 {
+  return {
+    schemaVersion: SOCIAL_PLANNER_EVERGREEN_WEEKLY_STRATEGY_SCHEMA_VERSION,
+    weeklyObjective: sourcePackage.strategySummary,
+    secondaryObjectives: [],
+    audiencePlan: [],
+    topicPlan: sourcePackage.days.map((day) => ({
+      topic: day.topic,
+      rationale: day.concept,
+    })),
+    formatPlan: sourcePackage.days.map((day) => ({
+      date: day.date,
+      evergreenFormat: day.evergreenFormat,
+      contentArchetype: day.creativeFingerprint.contentArchetype,
+      primaryObjective: day.creativeFingerprint.objective,
+    })),
+    calendarOpportunityPlan: { selected: [], ignored: [] },
+    contentBalance: {
+      promotionalWeight: "low",
+      educationalWeight: "moderate",
+      communityWeight: "moderate",
+      funnelNotes: "",
+    },
+    narrativeArc: sourcePackage.whyThisWeekWorks,
+    creativeDirection: sourcePackage.strategySummary,
+    strategySummary: sourcePackage.strategySummary,
+    whyThisWeekWorks: sourcePackage.whyThisWeekWorks,
+    avoidances: [],
+    userGuidanceInterpretation: null,
+  };
+}
+
+function readGeneratedDay(input: {
+  raw: Record<string, unknown>;
+  dayIndex: number;
+  assignment: SocialPlannerEvergreenFormatAssignment;
+  context: SocialPlannerGenerationContextV1;
+}):
+  | { ok: true; day: SocialCalendarEvergreenDayV1 }
+  | { ok: false; failures: string[]; budget: boolean } {
+  try {
+    return {
+      ok: true,
+      day: validateEvergreenGeneratedDay({
+        raw: input.raw,
+        dayIndex: input.dayIndex,
+        expectedDate: input.assignment.date,
+        assignedFormat: input.assignment.evergreenFormat,
+        context: input.context,
+      }),
+    };
+  } catch (error) {
+    if (error instanceof SocialCalendarPackageValidationError) {
+      return {
+        ok: false,
+        failures: error.failures,
+        budget: error.kind === "budget",
+      };
+    }
+    throw error;
+  }
 }
 
 export async function generateEvergreenSocialCalendarPackage(input: {
@@ -171,10 +261,7 @@ export async function generateEvergreenSocialCalendarPackage(input: {
       retryable: false,
     });
   }
-  if (
-    input.generationMode === "think_differently" &&
-    !input.sourcePackage
-  ) {
+  if (input.generationMode === "think_differently" && !input.sourcePackage) {
     throw new SocialPlannerGenerationError({
       code: "UNSUPPORTED_GENERATION_MODE",
       message:
@@ -216,114 +303,205 @@ export async function generateEvergreenSocialCalendarPackage(input: {
     });
   }
 
-  const assignedFormats =
+  const dates = context.calendarContext.period.dates;
+  const sourcePackage =
     input.sourcePackage && isSocialCalendarEvergreenPackage(input.sourcePackage)
-      ? assignedFormatsFromSource(input.sourcePackage)
-      : planEvergreenWeekFormats(context.calendarContext.period.dates);
+      ? input.sourcePackage
+      : null;
+  if (
+    (input.generationMode === "conversation_revision" ||
+      input.generationMode === "think_differently") &&
+    sourcePackage
+  ) {
+    assertSourceDatesMatch(sourcePackage, dates);
+  }
+
+  const assignedFormats = sourcePackage
+    ? assignedFormatsFromSource(sourcePackage)
+    : planEvergreenWeekFormats(dates);
+
+  const revisionPlan =
+    input.generationMode === "conversation_revision" && input.revisionContext
+      ? planEvergreenRevisionDates({
+          brief: input.revisionContext.brief,
+          periodDates: dates,
+        })
+      : null;
+  const partialDates =
+    revisionPlan?.safePartial === true ? new Set(revisionPlan.dates) : null;
 
   const generate = input.deps?.generateReview ?? generateReview;
   const generationMode = input.generationMode;
-  const thinkDifferentlyText =
-    generationMode === "think_differently" && input.sourcePackage
-      ? [
-          SOCIAL_PLANNER_EVERGREEN_THINK_DIFFERENTLY_ADDENDUM,
-          "SOURCE EVERGREEN WEEK — WHAT NOT TO REPEAT:",
-          compactEvergreenSourceWeek(input.sourcePackage),
-        ].join("\n\n")
-      : generationMode === "conversation_revision" &&
-          input.revisionContext &&
-          input.sourcePackage
-        ? [
-            SOCIAL_PLANNER_EVERGREEN_REVISION_ADDENDUM,
-            JSON.stringify(input.revisionContext, null, 2),
-            compactEvergreenSourceWeek(input.sourcePackage),
-          ].join("\n\n")
-        : null;
   const systemAddendum =
     generationMode === "think_differently"
       ? `\n\n${SOCIAL_PLANNER_EVERGREEN_THINK_DIFFERENTLY_ADDENDUM}`
       : generationMode === "conversation_revision"
         ? `\n\n${SOCIAL_PLANNER_EVERGREEN_REVISION_ADDENDUM}`
         : "";
-  const stages: SocialPlannerGenerationStageRoute[] = [
-    stageRoute("strategy", STRATEGY_STAGE, "EXECUTIVE"),
-    stageRoute("assets", ASSET_STAGE, "EXECUTIVE"),
-  ];
+  const strategyDerivative =
+    generationMode === "think_differently" && sourcePackage
+      ? [
+          SOCIAL_PLANNER_EVERGREEN_THINK_DIFFERENTLY_ADDENDUM,
+          "SOURCE EVERGREEN WEEK — WHAT NOT TO REPEAT:",
+          compactEvergreenSourceWeek(sourcePackage),
+        ].join("\n\n")
+      : generationMode === "conversation_revision" &&
+          input.revisionContext &&
+          sourcePackage &&
+          !partialDates
+        ? [
+            SOCIAL_PLANNER_EVERGREEN_REVISION_ADDENDUM,
+            JSON.stringify(input.revisionContext, null, 2),
+            compactEvergreenSourceWeek(sourcePackage),
+          ].join("\n\n")
+        : null;
 
-  const strategyRaw = await invokeJsonPass({
-    generate,
-    prompt: buildEvergreenStrategyPrompt({
-      context,
-      userGuidance,
-      assignedFormats,
-      socialMemoryText: input.socialMemoryText,
-      thinkDifferentlyText,
-    }),
-    systemPrompt: `${SOCIAL_PLANNER_EVERGREEN_STRATEGY_SYSTEM_PROMPT}${systemAddendum}`,
-    athenaStage: STRATEGY_STAGE,
-    pass: "strategy",
-    reasoningProfile: "EXECUTIVE",
-  });
+  const stages: SocialPlannerGenerationStageRoute[] = [];
+  let strategy: SocialPlannerEvergreenWeeklyStrategyV1;
 
-  let strategy;
-  try {
-    strategy = validateSocialPlannerEvergreenWeeklyStrategy(
-      strategyRaw,
-      context,
-      assignedFormats,
-    );
-  } catch (error) {
-    if (error instanceof SocialPlannerStrategyValidationError) {
-      throw new SocialPlannerGenerationError({
-        code: "STRATEGY_VALIDATION_FAILED",
-        message: error.message,
-        stage: "strategy",
-        retryable: true,
-        failures: error.failures,
-      });
-    }
-    throw error;
-  }
-
-  const draftRaw = await invokeJsonPass({
-    generate,
-    prompt: buildEvergreenDraftPrompt({
-      context,
-      userGuidance,
-      strategy,
-      assignedFormats,
-      socialMemoryText: input.socialMemoryText,
-      thinkDifferentlyText,
-    }),
-    systemPrompt: `${SOCIAL_PLANNER_EVERGREEN_DRAFT_SYSTEM_PROMPT}${systemAddendum}`,
-    athenaStage: ASSET_STAGE,
-    pass: "assets",
-    reasoningProfile: "EXECUTIVE",
-  });
-
-  const initialMetadata = buildEvergreenMetadata({
-    context,
-    repairUsed: false,
-    stages,
-    generationMode,
-  });
-
-  try {
-    const socialPackage = validateAndNormalizeSocialCalendarEvergreenPackage({
-      raw: draftRaw,
-      context,
-      metadata: initialMetadata,
-      assignedFormats,
+  if (partialDates && sourcePackage) {
+    strategy = strategyContextFromPackage(sourcePackage);
+  } else {
+    stages.push(stageRoute("strategy", STRATEGY_STAGE, "EXECUTIVE"));
+    const strategyRaw = await invokeJsonPass({
+      generate,
+      prompt: buildEvergreenStrategyPrompt({
+        context,
+        userGuidance,
+        assignedFormats,
+        socialMemoryText: input.socialMemoryText,
+        thinkDifferentlyText: strategyDerivative,
+      }),
+      systemPrompt: `${SOCIAL_PLANNER_EVERGREEN_STRATEGY_SYSTEM_PROMPT}${systemAddendum}`,
+      athenaStage: STRATEGY_STAGE,
+      callStage: "strategy",
+      parsePass: "strategy",
+      reasoningProfile: "EXECUTIVE",
     });
-    return {
-      package: socialPackage,
-      generationProvenance: socialPackage.generationMetadata,
-    };
-  } catch (error) {
-    if (!(error instanceof SocialCalendarPackageValidationError)) {
+    try {
+      strategy = validateSocialPlannerEvergreenWeeklyStrategy(
+        strategyRaw,
+        context,
+        assignedFormats,
+      );
+    } catch (error) {
+      if (error instanceof SocialPlannerStrategyValidationError) {
+        throw new SocialPlannerGenerationError({
+          code: "STRATEGY_VALIDATION_FAILED",
+          message: error.message,
+          stage: "strategy",
+          retryable: true,
+          failures: error.failures,
+        });
+      }
       throw error;
     }
+  }
 
+  const sourceByDate = new Map(
+    (sourcePackage?.days ?? []).map((day) => [day.date, day]),
+  );
+  const produced = new Map<string, SocialCalendarEvergreenDayV1>();
+  if (partialDates && sourcePackage) {
+    for (const date of dates) {
+      if (partialDates.has(date)) continue;
+      const sourceDay = sourceByDate.get(date);
+      if (!sourceDay) {
+        throw new SocialPlannerGenerationError({
+          code: "INVALID_INPUT_CONTEXT",
+          message: `Evergreen revision cannot copy ${date} because the source package has no such day.`,
+          stage: "input",
+          retryable: false,
+        });
+      }
+      produced.set(date, structuredClone(sourceDay));
+    }
+  }
+
+  const datesToGenerate = partialDates
+    ? dates.filter((date) => partialDates.has(date))
+    : [...dates];
+  const unresolved: string[] = [];
+  let repairUsed = false;
+  let repairFailed = false;
+
+  for (const date of datesToGenerate) {
+    const dayIndex = dates.indexOf(date);
+    const assignment = assignedFormats[dayIndex];
+    if (!assignment || assignment.date !== date) {
+      throw new SocialPlannerGenerationError({
+        code: "INVALID_INPUT_CONTEXT",
+        message: `Evergreen format assignment is missing for ${date}.`,
+        stage: "input",
+        retryable: false,
+      });
+    }
+
+    const sourceDay = sourceByDate.get(date) ?? null;
+    const dayDerivative =
+      generationMode === "think_differently" && sourceDay
+        ? [
+            SOCIAL_PLANNER_EVERGREEN_THINK_DIFFERENTLY_ADDENDUM,
+            "SOURCE DAY — CHANGE THE ANGLE, TITLE, AND DRAFT:",
+            compactEvergreenSourceDay(sourceDay),
+          ].join("\n\n")
+        : generationMode === "conversation_revision" &&
+            input.revisionContext &&
+            sourceDay
+          ? [
+              SOCIAL_PLANNER_EVERGREEN_REVISION_ADDENDUM,
+              JSON.stringify(
+                {
+                  global: partialDates ? {} : input.revisionContext.brief.global,
+                  dayChange:
+                    input.revisionContext.brief.dayChanges.find(
+                      (change) => change.date === date,
+                    ) ?? null,
+                  avoid: partialDates ? [] : input.revisionContext.brief.avoid,
+                },
+                null,
+                2,
+              ),
+              "SOURCE DAY TO REVISE:",
+              compactEvergreenSourceDay(sourceDay, { includeDraft: true }),
+            ].join("\n\n")
+          : null;
+
+    stages.push(stageRoute("assets", ASSET_STAGE, "EXECUTIVE"));
+    const draftRaw = await invokeJsonPass({
+      generate,
+      prompt: buildEvergreenDraftPrompt({
+        context,
+        userGuidance,
+        strategy,
+        assignment,
+        dayIndex,
+        socialMemoryText: input.socialMemoryText,
+        thinkDifferentlyText: dayDerivative,
+      }),
+      systemPrompt: `${SOCIAL_PLANNER_EVERGREEN_DRAFT_SYSTEM_PROMPT}${systemAddendum}`,
+      athenaStage: ASSET_STAGE,
+      callStage: "day",
+      parsePass: "assets",
+      reasoningProfile: "EXECUTIVE",
+    });
+
+    const first = readGeneratedDay({
+      raw: draftRaw,
+      dayIndex,
+      assignment,
+      context,
+    });
+    if (first.ok) {
+      produced.set(date, first.day);
+      continue;
+    }
+    if (first.budget) {
+      unresolved.push(...first.failures);
+      continue;
+    }
+
+    repairUsed = true;
     stages.push(stageRoute("repair", REPAIR_STAGE, "BALANCED"));
     const repairRaw = await invokeJsonPass({
       generate,
@@ -331,47 +509,95 @@ export async function generateEvergreenSocialCalendarPackage(input: {
         context,
         userGuidance,
         strategy,
-        assignedFormats,
-        invalidPackage: draftRaw,
-        failures: error.failures,
+        assignment,
+        dayIndex,
+        invalidDay: draftRaw,
+        failures: first.failures,
         socialMemoryText: input.socialMemoryText,
-        thinkDifferentlyText,
+        thinkDifferentlyText: dayDerivative,
       }),
       systemPrompt: `${SOCIAL_PLANNER_EVERGREEN_REPAIR_SYSTEM_PROMPT}${systemAddendum}`,
       athenaStage: REPAIR_STAGE,
-      pass: "repair",
+      callStage: "day_repair",
+      parsePass: "repair",
       reasoningProfile: "BALANCED",
     });
-
-    const repairedMetadata = buildEvergreenMetadata({
+    const second = readGeneratedDay({
+      raw: repairRaw,
+      dayIndex,
+      assignment,
       context,
-      repairUsed: true,
-      stages,
-      generationMode,
     });
-
-    try {
-      const repaired = validateAndNormalizeSocialCalendarEvergreenPackage({
-        raw: repairRaw,
-        context,
-        metadata: repairedMetadata,
-        assignedFormats,
-      });
-      return {
-        package: repaired,
-        generationProvenance: repaired.generationMetadata,
-      };
-    } catch (repairError) {
-      if (repairError instanceof SocialCalendarPackageValidationError) {
-        throw new SocialPlannerGenerationError({
-          code: "REPAIR_VALIDATION_FAILED",
-          message: repairError.message,
-          stage: "repair_validation",
-          retryable: false,
-          failures: repairError.failures,
-        });
-      }
-      throw repairError;
+    if (second.ok) {
+      produced.set(date, second.day);
+      continue;
     }
+    if (!second.budget) repairFailed = true;
+    unresolved.push(...second.failures);
+  }
+
+  if (unresolved.length > 0 || produced.size !== dates.length) {
+    const failures =
+      unresolved.length > 0
+        ? unresolved
+        : ["Evergreen week is incomplete and was not persisted."];
+    throw new SocialPlannerGenerationError({
+      code: repairFailed ? "REPAIR_VALIDATION_FAILED" : "PACKAGE_VALIDATION_FAILED",
+      message: failures[0] ?? "Evergreen week is incomplete and was not persisted.",
+      stage: repairFailed ? "repair_validation" : "validation",
+      retryable: false,
+      failures,
+    });
+  }
+
+  const orderedDays = dates.map((date) => {
+    const day = produced.get(date);
+    if (!day) {
+      throw new SocialPlannerGenerationError({
+        code: "PACKAGE_VALIDATION_FAILED",
+        message: `Missing Evergreen day for ${date}.`,
+        stage: "validation",
+        retryable: false,
+        failures: [`Missing Evergreen day for ${date}.`],
+      });
+    }
+    return day;
+  });
+
+  const metadata = buildEvergreenMetadata({
+    context,
+    repairUsed,
+    stages,
+    generationMode,
+  });
+
+  try {
+    const socialPackage = finalizeSocialCalendarEvergreenPackage({
+      days: orderedDays,
+      strategySummary: partialDates && sourcePackage
+        ? sourcePackage.strategySummary
+        : strategy.strategySummary,
+      whyThisWeekWorks: partialDates && sourcePackage
+        ? sourcePackage.whyThisWeekWorks
+        : strategy.whyThisWeekWorks,
+      context,
+      metadata,
+      assignedFormats,
+    });
+    return {
+      package: socialPackage,
+      generationProvenance: socialPackage.generationMetadata,
+    };
+  } catch (error) {
+    if (error instanceof SocialCalendarPackageValidationError) {
+      throw new SocialPlannerGenerationError({
+        code: "PACKAGE_VALIDATION_FAILED",
+        message: error.message,
+        stage: "validation",
+        retryable: false,
+        failures: error.failures,
+      });
+    }
+    throw error;
   }
 }

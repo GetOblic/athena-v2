@@ -25,7 +25,10 @@ import {
   SOCIAL_PLANNER_EVERGREEN_WEEKLY_STRATEGY_SCHEMA_VERSION,
   validateSocialPlannerEvergreenWeeklyStrategy,
 } from "../../services/socialPlanner/generation/validateSocialCalendarEvergreenPackage";
-import { buildGenerationContext } from "./socialPlannerGenerationFixtures";
+import {
+  buildGenerationContext,
+  mockEvergreenGenerationResponse,
+} from "./socialPlannerGenerationFixtures";
 
 const ROOT = process.cwd();
 
@@ -78,6 +81,10 @@ function evergreenStrategyRaw(
     creativeDirection: "Plain, local, useful.",
     avoidances: ["Daily social copy"],
     userGuidanceInterpretation: null,
+    strategySummary:
+      "A durable Harbor Clinic week that rotates Blog, Newsletter, Substack, Reddit, and Skool.",
+    whyThisWeekWorks:
+      "This week teaches one preventive-care idea through six durable formats. Each day is a working draft a manager can edit.",
     ...overrides,
   };
 }
@@ -558,15 +565,18 @@ describe("Evergreen strategy narrative length", () => {
       deps: {
         generateReview: async (prompt, options) => {
           calls += 1;
-          if (String(options?.stage ?? "").includes("strategy")) {
-            return JSON.stringify(strategyRaw);
-          }
-          assetPrompt = prompt;
-          return JSON.stringify(evergreenPackageRaw(context));
+          const stage = String(options?.stage ?? "");
+          if (!stage.includes("strategy")) assetPrompt = prompt;
+          return mockEvergreenGenerationResponse({
+            prompt,
+            stage,
+            strategy: strategyRaw,
+            days: evergreenPackageRaw(context).days,
+          });
         },
       },
     });
-    assert.equal(calls, 2);
+    assert.equal(calls, 8);
     assert.equal(generated.package.plannerKind, "evergreen");
     assert.equal(generated.package.generationMetadata.repairUsed, false);
     assert.equal(assetPrompt.includes(weeklyObjective), true);

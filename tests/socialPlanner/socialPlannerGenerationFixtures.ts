@@ -321,6 +321,23 @@ export function buildGenerationContext(input?: {
   };
 }
 
+export function mockEvergreenGenerationResponse(input: {
+  prompt: string;
+  stage: string;
+  strategy: unknown;
+  days: readonly { date: string }[];
+}): string {
+  if (input.stage.includes("strategy")) return JSON.stringify(input.strategy);
+  const date = /ASSIGNED_DATE:\s*(\d{4}-\d{2}-\d{2})/.exec(input.prompt)?.[1];
+  const day = input.days.find((entry) => entry.date === date);
+  if (!day) {
+    throw new Error(
+      `Evergreen mock has no day for ${date ?? "missing ASSIGNED_DATE"}.`,
+    );
+  }
+  return JSON.stringify(day);
+}
+
 export function testMetadata(
   extras: Partial<SocialPlannerGenerationMetadata> = {},
 ): SocialPlannerGenerationMetadata {
