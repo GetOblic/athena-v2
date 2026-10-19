@@ -180,7 +180,7 @@ Role-based model selection is configured in `lib/llm/modelRouting.ts`. Optional 
 
 ```bash
 OPENROUTER_ANALYSIS_MODEL=google/gemini-2.5-flash
-OPENROUTER_PREMIUM_MODEL=anthropic/claude-sonnet-4
+OPENROUTER_PREMIUM_MODEL=google/gemini-2.5-flash
 OPENROUTER_ANALYSIS_REASONING_EFFORT=medium
 OPENROUTER_PREMIUM_REASONING_EFFORT=high
 ```

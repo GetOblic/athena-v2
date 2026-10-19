@@ -254,11 +254,11 @@ describe("Think Differently Deployment Asset — model routing", () => {
     assert.match(route.model, /gemini-2\.5-flash|google\//);
   });
 
-  it("2–3. Think Differently DA uses premium Claude family for generate and retries", () => {
+  it("2–3. Think Differently DA uses the premium role for generate and retries", () => {
     const route = resolveModelForStage(THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE);
     assert.equal(route.stage, "deployment_assets_think_differently");
     assert.equal(route.role, "premiumStrategicOutput");
-    assert.match(route.model, /claude|anthropic\//);
+    assert.equal(route.model, "google/gemini-2.5-flash");
 
     const blueprint = resolveModelForStage("strategic_blueprint");
     assert.equal(route.role, blueprint.role);
@@ -277,7 +277,7 @@ describe("Think Differently Deployment Asset — model routing", () => {
   it("12. Strategic Assets / blueprint routing remains premium", () => {
     const route = resolveModelForStage("strategic_blueprint");
     assert.equal(route.role, "premiumStrategicOutput");
-    assert.match(route.model, /claude|anthropic\//);
+    assert.equal(route.model, "google/gemini-2.5-flash");
   });
 });
 

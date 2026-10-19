@@ -47,7 +47,7 @@ export type ResolvedModelRoute = {
 };
 
 const DEFAULT_ANALYSIS_MODEL = "google/gemini-2.5-flash";
-const DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4";
+const DEFAULT_PREMIUM_MODEL = "google/gemini-2.5-flash";
 
 /** Fallback for calls without an explicit Athena stage (legacy / unspecified). */
 export function resolveOpenRouterFallbackModel(): string {
@@ -131,7 +131,7 @@ const EXTENDED_STAGE_ROLE: Record<
   social_calendar_conversation_revision_repair: "analysis",
 };
 
-/** Stage used for Think Differently Deployment Assets (premium Claude family). */
+/** Stage used for Think Differently Deployment Assets (premium strategic output). */
 export const THINK_DIFFERENTLY_DEPLOYMENT_ASSETS_STAGE: AthenaExtendedLLMStage =
   "deployment_assets_think_differently";
 

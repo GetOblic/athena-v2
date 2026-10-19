@@ -6,13 +6,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  getLLMModelRoles,
   resolveAthenaStageFromGenerationKind,
   resolveModelForStage,
+  resolveOpenRouterFallbackModel,
   resolveRoleForStage,
 } from "@/lib/llm/modelRouting";
 
 const DEFAULT_ANALYSIS_MODEL = "google/gemini-2.5-flash";
-const DEFAULT_PREMIUM_MODEL = "anthropic/claude-sonnet-4";
+const DEFAULT_PREMIUM_MODEL = "google/gemini-2.5-flash";
+const RETIRED_PREMIUM_MODEL = "anthropic/claude-sonnet-4";
 
 const CORE_STAGES = [
   "discussion_analysis",
@@ -32,6 +35,44 @@ const ANALYSIS_EXTENDED_STAGES = [
 ] as const;
 
 const ADS_PREMIUM_EXTENDED_STAGES = ["ad_campaign_strategy"] as const;
+
+const PREMIUM_STAGES = [
+  "strategic_blueprint",
+  "deployment_assets_think_differently",
+  "ad_campaign_strategy",
+  "seo_executive_assessment",
+  "seo_roadmap",
+  "estimate_package",
+  "social_calendar_strategy",
+  "social_calendar_assets",
+  "social_calendar_conversation_revision",
+] as const;
+
+const ROUTING_OVERRIDE_KEYS = [
+  "OPENROUTER_STRATEGIC_BLUEPRINT_MODEL",
+  "OPENROUTER_PREMIUM_MODEL",
+  "OPENROUTER_MODEL",
+] as const;
+
+function withoutRoutingOverrides(run: () => void): void {
+  const saved = ROUTING_OVERRIDE_KEYS.map(
+    (key) => [key, process.env[key]] as const,
+  );
+  for (const key of ROUTING_OVERRIDE_KEYS) {
+    delete process.env[key];
+  }
+  try {
+    run();
+  } finally {
+    for (const [key, value] of saved) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
 
 let failures = 0;
 
@@ -67,32 +108,73 @@ for (const stage of CORE_STAGES) {
   pass(`${stage} resolves to ${route.model}`);
 }
 
-const analysisModel = resolveModelForStage("discussion_analysis").model;
-const premiumModel = resolveModelForStage("ad_campaign_strategy").model;
 const blueprintOverride =
   process.env.OPENROUTER_STRATEGIC_BLUEPRINT_MODEL?.trim() || "";
 
-if (analysisModel === DEFAULT_ANALYSIS_MODEL) {
-  pass(`Analysis default is ${DEFAULT_ANALYSIS_MODEL}`);
-} else {
-  fail(
-    `Expected analysis default ${DEFAULT_ANALYSIS_MODEL}, got ${analysisModel}`,
-  );
-}
+withoutRoutingOverrides(() => {
+  const analysisModel = resolveModelForStage("discussion_analysis").model;
+  const premiumModel = resolveModelForStage("ad_campaign_strategy").model;
+  const fallbackModel = resolveOpenRouterFallbackModel();
 
-if (premiumModel === DEFAULT_PREMIUM_MODEL) {
-  pass(`Premium default is ${DEFAULT_PREMIUM_MODEL}`);
-} else {
-  fail(
-    `Expected premium default ${DEFAULT_PREMIUM_MODEL}, got ${premiumModel}`,
-  );
-}
+  if (analysisModel === DEFAULT_ANALYSIS_MODEL) {
+    pass(`Analysis default is ${DEFAULT_ANALYSIS_MODEL}`);
+  } else {
+    fail(
+      `Expected analysis default ${DEFAULT_ANALYSIS_MODEL}, got ${analysisModel}`,
+    );
+  }
 
-if (analysisModel !== premiumModel) {
-  pass("Analysis and premium stages use distinct default models");
-} else {
-  fail("Analysis and premium stages must not share the same default model");
-}
+  if (premiumModel === DEFAULT_PREMIUM_MODEL) {
+    pass(`Premium default is ${DEFAULT_PREMIUM_MODEL}`);
+  } else {
+    fail(
+      `Expected premium default ${DEFAULT_PREMIUM_MODEL}, got ${premiumModel}`,
+    );
+  }
+
+  if (fallbackModel === DEFAULT_PREMIUM_MODEL) {
+    pass(`Fallback resolver default is ${DEFAULT_PREMIUM_MODEL}`);
+  } else {
+    fail(
+      `Expected fallback default ${DEFAULT_PREMIUM_MODEL}, got ${fallbackModel}`,
+    );
+  }
+
+  if (
+    premiumModel === RETIRED_PREMIUM_MODEL ||
+    fallbackModel === RETIRED_PREMIUM_MODEL
+  ) {
+    fail(
+      `${RETIRED_PREMIUM_MODEL} must not be the built-in premium or fallback default`,
+    );
+  } else {
+    pass("Retired Claude Sonnet 4 is not the built-in premium default");
+  }
+
+  if (
+    resolveRoleForStage("discussion_analysis") === "analysis" &&
+    resolveRoleForStage("ad_campaign_strategy") === "premiumStrategicOutput"
+  ) {
+    pass("Analysis and premium roles stay distinct");
+  } else {
+    fail("Analysis and premium roles must stay distinct");
+  }
+
+  for (const stage of PREMIUM_STAGES) {
+    const route = resolveModelForStage(stage);
+    if (route.role !== "premiumStrategicOutput") {
+      fail(`${stage} must use premiumStrategicOutput role`);
+    } else if (route.model !== DEFAULT_PREMIUM_MODEL) {
+      fail(
+        `${stage} must default to ${DEFAULT_PREMIUM_MODEL}, got ${route.model}`,
+      );
+    } else if (route.model === RETIRED_PREMIUM_MODEL) {
+      fail(`${stage} resolved to retired ${RETIRED_PREMIUM_MODEL}`);
+    } else {
+      pass(`${stage} defaults to ${route.model}`);
+    }
+  }
+});
 
 for (const stage of [...CORE_STAGES, ...ANALYSIS_EXTENDED_STAGES]) {
   const route = resolveModelForStage(stage);
@@ -112,6 +194,7 @@ for (const stage of [...CORE_STAGES, ...ANALYSIS_EXTENDED_STAGES]) {
 
 {
   const route = resolveModelForStage("strategic_blueprint");
+  const livePremiumModel = resolveModelForStage("ad_campaign_strategy").model;
   if (route.role !== "premiumStrategicOutput") {
     fail("strategic_blueprint must keep the premiumStrategicOutput role");
   } else if (blueprintOverride) {
@@ -120,8 +203,8 @@ for (const stage of [...CORE_STAGES, ...ANALYSIS_EXTENDED_STAGES]) {
         `strategic_blueprint override expected ${blueprintOverride}, got ${route.model}`,
       );
     } else if (
-      blueprintOverride !== premiumModel &&
-      resolveModelForStage("ad_campaign_strategy").model === blueprintOverride
+      getLLMModelRoles().premiumStrategicOutput.model !== blueprintOverride &&
+      livePremiumModel === blueprintOverride
     ) {
       fail("strategic_blueprint override leaked into ad_campaign_strategy");
     } else {
@@ -129,10 +212,12 @@ for (const stage of [...CORE_STAGES, ...ANALYSIS_EXTENDED_STAGES]) {
         `strategic_blueprint uses OPENROUTER_STRATEGIC_BLUEPRINT_MODEL (${route.model})`,
       );
     }
-  } else if (route.model !== premiumModel || !isClaudeModel(route.model)) {
-    fail("strategic_blueprint premium role must default to the shared Claude premium model");
+  } else if (route.model !== livePremiumModel) {
+    fail(
+      `strategic_blueprint must follow shared premium routing (${livePremiumModel}), got ${route.model}`,
+    );
   } else {
-    pass("strategic_blueprint premium role defaults to Claude");
+    pass(`strategic_blueprint follows shared premium routing (${route.model})`);
   }
 }
 
@@ -198,6 +283,30 @@ if (!modelRoutingSource.includes("google/gemini-2.5-flash")) {
   fail("modelRouting.ts missing Gemini analysis default");
 } else {
   pass("modelRouting.ts defines Gemini analysis default");
+}
+
+if (
+  modelRoutingSource.includes(
+    `const DEFAULT_PREMIUM_MODEL = "${DEFAULT_PREMIUM_MODEL}"`,
+  )
+) {
+  pass(`modelRouting.ts premium default is ${DEFAULT_PREMIUM_MODEL}`);
+} else {
+  fail(
+    `modelRouting.ts premium default must be ${DEFAULT_PREMIUM_MODEL}`,
+  );
+}
+
+if (
+  modelRoutingSource.includes(
+    `const DEFAULT_PREMIUM_MODEL = "${RETIRED_PREMIUM_MODEL}"`,
+  )
+) {
+  fail(
+    `modelRouting.ts still assigns retired ${RETIRED_PREMIUM_MODEL} as DEFAULT_PREMIUM_MODEL`,
+  );
+} else {
+  pass("modelRouting.ts does not assign retired Claude Sonnet 4 as the premium default");
 }
 
 if (!aiServiceSource.includes("process.env.OPENROUTER_MODEL")) {
