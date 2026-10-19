@@ -130,16 +130,6 @@ export function GetOblicOpportunityDiscovery({
 
   async function convertHit(hit: GetOblicOpportunitySearchHit) {
     if (!canAddProspect || directoryMode === "refused") return;
-    const existingProspectId = hit.same_org_added_id?.trim() ?? "";
-    if (
-      directoryMode === "unclaimed" &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        existingProspectId,
-      )
-    ) {
-      router.push(`/prospects/${existingProspectId}`);
-      return;
-    }
     setConvertingId(hit.wordpress_listing_id);
     setFailedId(null);
     setFailureMessage(null);

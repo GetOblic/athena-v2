@@ -317,6 +317,7 @@ export function firstGetOblicCategoryName(
  * Row stamped by acquire_unclaimed_getoblic_prospect.
  * Ordinary conversion writes attribution and a richer observed snapshot.
  * Directory repeat-add of this exact row must not claim it.
+ * It fills only blank social columns from the authenticated listing.
  */
 export function isExactUnclaimedGetoblicDirectoryProspect(
   prospect: Pick<Prospect, "source" | "raw_json">,
@@ -528,6 +529,85 @@ export async function findGetOblicOriginProspectByListingId(
   return match ?? null;
 }
 
+const EXACT_UNCLAIMED_SOCIAL_LOG_LABEL =
+  "Exact unclaimed GetOblic social import";
+
+/**
+ * Same-organization repeat of an acquire_unclaimed_getoblic_prospect row.
+ * Reads the existing listing detail, then fills blank social columns.
+ * Does not claim, allocate, queue generation, or rewrite provenance.
+ */
+async function reuseExactUnclaimedDirectoryProspect(args: {
+  organizationId: string;
+  wordpressListingId: number;
+  prospect: Prospect;
+  listing: GetOblicWordpressListing | null;
+  input: GetOblicConvertInput;
+  dependencies: GetOblicConvertDependencies;
+}): Promise<GetOblicConvertResult> {
+  const preloaded = args.listing ?? args.input.preloadedListing ?? null;
+  if (preloaded || args.input.remoteListingConfirmedMissing !== true) {
+    const listing = await readListingForExactUnclaimedReuse(
+      preloaded,
+      args.wordpressListingId,
+      args.dependencies,
+    );
+    const social = mapGetOblicListingSocial(listing);
+    const fillSocial =
+      args.dependencies.fillBlankProspectSocialColumns ??
+      fillBlankProspectSocialColumns;
+    await fillSocial({
+      organizationId: args.organizationId,
+      prospectId: args.prospect.id,
+      values: {
+        facebook: social.facebook,
+        instagram: social.instagram,
+        linkedin: social.linkedin,
+        whatsapp_number: social.whatsapp,
+      },
+      logLabel: EXACT_UNCLAIMED_SOCIAL_LOG_LABEL,
+    });
+  }
+
+  return presentProspect({
+    prospect: args.prospect,
+    outcome: "reused",
+    generationQueued: false,
+    allocated: false,
+  });
+}
+
+async function readListingForExactUnclaimedReuse(
+  preloaded: GetOblicWordpressListing | null,
+  wordpressListingId: number,
+  dependencies: Pick<GetOblicConvertDependencies, "getListingById">,
+): Promise<GetOblicWordpressListing> {
+  if (preloaded) {
+    if (preloaded.wordpress_listing_id !== wordpressListingId) {
+      throw new GetOblicDirectoryError(
+        "GETOBLIC_REMOTE_LISTING_MISSING",
+        "Athena couldn’t find that business right now.",
+        409,
+      );
+    }
+    return preloaded;
+  }
+
+  try {
+    const listing = await dependencies.getListingById(wordpressListingId);
+    if (listing.wordpress_listing_id !== wordpressListingId) {
+      throw new GetOblicDirectoryError(
+        "GETOBLIC_REMOTE_LISTING_MISSING",
+        "Athena couldn’t find that business right now.",
+        409,
+      );
+    }
+    return listing;
+  } catch (error) {
+    throw mapConvertWordpressError(error);
+  }
+}
+
 export async function convertGetOblicDirectoryListing(
   input: GetOblicConvertInput,
   dependencies: GetOblicConvertDependencies = defaultDependencies,
@@ -558,11 +638,13 @@ export async function convertGetOblicDirectoryListing(
       wordpressListingId,
     )
   ) {
-    return presentProspect({
+    return reuseExactUnclaimedDirectoryProspect({
+      organizationId,
+      wordpressListingId,
       prospect: unclaimedExisting,
-      outcome: "reused",
-      generationQueued: false,
-      allocated: false,
+      listing: input.preloadedListing ?? null,
+      input,
+      dependencies,
     });
   }
 
@@ -970,11 +1052,13 @@ async function finishExistingProspect(args: {
     prospect.organization_id === args.organizationId &&
     isExactUnclaimedGetoblicDirectoryProspect(prospect, args.wordpressListingId)
   ) {
-    return presentProspect({
+    return reuseExactUnclaimedDirectoryProspect({
+      organizationId: args.organizationId,
+      wordpressListingId: args.wordpressListingId,
       prospect,
-      outcome: "reused",
-      generationQueued: false,
-      allocated: false,
+      listing: args.listing ?? args.input.preloadedListing ?? null,
+      input: args.input,
+      dependencies: args.dependencies,
     });
   }
 

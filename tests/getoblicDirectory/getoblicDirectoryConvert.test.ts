@@ -2636,9 +2636,17 @@ describe("GetOblic listing social import during ordinary conversion", () => {
     assert.equal(store[0].whatsapp_number, "+15550001111");
   });
 
-  it("does not fetch listing detail for an already linked claim or an exact unclaimed Prospect", async () => {
+  it("does not fetch listing detail for an already linked claim", async () => {
     let reads = 0;
-    const linked = prospect({ id: PROSPECT_B, status: "Ready" });
+    const linked = prospect({
+      id: PROSPECT_B,
+      status: "Ready",
+      facebook: null,
+      instagram: null,
+      linkedin: null,
+      whatsapp_number: null,
+      notes: "owned-note",
+    });
     const linkedPort = deps({
       getActiveListingClaim: async () => ({
         outcome: "found" as const,
@@ -2651,39 +2659,36 @@ describe("GetOblic listing social import during ordinary conversion", () => {
         reads += 1;
         throw new Error("listing detail");
       },
+      fillBlankProspectSocialColumns: async () => {
+        throw new Error("social fill");
+      },
+      createProspect: async () => {
+        throw new Error("create");
+      },
+      updateProspect: async () => {
+        throw new Error("update");
+      },
+      claimKnownExistingListing: async () => {
+        throw new Error("claim");
+      },
     });
     const linkedResult = await convertGetOblicDirectoryListing(
       convertInput(),
       linkedPort,
     );
     assert.equal(linkedResult.outcome, "already_owned");
+    assert.equal(linkedResult.prospect_id, PROSPECT_B);
+    assert.equal(linkedResult.generation_queued, false);
+    assert.equal(linkedResult.allocated, false);
     assert.equal(reads, 0);
-
-    const unclaimed = prospect({
-      raw_json: {
-        origin: "getoblic_directory",
-        wordpress_listing_id: LISTING_ID,
-        observed: { wordpress_listing_id: LISTING_ID },
-      },
-    });
-    const unclaimedPort = deps({
-      findOriginProspectByListingId: async () => unclaimed,
-      getListingById: async () => {
-        reads += 1;
-        throw new Error("listing detail");
-      },
-      getActiveListingClaim: async () => {
-        throw new Error("claim lookup");
-      },
-    });
-    const unclaimedResult = await convertGetOblicDirectoryListing(
-      convertInput(),
-      unclaimedPort,
-    );
-    assert.equal(unclaimedResult.outcome, "reused");
-    assert.equal(unclaimedResult.prospect_id, PROSPECT_A);
-    assert.equal(reads, 0);
-    assert.equal(unclaimedPort.claimed.length, 0);
+    assert.equal(linked.facebook, null);
+    assert.equal(linked.instagram, null);
+    assert.equal(linked.linkedin, null);
+    assert.equal(linked.whatsapp_number, null);
+    assert.equal(linked.notes, "owned-note");
+    assert.equal(linkedPort.created.length, 0);
+    assert.equal(linkedPort.claimed.length, 0);
+    assert.equal(linkedPort.queued.length, 0);
   });
 });
 
@@ -3136,5 +3141,221 @@ describe("ordinary conversion reuse social fill", { concurrency: false }, () => 
       '(facebook.is.null,facebook.match."^[[:space:]]*$")',
     );
     assert.equal(params.has("facebook"), false);
+  });
+
+  function exactUnclaimedProspect(
+    overrides: Partial<Prospect> = {},
+  ): Prospect {
+    return prospect({
+      facebook: null,
+      instagram: null,
+      linkedin: null,
+      whatsapp_number: null,
+      phone: "512-000-0199",
+      notes: "keep-me",
+      business_name: "Passion Chiropractic",
+      raw_json: {
+        origin: "getoblic_directory",
+        wordpress_listing_id: LISTING_ID,
+        observed: { wordpress_listing_id: LISTING_ID },
+      },
+      ...overrides,
+    });
+  }
+
+  function exactReusePort(
+    rows: Prospect[],
+    listing: ReturnType<typeof richListing>,
+    reads: { count: number },
+  ) {
+    return deps({
+      fillBlankProspectSocialColumns,
+      findOriginProspectByListingId: async () =>
+        rows.find((row) => row.organization_id === ORG_A) ?? null,
+      getProspectById: async () => {
+        throw new Error("prospect reload");
+      },
+      getActiveListingClaim: async () => {
+        throw new Error("claim lookup");
+      },
+      getListingById: async (id) => {
+        reads.count += 1;
+        return { ...listing, wordpress_listing_id: id };
+      },
+      createProspect: async () => {
+        throw new Error("exact unclaimed reuse must not create a Prospect");
+      },
+      updateProspect: async () => {
+        throw new Error("exact unclaimed reuse must not rewrite Prospect fields");
+      },
+      claimKnownExistingListing: async () => {
+        throw new Error("exact unclaimed reuse must not claim");
+      },
+      ensureProspectGenerationQueued: async () => {
+        throw new Error("exact unclaimed reuse must not queue generation");
+      },
+    });
+  }
+
+  it("fills blank social columns when an exact unclaimed Prospect is selected again", async () => {
+    const kept = exactUnclaimedProspect();
+    const foreign = foreignProspect();
+    const rows = [kept, foreign];
+    const store = installSocialStore(rows);
+    const reads = { count: 0 };
+    const listing = richListing(LISTING_ID);
+    listing.whatsapp = "ask us on whatsapp";
+    const provenance = structuredClone(kept.raw_json);
+
+    const result = await convertGetOblicDirectoryListing(
+      convertInput(),
+      exactReusePort(rows, listing, reads),
+    );
+
+    assert.equal(result.outcome, "reused");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(result.generation_queued, false);
+    assert.equal(result.allocated, false);
+    assert.equal(reads.count, 1);
+    assert.equal(kept.facebook, "https://facebook.com/acme");
+    assert.equal(kept.instagram, "https://instagram.com/acme");
+    assert.equal(kept.linkedin, "https://linkedin.com/company/acme");
+    assert.equal(kept.whatsapp_number, null);
+    assert.equal(kept.phone, "512-000-0199");
+    assert.equal(kept.notes, "keep-me");
+    assert.equal(kept.business_name, "Passion Chiropractic");
+    assert.deepEqual(kept.raw_json, provenance);
+    assert.equal(foreign.facebook, null);
+    assert.equal(foreign.instagram, null);
+    assert.equal(foreign.linkedin, null);
+    assert.equal(foreign.whatsapp_number, null);
+    assert.equal(rows.length, 2);
+    assert.deepEqual(
+      store.updates.map((update) => Object.keys(update.patch)[0]),
+      ["facebook", "instagram", "linkedin"],
+    );
+    assert.equal(
+      store.updates.every(
+        (update) =>
+          update.applied &&
+          update.filters.id === PROSPECT_A &&
+          update.filters.organization_id === ORG_A,
+      ),
+      true,
+    );
+  });
+
+  it("fills an existing unclaimed Prospect during ordinary conversion without claiming or duplicating it", async () => {
+    const kept = exactUnclaimedProspect();
+    const foreign = foreignProspect();
+    const rows = [kept, foreign];
+    const store = installSocialStore(rows);
+    const reads = { count: 0 };
+
+    const result = await convertGetOblicDirectoryListing(
+      convertInput(),
+      exactReusePort(rows, richListing(LISTING_ID), reads),
+    );
+
+    assert.equal(result.outcome, "reused");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(reads.count, 1);
+    assert.equal(kept.facebook, "https://facebook.com/acme");
+    assert.equal(kept.instagram, "https://instagram.com/acme");
+    assert.equal(kept.linkedin, "https://linkedin.com/company/acme");
+    assert.equal(kept.whatsapp_number, "+15125550100");
+    assert.equal(kept.phone, "512-000-0199");
+    assert.deepEqual(kept.raw_json, {
+      origin: "getoblic_directory",
+      wordpress_listing_id: LISTING_ID,
+      observed: { wordpress_listing_id: LISTING_ID },
+    });
+    assert.equal(foreign.whatsapp_number, null);
+    assert.equal(rows.length, 2);
+    assert.equal(store.updates.length, 4);
+    assert.equal(
+      store.updates.every(
+        (update) => update.filters.organization_id === ORG_A,
+      ),
+      true,
+    );
+  });
+
+  it("does not overwrite nonempty social values on exact unclaimed reuse", async () => {
+    const kept = exactUnclaimedProspect({
+      facebook: "https://facebook.com/user",
+      instagram: "   ",
+      linkedin: null,
+      whatsapp_number: "+15550001111",
+    });
+    const rows = [kept, foreignProspect()];
+    const store = installSocialStore(rows);
+    const reads = { count: 0 };
+
+    const result = await convertGetOblicDirectoryListing(
+      convertInput(),
+      exactReusePort(rows, richListing(LISTING_ID), reads),
+    );
+
+    assert.equal(result.outcome, "reused");
+    assert.equal(kept.facebook, "https://facebook.com/user");
+    assert.equal(kept.instagram, "https://instagram.com/acme");
+    assert.equal(kept.linkedin, "https://linkedin.com/company/acme");
+    assert.equal(kept.whatsapp_number, "+15550001111");
+    assert.equal(rows[1]?.facebook, null);
+    assert.deepEqual(
+      store.updates.map((update) => ({
+        column: Object.keys(update.patch)[0],
+        applied: update.applied,
+      })),
+      [
+        { column: "facebook", applied: false },
+        { column: "instagram", applied: true },
+        { column: "linkedin", applied: true },
+        { column: "whatsapp_number", applied: false },
+      ],
+    );
+  });
+
+  it("does not enrich another organization's unclaimed Prospect", async () => {
+    const foreign = exactUnclaimedProspect({
+      id: PROSPECT_B,
+      organization_id: ORG_B,
+    });
+    const rows = [foreign];
+    const store = installSocialStore(rows);
+    let reads = 0;
+    const port = deps({
+      fillBlankProspectSocialColumns,
+      findOriginProspectByListingId: async () => foreign,
+      getActiveListingClaim: async () => ({
+        outcome: "found" as const,
+        organization_id: ORG_B,
+        prospect_id: PROSPECT_B,
+        relationship_status: "linked" as const,
+      }),
+      getListingById: async () => {
+        reads += 1;
+        return richListing(LISTING_ID);
+      },
+      createProspect: async () => {
+        throw new Error("create");
+      },
+      claimKnownExistingListing: async () => {
+        throw new Error("claim");
+      },
+    });
+
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+
+    assert.equal(result.outcome, "unavailable");
+    assert.equal(result.prospect_id, null);
+    assert.equal(reads, 0);
+    assert.equal(store.updates.length, 0);
+    assert.equal(foreign.facebook, null);
+    assert.equal(foreign.instagram, null);
+    assert.equal(foreign.whatsapp_number, null);
+    assert.equal(port.created.length, 0);
+    assert.equal(port.claimed.length, 0);
   });
 });

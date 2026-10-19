@@ -557,7 +557,21 @@ describe("permission off preserves ordinary add and never claims an unclaimed ro
 
   it("returns an existing unclaimed Prospect without claiming, even if another organization holds the listing", async () => {
     let claims = 0;
-    const existing = asProspect({ raw_json: stamp() });
+    let reads = 0;
+    const fills: Array<{
+      organizationId: string;
+      prospectId: string;
+      values: Record<string, string | null | undefined>;
+    }> = [];
+    const existing = asProspect({
+      raw_json: stamp(),
+      facebook: null,
+      instagram: null,
+      linkedin: null,
+      whatsapp_number: null,
+      phone: "214-000-0000",
+      notes: "keep-me",
+    });
     const result = await convertGetOblicDirectoryListing(
       {
         organizationId: ORG,
@@ -567,6 +581,23 @@ describe("permission off preserves ordinary add and never claims an unclaimed ro
       },
       deps({
         findOriginProspectByListingId: async () => existing,
+        getListingById: async () => {
+          reads += 1;
+          return listing({
+            facebook: "https://facebook.com/acme",
+            instagram: "https://instagram.com/acme",
+            linkedin: null,
+            whatsapp: "ask us on whatsapp",
+          });
+        },
+        fillBlankProspectSocialColumns: async (args) => {
+          fills.push({
+            organizationId: args.organizationId,
+            prospectId: args.prospectId,
+            values: args.values,
+          });
+          return {};
+        },
         getActiveListingClaim: async () => {
           throw new Error("other-org claim lookup");
         },
@@ -574,12 +605,30 @@ describe("permission off preserves ordinary add and never claims an unclaimed ro
           claims += 1;
           throw new Error("claim");
         },
+        createProspect: async () => {
+          throw new Error("create");
+        },
+        updateProspect: async () => {
+          throw new Error("update");
+        },
       }),
     );
     assert.equal(result.outcome, "reused");
     assert.equal(result.prospect_id, PROSPECT);
     assert.equal(result.generation_queued, false);
+    assert.equal(result.allocated, false);
     assert.equal(claims, 0);
+    assert.equal(reads, 1);
+    assert.equal(fills.length, 1);
+    assert.equal(fills[0]?.organizationId, ORG);
+    assert.equal(fills[0]?.prospectId, PROSPECT);
+    assert.equal(fills[0]?.values.facebook, "https://facebook.com/acme");
+    assert.equal(fills[0]?.values.instagram, "https://instagram.com/acme");
+    assert.equal(fills[0]?.values.linkedin, null);
+    assert.equal(fills[0]?.values.whatsapp_number, null);
+    assert.equal(existing.phone, "214-000-0000");
+    assert.equal(existing.notes, "keep-me");
+    assert.deepEqual(existing.raw_json, stamp());
     assert.equal(
       isExactUnclaimedGetoblicDirectoryProspect(existing, LISTING_ID),
       true,
@@ -708,7 +757,14 @@ describe("unclaimed directory cards, copy, and ordinary limits", () => {
     assert.match(card, /alreadyInMyOpportunities/);
     assert.match(discovery, /prospectCapacityReached &&/);
     assert.match(discovery, /directoryMode !== "unclaimed"/);
-    assert.match(discovery, /router\.push\(`\/prospects\/\$\{existingProspectId\}`\)/);
+    assert.doesNotMatch(discovery, /existingProspectId/);
+    const convertHit = sliceFn(
+      discovery,
+      "async function convertHit",
+      "\n  return (",
+    );
+    assert.doesNotMatch(convertHit, /same_org_added_id/);
+    assert.match(convertHit, /\/api\/prospects\/from-getoblic/);
     assert.equal(en.prospects.find.addToOpportunities, "Add to opportunities");
     assert.equal(en.prospects.find.alreadyInMyOpportunities, "Already in my opportunities");
     assert.equal(en.prospects.find.addAsProspect, "Add as Prospect");
