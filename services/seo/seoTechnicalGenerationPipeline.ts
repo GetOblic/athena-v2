@@ -48,32 +48,338 @@ export type SeoTechnicalGenerationPipelineDeps = SeoGenerationPipelineDeps & {
   loadDeepIntelligence?: typeof loadOrganizationDeepWebsiteIntelligence;
 };
 
+/**
+ * Local JSON recovery for Technical SEO model output.
+ * Repairs fences, one surrounding prose wrapper, smart double quotes,
+ * trailing commas, and raw control characters inside strings.
+ * Does not invent keys, close truncated values, or call the model again.
+ */
 function stripJsonFence(rawText: string): string {
-  return rawText
+  const trimmed = rawText.trim();
+  return trimmed
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/```$/i, "")
     .trim();
 }
 
+function extractBalancedJsonObject(rawText: string): string | null {
+  const start = rawText.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < rawText.length; index += 1) {
+    const char = rawText[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return rawText.slice(start, index + 1);
+    }
+  }
+  return null;
+}
+
+function remainderHasAdditionalJsonValue(remainder: string): boolean {
+  const trimmed = remainder.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) return true;
+  if (extractBalancedJsonObject(trimmed)) return true;
+  const first = trimmed[0];
+  if (
+    first === '"' ||
+    first === "-" ||
+    (first !== undefined && first >= "0" && first <= "9")
+  ) {
+    return true;
+  }
+  return /^(true|false|null)(\b|$)/.test(trimmed);
+}
+
+function extractExactlyOneBalancedJsonObject(
+  rawText: string,
+):
+  | { kind: "one"; json: string }
+  | { kind: "multiple" }
+  | { kind: "non_object" }
+  | { kind: "none" } {
+  const extracted = extractBalancedJsonObject(rawText);
+  if (!extracted) {
+    if (rawText.trim().startsWith("[")) return { kind: "non_object" };
+    return { kind: "none" };
+  }
+  const start = rawText.indexOf("{");
+  if (rawText.slice(0, start).trimEnd().endsWith("[")) {
+    return { kind: "non_object" };
+  }
+  const remainder = rawText.slice(start + extracted.length);
+  if (remainderHasAdditionalJsonValue(remainder)) return { kind: "multiple" };
+  return { kind: "one", json: extracted };
+}
+
+function normalizeSmartDoubleQuotes(rawText: string): string {
+  if (!rawText.includes('"')) {
+    return rawText.replace(/[\u201C\u201D]/g, '"');
+  }
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (const char of rawText) {
+    if (inString) {
+      result += char;
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+    if (char === "\u201C" || char === "\u201D") {
+      result += '"';
+      continue;
+    }
+    result += char;
+  }
+  return result;
+}
+
+function removeTrailingCommasOutsideStrings(rawText: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < rawText.length; index += 1) {
+    const char = rawText[index];
+    if (inString) {
+      result += char;
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+    if (char === ",") {
+      let lookahead = index + 1;
+      while (lookahead < rawText.length && /\s/.test(rawText[lookahead] ?? "")) {
+        lookahead += 1;
+      }
+      const next = rawText[lookahead];
+      if (next === "}" || next === "]") continue;
+    }
+    result += char;
+  }
+  return result;
+}
+
+function escapeControlCharactersInJsonStrings(rawText: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (const char of rawText) {
+    if (!inString) {
+      if (char === '"') inString = true;
+      result += char;
+      continue;
+    }
+    if (escaped) {
+      result += char;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      result += char;
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      result += char;
+      inString = false;
+      continue;
+    }
+    if (char === "\n") {
+      result += "\\n";
+      continue;
+    }
+    if (char === "\r") {
+      result += "\\r";
+      continue;
+    }
+    if (char === "\t") {
+      result += "\\t";
+      continue;
+    }
+    const code = char.charCodeAt(0);
+    if (code < 0x20) {
+      result += `\\u${code.toString(16).padStart(4, "0")}`;
+      continue;
+    }
+    result += char;
+  }
+  return result;
+}
+
+function repairJsonText(rawText: string): string {
+  return escapeControlCharactersInJsonStrings(
+    removeTrailingCommasOutsideStrings(normalizeSmartDoubleQuotes(rawText)),
+  );
+}
+
+function tryParseJson(
+  text: string,
+): { ok: true; value: unknown } | { ok: false } {
+  try {
+    return { ok: true, value: JSON.parse(text) as unknown };
+  } catch {
+    return { ok: false };
+  }
+}
+
+function parsedRecordOrNull(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
+type TechnicalJsonParseAttempt =
+  | { kind: "object"; value: Record<string, unknown> }
+  | { kind: "non_object" }
+  | { kind: "multiple" }
+  | { kind: "fail" };
+
+function attemptParseCandidate(text: string): TechnicalJsonParseAttempt {
+  const parsed = tryParseJson(text);
+  if (parsed.ok) {
+    const record = parsedRecordOrNull(parsed.value);
+    if (record) return { kind: "object", value: record };
+    return { kind: "non_object" };
+  }
+
+  const extracted = extractExactlyOneBalancedJsonObject(text);
+  if (extracted.kind === "multiple") return { kind: "multiple" };
+  if (extracted.kind === "non_object") return { kind: "non_object" };
+  if (extracted.kind === "one") {
+    const extractedParsed = tryParseJson(extracted.json);
+    if (extractedParsed.ok) {
+      const record = parsedRecordOrNull(extractedParsed.value);
+      if (record) return { kind: "object", value: record };
+      return { kind: "non_object" };
+    }
+  }
+  return { kind: "fail" };
+}
+
+function attemptRepairedCandidate(text: string): TechnicalJsonParseAttempt {
+  const extracted = extractExactlyOneBalancedJsonObject(text);
+  if (extracted.kind === "multiple") return { kind: "multiple" };
+  if (extracted.kind === "non_object") return { kind: "non_object" };
+
+  const repairedText = repairJsonText(text);
+  if (repairedText !== text) {
+    const repairedAttempt = attemptParseCandidate(repairedText);
+    if (repairedAttempt.kind !== "fail") return repairedAttempt;
+  }
+
+  if (extracted.kind === "one") {
+    const repairedExtracted = repairJsonText(extracted.json);
+    if (repairedExtracted !== extracted.json) {
+      const parsed = tryParseJson(repairedExtracted);
+      if (parsed.ok) {
+        const record = parsedRecordOrNull(parsed.value);
+        if (record) return { kind: "object", value: record };
+        return { kind: "non_object" };
+      }
+    }
+  }
+
+  return { kind: "fail" };
+}
+
+function uniqueNonEmpty(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    result.push(trimmed);
+  }
+  return result;
+}
+
+function malformedTechnicalJson(
+  stage: SeoReportGenerationStage,
+): SeoGenerationPipelineError {
+  return new SeoGenerationPipelineError({
+    code: "MALFORMED_JSON",
+    message: `Technical SEO generation produced malformed JSON at stage ${stage}.`,
+    stage,
+    retryable: true,
+  });
+}
+
 function parseJsonObject(
   rawText: string,
   stage: SeoReportGenerationStage,
 ): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(stripJsonFence(rawText));
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("not_object");
-    }
-    return parsed as Record<string, unknown>;
-  } catch {
-    throw new SeoGenerationPipelineError({
-      code: "MALFORMED_JSON",
-      message: `Technical SEO generation produced malformed JSON at stage ${stage}.`,
-      stage,
-      retryable: true,
-    });
+  const trimmed = rawText.trim();
+  if (!trimmed) throw malformedTechnicalJson(stage);
+
+  const candidates = uniqueNonEmpty([stripJsonFence(trimmed), trimmed]);
+  let sawNonObject = false;
+  let sawMultiple = false;
+
+  for (const candidate of candidates) {
+    const result = attemptParseCandidate(candidate);
+    if (result.kind === "object") return result.value;
+    if (result.kind === "non_object") sawNonObject = true;
+    if (result.kind === "multiple") sawMultiple = true;
   }
+
+  if (!sawNonObject && !sawMultiple) {
+    for (const candidate of candidates) {
+      const result = attemptRepairedCandidate(candidate);
+      if (result.kind === "object") return result.value;
+      if (result.kind === "non_object") sawNonObject = true;
+      if (result.kind === "multiple") sawMultiple = true;
+    }
+  }
+
+  throw malformedTechnicalJson(stage);
 }
 
 async function invokeJsonStage(input: {
