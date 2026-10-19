@@ -3,8 +3,16 @@ import "./getoblicDirectoryTestEnv";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
+import { PostgrestQueryBuilder } from "@supabase/postgrest-js";
+import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import { GetOblicDirectoryError } from "../../services/getoblicDirectory/getoblicDirectoryErrors";
+import {
+  blankProspectSocialOrFilter,
+  fillBlankProspectSocialColumns,
+  isBlankStoredProspectSocial,
+  type ProspectSocialColumn,
+} from "../../services/getoblicDirectory/fillBlankProspectSocialColumns";
 import {
   buildGetOblicProspectProvenance,
   convertGetOblicDirectoryListing,
@@ -235,6 +243,21 @@ function deps(
     ensureProspectGenerationQueued: async (row) => {
       queued.push(row);
       return { prospect: { ...row, status: "Queued" }, queued: true };
+    },
+    fillBlankProspectSocialColumns: async ({ values }) => {
+      const written: Partial<Record<ProspectSocialColumn, string>> = {};
+      for (const column of [
+        "facebook",
+        "instagram",
+        "linkedin",
+        "whatsapp_number",
+      ] as const) {
+        const value = values[column];
+        if (typeof value === "string" && value.length > 0) {
+          written[column] = value;
+        }
+      }
+      return written;
     },
     ...overrides,
   };
@@ -2444,5 +2467,674 @@ describe("GetOblic active-claim lookup fail-closed conversion", () => {
     assert.equal(port.claimed.length, 0);
     assert.equal(port.deleted.length, 0);
     assert.equal(port.queued.length, 0);
+  });
+});
+
+describe("GetOblic listing social import during ordinary conversion", () => {
+  it("fills profile URLs and a WhatsApp number from social[] without another listing read", async () => {
+    let reads = 0;
+    const port = deps({
+      getListingById: async (id) => {
+        reads += 1;
+        return {
+          wordpress_listing_id: id,
+          status: "publish",
+          title: "Acme Salon",
+          author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
+          google_id: "ChIJ123",
+          google_place_url: null,
+          knowledge_base: "do-not-copy",
+          facebook: "  ",
+          instagram: null,
+          linkedin: "",
+          whatsapp: "   ",
+          social: [
+            { network: " Facebook ", url: "https://m.facebook.com/acme" },
+            { network: "instagram", url: "https://instagram.com.attacker.com/acme" },
+            { network: "instagram", url: "https://www.instagram.com/acme" },
+            { network: "linkedin", url: "https://www.linkedin.com/company/acme" },
+            {
+              network: "whatsapp",
+              url: "https://api.whatsapp.com/send?phone=15125550100&text=Hello",
+            },
+            { network: "youtube", url: "https://youtube.com/@acme" },
+            { network: "facebook", url: "https://facebook.com/later" },
+          ],
+        };
+      },
+    });
+
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "created");
+    assert.equal(reads, 1);
+    assert.equal(port.created.length, 1);
+    assert.equal(port.claimed.length, 1);
+    assert.equal(port.created[0].facebook, "https://m.facebook.com/acme");
+    assert.equal(port.created[0].instagram, "https://www.instagram.com/acme");
+    assert.equal(port.created[0].linkedin, "https://www.linkedin.com/company/acme");
+    assert.equal(port.created[0].whatsapp_number, "+15125550100");
+    assert.equal(port.created[0].source, GETOBLIC_PROSPECT_SOURCE);
+    const observed = port.created[0].raw_json?.observed as {
+      social?: Array<{ network: string; url: string }>;
+    };
+    const attribution = port.created[0].raw_json?.attribution as {
+      facebook?: string | null;
+      instagram?: string | null;
+      linkedin?: string | null;
+      whatsapp?: string | null;
+    };
+    assert.equal(attribution.facebook, "getoblic_listing_detail");
+    assert.equal(attribution.instagram, "getoblic_listing_detail");
+    assert.equal(attribution.linkedin, "getoblic_listing_detail");
+    assert.equal(attribution.whatsapp, "getoblic_listing_detail");
+    assert.deepEqual(observed.social, [
+      { network: "Facebook", url: "https://m.facebook.com/acme" },
+      { network: "instagram", url: "https://instagram.com.attacker.com/acme" },
+      { network: "instagram", url: "https://www.instagram.com/acme" },
+      { network: "linkedin", url: "https://www.linkedin.com/company/acme" },
+      {
+        network: "whatsapp",
+        url: "https://api.whatsapp.com/send?phone=15125550100&text=Hello",
+      },
+      { network: "youtube", url: "https://youtube.com/@acme" },
+      { network: "facebook", url: "https://facebook.com/later" },
+    ]);
+  });
+
+  it("rejects lookalikes and does not move a dedicated value onto another platform", async () => {
+    const port = deps({
+      getListingById: async (id) => ({
+        wordpress_listing_id: id,
+        status: "publish",
+        title: "Acme Salon",
+        author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
+        google_id: null,
+        google_place_url: null,
+        knowledge_base: null,
+        facebook: "https://notfacebook.com/acme",
+        instagram: "https://instagram.com.evil.com/acme",
+        linkedin: "https://facebook.com/should-not-move",
+        whatsapp: "https://wa.me.evil.com/15125550100",
+        social: [
+          { network: "facebook", url: "https://www.facebook.com/should-not-override" },
+          { network: "instagram", url: "https://www.instagram.com/acme" },
+          { network: "linkedin", url: "https://instagram.com/should-not-move" },
+          { network: "whatsapp", url: "https://wa.me/15125550199" },
+          { network: "youtube", url: "https://youtube.com/@acme" },
+        ],
+      }),
+    });
+
+    await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(port.created[0].facebook, null);
+    assert.equal(port.created[0].instagram, null);
+    assert.equal(port.created[0].linkedin, null);
+    assert.equal(port.created[0].whatsapp_number, null);
+    const observed = port.created[0].raw_json?.observed as {
+      social?: Array<{ network: string }>;
+    };
+    assert.equal(
+      observed.social?.some((entry) => entry.network === "youtube"),
+      true,
+    );
+  });
+
+  it("keeps existing Prospect social values ahead of social[] fallback", async () => {
+    const existing = prospect({
+      facebook: "https://facebook.com/user",
+      instagram: "https://instagram.com/user",
+      linkedin: "https://linkedin.com/in/user",
+      whatsapp_number: "+15550001111",
+      raw_json: {
+        origin: "getoblic_directory",
+        wordpress_listing_id: LISTING_ID,
+        observed: { wordpress_listing_id: LISTING_ID, title: "Acme Salon" },
+      },
+    });
+    const store = [existing];
+    let reads = 0;
+    const port = deps({
+      findOriginProspectByListingId: async () => store[0] ?? null,
+      getProspectById: async (id) => store.find((row) => row.id === id) ?? null,
+      getListingById: async (id) => {
+        reads += 1;
+        return {
+          wordpress_listing_id: id,
+          status: "publish",
+          title: "Acme Salon",
+          author_id: GETOBLIC_INVENTORY_POOL_AUTHOR_ID,
+          google_id: null,
+          google_place_url: null,
+          knowledge_base: null,
+          social: [
+            { network: "facebook", url: "https://facebook.com/listing" },
+            { network: "instagram", url: "https://instagram.com/listing" },
+            { network: "linkedin", url: "https://linkedin.com/company/listing" },
+            { network: "whatsapp", url: "https://wa.me/15125550100" },
+          ],
+        };
+      },
+      updateProspect: async (id, _organizationId, input) => {
+        const index = store.findIndex((row) => row.id === id);
+        const next = prospect({
+          ...(index >= 0 ? store[index] : {}),
+          ...input,
+          id,
+        });
+        if (index >= 0) store[index] = next;
+        return next;
+      },
+    });
+
+    const result = await convertGetOblicDirectoryListing(convertInput(), port);
+    assert.equal(result.outcome, "reused");
+    assert.equal(reads, 1);
+    assert.equal(port.created.length, 0);
+    assert.equal(store[0].facebook, "https://facebook.com/user");
+    assert.equal(store[0].instagram, "https://instagram.com/user");
+    assert.equal(store[0].linkedin, "https://linkedin.com/in/user");
+    assert.equal(store[0].whatsapp_number, "+15550001111");
+  });
+
+  it("does not fetch listing detail for an already linked claim or an exact unclaimed Prospect", async () => {
+    let reads = 0;
+    const linked = prospect({ id: PROSPECT_B, status: "Ready" });
+    const linkedPort = deps({
+      getActiveListingClaim: async () => ({
+        outcome: "found" as const,
+        organization_id: ORG_A,
+        prospect_id: PROSPECT_B,
+        relationship_status: "linked" as const,
+      }),
+      getProspectById: async () => linked,
+      getListingById: async () => {
+        reads += 1;
+        throw new Error("listing detail");
+      },
+    });
+    const linkedResult = await convertGetOblicDirectoryListing(
+      convertInput(),
+      linkedPort,
+    );
+    assert.equal(linkedResult.outcome, "already_owned");
+    assert.equal(reads, 0);
+
+    const unclaimed = prospect({
+      raw_json: {
+        origin: "getoblic_directory",
+        wordpress_listing_id: LISTING_ID,
+        observed: { wordpress_listing_id: LISTING_ID },
+      },
+    });
+    const unclaimedPort = deps({
+      findOriginProspectByListingId: async () => unclaimed,
+      getListingById: async () => {
+        reads += 1;
+        throw new Error("listing detail");
+      },
+      getActiveListingClaim: async () => {
+        throw new Error("claim lookup");
+      },
+    });
+    const unclaimedResult = await convertGetOblicDirectoryListing(
+      convertInput(),
+      unclaimedPort,
+    );
+    assert.equal(unclaimedResult.outcome, "reused");
+    assert.equal(unclaimedResult.prospect_id, PROSPECT_A);
+    assert.equal(reads, 0);
+    assert.equal(unclaimedPort.claimed.length, 0);
+  });
+});
+
+describe("ordinary conversion reuse social fill", { concurrency: false }, () => {
+  const originalFrom = supabaseAdmin.from.bind(supabaseAdmin);
+  const SOCIAL_COLUMNS = [
+    "facebook",
+    "instagram",
+    "linkedin",
+    "whatsapp_number",
+  ] as const;
+
+  afterEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabaseAdmin as any).from = originalFrom;
+  });
+
+  type SocialUpdateOutcome = "ok" | "miss" | "error" | "ambiguous";
+  type SocialUpdateAttempt = {
+    patch: Record<string, unknown>;
+    filters: Record<string, unknown>;
+    or: string | null;
+    applied: boolean;
+  };
+
+  function installSocialStore(
+    rows: Prospect[],
+    options: {
+      beforeUpdate?: (patch: Record<string, unknown>, rows: Prospect[]) => void;
+      outcomes?: SocialUpdateOutcome[];
+    } = {},
+  ) {
+    const updates: SocialUpdateAttempt[] = [];
+    const outcomes = [...(options.outcomes ?? [])];
+    const blankOr =
+      /^(facebook|instagram|linkedin|whatsapp_number)\.is\.null,\1\.match\."\^\[\[:space:\]\]\*\$"$/;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabaseAdmin as any).from = (table: string) => {
+      const filters: Record<string, unknown> = {};
+      let patch: Record<string, unknown> | null = null;
+      let orFilter: string | null = null;
+      const builder = {
+        select: () => builder,
+        update: (value: Record<string, unknown>) => {
+          patch = value;
+          return builder;
+        },
+        eq: (column: string, value: unknown) => {
+          filters[column] = value;
+          return builder;
+        },
+        or: (value: string) => {
+          orFilter = value;
+          return builder;
+        },
+        filter: () => builder,
+        order: () => builder,
+        limit: () => builder,
+        maybeSingle: () => {
+          const matched =
+            table === "prospects"
+              ? rows.filter(
+                  (candidate) =>
+                    candidate.id === filters.id &&
+                    candidate.organization_id === filters.organization_id,
+                )
+              : [];
+          return Promise.resolve({ data: matched[0] ?? null, error: null });
+        },
+        then: (
+          resolve: (value: {
+            data: unknown;
+            error: { message: string } | null;
+          }) => unknown,
+          reject?: (reason: unknown) => unknown,
+        ) => {
+          if (patch) {
+            const snapshot = { ...patch };
+            options.beforeUpdate?.(snapshot, rows);
+            const blankColumn = blankOr.exec(orFilter ?? "")?.[1] ?? null;
+            const patchColumns = Object.keys(snapshot);
+            const scoped =
+              table === "prospects" &&
+              patchColumns.length === 1 &&
+              patchColumns[0] === blankColumn &&
+              filters.id != null &&
+              filters.organization_id != null;
+            const outcome = outcomes.shift() ?? "ok";
+            const matched =
+              scoped && outcome !== "error" && outcome !== "miss"
+                ? rows.filter(
+                    (candidate) =>
+                      candidate.id === filters.id &&
+                      candidate.organization_id === filters.organization_id &&
+                      isBlankStoredProspectSocial(
+                        candidate[blankColumn as ProspectSocialColumn],
+                      ),
+                  )
+                : [];
+            const applied = outcome === "ok" && matched.length === 1;
+            if (applied) {
+              for (const candidate of matched) {
+                Object.assign(candidate, snapshot);
+              }
+            }
+            updates.push({
+              patch: snapshot,
+              filters: { ...filters },
+              or: orFilter,
+              applied,
+            });
+            if (outcome === "error") {
+              return Promise.resolve({
+                data: null,
+                error: { message: "social fill failed" },
+              }).then(resolve, reject);
+            }
+            if (outcome === "ambiguous") {
+              return Promise.resolve({
+                data: [{ id: "not-a-prospect" }, { id: "also-not" }],
+                error: null,
+              }).then(resolve, reject);
+            }
+            return Promise.resolve({
+              data: applied
+                ? matched.map((candidate) => ({ id: candidate.id }))
+                : [],
+              error: null,
+            }).then(resolve, reject);
+          }
+          const matched =
+            table === "prospects"
+              ? rows.filter(
+                  (candidate) =>
+                    candidate.id === filters.id &&
+                    candidate.organization_id === filters.organization_id,
+                )
+              : [];
+          return Promise.resolve({ data: matched, error: null }).then(
+            resolve,
+            reject,
+          );
+        },
+      };
+      return builder;
+    };
+    return { updates };
+  }
+
+  function foreignProspect(): Prospect {
+    return prospect({
+      id: PROSPECT_B,
+      organization_id: ORG_B,
+      facebook: null,
+      instagram: null,
+      linkedin: null,
+      whatsapp_number: null,
+      raw_json: null,
+    });
+  }
+
+  function reusePort(
+    rows: Prospect[],
+    recorded: Array<{
+      id: string;
+      organizationId: string;
+      input: Record<string, unknown>;
+    }>,
+  ) {
+    return deps({
+      fillBlankProspectSocialColumns,
+      findOriginProspectByListingId: async () => rows[0] ?? null,
+      findReleasedLinkForListing: async () => null,
+      getProspectById: async (id, organizationId) =>
+        rows.find(
+          (row) => row.id === id && row.organization_id === organizationId,
+        ) ?? null,
+      getListingById: async (id) => richListing(id),
+      updateProspect: async (id, organizationId, input) => {
+        recorded.push({
+          id,
+          organizationId,
+          input: input as Record<string, unknown>,
+        });
+        for (const column of SOCIAL_COLUMNS) {
+          assert.equal(column in input, false);
+        }
+        const row = rows.find(
+          (candidate) =>
+            candidate.id === id && candidate.organization_id === organizationId,
+        );
+        if (!row) return null;
+        Object.assign(row, input, { id });
+        return row;
+      },
+      createProspect: async () => {
+        throw new Error("ordinary reuse must not create a Prospect");
+      },
+    });
+  }
+
+  it("keeps a concurrent nonempty social edit and fills the other blank columns", async () => {
+    const kept = prospect({
+      facebook: null,
+      instagram: null,
+      linkedin: null,
+      whatsapp_number: null,
+      phone: null,
+      notes: "keep-me",
+      raw_json: {
+        origin: "getoblic_directory",
+        wordpress_listing_id: LISTING_ID,
+        user_marker: true,
+        attribution: { phone: "user" },
+      },
+    });
+    const foreign = foreignProspect();
+    const rows = [kept, foreign];
+    const store = installSocialStore(rows, {
+      beforeUpdate(patch, stored) {
+        if (!("facebook" in patch)) return;
+        const target = stored.find((candidate) => candidate.id === PROSPECT_A);
+        if (target) target.facebook = "https://facebook.com/typed-during-update";
+      },
+    });
+    const recorded: Array<{
+      id: string;
+      organizationId: string;
+      input: Record<string, unknown>;
+    }> = [];
+
+    const result = await convertGetOblicDirectoryListing(
+      convertInput(),
+      reusePort(rows, recorded),
+    );
+
+    assert.equal(result.outcome, "reused");
+    assert.equal(result.prospect_id, PROSPECT_A);
+    assert.equal(result.generation_queued, false);
+    assert.equal(kept.facebook, "https://facebook.com/typed-during-update");
+    assert.equal(kept.instagram, "https://instagram.com/acme");
+    assert.equal(kept.linkedin, "https://linkedin.com/company/acme");
+    assert.equal(kept.whatsapp_number, "+15125550100");
+    assert.equal(kept.phone, "512-555-0100");
+    assert.equal(kept.notes, "keep-me");
+    assert.equal(foreign.facebook, null);
+    assert.equal(foreign.instagram, null);
+    assert.equal(foreign.linkedin, null);
+    assert.equal(foreign.whatsapp_number, null);
+    assert.equal(recorded.length, 1);
+    assert.equal(recorded[0]?.organizationId, ORG_A);
+    assert.equal(recorded[0]?.input.phone, "512-555-0100");
+    assert.equal(
+      (recorded[0]?.input.raw_json as { user_marker?: boolean }).user_marker,
+      true,
+    );
+    assert.equal(
+      (recorded[0]?.input.raw_json as { attribution?: { phone?: string; facebook?: string } })
+        .attribution?.phone,
+      "user",
+    );
+    assert.equal(
+      (recorded[0]?.input.raw_json as { attribution?: { facebook?: string } })
+        .attribution?.facebook,
+      "getoblic_listing_detail",
+    );
+    assert.deepEqual(
+      store.updates.map((update) => ({
+        column: Object.keys(update.patch)[0],
+        applied: update.applied,
+        id: update.filters.id,
+        organizationId: update.filters.organization_id,
+        or: update.or,
+      })),
+      [
+        {
+          column: "facebook",
+          applied: false,
+          id: PROSPECT_A,
+          organizationId: ORG_A,
+          or: blankProspectSocialOrFilter("facebook"),
+        },
+        {
+          column: "instagram",
+          applied: true,
+          id: PROSPECT_A,
+          organizationId: ORG_A,
+          or: blankProspectSocialOrFilter("instagram"),
+        },
+        {
+          column: "linkedin",
+          applied: true,
+          id: PROSPECT_A,
+          organizationId: ORG_A,
+          or: blankProspectSocialOrFilter("linkedin"),
+        },
+        {
+          column: "whatsapp_number",
+          applied: true,
+          id: PROSPECT_A,
+          organizationId: ORG_A,
+          or: blankProspectSocialOrFilter("whatsapp_number"),
+        },
+      ],
+    );
+  });
+
+  it("fills null and whitespace social columns without touching another organization", async () => {
+    const kept = prospect({
+      facebook: null,
+      instagram: "",
+      linkedin: " \t ",
+      whatsapp_number: "\n",
+      phone: "   ",
+      address: null,
+    });
+    const foreign = foreignProspect();
+    const rows = [kept, foreign];
+    const store = installSocialStore(rows);
+    const recorded: Array<{
+      id: string;
+      organizationId: string;
+      input: Record<string, unknown>;
+    }> = [];
+
+    const result = await convertGetOblicDirectoryListing(
+      convertInput(),
+      reusePort(rows, recorded),
+    );
+
+    assert.equal(result.outcome, "reused");
+    assert.equal(kept.facebook, "https://facebook.com/acme");
+    assert.equal(kept.instagram, "https://instagram.com/acme");
+    assert.equal(kept.linkedin, "https://linkedin.com/company/acme");
+    assert.equal(kept.whatsapp_number, "+15125550100");
+    assert.equal(kept.phone, "512-555-0100");
+    assert.equal(kept.address, "100 Congress Ave");
+    assert.equal(foreign.facebook, null);
+    assert.equal(foreign.whatsapp_number, null);
+    assert.equal(store.updates.length, 4);
+    assert.equal(
+      store.updates.every(
+        (update) =>
+          update.applied &&
+          update.filters.id === PROSPECT_A &&
+          update.filters.organization_id === ORG_A &&
+          update.or ===
+            blankProspectSocialOrFilter(
+              Object.keys(update.patch)[0] as ProspectSocialColumn,
+            ),
+      ),
+      true,
+    );
+    assert.equal(recorded.length, 1);
+    assert.equal("facebook" in (recorded[0]?.input ?? {}), false);
+  });
+
+  it("updates only the social columns that were blank", async () => {
+    const kept = prospect({
+      facebook: "https://facebook.com/user",
+      instagram: "",
+      linkedin: "   ",
+      whatsapp_number: "+15550001111",
+      email: "user@example.com",
+    });
+    const foreign = foreignProspect();
+    const rows = [kept, foreign];
+    const store = installSocialStore(rows);
+    const recorded: Array<{
+      id: string;
+      organizationId: string;
+      input: Record<string, unknown>;
+    }> = [];
+
+    const result = await convertGetOblicDirectoryListing(
+      convertInput(),
+      reusePort(rows, recorded),
+    );
+
+    assert.equal(result.outcome, "reused");
+    assert.equal(kept.facebook, "https://facebook.com/user");
+    assert.equal(kept.instagram, "https://instagram.com/acme");
+    assert.equal(kept.linkedin, "https://linkedin.com/company/acme");
+    assert.equal(kept.whatsapp_number, "+15550001111");
+    assert.equal(kept.email, "user@example.com");
+    assert.equal(foreign.instagram, null);
+    assert.equal(foreign.linkedin, null);
+    assert.deepEqual(
+      store.updates.map((update) => Object.keys(update.patch)[0]),
+      ["instagram", "linkedin"],
+    );
+    assert.equal(
+      store.updates.every(
+        (update) =>
+          update.applied &&
+          update.filters.organization_id === ORG_A &&
+          update.filters.id === PROSPECT_A,
+      ),
+      true,
+    );
+    assert.equal(recorded[0]?.input.email, undefined);
+    assert.equal("instagram" in (recorded[0]?.input ?? {}), false);
+    assert.equal("linkedin" in (recorded[0]?.input ?? {}), false);
+  });
+
+  it("does not report reuse success when a blank social fill cannot be confirmed", async () => {
+    const kept = prospect({
+      facebook: null,
+      instagram: null,
+      linkedin: null,
+      whatsapp_number: null,
+      phone: null,
+    });
+    const rows = [kept];
+    const store = installSocialStore(rows, { outcomes: ["miss", "miss"] });
+    const port = reusePort(rows, []);
+
+    await assert.rejects(
+      () => convertGetOblicDirectoryListing(convertInput(), port),
+      (error: unknown) =>
+        error instanceof GetOblicDirectoryError &&
+        error.code === "GETOBLIC_CONCURRENCY_CONFLICT",
+    );
+    assert.equal(kept.facebook, null);
+    assert.equal(kept.instagram, null);
+    assert.equal(kept.phone, "512-555-0100");
+    assert.equal(store.updates.length, 2);
+    assert.equal(store.updates.every((update) => update.applied), false);
+    assert.equal(port.created.length, 0);
+    assert.equal(port.claimed.length, 1);
+    assert.equal(port.queued.length, 0);
+  });
+
+  it("puts the ordinary-reuse empty-column predicate in its own or filter", () => {
+    const query = new PostgrestQueryBuilder(
+      new URL("http://localhost/prospects"),
+      { headers: {} },
+    );
+    const pending = query
+      .update({ facebook: "https://facebook.com/acme" })
+      .eq("id", PROSPECT_A)
+      .eq("organization_id", ORG_A)
+      .or(blankProspectSocialOrFilter("facebook"))
+      .select("id");
+    const params = (pending as unknown as { url: URL }).url.searchParams;
+    assert.equal(params.get("id"), `eq.${PROSPECT_A}`);
+    assert.equal(params.get("organization_id"), `eq.${ORG_A}`);
+    assert.equal(
+      params.get("or"),
+      '(facebook.is.null,facebook.match."^[[:space:]]*$")',
+    );
+    assert.equal(params.has("facebook"), false);
   });
 });

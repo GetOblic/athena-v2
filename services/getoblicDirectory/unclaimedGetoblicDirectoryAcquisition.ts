@@ -4,12 +4,19 @@
  * Verifies the WordPress listing, then calls
  * acquire_unclaimed_getoblic_prospect with that function's existing
  * parameters. Same-organization canonical listing Prospects are reused.
- * This module does not claim, reserve listing capacity, assign a WordPress
- * author, call Make, or queue generation.
+ * Empty Facebook, Instagram, LinkedIn, and WhatsApp columns are filled
+ * from that listing afterward, each by its own conditional update.
+ * This module does not claim, reserve listing
+ * capacity, assign a WordPress author, call Make, or queue generation.
  */
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { GetOblicDirectoryError } from "@/services/getoblicDirectory/getoblicDirectoryErrors";
+import { fillBlankProspectSocialColumns } from "@/services/getoblicDirectory/fillBlankProspectSocialColumns";
+import {
+  mapGetOblicListingSocial,
+  type GetOblicListingSocialFields,
+} from "@/services/getoblicDirectory/getoblicListingSocialImport";
 import { resolveUnclaimedGetoblicDirectoryMode } from "@/services/getoblicDirectory/unclaimedGetoblicDirectoryMode";
 import {
   getWordpressListingById,
@@ -102,23 +109,19 @@ export async function acquireUnclaimedGetoblicDirectoryProspect(
     organizationId,
     wordpressListingId,
   );
+  const listing = await readAuthoritativeListing(
+    wordpressListingId,
+    resolved.getListingById,
+  );
+  const social = mapGetOblicListingSocial(listing);
+
   if (existingId) {
+    await fillEmptyUnclaimedListingSocial({
+      organizationId,
+      prospectId: existingId,
+      social,
+    });
     return { prospectId: existingId, inserted: false };
-  }
-
-  let listing: GetOblicWordpressListing;
-  try {
-    listing = await resolved.getListingById(wordpressListingId);
-  } catch (error) {
-    throw mapListingReadError(error);
-  }
-
-  if (listing.wordpress_listing_id !== wordpressListingId) {
-    throw new GetOblicDirectoryError(
-      "GETOBLIC_REMOTE_LISTING_MISSING",
-      "Athena couldn’t find that business right now.",
-      409,
-    );
   }
 
   const imported = factualListingImport(listing);
@@ -130,7 +133,7 @@ export async function acquireUnclaimedGetoblicDirectoryProspect(
     );
   }
 
-  return resolved.acquire({
+  const acquired = await resolved.acquire({
     p_organization_id: organizationId,
     p_wordpress_listing_id: wordpressListingId,
     p_business_name: imported.businessName,
@@ -145,6 +148,12 @@ export async function acquireUnclaimedGetoblicDirectoryProspect(
     p_category: imported.category,
     p_google_business_url: imported.googleBusinessUrl,
   });
+  await fillEmptyUnclaimedListingSocial({
+    organizationId,
+    prospectId: acquired.prospectId,
+    social,
+  });
+  return acquired;
 }
 
 export async function findSameOrgDirectoryProspectIds(
@@ -281,6 +290,46 @@ function readAcquireRow(
   }
   if (typeof row.inserted !== "boolean") return null;
   return { prospectId: row.prospect_id, inserted: row.inserted };
+}
+
+async function readAuthoritativeListing(
+  wordpressListingId: number,
+  getListingById: AcquireUnclaimedGetoblicDirectoryDeps["getListingById"],
+): Promise<GetOblicWordpressListing> {
+  let listing: GetOblicWordpressListing;
+  try {
+    listing = await getListingById(wordpressListingId);
+  } catch (error) {
+    throw mapListingReadError(error);
+  }
+  if (listing.wordpress_listing_id !== wordpressListingId) {
+    throw new GetOblicDirectoryError(
+      "GETOBLIC_REMOTE_LISTING_MISSING",
+      "Athena couldn’t find that business right now.",
+      409,
+    );
+  }
+  return listing;
+}
+
+const UNCLAIMED_SOCIAL_LOG_LABEL = "Unclaimed GetOblic social import";
+
+async function fillEmptyUnclaimedListingSocial(args: {
+  organizationId: string;
+  prospectId: string;
+  social: GetOblicListingSocialFields;
+}): Promise<void> {
+  await fillBlankProspectSocialColumns({
+    organizationId: args.organizationId,
+    prospectId: args.prospectId,
+    values: {
+      facebook: args.social.facebook,
+      instagram: args.social.instagram,
+      linkedin: args.social.linkedin,
+      whatsapp_number: args.social.whatsapp,
+    },
+    logLabel: UNCLAIMED_SOCIAL_LOG_LABEL,
+  });
 }
 
 function factualListingImport(listing: GetOblicWordpressListing): {

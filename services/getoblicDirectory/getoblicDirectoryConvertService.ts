@@ -29,6 +29,12 @@ import {
 } from "@/services/getoblicDirectory/getoblicDirectoryService";
 import { googleBusinessIdsEqual } from "@/services/getoblicDirectory/getoblicGoogleId";
 import {
+  fillBlankProspectSocialColumns,
+  PROSPECT_SOCIAL_COLUMNS,
+  type ProspectSocialColumn,
+} from "@/services/getoblicDirectory/fillBlankProspectSocialColumns";
+import { mapGetOblicListingSocial } from "@/services/getoblicDirectory/getoblicListingSocialImport";
+import {
   isGetOblicInventoryPoolAuthor,
   type ActiveGetOblicRelationshipStatus,
   type GetOblicActiveListingClaimLookup,
@@ -151,6 +157,11 @@ export type GetOblicConvertDependencies = {
   findReusableWebsiteIntelligence: typeof findReusableWebsiteIntelligenceForListing;
   createProspect: typeof createProspect;
   updateProspect: typeof updateProspect;
+  /**
+   * Ordinary reuse fills blank social columns here instead of inside
+   * `updateProspect`. Omitted callers use the shared conditional writer.
+   */
+  fillBlankProspectSocialColumns?: typeof fillBlankProspectSocialColumns;
   deleteProspect: typeof deleteProspect;
   claimKnownExistingListing: typeof claimKnownExistingListing;
   ensureProspectGenerationQueued: typeof ensureProspectGenerationQueued;
@@ -1613,6 +1624,7 @@ function resolveGetOblicListingImport(
 ): GetOblicListingImportFields {
   const listingCategories = sanitizeListingCategories(listing?.category);
   const observedWebsite = compactText(listing?.website, URL_MAX);
+  const social = mapGetOblicListingSocial(listing);
   return {
     phone: compactText(listing?.phone, 120),
     address: compactText(listing?.address),
@@ -1625,10 +1637,10 @@ function resolveGetOblicListingImport(
     website: resolveImportedWebsite(observedWebsite, listing, observed),
     observedWebsite,
     email: compactEmail(listing?.email),
-    facebook: compactText(listing?.facebook, URL_MAX),
-    instagram: compactText(listing?.instagram, URL_MAX),
-    linkedin: compactText(listing?.linkedin, URL_MAX),
-    whatsapp: compactText(listing?.whatsapp, 120),
+    facebook: social.facebook,
+    instagram: social.instagram,
+    linkedin: social.linkedin,
+    whatsapp: social.whatsapp,
     timezone: compactText(listing?.timezone, 120),
   };
 }
@@ -1796,6 +1808,35 @@ async function persistConvertedProspect(args: {
   return persisted;
 }
 
+function socialValuesFromReusePatch(
+  fillEmpty: GetOblicReuseFillEmptyPatch,
+): Partial<Record<ProspectSocialColumn, string>> {
+  const values: Partial<Record<ProspectSocialColumn, string>> = {};
+  for (const column of PROSPECT_SOCIAL_COLUMNS) {
+    const value = fillEmpty[column];
+    if (typeof value === "string" && value.length > 0) {
+      values[column] = value;
+    }
+  }
+  return values;
+}
+
+function withoutReuseSocialColumns(
+  fillEmpty: GetOblicReuseFillEmptyPatch,
+): GetOblicReuseFillEmptyPatch {
+  const rest = { ...fillEmpty };
+  for (const column of PROSPECT_SOCIAL_COLUMNS) {
+    delete rest[column];
+  }
+  return rest;
+}
+
+/**
+ * Non-social fill-empty fields and provenance still go through `updateProspect`.
+ * Facebook, Instagram, LinkedIn, and WhatsApp are written afterward, one
+ * conditional update per column, and only when the reuse snapshot saw that
+ * column blank. A concurrent nonempty value is left in place.
+ */
 async function persistImportedProspectFields(args: {
   prospectId: string;
   organizationId: string;
@@ -1803,25 +1844,31 @@ async function persistImportedProspectFields(args: {
   provenance: Record<string, unknown>;
   dependencies: GetOblicConvertDependencies;
 }): Promise<Prospect | null> {
+  const socialValues = socialValuesFromReusePatch(args.fillEmpty);
+  const fillEmpty = withoutReuseSocialColumns(args.fillEmpty);
+  const fillSocial =
+    args.dependencies.fillBlankProspectSocialColumns ??
+    fillBlankProspectSocialColumns;
+  let updated: Prospect | null;
   try {
-    return await args.dependencies.updateProspect(
+    updated = await args.dependencies.updateProspect(
       args.prospectId,
       args.organizationId,
       {
-        ...args.fillEmpty,
+        ...fillEmpty,
         raw_json: args.provenance,
       },
     );
   } catch (error) {
     if (
-      !args.fillEmpty.website ||
+      !fillEmpty.website ||
       !isPostgresUniqueViolation(error as { code?: string; message?: string })
     ) {
       throw error;
     }
-    const withoutWebsite = { ...args.fillEmpty };
+    const withoutWebsite = { ...fillEmpty };
     delete withoutWebsite.website;
-    return args.dependencies.updateProspect(
+    updated = await args.dependencies.updateProspect(
       args.prospectId,
       args.organizationId,
       {
@@ -1830,6 +1877,15 @@ async function persistImportedProspectFields(args: {
       },
     );
   }
+  if (!updated) return null;
+  const written = await fillSocial({
+    organizationId: args.organizationId,
+    prospectId: args.prospectId,
+    values: socialValues,
+    logLabel: "Ordinary GetOblic conversion social import",
+  });
+  Object.assign(updated, written);
+  return updated;
 }
 
 function mergeGetOblicListingProvenance(

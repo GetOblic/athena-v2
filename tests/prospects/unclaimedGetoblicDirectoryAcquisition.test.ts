@@ -329,7 +329,7 @@ describe("unclaimed GetOblic directory acquisition", () => {
       },
     );
     assert.deepEqual(result, { prospectId: PROSPECT, inserted: false });
-    assert.equal(reads, 0);
+    assert.equal(reads, 1);
     assert.equal(
       calls.some((call) => call.fn === ACQUIRE_UNCLAIMED_GETOBLIC_PROSPECT_RPC),
       false,
