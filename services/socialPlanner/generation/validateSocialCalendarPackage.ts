@@ -141,6 +141,31 @@ function boundedString(
   return trimmed;
 }
 
+/**
+ * Required creative narrative. Trims surrounding whitespace and keeps the
+ * original wording. Does not apply an editorial character cap.
+ */
+function narrativeString(
+  value: unknown,
+  field: string,
+  failures: string[],
+): string | null {
+  if (value == null || value === "") {
+    failures.push(`${field} is required.`);
+    return null;
+  }
+  if (typeof value !== "string") {
+    failures.push(`${field} must be a string.`);
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    failures.push(`${field} must not be empty.`);
+    return null;
+  }
+  return trimmed;
+}
+
 function jsonChars(value: unknown): number {
   return JSON.stringify(value).length;
 }
@@ -1086,10 +1111,9 @@ export function validateSocialPlannerWeeklyStrategy(
       failures.push(`audiencePlan[${index}] must be an object.`);
       continue;
     }
-    const audience = boundedString(
+    const audience = narrativeString(
       entry.audience,
       `audiencePlan[${index}].audience`,
-      LIMITS.audienceMaxChars,
       failures,
     );
     const role = asString(entry.role);
@@ -1245,10 +1269,9 @@ export function validateSocialPlannerWeeklyStrategy(
     LIMITS.narrativeArcMaxChars,
     failures,
   );
-  const creativeDirection = boundedString(
+  const creativeDirection = narrativeString(
     raw.creativeDirection,
     "creativeDirection",
-    LIMITS.creativeDirectionMaxChars,
     failures,
   );
   const avoidances = (Array.isArray(raw.avoidances) ? raw.avoidances : [])
@@ -1258,14 +1281,6 @@ export function validateSocialPlannerWeeklyStrategy(
     )
     .filter((value): value is string => Boolean(value));
   const userGuidanceInterpretation = asNullableString(raw.userGuidanceInterpretation);
-  if (
-    userGuidanceInterpretation &&
-    userGuidanceInterpretation.length > LIMITS.userGuidanceInterpretationMaxChars
-  ) {
-    failures.push(
-      `userGuidanceInterpretation exceeds ${LIMITS.userGuidanceInterpretationMaxChars} characters.`,
-    );
-  }
   const contentBalance = {
     promotionalWeight: weight(balanceRaw.promotionalWeight, "contentBalance.promotionalWeight"),
     educationalWeight: weight(balanceRaw.educationalWeight, "contentBalance.educationalWeight"),
