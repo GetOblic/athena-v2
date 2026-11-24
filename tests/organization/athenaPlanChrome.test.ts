@@ -89,7 +89,6 @@ describe("FREE-2 Athena plan — chrome presentation", () => {
   it("shows FREE on tenant shell mobile header only when the plan is free", () => {
     const free = renderShell("free");
     const full = renderShell("full");
-    const omitted = renderShell();
 
     assert.match(free, /ATHENA/);
     assert.match(free, />FREE</);
@@ -102,7 +101,8 @@ describe("FREE-2 Athena plan — chrome presentation", () => {
     assert.match(full, /Home body/);
     assert.doesNotMatch(full, />FREE</);
     assert.doesNotMatch(full, />FULL</);
-    assert.equal(full, omitted);
+    assert.equal(free.includes('href="/monitor"'), false);
+    assert.equal(full.includes('href="/monitor"'), true);
   });
 
   it("uses the same optional plan contract to add and remove the badge", () => {

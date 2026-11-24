@@ -14,6 +14,7 @@ export type TenantNavIconName =
   | "visibility"
   | "traction"
   | "convert"
+  | "radar"
   | "inbox"
   | "settings"
   | "help";
@@ -70,6 +71,14 @@ export const tenantNavDefs = [
     subtitleKey: "convertOpportunitiesSubtitle",
     icon: "convert",
     stageNumber: 4,
+  },
+  {
+    key: "monitor",
+    href: "/monitor",
+    section: "growth",
+    subtitleKey: "monitorSubtitle",
+    icon: "radar",
+    stageNumber: 5,
   },
   {
     key: "athenaInbox",

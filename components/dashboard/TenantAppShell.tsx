@@ -11,6 +11,7 @@ import {
   applyFreeUntrainedNavPresentation,
   freeUntrainedLockedNavCopy,
 } from "@/lib/organization/freeUntrained";
+import { applyMonitorPlanNav } from "@/lib/organization/monitorPlanNav";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import { resolveGlobalFullAthenaInvite } from "@/lib/upgrade/upgradeChromePresentation";
 import type { AthenaPlan } from "@/services/athenaPlan";
@@ -26,17 +27,40 @@ type TenantAppShellProps = {
   children: React.ReactNode;
 };
 
-export function TenantAppShell({
+export function TenantAppShell(props: TenantAppShellProps) {
+  if (props.athenaPlan == null) {
+    return <TenantAppShellResolvedPlan {...props} />;
+  }
+  return <TenantAppShellView {...props} monitorPlan={props.athenaPlan} />;
+}
+
+async function TenantAppShellResolvedPlan(props: TenantAppShellProps) {
+  const { loadAuthoritativeAthenaPlan } = await import(
+    "@/services/organization/freeProgressionState"
+  );
+  const monitorPlan = await loadAuthoritativeAthenaPlan();
+  return <TenantAppShellView {...props} monitorPlan={monitorPlan} />;
+}
+
+function TenantAppShellView({
   currentPath,
   messages,
   athenaPlan,
+  monitorPlan,
   defineKind,
   children,
-}: TenantAppShellProps) {
-  const items = applyFreeUntrainedNavPresentation(
-    localizeTenantNav(messages),
-    { athenaPlan, defineKind },
-    freeUntrainedLockedNavCopy(messages.nav),
+}: TenantAppShellProps & { monitorPlan: AthenaPlan }) {
+  const items = applyMonitorPlanNav(
+    applyFreeUntrainedNavPresentation(
+      localizeTenantNav(messages),
+      { athenaPlan, defineKind },
+      freeUntrainedLockedNavCopy(messages.nav),
+    ),
+    { athenaPlan: monitorPlan },
+    {
+      heading: messages.upgrade.availableWithFullAthena,
+      explanation: messages.monitor.lockedExplanation,
+    },
   );
   const fullAthenaInvite = resolveGlobalFullAthenaInvite(
     { athenaPlan, defineKind },
@@ -49,6 +73,7 @@ export function TenantAppShell({
         currentPath={currentPath}
         messages={messages}
         athenaPlan={athenaPlan}
+        monitorPlan={monitorPlan}
         defineKind={defineKind}
       />
 

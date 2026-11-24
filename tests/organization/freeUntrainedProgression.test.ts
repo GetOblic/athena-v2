@@ -393,8 +393,15 @@ describe("FREE-4 sidebar and mobile progression", () => {
       assert.equal(hrefsIn(desktop).includes("/prospects"), true);
       assert.doesNotMatch(desktop, /Teach Athena first/);
       assert.doesNotMatch(desktop, /Teach Athena →/);
-      assert.doesNotMatch(desktop, /locked-growth-/);
+      assert.doesNotMatch(desktop, /locked-growth-buildVisibility|locked-growth-generateTraction|locked-growth-convertOpportunities/);
       assert.doesNotMatch(desktop, /After Athena learns your business/);
+      if (plan === "full") {
+        assert.equal(hrefsIn(desktop).includes("/monitor"), true, `${plan} ${kind}`);
+        assert.doesNotMatch(desktop, /locked-growth-monitor/);
+      } else {
+        assert.equal(hrefsIn(desktop).includes("/monitor"), false, `${plan} ${kind}`);
+        assert.match(desktop, /id="locked-growth-monitor"/);
+      }
     }
   });
 

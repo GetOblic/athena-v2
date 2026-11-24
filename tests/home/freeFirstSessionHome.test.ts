@@ -289,6 +289,7 @@ describe("FREE-3 first-session Home — chrome and nav regression", () => {
       "buildVisibility",
       "generateTraction",
       "convertOpportunities",
+      "monitor",
       "athenaInbox",
       "settings",
       "gettingStarted",

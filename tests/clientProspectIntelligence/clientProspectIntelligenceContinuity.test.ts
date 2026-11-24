@@ -806,6 +806,7 @@ describe("client prospect intelligence continuity", () => {
         "buildVisibility",
         "generateTraction",
         "convertOpportunities",
+        "monitor",
         "athenaInbox",
         "settings",
         "gettingStarted",
@@ -826,7 +827,7 @@ describe("client prospect intelligence continuity", () => {
       tenantNavDefs
         .filter((item) => item.section === "growth")
         .map((item) => ("stageNumber" in item ? item.stageNumber : null)),
-      [1, 2, 3, 4],
+      [1, 2, 3, 4, 5],
     );
 
     const items = localizeTenantNav(en);

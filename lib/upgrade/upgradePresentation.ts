@@ -19,6 +19,7 @@ export const UPGRADE_FEATURE_KEYS = [
   "personaCsv",
   "prospectCsv",
   "technicalSeo",
+  "monitor",
 ] as const;
 
 export type UpgradeFeatureKey = (typeof UPGRADE_FEATURE_KEYS)[number];
@@ -64,6 +65,7 @@ export const UPGRADE_FEATURE_ACCENT = {
   personaCsv: "audience",
   prospectCsv: "convert",
   technicalSeo: "visibility",
+  monitor: "visibility",
 } as const satisfies Record<UpgradeFeatureKey, UpgradeAccent>;
 
 /**

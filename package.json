@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:worker": "node scripts/buildAthenaWorker.mjs",
+    "build:monitor-worker": "node scripts/buildAthenaMonitorWorker.mjs",
     "build:all": "npm run build && npm run build:worker",
     "start": "next start",
     "worker:dev": "node --import tsx workers/athenaWorker.ts",

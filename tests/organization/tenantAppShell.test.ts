@@ -98,6 +98,7 @@ const SHELLED_PAGES = [
   "app/opportunities/[id]/page.tsx",
   "app/briefings/page.tsx",
   "app/briefings/[id]/page.tsx",
+  "app/monitor/page.tsx",
 ] as const;
 
 const V2_ENGLISH_LABELS = [
@@ -106,6 +107,7 @@ const V2_ENGLISH_LABELS = [
   "Build Visibility",
   "Generate Traction",
   "Convert Opportunities",
+  "Monitor",
   "Athena Inbox",
   "Settings",
   "Getting Started",
@@ -124,6 +126,7 @@ const V2_LINK_HREFS = [
   "/seo",
   "/personas",
   "/prospects",
+  "/monitor",
   "/inbox",
   "/getting-started",
   "/intelligence-domains",
@@ -171,6 +174,7 @@ const ACTIVE_STATE_CASES: Array<{
   { path: "/prospects/import", expectedKey: "convertOpportunities" },
   { path: "/prospects/find", expectedKey: "convertOpportunities" },
   { path: "/prospects/abc", expectedKey: "convertOpportunities" },
+  { path: "/monitor", expectedKey: "monitor" },
   { path: "/inbox", expectedKey: "athenaInbox" },
   { path: "/ads", expectedKey: "generateTraction" },
   { path: "/ads/new", expectedKey: "generateTraction" },
@@ -427,6 +431,8 @@ describe("V2-UI-1B tenant app shell — localization and page integration", () =
       "nav.generateTractionSubtitle",
       "nav.convertOpportunities",
       "nav.convertOpportunitiesSubtitle",
+      "nav.monitor",
+      "nav.monitorSubtitle",
       "nav.teachAthenaFirst",
       "nav.teachAthenaAction",
       "nav.buildVisibilityTeachAthena",

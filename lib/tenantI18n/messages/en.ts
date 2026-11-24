@@ -3,6 +3,8 @@
  * Structural source of truth for TenantMessages.
  * Localizes application chrome only — never generated or persisted content.
  */
+import { monitorCopyEn } from "../monitorCopy";
+
 export const en = {
   common: {
     save: "Save",
@@ -91,6 +93,8 @@ export const en = {
     generateTractionSubtitle: "Reach the right audience",
     convertOpportunities: "Convert Opportunities",
     convertOpportunitiesSubtitle: "Win more customers",
+    monitor: "Monitor",
+    monitorSubtitle: "Assortment signals",
     teachAthenaFirst: "Teach Athena first",
     teachAthenaAction: "Teach Athena →",
     buildVisibilityTeachAthena:
@@ -5604,4 +5608,5 @@ export const en = {
       retryable: "Waiting to retry",
     },
   },
+  monitor: monitorCopyEn,
 } as const;

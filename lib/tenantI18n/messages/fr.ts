@@ -1,3 +1,4 @@
+import { monitorCopyFr } from "../monitorCopy";
 import type { TenantMessages } from "../types";
 
 export const fr: TenantMessages = {
@@ -90,6 +91,8 @@ export const fr: TenantMessages = {
     generateTractionSubtitle: "Atteindre le bon public",
     convertOpportunities: "Convertir les opportunités",
     convertOpportunitiesSubtitle: "Gagner plus de clients",
+    monitor: "Veille",
+    monitorSubtitle: "Signaux d'assortiment",
     teachAthenaFirst: "Enseigner à Athena d'abord",
     teachAthenaAction: "Enseigner à Athena →",
     buildVisibilityTeachAthena:
@@ -5703,4 +5706,5 @@ export const fr: TenantMessages = {
       retryable: "Nouvelle tentative en attente",
     },
   },
+  monitor: monitorCopyFr,
 };

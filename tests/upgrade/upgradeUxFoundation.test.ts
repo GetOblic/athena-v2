@@ -127,6 +127,7 @@ describe("FREE-15A Upgrade UX foundation", () => {
       "personaCsv",
       "prospectCsv",
       "technicalSeo",
+      "monitor",
     ]);
     assert.equal(resolveUpgradeAccent("identity"), "identity");
     assert.equal(resolveUpgradeAccent("visibility"), "visibility");

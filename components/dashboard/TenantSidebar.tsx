@@ -8,6 +8,7 @@ import {
   MessageCircleQuestionMark,
   Search,
   Settings,
+  Radar,
   Target,
   Users,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import {
   applyFreeUntrainedNavPresentation,
   freeUntrainedLockedNavCopy,
 } from "@/lib/organization/freeUntrained";
+import { applyMonitorPlanNav } from "@/lib/organization/monitorPlanNav";
 import { en } from "@/lib/tenantI18n/messages/en";
 import type { TenantMessages } from "@/lib/tenantI18n/types";
 import {
@@ -46,6 +48,7 @@ const NAV_ICONS: Record<TenantNavIconName, LucideIcon> = {
   visibility: Search,
   traction: Target,
   convert: Users,
+  radar: Radar,
   inbox: Inbox,
   settings: Settings,
   help: MessageCircleQuestionMark,
@@ -345,6 +348,11 @@ type TenantSidebarProps = {
   currentPath: string;
   messages?: TenantMessages;
   athenaPlan?: AthenaPlan;
+  /**
+   * Plan used only for the Monitor link. Older pages omit athenaPlan;
+   * the shell resolves this value without changing the FREE badge.
+   */
+  monitorPlan?: AthenaPlan;
   defineKind?: DefineKind;
 };
 
@@ -374,12 +382,20 @@ export function TenantSidebar({
   currentPath,
   messages = en,
   athenaPlan,
+  monitorPlan,
   defineKind,
 }: TenantSidebarProps) {
-  const items = applyFreeUntrainedNavPresentation(
-    localizeTenantNav(messages),
-    { athenaPlan, defineKind },
-    freeUntrainedLockedNavCopy(messages.nav),
+  const items = applyMonitorPlanNav(
+    applyFreeUntrainedNavPresentation(
+      localizeTenantNav(messages),
+      { athenaPlan, defineKind },
+      freeUntrainedLockedNavCopy(messages.nav),
+    ),
+    { athenaPlan: monitorPlan ?? athenaPlan },
+    {
+      heading: messages.upgrade.availableWithFullAthena,
+      explanation: messages.monitor.lockedExplanation,
+    },
   );
   const help = groupTenantNav(items).help[0];
   const invite = resolveGlobalFullAthenaInvite(

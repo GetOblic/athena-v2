@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "plugins": [],
+    "noEmit": true
+  },
+  "include": [
+    "prototype/monitor/**/*.ts",
+    "services/monitor/**/*.ts",
+    "tests/monitor/**/*.ts",
+    "workers/athenaMonitorWorker.ts"
+  ],
+  "exclude": ["node_modules"]
+}

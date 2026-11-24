@@ -399,9 +399,11 @@ describe("FREE-15B global Full Athena invitation", () => {
       assert.match(html, /Continue with Full Athena/);
       assert.doesNotMatch(html, /data-upgrade-cta-kind="href"/);
       assert.doesNotMatch(html, /data-upgrade-cta-kind="handler"/);
-      assert.doesNotMatch(html, /tabindex="/);
       assert.doesNotMatch(html, /href="\/pricing"|href="\/checkout"|href="\/upgrade"/);
-      assert.doesNotMatch(html, /<button/);
+      assert.equal(html.includes('href="/monitor"'), false);
+      const invite = html.slice(html.indexOf('data-upgrade-feature="chrome"'));
+      assert.doesNotMatch(invite, /tabindex="/);
+      assert.doesNotMatch(invite, /<button/);
     }
     assert.match(shell, /data-upgrade-variant="sidebar"/);
     assert.match(shell, /data-upgrade-cta-kind="none"/);
