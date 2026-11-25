@@ -19,8 +19,7 @@ import type {
 import { isHardDeniedMonitorUrl } from "@/services/monitor/monitorSources";
 import { categoryKeyFromUrl } from "@/services/monitor/monitorWebsiteIdentity";
 import { MONITOR_ADAPTER_VERSION } from "@/services/monitor/monitorTypes";
-import { prodIdFromSolusquareUrl } from "@/prototype/monitor/discover";
-import { parseSolusquareProduct } from "@/prototype/monitor/adapters/solusquare";
+import { parseSolusquareProduct, prodIdFromSolusquareUrl } from "@/services/monitor/solusquareProduct";
 
 const SOLUSQUARE_CATEGORY = /-c-\d+\.htm$/i;
 const SOLUSQUARE_PAGE = /-page-\d+\.htm$/i;

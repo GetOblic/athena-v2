@@ -4,26 +4,11 @@
  * Threshold matching is applied later by the generic filter.
  */
 
-export type ExtractionAdapterId = "sfra" | "solusquare";
+import type { ExtractedFamily } from "@/services/monitor/extractedFamily";
 
-export type ExtractedFamily = {
-  sourceWebsite: string;
-  brand: string | null;
-  productFamilyId: string | null;
-  productName: string | null;
-  category: string | null;
-  productUrl: string;
-  imageUrl: string | null;
-  price: number | null;
-  currency: string | null;
-  colorPatternNames: string[];
-  colorPatternIds: Array<string | null>;
-  distinctVariationCount: number;
-  sizeOptions: string[];
-  /** Observed length axis, kept separate so it cannot inflate the color count. */
-  lengthOptions: string[] | null;
-  observedAt: string;
-};
+export type { ExtractedFamily } from "@/services/monitor/extractedFamily";
+
+export type ExtractionAdapterId = "sfra" | "solusquare";
 
 export type NormalizedProduct = ExtractedFamily & {
   thresholdMatch: boolean;

@@ -1,8 +1,12 @@
 import * as cheerio from "cheerio";
 
+import { prodIdFromSolusquareUrl } from "@/services/monitor/solusquareProduct";
+
 import { canonicalMonitorUrl, isHardDeniedUrl } from "./safety";
 import type { ExtractionAdapterId } from "./types";
 import { cleanText } from "./text";
+
+export { prodIdFromSolusquareUrl };
 
 const SFRA_PRODUCT = /-\d{12,}\.html$/i;
 const SFRA_CATEGORY = /-(?:sc|c|tp)_[0-9a-z]+$/i;
@@ -121,11 +125,6 @@ export function findNextListingUrl(html: string, baseUrl: string): string | null
 
 export function skuFromProductUrl(rawUrl: string): string | null {
   const match = new URL(rawUrl).pathname.match(/-(\d{12,})\.html$/i);
-  return match?.[1] ?? null;
-}
-
-export function prodIdFromSolusquareUrl(rawUrl: string): string | null {
-  const match = new URL(rawUrl).pathname.match(/-p-(\d+)-coul-\d+\.htm$/i);
   return match?.[1] ?? null;
 }
 

@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { parseSfraProduct, familyIdFromColorSkus, publicProductUrlFromImage } from "../../prototype/monitor/adapters/sfra";
-import { parseSolusquareProduct } from "../../prototype/monitor/adapters/solusquare";
+import type { ExtractedFamily } from "../../services/monitor/extractedFamily";
+import { parseSolusquareProduct } from "../../services/monitor/solusquareProduct";
 import {
   chooseClothingCategory,
   lengthGroupKey,
@@ -14,7 +15,6 @@ import { MONITOR_LIMITS } from "../../prototype/monitor/limits";
 import { assertDocumentAllowed, isHardDeniedUrl, isRobotsAllowed, resolveSupportedTarget } from "../../prototype/monitor/safety";
 import { isPathAllowedByRobots, parseRobotsTxt } from "../../services/websiteLearning/deepScrape/robots";
 import { assertPublicHostname } from "../../services/websiteLearning/deepScrape/urlSafety";
-import type { ExtractedFamily } from "../../prototype/monitor/types";
 
 const OBSERVED = "2026-11-24T12:00:00.000Z";
 
