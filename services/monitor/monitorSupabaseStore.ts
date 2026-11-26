@@ -565,6 +565,22 @@ export async function createSupabaseMonitorStore(client?: SupabaseLike): Promise
       return rows.map((row) => mapDiscoveryCoverage(row));
     },
 
+    async latestDiscoveryCoverageForScope(sourceId, scopeKey) {
+      // One scope, one row. id is the stable tie-break when discovered_at matches.
+      const rows = await listRows(
+        supabase
+          .from("athena_monitor_discovery_coverage")
+          .select("*")
+          .eq("source_id", sourceId)
+          .eq("scope_key", scopeKey)
+          .order("discovered_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1),
+      );
+      const row = rows[0];
+      return row ? mapDiscoveryCoverage(row) : null;
+    },
+
     async attachResolvedPublicObservations(input) {
       const jobResult = await supabase
         .from("athena_monitor_jobs")

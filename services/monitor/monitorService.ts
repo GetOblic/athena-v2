@@ -41,7 +41,7 @@ import {
   normalizeMonitorObservationDraft,
   type MonitorObservationDraft,
 } from "@/services/monitor/monitorObservation";
-import { planSharedObservationReuse } from "@/services/monitor/monitorReuse";
+import { planSharedObservationReuse, selectionScopeKeys } from "@/services/monitor/monitorReuse";
 import {
   compareObservationFacts,
   MONITOR_RESULT_FACT_LIMIT,
@@ -76,6 +76,20 @@ import {
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function coverageIdForFamily(coverage: readonly SharedDiscoveryCoverage[], familyId: string): string | null {
+  let selected: SharedDiscoveryCoverage | null = null;
+  for (const item of coverage) {
+    if (item.status !== "completed" || !item.familyIds.includes(familyId)) continue;
+    if (!selected) {
+      selected = item;
+      continue;
+    }
+    const byTime = item.discoveredAt.localeCompare(selected.discoveredAt);
+    if (byTime > 0 || (byTime === 0 && item.id.localeCompare(selected.id) > 0)) selected = item;
+  }
+  return selected?.id ?? null;
+}
 
 export type ClaimedMonitorJob = {
   disposition: "claimed" | "blocked";
@@ -187,6 +201,13 @@ export function createMonitorService(deps: {
 }) {
   const now = deps.now ?? (() => new Date());
   const { store, resolvePlan } = deps;
+
+  async function readLatestCoverage(sourceId: string, selection: MonitorSelection): Promise<SharedDiscoveryCoverage[]> {
+    const rows = await Promise.all(
+      selectionScopeKeys(selection).map((scopeKey) => store.latestDiscoveryCoverageForScope(sourceId, scopeKey)),
+    );
+    return rows.filter((row): row is SharedDiscoveryCoverage => row != null);
+  }
 
   async function requireFull(organizationId: string): Promise<void> {
     await assertFullAthenaMonitorAccess(organizationId, resolvePlan);
@@ -762,7 +783,7 @@ export function createMonitorService(deps: {
       // Coverage and public observations are immutable append-only rows.
       // They are read separately and are not claimed to share this snapshot.
       const [coverage, observations] = await Promise.all([
-        store.listDiscoveryCoverage(snapshot.source.id),
+        readLatestCoverage(snapshot.source.id, input.selection),
         store.listPublicObservations(snapshot.source.id),
       ]);
       return planSharedObservationReuse({
@@ -797,20 +818,16 @@ export function createMonitorService(deps: {
       for (const source of job.configurationSnapshot.sources) {
         const shared = await store.getSharedSourceByRegisteredId(source.sourceId);
         if (!shared) continue;
+        const coverage = await readLatestCoverage(shared.id, source.selection);
         const plan = planSharedObservationReuse({
           source: shared,
           selection: source.selection,
           categories: await store.listSharedCategories(shared.id),
-          coverage: await store.listDiscoveryCoverage(shared.id),
+          coverage,
           observations: await store.listPublicObservations(shared.id),
           now: now(),
           forceFresh: false,
         });
-        const coverage = (await store.listDiscoveryCoverage(shared.id)).find(
-          (item) => item.status === "completed" && item.scopeKey === (
-            source.selection.mode === "whole_catalog" ? "whole_catalog" : item.scopeKey
-          ),
-        );
         for (const reusable of plan.reusable) {
           if (!requested.has(reusable.familyId)) continue;
           const publicObservation = await store.getPublicObservation(reusable.publicObservationId);
@@ -824,7 +841,7 @@ export function createMonitorService(deps: {
               publicObservation.distinctVariationCount,
             ),
             categoryIds: membershipForFamily(source.selection, reusable.familyId, input.categoryIdsByFamily),
-            discoveryCoverageId: coverage?.id ?? null,
+            discoveryCoverageId: coverageIdForFamily(coverage, reusable.familyId),
           });
         }
       }

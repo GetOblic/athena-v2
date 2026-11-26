@@ -28,6 +28,7 @@ import {
   buildSharedPublicObservation,
   payloadFromPublicObservation,
 } from "@/services/monitor/monitorObservation";
+import { latestCoverageForScope } from "@/services/monitor/monitorReuse";
 import { sharedSourceHasCustomerFields } from "@/services/monitor/monitorWebsiteIdentity";
 import type {
   MonitorClaimRequest,
@@ -756,6 +757,14 @@ export function createMemoryMonitorStore(deps?: {
       return discoveryCoverage
         .filter((coverage) => coverage.sourceId === sourceId)
         .map((coverage) => clone(coverage));
+    },
+
+    async latestDiscoveryCoverageForScope(sourceId, scopeKey) {
+      const latest = latestCoverageForScope(
+        discoveryCoverage.filter((coverage) => coverage.sourceId === sourceId),
+        scopeKey,
+      );
+      return latest ? clone(latest) : null;
     },
 
     async attachResolvedPublicObservations(input: {

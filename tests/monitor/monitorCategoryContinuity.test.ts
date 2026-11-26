@@ -25,6 +25,7 @@ import {
 import { createMemoryMonitorStore } from "../../services/monitor/monitorMemoryStore";
 import { createMonitorService } from "../../services/monitor/monitorService";
 import type { MonitorStore } from "../../services/monitor/monitorStore";
+import { latestCoverageForScope } from "../../services/monitor/monitorReuse";
 import { createSupabaseMonitorStore } from "../../services/monitor/monitorSupabaseStore";
 import type { MonitorJob } from "../../services/monitor/monitorTypes";
 import { categoryKeyFromUrl } from "../../services/monitor/monitorWebsiteIdentity";
@@ -1569,6 +1570,8 @@ describe("force-fresh category continuity against the persistence contract", () 
       readSharedDiscoverySnapshot: (id) => remote.readSharedDiscoverySnapshot(id),
       saveDiscoveryCoverage: (coverage) => remote.saveDiscoveryCoverage(coverage),
       listDiscoveryCoverage: (id) => remote.listDiscoveryCoverage(id),
+      latestDiscoveryCoverageForScope: async (sourceId, scopeKey) =>
+        latestCoverageForScope(await remote.listDiscoveryCoverage(sourceId), scopeKey),
     };
     const service = createMonitorService({
       store,

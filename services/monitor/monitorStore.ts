@@ -162,7 +162,21 @@ export interface MonitorStore {
   listPublicObservations(sourceId: string): Promise<SharedPublicObservation[]>;
   getPublicObservation(id: string): Promise<SharedPublicObservation | null>;
   saveDiscoveryCoverage(coverage: SharedDiscoveryCoverage): Promise<SharedDiscoveryCoverage>;
+  /**
+   * Historical coverage for one source, oldest discovered_at first.
+   * Completeness and continuation must not use this list.
+   */
   listDiscoveryCoverage(sourceId: string): Promise<SharedDiscoveryCoverage[]>;
+  /**
+   * Newest coverage attempt for one source and scope.
+   * discovered_at selects the attempt. An equal timestamp stays stable:
+   * the production read orders id descending, and the memory store keeps the later stored row.
+   * Status, adapter version, schema version, and freshness stay with the caller.
+   */
+  latestDiscoveryCoverageForScope(
+    sourceId: string,
+    scopeKey: string,
+  ): Promise<SharedDiscoveryCoverage | null>;
   /**
    * Attaches observations the server has already resolved.
    * A public observation from another registered source is rejected.

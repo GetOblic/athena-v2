@@ -16,7 +16,7 @@ import {
 import type { MonitorResourceTracker } from "@/services/monitor/monitorHttp";
 import type { MonitorPageFetch } from "@/services/monitor/monitorAdapter";
 import { productionAdapterFor } from "@/services/monitor/monitorRegistry";
-import { latestCoverageForScope, planSharedObservationReuse } from "@/services/monitor/monitorReuse";
+import { latestCoverageForScope, planSharedObservationReuse, selectionScopeKeys } from "@/services/monitor/monitorReuse";
 import { ATHENA_MONITOR_FRESHNESS, ATHENA_MONITOR_WORKER_DEFAULTS } from "@/services/monitor/monitorRuntime";
 import type { MonitorService } from "@/services/monitor/monitorService";
 import { getMonitorSource } from "@/services/monitor/monitorSources";
@@ -553,8 +553,7 @@ async function discoverSource(
   }
   const scope = scopes[cursor.nextIndex];
   if (!scope) return { job: input.job, consumed: 0, outcome: "continue" };
-  const coverageRows = await input.store.listDiscoveryCoverage(listed.source.id);
-  const latest = latestCoverageForScope(coverageRows, scope.key);
+  const latest = await input.store.latestDiscoveryCoverageForScope(listed.source.id, scope.key);
   if (coverageIsFresh(latest, input.now(), input.forceFresh, input.freshRequestedAt)) {
     const job = await writeSource(
       input,
@@ -724,8 +723,9 @@ async function finishDiscovery(
   scopes: readonly ScopeWork[],
   cursor: MonitorExecutionCursorSource,
 ): Promise<{ job: MonitorJob; consumed: number; outcome: "continue" | "yield" | "interrupted" | "cancelled" }> {
-  const rows = await input.store.listDiscoveryCoverage(source.id);
-  const latest = scopes.map((scope) => latestCoverageForScope(rows, scope.key));
+  const latest = await Promise.all(
+    scopes.map((scope) => input.store.latestDiscoveryCoverageForScope(source.id, scope.key)),
+  );
   const ready = latest.every((coverage) => coverageIsFresh(coverage, input.now(), input.forceFresh, input.freshRequestedAt));
   if (!ready) {
     const failed = latest.some((coverage) => coverage?.status === "failed" || coverage == null);
@@ -798,7 +798,11 @@ async function extractSource(
   }
   const [snapshot, coverage, observations] = await Promise.all([
     input.store.readSharedDiscoverySnapshot(shared.id),
-    input.store.listDiscoveryCoverage(shared.id),
+    Promise.all(
+      selectionScopeKeys(configured.selection).map((scopeKey) =>
+        input.store.latestDiscoveryCoverageForScope(shared.id, scopeKey),
+      ),
+    ).then((rows) => rows.filter((row): row is SharedDiscoveryCoverage => row != null)),
     input.store.listPublicObservations(shared.id),
   ]);
   if (!snapshot) {
