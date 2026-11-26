@@ -1,11 +1,18 @@
 /**
  * In-memory Monitor persistence.
  * Mirrors the SQL claim, fence, cancellation, and observation identity rules.
+ * Category publication copies the outcome contract of the transactional RPC.
+ * A thrown reconciliation restores the previous arrays. That restore is an
+ * in-process simulation, not a database lock, snapshot, or rollback.
  * This is not a PostgreSQL runtime.
  */
 
 import { randomUUID } from "node:crypto";
 
+import {
+  refreshSharedCategories,
+  type SharedCategoryWriter,
+} from "@/services/monitor/monitorCategoryRefresh";
 import { classifyMonitorLease, completedSourceIsAccounted } from "@/services/monitor/monitorExecution";
 import { MonitorOperationError } from "@/services/monitor/monitorErrors";
 import {
@@ -585,31 +592,125 @@ export function createMemoryMonitorStore(deps?: {
       return clone(source);
     },
 
-    async saveSharedCategories(sourceId, categories) {
+    async readSharedDiscoverySnapshot(sourceId) {
       const source = sharedSources.find((item) => item.id === sourceId);
-      if (!source) throw new MonitorOperationError("UNSUPPORTED_SOURCE");
-      const kept = sharedCategories.filter((category) => category.sourceId !== sourceId);
-      const saved: SharedMonitorCategory[] = [];
-      for (const category of categories) {
-        if (category.sourceId !== sourceId) {
-          throw new MonitorOperationError("UNSUPPORTED_SOURCE", "Category source does not match.");
-        }
-        if (sharedSourceHasCustomerFields(category)) {
-          throw new MonitorOperationError("INVALID_CONFIGURATION");
-        }
-        saved.push(clone(category));
+      if (!source) return null;
+      return {
+        source: clone(source),
+        categories: sharedCategories
+          .filter((category) => category.sourceId === sourceId)
+          .map((category) => clone(category))
+          .sort((left, right) => left.categoryKey.localeCompare(right.categoryKey)),
+      };
+    },
+
+    async refreshSharedCategories(input) {
+      if (!sharedSources.some((item) => item.id === input.sourceId)) {
+        throw new MonitorOperationError("UNSUPPORTED_SOURCE");
       }
-      const byKey = new Map(saved.map((category) => [category.categoryKey, category]));
-      for (const category of saved) {
-        if (!category.parentCategoryKey) continue;
-        const parent = byKey.get(category.parentCategoryKey);
-        if (!parent || parent.sourceId !== sourceId) {
-          throw new MonitorOperationError("INVALID_CONFIGURATION", "Parent category is not on this website.");
-        }
-        category.parentCategoryId = parent.id;
+      const sourcesBefore = sharedSources.map((source) => clone(source));
+      const categoriesBefore = sharedCategories.map((category) => clone(category));
+      const writer: SharedCategoryWriter = {
+        async readSource(sourceId) {
+          const source = sharedSources.find((item) => item.id === sourceId);
+          return source ? { lastDiscoveredAt: source.lastDiscoveredAt } : null;
+        },
+        async list(sourceId) {
+          return sharedCategories
+            .filter((category) => category.sourceId === sourceId)
+            .map((category) => clone(category));
+        },
+        async findByKey(sourceId, categoryKey) {
+          const category = sharedCategories.find(
+            (item) => item.sourceId === sourceId && item.categoryKey === categoryKey,
+          );
+          return category ? clone(category) : null;
+        },
+        async insert(category) {
+          if (category.sourceId !== input.sourceId) {
+            throw new MonitorOperationError("UNSUPPORTED_SOURCE", "Category source does not match.");
+          }
+          if (
+            sharedCategories.some(
+              (item) => item.sourceId === category.sourceId && item.categoryKey === category.categoryKey,
+            )
+          ) {
+            return "category_key_conflict";
+          }
+          if (
+            sharedCategories.some(
+              (item) => item.sourceId === category.sourceId && item.canonicalUrl === category.canonicalUrl,
+            )
+          ) {
+            return "canonical_url_conflict";
+          }
+          if (category.parentCategoryId) {
+            const parent = sharedCategories.find(
+              (item) => item.id === category.parentCategoryId && item.sourceId === category.sourceId,
+            );
+            if (!parent) {
+              throw new MonitorOperationError("FOREIGN_KEY_VIOLATION", "The request could not be saved.");
+            }
+          }
+          sharedCategories.push(clone(category));
+          return "inserted";
+        },
+        async updateIfNotNewer(category) {
+          const index = sharedCategories.findIndex(
+            (item) => item.sourceId === category.sourceId && item.categoryKey === category.categoryKey,
+          );
+          if (index < 0) return "missing";
+          const current = sharedCategories[index]!;
+          if (Date.parse(current.discoveredAt) > Date.parse(category.discoveredAt)) return "stale";
+          const urlOwner = sharedCategories.find(
+            (item) =>
+              item.sourceId === category.sourceId &&
+              item.canonicalUrl === category.canonicalUrl &&
+              item.categoryKey !== category.categoryKey,
+          );
+          if (urlOwner) {
+            throw new MonitorOperationError("CONSTRAINT_VIOLATION", "The request could not be saved.");
+          }
+          if (category.parentCategoryId) {
+            const parent = sharedCategories.find(
+              (item) => item.id === category.parentCategoryId && item.sourceId === category.sourceId,
+            );
+            if (!parent) {
+              throw new MonitorOperationError("FOREIGN_KEY_VIOLATION", "The request could not be saved.");
+            }
+          }
+          sharedCategories[index] = {
+            ...clone(category),
+            id: current.id,
+            sourceId: current.sourceId,
+            categoryKey: current.categoryKey,
+            createdAt: current.createdAt,
+          };
+          return "updated";
+        },
+        async advanceDiscovery(advance) {
+          const source = sharedSources.find((item) => item.id === advance.sourceId);
+          if (!source) return false;
+          if (
+            source.lastDiscoveredAt &&
+            Date.parse(source.lastDiscoveredAt) > Date.parse(advance.discoveredAt)
+          ) {
+            return false;
+          }
+          source.discoveryStatus = "current";
+          source.lastDiscoveredAt = advance.discoveredAt;
+          source.updatedAt = advance.discoveredAt;
+          return true;
+        },
+      };
+      try {
+        const result = await refreshSharedCategories(writer, input);
+        return { ...result, categories: result.categories.map((category) => clone(category)) };
+      } catch (error) {
+        sharedSources.splice(0, sharedSources.length, ...sourcesBefore);
+        sharedCategories.splice(0, sharedCategories.length, ...categoriesBefore);
+        throw error;
       }
-      sharedCategories.splice(0, sharedCategories.length, ...kept, ...saved);
-      return saved.map((category) => clone(category));
     },
 
     async listSharedCategories(sourceId) {

@@ -18,6 +18,7 @@ import { type MonitorComparison } from "@/services/monitor/monitorComparison";
 import { parseMonitorConfiguration } from "@/services/monitor/monitorConfig";
 import { matchMonitorCriterion } from "@/services/monitor/monitorCriterion";
 import { boundMonitorDiagnostic } from "@/services/monitor/monitorDiagnostics";
+import type { SharedCategoryRefreshResult } from "@/services/monitor/monitorCategoryRefresh";
 import { MonitorOperationError } from "@/services/monitor/monitorErrors";
 import {
   alignCoverageToSnapshot,
@@ -702,40 +703,37 @@ export function createMonitorService(deps: {
       fresh: boolean;
       categories: SharedMonitorCategory[];
     }> {
-      const source = await this.resolveSharedWebsite(organizationId, websiteUrl);
-      const categories = await store.listSharedCategories(source.id);
-      const discoveredAt = source.lastDiscoveredAt ? Date.parse(source.lastDiscoveredAt) : Number.NaN;
+      const ensured = await this.resolveSharedWebsite(organizationId, websiteUrl);
+      const snapshot = await store.readSharedDiscoverySnapshot(ensured.id);
+      if (!snapshot) throw new MonitorOperationError("UNSUPPORTED_SOURCE");
+      const selectable = snapshot.categories.filter((category) => category.discoveryStatus !== "removed");
+      const discoveredAt = snapshot.source.lastDiscoveredAt ? Date.parse(snapshot.source.lastDiscoveredAt) : Number.NaN;
       const fresh =
-        categories.length > 0 &&
+        selectable.length > 0 &&
         Number.isFinite(discoveredAt) &&
         now().getTime() - discoveredAt <= ATHENA_MONITOR_FRESHNESS.categoryDiscoveryMs &&
-        categories.every((category) => category.discoveryStatus === "current");
-      return { source, fresh, categories };
+        selectable.every((category) => category.discoveryStatus === "current");
+      return { source: snapshot.source, fresh, categories: snapshot.categories };
     },
 
     async recordSharedCategoryDiscovery(input: {
       organizationId: string;
       websiteUrl: string;
       discoveredAt: string;
+      /**
+       * Production callers pass false. A non-empty adapter parse is not proof
+       * that every previously known category is absent.
+       */
+      authoritativeTaxonomy?: boolean;
       categories: Array<Omit<SharedMonitorCategory, "id" | "sourceId" | "parentCategoryId" | "createdAt" | "updatedAt">>;
-    }): Promise<SharedMonitorCategory[]> {
+    }): Promise<SharedCategoryRefreshResult> {
       const source = await this.resolveSharedWebsite(input.organizationId, input.websiteUrl);
-      const stamp = input.discoveredAt;
-      const rows: SharedMonitorCategory[] = input.categories.map((category) => ({
-        ...category,
-        id: randomUUID(),
+      return store.refreshSharedCategories({
         sourceId: source.id,
-        parentCategoryId: null,
-        createdAt: stamp,
-        updatedAt: stamp,
-      }));
-      const saved = await store.saveSharedCategories(source.id, rows);
-      await store.recordSourceDiscovery({
-        sourceId: source.id,
-        discoveredAt: stamp,
-        discoveryStatus: "current",
+        discoveredAt: input.discoveredAt,
+        authoritativeTaxonomy: input.authoritativeTaxonomy === true,
+        categories: input.categories,
       });
-      return saved;
     },
 
     async recordSharedDiscoveryCoverage(input: {
@@ -758,17 +756,19 @@ export function createMonitorService(deps: {
       selection: MonitorSelection;
       forceFresh?: boolean;
     }): Promise<SharedReusePlan> {
-      const source = await this.resolveSharedWebsite(input.organizationId, input.websiteUrl);
-      const [categories, coverage, observations] = await Promise.all([
-        store.listSharedCategories(source.id),
-        store.listDiscoveryCoverage(source.id),
-        store.listPublicObservations(source.id),
+      const ensured = await this.resolveSharedWebsite(input.organizationId, input.websiteUrl);
+      const snapshot = await store.readSharedDiscoverySnapshot(ensured.id);
+      if (!snapshot) throw new MonitorOperationError("UNSUPPORTED_SOURCE");
+      // Coverage and public observations are immutable append-only rows.
+      // They are read separately and are not claimed to share this snapshot.
+      const [coverage, observations] = await Promise.all([
+        store.listDiscoveryCoverage(snapshot.source.id),
+        store.listPublicObservations(snapshot.source.id),
       ]);
-      const current = await store.getSharedSourceByHost(source.normalizedHost);
       return planSharedObservationReuse({
-        source: current ?? source,
+        source: snapshot.source,
         selection: input.selection,
-        categories,
+        categories: snapshot.categories,
         coverage,
         observations,
         now: now(),

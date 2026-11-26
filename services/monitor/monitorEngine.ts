@@ -115,19 +115,24 @@ function coverageIsFresh(
   return age >= 0 && age <= ATHENA_MONITOR_FRESHNESS.catalogDiscoveryMs;
 }
 
+function currentCategories(categories: readonly SharedMonitorCategory[]): SharedMonitorCategory[] {
+  return categories.filter((category) => category.discoveryStatus !== "removed");
+}
+
 function scopesFor(selection: MonitorSelection, categories: readonly SharedMonitorCategory[], canonicalUrl: string): ScopeWork[] {
+  const selectable = currentCategories(categories);
   if (selection.mode === "whole_catalog") {
     return [
       {
         kind: "whole_catalog",
         key: "whole_catalog",
         canonicalUrl,
-        categoryUrls: categories.map((category) => category.canonicalUrl),
+        categoryUrls: selectable.map((category) => category.canonicalUrl),
       },
     ];
   }
   return (selection.categoryIds ?? []).flatMap((key) => {
-    const category = categories.find((item) => item.categoryKey === key);
+    const category = selectable.find((item) => item.categoryKey === key);
     if (!category) return [];
     return [
       {
@@ -468,10 +473,12 @@ async function discoverSource(
         return { job, consumed: 0, outcome: "continue" };
       }
       const stamp = input.now().toISOString();
-      await input.service.recordSharedCategoryDiscovery({
+      // Adapter `complete` means a non-empty parse, not a verified full taxonomy.
+      const published = await input.service.recordSharedCategoryDiscovery({
         organizationId: input.job.organizationId,
         websiteUrl: configured.websiteUrl,
         discoveredAt: stamp,
+        authoritativeTaxonomy: false,
         categories: discovered.value.categories.map((category) => ({
           categoryKey: categoryKeyFromUrl(category.canonicalUrl),
           displayName: category.displayName,
@@ -483,14 +490,14 @@ async function discoverSource(
           productFamilyCountBasis: null,
         })),
       });
-      categories = await input.store.listSharedCategories(listed.source.id);
+      categories = published.categories;
     } finally {
       if (signal) input.resources?.release(signal);
     }
   }
 
   if (configured.selection.mode === "categories") {
-    const keys = new Set(categories.map((category) => category.categoryKey));
+    const keys = new Set(currentCategories(categories).map((category) => category.categoryKey));
     const selected = configured.selection.categoryIds ?? [];
     if (selected.length === 0 || selected.some((key) => !keys.has(key))) {
       const job = await writeSource(
@@ -724,12 +731,24 @@ async function extractSource(
     );
     return { job, consumed: 0, outcome: "continue" };
   }
-  const [categories, coverage, observations] = await Promise.all([
-    input.store.listSharedCategories(shared.id),
+  const [snapshot, coverage, observations] = await Promise.all([
+    input.store.readSharedDiscoverySnapshot(shared.id),
     input.store.listDiscoveryCoverage(shared.id),
     input.store.listPublicObservations(shared.id),
   ]);
-  const scopes = scopesFor(configured.selection, categories, shared.canonicalUrl);
+  if (!snapshot) {
+    const job = await writeSource(
+      input,
+      input.job,
+      configured.sourceId,
+      { status: "failed", errorCode: "UNSUPPORTED_SOURCE" },
+      cursor,
+      "extract",
+    );
+    return { job, consumed: 0, outcome: "continue" };
+  }
+  const categories = snapshot.categories;
+  const scopes = scopesFor(configured.selection, categories, snapshot.source.canonicalUrl);
   const membership = new Map<string, Set<string>>();
   for (const scope of scopes) {
     const latest = latestCoverageForScope(coverage, scope.key);
@@ -747,7 +766,7 @@ async function extractSource(
     return completeExtraction(input, configured, cursor, families.length);
   }
   const reusePlan = planSharedObservationReuse({
-    source: shared,
+    source: snapshot.source,
     selection: configured.selection,
     categories,
     coverage,

@@ -93,6 +93,17 @@ function publicError(error: unknown) {
     return json({ ok: false, error: { code: "UNAUTHORIZED", message: "Authentication required." } }, 401);
   }
   if (error instanceof MonitorOperationError) {
+    if (
+      error.code === "FOREIGN_KEY_VIOLATION" ||
+      error.code === "CONSTRAINT_VIOLATION" ||
+      error.code === "PERSISTENCE_FAILED" ||
+      error.code === "JOB_EXECUTION_FAILED"
+    ) {
+      return json(
+        { ok: false, error: { code: "REQUEST_FAILED", message: "Athena could not complete that request." } },
+        500,
+      );
+    }
     const status =
       error.code === "ENTITLEMENT_REQUIRED"
         ? 403
@@ -613,13 +624,15 @@ export async function inspectWebsite(
     const stamp = new Date().toISOString();
     const rows = categoriesFromAdapter(discovered.categories, stamp);
     if (rows.length > 0) {
-      categories = await service.recordSharedCategoryDiscovery({
+      const refresh = await service.recordSharedCategoryDiscovery({
         organizationId: context.organizationId,
         websiteUrl: body.websiteUrl,
         discoveredAt: stamp,
+        authoritativeTaxonomy: false,
         categories: rows,
       });
-      fresh = true;
+      categories = refresh.categories;
+      fresh = refresh.freshnessAdvanced && categories.some((category) => category.discoveryStatus === "current");
     } else {
       fresh = false;
     }

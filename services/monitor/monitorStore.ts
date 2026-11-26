@@ -10,6 +10,10 @@ import type {
   MonitorObservationPageQuery,
 } from "@/services/monitor/monitorResultPage";
 import type {
+  SharedCategoryRefreshInput,
+  SharedCategoryRefreshResult,
+} from "@/services/monitor/monitorCategoryRefresh";
+import type {
   MonitorExecutionCursor,
   MonitorJob,
   MonitorObservation,
@@ -134,10 +138,23 @@ export interface MonitorStore {
     accessStatus: MonitorSharedAccessStatus;
     retryAfter: string | null;
   }): Promise<SharedMonitorSource | null>;
-  saveSharedCategories(
-    sourceId: string,
-    categories: SharedMonitorCategory[],
-  ): Promise<SharedMonitorCategory[]>;
+  /**
+   * Reconciles categories by stable (source, category key) identity.
+   * Does not delete categories, coverage, or observations.
+   * The Supabase adapter performs the publication as one RPC.
+   * The memory adapter simulates the outcome contract only.
+   */
+  refreshSharedCategories(input: SharedCategoryRefreshInput): Promise<SharedCategoryRefreshResult>;
+  /**
+   * Source row and its categories from one coherent read.
+   * Supabase uses one embedded select, which is one SQL statement.
+   * The memory adapter copies both arrays without yielding.
+   * Coverage and observations are not part of this read.
+   */
+  readSharedDiscoverySnapshot(sourceId: string): Promise<{
+    source: SharedMonitorSource;
+    categories: SharedMonitorCategory[];
+  } | null>;
   listSharedCategories(sourceId: string): Promise<SharedMonitorCategory[]>;
   savePublicObservation(
     observation: SharedPublicObservation,

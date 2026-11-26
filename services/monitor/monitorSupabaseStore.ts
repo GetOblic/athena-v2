@@ -5,7 +5,16 @@
  * This adapter is not executed by the Gate 3B tests.
  */
 
-import { MonitorOperationError } from "@/services/monitor/monitorErrors";
+import {
+  MONITOR_EQUAL_TIMESTAMP_LIMITATION,
+  MONITOR_STALE_REFRESH_LIMITATION,
+  MONITOR_TAXONOMY_UNVERIFIED_LIMITATION,
+  type SharedCategoryRefreshResult,
+} from "@/services/monitor/monitorCategoryRefresh";
+import {
+  classifyMonitorDatabaseError,
+  MonitorOperationError,
+} from "@/services/monitor/monitorErrors";
 import {
   mapMonitorJob,
   mapMonitorObservation,
@@ -33,12 +42,14 @@ import type {
   SharedPublicObservation,
 } from "@/services/monitor/monitorTypes";
 
-type PostgrestError = { code?: string; message?: string } | null;
+type PostgrestError = { code?: string; message?: string; details?: string } | null;
 type PostgrestResult = { data: unknown; error: PostgrestError };
 
 interface FilterBuilder extends PromiseLike<PostgrestResult> {
   select(columns: string): FilterBuilder;
   eq(column: string, value: string): FilterBuilder;
+  lte(column: string, value: string): FilterBuilder;
+  is(column: string, value: null): FilterBuilder;
   order(column: string, options: { ascending: boolean }): FilterBuilder;
   limit(count: number): FilterBuilder;
   maybeSingle(): Promise<PostgrestResult>;
@@ -58,13 +69,31 @@ type SupabaseLike = {
 };
 
 function raise(error: { code?: string; message?: string }): never {
-  if (error.code === "23505") {
-    throw new MonitorOperationError("ACTIVE_JOB_EXISTS");
+  throw classifyMonitorDatabaseError(error);
+}
+
+const RECONCILE_RPC = "reconcile_athena_monitor_source_categories";
+
+function isMissingReconcileRpc(error: { code?: string; message?: string }): boolean {
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  const message = error.message ?? "";
+  return message.includes(RECONCILE_RPC) && /does not exist|could not find the function/i.test(message);
+}
+
+function raiseReconcileError(error: { code?: string; message?: string }): never {
+  if (isMissingReconcileRpc(error)) {
+    throw new MonitorOperationError("PERSISTENCE_FAILED", "The request could not be saved.", {
+      rpc: RECONCILE_RPC,
+      reason: "missing_rpc",
+    });
   }
-  if (error.code === "23503") {
-    throw new MonitorOperationError("CROSS_ORGANIZATION");
+  if ((error.message ?? "").includes("monitor_source_missing")) {
+    throw new MonitorOperationError("UNSUPPORTED_SOURCE");
   }
-  throw new MonitorOperationError("PERSISTENCE_FAILED", error.message ?? "PERSISTENCE_FAILED");
+  if (error.code === "22023" || (error.message ?? "").includes("monitor_category_publication_invalid")) {
+    throw new MonitorOperationError("INVALID_CONFIGURATION", "The request could not be saved.");
+  }
+  throw classifyMonitorDatabaseError(error);
 }
 
 function flattenObservation(row: Record<string, unknown>): Record<string, unknown> {
@@ -104,9 +133,9 @@ async function listRows(query: FilterBuilder): Promise<Record<string, unknown>[]
   return Array.isArray(result.data) ? (result.data as Record<string, unknown>[]) : [];
 }
 
-export async function createSupabaseMonitorStore(): Promise<MonitorStore> {
-  const { supabaseAdmin } = await import("@/lib/supabaseAdmin");
-  const supabase = supabaseAdmin as unknown as SupabaseLike;
+export async function createSupabaseMonitorStore(client?: SupabaseLike): Promise<MonitorStore> {
+  const supabase =
+    client ?? ((await import("@/lib/supabaseAdmin")).supabaseAdmin as unknown as SupabaseLike);
 
   return {
     async insertMonitor(monitor: SavedMonitor) {
@@ -415,18 +444,45 @@ export async function createSupabaseMonitorStore(): Promise<MonitorStore> {
       return row ? mapSharedSource(row) : null;
     },
 
-    async saveSharedCategories(sourceId, categories: SharedMonitorCategory[]) {
-      const removed = await supabase.from("athena_monitor_source_categories").delete().eq("source_id", sourceId);
-      if (removed.error) raise(removed.error);
-      if (categories.length === 0) return [];
-      const inserted = await supabase
-        .from("athena_monitor_source_categories")
-        .insert(categories.map((category) => sharedCategoryToRow(category)))
-        .select("*");
-      if (inserted.error) raise(inserted.error);
-      return (Array.isArray(inserted.data) ? inserted.data : []).map((row) =>
-        mapSharedCategory(row as Record<string, unknown>),
-      );
+    async refreshSharedCategories(input) {
+      const published = await supabase.rpc(RECONCILE_RPC, {
+        p_source_id: input.sourceId,
+        p_discovered_at: input.discoveredAt,
+        p_authoritative: input.authoritativeTaxonomy,
+        p_categories: input.categories.map((category) => ({
+          categoryKey: category.categoryKey,
+          displayName: category.displayName,
+          canonicalUrl: category.canonicalUrl,
+          parentCategoryKey: category.parentCategoryKey,
+          discoveredAt: category.discoveredAt,
+          discoveryStatus: category.discoveryStatus,
+          productFamilyCount: category.productFamilyCount,
+          productFamilyCountBasis: category.productFamilyCountBasis,
+        })),
+      });
+      if (published.error) raiseReconcileError(published.error);
+      return reconcileResultFromRpc(published.data);
+    },
+
+    async readSharedDiscoverySnapshot(sourceId) {
+      const result = await supabase
+        .from("athena_monitor_sources")
+        .select("*, athena_monitor_source_categories(*)")
+        .eq("id", sourceId)
+        .maybeSingle();
+      if (result.error) raise(result.error);
+      const row = readMonitorRpcRow(result.data);
+      if (!row || !Array.isArray(row.athena_monitor_source_categories)) {
+        if (!row) return null;
+        throw new MonitorOperationError("PERSISTENCE_FAILED", "The request could not be saved.");
+      }
+      return {
+        source: mapSharedSource(row),
+        categories: row.athena_monitor_source_categories
+          .filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item))
+          .map((item) => mapSharedCategory(item))
+          .sort((left, right) => left.categoryKey.localeCompare(right.categoryKey)),
+      };
     },
 
     async listSharedCategories(sourceId) {
@@ -763,22 +819,66 @@ function mapSharedCategory(row: Record<string, unknown>): SharedMonitorCategory 
   };
 }
 
-function sharedCategoryToRow(category: SharedMonitorCategory): Record<string, unknown> {
+function reconcileResultFromRpc(data: unknown): SharedCategoryRefreshResult {
+  const payload = readJsonObject(data);
+  const outcome = payload?.outcome;
+  if (
+    !payload ||
+    (outcome !== "published" && outcome !== "stale" && outcome !== "empty" && outcome !== "already_published") ||
+    !Array.isArray(payload.categories)
+  ) {
+    throw new MonitorOperationError("PERSISTENCE_FAILED", "The request could not be saved.");
+  }
+  const categories = payload.categories.map((row) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) {
+      throw new MonitorOperationError("PERSISTENCE_FAILED", "The request could not be saved.");
+    }
+    return mapReconciledCategory(row as Record<string, unknown>);
+  });
+  const authoritative = outcome === "published" && payload.taxonomyCompleteness === "authoritative";
   return {
-    id: category.id,
-    source_id: category.sourceId,
-    category_key: category.categoryKey,
-    display_name: category.displayName,
-    canonical_url: category.canonicalUrl,
-    parent_category_id: category.parentCategoryId,
-    parent_category_key: category.parentCategoryKey,
-    discovered_at: category.discoveredAt,
-    discovery_status: category.discoveryStatus,
-    product_family_count: category.productFamilyCount,
-    product_family_count_basis: category.productFamilyCountBasis,
-    created_at: category.createdAt,
-    updated_at: category.updatedAt,
+    outcome,
+    categories,
+    taxonomyCompleteness: authoritative ? "authoritative" : "unverified",
+    absentCategoriesPreserved: outcome !== "published" || payload.absentCategoriesPreserved !== false,
+    freshnessAdvanced: outcome === "published" && payload.freshnessAdvanced === true,
+    limitation: authoritative
+      ? null
+      : outcome === "stale"
+        ? MONITOR_STALE_REFRESH_LIMITATION
+        : outcome === "already_published"
+          ? MONITOR_EQUAL_TIMESTAMP_LIMITATION
+          : MONITOR_TAXONOMY_UNVERIFIED_LIMITATION,
   };
+}
+
+function requiredText(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new MonitorOperationError("PERSISTENCE_FAILED", "The request could not be saved.");
+  }
+  return value;
+}
+
+function mapReconciledCategory(row: Record<string, unknown>): SharedMonitorCategory {
+  const status = row.discoveryStatus ?? row.discovery_status;
+  if (status !== "current" && status !== "removed" && status !== "partial") {
+    throw new MonitorOperationError("PERSISTENCE_FAILED", "The request could not be saved.");
+  }
+  return mapSharedCategory({
+    id: requiredText(row.id),
+    source_id: requiredText(row.sourceId ?? row.source_id),
+    category_key: requiredText(row.categoryKey ?? row.category_key),
+    display_name: requiredText(row.displayName ?? row.display_name),
+    canonical_url: requiredText(row.canonicalUrl ?? row.canonical_url),
+    parent_category_id: row.parentCategoryId ?? row.parent_category_id,
+    parent_category_key: row.parentCategoryKey ?? row.parent_category_key,
+    discovered_at: requiredText(row.discoveredAt ?? row.discovered_at),
+    discovery_status: status,
+    product_family_count: row.productFamilyCount ?? row.product_family_count,
+    product_family_count_basis: row.productFamilyCountBasis ?? row.product_family_count_basis,
+    created_at: requiredText(row.createdAt ?? row.created_at),
+    updated_at: requiredText(row.updatedAt ?? row.updated_at),
+  });
 }
 
 function mapPublicObservation(row: Record<string, unknown>): SharedPublicObservation {

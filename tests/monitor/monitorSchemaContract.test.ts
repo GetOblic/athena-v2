@@ -5,6 +5,7 @@
  */
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -13,7 +14,9 @@ import { readMonitorRpcInteger, readMonitorRpcRow } from "../../services/monitor
 
 const ROOT = process.cwd();
 const MIGRATION_NAME = "20261124000001_create_athena_monitors.sql";
+const RECONCILE_NAME = "20261126000001_reconcile_athena_monitor_source_categories.sql";
 const MIGRATION = `supabase/migrations/${MIGRATION_NAME}`;
+const ORIGINAL_MIGRATION_SHA256 = "6a4865a833a5f62f95ba1bb5d5feafc9fb0105dd29ff705341f152c99b8d6529";
 
 function read(relativePath: string): string {
   return readFileSync(join(ROOT, relativePath), "utf8");
@@ -29,8 +32,12 @@ describe("Monitor schema source contract — not a PostgreSQL runtime test", () 
     assert.doesNotMatch(sql, /\bdblink\b/i);
     assert.equal(process.env.MONITOR_RUN_POSTGRES, undefined);
     const names = readdirSync(join(ROOT, "supabase/migrations")).filter((name) => name.endsWith(".sql"));
-    assert.equal(names.filter((name) => name.includes("athena_monitor")).length, 1);
-    assert.ok(names.every((name) => name <= MIGRATION_NAME || name === MIGRATION_NAME));
+    assert.equal(names.filter((name) => name.includes("athena_monitor")).length, 2);
+    assert.deepEqual(names.filter((name) => name > MIGRATION_NAME), [RECONCILE_NAME]);
+    assert.equal(
+      createHash("sha256").update(readFileSync(join(ROOT, MIGRATION))).digest("hex"),
+      ORIGINAL_MIGRATION_SHA256,
+    );
   });
 
   it("keeps the private tables and adds shared website intelligence without client policies", () => {
@@ -135,5 +142,24 @@ describe("Monitor schema source contract — not a PostgreSQL runtime test", () 
     assert.equal(readMonitorRpcRow({ id: "job-1", status: "processing" })?.id, "job-1");
     assert.equal(readMonitorRpcInteger(null), null);
     assert.equal(readMonitorRpcInteger(2), 2);
+    assert.match(adapter, /reconcile_athena_monitor_source_categories/);
+    assert.doesNotMatch(adapter, /from\("athena_monitor_source_categories"\)[\s\S]{0,80}\.(insert|update|delete)\(/);
+  });
+
+  it("keeps the additive category publication function server-side", () => {
+    const sql = read(`supabase/migrations/${RECONCILE_NAME}`);
+    assert.match(sql, /reconcile_athena_monitor_source_categories/);
+    assert.match(sql, /for update/);
+    assert.match(sql, /security invoker/i);
+    assert.match(sql, /set search_path = pg_catalog, public/);
+    assert.match(sql, /revoke all on function public\.reconcile_athena_monitor_source_categories\(uuid, timestamptz, boolean, jsonb\) from public/);
+    assert.match(sql, /revoke all on function public\.reconcile_athena_monitor_source_categories\(uuid, timestamptz, boolean, jsonb\) from anon/);
+    assert.match(sql, /revoke all on function public\.reconcile_athena_monitor_source_categories\(uuid, timestamptz, boolean, jsonb\) from authenticated/);
+    assert.match(sql, /grant execute on function public\.reconcile_athena_monitor_source_categories\(uuid, timestamptz, boolean, jsonb\) to service_role/);
+    assert.doesNotMatch(sql, /\bdelete\s+from\b/i);
+    assert.doesNotMatch(sql, /\bdrop\s+table\b/i);
+    assert.doesNotMatch(sql, /organization_id/i);
+    assert.doesNotMatch(sql, /^\s*execute\s+/im);
+    assert.doesNotMatch(sql, /athena_monitors|athena_monitor_jobs|athena_monitor_observations|athena_monitor_discovery_coverage|athena_monitor_public_observations/);
   });
 });
