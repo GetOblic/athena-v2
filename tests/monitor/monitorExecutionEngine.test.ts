@@ -17,7 +17,7 @@ import { createMonitorResources } from "../../services/monitor/monitorHttp";
 import { MonitorOperationError } from "../../services/monitor/monitorErrors";
 import { productionAdapterFor } from "../../services/monitor/monitorRegistry";
 import { ATHENA_MONITOR_FRESHNESS, ATHENA_MONITOR_WORKER_DEFAULTS } from "../../services/monitor/monitorRuntime";
-import { discoverSolusquareCategories } from "../../services/monitor/solusquareAdapter";
+import { discoverSolusquareCategories, solusquareProductionAdapter } from "../../services/monitor/solusquareAdapter";
 import { sfraProductionAdapter } from "../../services/monitor/sfraAdapter";
 import type { MonitorPageFetch } from "../../services/monitor/monitorAdapter";
 import type { MonitorJob } from "../../services/monitor/monitorTypes";
@@ -728,5 +728,580 @@ describe("dedicated monitor execution", () => {
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(existsSync(path.join(ROOT, "dist/worker/athenaMonitorWorker.js")), true);
+  });
+});
+
+const CHEM = "https://www.toscane-boutique.fr/fr/chemisiers-tuniques-c-15.htm";
+
+function pantsPage(page: number): string {
+  return `https://www.toscane-boutique.fr/fr/pantalons-c-42-page-${page}.htm`;
+}
+
+function familyAnchor(id: string): string {
+  return `<a href="https://www.toscane-boutique.fr/fr/pantalons/modele-p-${id}-coul-1.htm">Modele ${id}</a>`;
+}
+
+function categoryHome(links: ReadonlyArray<{ href: string; name: string }>): string {
+  return `<nav><ul>${links.map((link) => `<li><a href="${link.href}">${link.name}</a></li>`).join("")}</ul></nav>`;
+}
+
+async function enumerateCategory(input: {
+  pages: (url: string) => { body: string; finalUrl?: string } | null;
+  resumeUrl?: string | null;
+  familyLimit?: number;
+  alreadySeen?: readonly string[];
+  canonicalUrl?: string;
+}): Promise<{
+  ok: boolean;
+  done?: boolean;
+  errorCode?: string;
+  resumeUrl?: string | null;
+  familyIds: string[];
+  urls: string[];
+}> {
+  const urls: string[] = [];
+  const canonicalUrl = input.canonicalUrl ?? PANTS;
+  const result = await solusquareProductionAdapter.enumerateScope({
+    scope: { kind: "category", canonicalUrl, categoryKey: "fr/pantalons-c-42.htm" },
+    registrableDomain: "toscane-boutique.fr",
+    fetchPage: async (request) => {
+      urls.push(request.url);
+      const page = input.pages(request.url);
+      if (!page) {
+        return { ok: false, finalUrl: request.url, status: 404, bodyText: null, errorCode: "HTTP_404" };
+      }
+      return { ok: true, finalUrl: page.finalUrl ?? request.url, status: 200, bodyText: page.body };
+    },
+    timeoutMs: 1000,
+    resumeUrl: input.resumeUrl ?? null,
+    familyLimit: input.familyLimit ?? 100,
+    alreadySeen: new Set(input.alreadySeen ?? []),
+  });
+  if (!result.ok) return { ok: false, familyIds: [], urls };
+  return {
+    ok: true,
+    done: result.value.done,
+    errorCode: result.value.errorCode,
+    resumeUrl: result.value.resumeUrl,
+    familyIds: result.value.families.map((family) => family.familyId),
+    urls,
+  };
+}
+
+describe("solusquare forward pagination", () => {
+  it("advances an unpaged category URL to the first forward page", async () => {
+    const next = `${pantsPage(2)}?sort=1`;
+    const listed = await enumerateCategory({
+      pages: (url) => {
+        if (url === PANTS) {
+          return {
+            body: `${familyAnchor("11")}
+              <a href="pantalons-c-42-page-1.htm#top">1</a>
+              <a href="pantalons-c-42-page-2.htm?sort=1#listing">2</a>
+              <a href="https://www.toscane-boutique.fr/fr/robes-c-7-page-2.htm">Robes</a>`,
+          };
+        }
+        if (url === next) {
+          return { body: `${familyAnchor("12")}<a href="${pantsPage(1)}">1</a>` };
+        }
+        return null;
+      },
+    });
+    assert.equal(listed.ok, true);
+    assert.deepEqual(listed.urls, [PANTS, next]);
+    assert.equal(new URL(listed.urls[1] ?? "").hash, "");
+    assert.deepEqual(listed.familyIds, ["11", "12"]);
+    assert.equal(listed.done, true);
+    assert.equal(listed.errorCode, undefined);
+  });
+
+  it("selects the forward page when the first numbered link points backward", async () => {
+    const listed = await enumerateCategory({
+      resumeUrl: pantsPage(5),
+      pages: (url) => {
+        if (url === pantsPage(5)) {
+          return {
+            body: `<a href="${pantsPage(1)}">1</a>
+              <a href="${pantsPage(4)}">4</a>
+              <a href="${pantsPage(7)}">7</a>
+              <a href="${pantsPage(6)}">6</a>
+              ${familyAnchor("51")}`,
+          };
+        }
+        if (url === pantsPage(6)) {
+          return { body: `<a href="${pantsPage(5)}">5</a>${familyAnchor("61")}` };
+        }
+        return null;
+      },
+    });
+    assert.deepEqual(listed.urls, [pantsPage(5), pantsPage(6)]);
+    assert.deepEqual(listed.familyIds, ["51", "61"]);
+    assert.equal(listed.done, true);
+  });
+
+  it("follows a valid rel=next link from an anchor or a link element", async () => {
+    const listed = await enumerateCategory({
+      pages: (url) => {
+        if (url === PANTS) {
+          return {
+            body: `<link rel="next" href="${pantsPage(2)}" />
+              <a href="${pantsPage(1)}">1</a>
+              ${familyAnchor("21")}`,
+          };
+        }
+        if (url === pantsPage(2)) {
+          return {
+            body: `<a rel="next" href="${pantsPage(3)}">Suivant</a>
+              <a href="${pantsPage(1)}">1</a>
+              ${familyAnchor("22")}`,
+          };
+        }
+        if (url === pantsPage(3)) {
+          return { body: `<a href="${pantsPage(2)}">2</a>${familyAnchor("23")}` };
+        }
+        return null;
+      },
+    });
+    assert.deepEqual(listed.urls, [PANTS, pantsPage(2), pantsPage(3)]);
+    assert.deepEqual(listed.familyIds, ["21", "22", "23"]);
+    assert.equal(listed.done, true);
+  });
+
+  it("does not loop when an explicit next link points backward", async () => {
+    const listed = await enumerateCategory({
+      pages: (url) => {
+        if (url === PANTS) {
+          return {
+            body: `<a rel="next" href="${pantsPage(1)}">Suivant</a>
+              <a href="${pantsPage(1)}">1</a>
+              <a href="${pantsPage(2)}">2</a>
+              ${familyAnchor("31")}`,
+          };
+        }
+        if (url === pantsPage(2)) {
+          return {
+            body: `<a rel="next" href="${PANTS}">Suivant</a>
+              <a href="${pantsPage(1)}">1</a>
+              <a href="${pantsPage(3)}">3</a>
+              ${familyAnchor("32")}`,
+          };
+        }
+        if (url === pantsPage(3)) {
+          return { body: `<a href="${pantsPage(1)}">1</a><a href="${pantsPage(2)}">2</a>${familyAnchor("33")}` };
+        }
+        return null;
+      },
+    });
+    assert.deepEqual(listed.urls, [PANTS, pantsPage(2), pantsPage(3)]);
+    assert.equal(listed.urls.includes(pantsPage(1)), false);
+    assert.deepEqual(listed.familyIds, ["31", "32", "33"]);
+    assert.equal(listed.done, true);
+    assert.ok(listed.urls.length < 10);
+  });
+
+  it("uses a numbered forward page when the explicit next link is invalid", async () => {
+    const listed = await enumerateCategory({
+      pages: (url) => {
+        if (url === PANTS) {
+          return {
+            body: `<a rel="next" href="${pantsPage(2)}?q=robe">Suivant</a>
+              <link rel="next" href="http://www.toscane-boutique.fr/fr/pantalons-c-42-page-2.htm" />
+              <a href="${pantsPage(1)}">1</a>
+              <a href="${pantsPage(2)}">2</a>
+              ${familyAnchor("41")}`,
+          };
+        }
+        if (url === pantsPage(2)) {
+          return { body: `${familyAnchor("42")}` };
+        }
+        return null;
+      },
+    });
+    assert.deepEqual(listed.urls, [PANTS, pantsPage(2)]);
+    assert.deepEqual(listed.familyIds, ["41", "42"]);
+    assert.equal(listed.done, true);
+  });
+
+  it("stops a self-referencing next URL without completing discovery", async () => {
+    const listed = await enumerateCategory({
+      pages: (url) => {
+        if (url !== PANTS) return null;
+        return {
+          body: `<a rel="next" href="${PANTS}#top">Suivant</a>${familyAnchor("61")}`,
+        };
+      },
+    });
+    assert.deepEqual(listed.urls, [PANTS]);
+    assert.equal(listed.done, false);
+    assert.equal(listed.errorCode, "PAGINATION_LOOP");
+    assert.equal(listed.resumeUrl, null);
+    assert.deepEqual(listed.familyIds, ["61"]);
+  });
+
+  it("detects a repeated listing URL before the safety bound", async () => {
+    const listed = await enumerateCategory({
+      pages: (url) => {
+        if (url === PANTS) {
+          return { body: `<a href="${pantsPage(2)}">2</a>${familyAnchor("71")}` };
+        }
+        if (url === pantsPage(2)) {
+          return { body: `<a rel="next" href="${pantsPage(3)}">3</a>${familyAnchor("72")}` };
+        }
+        if (url === pantsPage(3)) {
+          return { body: `<a rel="next" href="${pantsPage(4)}">4</a>${familyAnchor("73")}`, finalUrl: pantsPage(2) };
+        }
+        return null;
+      },
+    });
+    assert.deepEqual(listed.urls, [PANTS, pantsPage(2), pantsPage(3)]);
+    assert.equal(listed.done, false);
+    assert.equal(listed.errorCode, "PAGINATION_LOOP");
+    assert.ok(listed.urls.length < 500);
+    assert.deepEqual(listed.familyIds, ["71", "72"]);
+  });
+
+  it("rejects pagination that leaves the category or the authorized website", async () => {
+    const kept = await enumerateCategory({
+      pages: (url) => {
+        if (url === PANTS) {
+          return {
+            body: `<a rel="next" href="https://evil.example/fr/pantalons-c-42-page-2.htm">Suivant</a>
+              <a href="https://www.breal.net/fr/pantalons-c-42-page-2.htm">2</a>
+              <a href="https://www.toscane-boutique.fr/fr/robes-c-7-page-2.htm">Robes</a>
+              <a href="${pantsPage(2)}">2</a>
+              ${familyAnchor("81")}`,
+          };
+        }
+        if (url === pantsPage(2)) return { body: familyAnchor("82") };
+        return null;
+      },
+    });
+    assert.deepEqual(kept.urls, [PANTS, pantsPage(2)]);
+    assert.equal(kept.done, true);
+
+    const escaped = await enumerateCategory({
+      pages: (url) => {
+        if (url !== PANTS) return null;
+        return {
+          body: `<link rel="next" href="https://shop.toscane-boutique.fr/fr/pantalons-c-42-page-2.htm" />
+            <a href="${CHEM}">Chemisiers</a>
+            ${familyAnchor("83")}`,
+        };
+      },
+    });
+    assert.deepEqual(escaped.urls, [PANTS]);
+    assert.equal(escaped.done, false);
+    assert.equal(escaped.errorCode, "PAGINATION_LOOP");
+  });
+
+  it("completes a final page that still links to previous pages", async () => {
+    const listed = await enumerateCategory({
+      resumeUrl: pantsPage(4),
+      pages: (url) => {
+        if (url !== pantsPage(4)) return null;
+        return {
+          body: `<a href="${PANTS}">1</a><a href="${pantsPage(3)}">3</a>${familyAnchor("91")}`,
+        };
+      },
+    });
+    assert.deepEqual(listed.urls, [pantsPage(4)]);
+    assert.equal(listed.done, true);
+    assert.equal(listed.errorCode, undefined);
+    assert.deepEqual(listed.familyIds, ["91"]);
+  });
+
+  it("keeps going when an intermediate page repeats families that were already seen", async () => {
+    const listed = await enumerateCategory({
+      pages: (url) => {
+        if (url === PANTS) {
+          return { body: `${familyAnchor("101")}${familyAnchor("102")}<a href="${pantsPage(2)}">2</a>` };
+        }
+        if (url === pantsPage(2)) {
+          return { body: `${familyAnchor("101")}${familyAnchor("102")}<a href="${pantsPage(3)}">3</a>` };
+        }
+        if (url === pantsPage(3)) {
+          return { body: `${familyAnchor("101")}${familyAnchor("103")}<a href="${pantsPage(2)}">2</a>` };
+        }
+        return null;
+      },
+    });
+    assert.deepEqual(listed.urls, [PANTS, pantsPage(2), pantsPage(3)]);
+    assert.deepEqual(listed.familyIds, ["101", "102", "103"]);
+    assert.equal(listed.done, true);
+  });
+
+  it("resumes at the saved forward page after a worker batch boundary", async () => {
+    const clock = createClock();
+    const foundation = createFoundation({ plans: { [ORG_A]: "full" }, clock });
+    const urls: string[] = [];
+    const fetchPage: MonitorPageFetch = async (request) => {
+      urls.push(request.url);
+      const parsed = new URL(request.url);
+      if (parsed.pathname === "/") {
+        return {
+          ok: true,
+          finalUrl: request.url,
+          status: 200,
+          bodyText: categoryHome([{ href: PANTS, name: "Pantalons" }]),
+        };
+      }
+      if (request.url === PANTS) {
+        const links = Array.from({ length: 20 }, (_, index) => familyAnchor(String(1100 + index))).join("");
+        return {
+          ok: true,
+          finalUrl: request.url,
+          status: 200,
+          bodyText: `<a href="${pantsPage(1)}">1</a><a href="${pantsPage(2)}">2</a>${links}`,
+        };
+      }
+      if (request.url === pantsPage(2)) {
+        return {
+          ok: true,
+          finalUrl: request.url,
+          status: 200,
+          bodyText: `${familyAnchor("1120")}${familyAnchor("1121")}<a href="${pantsPage(1)}">1</a>`,
+        };
+      }
+      const family = parsed.pathname.match(/-p-(\d+)-coul-/);
+      if (family?.[1]) {
+        return { ok: true, finalUrl: request.url, status: 200, bodyText: productHtml(family[1], ["Noir", "Camel", "Marine", "Anthracite"]) };
+      }
+      return { ok: false, finalUrl: request.url, status: 404, bodyText: null, errorCode: "HTTP_404" };
+    };
+    const monitor = await foundation.service.createMonitor({
+      organizationId: ORG_A,
+      userId: null,
+      configuration: toscaneConfiguration({ selection: { mode: "categories", categoryUrls: [PANTS] } }),
+    });
+    await foundation.service.enqueueMonitorJob({ organizationId: ORG_A, monitorId: monitor.id });
+    const claimed = await foundation.service.claimNextMonitorJob();
+    assert.ok(claimed);
+    const yielded = await executeMonitorJob({
+      service: foundation.service,
+      store: foundation.store,
+      job: claimed.job,
+      fetchPage,
+      now: clock.now,
+    });
+    assert.equal(yielded.outcome, "yielded");
+    const cursor = yielded.job.executionCursor.sources.find((source) => source.sourceId === "toscane");
+    assert.equal(cursor?.phase, "discover");
+    assert.equal(cursor?.categoryUrl, pantsPage(2));
+    assert.equal(urls.filter((url) => url === PANTS).length, 1);
+    assert.equal(urls.includes(pantsPage(1)), false);
+    assert.equal(urls.includes(pantsPage(2)), false);
+    assert.equal(urls.some((url) => url.includes("-p-")), false);
+    const finished = await claimAndRun({
+      service: foundation.service,
+      store: foundation.store,
+      fetchPage,
+      now: clock.now,
+    });
+    assert.equal(finished.outcome, "completed");
+    assert.equal(urls.filter((url) => url === PANTS).length, 1);
+    assert.equal(urls.filter((url) => url === pantsPage(2)).length, 1);
+    const rows = await foundation.store.listObservations(ORG_A, finished.job.id);
+    assert.equal(rows.length, 22);
+    assert.equal(finished.job.sourceCoverage[0]?.discoveryStatus, "completed");
+  });
+
+  it("preserves incomplete coverage at the listing bound and does not retry it", async () => {
+    const clock = createClock();
+    const foundation = createFoundation({ plans: { [ORG_A]: "full" }, clock });
+    const urls: string[] = [];
+    const fetchPage: MonitorPageFetch = async (request) => {
+      urls.push(request.url);
+      const parsed = new URL(request.url);
+      if (parsed.pathname === "/") {
+        return {
+          ok: true,
+          finalUrl: request.url,
+          status: 200,
+          bodyText: categoryHome([{ href: PANTS, name: "Pantalons" }]),
+        };
+      }
+      const page = parsed.pathname.match(/pantalons-c-42(?:-page-(\d+))?\.htm$/);
+      if (!page) {
+        return { ok: false, finalUrl: request.url, status: 404, bodyText: null, errorCode: "HTTP_404" };
+      }
+      const current = page[1] ? Number(page[1]) : 1;
+      const previous = current > 1 ? `<a href="${pantsPage(current - 1)}">${current - 1}</a>` : "";
+      const product = current === 1 ? familyAnchor("501") : "";
+      return {
+        ok: true,
+        finalUrl: request.url,
+        status: 200,
+        bodyText: `${product}${previous}<a href="${pantsPage(1)}">1</a><a href="${pantsPage(current + 1)}">${current + 1}</a>`,
+      };
+    };
+    const monitor = await foundation.service.createMonitor({
+      organizationId: ORG_A,
+      userId: null,
+      configuration: toscaneConfiguration({ selection: { mode: "categories", categoryUrls: [PANTS] } }),
+    });
+    await foundation.service.enqueueMonitorJob({ organizationId: ORG_A, monitorId: monitor.id });
+    const finished = await claimAndRun({
+      service: foundation.service,
+      store: foundation.store,
+      fetchPage,
+      now: clock.now,
+      maxPasses: 2,
+    });
+    const listings = urls.filter((url) => url.includes("pantalons-c-42"));
+    assert.equal(listings.length, 500);
+    assert.equal(listings[0], PANTS);
+    assert.equal(listings.at(-1), pantsPage(500));
+    assert.equal(urls.some((url) => url.includes("page-501")), false);
+    assert.equal(finished.outcome, "partial");
+    assert.equal(finished.job.status, "partial");
+    assert.equal(finished.job.sourceCoverage[0]?.status, "partial");
+    assert.equal(finished.job.sourceCoverage[0]?.errorCode, "LISTING_BOUND");
+    assert.equal(finished.job.sourceCoverage[0]?.discoveryStatus, "partial");
+    assert.equal(finished.job.sourceCoverage[0]?.familiesDiscovered, 1);
+    const cursor = finished.job.executionCursor.sources.find((source) => source.sourceId === "toscane");
+    assert.equal(cursor?.categoryUrl, pantsPage(501));
+    assert.equal(cursor?.phase, "discover");
+    assert.equal(await foundation.service.claimNextMonitorJob(), null);
+    assert.equal(urls.filter((url) => url.includes("pantalons-c-42")).length, 500);
+    assert.equal(urls.some((url) => url.includes("-p-")), false);
+  });
+
+  it("does not extract a completed category while a selected sibling is partial", async () => {
+    const clock = createClock();
+    const foundation = createFoundation({ plans: { [ORG_A]: "full" }, clock });
+    const urls: string[] = [];
+    const fetchPage: MonitorPageFetch = async (request) => {
+      urls.push(request.url);
+      const parsed = new URL(request.url);
+      if (parsed.pathname === "/") {
+        return {
+          ok: true,
+          finalUrl: request.url,
+          status: 200,
+          bodyText: categoryHome([
+            { href: CHEM, name: "Chemisiers & Tuniques" },
+            { href: PANTS, name: "Pantalons" },
+          ]),
+        };
+      }
+      if (request.url === CHEM) {
+        return { ok: true, finalUrl: request.url, status: 200, bodyText: familyAnchor("601") };
+      }
+      if (request.url === PANTS) {
+        return {
+          ok: true,
+          finalUrl: request.url,
+          status: 200,
+          bodyText: `<a rel="next" href="${PANTS}#again">Suivant</a>${familyAnchor("602")}`,
+        };
+      }
+      return { ok: false, finalUrl: request.url, status: 404, bodyText: null, errorCode: "HTTP_404" };
+    };
+    const monitor = await foundation.service.createMonitor({
+      organizationId: ORG_A,
+      userId: null,
+      configuration: toscaneConfiguration({
+        selection: { mode: "categories", categoryUrls: [CHEM, PANTS] },
+      }),
+    });
+    await foundation.service.enqueueMonitorJob({ organizationId: ORG_A, monitorId: monitor.id });
+    const finished = await claimAndRun({
+      service: foundation.service,
+      store: foundation.store,
+      fetchPage,
+      now: clock.now,
+    });
+    assert.equal(finished.outcome, "partial");
+    assert.equal(finished.job.status, "partial");
+    assert.equal(finished.job.sourceCoverage[0]?.discoveryStatus, "partial");
+    assert.equal(finished.job.sourceCoverage[0]?.errorCode, "PAGINATION_LOOP");
+    const cursor = finished.job.executionCursor.sources.find((source) => source.sourceId === "toscane");
+    assert.equal(cursor?.phase, "discover");
+    assert.equal(urls.includes(CHEM), true);
+    assert.equal(urls.includes(PANTS), true);
+    assert.equal(urls.some((url) => url.includes("-p-")), false);
+    assert.equal((await foundation.store.listObservations(ORG_A, finished.job.id)).length, 0);
+    assert.equal(await foundation.service.claimNextMonitorJob(), null);
+  });
+
+  it("reaches extraction for the two-category listing that previously stopped on a backward pager", async () => {
+    const clock = createClock();
+    const foundation = createFoundation({ plans: { [ORG_A]: "full" }, clock });
+    const urls: string[] = [];
+    const fetchPage: MonitorPageFetch = async (request) => {
+      urls.push(request.url);
+      const parsed = new URL(request.url);
+      if (parsed.pathname === "/") {
+        return {
+          ok: true,
+          finalUrl: request.url,
+          status: 200,
+          bodyText: categoryHome([
+            { href: CHEM, name: "Chemisiers & Tuniques" },
+            { href: PANTS, name: "Pantalons" },
+          ]),
+        };
+      }
+      if (request.url === CHEM) {
+        return {
+          ok: true,
+          finalUrl: request.url,
+          status: 200,
+          bodyText: `${familyAnchor("701")}${familyAnchor("702")}`,
+        };
+      }
+      if (request.url === PANTS) {
+        return {
+          ok: true,
+          finalUrl: request.url,
+          status: 200,
+          bodyText: `${familyAnchor("703")}<a href="${pantsPage(1)}">1</a><a href="${pantsPage(2)}">2</a>`,
+        };
+      }
+      if (request.url === pantsPage(2)) {
+        return {
+          ok: true,
+          finalUrl: request.url,
+          status: 200,
+          bodyText: `${familyAnchor("704")}<a href="${pantsPage(1)}">1</a><a href="${pantsPage(2)}">2</a><a href="${pantsPage(3)}">3</a>`,
+        };
+      }
+      if (request.url === pantsPage(3)) {
+        return {
+          ok: true,
+          finalUrl: request.url,
+          status: 200,
+          bodyText: `${familyAnchor("705")}<a href="${pantsPage(1)}">1</a><a href="${pantsPage(2)}">2</a>`,
+        };
+      }
+      const family = parsed.pathname.match(/-p-(\d+)-coul-/);
+      if (family?.[1]) {
+        return { ok: true, finalUrl: request.url, status: 200, bodyText: productHtml(family[1], ["Noir", "Camel", "Marine", "Anthracite"]) };
+      }
+      return { ok: false, finalUrl: request.url, status: 404, bodyText: null, errorCode: "HTTP_404" };
+    };
+    const monitor = await foundation.service.createMonitor({
+      organizationId: ORG_A,
+      userId: null,
+      configuration: toscaneConfiguration({
+        selection: { mode: "categories", categoryUrls: [CHEM, PANTS] },
+      }),
+    });
+    await foundation.service.enqueueMonitorJob({ organizationId: ORG_A, monitorId: monitor.id });
+    const finished = await claimAndRun({
+      service: foundation.service,
+      store: foundation.store,
+      fetchPage,
+      now: clock.now,
+    });
+    assert.equal(finished.outcome, "completed");
+    assert.equal(finished.job.status, "completed");
+    assert.equal(finished.job.sourceCoverage[0]?.discoveryStatus, "completed");
+    assert.equal(urls.includes(pantsPage(1)), false);
+    assert.equal(urls.includes(pantsPage(2)), true);
+    assert.equal(urls.includes(pantsPage(3)), true);
+    assert.equal(urls.filter((url) => url.includes("-p-")).length, 5);
+    const rows = await foundation.store.listObservations(ORG_A, finished.job.id);
+    assert.deepEqual(rows.map((row) => row.familyId).sort(), ["701", "702", "703", "704", "705"]);
   });
 });

@@ -16,15 +16,29 @@ import type {
   MonitorPageFetch,
   MonitorProductionAdapter,
 } from "@/services/monitor/monitorAdapter";
-import { isHardDeniedMonitorUrl } from "@/services/monitor/monitorSources";
+import { hostMatchesRegistrableDomain, isHardDeniedMonitorUrl } from "@/services/monitor/monitorSources";
 import { categoryKeyFromUrl } from "@/services/monitor/monitorWebsiteIdentity";
 import { MONITOR_ADAPTER_VERSION } from "@/services/monitor/monitorTypes";
 import { parseSolusquareProduct, prodIdFromSolusquareUrl } from "@/services/monitor/solusquareProduct";
 
 const SOLUSQUARE_CATEGORY = /-c-\d+\.htm$/i;
 const SOLUSQUARE_PAGE = /-page-\d+\.htm$/i;
+const LISTING_PATH = /^(.*-c-\d+)(?:-page-(\d+))?\.htm$/i;
+/**
+ * Hard safety backstop. Do not raise it to conceal a pagination cycle.
+ * A reached bound stays incomplete and keeps a forward resume URL when one exists.
+ */
 const MAX_LISTING_PAGES = 500;
 const MAX_SITEMAPS = 20;
+/**
+ * Contradictory listing pagination: a self-link, a repeated URL, a backward move,
+ * or an explicit next link that is not a forward page of this category.
+ * Source coverage stores the code. The jobs error_code check already accepts this
+ * shape, and Monitor presentation does not translate listing diagnostics, so no
+ * schema or UI change is required. done:false with this code leaves coverage
+ * incomplete; partial coverage is not an open phase, so the worker does not retry.
+ */
+const PAGINATION_LOOP = "PAGINATION_LOOP";
 
 const IRRELEVANT =
   /cadeau|gift|panier|compte|connexion|login|search|recherche|blog|magazine|newsletter|wishlist|favori|accueil|home/i;
@@ -126,17 +140,103 @@ function productLinks(html: string, pageUrl: string): string[] {
   return links;
 }
 
-function nextListingUrl(html: string, pageUrl: string): string | null {
+type ListingLocation = {
+  href: string;
+  key: string;
+  host: string;
+  stem: string;
+  page: number;
+};
+
+type ListingStep =
+  | { kind: "forward"; url: string; key: string; page: number }
+  | { kind: "complete" }
+  | { kind: "anomaly" };
+
+function listingLocation(raw: string, baseUrl: string, registrableDomain: string): ListingLocation | null {
+  const absolute = absoluteUrl(raw, baseUrl);
+  if (!absolute) return null;
+  let url: URL;
+  try {
+    url = new URL(absolute);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  if (!hostMatchesRegistrableDomain(host, registrableDomain)) return null;
+  let pathname = "";
+  try {
+    pathname = decodeURIComponent(url.pathname);
+  } catch {
+    return null;
+  }
+  const match = pathname.match(LISTING_PATH);
+  const stem = match?.[1]?.toLowerCase();
+  if (!stem || /-cl-\d+\.htm$/i.test(pathname)) return null;
+  let page = 1;
+  if (match?.[2]) {
+    if (!/^[1-9]\d*$/.test(match[2])) return null;
+    page = Number(match[2]);
+    if (!Number.isSafeInteger(page) || page < 1) return null;
+  }
+  return { href: absolute, key: `${host}|${stem}|${page}`, host, stem, page };
+}
+
+function sameListing(candidate: ListingLocation, origin: ListingLocation): boolean {
+  return candidate.host === origin.host && candidate.stem === origin.stem;
+}
+
+/**
+ * The next page is the lowest numbered listing page strictly after the current one.
+ * An explicit rel=next link is accepted only when it passes that forward check.
+ * A closer numbered page wins over an explicit link that would skip it.
+ * Previous-page links alone are a legitimate final page.
+ * An explicit next link that is not forward, with no forward candidate, is an anomaly.
+ */
+function decideNextListing(
+  html: string,
+  pageUrl: string,
+  registrableDomain: string,
+  origin: ListingLocation,
+): ListingStep {
+  const current = listingLocation(pageUrl, pageUrl, registrableDomain);
+  if (!current || !sameListing(current, origin)) return { kind: "anomaly" };
   const $ = cheerio.load(html);
-  const href =
-    $("a[rel='next']").attr("href") ??
-    $("link[rel='next']").attr("href") ??
-    $("a[href*='-page-']").first().attr("href") ??
-    null;
-  if (!href) return null;
-  const absolute = absoluteUrl(href, pageUrl);
-  if (!absolute || absolute === pageUrl) return null;
-  return absolute;
+  const selected: { page: ListingLocation | null } = { page: null };
+  let explicitInvalid = false;
+  const consider = (candidate: ListingLocation | null): boolean => {
+    if (!candidate || !sameListing(candidate, origin) || candidate.page <= current.page) return false;
+    if (!selected.page || candidate.page < selected.page.page) selected.page = candidate;
+    return true;
+  };
+  const collectExplicit = (selector: string) => {
+    $(selector).each((_, element) => {
+      const rel = ($(element).attr("rel") ?? "").toLowerCase().split(/\s+/);
+      if (!rel.includes("next")) return;
+      const href = ($(element).attr("href") ?? "").trim();
+      if (!consider(href ? listingLocation(href, pageUrl, registrableDomain) : null)) {
+        explicitInvalid = true;
+      }
+    });
+  };
+  collectExplicit("a[rel]");
+  collectExplicit("link[rel]");
+  $("a[href]").each((_, element) => {
+    const href = $(element).attr("href");
+    if (!href || !/-page-\d+\.htm/i.test(href)) return;
+    consider(listingLocation(href, pageUrl, registrableDomain));
+  });
+  const chosen = selected.page;
+  if (chosen) return { kind: "forward", url: chosen.href, key: chosen.key, page: chosen.page };
+  if (explicitInvalid) return { kind: "anomaly" };
+  return { kind: "complete" };
+}
+
+function paginationLoop(families: MonitorAdapterFamilyRef[]): MonitorAdapterResult<MonitorEnumerationValue> {
+  return {
+    ok: true,
+    value: { families, done: false, resumeUrl: null, errorCode: PAGINATION_LOOP },
+  };
 }
 
 function familiesFromUrls(
@@ -174,12 +274,20 @@ async function readListing(input: {
 }): Promise<MonitorAdapterResult<MonitorEnumerationValue>> {
   const families: MonitorAdapterFamilyRef[] = [];
   const seen = new Set(input.alreadySeen);
+  const origin = listingLocation(input.startUrl, input.startUrl, input.registrableDomain);
+  if (!origin) return paginationLoop(families);
   let url = input.resumeUrl ?? input.startUrl;
+  const visited = new Set<string>();
   let pages = 0;
   while (url && families.length < input.familyLimit && pages < MAX_LISTING_PAGES) {
     if (input.signal?.aborted) return blocked("The listing request was aborted.");
+    const requested = listingLocation(url, origin.href, input.registrableDomain);
+    if (!requested || !sameListing(requested, origin) || visited.has(requested.key)) {
+      return paginationLoop(families);
+    }
+    visited.add(requested.key);
     const page = await input.fetchPage({
-      url,
+      url: requested.href,
       registrableDomain: input.registrableDomain,
       timeoutMs: input.timeoutMs,
       signal: input.signal,
@@ -190,46 +298,59 @@ async function readListing(input: {
         value: {
           families,
           done: false,
-          resumeUrl: url,
+          resumeUrl: requested.href,
           errorCode: page.errorCode ?? "FETCH_FAILED",
         },
       };
     }
-    const links = productLinks(page.bodyText, page.finalUrl);
+    const landed = listingLocation(page.finalUrl, page.finalUrl, input.registrableDomain);
+    if (
+      !landed ||
+      !sameListing(landed, origin) ||
+      landed.page < requested.page ||
+      (landed.key !== requested.key && visited.has(landed.key))
+    ) {
+      return paginationLoop(families);
+    }
+    if (landed.key !== requested.key) visited.add(landed.key);
+    const links = productLinks(page.bodyText, landed.href);
     const batch = familiesFromUrls(links, input.categoryKey, seen, input.familyLimit - families.length);
     for (const family of batch.families) {
       seen.add(family.familyId);
       families.push(family);
     }
+    const decision = decideNextListing(page.bodyText, landed.href, input.registrableDomain, origin);
+    const forward =
+      decision.kind === "forward" && decision.page > landed.page && !visited.has(decision.key)
+        ? decision
+        : null;
+    const moreOnPage = links.some((link) => {
+      const familyId = prodIdFromSolusquareUrl(link);
+      return familyId != null && !seen.has(familyId);
+    });
     if (families.length >= input.familyLimit) {
-      const moreOnPage = links.some((link) => {
-        const familyId = prodIdFromSolusquareUrl(link);
-        return familyId != null && !seen.has(familyId);
-      });
-      const next = nextListingUrl(page.bodyText, page.finalUrl);
-      if (!moreOnPage && !next) {
+      if (moreOnPage) {
+        return { ok: true, value: { families, done: false, resumeUrl: landed.href } };
+      }
+      if (forward) {
+        return { ok: true, value: { families, done: false, resumeUrl: forward.url } };
+      }
+      if (decision.kind === "complete") {
         return { ok: true, value: { families, done: true, resumeUrl: null } };
       }
-      return {
-        ok: true,
-        value: {
-          families,
-          done: false,
-          resumeUrl: moreOnPage ? page.finalUrl : next,
-        },
-      };
+      return paginationLoop(families);
     }
-    const next = nextListingUrl(page.bodyText, page.finalUrl);
-    if (!next) {
+    if (decision.kind === "complete") {
       return { ok: true, value: { families, done: true, resumeUrl: null } };
     }
-    url = next;
+    if (!forward) return paginationLoop(families);
+    url = forward.url;
     pages += 1;
   }
-  if (pages >= MAX_LISTING_PAGES) {
+  if (pages >= MAX_LISTING_PAGES && url) {
     return {
       ok: true,
-      value: { families, done: false, resumeUrl: null, errorCode: "LISTING_BOUND" },
+      value: { families, done: false, resumeUrl: url, errorCode: "LISTING_BOUND" },
     };
   }
   return { ok: true, value: { families, done: true, resumeUrl: null } };
