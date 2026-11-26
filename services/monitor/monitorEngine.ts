@@ -7,8 +7,10 @@
 import { matchMonitorCriterion } from "@/services/monitor/monitorCriterion";
 import { MonitorOperationError } from "@/services/monitor/monitorErrors";
 import {
+  classifyDiscoveryContinuation,
   completedSourceIsAccounted,
   deriveMonitorTerminalStatus,
+  monitorExecutionFreshnessCutoff,
   type MonitorBatchPlan,
 } from "@/services/monitor/monitorExecution";
 import type { MonitorResourceTracker } from "@/services/monitor/monitorHttp";
@@ -145,6 +147,28 @@ function scopesFor(selection: MonitorSelection, categories: readonly SharedMonit
   });
 }
 
+function continuationFamilyIds(input: {
+  latest: SharedDiscoveryCoverage | null;
+  forceFresh: boolean;
+  freshRequestedAt: string | null;
+  cursor: MonitorExecutionCursorSource;
+  scopeKey: string;
+}): string[] {
+  const fromCurrentPartial =
+    input.latest?.status === "partial" &&
+    (!input.forceFresh ||
+      (input.freshRequestedAt != null &&
+        Date.parse(input.latest.discoveredAt) >= Date.parse(input.freshRequestedAt)))
+      ? input.latest.familyIds
+      : [];
+  if (!input.forceFresh) return fromCurrentPartial;
+  const fromCursor = Object.entries(input.cursor.familyCategories ?? {})
+    .filter(([, keys]) => keys.includes(input.scopeKey))
+    .map(([familyId]) => familyId);
+  const fromWholeCatalog = input.scopeKey === "whole_catalog" ? Object.keys(input.cursor.familyUrls ?? {}) : [];
+  return [...new Set([...fromCurrentPartial, ...fromCursor, ...fromWholeCatalog])];
+}
+
 function rememberFamilies(
   cursor: MonitorExecutionCursorSource,
   families: Array<{ familyId: string; productUrl: string; categoryKey: string | null }>,
@@ -175,7 +199,7 @@ export async function executeMonitorJob(input: {
   const now = input.now ?? (() => new Date());
   const shouldStop = input.shouldStop ?? (() => false);
   const forceFresh = input.forceFresh === true;
-  const freshRequestedAt = forceFresh ? now().toISOString() : null;
+  const freshRequestedAt = monitorExecutionFreshnessCutoff(input.job, forceFresh);
   let job = input.job;
   let consumed = 0;
   let spins = 0;
@@ -545,7 +569,13 @@ async function discoverSource(
 
   const adapter = productionAdapterFor(configured.sourceId);
   if (!adapter) return { job: input.job, consumed: 0, outcome: "continue" };
-  const priorIds = !input.forceFresh && latest?.status === "partial" ? latest.familyIds : [];
+  const priorIds = continuationFamilyIds({
+    latest,
+    forceFresh: input.forceFresh,
+    freshRequestedAt: input.freshRequestedAt,
+    cursor,
+    scopeKey: scope.key,
+  });
   const signal = input.resources?.signalForRequest();
   try {
     const enumerated = await adapter.enumerateScope({
@@ -570,6 +600,41 @@ async function discoverSource(
           status: enumerated.code === "access_blocked" ? "blocked" : "failed",
           errorCode: enumerated.code === "access_blocked" ? "PRODUCTION_ACCESS_BLOCKED" : "DISCOVERY_FAILED",
           discoveryStatus: enumerated.code === "access_blocked" ? null : "failed",
+        },
+        cursor,
+        "discover",
+      );
+      return { job, consumed: 0, outcome: "continue" };
+    }
+    const continuation = classifyDiscoveryContinuation({
+      accumulatedFamilyIds: priorIds,
+      returnedFamilyIds: enumerated.value.families.map((family) => family.familyId),
+      previousResumeUrl: cursor.categoryUrl,
+      nextResumeUrl: enumerated.value.resumeUrl,
+      done: enumerated.value.done,
+      errorCode: enumerated.value.errorCode ?? null,
+    });
+    if (continuation === "no_progress") {
+      const current = input.job.sourceCoverage.find((source) => source.sourceId === configured.sourceId);
+      const ownPartial =
+        latest?.status === "partial" &&
+        (!input.forceFresh ||
+          (input.freshRequestedAt != null &&
+            Date.parse(latest.discoveredAt) >= Date.parse(input.freshRequestedAt)))
+          ? latest
+          : null;
+      const job = await writeSource(
+        input,
+        input.job,
+        configured.sourceId,
+        {
+          status: priorIds.length > 0 ? "partial" : "failed",
+          errorCode: "PAGINATION_LOOP",
+          discoveryStatus: priorIds.length > 0 ? "partial" : "failed",
+          discoveryCoverageId: ownPartial?.id ?? current?.discoveryCoverageId ?? null,
+          discoveryScopeKey: scopeKeyFor(configured.selection),
+          discoveredAt: ownPartial?.discoveredAt ?? current?.discoveredAt ?? null,
+          familiesDiscovered: Object.keys(cursor.familyUrls ?? {}).length,
         },
         cursor,
         "discover",

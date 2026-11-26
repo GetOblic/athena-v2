@@ -181,6 +181,44 @@ export function buildInitialSourceCoverage(
   });
 }
 
+/**
+ * Force-fresh freshness is fixed to the execution start.
+ * A later claim or batch must not move it, or this execution's own
+ * coverage and observations fall behind the cutoff.
+ */
+export function monitorExecutionFreshnessCutoff(
+  job: Pick<MonitorJob, "startedAt" | "createdAt">,
+  forceFresh: boolean,
+): string | null {
+  if (!forceFresh) return null;
+  return job.startedAt ?? job.createdAt;
+}
+
+export type DiscoveryContinuationKind = "same_page" | "forward" | "complete" | "no_progress";
+
+/**
+ * Same-page continuation adds families without moving the resume URL.
+ * Forward pagination moves the resume URL.
+ * A repeated resume URL with no new family is not progress.
+ */
+export function classifyDiscoveryContinuation(input: {
+  accumulatedFamilyIds: readonly string[];
+  returnedFamilyIds: readonly string[];
+  previousResumeUrl: string | null;
+  nextResumeUrl: string | null;
+  done: boolean;
+  errorCode?: string | null;
+}): DiscoveryContinuationKind {
+  if (input.done) return "complete";
+  if (input.errorCode) return "forward";
+  const known = new Set(input.accumulatedFamilyIds);
+  const added = input.returnedFamilyIds.some((familyId) => !known.has(familyId));
+  const sameResume = (input.nextResumeUrl ?? null) === (input.previousResumeUrl ?? null);
+  if (!added && sameResume) return "no_progress";
+  if (added && sameResume) return "same_page";
+  return "forward";
+}
+
 export function buildInitialCursor(
   configuration: MonitorConfiguration,
 ): MonitorExecutionCursor {
